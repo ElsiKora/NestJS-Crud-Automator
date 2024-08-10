@@ -1,0 +1,64 @@
+{
+  "name": "@elsikora/nestjs-crud-automator",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/mjs/index.d.ts",
+        "default": "./dist/mjs/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ElsiKora/NestJS-Crud-Automator"
+  },
+  "keywords": [
+    "NestJS",
+    "CRUD",
+    "TypeORM",
+    "REST API",
+    "Swagger",
+    "Decorator"
+  ],
+  "scripts": {
+    "format": "prettier --write \"src/**/*.ts\" \"src/**/*.json\" \".github/**/*.yml\"",
+    "lint": "eslint ./src --ext .ts,.tsx,.json,.yml --fix; eslint ./*.json --fix",
+    "build": "npm run prebuild && tsc -p tsconfig.build.json",
+    "patch": "changeset",
+    "prebuild": "rm -rf dist/*",
+    "release": "npm install && npm run build && changeset publish"
+  },
+  "author": "ElsiKora",
+  "license": "MIT",
+  "description": "A library for automating the creation of CRUD operations in NestJS.",
+  "peerDependencies": {
+    "@nestjs/common": ">=10.3.10",
+    "@nestjs/core": ">=10.3.10",
+    "@nestjs/platform-fastify": ">=10.3.10",
+    "@nestjs/swagger": ">=7.4.0",
+    "@nestjs/throttler": ">=6.0.0",
+    "class-transformer": ">=0.5.1",
+    "class-validator": ">=0.14.1",
+    "fastify": ">=4.28.1",
+    "lodash": ">=4.17.21",
+    "typeorm": ">=0.3.20"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.17.7",
+    "@types/node": "^22.1.0",
+    "typescript": "^5.5.4",
+    "@changesets/cli": "^2.27.7"
+  }
+}

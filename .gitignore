@@ -1,0 +1,117 @@
+# Compiled output
+/dist/
+/node_modules/
+
+# Dependency directories
+jspm_packages/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Error logs
+*.log.*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Tests
+/coverage/
+/.nyc_output/
+
+# IDEs and editors
+/.idea/
+/.vscode/
+*.sublime-workspace
+*.sublime-project
+/.atom/
+/.emacs.d/
+/.ensime_cache/
+/.nvim/
+/.c9/
+*.launch
+.settings/
+.project
+.classpath
+*.iml
+*.ipr
+*.iws
+.idea_modules/
+
+# IDE - Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
+
+# Misc
+*.swp
+*.swo
+*.swn
+*.lock
+*.lock-wscript
+*.DS_Store
+*.retry
+*.dccache
+reaper.pid
+
+# Dependency lock files
+/package-lock.json
+/yarn.lock
+/pnpm-lock.yaml
+/bun.lockb
+# ignore all .lock-wscript files
+
+# Misc
+*.pid
+*.pid.lock
+*.seed
+*.pid.db
+
+# System Files
+.husky/
+
+# PM2
+.pm2/
+ecosystem.config.js
+
+# Next.js
+.next/
+out/
+
+# Nuxt.js
+.nuxt/
+dist/
+
+# VuePress
+.vuepress/dist/
+
+# Serverless architectures
+.serverless/
+
+# Firebase
+.firebase/
