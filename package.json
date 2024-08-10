@@ -2,18 +2,6 @@
   "name": "@elsikora/nestjs-crud-automator",
   "version": "1.0.0",
   "main": "dist/index.js",
-  "exports": {
-    ".": {
-      "import": {
-        "types": "./dist/mjs/index.d.ts",
-        "default": "./dist/mjs/index.js"
-      },
-      "require": {
-        "types": "./dist/cjs/index.d.ts",
-        "default": "./dist/cjs/index.js"
-      }
-    }
-  },
   "files": [
     "dist"
   ],
