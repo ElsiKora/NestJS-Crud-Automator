@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.1.2
+
+### Patch Changes
+
+- 58e2e3b: Test
+
 ## 1.1.1
 
 ### Patch Changes
