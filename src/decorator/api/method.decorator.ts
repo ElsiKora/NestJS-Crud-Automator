@@ -1,16 +1,16 @@
-import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod } from "@nestjs/common";
-import { ApiBadRequestResponse, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
+import { applyDecorators, Delete, Get, HttpCode, Patch, Post, Put, RequestMethod } from "@nestjs/common";
+import { ApiOperation, ApiResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 
 import { EApiAction } from "../../enum";
 import type { IApiBaseEntity, IApiMethodProperties } from "../../interface";
-import { ExceptionBadRequestDTO } from "../../dto/exception/bad-request.dto";
+//import { ExceptionBadRequestDTO } from "../../dto/exception/bad-request.dto";
 
-import { ExceptionForbiddenDTO } from "../../dto/exception/forbidden.dto";
+/*import { ExceptionForbiddenDTO } from "../../dto/exception/forbidden.dto";
 import { ExceptionInternalServerErrorDTO } from "../../dto/exception/internal-server-error.dto";
 import { ExceptionNotFoundDTO } from "../../dto/exception/not-found.dto";
 import { ExceptionTooManyRequestsDTO } from "../../dto/exception/too-many-requests.dto";
-import { ExceptionUnauthorizedDTO } from "../../dto/exception/unauthorized.dto";
+import { ExceptionUnauthorizedDTO } from "../../dto/exception/unauthorized.dto";*/
 
 export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y> | undefined) => void {
 	let summary: string = "";
@@ -181,7 +181,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 		decorators.push(Throttle({ default: options.throttler }));
 	}
 
-	if (options.responses) {
+	/*if (options.responses) {
 		if (options.responses.unauthorized) {
 			decorators.push(
 				ApiUnauthorizedResponse({
@@ -241,7 +241,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 				}),
 			);
 		}
-	}
+	}*/
 
 	switch (options.method) {
 		case RequestMethod.GET: {

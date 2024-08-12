@@ -4,11 +4,11 @@ import { Like } from "typeorm";
 import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { ErrorString } from "../../../utility";
 import { EErrorStringAction } from "../../../enum";
-import {TApiFunctionGetProperties} from "../../../type/api/function/get-properties.type";
+import {TApiFunctionGetProperties} from "../../../type";
 
 async function executor<E extends BaseEntity>(repository: Repository<E>, model: new () => E, filter: FindOneOptions<E>): Promise<E> {
+   console.log("FILTER", filter);
     try {
-        console.log("FILTER", filter);
         const item: E | null = await repository.findOne(filter);
 
         if (!item) {
@@ -17,12 +17,11 @@ async function executor<E extends BaseEntity>(repository: Repository<E>, model: 
 
         return item;
     } catch (error) {
-        console.log("PISKO", error, error instanceof HttpException);
+        console.log("FUCKIGH", error);
         if (error instanceof HttpException) {
             throw error;
         }
 
-        console.log("A TYT CHE ZABYL");
         throw new InternalServerErrorException(
             ErrorString({
                 entity: model,
@@ -70,7 +69,6 @@ export function ApiFunctionGet<E extends BaseEntity>(options: { model: new () =>
             return executor(repository, options.model, filter);
         };
 
-        console.log("DESC", descriptor);
         return descriptor;
     };
 }

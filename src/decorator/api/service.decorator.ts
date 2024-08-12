@@ -3,8 +3,9 @@ import {BaseEntity, EntityTarget, FindOptionsRelations} from "typeorm";
 import { IApiGetListResponseResult } from "../../interface";
 import { EApiFunctionType } from "../../enum";
 import { ApiFunction } from "./function";
-import {TApiFunctionGetListProperties} from "../../type";
+import {TApiFunctionCreateProperties, TApiFunctionGetListProperties} from "../../type";
 import {TApiFunctionGetProperties} from "../../type/api/function/get-properties.type";
+import {TApiFunctionUpdateProperties} from "../../type/api/function/update-properties.type";
 
 const API_SERVICE_METADATA_KEY = Symbol('ApiServiceMetadata');
 
@@ -69,6 +70,98 @@ export function ApiService<E extends BaseEntity>(options: { entity: EntityTarget
 						configurable: true
 					});
 				}
+
+				if (!this.hasOwnProperty(EApiFunctionType.CREATE)) {
+					Object.defineProperty(this, EApiFunctionType.CREATE, {
+						value: async function (properties: TApiFunctionCreateProperties<E>): Promise<E> {
+							const apiFunctionDecorator = ApiFunction({
+								model: options.entity as new () => BaseEntity,
+								type: EApiFunctionType.CREATE,
+								relations: options.relations,
+							});
+
+							const descriptor = {
+								value: function () {},
+								writable: true,
+								enumerable: true,
+								configurable: true,
+							};
+
+							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(
+								this,
+								EApiFunctionType.CREATE,
+								descriptor
+							);
+
+							return decoratedDescriptor.value.apply(this, [properties]);
+						},
+						writable: true,
+						enumerable: true,
+						configurable: true,
+					});
+				}
+
+				if (!this.hasOwnProperty(EApiFunctionType.UPDATE)) {
+					Object.defineProperty(this, EApiFunctionType.UPDATE, {
+						value: async function (
+							id: string,
+							properties: TApiFunctionUpdateProperties<E>
+						): Promise<E> {
+							const apiFunctionDecorator = ApiFunction({
+								model: options.entity as new () => BaseEntity,
+								type: EApiFunctionType.UPDATE,
+								relations: options.relations,
+							});
+
+							const descriptor = {
+								value: function () {},
+								writable: true,
+								enumerable: true,
+								configurable: true,
+							};
+
+							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(
+								this,
+								EApiFunctionType.UPDATE,
+								descriptor
+							);
+
+							return decoratedDescriptor.value.apply(this, [id, properties]);
+						},
+						writable: true,
+						enumerable: true,
+						configurable: true,
+					});
+				}
+
+				if (!this.hasOwnProperty(EApiFunctionType.DELETE)) {
+					Object.defineProperty(this, EApiFunctionType.DELETE, {
+						value: async function (id: string): Promise<void> {
+							const apiFunctionDecorator = ApiFunction({
+								model: options.entity as new () => BaseEntity,
+								type: EApiFunctionType.DELETE,
+							});
+
+							const descriptor = {
+								value: function () {},
+								writable: true,
+								enumerable: true,
+								configurable: true,
+							};
+
+							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(
+								this,
+								EApiFunctionType.DELETE,
+								descriptor
+							);
+
+							return decoratedDescriptor.value.apply(this, [id]);
+						},
+						writable: true,
+						enumerable: true,
+						configurable: true,
+					});
+				}
 			}
 		};
 
@@ -77,7 +170,23 @@ export function ApiService<E extends BaseEntity>(options: { entity: EntityTarget
 			getListMetadata: {
 				model: options.entity,
 				type: EApiFunctionType.GET_LIST,
-			}
+			},
+			getMetadata: {
+				model: options.entity,
+				type: EApiFunctionType.GET,
+			},
+			createMetadata: {
+				model: options.entity,
+				type: EApiFunctionType.CREATE,
+			},
+			updateMetadata: {
+				model: options.entity,
+				type: EApiFunctionType.UPDATE,
+			},
+			deleteMetadata: {
+				model: options.entity,
+				type: EApiFunctionType.DELETE,
+			},
 		}, ExtendedClass);
 
 		Object.setPrototypeOf(ExtendedClass, originalConstructor);

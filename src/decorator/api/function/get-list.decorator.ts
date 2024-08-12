@@ -40,13 +40,14 @@ async function executor<E extends BaseEntity>(repository: Repository<E>, entityT
 		);
 	}
 }
-export function ApiFunctionGetList<E extends BaseEntity>(options: { model: new () => E; relations?: FindOptionsRelations<E> }) {
+export function ApiFunctionGetList<E extends BaseEntity>(options: { model: new () => E }) {
 	return function (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) {
 		descriptor.value = async function (
 			this: {
 				repository: Repository<E>;
 			},
 			properties: TApiFunctionGetListProperties<InstanceType<typeof options.model>>,
+			relations: FindOptionsRelations<E>,
 		) {
 			const { limit, orderBy, orderDirection, page, createdAtFrom, createdAtTo, updatedAtFrom, updatedAtTo, receivedAtFrom, receivedAtTo, ...entityProperties } = properties;
 
@@ -54,7 +55,7 @@ export function ApiFunctionGetList<E extends BaseEntity>(options: { model: new (
 				skip: limit * (page - 1),
 				take: limit,
 				where: {},
-				relations: options.relations,
+				relations,
 			};
 
 			const typedEntityProperties: keyof typeof options.model = entityProperties as Exclude<keyof Omit<E, "createdAt" | "updatedAt" | "receivedAt">, keyof E>;
