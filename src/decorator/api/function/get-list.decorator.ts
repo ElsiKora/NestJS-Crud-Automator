@@ -1,12 +1,14 @@
-import type {BaseEntity, FindManyOptions, FindOptionsRelations, Repository} from "typeorm";
+import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { Between, LessThanOrEqual, Like, MoreThanOrEqual } from "typeorm";
 
-import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
-import type { IApiGetListResponseResult } from "../../../interface";
-import { ErrorString } from "../../../utility";
-import { EErrorStringAction } from "../../../enum";
 import { API_FUNCTION_DECORATOR_CONSTANT } from "../../../constant";
-import { TApiFunctionGetListProperties } from "../../../type";
+import { EErrorStringAction } from "../../../enum";
+
+import { ErrorString } from "../../../utility";
+
+import type { IApiGetListResponseResult } from "../../../interface";
+import type { TApiFunctionGetListProperties } from "../../../type";
+import type { BaseEntity, FindManyOptions, FindOptionsRelations, Repository } from "typeorm";
 
 async function executor<E extends BaseEntity>(repository: Repository<E>, entityType: new () => E, properties: TApiFunctionGetListProperties<E>, filter: FindManyOptions<E>): Promise<IApiGetListResponseResult<E>> {
 	try {
@@ -32,6 +34,7 @@ async function executor<E extends BaseEntity>(repository: Repository<E>, entityT
 		if (error instanceof HttpException) {
 			throw error;
 		}
+
 		throw new InternalServerErrorException(
 			ErrorString({
 				entity: entityType,
@@ -40,6 +43,7 @@ async function executor<E extends BaseEntity>(repository: Repository<E>, entityT
 		);
 	}
 }
+
 export function ApiFunctionGetList<E extends BaseEntity>(options: { model: new () => E }) {
 	return function (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) {
 		descriptor.value = async function (
@@ -49,16 +53,16 @@ export function ApiFunctionGetList<E extends BaseEntity>(options: { model: new (
 			properties: TApiFunctionGetListProperties<InstanceType<typeof options.model>>,
 			relations: FindOptionsRelations<E>,
 		) {
-			const { limit, orderBy, orderDirection, page, createdAtFrom, createdAtTo, updatedAtFrom, updatedAtTo, receivedAtFrom, receivedAtTo, ...entityProperties } = properties;
+			const { createdAtFrom, createdAtTo, limit, orderBy, orderDirection, page, receivedAtFrom, receivedAtTo, updatedAtFrom, updatedAtTo, ...entityProperties } = properties;
 
 			const filter: FindManyOptions<typeof options.model> = {
+				relations,
 				skip: limit * (page - 1),
 				take: limit,
 				where: {},
-				relations,
 			};
 
-			const typedEntityProperties: keyof typeof options.model = entityProperties as Exclude<keyof Omit<E, "createdAt" | "updatedAt" | "receivedAt">, keyof E>;
+			const typedEntityProperties: keyof typeof options.model = entityProperties as Exclude<keyof Omit<E, "createdAt" | "receivedAt" | "updatedAt">, keyof E>;
 
 			Object.keys(typedEntityProperties).forEach((key: string) => {
 				if (typeof typedEntityProperties[key] === "string") {
@@ -133,6 +137,7 @@ export function ApiFunctionGetList<E extends BaseEntity>(options: { model: new (
 			}
 
 			const repository: Repository<E> = this.repository;
+
 			if (!repository) {
 				throw new Error("Repository is not available in this context");
 			}

@@ -8,8 +8,8 @@ import { Expose } from "class-transformer";
 
 import { IsOptional, IsUUID } from "class-validator";
 
-import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { IApiBaseEntity, IApiPropertyUuidProperties } from "../../../interface";
+import type { ApiPropertyOptions } from "@nestjs/swagger";
 
 export function ApiPropertyUUID<T extends IApiBaseEntity>(properties: IApiPropertyUuidProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	const uuidExample: string = randomUUID();

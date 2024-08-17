@@ -1,8 +1,12 @@
 import { applyDecorators } from "@nestjs/common";
+
 import { API_PROPERTY_WALLET_INTERFACE_CONSTANT } from "../../../constant";
-import type { IApiBaseEntity, IApiPropertyBaseProperties, IApiPropertyNumberProperties } from "../../../interface";
+
 import { EApiPropertyDataType } from "../../../enum";
+
 import { ApiPropertyNumber } from "./number.decorator";
+
+import type { IApiBaseEntity, IApiPropertyBaseProperties, IApiPropertyNumberProperties } from "../../../interface";
 
 export function ApiPropertyWallet<T extends IApiBaseEntity>(properties: IApiPropertyBaseProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	const apiPropertyOptions: IApiPropertyNumberProperties<T> = {

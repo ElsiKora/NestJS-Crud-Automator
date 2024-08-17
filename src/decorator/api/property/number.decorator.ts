@@ -8,10 +8,11 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDivisibleBy, IsEn
 
 import random from "lodash/random";
 
-import type { ApiPropertyOptions } from "@nestjs/swagger";
-import type { IApiBaseEntity, IApiPropertyNumberProperties } from "../../../interface";
-import { EApiPropertyDataType, EApiPropertyDataTypeNumber } from "../../../enum";
 import { NUMBER_CONSTANT } from "../../../constant";
+import { EApiPropertyDataType, EApiPropertyDataTypeNumber } from "../../../enum";
+
+import type { IApiBaseEntity, IApiPropertyNumberProperties } from "../../../interface";
+import type { ApiPropertyOptions } from "@nestjs/swagger";
 
 export function ApiPropertyNumber<T extends IApiBaseEntity>(properties: IApiPropertyNumberProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	if (properties.example === undefined) {

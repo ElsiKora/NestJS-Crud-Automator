@@ -1,9 +1,5 @@
-    import {TApiFunctionGetProperties} from "../../../type";
-    import {BaseApiService} from "../../../class";
-    import {BaseEntity} from "typeorm";
+import type { BaseApiService } from "../../../class";
 
-
-    export interface BaseApiController<E extends BaseEntity> {
-        service: BaseApiService<E>;
-        get?(parameters: TApiFunctionGetProperties<E>): Promise<E>;
-    }
+export interface IBaseApiController<E> {
+	service: BaseApiService<E>;
+}

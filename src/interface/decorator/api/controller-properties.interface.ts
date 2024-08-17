@@ -1,43 +1,26 @@
 
-import type { NestInterceptor, Type } from '@nestjs/common';
-import type {FindOptionsRelations, ObjectLiteral} from 'typeorm';
-import {EApiRouteType} from "../../../enum/decorator/api/controller/type.enum";
+import type { IApiBaseEntity } from "../../api-base-entity.interface";
 
-interface RouteBaseOption {
-    decorators?: Array<PropertyDecorator | MethodDecorator>;
-    interceptors?: Array<Type<NestInterceptor>>;
-    swagger?: {
-        hide?: boolean;
-        response?: Type<unknown>;
-        body?: Type<unknown>;
-    };
-    exclude?: string[];
+import type { Type } from "@nestjs/common";
+import type { FindOptionsRelations } from "typeorm";
+import {EApiDtoType, EApiRouteType} from "../../../enum";
+
+export interface IApiControllerPropertiesRoute<E> {
+	decorators?: Array<MethodDecorator> | Array<PropertyDecorator>;
+	dto: {
+		[key in EApiDtoType]?: Type<unknown>;
+	};
+	params?: Array<string>;
+	relations?: FindOptionsRelations<E>;
+	softDelete?: boolean;
 }
 
 export interface IApiControllerProperties<E> {
-    entity: ObjectLiteral;
-    routes?: {
-        [EApiRouteType.GET]?: {
-            /**
-             * Array of path parameters to use for the route
-             *
-             * @example
-             * ```ts
-             * params: ['id', 'subId']
-             * ```
-             * It will generate the route `/:id/:subId`
-             */
-            params?: string[];
-            /**
-             * If set to true, soft-deleted entity could be included in the result.
-             * @default false
-             */
-            softDelete?: boolean;
-            /**
-             * @default false
-             */
-            relations?: FindOptionsRelations<E>;
-        } & RouteBaseOption;
-    };
-    only?: Array<EApiRouteType | `${EApiRouteType}`>;
+	entity: IApiBaseEntity;
+	logging?: boolean;
+
+	only?: Array<`${EApiRouteType}` | EApiRouteType>;
+	routes: {
+		[key in EApiRouteType]: IApiControllerPropertiesRoute<E>;
+	};
 }

@@ -6,11 +6,12 @@ import { Expose, Type } from "class-transformer";
 
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsEmail, IsEnum, IsIP, IsLowercase, IsOptional, IsString, IsUppercase, IsUrl, IsUUID, Length, Matches, Validate } from "class-validator";
 
-import type { ApiPropertyOptions } from "@nestjs/swagger";
-import type { IApiBaseEntity, IApiPropertyStringProperties } from "../../../interface";
 import { API_PROPERTY_STRING_INTERFACE_CONSTANT } from "../../../constant";
 import { EApiPropertyDataType, EApiPropertyDataTypeString } from "../../../enum";
 import { IsRegularExpression } from "../../../validator";
+
+import type { IApiBaseEntity, IApiPropertyStringProperties } from "../../../interface";
+import type { ApiPropertyOptions } from "@nestjs/swagger";
 
 export function ApiPropertyString<T extends IApiBaseEntity>(properties: IApiPropertyStringProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	if (properties.enum) {

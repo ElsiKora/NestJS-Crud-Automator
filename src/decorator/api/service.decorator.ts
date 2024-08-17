@@ -1,141 +1,132 @@
-import 'reflect-metadata';
-import {BaseEntity, EntityTarget, FindOptionsRelations} from "typeorm";
-import { IApiGetListResponseResult } from "../../interface";
+import "reflect-metadata";
+
 import { EApiFunctionType } from "../../enum";
+
 import { ApiFunction } from "./function";
-import {TApiFunctionCreateProperties, TApiFunctionGetListProperties} from "../../type";
-import {TApiFunctionGetProperties} from "../../type/api/function/get-properties.type";
-import {TApiFunctionUpdateProperties} from "../../type/api/function/update-properties.type";
 
-const API_SERVICE_METADATA_KEY = Symbol('ApiServiceMetadata');
+import type { IApiGetListResponseResult } from "../../interface";
 
-export function ApiService<E extends BaseEntity>(options: { entity: EntityTarget<E>, relations?: FindOptionsRelations<E> }) {
-	return function <TFunction extends { new (...args: any[]): {} }>(target: TFunction) {
+import type { TApiFunctionCreateProperties, TApiFunctionGetListProperties, TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "../../type";
+import type { BaseEntity, EntityTarget, FindOptionsRelations } from "typeorm";
+
+const API_SERVICE_METADATA_KEY = Symbol("ApiServiceMetadata");
+
+export function ApiService<E extends BaseEntity>(options: { entity: EntityTarget<E>; relations?: FindOptionsRelations<E> }) {
+	return function <TFunction extends new (...arguments_: Array<any>) => {}>(target: TFunction) {
 		const originalConstructor = target;
 
 		const ExtendedClass = class extends originalConstructor {
-			constructor(...args: any[]) {
-				super(...args);
+			constructor(...arguments_: Array<any>) {
+				super(...arguments_);
 
 				if (!this.hasOwnProperty(EApiFunctionType.GET_LIST)) {
 					Object.defineProperty(this, EApiFunctionType.GET_LIST, {
-						value: async function(properties: TApiFunctionGetListProperties<E>): Promise<IApiGetListResponseResult<E>> {
-
+						configurable: true,
+						enumerable: true,
+						value: async function (properties: TApiFunctionGetListProperties<E>): Promise<IApiGetListResponseResult<E>> {
 							const apiFunctionDecorator = ApiFunction({
 								model: options.entity as new () => BaseEntity,
+								relations: options.relations,
 								type: EApiFunctionType.GET_LIST,
-								relations: options.relations
 							});
 
 							const descriptor = {
-								value: function() {},
-								writable: true,
+								configurable: true,
 								enumerable: true,
-								configurable: true
+								value: function () {},
+								writable: true,
 							};
 
-							const decoratedDescriptor:PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.GET_LIST, descriptor);
+							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.GET_LIST, descriptor);
 
-							return decoratedDescriptor.value.apply(this, [properties]);
+							return Reflect.apply(decoratedDescriptor.value, this, [properties]);
 						},
 						writable: true,
-						enumerable: true,
-						configurable: true
 					});
 				}
 
 				if (!this.hasOwnProperty(EApiFunctionType.GET)) {
 					Object.defineProperty(this, EApiFunctionType.GET, {
-						value: async function(id: string, properties: TApiFunctionGetProperties<E>): Promise<E> {
-
+						configurable: true,
+						enumerable: true,
+						value: async function (id: string, properties: TApiFunctionGetProperties<E>): Promise<E> {
 							const apiFunctionDecorator = ApiFunction({
 								model: options.entity as new () => BaseEntity,
+								relations: options.relations,
 								type: EApiFunctionType.GET,
-								relations: options.relations
 							});
 
 							const descriptor = {
-								value: function() {},
-								writable: true,
+								configurable: true,
 								enumerable: true,
-								configurable: true
+								value: function () {},
+								writable: true,
 							};
 
-							const decoratedDescriptor:PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.GET, descriptor);
+							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.GET, descriptor);
 
-							return decoratedDescriptor.value.apply(this, [id, properties]);
+							return Reflect.apply(decoratedDescriptor.value, this, [id, properties]);
 						},
 						writable: true,
-						enumerable: true,
-						configurable: true
 					});
 				}
 
 				if (!this.hasOwnProperty(EApiFunctionType.CREATE)) {
 					Object.defineProperty(this, EApiFunctionType.CREATE, {
+						configurable: true,
+						enumerable: true,
 						value: async function (properties: TApiFunctionCreateProperties<E>): Promise<E> {
 							const apiFunctionDecorator = ApiFunction({
 								model: options.entity as new () => BaseEntity,
-								type: EApiFunctionType.CREATE,
 								relations: options.relations,
+								type: EApiFunctionType.CREATE,
 							});
 
 							const descriptor = {
+								configurable: true,
+								enumerable: true,
 								value: function () {},
 								writable: true,
-								enumerable: true,
-								configurable: true,
 							};
 
-							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(
-								this,
-								EApiFunctionType.CREATE,
-								descriptor
-							);
+							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.CREATE, descriptor);
 
-							return decoratedDescriptor.value.apply(this, [properties]);
+							return Reflect.apply(decoratedDescriptor.value, this, [properties]);
 						},
 						writable: true,
-						enumerable: true,
-						configurable: true,
 					});
 				}
 
 				if (!this.hasOwnProperty(EApiFunctionType.UPDATE)) {
 					Object.defineProperty(this, EApiFunctionType.UPDATE, {
-						value: async function (
-							id: string,
-							properties: TApiFunctionUpdateProperties<E>
-						): Promise<E> {
+						configurable: true,
+						enumerable: true,
+						value: async function (id: string, properties: TApiFunctionUpdateProperties<E>): Promise<E> {
 							const apiFunctionDecorator = ApiFunction({
 								model: options.entity as new () => BaseEntity,
-								type: EApiFunctionType.UPDATE,
 								relations: options.relations,
+								type: EApiFunctionType.UPDATE,
 							});
 
 							const descriptor = {
+								configurable: true,
+								enumerable: true,
 								value: function () {},
 								writable: true,
-								enumerable: true,
-								configurable: true,
 							};
 
-							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(
-								this,
-								EApiFunctionType.UPDATE,
-								descriptor
-							);
+							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.UPDATE, descriptor);
 
-							return decoratedDescriptor.value.apply(this, [id, properties]);
+							return Reflect.apply(decoratedDescriptor.value, this, [id, properties]);
 						},
 						writable: true,
-						enumerable: true,
-						configurable: true,
 					});
 				}
 
 				if (!this.hasOwnProperty(EApiFunctionType.DELETE)) {
 					Object.defineProperty(this, EApiFunctionType.DELETE, {
+						configurable: true,
+						enumerable: true,
 						value: async function (id: string): Promise<void> {
 							const apiFunctionDecorator = ApiFunction({
 								model: options.entity as new () => BaseEntity,
@@ -143,54 +134,52 @@ export function ApiService<E extends BaseEntity>(options: { entity: EntityTarget
 							});
 
 							const descriptor = {
+								configurable: true,
+								enumerable: true,
 								value: function () {},
 								writable: true,
-								enumerable: true,
-								configurable: true,
 							};
 
-							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(
-								this,
-								EApiFunctionType.DELETE,
-								descriptor
-							);
+							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.DELETE, descriptor);
 
-							return decoratedDescriptor.value.apply(this, [id]);
+							return Reflect.apply(decoratedDescriptor.value, this, [id]);
 						},
 						writable: true,
-						enumerable: true,
-						configurable: true,
 					});
 				}
 			}
 		};
 
-		Reflect.defineMetadata(API_SERVICE_METADATA_KEY, {
-			entity: options.entity,
-			getListMetadata: {
-				model: options.entity,
-				type: EApiFunctionType.GET_LIST,
+		Reflect.defineMetadata(
+			API_SERVICE_METADATA_KEY,
+			{
+				createMetadata: {
+					model: options.entity,
+					type: EApiFunctionType.CREATE,
+				},
+				deleteMetadata: {
+					model: options.entity,
+					type: EApiFunctionType.DELETE,
+				},
+				entity: options.entity,
+				getListMetadata: {
+					model: options.entity,
+					type: EApiFunctionType.GET_LIST,
+				},
+				getMetadata: {
+					model: options.entity,
+					type: EApiFunctionType.GET,
+				},
+				updateMetadata: {
+					model: options.entity,
+					type: EApiFunctionType.UPDATE,
+				},
 			},
-			getMetadata: {
-				model: options.entity,
-				type: EApiFunctionType.GET,
-			},
-			createMetadata: {
-				model: options.entity,
-				type: EApiFunctionType.CREATE,
-			},
-			updateMetadata: {
-				model: options.entity,
-				type: EApiFunctionType.UPDATE,
-			},
-			deleteMetadata: {
-				model: options.entity,
-				type: EApiFunctionType.DELETE,
-			},
-		}, ExtendedClass);
+			ExtendedClass,
+		);
 
 		Object.setPrototypeOf(ExtendedClass, originalConstructor);
 
 		return ExtendedClass as TFunction;
-	}
+	};
 }

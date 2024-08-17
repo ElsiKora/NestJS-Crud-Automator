@@ -6,8 +6,8 @@ import { Expose, Transform, Type } from "class-transformer";
 
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, IsOptional, ValidateNested } from "class-validator";
 
-import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { IApiBaseEntity, IApiPropertyObjectProperties } from "../../../interface";
+import type { ApiPropertyOptions } from "@nestjs/swagger";
 
 export function ApiPropertyObject<T extends IApiBaseEntity>(options: IApiPropertyObjectProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions<T>(options);

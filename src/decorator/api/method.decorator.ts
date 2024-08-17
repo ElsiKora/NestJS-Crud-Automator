@@ -3,10 +3,11 @@ import { ApiOperation, ApiResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 
 import { EApiAction } from "../../enum";
-import type { IApiBaseEntity, IApiMethodProperties } from "../../interface";
-//import { ExceptionBadRequestDTO } from "../../dto/exception/bad-request.dto";
 
-/*import { ExceptionForbiddenDTO } from "../../dto/exception/forbidden.dto";
+import type { IApiBaseEntity, IApiMethodProperties } from "../../interface";
+// import { ExceptionBadRequestDTO } from "../../dto/exception/bad-request.dto";
+
+/* import { ExceptionForbiddenDTO } from "../../dto/exception/forbidden.dto";
 import { ExceptionInternalServerErrorDTO } from "../../dto/exception/internal-server-error.dto";
 import { ExceptionNotFoundDTO } from "../../dto/exception/not-found.dto";
 import { ExceptionTooManyRequestsDTO } from "../../dto/exception/too-many-requests.dto";
@@ -181,7 +182,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 		decorators.push(Throttle({ default: options.throttler }));
 	}
 
-	/*if (options.responses) {
+	/* if (options.responses) {
 		if (options.responses.unauthorized) {
 			decorators.push(
 				ApiUnauthorizedResponse({

@@ -1,10 +1,13 @@
 import { applyDecorators } from "@nestjs/common";
 
 import { Type } from "class-transformer";
-import { EApiPropertyDataType, EApiPropertyDateType } from "../../../enum";
-import type { IApiBaseEntity, IApiPropertyDateProperties, IApiPropertyStringProperties } from "../../../interface";
-import { ApiPropertyString } from "./string.decorator";
+
 import { NUMBER_CONSTANT } from "../../../constant";
+import { EApiPropertyDataType, EApiPropertyDateType } from "../../../enum";
+
+import { ApiPropertyString } from "./string.decorator";
+
+import type { IApiBaseEntity, IApiPropertyDateProperties, IApiPropertyStringProperties } from "../../../interface";
 
 function getDescription(type: EApiPropertyDateType): string {
 	switch (type) {

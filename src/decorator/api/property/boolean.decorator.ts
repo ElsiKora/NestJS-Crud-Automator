@@ -1,11 +1,12 @@
 import { applyDecorators } from "@nestjs/common";
 
-import type { ApiPropertyOptions} from "@nestjs/swagger";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { Expose, Transform } from "class-transformer";
 
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, IsOptional } from "class-validator";
+
 import type { IApiBaseEntity, IApiPropertyBaseProperties } from "../../../interface";
+import type { ApiPropertyOptions } from "@nestjs/swagger";
 
 export function ApiPropertyBoolean<T extends IApiBaseEntity>(properties: IApiPropertyBaseProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions<T>(properties);

@@ -1,12 +1,9 @@
-import {BaseEntity, getMetadataArgsStorage} from "typeorm";
+import { getMetadataArgsStorage } from "typeorm";
 
-export function GetEntityColumns<E extends BaseEntity>(
-    entity: new () => E,
-    onlyGenerated: boolean = false
-): Array<keyof E> {
-    const columns = getMetadataArgsStorage().columns.filter(col => col.target === entity);
+import type { BaseEntity } from "typeorm";
 
-    return columns
-        .filter(column => !onlyGenerated || column.options.generated || column.options.default !== undefined)
-        .map(column => column.propertyName) as Array<keyof E>;
+export function GetEntityColumns<E extends BaseEntity>(entity: new () => E, onlyGenerated: boolean = false): Array<keyof E> {
+	const columns = getMetadataArgsStorage().columns.filter((col) => col.target === entity);
+
+	return columns.filter((column) => !onlyGenerated || column.options.generated || column.options.default !== undefined).map((column) => column.propertyName) as Array<keyof E>;
 }

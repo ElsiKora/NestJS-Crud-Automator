@@ -1,74 +1,79 @@
-import type {BaseEntity, FindManyOptions, FindOneOptions, FindOptionsRelations, Repository} from "typeorm";
+import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { Like } from "typeorm";
 
-import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
-import { ErrorString } from "../../../utility";
 import { EErrorStringAction } from "../../../enum";
-import {TApiFunctionGetProperties} from "../../../type";
+import { ErrorString } from "../../../utility";
+
+import type { TApiFunctionGetProperties } from "../../../type";
+
+import type { BaseEntity, FindManyOptions, FindOneOptions, FindOptionsRelations, Repository } from "typeorm";
 
 async function executor<E extends BaseEntity>(repository: Repository<E>, model: new () => E, filter: FindOneOptions<E>): Promise<E> {
-   console.log("FILTER", filter);
-    try {
-        const item: E | null = await repository.findOne(filter);
+	console.log("FILTER", filter);
 
-        if (!item) {
-            throw new NotFoundException(ErrorString({ entity: model, type: EErrorStringAction.NOT_FOUND }));
-        }
+	try {
+		const item: E | null = await repository.findOne(filter);
 
-        return item;
-    } catch (error) {
-        console.log("FUCKIGH", error);
-        if (error instanceof HttpException) {
-            throw error;
-        }
+		if (!item) {
+			throw new NotFoundException(ErrorString({ entity: model, type: EErrorStringAction.NOT_FOUND }));
+		}
 
-        throw new InternalServerErrorException(
-            ErrorString({
-                entity: model,
-                type: EErrorStringAction.FETCHING_ERROR,
-            }),
-        );
-    }
+		return item;
+	} catch (error) {
+		console.log("FUCKIGH", error);
+
+		if (error instanceof HttpException) {
+			throw error;
+		}
+
+		throw new InternalServerErrorException(
+			ErrorString({
+				entity: model,
+				type: EErrorStringAction.FETCHING_ERROR,
+			}),
+		);
+	}
 }
-export function ApiFunctionGet<E extends BaseEntity>(options: { model: new () => E; }) {
-    return function (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) {
-        descriptor.value = async function (
-            this: {
-                repository: Repository<E>;
-            },
-            id: string,
-            properties?: TApiFunctionGetProperties<InstanceType<typeof options.model>>,
-            relations?: FindOptionsRelations<E>
-        ) {
 
-            const filter: FindManyOptions<typeof options.model> = {
-                where: { id },
-                relations: relations,
-            };
+export function ApiFunctionGet<E extends BaseEntity>(options: { model: new () => E }) {
+	return function (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) {
+		descriptor.value = async function (
+			this: {
+				repository: Repository<E>;
+			},
+			id: string,
+			properties?: TApiFunctionGetProperties<InstanceType<typeof options.model>>,
+			relations?: FindOptionsRelations<E>,
+		) {
+			const filter: FindManyOptions<typeof options.model> = {
+				relations: relations,
+				where: { id },
+			};
 
-            if (properties) {
-                const {...entityProperties} = properties;
+			if (properties) {
+				const { ...entityProperties } = properties;
 
-            const typedEntityProperties: keyof typeof options.model = entityProperties as Exclude<keyof Omit<E, "createdAt" | "updatedAt" | "receivedAt">, keyof E>;
+				const typedEntityProperties: keyof typeof options.model = entityProperties as Exclude<keyof Omit<E, "createdAt" | "receivedAt" | "updatedAt">, keyof E>;
 
-            Object.keys(typedEntityProperties).forEach((key: string) => {
-                if (typeof typedEntityProperties[key] === "string") {
-                    filter.where = {
-                        ...filter.where,
-                        [key]: Like(`%${typedEntityProperties[key]}%`),
-                    };
-                }
-            });
-            }
+				Object.keys(typedEntityProperties).forEach((key: string) => {
+					if (typeof typedEntityProperties[key] === "string") {
+						filter.where = {
+							...filter.where,
+							[key]: Like(`%${typedEntityProperties[key]}%`),
+						};
+					}
+				});
+			}
 
-            const repository: Repository<E> = this.repository;
-            if (!repository) {
-                throw new Error("Repository is not available in this context");
-            }
+			const repository: Repository<E> = this.repository;
 
-            return executor(repository, options.model, filter);
-        };
+			if (!repository) {
+				throw new Error("Repository is not available in this context");
+			}
 
-        return descriptor;
-    };
+			return executor(repository, options.model, filter);
+		};
+
+		return descriptor;
+	};
 }
