@@ -1,6 +1,6 @@
 import { applyDecorators } from "@nestjs/common";
 
-import { API_PROPERTY_WALLET_INTERFACE_CONSTANT } from "../../../constant";
+import { WALLET_PROPERTY_API_INTERFACE_CONSTANT } from "../../../constant";
 
 import { EApiPropertyDataType } from "../../../enum";
 
@@ -12,10 +12,10 @@ export function ApiPropertyWallet<T extends IApiBaseEntity>(properties: IApiProp
 	const apiPropertyOptions: IApiPropertyNumberProperties<T> = {
 		description: "wallet number",
 		entity: properties.entity,
-		example: API_PROPERTY_WALLET_INTERFACE_CONSTANT.EXAMPLE,
+		example: WALLET_PROPERTY_API_INTERFACE_CONSTANT.EXAMPLE,
 		expose: properties.expose,
-		maximum: API_PROPERTY_WALLET_INTERFACE_CONSTANT.MAXIMUM,
-		minimum: API_PROPERTY_WALLET_INTERFACE_CONSTANT.MINIMUM,
+		maximum: WALLET_PROPERTY_API_INTERFACE_CONSTANT.MAXIMUM,
+		minimum: WALLET_PROPERTY_API_INTERFACE_CONSTANT.MINIMUM,
 		multipleOf: 1,
 		nullable: properties.nullable,
 		required: !properties.response && properties.required,

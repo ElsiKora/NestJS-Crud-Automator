@@ -1,51 +1,67 @@
 import { EApiFunctionType } from "../../../enum";
 
+import { ErrorException } from "../../../utility";
+
 import { ApiFunctionCreate } from "./create.decorator";
 import { ApiFunctionDelete } from "./delete.decorator";
 import { ApiFunctionGetList } from "./get-list.decorator";
 import { ApiFunctionGet } from "./get.decorator";
 import { ApiFunctionUpdate } from "./update.decorator";
 
-import type { BaseEntity, FindOptionsRelations, Repository } from "typeorm";
+import type { IApiBaseEntity } from "../../../interface";
+import type { FindOptionsRelations, Repository } from "typeorm";
 
-export function ApiFunction<E extends BaseEntity>(options: { model: new () => E; relations?: FindOptionsRelations<E>; type: EApiFunctionType }) {
-	return function (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) {
-		const originalMethod = descriptor.value;
+type TDecoratorFunction = (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor;
 
-		descriptor.value = function (this: { repository: Repository<E> }, ...arguments_: Array<any>) {
+export function ApiFunction<E extends IApiBaseEntity, R>(options: { model: new () => E; relations?: FindOptionsRelations<E>; type: EApiFunctionType }) {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+		const originalMethod: unknown = descriptor.value;
+
+		// eslint-disable-next-line @typescript-eslint/naming-convention
+		descriptor.value = function (this: { repository: Repository<E> }, ...arguments_: Array<any>): any {
+			let decoratorFunction: TDecoratorFunction;
+
 			switch (options.type) {
 				case EApiFunctionType.GET_LIST: {
-					return ApiFunctionGetList({ model: options.model })(this, _propertyKey, { value: originalMethod }).value.apply(this, arguments_);
+					decoratorFunction = ApiFunctionGetList({ model: options.model });
+
+					break;
 				}
 
 				case EApiFunctionType.GET: {
-					return ApiFunctionGet({ model: options.model })(this, _propertyKey, { value: originalMethod }).value.apply(this, arguments_);
+					decoratorFunction = ApiFunctionGet({ model: options.model });
+
+					break;
 				}
 
 				case EApiFunctionType.CREATE: {
-					return ApiFunctionCreate({ model: options.model })(this, _propertyKey, {
-						value: originalMethod,
-					}).value.apply(this, arguments_);
+					decoratorFunction = ApiFunctionCreate({ entity: options.model });
+
+					break;
 				}
 
 				case EApiFunctionType.UPDATE: {
-					return ApiFunctionUpdate({ model: options.model })(this, _propertyKey, {
-						value: originalMethod,
-					}).value.apply(this, arguments_);
+					decoratorFunction = ApiFunctionUpdate({ model: options.model });
+
+					break;
 				}
 
 				case EApiFunctionType.DELETE: {
-					return ApiFunctionDelete({ model: options.model })(this, _propertyKey, {
-						value: originalMethod,
-					}).value.apply(this, arguments_);
+					decoratorFunction = ApiFunctionDelete({ model: options.model });
+
+					break;
 				}
 
 				default: {
-					throw new Error("Unsupported function");
+					throw ErrorException("Unsupported function");
 				}
 			}
 
-			return originalMethod.apply(this, arguments_);
+			const modifiedDescriptor: PropertyDescriptor = decoratorFunction(this, propertyKey, { value: originalMethod });
+			const modifiedMethod: (...arguments__: Array<any>) => R = modifiedDescriptor.value as (...arguments__: Array<any>) => R;
+
+			return modifiedMethod.apply(this, arguments_);
 		};
 
 		return descriptor;

@@ -1,18 +1,19 @@
 import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { Between, LessThanOrEqual, Like, MoreThanOrEqual } from "typeorm";
 
-import { API_FUNCTION_DECORATOR_CONSTANT } from "../../../constant";
+import { FUNCTION_API_DECORATOR_CONSTANT } from "../../../constant";
 import { EErrorStringAction } from "../../../enum";
 
-import { ErrorString } from "../../../utility";
+import { ErrorException, ErrorString } from "../../../utility";
 
-import type { IApiGetListResponseResult } from "../../../interface";
+import type { IApiBaseEntity, IApiGetListResponseResult } from "../../../interface";
+
 import type { TApiFunctionGetListProperties } from "../../../type";
-import type { BaseEntity, FindManyOptions, FindOptionsRelations, Repository } from "typeorm";
+import type { FindManyOptions, FindOptionsRelations, Repository } from "typeorm";
 
-async function executor<E extends BaseEntity>(repository: Repository<E>, entityType: new () => E, properties: TApiFunctionGetListProperties<E>, filter: FindManyOptions<E>): Promise<IApiGetListResponseResult<E>> {
+async function executor<E extends IApiBaseEntity>(repository: Repository<E>, entityType: new () => E, properties: TApiFunctionGetListProperties<E>, filter: FindManyOptions<E>): Promise<IApiGetListResponseResult<E>> {
 	try {
-		const [items, totalCount] = await repository.findAndCount(filter);
+		const [items, totalCount]: [Array<E>, number] = await repository.findAndCount(filter);
 
 		if (items.length === 0) {
 			throw new NotFoundException(
@@ -44,16 +45,17 @@ async function executor<E extends BaseEntity>(repository: Repository<E>, entityT
 	}
 }
 
-export function ApiFunctionGetList<E extends BaseEntity>(options: { model: new () => E }) {
-	return function (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) {
+export function ApiFunctionGetList<E extends IApiBaseEntity>(options: { model: new () => E }) {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (
 			this: {
 				repository: Repository<E>;
 			},
 			properties: TApiFunctionGetListProperties<InstanceType<typeof options.model>>,
 			relations: FindOptionsRelations<E>,
-		) {
-			const { createdAtFrom, createdAtTo, limit, orderBy, orderDirection, page, receivedAtFrom, receivedAtTo, updatedAtFrom, updatedAtTo, ...entityProperties } = properties;
+		): Promise<IApiGetListResponseResult<E>> {
+			const { createdAtFrom, createdAtTo, limit, orderBy, orderDirection, page, receivedAtFrom, receivedAtTo, updatedAtFrom, updatedAtTo, ...entityProperties }: TApiFunctionGetListProperties<InstanceType<typeof options.model>> = properties;
 
 			const filter: FindManyOptions<typeof options.model> = {
 				relations,
@@ -64,18 +66,18 @@ export function ApiFunctionGetList<E extends BaseEntity>(options: { model: new (
 
 			const typedEntityProperties: keyof typeof options.model = entityProperties as Exclude<keyof Omit<E, "createdAt" | "receivedAt" | "updatedAt">, keyof E>;
 
-			Object.keys(typedEntityProperties).forEach((key: string) => {
+			for (const key of Object.keys(typedEntityProperties)) {
 				if (typeof typedEntityProperties[key] === "string") {
 					filter.where = {
 						...filter.where,
-						[key]: Like(`%${typedEntityProperties[key]}%`),
+						[key]: Like(`%${typedEntityProperties[key] as string}%`),
 					};
 				}
-			});
+			}
 
 			if (orderBy) {
 				filter.order = {
-					[orderBy as never as string]: orderDirection || API_FUNCTION_DECORATOR_CONSTANT.DEFAULT_FILTER_ORDER_BY_DIRECTION,
+					[orderBy as never as string]: orderDirection || FUNCTION_API_DECORATOR_CONSTANT.DEFAULT_FILTER_ORDER_BY_DIRECTION,
 				};
 			}
 
@@ -139,10 +141,10 @@ export function ApiFunctionGetList<E extends BaseEntity>(options: { model: new (
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				throw new Error("Repository is not available in this context");
+				throw ErrorException("Repository is not available in this context");
 			}
 
-			return executor(repository, options.model, properties, filter);
+			return executor<E>(repository, options.model, properties, filter);
 		};
 
 		return descriptor;

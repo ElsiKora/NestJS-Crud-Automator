@@ -3,7 +3,7 @@ export interface IApiPropertyBaseProperties<T> {
 	entity: T;
 	enum?: Record<string, number | string>;
 	expose?: boolean;
-	isArray?: true;
+	isArray?: boolean;
 	maxItems?: number;
 	minItems?: number;
 	nullable?: boolean;

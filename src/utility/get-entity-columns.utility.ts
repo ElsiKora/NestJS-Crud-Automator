@@ -1,9 +1,13 @@
 import { getMetadataArgsStorage } from "typeorm";
 
-import type { BaseEntity } from "typeorm";
+import type { IApiBaseEntity } from "../interface";
 
-export function GetEntityColumns<E extends BaseEntity>(entity: new () => E, onlyGenerated: boolean = false): Array<keyof E> {
-	const columns = getMetadataArgsStorage().columns.filter((col) => col.target === entity);
+import type { IGetEntityColumnsProperties } from "../interface/utility/get-entity-columns-properties.interface";
+import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
 
-	return columns.filter((column) => !onlyGenerated || column.options.generated || column.options.default !== undefined).map((column) => column.propertyName) as Array<keyof E>;
+export function GetEntityColumns<E extends IApiBaseEntity>(properties: IGetEntityColumnsProperties): Array<keyof E> {
+	const { entity, shouldTakeGeneratedOnly }: IGetEntityColumnsProperties = properties;
+	const columns: Array<ColumnMetadataArgs> = getMetadataArgsStorage().columns.filter((column: ColumnMetadataArgs) => column.target === entity);
+
+	return columns.filter((column: ColumnMetadataArgs) => !shouldTakeGeneratedOnly || column.options.generated || column.options.default !== undefined).map((column: ColumnMetadataArgs) => column.propertyName) as Array<keyof E>;
 }

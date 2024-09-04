@@ -1,1 +1,1 @@
-export * from "./describe-properties.type";
+export * from "./describe";

@@ -2,13 +2,16 @@ import { HttpException, InternalServerErrorException, NotFoundException } from "
 import { Like } from "typeorm";
 
 import { EErrorStringAction } from "../../../enum";
-import { ErrorString } from "../../../utility";
+
+import { ErrorException, ErrorString } from "../../../utility";
+
+import type { IApiBaseEntity } from "../../../interface";
 
 import type { TApiFunctionGetProperties } from "../../../type";
 
-import type { BaseEntity, FindManyOptions, FindOneOptions, FindOptionsRelations, Repository } from "typeorm";
+import type { FindManyOptions, FindOneOptions, FindOptionsRelations, Repository } from "typeorm";
 
-async function executor<E extends BaseEntity>(repository: Repository<E>, model: new () => E, filter: FindOneOptions<E>): Promise<E> {
+async function executor<E extends IApiBaseEntity>(repository: Repository<E>, model: new () => E, filter: FindOneOptions<E>): Promise<E> {
 	console.log("FILTER", filter);
 
 	try {
@@ -20,8 +23,6 @@ async function executor<E extends BaseEntity>(repository: Repository<E>, model: 
 
 		return item;
 	} catch (error) {
-		console.log("FUCKIGH", error);
-
 		if (error instanceof HttpException) {
 			throw error;
 		}
@@ -35,8 +36,9 @@ async function executor<E extends BaseEntity>(repository: Repository<E>, model: 
 	}
 }
 
-export function ApiFunctionGet<E extends BaseEntity>(options: { model: new () => E }) {
-	return function (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) {
+export function ApiFunctionGet<E extends IApiBaseEntity>(options: { model: new () => E }) {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (
 			this: {
 				repository: Repository<E>;
@@ -44,34 +46,34 @@ export function ApiFunctionGet<E extends BaseEntity>(options: { model: new () =>
 			id: string,
 			properties?: TApiFunctionGetProperties<InstanceType<typeof options.model>>,
 			relations?: FindOptionsRelations<E>,
-		) {
+		): Promise<E> {
 			const filter: FindManyOptions<typeof options.model> = {
 				relations: relations,
 				where: { id },
 			};
 
 			if (properties) {
-				const { ...entityProperties } = properties;
+				const { ...entityProperties }: TApiFunctionGetProperties<InstanceType<typeof options.model>> = properties;
 
 				const typedEntityProperties: keyof typeof options.model = entityProperties as Exclude<keyof Omit<E, "createdAt" | "receivedAt" | "updatedAt">, keyof E>;
 
-				Object.keys(typedEntityProperties).forEach((key: string) => {
+				for (const key of Object.keys(typedEntityProperties)) {
 					if (typeof typedEntityProperties[key] === "string") {
 						filter.where = {
 							...filter.where,
-							[key]: Like(`%${typedEntityProperties[key]}%`),
+							[key]: Like(`%${typedEntityProperties[key] as string}%`),
 						};
 					}
-				});
+				}
 			}
 
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				throw new Error("Repository is not available in this context");
+				throw ErrorException("Repository is not available in this context");
 			}
 
-			return executor(repository, options.model, filter);
+			return executor<E>(repository, options.model, filter);
 		};
 
 		return descriptor;

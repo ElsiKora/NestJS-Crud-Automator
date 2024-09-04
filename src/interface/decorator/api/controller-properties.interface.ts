@@ -1,9 +1,9 @@
+import type { EApiDtoType, EApiRouteType } from "../../../enum";
 
 import type { IApiBaseEntity } from "../../api-base-entity.interface";
 
 import type { Type } from "@nestjs/common";
 import type { FindOptionsRelations } from "typeorm";
-import {EApiDtoType, EApiRouteType} from "../../../enum";
 
 export interface IApiControllerPropertiesRoute<E> {
 	decorators?: Array<MethodDecorator> | Array<PropertyDecorator>;

@@ -6,7 +6,7 @@ import { Expose, Type } from "class-transformer";
 
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsEmail, IsEnum, IsIP, IsLowercase, IsOptional, IsString, IsUppercase, IsUrl, IsUUID, Length, Matches, Validate } from "class-validator";
 
-import { API_PROPERTY_STRING_INTERFACE_CONSTANT } from "../../../constant";
+import { STRING_PROPERTY_API_INTERFACE_CONSTANT } from "../../../constant";
 import { EApiPropertyDataType, EApiPropertyDataTypeString } from "../../../enum";
 import { IsRegularExpression } from "../../../validator";
 
@@ -61,8 +61,8 @@ function validateOptions<T extends IApiBaseEntity>(properties: IApiPropertyStrin
 		const matches: null | RegExpMatchArray = properties.pattern.match(/^\/(.*?)\/([gimuy]*)$/);
 
 		if (matches) {
-			const pattern: string = matches[API_PROPERTY_STRING_INTERFACE_CONSTANT.REGEX_PATTERN_INDEX];
-			const flags: string = matches[API_PROPERTY_STRING_INTERFACE_CONSTANT.REGEX_FLAGS_INDEX];
+			const pattern: string = matches[STRING_PROPERTY_API_INTERFACE_CONSTANT.REGEX_PATTERN_INDEX];
+			const flags: string = matches[STRING_PROPERTY_API_INTERFACE_CONSTANT.REGEX_FLAGS_INDEX];
 
 			const regex: RegExp = new RegExp(pattern, flags);
 
@@ -263,7 +263,7 @@ function buildDecorators<T extends IApiBaseEntity>(properties: IApiPropertyStrin
 				}
 
 				case EApiPropertyDataType.IP: {
-					decorators.push(IsIP(API_PROPERTY_STRING_INTERFACE_CONSTANT.IP_VERSION, { each: true }));
+					decorators.push(IsIP(STRING_PROPERTY_API_INTERFACE_CONSTANT.IP_VERSION, { each: true }));
 
 					break;
 				}
@@ -337,7 +337,7 @@ function buildDecorators<T extends IApiBaseEntity>(properties: IApiPropertyStrin
 				}
 
 				case EApiPropertyDataType.IP: {
-					decorators.push(IsIP(API_PROPERTY_STRING_INTERFACE_CONSTANT.IP_VERSION));
+					decorators.push(IsIP(STRING_PROPERTY_API_INTERFACE_CONSTANT.IP_VERSION));
 
 					break;
 				}

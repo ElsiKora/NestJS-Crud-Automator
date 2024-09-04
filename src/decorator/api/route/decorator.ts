@@ -1,6 +1,6 @@
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 
-import {EApiAction, EApiRouteType} from "../../../enum";
+import { EApiAction, EApiRouteType } from "../../../enum";
 
 import { ApiMethod } from "../method.decorator";
 

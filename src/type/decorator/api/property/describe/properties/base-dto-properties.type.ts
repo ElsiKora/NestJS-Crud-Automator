@@ -1,0 +1,3 @@
+import type { TApiPropertyDescribeDtoBodyProperties, TApiPropertyDescribeDtoQueryProperties, TApiPropertyDescribeDtoRequestProperties, TApiPropertyDescribeDtoResponseProperties } from "../dto";
+
+export type TApiPropertyDescribePropertiesBaseDtoProperties = Partial<TApiPropertyDescribeDtoQueryProperties> & Partial<TApiPropertyDescribeDtoBodyProperties> & Partial<TApiPropertyDescribeDtoRequestProperties> & Partial<TApiPropertyDescribeDtoResponseProperties>;

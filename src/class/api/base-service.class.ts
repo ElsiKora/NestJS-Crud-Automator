@@ -1,27 +1,39 @@
 import type { IApiGetListResponseResult } from "../../interface";
-
 import type { TApiFunctionCreateProperties, TApiFunctionGetListProperties, TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "../../type";
-
 import type { FindOptionsRelations } from "typeorm";
 
 export class BaseApiService<E> {
-	create(_properties: TApiFunctionCreateProperties<E>): Promise<E> {
-		return null as any;
+	create(properties: TApiFunctionCreateProperties<E>): Promise<E> {
+		void properties;
+
+		return Promise.resolve({} as E);
 	}
 
-	delete(_id: string): Promise<void> {
-		return null as any;
+	delete(id: string): Promise<void> {
+		void id;
+
+		return Promise.resolve();
 	}
 
-	get(_id: string, _properties?: TApiFunctionGetProperties<E>, _relations?: FindOptionsRelations<E>): Promise<E> {
-		return null as any;
+	get(id: string, properties?: TApiFunctionGetProperties<E>, relations?: FindOptionsRelations<E>): Promise<E> {
+		void id;
+		void properties;
+		void relations;
+
+		return Promise.resolve({} as E);
 	}
 
-	getList(_properties: TApiFunctionGetListProperties<E>, _relations?: FindOptionsRelations<E>): Promise<IApiGetListResponseResult<E>> {
-		return null as any;
+	getList(properties: TApiFunctionGetListProperties<E>, relations?: FindOptionsRelations<E>): Promise<IApiGetListResponseResult<E>> {
+		void properties;
+		void relations;
+
+		return Promise.resolve({ items: [], total: 0 } as unknown as IApiGetListResponseResult<E>);
 	}
 
-	update(_id: string, _properties: TApiFunctionUpdateProperties<E>): Promise<E> {
-		return null as any;
+	update(id: string, properties: TApiFunctionUpdateProperties<E>): Promise<E> {
+		void id;
+		void properties;
+
+		return Promise.resolve({} as E);
 	}
 }

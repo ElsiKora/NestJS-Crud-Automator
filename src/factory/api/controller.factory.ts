@@ -1,4 +1,3 @@
-import type { Type } from "@nestjs/common";
 import { assignMetadata, Controller, HttpStatus, RequestMethod } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
 
@@ -18,6 +17,7 @@ import type { BaseApiService } from "../../class";
 import type { IApiEntity, IApiEntityColumn, IApiGetListResponseResult } from "../../interface";
 import type { IApiControllerProperties, IApiControllerPropertiesRoute } from "../../interface/decorator/api/controller-properties.interface";
 import type { TApiFunctionGetListProperties } from "../../type";
+import type { Type } from "@nestjs/common";
 import type { ObjectLiteral } from "typeorm";
 
 export class ApiControllerFactory<E> {
@@ -117,7 +117,7 @@ export class ApiControllerFactory<E> {
 		}
 	}
 
-	applyMetadata(method: EApiRouteType,methodName: string, routeConfig: IApiControllerPropertiesRoute<E>): void {
+	applyMetadata(method: EApiRouteType, methodName: string, routeConfig: IApiControllerPropertiesRoute<E>): void {
 		let parameterIndex: number = 0;
 		let routeArgumentsMetadata: unknown = {};
 		const parameterTypes: Array<any> = [];
@@ -152,25 +152,6 @@ export class ApiControllerFactory<E> {
 
 		console.log("ROUTE_ARGS_METADATA", Reflect.getMetadata(ROUTE_ARGS_METADATA, this.target, methodName));
 		console.log("PARAMTYPES_METADATA", Reflect.getMetadata(PARAMTYPES_METADATA, this.targetPrototype, methodName));
-	}
-
-	writeDtoToSwagger(method: EApiRouteType, routeConfig: IApiControllerPropertiesRoute<E>): void {
-		const swaggerModels: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, this.target) || []) as Array<unknown>;
-
-		const requestDto: Type<unknown> | undefined = routeConfig.dto.request || generateDTOClass(this.properties.entity,this.ENTITY, method, EApiDtoType.REQUEST);
-		const queryDto: Type<unknown> | undefined = routeConfig.dto.query || generateDTOClass(this.properties.entity,this.ENTITY, method, EApiDtoType.QUERY);
-		const bodyDto: Type<unknown> | undefined = routeConfig.dto.body || generateDTOClass(this.properties.entity, this.ENTITY, method, EApiDtoType.BODY);
-		const responseDto: Type<unknown> | undefined = routeConfig.dto.response || generateDTOClass(this.properties.entity,this.ENTITY, method, EApiDtoType.RESPONSE);
-
-		const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, responseDto];
-
-		for (const dto of dtoList) {
-			console.log("WANNA ADD DTO", dto);
-			if (dto && !swaggerModels.includes(dto)) {
-				swaggerModels.push(dto);
-				Reflect.defineMetadata(DECORATORS.API_EXTRA_MODELS, swaggerModels, this.target);
-			}
-		}
 	}
 
 	createMethod(method: EApiRouteType): void {
@@ -248,6 +229,7 @@ export class ApiControllerFactory<E> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			function (this: { service: BaseApiService<E> }, properties: TApiFunctionGetListProperties<E>): Promise<IApiGetListResponseResult<E>> {
 				console.log("GET LIST", properties);
+
 				return this.service.getList(properties);
 			},
 			"name",
@@ -295,6 +277,26 @@ export class ApiControllerFactory<E> {
 		for (const method of Object.values(EApiRouteType)) {
 			if (this.properties.routes[method]) {
 				this.createMethod(method);
+			}
+		}
+	}
+
+	writeDtoToSwagger(method: EApiRouteType, routeConfig: IApiControllerPropertiesRoute<E>): void {
+		const swaggerModels: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, this.target) || []) as Array<unknown>;
+
+		const requestDto: Type<unknown> | undefined = routeConfig.dto.request || generateDTOClass(this.properties.entity, this.ENTITY, method, EApiDtoType.REQUEST);
+		const queryDto: Type<unknown> | undefined = routeConfig.dto.query || generateDTOClass(this.properties.entity, this.ENTITY, method, EApiDtoType.QUERY);
+		const bodyDto: Type<unknown> | undefined = routeConfig.dto.body || generateDTOClass(this.properties.entity, this.ENTITY, method, EApiDtoType.BODY);
+		const responseDto: Type<unknown> | undefined = routeConfig.dto.response || generateDTOClass(this.properties.entity, this.ENTITY, method, EApiDtoType.RESPONSE);
+
+		const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, responseDto];
+
+		for (const dto of dtoList) {
+			console.log("WANNA ADD DTO", dto);
+
+			if (dto && !swaggerModels.includes(dto)) {
+				swaggerModels.push(dto);
+				Reflect.defineMetadata(DECORATORS.API_EXTRA_MODELS, swaggerModels, this.target);
 			}
 		}
 	}
