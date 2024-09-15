@@ -2,7 +2,7 @@ import { applyDecorators } from "@nestjs/common";
 
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 
-import { Expose, Type } from "class-transformer";
+import { Exclude, Expose, Type } from "class-transformer";
 
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsEmail, IsEnum, IsIP, IsLowercase, IsOptional, IsString, IsUppercase, IsUrl, IsUUID, Length, Matches, Validate } from "class-validator";
 
@@ -21,6 +21,10 @@ export function ApiPropertyString<T extends IApiBaseEntity>(properties: IApiProp
 
 	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions<T>(properties);
 	const decorators: Array<PropertyDecorator> = buildDecorators<T>(properties, apiPropertyOptions);
+
+	if (properties.description === "message amount pattern") {
+		console.log("PODSOS", apiPropertyOptions);
+	}
 
 	return applyDecorators(...decorators);
 }
@@ -144,9 +148,10 @@ function validateOptions<T extends IApiBaseEntity>(properties: IApiPropertyStrin
 }
 
 function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPropertyStringProperties<T>): ApiPropertyOptions {
-	const apiPropertyOptions: ApiPropertyOptions = {
+	const apiPropertyOptions: ApiPropertyOptions & Record<string, any> = {
 		description: `${properties.entity.name} ${properties.description || ""}`,
 		example: properties.example,
+		expose: properties.expose,
 		format: properties.format,
 		maxLength: properties.maxLength,
 		minLength: properties.minLength,
@@ -180,10 +185,12 @@ function buildDecorators<T extends IApiBaseEntity>(properties: IApiPropertyStrin
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
 	if (properties.response) {
-		decorators.push(ApiResponseProperty);
+		decorators.push(ApiResponseProperty());
 
-		if (properties.expose) {
+		if (properties.expose === undefined || properties.expose) {
 			decorators.push(Expose());
+		} else {
+			decorators.push(Exclude());
 		}
 	} else if (properties.isArray) {
 		if (!properties.required) {

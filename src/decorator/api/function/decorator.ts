@@ -9,11 +9,14 @@ import { ApiFunctionGet } from "./get.decorator";
 import { ApiFunctionUpdate } from "./update.decorator";
 
 import type { IApiBaseEntity } from "../../../interface";
-import type { FindOptionsRelations, Repository } from "typeorm";
+import type { TApiFunctionProperties } from "../../../type/decorator/api/function/properties.type";
+import type { Repository } from "typeorm";
 
 type TDecoratorFunction = (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor;
 
-export function ApiFunction<E extends IApiBaseEntity, R>(options: { model: new () => E; relations?: FindOptionsRelations<E>; type: EApiFunctionType }) {
+export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctionProperties<E>) {
+	const { entity, type }: TApiFunctionProperties<E> = properties;
+
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		const originalMethod: unknown = descriptor.value;
@@ -22,33 +25,33 @@ export function ApiFunction<E extends IApiBaseEntity, R>(options: { model: new (
 		descriptor.value = function (this: { repository: Repository<E> }, ...arguments_: Array<any>): any {
 			let decoratorFunction: TDecoratorFunction;
 
-			switch (options.type) {
+			switch (type) {
 				case EApiFunctionType.GET_LIST: {
-					decoratorFunction = ApiFunctionGetList({ model: options.model });
+					decoratorFunction = ApiFunctionGetList({ model: entity });
 
 					break;
 				}
 
 				case EApiFunctionType.GET: {
-					decoratorFunction = ApiFunctionGet({ model: options.model });
+					decoratorFunction = ApiFunctionGet({ model: entity });
 
 					break;
 				}
 
 				case EApiFunctionType.CREATE: {
-					decoratorFunction = ApiFunctionCreate({ entity: options.model });
+					decoratorFunction = ApiFunctionCreate({ entity: entity });
 
 					break;
 				}
 
 				case EApiFunctionType.UPDATE: {
-					decoratorFunction = ApiFunctionUpdate({ model: options.model });
+					decoratorFunction = ApiFunctionUpdate({ model: entity });
 
 					break;
 				}
 
 				case EApiFunctionType.DELETE: {
-					decoratorFunction = ApiFunctionDelete({ model: options.model });
+					decoratorFunction = ApiFunctionDelete({ model: entity });
 
 					break;
 				}

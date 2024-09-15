@@ -1,6 +1,6 @@
-import type { IApiBaseEntity } from "../../../../interface";
+import type { TApiFunctionCreateProperties } from "./properties.type";
 
-import type { TApiFunctionCreateProperties } from "../../../../type";
+import type { IApiBaseEntity } from "../../../../../interface";
 import type { Repository } from "typeorm";
 
 export interface IApiFunctionCreateExecutorProperties<E extends IApiBaseEntity> {

@@ -6,19 +6,18 @@ import { EErrorStringAction } from "../../../enum";
 import { ErrorException, ErrorString } from "../../../utility";
 
 import type { IApiBaseEntity } from "../../../interface";
+import type { IApiFunctionGetExecutorProperties, TApiFunctionGetProperties } from "../../../type";
 
-import type { TApiFunctionGetProperties } from "../../../type";
+import type { FindManyOptions, FindOptionsRelations, Repository } from "typeorm";
 
-import type { FindManyOptions, FindOneOptions, FindOptionsRelations, Repository } from "typeorm";
-
-async function executor<E extends IApiBaseEntity>(repository: Repository<E>, model: new () => E, filter: FindOneOptions<E>): Promise<E> {
-	console.log("FILTER", filter);
+async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecutorProperties<E>): Promise<E> {
+	const { entity, filter, repository }: IApiFunctionGetExecutorProperties<E> = options;
 
 	try {
 		const item: E | null = await repository.findOne(filter);
 
 		if (!item) {
-			throw new NotFoundException(ErrorString({ entity: model, type: EErrorStringAction.NOT_FOUND }));
+			throw new NotFoundException(ErrorString({ entity: entity, type: EErrorStringAction.NOT_FOUND }));
 		}
 
 		return item;
@@ -29,7 +28,7 @@ async function executor<E extends IApiBaseEntity>(repository: Repository<E>, mod
 
 		throw new InternalServerErrorException(
 			ErrorString({
-				entity: model,
+				entity: entity,
 				type: EErrorStringAction.FETCHING_ERROR,
 			}),
 		);
@@ -73,7 +72,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(options: { model: new (
 				throw ErrorException("Repository is not available in this context");
 			}
 
-			return executor<E>(repository, options.model, filter);
+			return executor<E>({ entity: options.model, filter, repository });
 		};
 
 		return descriptor;

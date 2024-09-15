@@ -84,7 +84,6 @@ export function ApiPropertyDate<T extends IApiBaseEntity>(properties: IApiProper
 		response: properties.response,
 		type: EApiPropertyDataType.DATE_TIME,
 	};
-
 	const decorators: Array<PropertyDecorator> = [ApiPropertyString({ ...apiPropertyStringOptions })];
 
 	if (!properties.response) {

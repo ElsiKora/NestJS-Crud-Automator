@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { HttpException, HttpStatus, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { ThrottlerException } from "@nestjs/throttler";
 
 import { catchError } from "rxjs/operators";
@@ -14,13 +14,6 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 	intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
 		return next.handle().pipe(
 			catchError((error: unknown) => {
-				console.log("FOUND ERROR", error, error instanceof HttpException);
-				console.log("Error constructor:", (error as any).constructor.name);
-				console.log("Error instanceof Error:", error instanceof Error);
-				console.log("Error instanceof HttpException:", error instanceof HttpException);
-				console.log("Error instanceof NotFoundException:", error instanceof NotFoundException);
-				console.log("Error properties:", Object.keys(error as any));
-
 				if (error instanceof ThrottlerException) {
 					const request: FastifyRequest = context.switchToHttp().getRequest<FastifyRequest>();
 					let correlationId: string = request.headers["x-correlation-id"] as string;
@@ -62,11 +55,8 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 					customErrorResponse.correlationID = correlationId;
 					customErrorResponse.timestamp = Date.now();
 
-					console.log("CUSTOM ERROR", customErrorResponse);
-
 					throw new HttpException(customErrorResponse, error.getStatus());
 				} else {
-					console.log("TYT BLYA?");
 					const request: FastifyRequest = context.switchToHttp().getRequest<FastifyRequest>();
 					let correlationId: string = request.headers["x-correlation-id"] as string;
 

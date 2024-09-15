@@ -5,9 +5,13 @@ import { ApiFunction } from "./function";
 import type { IApiBaseEntity, IApiGetListResponseResult } from "../../interface";
 
 import type { TApiFunctionCreateProperties, TApiFunctionGetListProperties, TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "../../type";
+import type { TApiServiceProperties } from "../../type/decorator/api/service-properties.type";
+
 import type { FindOptionsRelations } from "typeorm";
 
-export function ApiService<E extends IApiBaseEntity>(options: { entity: new () => E; relations?: FindOptionsRelations<E> }) {
+export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProperties<E>) {
+	const { entity }: TApiServiceProperties<E> = properties;
+
 	return function <TFunction extends new (...arguments_: Array<any>) => {}>(target: TFunction): TFunction {
 		const originalConstructor: TFunction = target;
 
@@ -21,10 +25,10 @@ export function ApiService<E extends IApiBaseEntity>(options: { entity: new () =
 					Object.defineProperty(this, EApiFunctionType.GET_LIST, {
 						configurable: true,
 						enumerable: true,
-						value: async function (properties: TApiFunctionGetListProperties<E>): Promise<IApiGetListResponseResult<E>> {
+						value: async function (properties: TApiFunctionGetListProperties<E>, relations: FindOptionsRelations<E>): Promise<IApiGetListResponseResult<E>> {
 							const apiFunctionDecorator: (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
-								model: options.entity as new () => IApiBaseEntity,
-								relations: options.relations,
+								entity,
+								relations,
 								type: EApiFunctionType.GET_LIST,
 							});
 
@@ -36,8 +40,7 @@ export function ApiService<E extends IApiBaseEntity>(options: { entity: new () =
 							} = {
 								configurable: true,
 								enumerable: true,
-								// eslint-disable-next-line @typescript-eslint/no-empty-function
-								value: function () {},
+								value: () => void 0,
 								writable: true,
 							};
 
@@ -53,10 +56,10 @@ export function ApiService<E extends IApiBaseEntity>(options: { entity: new () =
 					Object.defineProperty(this, EApiFunctionType.GET, {
 						configurable: true,
 						enumerable: true,
-						value: async function (id: string, properties: TApiFunctionGetProperties<E>): Promise<E> {
+						value: async function (id: string, properties: TApiFunctionGetProperties<E>, relations: FindOptionsRelations<E>): Promise<E> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
-								model: options.entity as new () => IApiBaseEntity,
-								relations: options.relations,
+								entity,
+								relations,
 								type: EApiFunctionType.GET,
 							});
 
@@ -68,8 +71,7 @@ export function ApiService<E extends IApiBaseEntity>(options: { entity: new () =
 							} = {
 								configurable: true,
 								enumerable: true,
-								// eslint-disable-next-line @typescript-eslint/no-empty-function
-								value: function () {},
+								value: () => void 0,
 								writable: true,
 							};
 
@@ -87,8 +89,7 @@ export function ApiService<E extends IApiBaseEntity>(options: { entity: new () =
 						enumerable: true,
 						value: async function (properties: TApiFunctionCreateProperties<E>): Promise<E> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
-								model: options.entity as new () => IApiBaseEntity,
-								relations: options.relations,
+								entity,
 								type: EApiFunctionType.CREATE,
 							});
 
@@ -100,8 +101,7 @@ export function ApiService<E extends IApiBaseEntity>(options: { entity: new () =
 							} = {
 								configurable: true,
 								enumerable: true,
-								// eslint-disable-next-line @typescript-eslint/no-empty-function
-								value: function () {},
+								value: () => void 0,
 								writable: true,
 							};
 
@@ -119,8 +119,7 @@ export function ApiService<E extends IApiBaseEntity>(options: { entity: new () =
 						enumerable: true,
 						value: async function (id: string, properties: TApiFunctionUpdateProperties<E>): Promise<E> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
-								model: options.entity as new () => IApiBaseEntity,
-								relations: options.relations,
+								entity,
 								type: EApiFunctionType.UPDATE,
 							});
 
@@ -132,8 +131,7 @@ export function ApiService<E extends IApiBaseEntity>(options: { entity: new () =
 							} = {
 								configurable: true,
 								enumerable: true,
-								// eslint-disable-next-line @typescript-eslint/no-empty-function
-								value: function () {},
+								value: () => void 0,
 								writable: true,
 							};
 
@@ -151,7 +149,7 @@ export function ApiService<E extends IApiBaseEntity>(options: { entity: new () =
 						enumerable: true,
 						value: async function (id: string): Promise<void> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
-								model: options.entity,
+								entity,
 								type: EApiFunctionType.DELETE,
 							});
 
@@ -163,8 +161,7 @@ export function ApiService<E extends IApiBaseEntity>(options: { entity: new () =
 							} = {
 								configurable: true,
 								enumerable: true,
-								// eslint-disable-next-line @typescript-eslint/no-empty-function
-								value: function () {},
+								value: () => void 0,
 								writable: true,
 							};
 

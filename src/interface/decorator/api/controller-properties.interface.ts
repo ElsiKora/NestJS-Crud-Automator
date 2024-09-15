@@ -21,6 +21,6 @@ export interface IApiControllerProperties<E> {
 
 	only?: Array<`${EApiRouteType}` | EApiRouteType>;
 	routes: {
-		[key in EApiRouteType]: IApiControllerPropertiesRoute<E>;
+		[key in EApiRouteType]?: IApiControllerPropertiesRoute<E>;
 	};
 }

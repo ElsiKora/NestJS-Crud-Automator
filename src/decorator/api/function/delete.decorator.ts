@@ -7,25 +7,25 @@ import { ErrorException, ErrorString } from "../../../utility";
 import { ApiFunctionGet } from "./get.decorator";
 
 import type { IApiBaseEntity } from "../../../interface";
+import type { IApiFunctionDeleteExecutorProperties, TApiFunctionGetProperties } from "../../../type";
 
-import type { TApiFunctionGetProperties } from "../../../type";
 import type { Repository } from "typeorm";
 
-async function executor<E extends IApiBaseEntity>(repository: Repository<E>, entityType: new () => E, id: number | string, getFunction: (id: string, properties?: TApiFunctionGetProperties<E>) => Promise<E>): Promise<void> {
+async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExecutorProperties<E>): Promise<void> {
+	const { entity, getFunction, id, repository }: IApiFunctionDeleteExecutorProperties<E> = options;
+
 	try {
 		const entity: E = await getFunction(id.toString());
 
 		await repository.remove(entity);
 	} catch (error) {
-		console.log(error);
-
 		if (error instanceof HttpException) {
 			throw error;
 		}
 
 		throw new InternalServerErrorException(
 			ErrorString({
-				entity: entityType,
+				entity: entity,
 				type: EErrorStringAction.DELETING_ERROR,
 			}),
 		);
@@ -65,7 +65,7 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(options: { model: ne
 				}
 			}
 
-			return executor<E>(repository, options.model, id, getFunction);
+			return executor<E>({ entity: new options.model(), getFunction, id, repository });
 		};
 
 		return descriptor;

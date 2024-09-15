@@ -29,7 +29,6 @@ export function FilterOrderByFromEntity(entity: ObjectLiteral, entityMetadata: I
 	return columns.reduce(
 		(accumulator: IApiFilterOrderBy<typeof entity>, column: ColumnMetadataArgs) => {
 			const columnType = column.options?.type || Reflect.getMetadata("design:type", entity.prototype, column.propertyName);
-			console.log("TYPE", column.propertyName, columnType);
 
 			if ((typeof columnType === "function" && (columnType === String || columnType === Number || columnType === Date)) || (FILTER_API_INTERFACE_CONSTANT.ALLOWED_ENTITY_TO_FILTER_COLUMNS.includes(columnType as string) && (fieldSelector === undefined || fieldSelector[column.propertyName as keyof typeof entity] !== false))) {
 				for (const metadataColumn of entityMetadata.columns) {

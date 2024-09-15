@@ -4,10 +4,9 @@ import { EErrorStringAction } from "../../../enum";
 
 import { ErrorException, ErrorString, GetEntityColumns } from "../../../utility";
 
-import type { IApiFunctionCreateExecutorProperties } from "./create";
 import type { IApiBaseEntity } from "../../../interface";
 import type { IApiFunctionCreateProperties } from "../../../interface/decorator/api/function/create-properties.interface";
-import type { TApiFunctionCreateProperties } from "../../../type";
+import type { IApiFunctionCreateExecutorProperties, TApiFunctionCreateProperties } from "../../../type";
 
 import type { DeepPartial, Repository } from "typeorm";
 

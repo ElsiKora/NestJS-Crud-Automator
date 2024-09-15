@@ -9,16 +9,19 @@ import { ErrorException, ErrorString } from "../../../utility";
 import type { IApiBaseEntity, IApiGetListResponseResult } from "../../../interface";
 
 import type { TApiFunctionGetListProperties } from "../../../type";
+import type { IApiFunctionGetListExecutorProperties } from "../../../type/decorator/api/function/get-list/executor-properties.type";
 import type { FindManyOptions, FindOptionsRelations, Repository } from "typeorm";
 
-async function executor<E extends IApiBaseEntity>(repository: Repository<E>, entityType: new () => E, properties: TApiFunctionGetListProperties<E>, filter: FindManyOptions<E>): Promise<IApiGetListResponseResult<E>> {
+async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListExecutorProperties<E>): Promise<IApiGetListResponseResult<E>> {
+	const { entity, filter, properties, repository }: IApiFunctionGetListExecutorProperties<E> = options;
+
 	try {
 		const [items, totalCount]: [Array<E>, number] = await repository.findAndCount(filter);
 
 		if (items.length === 0) {
 			throw new NotFoundException(
 				ErrorString({
-					entity: entityType,
+					entity: entity,
 					type: EErrorStringAction.LIST_PAGE_NOT_FOUND,
 				}),
 			);
@@ -38,7 +41,7 @@ async function executor<E extends IApiBaseEntity>(repository: Repository<E>, ent
 
 		throw new InternalServerErrorException(
 			ErrorString({
-				entity: entityType,
+				entity: entity,
 				type: EErrorStringAction.FETCHING_LIST_ERROR,
 			}),
 		);
@@ -144,7 +147,7 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(options: { model: n
 				throw ErrorException("Repository is not available in this context");
 			}
 
-			return executor<E>(repository, options.model, properties, filter);
+			return executor<E>({ entity: options.model, filter, properties, repository });
 		};
 
 		return descriptor;
