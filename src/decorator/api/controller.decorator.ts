@@ -1,12 +1,11 @@
+import { IApiBaseEntity } from "../../interface";
 import { ApiControllerFactory } from "../../factory";
 
 import type { IApiControllerProperties } from "../../interface/decorator/api/controller-properties.interface";
 import type { TApiControllerConstructor } from "../../type";
 
-import type { BaseEntity } from "typeorm";
-
 export const ApiController =
-	<E extends BaseEntity>(options: IApiControllerProperties<E>) =>
+	<E extends IApiBaseEntity>(options: IApiControllerProperties<E>) =>
 	<T extends TApiControllerConstructor>(target: T): T => {
 		const factory: ApiControllerFactory<E> = new ApiControllerFactory<E>(target, options);
 		factory.init();

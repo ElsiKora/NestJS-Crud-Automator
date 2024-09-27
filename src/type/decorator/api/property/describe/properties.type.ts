@@ -4,5 +4,6 @@ import type { TApiPropertyDescribeNumberProperties } from "./number-properties.t
 import type { TApiPropertyDescribeObjectProperties } from "./object-properties.type";
 import type { TApiPropertyDescribeStringProperties } from "./string-properties.type";
 import type { TApiPropertyDescribeUuidProperties } from "./uuid-properties.type";
+import {TApiPropertyDescribeRelationProperties} from "./relation-properties.type";
 
-export type TApiPropertyDescribeProperties = TApiPropertyDescribeBooleanProperties | TApiPropertyDescribeDateProperties | TApiPropertyDescribeNumberProperties | TApiPropertyDescribeObjectProperties | TApiPropertyDescribeStringProperties | TApiPropertyDescribeUuidProperties;
+export type TApiPropertyDescribeProperties = TApiPropertyDescribeRelationProperties | TApiPropertyDescribeBooleanProperties | TApiPropertyDescribeDateProperties | TApiPropertyDescribeNumberProperties | TApiPropertyDescribeObjectProperties | TApiPropertyDescribeStringProperties | TApiPropertyDescribeUuidProperties;

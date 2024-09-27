@@ -7,19 +7,15 @@ import type { FindOptionsRelations } from "typeorm";
 
 export interface IApiControllerPropertiesRoute<E> {
 	decorators?: Array<MethodDecorator> | Array<PropertyDecorator>;
-	dto: {
+	dto?: {
 		[key in EApiDtoType]?: Type<unknown>;
 	};
-	params?: Array<string>;
+	isEnabled?: boolean;
 	relations?: FindOptionsRelations<E>;
-	softDelete?: boolean;
 }
 
 export interface IApiControllerProperties<E> {
 	entity: IApiBaseEntity;
-	logging?: boolean;
-
-	only?: Array<`${EApiRouteType}` | EApiRouteType>;
 	routes: {
 		[key in EApiRouteType]?: IApiControllerPropertiesRoute<E>;
 	};

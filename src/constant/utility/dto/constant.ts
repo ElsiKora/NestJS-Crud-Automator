@@ -19,6 +19,7 @@ const PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerat
 	[EApiPropertyDescribeType.OBJECT]: new DtoPropertyFactoryObject(),
 	[EApiPropertyDescribeType.STRING]: new DtoPropertyFactoryString(),
 	[EApiPropertyDescribeType.UUID]: new DtoPropertyFactoryUuid(),
+	[EApiPropertyDescribeType.RELATION]: new DtoPropertyFactoryUuid(),
 };
 
 export const DTO_UTILITY_CONSTANT: {

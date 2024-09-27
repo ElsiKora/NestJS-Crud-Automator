@@ -8,20 +8,27 @@ import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { plainToInstance } from "class-transformer";
 
 import { ApiMethod } from "../../decorator/api/method.decorator";
-import { EApiAction, EApiDtoType, EApiRouteType } from "../../enum";
+import {EApiAction, EApiDtoType, EApiPropertyDescribeType, EApiRouteType} from "../../enum";
 
-import { ApiControllerGetMethodName, ApiControllerWriteMethod, DtoGenerate, ErrorException, GenerateEntityInformation } from "../../utility";
+import {
+	ApiControllerGetMethodName,
+	ApiControllerWriteMethod, CapitalizeString,
+	DtoGenerate,
+	ErrorException,
+	GenerateEntityInformation
+} from "../../utility";
 
 import { analyzeEntityMetadata } from "../../utility/dto/analize.utility";
 
-import type { BaseApiService } from "../../class";
+import {BaseApiService, MetadataStorage} from "../../class";
 
 import type { IApiBaseEntity, IApiEntity, IApiEntityColumn, IApiGetListResponseResult } from "../../interface";
 import type { IApiControllerProperties, IApiControllerPropertiesRoute } from "../../interface/decorator/api/controller-properties.interface";
-import type { TApiFunctionGetListProperties } from "../../type";
+import type {TApiFunctionGetListProperties} from "../../type";
 import type { Type } from "@nestjs/common";
 import type { ClassConstructor } from "class-transformer";
 import type { ObjectLiteral } from "typeorm";
+import {PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT} from "../../constant";
 
 export class ApiControllerFactory<E> {
 	private readonly ENTITY!: IApiEntity;
@@ -39,11 +46,14 @@ export class ApiControllerFactory<E> {
 		if (!this.ENTITY.primaryKey) {
 			throw ErrorException(`Primary key for entity ${this.properties.entity.name} not found`);
 		}
+
+		Controller(this.properties.entity.name.toLowerCase())(this.target);
+		ApiTags(this.properties.entity.name)(this.target);
 	}
 
 	applyDecorators(method: EApiRouteType, methodName: string, routeConfig: IApiControllerPropertiesRoute<E>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>): void {
 		const targetMethod: ((properties: any, body: any) => any) | BaseApiService<E> = this.targetPrototype[methodName];
-		const responseDto: Type<unknown> | undefined = routeConfig.dto.response || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.RESPONSE);
+		const responseDto: Type<unknown> | undefined = routeConfig.dto?.response || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.RESPONSE);
 		const customDecorators: Array<MethodDecorator> = [...decorators];
 
 		switch (method) {
@@ -121,9 +131,9 @@ export class ApiControllerFactory<E> {
 		let routeArgumentsMetadata: unknown = {};
 		const parameterTypes: Array<any> = [];
 
-		const requestDto: Type<unknown> | undefined = routeConfig.dto.request || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.REQUEST);
-		const queryDto: Type<unknown> | undefined = routeConfig.dto.query || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.QUERY);
-		const bodyDto: Type<unknown> | undefined = routeConfig.dto.body || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.BODY);
+		const requestDto: Type<unknown> | undefined = routeConfig.dto?.request || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.REQUEST);
+		const queryDto: Type<unknown> | undefined = routeConfig.dto?.query || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.QUERY);
+		const bodyDto: Type<unknown> | undefined = routeConfig.dto?.body || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.BODY);
 
 		if (requestDto) {
 			routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.PARAM, parameterIndex);
@@ -148,8 +158,8 @@ export class ApiControllerFactory<E> {
 	}
 
 	createMethod(method: EApiRouteType): void {
-		if (this.properties.routes[method]) {
-			const routeConfig: IApiControllerPropertiesRoute<E> = this.properties.routes[method];
+		if (!(method in this.properties.routes) || this.properties.routes[method]?.isEnabled !== false) {
+			const routeConfig: IApiControllerPropertiesRoute<E> = this.properties.routes[method] || {};
 			const routeDecorators: Array<MethodDecorator> | Array<PropertyDecorator> = routeConfig.decorators || [];
 			ApiControllerWriteMethod(this as never, this.targetPrototype, method, this.properties.entity, this.ENTITY);
 			const methodName: string = ApiControllerGetMethodName(method);
@@ -167,10 +177,7 @@ export class ApiControllerFactory<E> {
 
 			this.applyDecorators(method, methodName, routeConfig, routeDecorators);
 
-			this.writeDtoToSwagger(method, routeConfig);
-
-			Controller(this.properties.entity.name.toLowerCase())(this.target);
-			ApiTags(this.properties.entity.name)(this.target);
+			this.writeDtoToSwagger(method, routeConfig, this.ENTITY);
 		}
 	}
 
@@ -277,25 +284,56 @@ export class ApiControllerFactory<E> {
 
 	init(): void {
 		for (const method of Object.values(EApiRouteType)) {
-			if (this.properties.routes[method]) {
 				this.createMethod(method);
-			}
 		}
 	}
 
-	writeDtoToSwagger(method: EApiRouteType, routeConfig: IApiControllerPropertiesRoute<E>): void {
+	writeDtoToSwagger(method: EApiRouteType, routeConfig: IApiControllerPropertiesRoute<E>, entityMetadata: IApiEntity): void {
 		const swaggerModels: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, this.target) || []) as Array<unknown>;
 
-		const requestDto: Type<unknown> | undefined = routeConfig.dto.request || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.REQUEST);
-		const queryDto: Type<unknown> | undefined = routeConfig.dto.query || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.QUERY);
-		const bodyDto: Type<unknown> | undefined = routeConfig.dto.body || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.BODY);
-		const responseDto: Type<unknown> | undefined = routeConfig.dto.response || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.RESPONSE);
+		const requestDto: Type<unknown> | undefined = routeConfig.dto?.request || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.REQUEST);
+		const queryDto: Type<unknown> | undefined = routeConfig.dto?.query || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.QUERY);
+		const bodyDto: Type<unknown> | undefined = routeConfig.dto?.body || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.BODY);
+		const responseDto: Type<unknown> | undefined = routeConfig.dto?.response || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.RESPONSE);
 
 		const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, responseDto];
 
 		for (const dto of dtoList) {
 			if (dto && !swaggerModels.includes(dto)) {
 				swaggerModels.push(dto);
+
+				const storage = MetadataStorage.getInstance();
+
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-argument,@typescript-eslint/no-unsafe-assignment
+				const metadata: Record<string, any> = storage.getMetadata(entityMetadata.name);
+
+
+				for (const key of Object.keys(metadata)) {
+					console.log("COLUMN", key);
+
+					if (metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]) {
+						if (metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME].type === EApiPropertyDescribeType.RELATION) {
+
+							const relationClass = class GeneratedDTO {
+								constructor() {
+									Object.defineProperty(this, "id", {
+										configurable: true,
+										enumerable: true,
+										value: undefined,
+										writable: true,
+									});
+								}
+							}
+
+							Object.defineProperty(relationClass, "name", {
+								value: `${entityMetadata.name}${CapitalizeString(method)}${CapitalizeString(EApiDtoType.BODY)}${key}DTO`,
+							});
+
+							swaggerModels.push(relationClass);
+						}
+					}
+				}
+
 				Reflect.defineMetadata(DECORATORS.API_EXTRA_MODELS, swaggerModels, this.target);
 			}
 		}
