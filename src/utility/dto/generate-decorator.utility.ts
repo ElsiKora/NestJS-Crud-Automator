@@ -8,6 +8,7 @@ import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties 
 export const DtoGenerateDecorator = (metadata: TApiPropertyDescribeProperties, entity: IApiEntity, config: TApiPropertyDescribeDtoProperties): PropertyDecorator => {
 	const factory: IDtoGenerateFactory = DTO_UTILITY_CONSTANT.PROPERTY_DECORATOR_FACTORIES[metadata.type];
 
+	console.log("FOR ", metadata.type, "use", factory);
 	if (!factory) {
 		throw ErrorException(`Unknown property type ${metadata.type}`);
 	}

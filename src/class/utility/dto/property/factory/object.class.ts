@@ -10,6 +10,7 @@ export class DtoPropertyFactoryObject implements IDtoGenerateFactory {
 			...config,
 			enum: metadata.enum,
 			...metadata,
+			type: metadata.dataType,
 		});
 	}
 }

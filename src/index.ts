@@ -3,7 +3,6 @@ export * from "./utility";
 export * from "./enum";
 export * from "./interface";
 export * from "./constant";
-export * from "./dto";
 export * from "./decorator/api/method.decorator";
 export * from "./class";
 export * from "./type";

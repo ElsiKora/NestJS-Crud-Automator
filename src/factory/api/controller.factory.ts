@@ -7,28 +7,23 @@ import { DECORATORS } from "@nestjs/swagger/dist/constants";
 
 import { plainToInstance } from "class-transformer";
 
+import { MetadataStorage } from "../../class";
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
 import { ApiMethod } from "../../decorator/api/method.decorator";
-import {EApiAction, EApiDtoType, EApiPropertyDescribeType, EApiRouteType} from "../../enum";
+import { EApiAction, EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "../../enum";
 
-import {
-	ApiControllerGetMethodName,
-	ApiControllerWriteMethod, CapitalizeString,
-	DtoGenerate,
-	ErrorException,
-	GenerateEntityInformation
-} from "../../utility";
+import { ApiControllerGetMethodName, ApiControllerWriteMethod, CapitalizeString, DtoGenerate, ErrorException, GenerateEntityInformation } from "../../utility";
 
 import { analyzeEntityMetadata } from "../../utility/dto/analize.utility";
 
-import {BaseApiService, MetadataStorage} from "../../class";
+import type { BaseApiService } from "../../class";
 
 import type { IApiBaseEntity, IApiEntity, IApiEntityColumn, IApiGetListResponseResult } from "../../interface";
 import type { IApiControllerProperties, IApiControllerPropertiesRoute } from "../../interface/decorator/api/controller-properties.interface";
-import type {TApiFunctionGetListProperties} from "../../type";
+import type { TApiFunctionGetListProperties } from "../../type";
 import type { Type } from "@nestjs/common";
 import type { ClassConstructor } from "class-transformer";
 import type { ObjectLiteral } from "typeorm";
-import {PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT} from "../../constant";
 
 export class ApiControllerFactory<E> {
 	private readonly ENTITY!: IApiEntity;
@@ -61,12 +56,13 @@ export class ApiControllerFactory<E> {
 				customDecorators.push(
 					ApiMethod({
 						action: EApiAction.FETCH,
+						authentication: routeConfig.authentication,
 						entity: this.properties.entity,
 						httpCode: HttpStatus.OK,
 						method: RequestMethod.GET,
 						path: `:${this.ENTITY.primaryKey!.name}`,
 						responses: { internalServerError: true, notFound: true, unauthorized: true },
-						responseType: responseDto,
+						responseType: responseDto
 					}),
 				);
 
@@ -135,22 +131,26 @@ export class ApiControllerFactory<E> {
 		const queryDto: Type<unknown> | undefined = routeConfig.dto?.query || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.QUERY);
 		const bodyDto: Type<unknown> | undefined = routeConfig.dto?.body || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.BODY);
 
+
 		if (requestDto) {
 			routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.PARAM, parameterIndex);
 			parameterTypes.push(requestDto);
 			parameterIndex++;
+			console.log("::HERE", method, parameterIndex, "Request");
 		}
 
 		if (queryDto) {
 			routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.QUERY, parameterIndex);
 			parameterTypes.push(queryDto);
 			parameterIndex++;
+			console.log("::HERE", method, parameterIndex, "Query");
 		}
 
 		if (bodyDto) {
 			routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.BODY, parameterIndex);
 			parameterTypes.push(bodyDto);
 			parameterIndex++;
+			console.log("::HERE", method, parameterIndex, "Body");
 		}
 
 		Reflect.defineMetadata(ROUTE_ARGS_METADATA, routeArgumentsMetadata, this.target, methodName);
@@ -182,13 +182,21 @@ export class ApiControllerFactory<E> {
 	}
 
 	protected [EApiRouteType.CREATE](_method: EApiRouteType, methodName: string): void {
-		this.targetPrototype[methodName] = Object.defineProperty(
-			function (this: { service: BaseApiService<E> }, properties: Partial<E>): Promise<E> {
-				return this.service.create(properties);
-			},
-			"name",
-			{ value: methodName },
-		);
+		try {
+			this.targetPrototype[methodName] = Object.defineProperty(
+				function (this: { service: BaseApiService<E> }, properties: Partial<E>): Promise<E> {
+					console.log("::IMHJERE");
+
+					return this.service.create(properties);
+				},
+				"name",
+				{ value: methodName },
+			);
+		} catch (error) {
+			console.log("FUCK", error);
+
+			throw error;
+		}
 	}
 
 	protected [EApiRouteType.DELETE](_method: EApiRouteType, methodName: string, _entity: IApiEntity, entityMetadata: IApiEntity): void {
@@ -222,7 +230,7 @@ export class ApiControllerFactory<E> {
 					const primaryKeyValue: string = String(properties[primaryKeyColumn.name]);
 
 					const response: E = await this.service.get(primaryKeyValue);
-					const dto = DtoGenerate(entity, entityMetadata, method, EApiDtoType.RESPONSE);
+					const dto: Type<unknown> | undefined = DtoGenerate(entity, entityMetadata, method, EApiDtoType.RESPONSE);
 
 					return plainToInstance(dto as ClassConstructor<E>, response, {
 						excludeExtraneousValues: true,
@@ -284,7 +292,7 @@ export class ApiControllerFactory<E> {
 
 	init(): void {
 		for (const method of Object.values(EApiRouteType)) {
-				this.createMethod(method);
+			this.createMethod(method);
 		}
 	}
 
@@ -302,35 +310,29 @@ export class ApiControllerFactory<E> {
 			if (dto && !swaggerModels.includes(dto)) {
 				swaggerModels.push(dto);
 
-				const storage = MetadataStorage.getInstance();
+				const storage: MetadataStorage = MetadataStorage.getInstance();
 
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-argument,@typescript-eslint/no-unsafe-assignment
 				const metadata: Record<string, any> = storage.getMetadata(entityMetadata.name);
 
-
 				for (const key of Object.keys(metadata)) {
-					console.log("COLUMN", key);
-
-					if (metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]) {
-						if (metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME].type === EApiPropertyDescribeType.RELATION) {
-
-							const relationClass = class GeneratedDTO {
-								constructor() {
-									Object.defineProperty(this, "id", {
-										configurable: true,
-										enumerable: true,
-										value: undefined,
-										writable: true,
-									});
-								}
+					if (metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] && metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME].type === EApiPropertyDescribeType.RELATION) {
+						const relationClass: { new (): any; prototype: any } = class GeneratedDTO {
+							constructor() {
+								Object.defineProperty(this, "id", {
+									configurable: true,
+									enumerable: true,
+									value: undefined,
+									writable: true,
+								});
 							}
+						};
 
-							Object.defineProperty(relationClass, "name", {
-								value: `${entityMetadata.name}${CapitalizeString(method)}${CapitalizeString(EApiDtoType.BODY)}${key}DTO`,
-							});
+						Object.defineProperty(relationClass, "name", {
+							value: `${entityMetadata.name}${CapitalizeString(method)}${CapitalizeString(EApiDtoType.BODY)}${key}DTO`,
+						});
 
-							swaggerModels.push(relationClass);
-						}
+						swaggerModels.push(relationClass);
 					}
 				}
 

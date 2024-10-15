@@ -9,6 +9,7 @@ import type { ColumnType } from "typeorm";
 
 import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
 import type { DiscriminatorValueMetadataArgs } from "typeorm/metadata-args/DiscriminatorValueMetadataArgs";
+import type { RelationMetadataArgs } from "typeorm/metadata-args/RelationMetadataArgs";
 
 import type { TableMetadataArgs } from "typeorm/metadata-args/TableMetadataArgs";
 
@@ -48,14 +49,25 @@ export function GenerateEntityInformation(entity: IApiBaseEntity): IApiEntity {
 	generatedEntity.name = entity.name;
 
 	const storage: MetadataStorage = MetadataStorage.getInstance();
+
 	const columnList: Array<ColumnMetadataArgs> = getMetadataArgsStorage().columns.filter(({ target }: ColumnMetadataArgs): boolean => (target as Function).name === entity.name);
 
-	const entityColumns: Array<IApiEntityColumn> = columnList.map(({ options, propertyName }: ColumnMetadataArgs) => ({
-		isPrimary: Boolean(options.primary),
-		metadata: (storage.getMetadata(entity.name, propertyName) as Record<string, any>) || undefined,
-		name: propertyName,
-		type: options.type as ColumnType,
-	}));
+	const relationList: Array<RelationMetadataArgs> = getMetadataArgsStorage().relations.filter(({ target }: RelationMetadataArgs): boolean => (target as Function).name === entity.name);
+
+	const entityColumns: Array<IApiEntityColumn> = [
+		...columnList.map(({ options, propertyName }: ColumnMetadataArgs) => ({
+			isPrimary: Boolean(options.primary),
+			metadata: (storage.getMetadata(entity.name, propertyName) as Record<string, any>) || undefined,
+			name: propertyName,
+			type: options.type as ColumnType,
+		})),
+		...relationList.map(({ propertyName, relationType }: RelationMetadataArgs) => ({
+			isPrimary: false,
+			metadata: (storage.getMetadata(entity.name, propertyName) as Record<string, any>) || undefined,
+			name: propertyName,
+			type: relationType as ColumnType,
+		})),
+	];
 
 	entityColumns.map((column: IApiEntityColumn) => {
 		if (column.isPrimary) {

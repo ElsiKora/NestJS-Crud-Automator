@@ -1,17 +1,12 @@
-import { applyDecorators, Delete, Get, HttpCode, Patch, Post, Put, RequestMethod } from "@nestjs/common";
-import { ApiOperation, ApiResponse } from "@nestjs/swagger";
+import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, UseGuards } from "@nestjs/common";
+import { ApiBadRequestResponse, ApiBearerAuth, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 
 import { EApiAction } from "../../enum";
 
-import type { IApiBaseEntity, IApiMethodProperties } from "../../interface";
-// import { ExceptionBadRequestDTO } from "../../dto/exception/bad-request.dto";
+import { DtoGenerateException } from "../../utility";
 
-/* import { ExceptionForbiddenDTO } from "../../dto/exception/forbidden.dto";
-import { ExceptionInternalServerErrorDTO } from "../../dto/exception/internal-server-error.dto";
-import { ExceptionNotFoundDTO } from "../../dto/exception/not-found.dto";
-import { ExceptionTooManyRequestsDTO } from "../../dto/exception/too-many-requests.dto";
-import { ExceptionUnauthorizedDTO } from "../../dto/exception/unauthorized.dto";*/
+import type { IApiBaseEntity, IApiMethodProperties } from "../../interface";
 
 export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y> | undefined) => void {
 	let summary: string = "";
@@ -182,13 +177,13 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 		decorators.push(Throttle({ default: options.throttler }));
 	}
 
-	/* if (options.responses) {
+	if (options.responses) {
 		if (options.responses.unauthorized) {
 			decorators.push(
 				ApiUnauthorizedResponse({
 					description: "Unauthorized",
 					status: HttpStatus.UNAUTHORIZED,
-					type: ExceptionUnauthorizedDTO,
+					type: DtoGenerateException(HttpStatus.UNAUTHORIZED),
 				}),
 			);
 		}
@@ -196,9 +191,9 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 		if (options.responses.forbidden) {
 			decorators.push(
 				ApiForbiddenResponse({
-					description: "Forbidden",
+					description: "Forbiddeb",
 					status: HttpStatus.FORBIDDEN,
-					type: ExceptionForbiddenDTO,
+					type: DtoGenerateException(HttpStatus.FORBIDDEN),
 				}),
 			);
 		}
@@ -208,7 +203,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 				ApiInternalServerErrorResponse({
 					description: "Internal Server Error",
 					status: HttpStatus.INTERNAL_SERVER_ERROR,
-					type: ExceptionInternalServerErrorDTO,
+					type: DtoGenerateException(HttpStatus.INTERNAL_SERVER_ERROR),
 				}),
 			);
 		}
@@ -218,7 +213,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 				ApiNotFoundResponse({
 					description: "Not Found",
 					status: HttpStatus.NOT_FOUND,
-					type: ExceptionNotFoundDTO,
+					type: DtoGenerateException(HttpStatus.NOT_FOUND),
 				}),
 			);
 		}
@@ -228,21 +223,21 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 				ApiBadRequestResponse({
 					description: "Bad Request",
 					status: HttpStatus.BAD_REQUEST,
-					type: ExceptionBadRequestDTO,
+					type: DtoGenerateException(HttpStatus.BAD_REQUEST),
 				}),
 			);
 		}
 
 		if (options.responses.tooManyRequests) {
 			decorators.push(
-				ApiBadRequestResponse({
+				ApiTooManyRequestsResponse({
 					description: "Too Many Requests",
 					status: HttpStatus.TOO_MANY_REQUESTS,
-					type: ExceptionTooManyRequestsDTO,
+					type: DtoGenerateException(HttpStatus.TOO_MANY_REQUESTS),
 				}),
 			);
 		}
-	}*/
+	}
 
 	switch (options.method) {
 		case RequestMethod.GET: {
@@ -280,27 +275,21 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 		}
 	}
 
-	/* if (options.authentication) {
-        switch (options.authentication) {
-            case EApiAuthenticationType.USER: {
-                decorators.push(ApiBearerAuth("userAuthorization"), isUser());
+	if (options.authentication) {
+		decorators.push(UseGuards(options.authentication.guard));
 
-                break;
-            }
+		if (options.authentication?.bearerStrategies?.length) {
+			for (const strategy of options.authentication?.bearerStrategies) {
+				decorators.push(ApiBearerAuth(strategy));
+			}
+		}
 
-            case EApiAuthenticationType.ADMIN: {
-                decorators.push(ApiBearerAuth("adminAuthorization"), isAdminUser());
-
-                break;
-            }
-
-            case EApiAuthenticationType.ACCOUNT: {
-                decorators.push(ApiBearerAuth("accountAuthorization"), ApiSecurity("accountRequestSignature"), ApiSecurity("accountRequestTimestamp"), isAccount());
-
-                break;
-            }
-        }
-    }*/
+		if (options.authentication?.securityStrategies?.length) {
+			for (const strategy of options.authentication.securityStrategies) {
+				decorators.push(ApiSecurity(strategy));
+			}
+		}
+	}
 
 	return applyDecorators(...decorators);
 }

@@ -4,6 +4,7 @@ import { DtoPropertyFactoryBoolean, DtoPropertyFactoryDate, DtoPropertyFactoryNu
 import { EApiDtoType, EApiPropertyDescribeType } from "../../../enum";
 
 import type { IDtoGenerateFactory, IDtoStrategy } from "../../../interface";
+import {DtoPropertyFactoryRelation} from "../../../class/utility/dto/property/factory/relation.class";
 
 const DTO_STRATEGIES: Record<EApiDtoType, IDtoStrategy> = {
 	[EApiDtoType.BODY]: new DtoStrategyBody(),
@@ -19,7 +20,7 @@ const PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerat
 	[EApiPropertyDescribeType.OBJECT]: new DtoPropertyFactoryObject(),
 	[EApiPropertyDescribeType.STRING]: new DtoPropertyFactoryString(),
 	[EApiPropertyDescribeType.UUID]: new DtoPropertyFactoryUuid(),
-	[EApiPropertyDescribeType.RELATION]: new DtoPropertyFactoryUuid(),
+	[EApiPropertyDescribeType.RELATION]: new DtoPropertyFactoryRelation(),
 };
 
 export const DTO_UTILITY_CONSTANT: {

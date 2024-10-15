@@ -50,5 +50,8 @@
     "@types/node": "^22.1.0",
     "eslint-plugin-perfectionist": "^2.7.0",
     "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@nestjs/passport": "^10.0.3"
   }
 }
