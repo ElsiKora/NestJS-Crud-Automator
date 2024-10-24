@@ -1,170 +1,62 @@
-import { assignMetadata, Controller, HttpStatus, RequestMethod } from "@nestjs/common";
-import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
+import { Controller } from "@nestjs/common";
 
-import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
 import { ApiTags } from "@nestjs/swagger";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
 
 import { plainToInstance } from "class-transformer";
 
-import { MetadataStorage } from "../../class";
-import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
-import { ApiMethod } from "../../decorator/api/method.decorator";
-import { EApiAction, EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "../../enum";
+import { CONTROLLER_API_DECORATOR_CONSTANT } from "../../constant";
+import { EApiDtoType, EApiRouteType } from "../../enum";
 
-import { ApiControllerGetMethodName, ApiControllerWriteMethod, CapitalizeString, DtoGenerate, ErrorException, GenerateEntityInformation } from "../../utility";
+import { ApiControllerApplyDecorators, ApiControllerApplyMetadata, ApiControllerValidateRequest, ApiControllerWriteDtoSwagger, ApiControllerWriteMethod, CapitalizeString, DtoGenerate, ErrorException, GenerateEntityInformation } from "../../utility";
 
+import { ApiControllerGetPrimaryColumn } from "../../utility/api/controller/get-primary-column.utility";
+import { ApiControllerHandleRequestRelations } from "../../utility/api/controller/handle-request-relations.utility";
+
+import { ApiControllerTransformRequest } from "../../utility/api/controller/transform-request.utility";
 import { analyzeEntityMetadata } from "../../utility/dto/analize.utility";
 
-import type { BaseApiService } from "../../class";
+import type { IApiAuthenticationRequest, IApiControllerPrimaryColumn, IApiEntity, IApiGetListResponseResult, TApiControllerPropertiesRoute } from "../../interface";
+import type { IApiControllerProperties } from "../../interface/decorator/api/controller-properties.interface";
+import {
+	TApiControllerMethod, TApiControllerMethodMap, TApiControllerMethodName,
+	TApiControllerMethodNameMap,
+	TApiControllerTargetMethod,
+	TApiFunctionGetListProperties
+} from "../../type";
 
-import type { IApiBaseEntity, IApiEntity, IApiEntityColumn, IApiGetListResponseResult } from "../../interface";
-import type { IApiControllerProperties, IApiControllerPropertiesRoute } from "../../interface/decorator/api/controller-properties.interface";
-import type { TApiFunctionGetListProperties } from "../../type";
 import type { Type } from "@nestjs/common";
 import type { ClassConstructor } from "class-transformer";
-import type { ObjectLiteral } from "typeorm";
+
 
 export class ApiControllerFactory<E> {
-	private readonly ENTITY!: IApiEntity;
+	private readonly ENTITY!: IApiEntity<E>;
 
 	constructor(
-		protected target: new (...arguments_: Array<any>) => {
-			[key: string]: ((properties: any, body: any) => any) | BaseApiService<E>;
-			service: BaseApiService<E>;
-		},
+		protected target: TApiControllerTargetMethod<E>,
 		private readonly properties: IApiControllerProperties<E>,
 	) {
-		this.ENTITY = GenerateEntityInformation(properties.entity);
+		this.ENTITY = GenerateEntityInformation<E>(properties.entity);
 		analyzeEntityMetadata(this.properties.entity);
 
 		if (!this.ENTITY.primaryKey) {
 			throw ErrorException(`Primary key for entity ${this.properties.entity.name} not found`);
 		}
 
-		Controller(this.properties.entity.name.toLowerCase())(this.target);
-		ApiTags(this.properties.entity.name)(this.target);
-	}
-
-	applyDecorators(method: EApiRouteType, methodName: string, routeConfig: IApiControllerPropertiesRoute<E>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>): void {
-		const targetMethod: ((properties: any, body: any) => any) | BaseApiService<E> = this.targetPrototype[methodName];
-		const responseDto: Type<unknown> | undefined = routeConfig.dto?.response || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.RESPONSE);
-		const customDecorators: Array<MethodDecorator> = [...decorators];
-
-		switch (method) {
-			case EApiRouteType.GET: {
-				customDecorators.push(
-					ApiMethod({
-						action: EApiAction.FETCH,
-						authentication: routeConfig.authentication,
-						entity: this.properties.entity,
-						httpCode: HttpStatus.OK,
-						method: RequestMethod.GET,
-						path: `:${this.ENTITY.primaryKey!.name}`,
-						responses: { internalServerError: true, notFound: true, unauthorized: true },
-						responseType: responseDto
-					}),
-				);
-
-				break;
-			}
-
-			case EApiRouteType.GET_LIST: {
-				customDecorators.push(
-					ApiMethod({
-						action: EApiAction.FETCH_LIST,
-						entity: this.properties.entity,
-						httpCode: HttpStatus.OK,
-						method: RequestMethod.GET,
-						path: "",
-						responses: { internalServerError: true, notFound: true, unauthorized: true },
-						responseType: responseDto,
-					}),
-				);
-
-				break;
-			}
-
-			case EApiRouteType.CREATE: {
-				customDecorators.push(ApiMethod({ action: EApiAction.CREATE, entity: this.properties.entity, httpCode: HttpStatus.CREATED, method: RequestMethod.POST, path: "", responses: { internalServerError: true, unauthorized: true }, responseType: responseDto }));
-
-				break;
-			}
-
-			case EApiRouteType.UPDATE: {
-				customDecorators.push(ApiMethod({ action: EApiAction.UPDATE, entity: this.properties.entity, httpCode: HttpStatus.OK, method: RequestMethod.PUT, path: `:${this.ENTITY.primaryKey!.name}`, responses: { badRequest: true, internalServerError: true, notFound: true, unauthorized: true }, responseType: responseDto }));
-
-				break;
-			}
-
-			case EApiRouteType.PARTIAL_UPDATE: {
-				customDecorators.push(ApiMethod({ action: EApiAction.UPDATE, entity: this.properties.entity, httpCode: HttpStatus.OK, method: RequestMethod.PATCH, path: `:${this.ENTITY.primaryKey!.name}`, responses: { badRequest: true, internalServerError: true, notFound: true, unauthorized: true }, responseType: responseDto }));
-
-				break;
-			}
-
-			case EApiRouteType.DELETE: {
-				customDecorators.push(ApiMethod({ action: EApiAction.DELETE, entity: this.properties.entity, httpCode: HttpStatus.NO_CONTENT, method: RequestMethod.DELETE, path: `:${this.ENTITY.primaryKey!.name}`, responses: { internalServerError: true, notFound: true, unauthorized: true }, responseType: undefined }));
-
-				break;
-			}
-
-			default: {
-				throw ErrorException(`Method ${method as string} not implemented`);
-			}
-		}
-
-		if (customDecorators.length > 0) {
-			for (const decorator of customDecorators) {
-				const descriptor: TypedPropertyDescriptor<any> | undefined = Reflect.getOwnPropertyDescriptor(targetMethod, methodName);
-				(decorator as MethodDecorator | PropertyDecorator)(targetMethod, methodName, descriptor ?? { value: targetMethod });
-			}
-		}
-	}
-
-	applyMetadata(method: EApiRouteType, methodName: string, routeConfig: IApiControllerPropertiesRoute<E>): void {
-		let parameterIndex: number = 0;
-		let routeArgumentsMetadata: unknown = {};
-		const parameterTypes: Array<any> = [];
-
-		const requestDto: Type<unknown> | undefined = routeConfig.dto?.request || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.REQUEST);
-		const queryDto: Type<unknown> | undefined = routeConfig.dto?.query || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.QUERY);
-		const bodyDto: Type<unknown> | undefined = routeConfig.dto?.body || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.BODY);
-
-
-		if (requestDto) {
-			routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.PARAM, parameterIndex);
-			parameterTypes.push(requestDto);
-			parameterIndex++;
-			console.log("::HERE", method, parameterIndex, "Request");
-		}
-
-		if (queryDto) {
-			routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.QUERY, parameterIndex);
-			parameterTypes.push(queryDto);
-			parameterIndex++;
-			console.log("::HERE", method, parameterIndex, "Query");
-		}
-
-		if (bodyDto) {
-			routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.BODY, parameterIndex);
-			parameterTypes.push(bodyDto);
-			parameterIndex++;
-			console.log("::HERE", method, parameterIndex, "Body");
-		}
-
-		Reflect.defineMetadata(ROUTE_ARGS_METADATA, routeArgumentsMetadata, this.target, methodName);
-		Reflect.defineMetadata(PARAMTYPES_METADATA, parameterTypes, this.targetPrototype, methodName);
+		Controller(this.properties.path || this.properties.entity.name.toLowerCase())(this.target);
+		ApiTags(this.properties.name || this.properties.entity.name)(this.target);
 	}
 
 	createMethod(method: EApiRouteType): void {
 		if (!(method in this.properties.routes) || this.properties.routes[method]?.isEnabled !== false) {
-			const routeConfig: IApiControllerPropertiesRoute<E> = this.properties.routes[method] || {};
+			const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = this.properties.routes[method] || {};
 			const routeDecorators: Array<MethodDecorator> | Array<PropertyDecorator> = routeConfig.decorators || [];
-			ApiControllerWriteMethod(this as never, this.targetPrototype, method, this.properties.entity, this.ENTITY);
-			const methodName: string = ApiControllerGetMethodName(method);
+			const methodName: TApiControllerMethodNameMap[typeof method] = `${CONTROLLER_API_DECORATOR_CONSTANT.RESERVED_METHOD_PREFIX}${CapitalizeString(method)}` as TApiControllerMethodNameMap[typeof method];
 
-			this.applyMetadata(method, methodName, routeConfig);
+			ApiControllerWriteMethod<E>(this as never, this.targetPrototype, method, this.properties, this.ENTITY);
+			const targetMethod: TApiControllerMethodMap<E>[typeof method] = this.targetPrototype[methodName];
+			ApiControllerApplyMetadata(this.target, this.targetPrototype, this.ENTITY, this.properties, method, methodName, routeConfig);
+			ApiControllerApplyDecorators(targetMethod, this.ENTITY, this.properties, method, methodName, routeConfig, routeDecorators);
+			ApiControllerWriteDtoSwagger(this.target, this.ENTITY, this.properties, method, routeConfig, this.ENTITY);
 
 			// Reflect.defineMetadata(PARAMTYPES_METADATA, [routeConfig.dto.request], this.target, methodNameOnController);
 			// Reflect.defineMetadata(PATH_METADATA, `:${this.ENTITY.name}`, this.target, methodNameOnController);
@@ -174,68 +66,41 @@ export class ApiControllerFactory<E> {
 
             Reflect.defineMetadata(DECORATORS.API_MODEL_PROPERTIES, dtoProperties, routeConfig.dto.request);
             Reflect.defineMetadata(DECORATORS.API_MODEL_PROPERTIES_ARRAY, dtoPropertiesArray, routeConfig.dto.request); */
-
-			this.applyDecorators(method, methodName, routeConfig, routeDecorators);
-
-			this.writeDtoToSwagger(method, routeConfig, this.ENTITY);
 		}
 	}
 
-	protected [EApiRouteType.CREATE](_method: EApiRouteType, methodName: string): void {
-		try {
-			this.targetPrototype[methodName] = Object.defineProperty(
-				function (this: { service: BaseApiService<E> }, properties: Partial<E>): Promise<E> {
-					console.log("::IMHJERE");
-
-					return this.service.create(properties);
-				},
-				"name",
-				{ value: methodName },
-			);
-		} catch (error) {
-			console.log("FUCK", error);
-
-			throw error;
-		}
-	}
-
-	protected [EApiRouteType.DELETE](_method: EApiRouteType, methodName: string, _entity: IApiEntity, entityMetadata: IApiEntity): void {
+	protected [EApiRouteType.CREATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.CREATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
-			function (this: { service: BaseApiService<E> }, properties: ObjectLiteral): Promise<void> {
-				const primaryKeyColumn: IApiEntityColumn | undefined = entityMetadata.columns.find((column: IApiEntityColumn) => column.isPrimary);
-
-				if (!primaryKeyColumn) {
-					throw ErrorException("Primary key not found in entity columns");
-				}
-
-				const primaryKeyValue: string = String(properties[primaryKeyColumn.name]);
-
-				return this.service.delete(primaryKeyValue);
-			},
-			"name",
-			{ value: methodName },
-		);
-	}
-
-	protected [EApiRouteType.GET](method: EApiRouteType, methodName: string, entity: IApiBaseEntity, entityMetadata: IApiEntity): void {
-		this.targetPrototype[methodName] = Object.defineProperty(
-			async function (this: { service: BaseApiService<E> }, properties: ObjectLiteral): Promise<E> {
+			async function (this: TApiControllerMethod<E>, body: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				try {
-					const primaryKeyColumn: IApiEntityColumn | undefined = entityMetadata.columns.find((column: IApiEntityColumn) => column.isPrimary);
+					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(body, entityMetadata);
 
-					if (!primaryKeyColumn) {
+					if (!primaryKey) {
 						throw ErrorException("Primary key not found in entity columns");
 					}
 
-					const primaryKeyValue: string = String(properties[primaryKeyColumn.name]);
+					console.log("PRE TRANSFORM DATA", body);
+					ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { body }, { authenticationRequest, headers, ip });
+					console.log("POST TRANSFORM DATA", body);
+					await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, body);
+					await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, body);
 
-					const response: E = await this.service.get(primaryKeyValue);
-					const dto: Type<unknown> | undefined = DtoGenerate(entity, entityMetadata, method, EApiDtoType.RESPONSE);
+
+					const createResponse: E = await this.service.create(body);
+					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+
+					const response: E = await this.service.get(createResponse[primaryKey.key] as string, {}, properties.routes[method]?.response?.relations);
+
+					console.log("PRE TRANSFORM RESPONSE", response);
+					ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
+					console.log("POST TRANSFORM RESPONSE", response);
 
 					return plainToInstance(dto as ClassConstructor<E>, response, {
 						excludeExtraneousValues: true,
 					});
 				} catch (error) {
+					console.log(error);
+
 					throw error;
 				}
 			},
@@ -244,46 +109,114 @@ export class ApiControllerFactory<E> {
 		);
 	}
 
-	protected [EApiRouteType.GET_LIST](_method: EApiRouteType, methodName: string): void {
+	protected [EApiRouteType.DELETE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.DELETE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
-			function (this: { service: BaseApiService<E> }, properties: TApiFunctionGetListProperties<E>): Promise<IApiGetListResponseResult<E>> {
-				return this.service.getList(properties);
+			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, _headers: Record<string, string>, _ip: string, _authenticationRequest?: IApiAuthenticationRequest): Promise<void> {
+				const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
+
+				if (!primaryKey) {
+					throw ErrorException("Primary key not found in entity columns");
+				}
+
+				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
+				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
+
+				await this.service.get(primaryKey.value, {}, properties.routes[EApiRouteType.GET]?.response?.relations);
 			},
 			"name",
 			{ value: methodName },
 		);
 	}
 
-	protected [EApiRouteType.PARTIAL_UPDATE](_method: EApiRouteType, methodName: string, entity: IApiEntity): void {
+	protected [EApiRouteType.GET](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
-			function (this: { service: BaseApiService<E> }, properties: ObjectLiteral, body: Partial<E>): Promise<E> {
-				const primaryKeyColumn: IApiEntityColumn | undefined = entity.columns.find((column: IApiEntityColumn) => column.isPrimary);
+			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, _headers: Record<string, string>, _ip: string, _authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
+				const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
-				if (!primaryKeyColumn) {
+				if (!primaryKey) {
 					throw ErrorException("Primary key not found in entity columns");
 				}
 
-				const primaryKeyValue: string = String(properties[primaryKeyColumn.name]);
+				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
+				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
 
-				return this.service.update(primaryKeyValue, body);
+				const response: E = await this.service.get(primaryKey.value, {}, properties.routes[EApiRouteType.GET]?.response?.relations);
+
+				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+
+				return plainToInstance(dto as ClassConstructor<E>, response, {
+					excludeExtraneousValues: true,
+				});
 			},
 			"name",
 			{ value: methodName },
 		);
 	}
 
-	protected [EApiRouteType.UPDATE](_method: EApiRouteType, methodName: string, entity: IApiEntity): void {
+	protected [EApiRouteType.GET_LIST](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET_LIST>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
-			function (this: { service: BaseApiService<E> }, properties: ObjectLiteral, body: Partial<E>): Promise<E> {
-				const primaryKeyColumn: IApiEntityColumn | undefined = entity.columns.find((column: IApiEntityColumn) => column.isPrimary);
+			async function (this: TApiControllerMethod<E>, _parameters: Partial<E>, query: TApiFunctionGetListProperties<E>, _headers: Record<string, string>, _ip: string, _authenticationRequest?: IApiAuthenticationRequest): Promise<IApiGetListResponseResult<E>> {
+				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, query);
+				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, query);
 
-				if (!primaryKeyColumn) {
+				const response: IApiGetListResponseResult<E> = await this.service.getList(query);
+
+				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+
+				return plainToInstance(dto as ClassConstructor<IApiGetListResponseResult<E>>, response, {
+					excludeExtraneousValues: true,
+				});
+			},
+			"name",
+			{ value: methodName },
+		);
+	}
+
+	protected [EApiRouteType.PARTIAL_UPDATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.PARTIAL_UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+		this.targetPrototype[methodName] = Object.defineProperty(
+			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: Partial<E>, _headers: Record<string, string>, _ip: string, _authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
+				const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
+
+				if (!primaryKey) {
 					throw ErrorException("Primary key not found in entity columns");
 				}
 
-				const primaryKeyValue: string = String(properties[primaryKeyColumn.name]);
+				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
+				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
 
-				return this.service.update(primaryKeyValue, body);
+				const response: E = await this.service.update(primaryKey.value, body);
+
+				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+
+				return plainToInstance(dto as ClassConstructor<E>, response, {
+					excludeExtraneousValues: true,
+				});
+			},
+			"name",
+			{ value: methodName },
+		);
+	}
+
+	// eslint-disable-next-line sonarjs/no-identical-functions
+	protected [EApiRouteType.UPDATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.PARTIAL_UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+		this.targetPrototype[methodName] = Object.defineProperty(
+			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: Partial<E>, _headers: Record<string, string>, _ip: string, _authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
+				const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
+
+				if (!primaryKey) {
+					throw ErrorException("Primary key not found in entity columns");
+				}
+
+				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
+				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
+
+				const response: E = await this.service.update(primaryKey.value, body);
+
+				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+
+				return plainToInstance(dto as ClassConstructor<E>, response, {
+					excludeExtraneousValues: true,
+				});
 			},
 			"name",
 			{ value: methodName },
@@ -293,51 +226,6 @@ export class ApiControllerFactory<E> {
 	init(): void {
 		for (const method of Object.values(EApiRouteType)) {
 			this.createMethod(method);
-		}
-	}
-
-	writeDtoToSwagger(method: EApiRouteType, routeConfig: IApiControllerPropertiesRoute<E>, entityMetadata: IApiEntity): void {
-		const swaggerModels: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, this.target) || []) as Array<unknown>;
-
-		const requestDto: Type<unknown> | undefined = routeConfig.dto?.request || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.REQUEST);
-		const queryDto: Type<unknown> | undefined = routeConfig.dto?.query || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.QUERY);
-		const bodyDto: Type<unknown> | undefined = routeConfig.dto?.body || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.BODY);
-		const responseDto: Type<unknown> | undefined = routeConfig.dto?.response || DtoGenerate(this.properties.entity, this.ENTITY, method, EApiDtoType.RESPONSE);
-
-		const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, responseDto];
-
-		for (const dto of dtoList) {
-			if (dto && !swaggerModels.includes(dto)) {
-				swaggerModels.push(dto);
-
-				const storage: MetadataStorage = MetadataStorage.getInstance();
-
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-argument,@typescript-eslint/no-unsafe-assignment
-				const metadata: Record<string, any> = storage.getMetadata(entityMetadata.name);
-
-				for (const key of Object.keys(metadata)) {
-					if (metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] && metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME].type === EApiPropertyDescribeType.RELATION) {
-						const relationClass: { new (): any; prototype: any } = class GeneratedDTO {
-							constructor() {
-								Object.defineProperty(this, "id", {
-									configurable: true,
-									enumerable: true,
-									value: undefined,
-									writable: true,
-								});
-							}
-						};
-
-						Object.defineProperty(relationClass, "name", {
-							value: `${entityMetadata.name}${CapitalizeString(method)}${CapitalizeString(EApiDtoType.BODY)}${key}DTO`,
-						});
-
-						swaggerModels.push(relationClass);
-					}
-				}
-
-				Reflect.defineMetadata(DECORATORS.API_EXTRA_MODELS, swaggerModels, this.target);
-			}
 		}
 	}
 

@@ -6,7 +6,8 @@
   },
   "extends": [
     "@elsikora/eslint-config",
-    "@elsikora/eslint-config/typescript"
+    "@elsikora/eslint-config/typescript",
+    "@elsikora/eslint-config/json"
   ],
   "ignorePatterns": [
     ".eslintrc.json"

@@ -1,4 +1,4 @@
-import {HttpStatus, type Type} from "@nestjs/common";
+import { HttpStatus, type Type } from "@nestjs/common";
 
 import { DATE_CONSTANT, EXCEPTION_DTO_CONSTANT, NUMBER_CONSTANT } from "../../constant";
 import { ApiPropertyNumber, ApiPropertyObject, ApiPropertyString, ApiPropertyUUID } from "../../decorator";

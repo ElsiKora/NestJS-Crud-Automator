@@ -7,3 +7,5 @@ export * from "./get-base-class.utility";
 export * from "./generate-decorator.utility";
 export * from "./validate-property-config.utility";
 export * from "./generate-exception.utility";
+export * from "./generate-relation-response.utility";
+export * from "./is-property-exposed-for-guard.utility";

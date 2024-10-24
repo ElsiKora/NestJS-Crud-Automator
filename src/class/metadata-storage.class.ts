@@ -1,7 +1,11 @@
+import { IMetadataEntry } from "../interface";
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../constant";
+import { TMetadata } from "../type";
+
 export class MetadataStorage {
 	private static instance: MetadataStorage;
 
-	private readonly STORAGE: Map<string, Map<string, any>> = new Map<string, Map<string, any>>();
+	private readonly STORAGE: Map<string, Map<string, IMetadataEntry>> = new Map<string, Map<string, IMetadataEntry>>();
 
 	public static getInstance(): MetadataStorage {
 		if (!MetadataStorage.instance) {
@@ -11,8 +15,8 @@ export class MetadataStorage {
 		return MetadataStorage.instance;
 	}
 
-	public getAllEntitiesMetadata(): Record<string, Record<string, any>> {
-		const result: Record<string, Record<string, any>> = {};
+	public getAllEntitiesMetadata(): Record<string, TMetadata> {
+		const result: Record<string, TMetadata> = {};
 
 		for (const [entityName, entityMetadata] of this.STORAGE.entries()) {
 			result[entityName] = Object.fromEntries(entityMetadata);
@@ -21,33 +25,35 @@ export class MetadataStorage {
 		return result;
 	}
 
-	public getMetadata(entityName: string, propertyName?: string, key?: string): any {
-		const entityMetadata: Map<string, any> | undefined = this.STORAGE.get(entityName);
+	public getMetadata(entityName: string): TMetadata | undefined;
+	public getMetadata(entityName: string, propertyName: string): IMetadataEntry | undefined;
+	public getMetadata<K extends keyof IMetadataEntry>(entityName: string, propertyName: string, key: K): IMetadataEntry[K] | undefined;
+	public getMetadata(entityName: string, propertyName?: string, key?: keyof IMetadataEntry): IMetadataEntry | IMetadataEntry[keyof IMetadataEntry] | TMetadata | undefined {
+		const entityMetadata: Map<string, IMetadataEntry> | undefined = this.STORAGE.get(entityName);
 
 		if (!entityMetadata) return undefined;
 
 		if (!propertyName) return Object.fromEntries(entityMetadata);
-		const propertyMetadata: unknown = entityMetadata.get(propertyName);
+		const propertyMetadata: IMetadataEntry | undefined = entityMetadata.get(propertyName);
 
 		if (!propertyMetadata) return undefined;
 
 		if (!key) return propertyMetadata;
 
-		// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-		// @ts-expect-error
 		return propertyMetadata[key];
 	}
 
-	public setMetadata(entityName: string, propertyName: string, key: string, value: unknown): void {
+	public setMetadata<K extends keyof IMetadataEntry>(entityName: string, propertyName: string, key: K, value: IMetadataEntry[K]): void {
 		if (!this.STORAGE.has(entityName)) {
 			this.STORAGE.set(entityName, new Map());
 		}
-		const entityMetadata: Map<string, any> = this.STORAGE.get(entityName)!;
+		const entityMetadata: Map<string, IMetadataEntry> = this.STORAGE.get(entityName)!;
 
 		if (!entityMetadata.has(propertyName)) {
-			entityMetadata.set(propertyName, {});
+			entityMetadata.set(propertyName, { [PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]: {} });
 		}
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-		entityMetadata.get(propertyName)[key] = value;
+
+		const propertyMetadata: IMetadataEntry = entityMetadata.get(propertyName)!;
+		propertyMetadata[key] = value;
 	}
 }

@@ -1,3 +1,5 @@
+import { Validate } from "class-validator";
+
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT, NUMBER_CONSTANT, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
 import { ApiPropertyNumber, ApiPropertyObject } from "../../decorator";
 
@@ -10,16 +12,17 @@ import { ErrorException } from "../error-exception.utility";
 import { DtoBuildDecorator } from "./build-decorator.utility";
 import { DtoGetBaseClass } from "./get-base-class.utility";
 import { DtoHandleDateProperty } from "./handle-date-property.utility";
-import { DtoIsPropertyShouldBeMarked } from "./is-property-should-be-enabled.utility";
+import { DtoIsPropertyShouldBeMarked } from "./is-property-should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "./is-should-be-generated.utility";
 
 import type { EApiPropertyDateType } from "../../enum";
-import type { IApiEntity } from "../../interface";
+import type { IApiControllerPropertiesRouteAutoDtoConfig, IApiEntity } from "../../interface";
 import type { TApiPropertyDescribeProperties } from "../../type";
 import type { Type } from "@nestjs/common";
+import type { IAuthGuard } from "@nestjs/passport";
 import type { ObjectLiteral } from "typeorm";
 
-export const DtoGenerate = (entity: ObjectLiteral, entityMetadata: IApiEntity, method: EApiRouteType, dtoType: EApiDtoType): Type<unknown> | undefined => {
+export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
 		return undefined;
 	}
@@ -31,11 +34,11 @@ export const DtoGenerate = (entity: ObjectLiteral, entityMetadata: IApiEntity, m
 	const markedProperties: Array<{
 		isPrimary: boolean;
 		metadata: TApiPropertyDescribeProperties;
-		name: string;
+		name: keyof E;
 	}> = [];
 
 	for (const column of entityMetadata.columns) {
-		if (column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]) {
+		if (column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] && DtoIsPropertyShouldBeMarked(method, dtoType, column.name as string, column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] as TApiPropertyDescribeProperties, column.isPrimary, currentGuard)) {
 			markedProperties.push({
 				isPrimary: column.isPrimary,
 				metadata: column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] as TApiPropertyDescribeProperties,
@@ -44,42 +47,42 @@ export const DtoGenerate = (entity: ObjectLiteral, entityMetadata: IApiEntity, m
 		}
 	}
 
-	const BaseClass: Type<any> = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? DtoGetBaseClass(entityMetadata) : class {};
+	console.log("MARKEED", dtoType, method, markedProperties, currentGuard);
+
+	const BaseClass: Type<any> = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? DtoGetBaseClass<E>(entityMetadata) : class {};
 
 	class GeneratedDTO extends BaseClass {
 		constructor() {
 			super();
 
 			for (const property of markedProperties) {
-				if (DtoIsPropertyShouldBeMarked(method, dtoType, property.name, property.metadata, property.isPrimary)) {
-					if (property.metadata.type === EApiPropertyDescribeType.DATE && method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
-						const dateProperties: Array<{ name: string; type: EApiPropertyDateType }> = DtoHandleDateProperty(property.name, property.metadata.dataType);
+				if (property.metadata.type === EApiPropertyDescribeType.DATE && method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
+					const dateProperties: Array<{ name: string; type: EApiPropertyDateType }> = DtoHandleDateProperty(property.name as string, property.metadata.dataType);
 
-						for (const dateProperty of dateProperties) {
-							Object.defineProperty(this, dateProperty.name, {
-								configurable: true,
-								enumerable: true,
-								value: undefined,
-								writable: true,
-							});
-						}
-					} else {
-						Object.defineProperty(this, property.name, {
+					for (const dateProperty of dateProperties) {
+						Object.defineProperty(this, dateProperty.name, {
 							configurable: true,
 							enumerable: true,
 							value: undefined,
 							writable: true,
 						});
 					}
+				} else {
+					Object.defineProperty(this, property.name, {
+						configurable: true,
+						enumerable: true,
+						value: undefined,
+						writable: true,
+					});
 				}
 			}
 
-			Object.defineProperty(this, "page", {
+			/* Object.defineProperty(this, "page", { /// TODO ?????? ZACHEM PROVERIT
 				configurable: true,
 				enumerable: true,
 				value: undefined,
 				writable: true,
-			});
+			});*/
 		}
 	}
 
@@ -104,19 +107,23 @@ export const DtoGenerate = (entity: ObjectLiteral, entityMetadata: IApiEntity, m
 	}
 
 	for (const property of markedProperties) {
-		if (DtoIsPropertyShouldBeMarked(method, dtoType, property.name, property.metadata, property.isPrimary)) {
-			const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, entityMetadata, dtoType, property.name);
+		const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard);
 
-			if (decorators) {
-				for (const [index, decorator] of decorators.entries()) {
-					if (property.metadata.type === EApiPropertyDescribeType.DATE && method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
-						const dateProperties: Array<{ name: string; type: EApiPropertyDateType }> = DtoHandleDateProperty(property.name, property.metadata.dataType);
-						decorator(GeneratedDTO.prototype, dateProperties[index].name);
-					} else {
-						decorator(GeneratedDTO.prototype, property.name);
-					}
+		if (decorators) {
+			for (const [index, decorator] of decorators.entries()) {
+				if (property.metadata.type === EApiPropertyDescribeType.DATE && method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
+					const dateProperties: Array<{ name: string; type: EApiPropertyDateType }> = DtoHandleDateProperty(property.name as string, property.metadata.dataType);
+					decorator(GeneratedDTO.prototype, dateProperties[index].name);
+				} else {
+					decorator(GeneratedDTO.prototype, property.name as string);
 				}
 			}
+		}
+	}
+
+	if (dtoConfig?.validators) {
+		for (const validator of dtoConfig.validators) {
+			Validate(validator.constraintClass as unknown as Function, validator.options)(GeneratedDTO.prototype, "object");
 		}
 	}
 
@@ -125,4 +132,4 @@ export const DtoGenerate = (entity: ObjectLiteral, entityMetadata: IApiEntity, m
 	});
 
 	return GeneratedDTO;
-};
+}

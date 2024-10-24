@@ -1,5 +1,6 @@
-import { IApiBaseEntity } from "../../interface";
 import { ApiControllerFactory } from "../../factory";
+
+import type { IApiBaseEntity } from "../../interface";
 
 import type { IApiControllerProperties } from "../../interface/decorator/api/controller-properties.interface";
 import type { TApiControllerConstructor } from "../../type";

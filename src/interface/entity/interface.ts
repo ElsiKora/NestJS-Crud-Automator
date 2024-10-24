@@ -1,8 +1,8 @@
 import type { IApiEntityColumn } from "./column.interface";
 import type { IApiBaseEntity } from "../api-base-entity.interface";
 
-export interface IApiEntity extends IApiBaseEntity {
-	columns: Array<IApiEntityColumn>;
-	primaryKey: IApiEntityColumn | undefined;
+export interface IApiEntity<E> extends IApiBaseEntity {
+	columns: Array<IApiEntityColumn<E>>;
+	primaryKey: IApiEntityColumn<E> | undefined;
 	tableName: string;
 }

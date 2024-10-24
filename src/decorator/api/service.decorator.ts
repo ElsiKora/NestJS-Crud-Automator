@@ -4,8 +4,14 @@ import { ApiFunction } from "./function";
 
 import type { IApiBaseEntity, IApiGetListResponseResult } from "../../interface";
 
-import type { TApiFunctionCreateProperties, TApiFunctionGetListProperties, TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "../../type";
-import type { TApiServiceProperties } from "../../type/decorator/api/service-properties.type";
+import type {
+	TApiFunctionCreateProperties,
+	TApiFunctionGetListProperties,
+	TApiFunctionGetProperties,
+	TApiFunctionUpdateProperties,
+	TApiServiceProperties
+} from "../../type";
+
 
 import type { FindOptionsRelations } from "typeorm";
 
@@ -56,7 +62,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 					Object.defineProperty(this, EApiFunctionType.GET, {
 						configurable: true,
 						enumerable: true,
-						value: async function (id: string, properties: TApiFunctionGetProperties<E>, relations: FindOptionsRelations<E>): Promise<E> {
+						value: async function (id: string, properties?: TApiFunctionGetProperties<E>, relations?: FindOptionsRelations<E>): Promise<E> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
 								entity,
 								relations,
@@ -77,7 +83,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.GET, descriptor);
 
-							return (decoratedDescriptor.value as (this: any, id: string, properties: TApiFunctionGetProperties<E>) => Promise<E>).call(this, id, properties);
+							return (decoratedDescriptor.value as (this: any, id: string, properties?: TApiFunctionGetProperties<E>, relations?: FindOptionsRelations<E>) => Promise<E>).call(this, id, properties, relations);
 						},
 						writable: true,
 					});

@@ -46,6 +46,8 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(options: { model: new (
 			properties?: TApiFunctionGetProperties<InstanceType<typeof options.model>>,
 			relations?: FindOptionsRelations<E>,
 		): Promise<E> {
+			console.log("GOT FROM RESPONSNYA", id, properties, relations);
+
 			const filter: FindManyOptions<typeof options.model> = {
 				relations: relations,
 				where: { id },
@@ -71,6 +73,8 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(options: { model: new (
 			if (!repository) {
 				throw ErrorException("Repository is not available in this context");
 			}
+
+			console.log("TOTAL FILTER", filter);
 
 			return executor<E>({ entity: options.model, filter, repository });
 		};

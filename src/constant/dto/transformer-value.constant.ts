@@ -1,0 +1,19 @@
+const AUTHORIZED_ENTITY: Symbol = Symbol("AUTHORIZED_ENTITY");
+const REQUEST_IP: Symbol = Symbol("REQUEST_IP");
+const REQUEST_USER_AGENT: Symbol = Symbol("REQUEST_USER_AGENT");
+const REQUEST_TIMESTAMP: Symbol = Symbol("REQUEST_TIMESTAMP");
+const REQUEST_SIGNATURE: Symbol = Symbol("REQUEST_SIGNATURE");
+
+export const TRANSFORMER_VALUE_DTO_CONSTANT: {
+	readonly AUTHORIZED_ENTITY: Symbol;
+	readonly REQUEST_IP: Symbol;
+	readonly REQUEST_SIGNATURE: Symbol;
+	readonly REQUEST_TIMESTAMP: Symbol;
+	readonly REQUEST_USER_AGENT: Symbol;
+} = {
+	AUTHORIZED_ENTITY,
+	REQUEST_IP,
+	REQUEST_SIGNATURE,
+	REQUEST_TIMESTAMP,
+	REQUEST_USER_AGENT,
+} as const;

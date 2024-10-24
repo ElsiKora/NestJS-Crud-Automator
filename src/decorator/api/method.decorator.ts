@@ -276,19 +276,21 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 	}
 
 	if (options.authentication) {
-		decorators.push(UseGuards(options.authentication.guard));
-
 		if (options.authentication?.bearerStrategies?.length) {
 			for (const strategy of options.authentication?.bearerStrategies) {
+				console.log("Applying bearer strategy", strategy);
 				decorators.push(ApiBearerAuth(strategy));
 			}
 		}
 
 		if (options.authentication?.securityStrategies?.length) {
 			for (const strategy of options.authentication.securityStrategies) {
+				console.log("Applying security strategy", strategy);
 				decorators.push(ApiSecurity(strategy));
 			}
 		}
+
+		decorators.push(UseGuards(options.authentication.guard));
 	}
 
 	return applyDecorators(...decorators);

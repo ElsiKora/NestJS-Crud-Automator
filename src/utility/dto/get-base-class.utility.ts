@@ -9,7 +9,7 @@ import { AllOrNoneOfListedProperties } from "../../validator";
 
 import type { Type } from "@nestjs/common";
 
-export function DtoGetBaseClass(entity: IApiEntity): Type<any> {
+export function DtoGetBaseClass<E>(entity: IApiEntity<E>): Type<any> {
 	class BaseQueryDTO {
 		@ApiPropertyNumber({
 			description: "Items per page",

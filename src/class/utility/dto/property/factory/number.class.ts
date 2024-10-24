@@ -3,8 +3,8 @@ import { ApiPropertyNumber } from "../../../../../decorator";
 import type { IApiEntity, IDtoGenerateFactory } from "src/interface";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeNumberProperties } from "src/type";
 
-export class DtoPropertyFactoryNumber implements IDtoGenerateFactory {
-	create(metadata: TApiPropertyDescribeNumberProperties, entity: IApiEntity, config: TApiPropertyDescribeDtoProperties): PropertyDecorator {
+export class DtoPropertyFactoryNumber<E> implements IDtoGenerateFactory<E> {
+	create(metadata: TApiPropertyDescribeNumberProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties): PropertyDecorator {
 		return ApiPropertyNumber({
 			description: metadata.description,
 			entity,

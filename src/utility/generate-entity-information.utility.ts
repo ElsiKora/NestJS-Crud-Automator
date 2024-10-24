@@ -13,8 +13,8 @@ import type { RelationMetadataArgs } from "typeorm/metadata-args/RelationMetadat
 
 import type { TableMetadataArgs } from "typeorm/metadata-args/TableMetadataArgs";
 
-export function GenerateEntityInformation(entity: IApiBaseEntity): IApiEntity {
-	const generatedEntity: IApiEntity = {
+export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity<E> {
+	const generatedEntity: IApiEntity<E> = {
 		columns: [],
 		name: "",
 		primaryKey: undefined,
@@ -54,22 +54,22 @@ export function GenerateEntityInformation(entity: IApiBaseEntity): IApiEntity {
 
 	const relationList: Array<RelationMetadataArgs> = getMetadataArgsStorage().relations.filter(({ target }: RelationMetadataArgs): boolean => (target as Function).name === entity.name);
 
-	const entityColumns: Array<IApiEntityColumn> = [
+	const entityColumns: Array<IApiEntityColumn<E>> = [
 		...columnList.map(({ options, propertyName }: ColumnMetadataArgs) => ({
 			isPrimary: Boolean(options.primary),
 			metadata: (storage.getMetadata(entity.name, propertyName) as Record<string, any>) || undefined,
-			name: propertyName,
+			name: propertyName as keyof E,
 			type: options.type as ColumnType,
 		})),
 		...relationList.map(({ propertyName, relationType }: RelationMetadataArgs) => ({
 			isPrimary: false,
 			metadata: (storage.getMetadata(entity.name, propertyName) as Record<string, any>) || undefined,
-			name: propertyName,
+			name: propertyName as keyof E,
 			type: relationType as ColumnType,
 		})),
 	];
 
-	entityColumns.map((column: IApiEntityColumn) => {
+	entityColumns.map((column: IApiEntityColumn<E>) => {
 		if (column.isPrimary) {
 			generatedEntity.primaryKey = column;
 		}

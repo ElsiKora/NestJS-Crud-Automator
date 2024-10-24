@@ -3,7 +3,7 @@ export enum EApiPropertyDescribeType {
 	DATE = "date",
 	NUMBER = "number",
 	OBJECT = "object",
+	RELATION = "relation",
 	STRING = "string",
 	UUID = "uuid",
-	RELATION = "relation",
 }

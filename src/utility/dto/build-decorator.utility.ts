@@ -6,20 +6,36 @@ import { DtoHandleDateProperty } from "./handle-date-property.utility";
 
 import type { EApiPropertyDateType } from "../../enum";
 import type { IApiEntity } from "../../interface";
-import type { TApiPropertyDescribeArrayOptionalProperties, TApiPropertyDescribeArrayRequiredProperties, TApiPropertyDescribeBaseProperties, TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties, TDtoGenerateIsAllowedCombination } from "../../type";
+import type {
+	TApiPropertyDescribeArrayOptionalProperties,
+	TApiPropertyDescribeArrayRequiredProperties,
+	TApiPropertyDescribeBaseProperties,
+	TApiPropertyDescribeDtoProperties,
+	TApiPropertyDescribeProperties,
+	TDtoGenerateIsAllowedCombination
+} from "../../type";
+import {IAuthGuard} from "@nestjs/passport";
+import {Type} from "@nestjs/common";
+import {DtoIsPropertyExposedForGuard} from "./is-property-exposed-for-guard.utility";
 
-export const DtoBuildDecorator = <M extends EApiRouteType, D extends EApiDtoType>(method: M, metadata: TApiPropertyDescribeProperties, entity: IApiEntity, dtoType: D, propertyName: string): Array<PropertyDecorator> | undefined => {
+export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, propertyName: string, currentGuard?: Type<IAuthGuard>): Array<PropertyDecorator> | undefined {
+
 	type TAllowed = TDtoGenerateIsAllowedCombination<M, D>;
 
 	type TPropertiesType = TAllowed extends true ? TApiPropertyDescribeDtoProperties : never;
 
-	const properties: Record<D, TPropertiesType> | undefined = metadata.properties?.[method] as Record<D, TPropertiesType> | undefined;
+	const properties: Record<D, TPropertiesType> | undefined = propertyMetadata.properties?.[method] as Record<D, TPropertiesType> | undefined;
 
 	if (properties?.[dtoType]?.enabled === false || properties?.[dtoType]?.expose === false) {
 		return undefined;
 	}
 
-	if (metadata.type === EApiPropertyDescribeType.DATE) {
+	if (!DtoIsPropertyExposedForGuard(method, propertyMetadata, dtoType, currentGuard)) {
+		console.log("DONT WANT MARKER", propertyName, method, dtoType, propertyMetadata);
+		return undefined;
+	}
+
+	if (propertyMetadata.type === EApiPropertyDescribeType.DATE) {
 		const dateMetadata:
 			| (TApiPropertyDescribeBaseProperties & {
 					dataType: EApiPropertyDateType;
@@ -28,7 +44,7 @@ export const DtoBuildDecorator = <M extends EApiRouteType, D extends EApiDtoType
 			| (TApiPropertyDescribeBaseProperties & {
 					dataType: EApiPropertyDateType;
 					type: EApiPropertyDescribeType.DATE;
-			  } & TApiPropertyDescribeArrayRequiredProperties) = metadata;
+			  } & TApiPropertyDescribeArrayRequiredProperties) = propertyMetadata;
 
 		if ((method === EApiRouteType.UPDATE || method === EApiRouteType.PARTIAL_UPDATE) && dtoType === EApiDtoType.BODY) {
 			return undefined;
@@ -41,12 +57,12 @@ export const DtoBuildDecorator = <M extends EApiRouteType, D extends EApiDtoType
 				const newMetadata: TApiPropertyDescribeProperties = { ...dateMetadata, dataType: property.type };
 				const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, newMetadata, dtoType, property.name);
 
-				return DtoGenerateDecorator(newMetadata, entity, config);
+				return DtoGenerateDecorator(newMetadata, entity, config, method, dtoType, propertyName);
 			});
 		}
 	}
 
-	const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, metadata, dtoType, propertyName);
+	const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, propertyMetadata, dtoType, propertyName);
 
-	return [DtoGenerateDecorator(metadata, entity, config)];
+	return [DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName)];
 };

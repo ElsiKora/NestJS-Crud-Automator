@@ -1,0 +1,40 @@
+import { EApiDtoType, EApiRouteType } from "../../enum";
+
+import { DtoIsPropertyExposedForGuard } from "./is-property-exposed-for-guard.utility";
+
+import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "../../type";
+import type { Type } from "@nestjs/common";
+import type { IAuthGuard } from "@nestjs/passport";
+
+export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApiDtoType, propertyName: string, propertyMetadata: TApiPropertyDescribeProperties, isPrimary: boolean, currentGuard?: Type<IAuthGuard>): boolean {
+	const isDateField: boolean = ["createdAt", "receivedAt", "updatedAt"].includes(propertyName);
+
+	if (method === EApiRouteType.CREATE && dtoType === EApiDtoType.BODY && isDateField) {
+		return false;
+	}
+
+	const properties: Record<EApiDtoType, TApiPropertyDescribeDtoProperties> | undefined = propertyMetadata.properties?.[method] as Record<EApiDtoType, TApiPropertyDescribeDtoProperties> | undefined;
+
+	if (properties?.[dtoType]?.enabled === false) {
+		return false;
+	}
+
+	if (!DtoIsPropertyExposedForGuard(method, propertyMetadata, dtoType, currentGuard)) {
+		console.log("DONT WANT MARK", propertyName, method, dtoType, propertyMetadata);
+		return false;
+	}
+
+	if (dtoType === EApiDtoType.REQUEST && isPrimary) {
+		return true;
+	}
+
+	if ((dtoType === EApiDtoType.QUERY || dtoType === EApiDtoType.BODY) && !isPrimary) {
+		return true;
+	}
+
+	if (dtoType !== EApiDtoType.REQUEST && dtoType !== EApiDtoType.QUERY && dtoType !== EApiDtoType.BODY) {
+		return true;
+	}
+
+	return false;
+}
