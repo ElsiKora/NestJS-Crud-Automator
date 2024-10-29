@@ -1,55 +1,55 @@
 {
-	"author": "ElsiKora",
-	"description": "A library for automating the creation of CRUD operations in NestJS.",
-	"devDependencies": {
-		"@changesets/cli": "^2.27.7",
-		"@elsikora/eslint-config": "^2.1.4",
-		"@nestjs/passport": "^10.0.3",
-		"@types/lodash": "^4.17.7",
-		"@types/node": "^22.1.0",
-		"eslint-plugin-perfectionist": "^2.7.0",
-		"typescript": "^5.6.3"
-	},
-	"files": [
-		"dist"
-	],
-	"keywords": [
-		"NestJS",
-		"CRUD",
-		"TypeORM",
-		"REST API",
-		"Swagger",
-		"Decorator"
-	],
-	"license": "MIT",
-	"main": "dist/index.js",
-	"name": "@elsikora/nestjs-crud-automator",
-	"peerDependencies": {
-		"@nestjs/common": ">=10.3.10",
-		"@nestjs/core": ">=10.3.10",
-		"@nestjs/platform-fastify": ">=10.3.10",
-		"@nestjs/swagger": ">=7.4.0",
-		"@nestjs/throttler": ">=6.0.0",
-		"class-transformer": ">=0.5.1",
-		"class-validator": ">=0.14.1",
-		"fastify": ">=4.28.1",
-		"lodash": ">=4.17.21",
-		"typeorm": ">=0.3.20"
-	},
-	"publishConfig": {
-		"access": "public"
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/ElsiKora/NestJS-Crud-Automator"
-	},
-	"scripts": {
-		"build": "npm run prebuild && tsc -p tsconfig.build.json",
-		"format": "prettier --write \"src/**/*.ts\" \"src/**/*.json\" \".github/**/*.yml\"",
-		"lint": "eslint ./src --ext .ts,.tsx,.json,.yml --fix; eslint ./*.json --fix",
-		"patch": "changeset",
-		"prebuild": "rm -rf dist/*",
-		"release": "npm install && npm run build && changeset publish"
-	},
-	"version": "1.2.1"
+  "author": "ElsiKora",
+  "description": "A library for automating the creation of CRUD operations in NestJS.",
+  "devDependencies": {
+    "@changesets/cli": "^2.27.7",
+    "@elsikora/eslint-config": "^2.1.4",
+    "@nestjs/passport": "^10.0.3",
+    "@types/lodash": "^4.17.7",
+    "@types/node": "^22.1.0",
+    "eslint-plugin-perfectionist": "^2.7.0",
+    "typescript": "^5.6.3"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "NestJS",
+    "CRUD",
+    "TypeORM",
+    "REST API",
+    "Swagger",
+    "Decorator"
+  ],
+  "license": "MIT",
+  "main": "dist/index.js",
+  "name": "@elsikora/nestjs-crud-automator",
+  "peerDependencies": {
+    "@nestjs/common": ">=10.3.10",
+    "@nestjs/core": ">=10.3.10",
+    "@nestjs/platform-fastify": ">=10.3.10",
+    "@nestjs/swagger": ">=7.4.0",
+    "@nestjs/throttler": ">=6.0.0",
+    "class-transformer": ">=0.5.1",
+    "class-validator": ">=0.14.1",
+    "fastify": ">=4.28.1",
+    "lodash": ">=4.17.21",
+    "typeorm": ">=0.3.20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ElsiKora/NestJS-Crud-Automator"
+  },
+  "scripts": {
+    "build": "npm run prebuild && tsc -p tsconfig.build.json",
+    "format": "prettier --write \"src/**/*.ts\" \"src/**/*.json\" \".github/**/*.yml\"",
+    "lint": "eslint ./src --ext .ts,.tsx,.json,.yml --fix; eslint ./*.json --fix",
+    "patch": "changeset",
+    "prebuild": "rm -rf dist/*",
+    "release": "npm install && npm run build && changeset publish"
+  },
+  "version": "1.2.1"
 }
