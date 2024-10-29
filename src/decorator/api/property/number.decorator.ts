@@ -92,7 +92,7 @@ function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPrope
 		minimum: properties.minimum,
 		nullable: properties.nullable,
 		required: !properties.response && properties.required,
-		type: "number",
+		type: EApiPropertyDataType.NUMBER,
 	};
 
 	if (properties.enum) {
@@ -108,8 +108,6 @@ function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPrope
 
 	if (properties.isArray && properties.enum) {
 		delete apiPropertyOptions.type;
-	} else if (properties.isArray) {
-		apiPropertyOptions.type = "number[]";
 	}
 
 	return apiPropertyOptions;

@@ -5,7 +5,7 @@ import type { EApiPropertyDescribeType } from "../../../../../enum";
 import type { Type } from "@nestjs/common";
 
 export type TApiPropertyDescribeObjectProperties = TApiPropertyDescribeBaseProperties & {
-	dataType?: [Function] | Function | Record<string, any> | string | Type<unknown>;
+	dataType?: [Function] | Function | Record<string, any> | Type<unknown> | undefined;
 	description: string;
 	nested?: boolean;
 	type: EApiPropertyDescribeType.OBJECT;

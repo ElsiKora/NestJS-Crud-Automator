@@ -67,6 +67,7 @@ function validateOptions<T extends IApiBaseEntity>(properties: IApiPropertyObjec
 function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPropertyObjectProperties<T>): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${properties.entity.name} ${properties.description || ""}`,
+		enumName: (properties.enum as unknown as string) || "",
 		nullable: properties.nullable,
 		required: !properties.response && properties.required,
 		type: properties.type,

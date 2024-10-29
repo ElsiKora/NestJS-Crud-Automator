@@ -174,8 +174,6 @@ function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPrope
 
 	if (properties.isArray && properties.enum) {
 		delete apiPropertyOptions.type;
-	} else if (properties.isArray) {
-		apiPropertyOptions.type = [EApiPropertyDataType.STRING];
 	}
 
 	return apiPropertyOptions;

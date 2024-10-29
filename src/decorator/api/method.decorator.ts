@@ -182,7 +182,6 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			decorators.push(
 				ApiUnauthorizedResponse({
 					description: "Unauthorized",
-					status: HttpStatus.UNAUTHORIZED,
 					type: DtoGenerateException(HttpStatus.UNAUTHORIZED),
 				}),
 			);
@@ -192,7 +191,6 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			decorators.push(
 				ApiForbiddenResponse({
 					description: "Forbiddeb",
-					status: HttpStatus.FORBIDDEN,
 					type: DtoGenerateException(HttpStatus.FORBIDDEN),
 				}),
 			);
@@ -202,7 +200,6 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			decorators.push(
 				ApiInternalServerErrorResponse({
 					description: "Internal Server Error",
-					status: HttpStatus.INTERNAL_SERVER_ERROR,
 					type: DtoGenerateException(HttpStatus.INTERNAL_SERVER_ERROR),
 				}),
 			);
@@ -212,7 +209,6 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			decorators.push(
 				ApiNotFoundResponse({
 					description: "Not Found",
-					status: HttpStatus.NOT_FOUND,
 					type: DtoGenerateException(HttpStatus.NOT_FOUND),
 				}),
 			);
@@ -222,7 +218,6 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			decorators.push(
 				ApiBadRequestResponse({
 					description: "Bad Request",
-					status: HttpStatus.BAD_REQUEST,
 					type: DtoGenerateException(HttpStatus.BAD_REQUEST),
 				}),
 			);
@@ -232,7 +227,6 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			decorators.push(
 				ApiTooManyRequestsResponse({
 					description: "Too Many Requests",
-					status: HttpStatus.TOO_MANY_REQUESTS,
 					type: DtoGenerateException(HttpStatus.TOO_MANY_REQUESTS),
 				}),
 			);

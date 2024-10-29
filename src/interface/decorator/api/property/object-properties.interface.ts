@@ -7,5 +7,5 @@ export interface IApiPropertyObjectProperties<T> extends IApiPropertyBasePropert
 	default?: number | string;
 	nested?: boolean;
 	nullable?: boolean;
-	type?: [Function] | Function | Record<string, any> | string | Type<unknown>;
+	type?: [Function] | Function | Record<string, any> | Type<unknown> | undefined;
 }

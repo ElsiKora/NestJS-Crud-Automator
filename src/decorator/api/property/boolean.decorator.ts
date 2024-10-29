@@ -6,7 +6,9 @@ import { Expose, Transform } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, IsOptional } from "class-validator";
 
 import type { IApiBaseEntity, IApiPropertyBaseProperties } from "../../../interface";
+
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import {EApiPropertyDataType} from "../../../enum";
 
 export function ApiPropertyBoolean<T extends IApiBaseEntity>(properties: IApiPropertyBaseProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions<T>(properties);
@@ -39,7 +41,7 @@ function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPrope
 		example: true,
 		nullable: properties.nullable,
 		required: !properties.response && properties.required,
-		type: "boolean",
+		type: EApiPropertyDataType.BOOLEAN,
 	};
 
 	if (properties.isArray) {
@@ -47,9 +49,6 @@ function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPrope
 		apiPropertyOptions.minItems = properties.minItems;
 		apiPropertyOptions.maxItems = properties.maxItems;
 		apiPropertyOptions.uniqueItems = properties.uniqueItems;
-		apiPropertyOptions.type = "boolean[]";
-	} else {
-		apiPropertyOptions.type = "boolean";
 	}
 
 	return apiPropertyOptions;
