@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.4.0
+
+### Minor Changes
+
+- ebf7691: refactor(api-decorators): streamline property type handling
+
 ## 1.3.0
 
 ### Minor Changes
