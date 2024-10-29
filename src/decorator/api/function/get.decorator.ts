@@ -1,23 +1,21 @@
 import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
-import { Like } from "typeorm";
 
 import { EErrorStringAction } from "../../../enum";
 
 import { ErrorException, ErrorString } from "../../../utility";
 
-import type { IApiBaseEntity } from "../../../interface";
-import type { IApiFunctionGetExecutorProperties, TApiFunctionGetProperties } from "../../../type";
-
-import type { FindManyOptions, FindOptionsRelations, Repository } from "typeorm";
+import type { IApiBaseEntity, IApiFunctionGetExecutorProperties, IApiFunctionProperties } from "../../../interface";
+import type { TApiFunctionGetProperties } from "../../../type";
+import type { Repository } from "typeorm";
 
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecutorProperties<E>): Promise<E> {
-	const { entity, filter, repository }: IApiFunctionGetExecutorProperties<E> = options;
+	const { entity, properties, repository }: IApiFunctionGetExecutorProperties<E> = options;
 
 	try {
-		const item: E | null = await repository.findOne(filter);
+		const item: E | null = await repository.findOne(properties);
 
 		if (!item) {
-			throw new NotFoundException(ErrorString({ entity: entity, type: EErrorStringAction.NOT_FOUND }));
+			throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));
 		}
 
 		return item;
@@ -28,55 +26,33 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 
 		throw new InternalServerErrorException(
 			ErrorString({
-				entity: entity,
+				entity,
 				type: EErrorStringAction.FETCHING_ERROR,
 			}),
 		);
 	}
 }
 
-export function ApiFunctionGet<E extends IApiBaseEntity>(options: { model: new () => E }) {
-	// eslint-disable-next-line @typescript-eslint/naming-convention
-	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
+	const { entity }: IApiFunctionProperties = properties;
+
+	return function (target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+		void target;
+		void propertyKey;
+
 		descriptor.value = async function (
 			this: {
 				repository: Repository<E>;
 			},
-			id: string,
-			properties?: TApiFunctionGetProperties<InstanceType<typeof options.model>>,
-			relations?: FindOptionsRelations<E>,
+			properties: TApiFunctionGetProperties<E>,
 		): Promise<E> {
-			console.log("GOT FROM RESPONSNYA", id, properties, relations);
-
-			const filter: FindManyOptions<typeof options.model> = {
-				relations: relations,
-				where: { id },
-			};
-
-			if (properties) {
-				const { ...entityProperties }: TApiFunctionGetProperties<InstanceType<typeof options.model>> = properties;
-
-				const typedEntityProperties: keyof typeof options.model = entityProperties as Exclude<keyof Omit<E, "createdAt" | "receivedAt" | "updatedAt">, keyof E>;
-
-				for (const key of Object.keys(typedEntityProperties)) {
-					if (typeof typedEntityProperties[key] === "string") {
-						filter.where = {
-							...filter.where,
-							[key]: Like(`%${typedEntityProperties[key] as string}%`),
-						};
-					}
-				}
-			}
-
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
 				throw ErrorException("Repository is not available in this context");
 			}
 
-			console.log("TOTAL FILTER", filter);
-
-			return executor<E>({ entity: options.model, filter, repository });
+			return executor<E>({ entity, properties, repository });
 		};
 
 		return descriptor;

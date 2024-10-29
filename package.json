@@ -1,16 +1,14 @@
 {
 	"author": "ElsiKora",
-	"dependencies": {
-		"@nestjs/passport": "^10.0.3"
-	},
 	"description": "A library for automating the creation of CRUD operations in NestJS.",
 	"devDependencies": {
 		"@changesets/cli": "^2.27.7",
 		"@elsikora/eslint-config": "^2.1.4",
+		"@nestjs/passport": "^10.0.3",
 		"@types/lodash": "^4.17.7",
 		"@types/node": "^22.1.0",
 		"eslint-plugin-perfectionist": "^2.7.0",
-		"typescript": "^5.5.4"
+		"typescript": "^5.6.3"
 	},
 	"files": [
 		"dist"
@@ -41,7 +39,6 @@
 	"publishConfig": {
 		"access": "public"
 	},
-  "version": "1.2.1",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ElsiKora/NestJS-Crud-Automator"
@@ -53,5 +50,6 @@
 		"patch": "changeset",
 		"prebuild": "rm -rf dist/*",
 		"release": "npm install && npm run build && changeset publish"
-	}
+	},
+	"version": "1.2.1"
 }

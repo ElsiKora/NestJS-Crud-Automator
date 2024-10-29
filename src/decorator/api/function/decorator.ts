@@ -5,6 +5,7 @@ import { ErrorException } from "../../../utility";
 import { ApiFunctionCreate } from "./create.decorator";
 import { ApiFunctionDelete } from "./delete.decorator";
 import { ApiFunctionGetList } from "./get-list.decorator";
+import { ApiFunctionGetMany } from "./get-many.decorator";
 import { ApiFunctionGet } from "./get.decorator";
 import { ApiFunctionUpdate } from "./update.decorator";
 
@@ -27,31 +28,37 @@ export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctio
 
 			switch (type) {
 				case EApiFunctionType.GET_LIST: {
-					decoratorFunction = ApiFunctionGetList({ model: entity });
+					decoratorFunction = ApiFunctionGetList({ entity });
 
 					break;
 				}
 
 				case EApiFunctionType.GET: {
-					decoratorFunction = ApiFunctionGet({ model: entity });
+					decoratorFunction = ApiFunctionGet({ entity });
+
+					break;
+				}
+
+				case EApiFunctionType.GET_MANY: {
+					decoratorFunction = ApiFunctionGetMany({ entity });
 
 					break;
 				}
 
 				case EApiFunctionType.CREATE: {
-					decoratorFunction = ApiFunctionCreate({ entity: entity });
+					decoratorFunction = ApiFunctionCreate({ entity });
 
 					break;
 				}
 
 				case EApiFunctionType.UPDATE: {
-					decoratorFunction = ApiFunctionUpdate({ model: entity });
+					decoratorFunction = ApiFunctionUpdate({ entity });
 
 					break;
 				}
 
 				case EApiFunctionType.DELETE: {
-					decoratorFunction = ApiFunctionDelete({ model: entity });
+					decoratorFunction = ApiFunctionDelete({ entity });
 
 					break;
 				}

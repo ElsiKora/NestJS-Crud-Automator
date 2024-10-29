@@ -1,15 +1,16 @@
 import { BadRequestException } from "@nestjs/common";
 
-import { BaseApiService } from "../../../class";
-import { EApiControllerLoadRelationsStrategy, type IApiControllerProperties } from "../../../interface";
+import { ApiServiceBase } from "../../../class";
+import { EApiControllerLoadRelationsStrategy } from "../../../enum";
 
 import { ErrorException } from "../../error-exception.utility";
 import { GetEntityColumns } from "../../get-entity-columns.utility";
 
-import type { TApiControllerPropertiesRouteBaseRequestRelations } from "../../../interface";
-import type { TApiControllerMethod, TApiFunctionGetListProperties, TApiServiceKeys } from "../../../type";
+import type { IApiControllerProperties } from "../../../interface";
+import type { TApiControllerMethod, TApiControllerPropertiesRouteBaseRequestRelations, TApiFunctionGetListProperties, TApiFunctionGetProperties, TApiServiceKeys } from "../../../type";
+import type { DeepPartial, FindOptionsWhere } from "typeorm";
 
-export async function ApiControllerHandleRequestRelations<E>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined, parameters: Partial<E> | TApiFunctionGetListProperties<E>): Promise<void> {
+export async function ApiControllerHandleRequestRelations<E>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiFunctionGetListProperties<E>): Promise<void> {
 	if (relationConfig?.loadRelations) {
 		for (const propertyName of GetEntityColumns<E>({ entity: properties.entity, shouldTakeRelationsOnly: true })) {
 			// eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -51,11 +52,17 @@ export async function ApiControllerHandleRequestRelations<E>(controllerMethod: T
 					continue;
 				}
 
-				if (!(service instanceof BaseApiService)) {
+				if (!(service instanceof ApiServiceBase)) {
 					throw ErrorException(`Service ${serviceName as string} is not an instance of BaseApiService`);
 				}
 
-				const entity: E[keyof E & string] = (await service.get(parameters[propertyName] as string)) as E[keyof E & string];
+				const requestProperties: TApiFunctionGetProperties<E> = {
+					where: {
+						id: parameters[propertyName],
+					} as FindOptionsWhere<E>,
+				};
+
+				const entity: E[keyof E & string] = (await service.get(requestProperties)) as E[keyof E & string];
 
 				if (!entity) {
 					throw new BadRequestException(`Invalid ${String(propertyName)} ID`);

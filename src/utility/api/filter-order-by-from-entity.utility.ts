@@ -8,10 +8,10 @@ import type { EApiDtoType, EApiRouteType } from "../../enum";
 import type { IApiEntity } from "../../interface";
 import type { IApiFilterOrderBy, TFilterFieldSelector } from "../../type";
 
+import type { Type } from "@nestjs/common";
 import type { ObjectLiteral } from "typeorm";
 import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
 import type { MetadataArgsStorage } from "typeorm/metadata-args/MetadataArgsStorage";
-import {Type} from "@nestjs/common";
 
 export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, fieldSelector?: TFilterFieldSelector<typeof entity>): IApiFilterOrderBy<typeof entity> {
 	const metadata: MetadataArgsStorage = getMetadataArgsStorage();
@@ -46,7 +46,7 @@ export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata
 							.join("")
 							.toUpperCase();
 
-						accumulator[snakeUpperCase as keyof IApiFilterOrderBy<typeof entity>] = column.propertyName as string;
+						accumulator[snakeUpperCase as keyof IApiFilterOrderBy<typeof entity>] = column.propertyName;
 					}
 				}
 			}

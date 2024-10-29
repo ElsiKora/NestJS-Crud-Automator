@@ -1,4 +1,4 @@
 export interface IApiDtoValidator {
-    constraintClass: Function;
-    options?: Array<any>;
+	constraintClass: Function;
+	options?: Array<any>;
 }

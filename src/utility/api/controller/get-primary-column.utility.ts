@@ -1,6 +1,7 @@
 import type { IApiControllerPrimaryColumn, IApiEntity, IApiEntityColumn } from "../../../interface";
+import type { DeepPartial } from "typeorm";
 
-export function ApiControllerGetPrimaryColumn<E>(parameters: Partial<E>, entityMetadata: IApiEntity<E>): IApiControllerPrimaryColumn<E> | undefined {
+export function ApiControllerGetPrimaryColumn<E>(parameters: DeepPartial<E> | Partial<E>, entityMetadata: IApiEntity<E>): IApiControllerPrimaryColumn<E> | undefined {
 	const primaryKeyColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>): column is IApiEntityColumn<E> => column.isPrimary);
 
 	if (!primaryKeyColumn) {
@@ -9,6 +10,6 @@ export function ApiControllerGetPrimaryColumn<E>(parameters: Partial<E>, entityM
 
 	return {
 		key: primaryKeyColumn.name,
-		value: parameters[primaryKeyColumn.name] as string,
+		value: parameters[primaryKeyColumn.name as keyof DeepPartial<E>] as string,
 	};
 }

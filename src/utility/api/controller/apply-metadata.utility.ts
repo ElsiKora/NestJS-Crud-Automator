@@ -9,7 +9,8 @@ import { DtoGenerate } from "../../dto";
 
 import type { EApiRouteType } from "../../../enum";
 
-import type { IApiControllerProperties, IApiEntity, TApiControllerPropertiesRoute } from "../../../interface";
+import type { IApiControllerProperties, IApiEntity } from "../../../interface";
+import type { TApiControllerPropertiesRoute } from "../../../type";
 
 import type { Type } from "@nestjs/common";
 
@@ -32,6 +33,8 @@ export function ApiControllerApplyMetadata<E>(target: Object, targetPrototype: O
 		routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.QUERY, parameterIndex);
 		parameterTypes.push(queryDto);
 		parameterIndex++;
+
+		console.log("ATTACHING QUERY DTO", queryDto, routeArgumentsMetadata, parameterIndex);
 	}
 
 	if (bodyDto) {

@@ -3,8 +3,6 @@ export enum EApiFunctionType {
 	DELETE = "delete",
 	GET = "get",
 	GET_LIST = "getList",
-	REMOVE = "remove",
-	REPLACE = "replace",
-	RESTORE = "restore",
+	GET_MANY = "getMany",
 	UPDATE = "update",
 }

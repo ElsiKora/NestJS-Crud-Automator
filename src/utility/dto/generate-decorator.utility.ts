@@ -16,4 +16,4 @@ export function DtoGenerateDecorator<E>(metadata: TApiPropertyDescribeProperties
 	}
 
 	return metadata.type === EApiPropertyDescribeType.RELATION ? factory.create(metadata, entity, config, method, dtoType, propertyName) : factory.create(metadata, entity, config);
-};
+}

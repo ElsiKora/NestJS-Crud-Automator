@@ -2,11 +2,13 @@ import { InternalServerErrorException } from "@nestjs/common";
 
 import { TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../constant/dto/transformer-value.constant";
 import { EApiControllerRequestTransformerType, EApiDtoType, EErrorStringAction } from "../../../enum";
+
 import { ErrorString } from "../../error-string.utility";
 
 import type { EApiRouteType } from "../../../enum";
-import type { IApiAuthenticationRequest, IApiControllerProperties, IApiGetListResponseResult, TApiControllerPropertiesRouteBaseRequestTransformers, TApiControllerPropertiesRouteBaseResponseTransformers } from "../../../interface";
-import type { TApiFunctionGetListProperties, TApiRequestTransformer } from "../../../type";
+import type { IApiAuthenticationRequest, IApiControllerProperties, IApiGetListResponseResult } from "../../../interface";
+import type { TApiControllerPropertiesRouteBaseRequestTransformers, TApiControllerPropertiesRouteBaseResponseTransformers, TApiControllersGetListQuery, TApiFunctionGetListProperties, TApiRequestTransformer } from "../../../type";
+import type { DeepPartial } from "typeorm";
 
 function isApiGetListResponseResult<E>(object: IApiGetListResponseResult<E> | Partial<E> | TApiFunctionGetListProperties<E>): object is IApiGetListResponseResult<E> {
 	return "items" in object && "totalCount" in object;
@@ -39,11 +41,13 @@ function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToT
 
 						break;
 					}
+
 					case TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_IP: {
 						handleTransformation(objectToTransform, transformer.key, requestData.ip);
 
 						break;
 					}
+
 					case TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_SIGNATURE: {
 						if (!requestData.headers["x-signature"]) {
 							throw new InternalServerErrorException(
@@ -58,6 +62,7 @@ function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToT
 
 						break;
 					}
+
 					case TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_TIMESTAMP: {
 						if (!requestData.headers["x-timestamp"]) {
 							throw new InternalServerErrorException(
@@ -72,6 +77,7 @@ function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToT
 
 						break;
 					}
+
 					case TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_USER_AGENT: {
 						if (!requestData.headers["user-agent"]) {
 							throw new InternalServerErrorException(
@@ -86,6 +92,7 @@ function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToT
 
 						break;
 					}
+
 					default: {
 						console.warn(`Invalid dynamic value: ${String(transformer.value)}`);
 
@@ -127,9 +134,9 @@ function handleTransformation<E>(object: IApiGetListResponseResult<E> | Partial<
 }
 
 type TApiControllerTransformRequestObjectToTransform<E> = {
-	body?: Partial<E>;
+	body?: DeepPartial<E>;
 	parameters?: Partial<E>;
-	query?: TApiFunctionGetListProperties<E>;
+	query?: TApiControllersGetListQuery<E>;
 	response?: IApiGetListResponseResult<E> | Partial<E>;
 };
 

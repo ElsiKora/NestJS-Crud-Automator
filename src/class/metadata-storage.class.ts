@@ -1,6 +1,8 @@
-import { IMetadataEntry } from "../interface";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../constant";
-import { TMetadata } from "../type";
+
+import type { IMetadataEntry } from "../interface";
+
+import type { TMetadata } from "../type";
 
 export class MetadataStorage {
 	private static instance: MetadataStorage;

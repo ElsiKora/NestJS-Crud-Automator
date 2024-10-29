@@ -15,18 +15,12 @@ import { ApiControllerHandleRequestRelations } from "../../utility/api/controlle
 import { ApiControllerTransformRequest } from "../../utility/api/controller/transform-request.utility";
 import { analyzeEntityMetadata } from "../../utility/dto/analize.utility";
 
-import type { IApiAuthenticationRequest, IApiControllerPrimaryColumn, IApiEntity, IApiGetListResponseResult, TApiControllerPropertiesRoute } from "../../interface";
-import type { IApiControllerProperties } from "../../interface/decorator/api/controller-properties.interface";
-import {
-	TApiControllerMethod, TApiControllerMethodMap, TApiControllerMethodName,
-	TApiControllerMethodNameMap,
-	TApiControllerTargetMethod,
-	TApiFunctionGetListProperties
-} from "../../type";
+import type { IApiAuthenticationRequest, IApiControllerPrimaryColumn, IApiControllerProperties, IApiEntity, IApiGetListResponseResult } from "../../interface";
+import type { TApiControllerMethod, TApiControllerMethodMap, TApiControllerMethodName, TApiControllerMethodNameMap, TApiControllerPropertiesRoute, TApiControllersGetListQuery, TApiControllerTargetMethod, TApiFunctionDeleteCriteria, TApiFunctionGetProperties, TApiFunctionUpdateCriteria } from "../../type";
 
 import type { Type } from "@nestjs/common";
 import type { ClassConstructor } from "class-transformer";
-
+import type { DeepPartial, FindOptionsWhere } from "typeorm";
 
 export class ApiControllerFactory<E> {
 	private readonly ENTITY!: IApiEntity<E>;
@@ -71,7 +65,7 @@ export class ApiControllerFactory<E> {
 
 	protected [EApiRouteType.CREATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.CREATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
-			async function (this: TApiControllerMethod<E>, body: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
+			async function (this: TApiControllerMethod<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				try {
 					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(body, entityMetadata);
 
@@ -79,21 +73,23 @@ export class ApiControllerFactory<E> {
 						throw ErrorException("Primary key not found in entity columns");
 					}
 
-					console.log("PRE TRANSFORM DATA", body);
 					ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { body }, { authenticationRequest, headers, ip });
-					console.log("POST TRANSFORM DATA", body);
-					await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, body);
+					await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, body as Partial<E>);
 					await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, body);
-
 
 					const createResponse: E = await this.service.create(body);
 					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
-					const response: E = await this.service.get(createResponse[primaryKey.key] as string, {}, properties.routes[method]?.response?.relations);
+					const requestProperties: TApiFunctionGetProperties<E> = {
+						relations: properties.routes[method]?.response?.relations,
+						where: {
+							[primaryKey.key]: createResponse[primaryKey.key],
+						} as FindOptionsWhere<E>,
+					};
 
-					console.log("PRE TRANSFORM RESPONSE", response);
+					const response: E = await this.service.get(requestProperties);
+
 					ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
-					console.log("POST TRANSFORM RESPONSE", response);
 
 					return plainToInstance(dto as ClassConstructor<E>, response, {
 						excludeExtraneousValues: true,
@@ -111,17 +107,22 @@ export class ApiControllerFactory<E> {
 
 	protected [EApiRouteType.DELETE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.DELETE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
-			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, _headers: Record<string, string>, _ip: string, _authenticationRequest?: IApiAuthenticationRequest): Promise<void> {
+			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<void> {
 				const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
 				if (!primaryKey) {
 					throw ErrorException("Primary key not found in entity columns");
 				}
 
+				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { parameters }, { authenticationRequest, headers, ip });
 				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
 				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
 
-				await this.service.get(primaryKey.value, {}, properties.routes[EApiRouteType.GET]?.response?.relations);
+				const requestCriteria: TApiFunctionDeleteCriteria<E> = {
+					[primaryKey.key]: primaryKey.value,
+				} as TApiFunctionDeleteCriteria<E>;
+
+				await this.service.delete(requestCriteria);
 			},
 			"name",
 			{ value: methodName },
@@ -130,17 +131,27 @@ export class ApiControllerFactory<E> {
 
 	protected [EApiRouteType.GET](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
-			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, _headers: Record<string, string>, _ip: string, _authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
+			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
 				if (!primaryKey) {
 					throw ErrorException("Primary key not found in entity columns");
 				}
 
+				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { parameters }, { authenticationRequest, headers, ip });
 				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
 				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
 
-				const response: E = await this.service.get(primaryKey.value, {}, properties.routes[EApiRouteType.GET]?.response?.relations);
+				const requestProperties: TApiFunctionGetProperties<E> = {
+					relations: properties.routes[method]?.response?.relations,
+					where: {
+						[primaryKey.key]: primaryKey.value,
+					} as FindOptionsWhere<E>,
+				};
+
+				const response: E = await this.service.get(requestProperties);
+
+				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
@@ -155,11 +166,13 @@ export class ApiControllerFactory<E> {
 
 	protected [EApiRouteType.GET_LIST](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET_LIST>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
-			async function (this: TApiControllerMethod<E>, _parameters: Partial<E>, query: TApiFunctionGetListProperties<E>, _headers: Record<string, string>, _ip: string, _authenticationRequest?: IApiAuthenticationRequest): Promise<IApiGetListResponseResult<E>> {
+			async function (this: TApiControllerMethod<E>, query: TApiControllersGetListQuery<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<IApiGetListResponseResult<E>> {
+				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { query }, { authenticationRequest, headers, ip });
 				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, query);
 				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, query);
 
 				const response: IApiGetListResponseResult<E> = await this.service.getList(query);
+				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
@@ -174,17 +187,24 @@ export class ApiControllerFactory<E> {
 
 	protected [EApiRouteType.PARTIAL_UPDATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.PARTIAL_UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
-			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: Partial<E>, _headers: Record<string, string>, _ip: string, _authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
+			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
 				if (!primaryKey) {
 					throw ErrorException("Primary key not found in entity columns");
 				}
 
+				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { body, parameters }, { authenticationRequest, headers, ip });
 				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
 				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
 
-				const response: E = await this.service.update(primaryKey.value, body);
+				const requestCriteria: TApiFunctionUpdateCriteria<E> = {
+					[primaryKey.key]: primaryKey.value,
+				} as TApiFunctionUpdateCriteria<E>;
+
+				const response: E = await this.service.update(requestCriteria, body);
+
+				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
@@ -198,19 +218,26 @@ export class ApiControllerFactory<E> {
 	}
 
 	// eslint-disable-next-line sonarjs/no-identical-functions
-	protected [EApiRouteType.UPDATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.PARTIAL_UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+	protected [EApiRouteType.UPDATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
-			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: Partial<E>, _headers: Record<string, string>, _ip: string, _authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
+			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
 				if (!primaryKey) {
 					throw ErrorException("Primary key not found in entity columns");
 				}
 
+				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { body, parameters }, { authenticationRequest, headers, ip });
 				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
 				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
 
-				const response: E = await this.service.update(primaryKey.value, body);
+				const requestCriteria: TApiFunctionUpdateCriteria<E> = {
+					[primaryKey.key]: primaryKey.value,
+				} as TApiFunctionUpdateCriteria<E>;
+
+				const response: E = await this.service.update(requestCriteria, body);
+
+				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 

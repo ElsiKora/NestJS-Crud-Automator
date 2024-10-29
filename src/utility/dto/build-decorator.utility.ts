@@ -4,22 +4,15 @@ import { DtoGenerateDecorator } from "./generate-decorator.utility";
 import { DtoGetDecoratorConfig } from "./get-decorator-config.utility";
 import { DtoHandleDateProperty } from "./handle-date-property.utility";
 
+import { DtoIsPropertyExposedForGuard } from "./is-property-exposed-for-guard.utility";
+
 import type { EApiPropertyDateType } from "../../enum";
 import type { IApiEntity } from "../../interface";
-import type {
-	TApiPropertyDescribeArrayOptionalProperties,
-	TApiPropertyDescribeArrayRequiredProperties,
-	TApiPropertyDescribeBaseProperties,
-	TApiPropertyDescribeDtoProperties,
-	TApiPropertyDescribeProperties,
-	TDtoGenerateIsAllowedCombination
-} from "../../type";
-import {IAuthGuard} from "@nestjs/passport";
-import {Type} from "@nestjs/common";
-import {DtoIsPropertyExposedForGuard} from "./is-property-exposed-for-guard.utility";
+import type { TApiPropertyDescribeArrayOptionalProperties, TApiPropertyDescribeArrayRequiredProperties, TApiPropertyDescribeBaseProperties, TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties, TDtoGenerateIsAllowedCombination } from "../../type";
+import type { Type } from "@nestjs/common";
+import type { IAuthGuard } from "@nestjs/passport";
 
 export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, propertyName: string, currentGuard?: Type<IAuthGuard>): Array<PropertyDecorator> | undefined {
-
 	type TAllowed = TDtoGenerateIsAllowedCombination<M, D>;
 
 	type TPropertiesType = TAllowed extends true ? TApiPropertyDescribeDtoProperties : never;
@@ -32,6 +25,7 @@ export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoT
 
 	if (!DtoIsPropertyExposedForGuard(method, propertyMetadata, dtoType, currentGuard)) {
 		console.log("DONT WANT MARKER", propertyName, method, dtoType, propertyMetadata);
+
 		return undefined;
 	}
 
@@ -65,4 +59,4 @@ export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoT
 	const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, propertyMetadata, dtoType, propertyName);
 
 	return [DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName)];
-};
+}

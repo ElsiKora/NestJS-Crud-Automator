@@ -1,4 +1,4 @@
 export enum EApiControllerRequestTransformerType {
-    DYNAMIC = "DYNAMIC",
+	DYNAMIC = "DYNAMIC",
 	STATIC = "STATIC",
 }

@@ -1,6 +1,7 @@
-import type { BaseApiService } from "../../../class";
+import type { ApiServiceBase } from "../../../class";
+
 import type { TApiServiceKeys } from "../../decorator";
 
 export type TApiControllerMethod<E> = {
-	service: BaseApiService<E>;
+	service: ApiServiceBase<E>;
 } & Partial<TApiServiceKeys<E>>;

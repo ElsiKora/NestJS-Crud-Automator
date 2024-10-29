@@ -8,8 +8,8 @@ import { CapitalizeString } from "../../capitalize-string.utility";
 import { DtoGenerate } from "../../dto";
 
 import type { EApiRouteType } from "../../../enum";
-import type { IApiControllerProperties, IApiEntity, TApiControllerPropertiesRoute } from "../../../interface";
-import type { TMetadata } from "../../../type";
+import type { IApiControllerProperties, IApiEntity } from "../../../interface";
+import type { TApiControllerPropertiesRoute, TMetadata } from "../../../type";
 import type { Type } from "@nestjs/common";
 
 export function ApiControllerWriteDtoSwagger<E>(target: Object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, entityMetadata: IApiEntity<E>): void {

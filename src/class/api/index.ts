@@ -1,1 +1,1 @@
-export * from "./base-service.class";
+export * from "./service-base.class";

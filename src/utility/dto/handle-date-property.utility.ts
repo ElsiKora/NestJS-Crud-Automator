@@ -2,8 +2,9 @@ import { EApiPropertyDateType } from "../../enum";
 
 export const DtoHandleDateProperty = (propertyName: string, dateType: EApiPropertyDateType): Array<{ name: string; type: EApiPropertyDateType }> => {
 	const baseTypes: Partial<Record<EApiPropertyDateType, { from: EApiPropertyDateType; to: EApiPropertyDateType }>> = {
-		[EApiPropertyDateType.CREATED]: { from: EApiPropertyDateType.CREATED_AT_FROM, to: EApiPropertyDateType.CREATED_AT_TO },
-		[EApiPropertyDateType.UPDATED]: { from: EApiPropertyDateType.UPDATED_AT_FROM, to: EApiPropertyDateType.UPDATED_AT_TO },
+		[EApiPropertyDateType.CREATED_AT]: { from: EApiPropertyDateType.CREATED_AT_FROM, to: EApiPropertyDateType.CREATED_AT_TO },
+		[EApiPropertyDateType.RECEIVED_AT]: { from: EApiPropertyDateType.RECEIVED_AT_FROM, to: EApiPropertyDateType.RECEIVED_AT_TO },
+		[EApiPropertyDateType.UPDATED_AT]: { from: EApiPropertyDateType.UPDATED_AT_FROM, to: EApiPropertyDateType.UPDATED_AT_TO },
 	};
 
 	return baseTypes[dateType]

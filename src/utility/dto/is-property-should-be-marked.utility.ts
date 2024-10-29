@@ -1,4 +1,4 @@
-import { EApiDtoType, EApiRouteType } from "../../enum";
+import {EApiDtoType, EApiPropertyDescribeType, EApiRouteType} from "../../enum";
 
 import { DtoIsPropertyExposedForGuard } from "./is-property-exposed-for-guard.utility";
 
@@ -20,7 +20,10 @@ export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApi
 	}
 
 	if (!DtoIsPropertyExposedForGuard(method, propertyMetadata, dtoType, currentGuard)) {
-		console.log("DONT WANT MARK", propertyName, method, dtoType, propertyMetadata);
+		return false;
+	}
+
+	if (dtoType === EApiDtoType.QUERY && propertyMetadata.type === EApiPropertyDescribeType.OBJECT) {
 		return false;
 	}
 

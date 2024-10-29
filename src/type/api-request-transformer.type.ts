@@ -1,10 +1,15 @@
 import type { TRANSFORMER_VALUE_DTO_CONSTANT } from "../constant/dto/transformer-value.constant";
 import type { EApiControllerRequestTransformerType } from "../enum";
-import type {IApiGetListResponseResult} from "../interface";
-import type {TApiFunctionGetListProperties} from "./decorator";
+import type { IApiGetListResponseResult } from "../interface";
 
 export type TApiRequestTransformer<E> = {
-	key: keyof Partial<E> | keyof IApiGetListResponseResult<E> | keyof TApiFunctionGetListProperties<E>;
+	key:
+		| keyof {
+				limit: number;
+				page: number;
+		  }
+		| keyof IApiGetListResponseResult<E>
+		| keyof Partial<E>;
 } & (
 	| {
 			type: EApiControllerRequestTransformerType.DYNAMIC;

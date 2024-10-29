@@ -1,4 +1,3 @@
-import { IMetadataEntry } from "src/interface";
-
+import type { IMetadataEntry } from "src/interface";
 
 export type TMetadata = Record<string, IMetadataEntry>;

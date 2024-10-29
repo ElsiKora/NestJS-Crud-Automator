@@ -6,19 +6,21 @@ import { ErrorException, ErrorString } from "../../../utility";
 
 import { ApiFunctionGet } from "./get.decorator";
 
-import type { IApiBaseEntity } from "../../../interface";
-import type { IApiFunctionDeleteExecutorProperties, TApiFunctionGetProperties } from "../../../type";
+import type { IApiBaseEntity, IApiFunctionDeleteExecutorProperties, IApiFunctionProperties } from "../../../interface";
+import type { TApiFunctionDeleteCriteria, TApiFunctionGetProperties } from "../../../type";
 
 import type { Repository } from "typeorm";
 
-async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExecutorProperties<E>): Promise<void> {
-	const { entity, getFunction, id, repository }: IApiFunctionDeleteExecutorProperties<E> = options;
+async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExecutorProperties<E>): Promise<E> {
+	const { criteria, entity, getFunction, repository }: IApiFunctionDeleteExecutorProperties<E> = options;
 
 	try {
-		const entity: E = await getFunction(id.toString());
+		const existingEntity: E = await getFunction({ where: criteria });
 
-		await repository.remove(entity);
+		return await repository.remove(existingEntity);
 	} catch (error) {
+		console.log(error);
+
 		if (error instanceof HttpException) {
 			throw error;
 		}
@@ -26,24 +28,27 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExe
 		throw new InternalServerErrorException(
 			ErrorString({
 				entity: entity,
-				type: EErrorStringAction.DELETING_ERROR,
+				type: EErrorStringAction.UPDATING_ERROR,
 			}),
 		);
 	}
 }
 
-export function ApiFunctionDelete<E extends IApiBaseEntity>(options: { model: new () => E }) {
-	// eslint-disable-next-line @typescript-eslint/naming-convention
-	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
-		const getDecorator: (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet({ model: options.model });
-		let getFunction: (id: string, properties?: TApiFunctionGetProperties<E>) => Promise<E>;
+export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
+	const { entity }: IApiFunctionProperties = properties;
+	const getDecorator: (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity });
+	let getFunction: (properties: TApiFunctionGetProperties<E>) => Promise<E>;
+
+	return function (target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+		void target;
+		void propertyKey;
 
 		descriptor.value = async function (
 			this: {
 				repository: Repository<E>;
 			},
-			id: number | string,
-		): Promise<void> {
+			criteria: TApiFunctionDeleteCriteria<E>,
+		): Promise<E> {
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
@@ -51,9 +56,9 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(options: { model: ne
 			}
 
 			if (!getFunction) {
-				const getDescriptor: TypedPropertyDescriptor<(id: string, properties?: TApiFunctionGetProperties<E>) => Promise<E>> = {
+				const getDescriptor: TypedPropertyDescriptor<(properties: TApiFunctionGetProperties<E>) => Promise<E>> = {
 					value: function () {
-						return Promise.reject(new Error("Not implemented"));
+						return Promise.reject(ErrorException("Not implemented"));
 					},
 				};
 				getDecorator(this, "get", getDescriptor);
@@ -65,7 +70,7 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(options: { model: ne
 				}
 			}
 
-			return executor<E>({ entity: new options.model(), getFunction, id, repository });
+			return executor<E>({ criteria, entity, getFunction, repository });
 		};
 
 		return descriptor;

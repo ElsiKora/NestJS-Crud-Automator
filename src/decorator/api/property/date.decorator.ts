@@ -11,11 +11,11 @@ import type { IApiBaseEntity, IApiPropertyDateProperties, IApiPropertyStringProp
 
 function getDescription(type: EApiPropertyDateType): string {
 	switch (type) {
-		case EApiPropertyDateType.CREATED: {
+		case EApiPropertyDateType.CREATED_AT: {
 			return "creation date";
 		}
 
-		case EApiPropertyDateType.UPDATED: {
+		case EApiPropertyDateType.UPDATED_AT: {
 			return "last update date";
 		}
 
