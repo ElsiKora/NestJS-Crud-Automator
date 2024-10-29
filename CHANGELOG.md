@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.3.0
+
+### Minor Changes
+
+- bac6c6d: refactor(api): restructure API decorators and interfaces
+
 ## 1.2.2
 
 ### Patch Changes
