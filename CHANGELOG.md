@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.4.5
+
+### Patch Changes
+
+- 5fef5fa: chore(build): add script to rename CJS files
+
 ## 1.4.4
 
 ### Patch Changes
