@@ -1,6 +1,5 @@
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 
-import { ApiMethod } from "../../../decorator/api/method.decorator";
 import { EApiAction, EApiDtoType, EApiRouteType } from "../../../enum";
 
 import { DtoGenerate } from "../../dto";
@@ -9,6 +8,7 @@ import { ErrorException } from "../../error-exception.utility";
 import type { IApiControllerProperties, IApiEntity } from "../../../interface";
 import type { TApiControllerPropertiesRoute } from "../../../type";
 import type { Type } from "@nestjs/common";
+import {ApiMethod} from "../../../decorator";
 
 export function ApiControllerApplyDecorators<E>(targetMethod: (properties: any, body: any, headers: any, ip: any, authenticationRequest: any) => any, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>): void {
 	const responseDto: Type<unknown> | undefined = routeConfig.dto?.response || DtoGenerate(properties.entity, entity, method, EApiDtoType.RESPONSE, routeConfig.autoDto?.[EApiDtoType.RESPONSE], routeConfig.authentication?.guard);

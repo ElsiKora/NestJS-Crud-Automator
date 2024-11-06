@@ -2,7 +2,8 @@ import { HttpException, InternalServerErrorException } from "@nestjs/common";
 
 import { EErrorStringAction } from "../../../enum";
 
-import { ErrorException, ErrorString } from "../../../utility";
+import { ErrorException } from "../../../utility/error-exception.utility";
+import { ErrorString } from "../../../utility/error-string.utility";
 
 import type { IApiBaseEntity, IApiFunctionCreateExecutorProperties, IApiFunctionProperties } from "../../../interface";
 import type { TApiFunctionCreateProperties } from "../../../type";

@@ -5,7 +5,7 @@ import { ApiPropertyNumber, ApiPropertyObject } from "../../decorator";
 
 import { EApiDtoType, EApiPropertyDataType, EApiPropertyDescribeType, EApiRouteType } from "../../enum";
 
-import { FilterOrderByFromEntity } from "../api";
+import { FilterOrderByFromEntity } from "../api/filter-order-by-from-entity.utility";
 import { CapitalizeString } from "../capitalize-string.utility";
 import { ErrorException } from "../error-exception.utility";
 

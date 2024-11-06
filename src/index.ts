@@ -8,4 +8,3 @@ export * from "./class";
 export * from "./type";
 export * from "./interceptor";
 export * from "./factory";
-export * from "./helper";

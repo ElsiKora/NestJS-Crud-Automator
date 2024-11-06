@@ -1,6 +1,10 @@
-import { EApiFunctionType } from "../../../enum";
+import type { Repository } from "typeorm";
 
-import { ErrorException } from "../../../utility";
+import type { IApiBaseEntity } from "../../../interface";
+import type { TApiFunctionProperties } from "../../../type";
+
+import { EApiFunctionType } from "../../../enum";
+import { ErrorException } from "../../../utility/error-exception.utility";
 
 import { ApiFunctionCreate } from "./create.decorator";
 import { ApiFunctionDelete } from "./delete.decorator";
@@ -8,10 +12,6 @@ import { ApiFunctionGetList } from "./get-list.decorator";
 import { ApiFunctionGetMany } from "./get-many.decorator";
 import { ApiFunctionGet } from "./get.decorator";
 import { ApiFunctionUpdate } from "./update.decorator";
-
-import type { IApiBaseEntity } from "../../../interface";
-import type { TApiFunctionProperties } from "../../../type/decorator/api/function/properties.type";
-import type { Repository } from "typeorm";
 
 type TDecoratorFunction = (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor;
 
@@ -27,8 +27,14 @@ export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctio
 			let decoratorFunction: TDecoratorFunction;
 
 			switch (type) {
-				case EApiFunctionType.GET_LIST: {
-					decoratorFunction = ApiFunctionGetList({ entity });
+				case EApiFunctionType.CREATE: {
+					decoratorFunction = ApiFunctionCreate({ entity });
+
+					break;
+				}
+
+				case EApiFunctionType.DELETE: {
+					decoratorFunction = ApiFunctionDelete({ entity });
 
 					break;
 				}
@@ -39,26 +45,20 @@ export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctio
 					break;
 				}
 
+				case EApiFunctionType.GET_LIST: {
+					decoratorFunction = ApiFunctionGetList({ entity });
+
+					break;
+				}
+
 				case EApiFunctionType.GET_MANY: {
 					decoratorFunction = ApiFunctionGetMany({ entity });
 
 					break;
 				}
 
-				case EApiFunctionType.CREATE: {
-					decoratorFunction = ApiFunctionCreate({ entity });
-
-					break;
-				}
-
 				case EApiFunctionType.UPDATE: {
 					decoratorFunction = ApiFunctionUpdate({ entity });
-
-					break;
-				}
-
-				case EApiFunctionType.DELETE: {
-					decoratorFunction = ApiFunctionDelete({ entity });
 
 					break;
 				}

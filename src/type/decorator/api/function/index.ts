@@ -5,3 +5,4 @@ export * from "./update-properties.type";
 export * from "./delete-criteria.type";
 export * from "./update-criteria.type";
 export * from "./get-many.properties";
+export * from "./properties.type";

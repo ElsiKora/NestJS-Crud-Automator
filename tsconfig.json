@@ -5,23 +5,24 @@
 		"declaration": true,
 		"emitDecoratorMetadata": true,
 		"esModuleInterop": true,
+		"isolatedModules": true,
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": false,
-		"incremental": true,
-		"inlineSources": true,
-		"module": "NodeNext",
-		"moduleResolution": "NodeNext",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
 		"noFallthroughCasesInSwitch": false,
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"outDir": "./dist",
-		"preserveSymlinks": true,
 		"removeComments": true,
 		"skipLibCheck": true,
 		"sourceMap": true,
-		"sourceRoot": "/",
+		"emitDeclarationOnly": false,
 		"strict": true,
-		"target": "ESNext"
+		"target": "ESNext",
+		"paths": {
+			"typeorm/*": ["./node_modules/typeorm/*"]
+		},
 	}
 }

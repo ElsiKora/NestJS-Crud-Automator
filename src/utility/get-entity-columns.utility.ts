@@ -3,7 +3,7 @@ import { getMetadataArgsStorage } from "typeorm";
 import type { IGetEntityColumnsProperties } from "../interface/utility/get-entity-columns-properties.interface";
 
 import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
-import type { RelationMetadataArgs } from "typeorm/metadata-args/RelationMetadataArgs";
+import {RelationMetadataArgs} from "typeorm/metadata-args/RelationMetadataArgs";
 
 export function GetEntityColumns<E>(properties: IGetEntityColumnsProperties): Array<keyof E> {
 	const { entity, shouldTakeGeneratedOnly, shouldTakeRelationsOnly } = properties;

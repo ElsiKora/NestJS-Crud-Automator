@@ -2,7 +2,8 @@ import { HttpException, InternalServerErrorException, NotFoundException } from "
 
 import { EErrorStringAction } from "../../../enum";
 
-import { ErrorException, ErrorString } from "../../../utility";
+import { ErrorException } from "../../../utility/error-exception.utility";
+import { ErrorString } from "../../../utility/error-string.utility";
 
 import type { IApiBaseEntity, IApiFunctionProperties } from "../../../interface";
 import type { IApiFunctionGetManyExecutorProperties } from "../../../interface/decorator/api/function/get-many-executor-properties.interface";
