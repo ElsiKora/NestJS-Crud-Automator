@@ -8,8 +8,8 @@
 		"isolatedModules": true,
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": false,
-		"module": "ESNext",
-		"moduleResolution": "Bundler",
+		"module": "CommonJS",
+		"moduleResolution": "Node",
 		"noFallthroughCasesInSwitch": false,
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
@@ -24,7 +24,5 @@
 		"paths": {
 			"typeorm/*": ["./node_modules/typeorm/*"],
 		},
-	},
-	"include": ["src/**/*.ts", "src/**/*.tsx"],
-	"exclude": ["node_modules"]
+	}
 }
