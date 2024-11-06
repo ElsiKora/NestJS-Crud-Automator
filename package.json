@@ -31,10 +31,11 @@
 		"dist"
 	],
 	"scripts": {
-		"build": "npm run build:types && npm run build:cjs && npm run build:esm",
+		"build": "npm run build:types && npm run build:cjs && npm run build:esm && npm run rename:cjs",
 		"build:cjs": "swc src -d dist/cjs --strip-leading-paths --config-file .swcrc -C module.type=commonjs",
 		"build:esm": "swc src -d dist/esm --strip-leading-paths --config-file .swcrc -C module.type=es6",
 		"build:types": "tsc --emitDeclarationOnly --declaration --declarationDir dist/types",
+		"rename:cjs": "find dist/cjs -name \"*.js\" -exec sh -c 'mv \"$1\" \"${1%.js}.cjs\"' _ {} \\;",
 		"format": "prettier --check .",
 		"format:fix": "prettier --write .",
 		"lint": "eslint ./src && prettier --check .",
