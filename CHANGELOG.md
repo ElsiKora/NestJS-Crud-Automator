@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.4.1
+
+### Patch Changes
+
+- 4f9887a: chore(linting): remove ESLint and Prettier configs
+
 ## 1.4.0
 
 ### Minor Changes
