@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.4.3
+
+### Patch Changes
+
+- 15579d1: refactor(decorators): restructure api decorators
+
 ## 1.4.2
 
 ### Patch Changes
