@@ -1,6 +1,6 @@
 {
 	"name": "@elsikora/nestjs-crud-automator",
-	"version": "1.4.4",
+	"version": "1.4.5",
 	"description": "A library for automating the creation of CRUD operations in NestJS.",
 	"keywords": [
 		"NestJS",
@@ -19,23 +19,17 @@
 	"type": "module",
 	"exports": {
 		".": {
-			"import": "./dist/esm/index.js",
-			"require": "./dist/cjs/index.js",
-			"types": "./dist/types/index.d.ts"
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
 		}
 	},
-	"main": "dist/index.js",
-	"module": "./dist/esm/index.js",
-	"types": "./dist/types/index.d.ts",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
 	"files": [
 		"dist"
 	],
 	"scripts": {
-		"build": "npm run build:types && npm run build:cjs && npm run build:esm && npm run rename:cjs",
-		"build:cjs": "swc src -d dist/cjs --strip-leading-paths --config-file .swcrc -C module.type=commonjs",
-		"build:esm": "swc src -d dist/esm --strip-leading-paths --config-file .swcrc -C module.type=es6",
-		"build:types": "tsc --emitDeclarationOnly --declaration --declarationDir dist/types",
-		"rename:cjs": "find dist/cjs -name \"*.js\" -exec sh -c 'mv \"$1\" \"${1%.js}.cjs\"' _ {} \\;",
+		"build": "npm run prebuild && tsc -p tsconfig.build.json",
 		"format": "prettier --check .",
 		"format:fix": "prettier --write .",
 		"lint": "eslint ./src && prettier --check .",
@@ -53,8 +47,6 @@
 		"@eslint/js": "^9.14.0",
 		"@nestjs/passport": "^10.0.3",
 		"@stylistic/eslint-plugin": "^2.10.1",
-		"@swc/cli": "^0.5.0",
-		"@swc/core": "^1.9.1",
 		"@types/eslint__js": "^8.42.3",
 		"@types/lodash": "^4.17.13",
 		"@types/node": "^22.8.2",
