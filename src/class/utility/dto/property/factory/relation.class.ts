@@ -1,8 +1,8 @@
-import { ApiPropertyObject, ApiPropertyUUID } from "../../../../../decorator";
-
+import { ApiPropertyObject } from "../../../../../decorator/api/property/object.decorator";
+import { ApiPropertyUUID } from "../../../../../decorator/api/property/uuid.decorator";
 import { EApiDtoType } from "../../../../../enum";
 
-import { DtoGenerateRelationResponse } from "../../../../../utility";
+import { DtoGenerateRelationResponse } from "../../../../../utility/dto/generate-relation-response.utility";
 
 import type { EApiRouteType } from "../../../../../enum";
 import type { IApiEntity, IDtoGenerateFactory } from "../../../../../interface";

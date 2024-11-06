@@ -1,8 +1,8 @@
 import { Validate } from "class-validator";
 
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT, NUMBER_CONSTANT, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
-import { ApiPropertyNumber, ApiPropertyObject } from "../../decorator";
-
+import { ApiPropertyNumber } from "../../decorator/api/property/number.decorator";
+import { ApiPropertyObject } from "../../decorator/api/property/object.decorator";
 import { EApiDtoType, EApiPropertyDataType, EApiPropertyDescribeType, EApiRouteType } from "../../enum";
 
 import { FilterOrderByFromEntity } from "../api/filter-order-by-from-entity.utility";

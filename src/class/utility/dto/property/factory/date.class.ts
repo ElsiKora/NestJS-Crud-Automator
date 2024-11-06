@@ -1,4 +1,4 @@
-import { ApiPropertyDate } from "../../../../../decorator";
+import { ApiPropertyDate } from "../../../../../decorator/api/property/date.decorator";
 
 import type { IApiEntity, IDtoGenerateFactory } from "../../../../../interface";
 import type { TApiPropertyDescribeDateProperties, TApiPropertyDescribeDtoProperties } from "../../../../../type";

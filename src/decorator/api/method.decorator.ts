@@ -1,66 +1,17 @@
+import type { IApiBaseEntity, IApiMethodProperties } from "../../interface";
+
 import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, UseGuards } from "@nestjs/common";
 import { ApiBadRequestResponse, ApiBearerAuth, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 
 import { EApiAction } from "../../enum";
+import { DtoGenerateException } from "../../utility/dto/generate-exception.utility";
 
-import { DtoGenerateException } from "../../utility";
-
-import type { IApiBaseEntity, IApiMethodProperties } from "../../interface";
-
-export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y> | undefined) => void {
+export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	let summary: string = "";
 
 	if (options.action) {
 		switch (options.action) {
-			case EApiAction.FETCH: {
-				summary = `Fetching \`${options.entity.name}\``;
-
-				break;
-			}
-
-			case EApiAction.CREATE: {
-				summary = `Creating \`${options.entity.name}\``;
-
-				break;
-			}
-
-			case EApiAction.UPDATE: {
-				summary = `Updating \`${options.entity.name}\``;
-
-				break;
-			}
-
-			case EApiAction.DELETE: {
-				summary = `Deleting \`${options.entity.name}\``;
-
-				break;
-			}
-
-			case EApiAction.PARTIAL_UPDATE: {
-				summary = `Partial updating \`${options.entity.name}\``;
-
-				break;
-			}
-
-			case EApiAction.FETCH_LIST: {
-				summary = `Fetching list of \`${options.entity.name}s\``;
-
-				break;
-			}
-
-			case EApiAction.FETCH_SPECIFIED: {
-				summary = `Fetching \`${options.entity.name}\` of specified item`;
-
-				break;
-			}
-
-			case EApiAction.REGISTRATION: {
-				summary = `Registration of \`${options.entity.name}\``;
-
-				break;
-			}
-
 			case EApiAction.AUTHENTICATION: {
 				summary = `Authentication of \`${options.entity.name}\``;
 
@@ -73,8 +24,26 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 				break;
 			}
 
-			case EApiAction.REFRESH: {
-				summary = `Refresh of \`${options.entity.name}\``;
+			case EApiAction.CREATE: {
+				summary = `Creating \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.DELETE: {
+				summary = `Deleting \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.FETCH: {
+				summary = `Fetching \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.FETCH_LIST: {
+				summary = `Fetching list of \`${options.entity.name}s\``;
 
 				break;
 			}
@@ -84,59 +53,41 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 
 				break;
 			}
-		}
-	}
 
-	if (!options.description && options.action) {
-		switch (options.action) {
-			case EApiAction.FETCH: {
-				options.description = `This method is used for fetching \`${options.entity.name}\``;
-
-				break;
-			}
-
-			case EApiAction.CREATE: {
-				options.description = `This method is used for creating \`${options.entity.name}\``;
-
-				break;
-			}
-
-			case EApiAction.UPDATE: {
-				options.description = `This method is used for updating \`${options.entity.name}\``;
-
-				break;
-			}
-
-			case EApiAction.DELETE: {
-				options.description = `This method is used for deleting \`${options.entity.name}\``;
+			case EApiAction.FETCH_SPECIFIED: {
+				summary = `Fetching \`${options.entity.name}\` of specified item`;
 
 				break;
 			}
 
 			case EApiAction.PARTIAL_UPDATE: {
-				options.description = `This method is used for partial updating \`${options.entity.name}\``;
+				summary = `Partial updating \`${options.entity.name}\``;
 
 				break;
 			}
 
-			case EApiAction.FETCH_LIST: {
-				options.description = `This method is used for fetching list of \`${options.entity.name}s\``;
-
-				break;
-			}
-
-			case EApiAction.FETCH_SPECIFIED: {
-				options.description = `This method is used for fetching \`${options.entity.name}\` of specified item`;
+			case EApiAction.REFRESH: {
+				summary = `Refresh of \`${options.entity.name}\``;
 
 				break;
 			}
 
 			case EApiAction.REGISTRATION: {
-				options.description = `This method is used for registration of \`${options.entity.name}\``;
+				summary = `Registration of \`${options.entity.name}\``;
 
 				break;
 			}
 
+			case EApiAction.UPDATE: {
+				summary = `Updating \`${options.entity.name}\``;
+
+				break;
+			}
+		}
+	}
+
+	if (!options.description && options.action) {
+		switch (options.action) {
 			case EApiAction.AUTHENTICATION: {
 				options.description = `This method is used for authentication of \`${options.entity.name}\``;
 
@@ -149,14 +100,62 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 				break;
 			}
 
-			case EApiAction.REFRESH: {
-				options.description = `This method is used for refresh of \`${options.entity.name}\``;
+			case EApiAction.CREATE: {
+				options.description = `This method is used for creating \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.DELETE: {
+				options.description = `This method is used for deleting \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.FETCH: {
+				options.description = `This method is used for fetching \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.FETCH_LIST: {
+				options.description = `This method is used for fetching list of \`${options.entity.name}s\``;
 
 				break;
 			}
 
 			case EApiAction.FETCH_SIMPLE_LIST: {
 				options.description = `This method is used for fetching simple list of \`${options.entity.name}s\``;
+
+				break;
+			}
+
+			case EApiAction.FETCH_SPECIFIED: {
+				options.description = `This method is used for fetching \`${options.entity.name}\` of specified item`;
+
+				break;
+			}
+
+			case EApiAction.PARTIAL_UPDATE: {
+				options.description = `This method is used for partial updating \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.REFRESH: {
+				options.description = `This method is used for refresh of \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.REGISTRATION: {
+				options.description = `This method is used for registration of \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.UPDATE: {
+				options.description = `This method is used for updating \`${options.entity.name}\``;
 
 				break;
 			}
@@ -234,14 +233,14 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 	}
 
 	switch (options.method) {
-		case RequestMethod.GET: {
-			decorators.push(Get(options.path));
+		case RequestMethod.DELETE: {
+			decorators.push(Delete(options.path));
 
 			break;
 		}
 
-		case RequestMethod.POST: {
-			decorators.push(Post(options.path));
+		case RequestMethod.GET: {
+			decorators.push(Get(options.path));
 
 			break;
 		}
@@ -252,14 +251,14 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			break;
 		}
 
-		case RequestMethod.PUT: {
-			decorators.push(Put(options.path));
+		case RequestMethod.POST: {
+			decorators.push(Post(options.path));
 
 			break;
 		}
 
-		case RequestMethod.DELETE: {
-			decorators.push(Delete(options.path));
+		case RequestMethod.PUT: {
+			decorators.push(Put(options.path));
 
 			break;
 		}

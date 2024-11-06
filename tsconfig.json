@@ -9,7 +9,7 @@
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": false,
 		"module": "ESNext",
-		"moduleResolution": "bundler",
+		"moduleResolution": "Bundler",
 		"noFallthroughCasesInSwitch": false,
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
@@ -22,7 +22,9 @@
 		"strict": true,
 		"target": "ESNext",
 		"paths": {
-			"typeorm/*": ["./node_modules/typeorm/*"]
+			"typeorm/*": ["./node_modules/typeorm/*"],
 		},
-	}
+	},
+	"include": ["src/**/*.ts", "src/**/*.tsx"],
+	"exclude": ["node_modules"]
 }

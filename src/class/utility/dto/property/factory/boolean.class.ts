@@ -1,4 +1,4 @@
-import { ApiPropertyBoolean } from "../../../../../decorator";
+import { ApiPropertyBoolean } from "../../../../../decorator/api/property/boolean.decorator";
 
 import type { IApiEntity, IDtoGenerateFactory } from "../../../../../interface";
 import type { TApiPropertyDescribeBooleanProperties, TApiPropertyDescribeDtoProperties } from "../../../../../type";

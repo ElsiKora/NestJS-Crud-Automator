@@ -1,4 +1,4 @@
-import { ApiControllerFactory } from "../../factory";
+import { ApiControllerFactory } from "../../factory/api/controller.factory";
 
 import type { IApiBaseEntity, IApiControllerProperties } from "../../interface";
 

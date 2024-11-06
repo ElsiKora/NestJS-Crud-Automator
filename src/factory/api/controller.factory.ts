@@ -7,7 +7,11 @@ import { plainToInstance } from "class-transformer";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "../../constant";
 import { EApiDtoType, EApiRouteType } from "../../enum";
 
-import { ApiControllerApplyDecorators, ApiControllerApplyMetadata, ApiControllerValidateRequest, ApiControllerWriteDtoSwagger, ApiControllerWriteMethod, CapitalizeString, DtoGenerate, ErrorException, GenerateEntityInformation } from "../../utility";
+import { ApiControllerWriteDtoSwagger, ApiControllerWriteMethod, CapitalizeString, DtoGenerate, ErrorException, GenerateEntityInformation } from "../../utility";
+
+import { ApiControllerApplyDecorators } from "../../utility/api/controller/apply-decorators.utility";
+import { ApiControllerApplyMetadata } from "../../utility/api/controller/apply-metadata.utility";
+import { ApiControllerValidateRequest } from "../../utility/api/controller/validate-request.utility";
 
 import { ApiControllerGetPrimaryColumn } from "../../utility/api/controller/get-primary-column.utility";
 import { ApiControllerHandleRequestRelations } from "../../utility/api/controller/handle-request-relations.utility";

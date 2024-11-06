@@ -1,7 +1,8 @@
 import { Validate } from "class-validator";
 
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT, NUMBER_CONSTANT } from "../../constant";
-import { ApiPropertyNumber, ApiPropertyObject } from "../../decorator";
+import { ApiPropertyNumber } from "../../decorator/api/property/number.decorator";
+import { ApiPropertyObject } from "../../decorator/api/property/object.decorator";
 import { EApiPropertyDataType, EFilterOrderDirection } from "../../enum";
 import { IApiEntity } from "../../interface";
 

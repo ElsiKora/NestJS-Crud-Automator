@@ -1,7 +1,11 @@
 import { HttpStatus, type Type } from "@nestjs/common";
 
 import { DATE_CONSTANT, EXCEPTION_DTO_CONSTANT, NUMBER_CONSTANT } from "../../constant";
-import { ApiPropertyNumber, ApiPropertyObject, ApiPropertyString, ApiPropertyUUID } from "../../decorator";
+import { ApiPropertyNumber } from "../../decorator/api/property/number.decorator";
+import { ApiPropertyObject } from "../../decorator/api/property/object.decorator";
+import { ApiPropertyString } from "../../decorator/api/property/string.decorator";
+import { ApiPropertyUUID } from "../../decorator/api/property/uuid.decorator";
+
 import { EApiPropertyDataType } from "../../enum";
 
 export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {

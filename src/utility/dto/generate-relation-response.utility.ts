@@ -1,4 +1,4 @@
-import { ApiPropertyUUID } from "../../decorator";
+import { ApiPropertyUUID } from "../../decorator/api/property/uuid.decorator";
 
 import { EApiDtoType, EApiRouteType } from "../../enum";
 import { CapitalizeString } from "../capitalize-string.utility";

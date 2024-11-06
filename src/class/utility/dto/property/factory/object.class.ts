@@ -1,4 +1,4 @@
-import { ApiPropertyObject } from "../../../../../decorator";
+import { ApiPropertyObject } from "../../../../../decorator/api/property/object.decorator";
 
 import type { IApiEntity, IDtoGenerateFactory } from "../../../../../interface";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeObjectProperties } from "../../../../../type";

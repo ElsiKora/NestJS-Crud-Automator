@@ -1,6 +1,6 @@
 {
 	"name": "@elsikora/nestjs-crud-automator",
-	"version": "1.4.1",
+	"version": "1.4.2",
 	"description": "A library for automating the creation of CRUD operations in NestJS.",
 	"keywords": [
 		"NestJS",
@@ -22,7 +22,10 @@
 		"dist"
 	],
 	"scripts": {
-		"build": "npm run prebuild && tsc -p tsconfig.build.json",
+		"build": "npm run build:types && npm run build:cjs && npm run build:esm",
+		"build:cjs": "swc src -d dist/cjs --strip-leading-paths --config-file .swcrc -C module.type=commonjs",
+		"build:esm": "swc src -d dist/esm --strip-leading-paths --config-file .swcrc -C module.type=es6",
+		"build:types": "tsc --emitDeclarationOnly --declaration --declarationDir dist/types",
 		"format": "prettier --check .",
 		"format:fix": "prettier --write .",
 		"lint": "eslint ./src && prettier --check .",
@@ -40,6 +43,8 @@
 		"@eslint/js": "^9.14.0",
 		"@nestjs/passport": "^10.0.3",
 		"@stylistic/eslint-plugin": "^2.10.1",
+		"@swc/cli": "^0.5.0",
+		"@swc/core": "^1.9.1",
 		"@types/eslint__js": "^8.42.3",
 		"@types/lodash": "^4.17.13",
 		"@types/node": "^22.8.2",

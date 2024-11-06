@@ -1,5 +1,4 @@
-import { ApiPropertyUUID } from "../../../../../decorator";
-
+import { ApiPropertyUUID } from "../../../../../decorator/api/property/uuid.decorator";
 import type { IApiEntity, IDtoGenerateFactory } from "../../../../../interface";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeUuidProperties } from "../../../../../type";
 
