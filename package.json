@@ -17,7 +17,16 @@
 	"license": "MIT",
 	"author": "ElsiKora",
 	"type": "module",
+	"exports": {
+		".": {
+			"import": "./dist/esm/index.js",
+			"require": "./dist/cjs/index.js",
+			"types": "./dist/types/index.d.ts"
+		}
+	},
 	"main": "dist/index.js",
+	"module": "./dist/esm/index.js",
+	"types": "./dist/types/index.d.ts",
 	"files": [
 		"dist"
 	],
