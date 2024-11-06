@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.4.2
+
+### Patch Changes
+
+- e252cde: refactor(imports): update import paths for utility modules
+
 ## 1.4.1
 
 ### Patch Changes
