@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.4.6
+
+### Patch Changes
+
+- fdad0d7: refactor(build): streamline build process and update package version
+
 ## 1.4.5
 
 ### Patch Changes
