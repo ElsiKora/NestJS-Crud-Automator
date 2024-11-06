@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.4.4
+
+### Patch Changes
+
+- eaafea8: feat(package): add exports field and specify module and types
+
 ## 1.4.3
 
 ### Patch Changes
