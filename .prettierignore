@@ -1,17 +1,3 @@
-# .prettierignore
-
-# compiled output
-/dist
-
-# Ignore artifacts:
-build
-coverage
-documentation
-logs
 node_modules
-
-# Ignore all HTML files:
-*.html
-.gitignore
-.prettierignore
-.husky
+dist
+build
