@@ -1,5 +1,13 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.4.8
+
+### Patch Changes
+
+- fdad0d7: refactor(build): streamline build process and update package version
+- f0867e5: refactor(config): update module configuration
+- 3e49dac: feat(utility): capitalize exception names
+
 ## 1.4.5
 
 ### Patch Changes
