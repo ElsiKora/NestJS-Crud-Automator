@@ -7,6 +7,7 @@ import { ApiPropertyString } from "../../decorator/api/property/string.decorator
 import { ApiPropertyUUID } from "../../decorator/api/property/uuid.decorator";
 
 import { EApiPropertyDataType } from "../../enum";
+import {CapitalizeString} from "../capitalize-string.utility";
 
 export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 	const errorName: string = HttpStatus[httpStatus];
@@ -67,7 +68,7 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 		timestamp!: number;
 	}
 
-	Object.defineProperty(GeneratedErrorDTO, "name", { value: `Exception${errorName}DTO` });
+	Object.defineProperty(GeneratedErrorDTO, "name", { value: `Exception${CapitalizeString(errorName)}DTO` });
 
 	return GeneratedErrorDTO;
 }
