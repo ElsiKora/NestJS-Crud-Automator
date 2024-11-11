@@ -1,4 +1,4 @@
-import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { HttpException, InternalServerErrorException } from "@nestjs/common";
 
 import { EErrorStringAction } from "../../../enum";
 
@@ -7,7 +7,7 @@ import { ErrorString } from "../../../utility/error-string.utility";
 
 import type { IApiBaseEntity, IApiFunctionGetListExecutorProperties, IApiFunctionProperties, IApiGetListResponseResult } from "../../../interface";
 
-import type { TApiFunctionGetListProperties } from "../../../type";
+import type { TApiFunctionGetListProperties} from "../../../type";
 import type { Repository } from "typeorm";
 
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListExecutorProperties<E>): Promise<IApiGetListResponseResult<E>> {
@@ -16,23 +16,17 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListEx
 	try {
 		const [items, totalCount]: [Array<E>, number] = await repository.findAndCount(properties);
 
-		if (items.length === 0) {
-			throw new NotFoundException(
-				ErrorString({
-					entity: entity,
-					type: EErrorStringAction.LIST_PAGE_NOT_FOUND,
-				}),
-			);
-		}
-
 		return {
 			count: items.length,
-			currentPage: properties.page,
+			// @ts-ignore
+			currentPage: items.length === 0 ? 0 : properties.skip ? Math.ceil(properties.skip / properties?.take) + 1 : 1,
 			items,
 			totalCount,
-			totalPages: Math.ceil(totalCount / properties.limit),
+			// @ts-ignore
+			totalPages: Math.ceil(totalCount / properties.take),
 		};
 	} catch (error) {
+		console.log("EBANINA", error);
 		if (error instanceof HttpException) {
 			throw error;
 		}

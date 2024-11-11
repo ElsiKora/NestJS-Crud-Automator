@@ -1,9 +1,9 @@
 import { ErrorString } from "../../error-string.utility";
 
 import type { IApiControllerProperties, IApiRequestValidator } from "../../../interface";
-import type { TApiControllersGetListQuery } from "../../../type";
+import type { TApiControllerGetListQuery } from "../../../type";
 
-export async function ApiControllerValidateRequest<E>(validators: Array<IApiRequestValidator<E>> | undefined, properties: IApiControllerProperties<E>, parameters: Partial<E> | TApiControllersGetListQuery<E>): Promise<void> {
+export async function ApiControllerValidateRequest<E>(validators: Array<IApiRequestValidator<E>> | undefined, properties: IApiControllerProperties<E>, parameters: Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
 	if (validators) {
 		for (const validator of validators) {
 			const result: boolean | Promise<boolean> = validator.validationFunction(parameters);

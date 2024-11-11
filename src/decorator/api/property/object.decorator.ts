@@ -6,10 +6,11 @@ import { Expose, Transform, Type } from "class-transformer";
 
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, IsOptional, ValidateNested } from "class-validator";
 
-import type { IApiBaseEntity, IApiPropertyObjectProperties } from "../../../interface";
+import type { IApiBaseEntity } from "../../../interface";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import { TApiPropertyObjectProperties } from "src/type/decorator/api/property/object-properties.interface";
 
-export function ApiPropertyObject<T extends IApiBaseEntity>(options: IApiPropertyObjectProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+export function ApiPropertyObject<T extends IApiBaseEntity>(options: TApiPropertyObjectProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions<T>(options);
 
 	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions<T>(options);
@@ -18,7 +19,7 @@ export function ApiPropertyObject<T extends IApiBaseEntity>(options: IApiPropert
 	return applyDecorators(...decorators);
 }
 
-function validateOptions<T extends IApiBaseEntity>(properties: IApiPropertyObjectProperties<T>): void {
+function validateOptions<T extends IApiBaseEntity>(properties: TApiPropertyObjectProperties<T>): void {
 	const errors: Array<string> = [];
 
 	if (!properties.response && typeof properties.required !== "boolean") {
@@ -64,10 +65,10 @@ function validateOptions<T extends IApiBaseEntity>(properties: IApiPropertyObjec
 	}
 }
 
-function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPropertyObjectProperties<T>): ApiPropertyOptions {
+function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: TApiPropertyObjectProperties<T>): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${properties.entity.name} ${properties.description || ""}`,
-		enumName: (properties.enum as unknown as string) || "",
+		enumName: properties.enumName ?? "",
 		nullable: properties.nullable,
 		required: !properties.response && properties.required,
 		type: properties.type,
@@ -100,7 +101,7 @@ function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPrope
 	return apiPropertyOptions;
 }
 
-function buildDecorators<T extends IApiBaseEntity>(properties: IApiPropertyObjectProperties<T>, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+function buildDecorators<T extends IApiBaseEntity>(properties: TApiPropertyObjectProperties<T>, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
 	if (properties.response) {

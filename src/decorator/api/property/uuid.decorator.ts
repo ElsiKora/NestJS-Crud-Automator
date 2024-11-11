@@ -8,10 +8,11 @@ import { Expose } from "class-transformer";
 
 import { IsOptional, IsUUID } from "class-validator";
 
-import type { IApiBaseEntity, IApiPropertyUuidProperties } from "../../../interface";
+import type { IApiBaseEntity } from "../../../interface";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import { TApiPropertyUuidProperties } from "src/type";
 
-export function ApiPropertyUUID<T extends IApiBaseEntity>(properties: IApiPropertyUuidProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+export function ApiPropertyUUID<T extends IApiBaseEntity>(properties: TApiPropertyUuidProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	const uuidExample: string = randomUUID();
 	validateOptions(uuidExample, properties);
 
@@ -21,7 +22,7 @@ export function ApiPropertyUUID<T extends IApiBaseEntity>(properties: IApiProper
 	return applyDecorators(...decorators);
 }
 
-function validateOptions<T extends IApiBaseEntity>(uuidExample: string, properties: IApiPropertyUuidProperties<T>): void {
+function validateOptions<T extends IApiBaseEntity>(uuidExample: string, properties: TApiPropertyUuidProperties<T>): void {
 	const errors: Array<string> = [];
 	const uuidRegex: RegExp = /^[\dA-Fa-f]{8}-[\dA-Fa-f]{4}-[1-5][\dA-Fa-f]{3}-[89ABab][\dA-Fa-f]{3}-[\dA-Fa-f]{12}$/;
 
@@ -42,7 +43,7 @@ function validateOptions<T extends IApiBaseEntity>(uuidExample: string, properti
 	}
 }
 
-function buildApiPropertyOptions<T extends IApiBaseEntity>(uuidExample: string, properties: IApiPropertyUuidProperties<T>): ApiPropertyOptions {
+function buildApiPropertyOptions<T extends IApiBaseEntity>(uuidExample: string, properties: TApiPropertyUuidProperties<T>): ApiPropertyOptions {
 	return {
 		description: `${properties.entity.name} ${properties.description || "identifier"}`,
 		example: uuidExample,
@@ -56,7 +57,7 @@ function buildApiPropertyOptions<T extends IApiBaseEntity>(uuidExample: string, 
 	};
 }
 
-function buildDecorators<T extends IApiBaseEntity>(options: IApiPropertyUuidProperties<T>, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+function buildDecorators<T extends IApiBaseEntity>(options: TApiPropertyUuidProperties<T>, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
 	if (options.response) {

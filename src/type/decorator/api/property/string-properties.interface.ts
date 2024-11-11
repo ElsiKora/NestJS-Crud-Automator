@@ -1,7 +1,7 @@
-import type { IApiPropertyBaseProperties } from "./base-properties.interface";
 import type { EApiPropertyDataType } from "../../../../enum";
+import {TApiPropertyBaseProperties} from "./base-properties.type";
 
-export interface IApiPropertyStringProperties<T> extends IApiPropertyBaseProperties<T> {
+export type TApiPropertyStringProperties<T> = TApiPropertyBaseProperties<T> &{
 	example: Array<string> | string;
 	format: EApiPropertyDataType;
 	maxLength?: number;

@@ -6,3 +6,4 @@ export * from "./delete-criteria.type";
 export * from "./update-criteria.type";
 export * from "./get-many.properties";
 export * from "./properties.type";
+export * from "./get-list-properties-where.type";

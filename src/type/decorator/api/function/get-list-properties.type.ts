@@ -1,6 +1,3 @@
-import type { FindOneOptions } from "typeorm";
+import type {FindManyOptions} from "typeorm/index";
 
-export type TApiFunctionGetListProperties<E> = FindOneOptions<E> & {
-	limit: number;
-	page: number;
-};
+export type TApiFunctionGetListProperties<E> = FindManyOptions<E>;

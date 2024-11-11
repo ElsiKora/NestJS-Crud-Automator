@@ -7,22 +7,22 @@ import { ErrorString } from "../../error-string.utility";
 
 import type { EApiRouteType } from "../../../enum";
 import type { IApiAuthenticationRequest, IApiControllerProperties, IApiGetListResponseResult } from "../../../interface";
-import type { TApiControllerPropertiesRouteBaseRequestTransformers, TApiControllerPropertiesRouteBaseResponseTransformers, TApiControllersGetListQuery, TApiFunctionGetListProperties, TApiRequestTransformer } from "../../../type";
+import type { TApiControllerPropertiesRouteBaseRequestTransformers, TApiControllerPropertiesRouteBaseResponseTransformers, TApiControllerGetListQuery, TApiRequestTransformer } from "../../../type";
 import type { DeepPartial } from "typeorm";
 
-function isApiGetListResponseResult<E>(object: IApiGetListResponseResult<E> | Partial<E> | TApiFunctionGetListProperties<E>): object is IApiGetListResponseResult<E> {
+function isApiGetListResponseResult<E>(object: IApiGetListResponseResult<E> | Partial<E> | TApiControllerGetListQuery<E>): object is IApiGetListResponseResult<E> {
 	return "items" in object && "totalCount" in object;
 }
 
-function isApiFunctionGetListProperties<E>(object: IApiGetListResponseResult<E> | Partial<E> | TApiFunctionGetListProperties<E>): object is TApiFunctionGetListProperties<E> {
+function isApiFunctionGetListProperties<E>(object: IApiGetListResponseResult<E> | Partial<E> | TApiControllerGetListQuery<E>): object is TApiControllerGetListQuery<E> {
 	return "limit" in object && "page" in object;
 }
 
-function isPartialE<E>(object: IApiGetListResponseResult<E> | Partial<E> | TApiFunctionGetListProperties<E>): object is Partial<E> {
+function isPartialE<E>(object: IApiGetListResponseResult<E> | Partial<E> | TApiControllerGetListQuery<E>): object is Partial<E> {
 	return !isApiGetListResponseResult(object) && !isApiFunctionGetListProperties(object);
 }
 
-function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToTransform: IApiGetListResponseResult<E> | Partial<E> | TApiFunctionGetListProperties<E>, properties: IApiControllerProperties<E>, requestData: TApiControllerTransformRequestRequestData): void {
+function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToTransform: IApiGetListResponseResult<E> | Partial<E> | TApiControllerGetListQuery<E>, properties: IApiControllerProperties<E>, requestData: TApiControllerTransformRequestRequestData): void {
 	switch (transformer.type) {
 		case EApiControllerRequestTransformerType.DYNAMIC: {
 			if (Object.values(TRANSFORMER_VALUE_DTO_CONSTANT).includes(transformer.value)) {
@@ -119,14 +119,14 @@ function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToT
 	}
 }
 
-function handleTransformation<E>(object: IApiGetListResponseResult<E> | Partial<E> | TApiFunctionGetListProperties<E>, key: keyof E | keyof IApiGetListResponseResult<E> | keyof TApiFunctionGetListProperties<E>, value: unknown): void {
+function handleTransformation<E>(object: IApiGetListResponseResult<E> | Partial<E> | TApiControllerGetListQuery<E>, key: keyof E | keyof IApiGetListResponseResult<E> | keyof TApiControllerGetListQuery<E>, value: unknown): void {
 	if (isApiGetListResponseResult(object)) {
 		if (key in object) {
 			(object[key as keyof IApiGetListResponseResult<E>] as unknown) = value;
 		}
 	} else if (isApiFunctionGetListProperties(object)) {
 		if (key in object) {
-			(object[key as keyof TApiFunctionGetListProperties<E>] as unknown) = value;
+			(object[key as keyof TApiControllerGetListQuery<E>] as unknown) = value;
 		}
 	} else if (isPartialE(object) && key in object) {
 		(object[key as keyof E] as unknown) = value;
@@ -136,7 +136,7 @@ function handleTransformation<E>(object: IApiGetListResponseResult<E> | Partial<
 type TApiControllerTransformRequestObjectToTransform<E> = {
 	body?: DeepPartial<E>;
 	parameters?: Partial<E>;
-	query?: TApiControllersGetListQuery<E>;
+	query?: TApiControllerGetListQuery<E>;
 	response?: IApiGetListResponseResult<E> | Partial<E>;
 };
 

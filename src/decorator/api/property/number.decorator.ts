@@ -11,10 +11,11 @@ import random from "lodash/random";
 import { NUMBER_CONSTANT } from "../../../constant";
 import { EApiPropertyDataType, EApiPropertyDataTypeNumber } from "../../../enum";
 
-import type { IApiBaseEntity, IApiPropertyNumberProperties } from "../../../interface";
+import type { IApiBaseEntity } from "../../../interface";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import { TApiPropertyNumberProperties } from "src/type";
 
-export function ApiPropertyNumber<T extends IApiBaseEntity>(properties: IApiPropertyNumberProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+export function ApiPropertyNumber<T extends IApiBaseEntity>(properties: TApiPropertyNumberProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	if (properties.example === undefined) {
 		properties.example = random(properties.minimum, properties.maximum);
 	}
@@ -27,7 +28,7 @@ export function ApiPropertyNumber<T extends IApiBaseEntity>(properties: IApiProp
 	return applyDecorators(...decorators);
 }
 
-function getFormat<T extends IApiBaseEntity>(properties: IApiPropertyNumberProperties<T>): string {
+function getFormat<T extends IApiBaseEntity>(properties: TApiPropertyNumberProperties<T>): string {
 	switch (properties.type) {
 		case EApiPropertyDataType.INTEGER: {
 			return properties.maximum <= NUMBER_CONSTANT.MAX_INTEGER && properties.maximum >= NUMBER_CONSTANT.MIN_INTEGER ? "int32" : "int64";
@@ -47,7 +48,7 @@ function getFormat<T extends IApiBaseEntity>(properties: IApiPropertyNumberPrope
 	}
 }
 
-function validateOptions<T extends IApiBaseEntity>(properties: IApiPropertyNumberProperties<T>): void {
+function validateOptions<T extends IApiBaseEntity>(properties: TApiPropertyNumberProperties<T>): void {
 	const errors: Array<string> = [];
 
 	if (!properties.response && typeof properties.required !== "boolean") {
@@ -83,7 +84,7 @@ function validateOptions<T extends IApiBaseEntity>(properties: IApiPropertyNumbe
 	}
 }
 
-function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPropertyNumberProperties<T>): ApiPropertyOptions {
+function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: TApiPropertyNumberProperties<T>): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${properties.entity.name} ${properties.description || ""}`,
 		example: properties.example,
@@ -113,7 +114,7 @@ function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPrope
 	return apiPropertyOptions;
 }
 
-function buildDecorators<T extends IApiBaseEntity>(properties: IApiPropertyNumberProperties<T>, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+function buildDecorators<T extends IApiBaseEntity>(properties: TApiPropertyNumberProperties<T>, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
 	if (properties.response) {

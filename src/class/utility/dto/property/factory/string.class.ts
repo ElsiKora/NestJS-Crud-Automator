@@ -1,7 +1,11 @@
 import { ApiPropertyString } from "../../../../../decorator/api/property/string.decorator";
 
-import type { IApiEntity, IApiPropertyStringProperties, IDtoGenerateFactory } from "../../../../../interface";
-import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeStringProperties } from "../../../../../type";
+import type { IApiEntity, IDtoGenerateFactory } from "../../../../../interface";
+import type {
+	TApiPropertyDescribeDtoProperties,
+	TApiPropertyDescribeStringProperties,
+	TApiPropertyStringProperties
+} from "../../../../../type";
 
 export class DtoPropertyFactoryString<E> implements IDtoGenerateFactory<E> {
 	create(metadata: TApiPropertyDescribeStringProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties): PropertyDecorator {
@@ -9,6 +13,6 @@ export class DtoPropertyFactoryString<E> implements IDtoGenerateFactory<E> {
 			entity,
 			...config,
 			...metadata,
-		} as unknown as IApiPropertyStringProperties<typeof entity>);
+		} as unknown as TApiPropertyStringProperties<typeof entity>);
 	}
 }

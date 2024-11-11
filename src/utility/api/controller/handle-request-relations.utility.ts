@@ -7,10 +7,16 @@ import { ErrorException } from "../../error-exception.utility";
 import { GetEntityColumns } from "../../get-entity-columns.utility";
 
 import type { IApiControllerProperties } from "../../../interface";
-import type { TApiControllerMethod, TApiControllerPropertiesRouteBaseRequestRelations, TApiFunctionGetListProperties, TApiFunctionGetProperties, TApiServiceKeys } from "../../../type";
+import type {
+	TApiControllerGetListQuery,
+	TApiControllerMethod,
+	TApiControllerPropertiesRouteBaseRequestRelations,
+	TApiFunctionGetProperties,
+	TApiServiceKeys
+} from "../../../type";
 import type { DeepPartial, FindOptionsWhere } from "typeorm";
 
-export async function ApiControllerHandleRequestRelations<E>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiFunctionGetListProperties<E>): Promise<void> {
+export async function ApiControllerHandleRequestRelations<E>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
 	if (relationConfig?.loadRelations) {
 		for (const propertyName of GetEntityColumns<E>({ entity: properties.entity, shouldTakeRelationsOnly: true })) {
 			// eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -33,13 +39,7 @@ export async function ApiControllerHandleRequestRelations<E>(controllerMethod: T
 					serviceName = `${propertyName}Service` as keyof TApiServiceKeys<E>;
 				}
 
-				console.log("PROPERTY NAME", propertyName, serviceName);
-
-				if (serviceName) {
-					console.log("SERVICE NAME NOT FUCK", serviceName, typeof serviceName);
-				} else {
-					console.log("SERVICE NAME FUCK", serviceName);
-
+				if (!serviceName) {
 					throw ErrorException(`Service name not specified for property ${propertyName}`);
 				}
 

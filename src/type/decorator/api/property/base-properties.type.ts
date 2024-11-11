@@ -1,7 +1,6 @@
-export interface IApiPropertyBaseProperties<T> {
+export type TApiPropertyBaseProperties<T> = {
 	description?: string;
 	entity: T;
-	enum?: Record<string, number | string>;
 	expose?: boolean;
 	isArray?: boolean;
 	maxItems?: number;
@@ -10,4 +9,13 @@ export interface IApiPropertyBaseProperties<T> {
 	required?: boolean;
 	response?: boolean;
 	uniqueItems?: boolean;
-}
+} & (
+	| {
+			enum: Record<string, number | string>;
+			enumName: string;
+	  }
+	| {
+			enum?: undefined;
+			enumName?: string;
+	  }
+);

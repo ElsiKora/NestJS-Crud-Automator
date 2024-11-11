@@ -7,7 +7,7 @@ import { ApiPropertyString } from "../../decorator/api/property/string.decorator
 import { ApiPropertyUUID } from "../../decorator/api/property/uuid.decorator";
 
 import { EApiPropertyDataType } from "../../enum";
-import {CapitalizeString} from "../capitalize-string.utility";
+import {CamelCaseString} from "../camel-case-string.utility";
 
 export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 	const errorName: string = HttpStatus[httpStatus];
@@ -19,7 +19,7 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 		@ApiPropertyString({
 			description: "name",
 			entity: { name: "Error" },
-			example: errorName,
+			example: CamelCaseString(errorName),
 			expose: true,
 			format: EApiPropertyDataType.TEXT,
 			maxLength: EXCEPTION_DTO_CONSTANT.MAXIMUM_ERROR_LENGTH,
@@ -28,7 +28,7 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 			response: true,
 			type: EApiPropertyDataType.STRING,
 		})
-		error: string = errorName;
+		error: string = CamelCaseString(errorName);
 
 		@ApiPropertyString({
 			description: "message",
@@ -49,6 +49,7 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 			description: "status code",
 			entity: { name: "Error" },
 			enum: HttpStatus,
+			enumName: "EHttpStatus",
 			expose: true,
 			response: true,
 		})
@@ -68,7 +69,7 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 		timestamp!: number;
 	}
 
-	Object.defineProperty(GeneratedErrorDTO, "name", { value: `Exception${CapitalizeString(errorName)}DTO` });
+	Object.defineProperty(GeneratedErrorDTO, "name", { value: `Exception${CamelCaseString(errorName)}DTO` });
 
 	return GeneratedErrorDTO;
 }

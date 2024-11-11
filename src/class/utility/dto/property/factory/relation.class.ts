@@ -11,8 +11,6 @@ import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeUuidPropert
 export class DtoPropertyFactoryRelation<E> implements IDtoGenerateFactory<E> {
 	create(metadata: TApiPropertyDescribeUuidProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string): PropertyDecorator {
 		if (dtoType === EApiDtoType.RESPONSE) {
-			console.log("PIDOR CONFIG", { description: metadata.description, entity, type: DtoGenerateRelationResponse(entity, method, dtoType, propertyName), ...config });
-
 			return ApiPropertyObject({ description: metadata.description, entity, type: DtoGenerateRelationResponse(entity, method, dtoType, propertyName), ...config });
 		} else {
 			return ApiPropertyUUID({ description: metadata.description, entity, ...config });

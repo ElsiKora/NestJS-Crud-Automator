@@ -24,8 +24,6 @@ export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoT
 	}
 
 	if (!DtoIsPropertyExposedForGuard(method, propertyMetadata, dtoType, currentGuard)) {
-		console.log("DONT WANT MARKER", propertyName, method, dtoType, propertyMetadata);
-
 		return undefined;
 	}
 

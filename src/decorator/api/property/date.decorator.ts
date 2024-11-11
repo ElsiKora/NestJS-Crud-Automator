@@ -7,7 +7,8 @@ import { EApiPropertyDataType, EApiPropertyDateType } from "../../../enum";
 
 import { ApiPropertyString } from "./string.decorator";
 
-import type { IApiBaseEntity, IApiPropertyDateProperties, IApiPropertyStringProperties } from "../../../interface";
+import type { IApiBaseEntity } from "../../../interface";
+import { TApiPropertyDateProperties, TApiPropertyStringProperties } from "src/type";
 
 function getDescription(type: EApiPropertyDateType): string {
 	switch (type) {
@@ -65,12 +66,12 @@ function getDescription(type: EApiPropertyDateType): string {
 	}
 }
 
-export function ApiPropertyDate<T extends IApiBaseEntity>(properties: IApiPropertyDateProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+export function ApiPropertyDate<T extends IApiBaseEntity>(properties: TApiPropertyDateProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions<T>(properties);
 
 	const startOfYearUTCDate: string = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1, 0, 0, 0, 0)).toISOString();
 
-	const apiPropertyStringOptions: IApiPropertyStringProperties<T> = {
+	const apiPropertyStringOptions: TApiPropertyStringProperties<T> = {
 		description: getDescription(properties.type),
 		entity: properties.entity,
 		example: startOfYearUTCDate,
@@ -93,7 +94,7 @@ export function ApiPropertyDate<T extends IApiBaseEntity>(properties: IApiProper
 	return applyDecorators(...decorators);
 }
 
-function validateOptions<T extends IApiBaseEntity>(properties: IApiPropertyDateProperties<T>): void {
+function validateOptions<T extends IApiBaseEntity>(properties: TApiPropertyDateProperties<T>): void {
 	const errors: Array<string> = [];
 
 	if (!properties.response && typeof properties.required !== "boolean") {

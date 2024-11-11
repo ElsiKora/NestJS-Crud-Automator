@@ -1,0 +1,18 @@
+const MINIMUM_LIST_LENGTH: number = 1;
+const MAXIMUM_LIST_LENGTH: number = 100;
+const MINIMUM_LIST_PAGES_COUNT: number = 1;
+const MAXIMUM_LIST_PAGES_COUNT: number = 100;
+
+const LIST_DTO_CONSTANT: {
+	readonly MAXIMUM_LIST_LENGTH: number;
+	readonly MAXIMUM_LIST_PAGES_COUNT: number;
+	readonly MINIMUM_LIST_LENGTH: number;
+	readonly MINIMUM_LIST_PAGES_COUNT: number;
+} = {
+	MAXIMUM_LIST_LENGTH,
+	MAXIMUM_LIST_PAGES_COUNT,
+	MINIMUM_LIST_LENGTH,
+	MINIMUM_LIST_PAGES_COUNT,
+} as const;
+
+export default LIST_DTO_CONSTANT;

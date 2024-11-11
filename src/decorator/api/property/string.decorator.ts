@@ -10,10 +10,11 @@ import { STRING_PROPERTY_API_INTERFACE_CONSTANT } from "../../../constant";
 import { EApiPropertyDataType, EApiPropertyDataTypeString } from "../../../enum";
 import { IsRegularExpression } from "../../../validator";
 
-import type { IApiBaseEntity, IApiPropertyStringProperties } from "../../../interface";
+import type { IApiBaseEntity } from "../../../interface";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import { TApiPropertyStringProperties } from "src/type";
 
-export function ApiPropertyString<T extends IApiBaseEntity>(properties: IApiPropertyStringProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+export function ApiPropertyString<T extends IApiBaseEntity>(properties: TApiPropertyStringProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	if (properties.enum) {
 		properties = { ...properties, ...buildOptionsFromEnum(properties) };
 	}
@@ -29,10 +30,10 @@ export function ApiPropertyString<T extends IApiBaseEntity>(properties: IApiProp
 	return applyDecorators(...decorators);
 }
 
-function buildOptionsFromEnum<T extends IApiBaseEntity>(properties: IApiPropertyStringProperties<T>): IApiPropertyStringProperties<T> {
+function buildOptionsFromEnum<T extends IApiBaseEntity>(properties: TApiPropertyStringProperties<T>): TApiPropertyStringProperties<T> {
 	const minLength: number = Number.POSITIVE_INFINITY;
 	const maxLength: number = 0;
-	const returnProperties: IApiPropertyStringProperties<T> = { ...properties, maxLength, minLength };
+	const returnProperties: TApiPropertyStringProperties<T> = { ...properties, maxLength, minLength };
 
 	if (properties.enum && returnProperties.minLength !== undefined && returnProperties.maxLength !== undefined) {
 		const enumValues: Array<string> = Object.values(properties.enum) as Array<string>;
@@ -50,7 +51,7 @@ function buildOptionsFromEnum<T extends IApiBaseEntity>(properties: IApiProperty
 	return returnProperties;
 }
 
-function validateOptions<T extends IApiBaseEntity>(properties: IApiPropertyStringProperties<T>): void {
+function validateOptions<T extends IApiBaseEntity>(properties: TApiPropertyStringProperties<T>): void {
 	const errors: Array<string> = [];
 
 	if (!properties.response && typeof properties.required !== "boolean") {
@@ -147,7 +148,7 @@ function validateOptions<T extends IApiBaseEntity>(properties: IApiPropertyStrin
 	}
 }
 
-function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPropertyStringProperties<T>): ApiPropertyOptions {
+function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: TApiPropertyStringProperties<T>): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions & Record<string, any> = {
 		description: `${properties.entity.name} ${properties.description || ""}`,
 		example: properties.example,
@@ -179,7 +180,7 @@ function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPrope
 	return apiPropertyOptions;
 }
 
-function buildDecorators<T extends IApiBaseEntity>(properties: IApiPropertyStringProperties<T>, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+function buildDecorators<T extends IApiBaseEntity>(properties: TApiPropertyStringProperties<T>, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
 	if (properties.response) {

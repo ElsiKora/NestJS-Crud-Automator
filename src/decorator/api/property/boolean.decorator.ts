@@ -1,16 +1,16 @@
+import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { TApiPropertyBaseProperties } from "src/type";
+
+import type { IApiBaseEntity } from "../../../interface";
+
 import { applyDecorators } from "@nestjs/common";
-
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
-import { Expose, Transform } from "class-transformer";
-
+import { Expose, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, IsOptional } from "class-validator";
 
-import type { IApiBaseEntity, IApiPropertyBaseProperties } from "../../../interface";
+import { EApiPropertyDataType } from "../../../enum";
 
-import type { ApiPropertyOptions } from "@nestjs/swagger";
-import {EApiPropertyDataType} from "../../../enum";
-
-export function ApiPropertyBoolean<T extends IApiBaseEntity>(properties: IApiPropertyBaseProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+export function ApiPropertyBoolean<T extends IApiBaseEntity>(properties: TApiPropertyBaseProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions<T>(properties);
 
 	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions<T>(properties);
@@ -19,7 +19,7 @@ export function ApiPropertyBoolean<T extends IApiBaseEntity>(properties: IApiPro
 	return applyDecorators(...decorators);
 }
 
-function validateOptions<T extends IApiBaseEntity>(options: IApiPropertyBaseProperties<T>): void {
+function validateOptions<T extends IApiBaseEntity>(options: TApiPropertyBaseProperties<T>): void {
 	const errors: Array<string> = [];
 
 	if (!options.response && typeof options.required !== "boolean") {
@@ -35,7 +35,7 @@ function validateOptions<T extends IApiBaseEntity>(options: IApiPropertyBaseProp
 	}
 }
 
-function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPropertyBaseProperties<T>): ApiPropertyOptions {
+function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: TApiPropertyBaseProperties<T>): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${properties.entity.name} ${properties.description || ""}`,
 		example: true,
@@ -54,7 +54,7 @@ function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: IApiPrope
 	return apiPropertyOptions;
 }
 
-function buildDecorators<T extends IApiBaseEntity>(properties: IApiPropertyBaseProperties<T>, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+function buildDecorators<T extends IApiBaseEntity>(properties: TApiPropertyBaseProperties<T>, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
 	if (properties.response) {
@@ -78,17 +78,24 @@ function buildDecorators<T extends IApiBaseEntity>(properties: IApiPropertyBaseP
 			decorators.push(ArrayMaxSize(properties.maxItems));
 		}
 
-		decorators.push(IsBoolean({ each: true }));
+		decorators.push(
+			IsBoolean({ each: true }),
+			Type(() => Boolean),
+		);
 	} else {
 		if (!properties.required) {
 			decorators.push(IsOptional());
 		}
 
 		decorators.push(
-			IsBoolean(),
-			Transform(({ value }: any) => {
-				return value === "true" || value === true || value === 1 || value === "1";
-			}),
+			Type(() => Boolean),
+			(target, propertyKey) => {
+				// @ts-ignore
+				console.log('Значение перед IsBoolean:', target[propertyKey]);
+				const result = IsBoolean({ message: "TY UYEBOPK2" })(target, propertyKey);
+				console.log('Результат после IsBoolean:', result);
+				return result;
+			}
 		);
 	}
 

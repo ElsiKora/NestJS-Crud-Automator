@@ -1,6 +1,6 @@
 {
 	"name": "@elsikora/nestjs-crud-automator",
-	"version": "1.4.8",
+	"version": "1.5.0",
 	"description": "A library for automating the creation of CRUD operations in NestJS.",
 	"keywords": [
 		"NestJS",
@@ -16,6 +16,7 @@
 	},
 	"license": "MIT",
 	"author": "ElsiKora",
+	"type": "module",
 	"exports": {
 		".": {
 			"require": "./dist/index.js",
@@ -70,10 +71,10 @@
 		"typescript-eslint": "^8.13.0"
 	},
 	"peerDependencies": {
-		"@nestjs/common": ">=10.4.6",
-		"@nestjs/core": ">=10.4.6",
-		"@nestjs/platform-fastify": ">=10.4.6",
-		"@nestjs/swagger": ">=8.0.0",
+		"@nestjs/common": ">=10.4.7",
+		"@nestjs/core": ">=10.4.7",
+		"@nestjs/platform-fastify": ">=10.4.7",
+		"@nestjs/swagger": ">=8.0.3",
 		"@nestjs/throttler": ">=6.2.1",
 		"class-transformer": ">=0.5.1",
 		"class-validator": ">=0.14.1",
@@ -83,6 +84,5 @@
 	},
 	"publishConfig": {
 		"access": "public"
-	},
-	"type": "module"
+	}
 }

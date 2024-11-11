@@ -6,10 +6,11 @@ import { EApiPropertyDataType } from "../../../enum";
 
 import { ApiPropertyNumber } from "./number.decorator";
 
-import type { IApiBaseEntity, IApiPropertyBaseProperties, IApiPropertyNumberProperties } from "../../../interface";
+import type { IApiBaseEntity } from "../../../interface";
+import { TApiPropertyBaseProperties, TApiPropertyNumberProperties } from "src/type";
 
-export function ApiPropertyWallet<T extends IApiBaseEntity>(properties: IApiPropertyBaseProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
-	const apiPropertyOptions: IApiPropertyNumberProperties<T> = {
+export function ApiPropertyWallet<T extends IApiBaseEntity>(properties: TApiPropertyBaseProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+	const apiPropertyOptions: TApiPropertyNumberProperties<T> = {
 		description: "wallet number",
 		entity: properties.entity,
 		example: WALLET_PROPERTY_API_INTERFACE_CONSTANT.EXAMPLE,

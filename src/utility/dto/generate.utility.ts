@@ -1,16 +1,13 @@
 import { Validate } from "class-validator";
 
-import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT, NUMBER_CONSTANT, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
-import { ApiPropertyNumber } from "../../decorator/api/property/number.decorator";
-import { ApiPropertyObject } from "../../decorator/api/property/object.decorator";
-import { EApiDtoType, EApiPropertyDataType, EApiPropertyDescribeType, EApiRouteType } from "../../enum";
+import {  PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
+import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "../../enum";
 
-import { FilterOrderByFromEntity } from "../api/filter-order-by-from-entity.utility";
 import { CapitalizeString } from "../capitalize-string.utility";
 import { ErrorException } from "../error-exception.utility";
 
 import { DtoBuildDecorator } from "./build-decorator.utility";
-import { DtoGetBaseClass } from "./get-base-class.utility";
+import { DtoGetBaseClass } from "./get-get-list-query-base-class.utility";
 import { DtoHandleDateProperty } from "./handle-date-property.utility";
 import { DtoIsPropertyShouldBeMarked } from "./is-property-should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "./is-should-be-generated.utility";
@@ -21,6 +18,7 @@ import type { TApiPropertyDescribeProperties } from "../../type";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
 import type { ObjectLiteral } from "typeorm";
+import {DtoGenerateGetListResponse} from "./generate-get-list-response.utility";
 
 export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
@@ -46,10 +44,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 			});
 		}
 	}
-
-	console.log("MARKEED", dtoType, method, markedProperties, currentGuard);
-
-	const BaseClass: Type<any> = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? DtoGetBaseClass<E>(entityMetadata) : class {};
+	const BaseClass: Type = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? DtoGetBaseClass<E>(entity, entityMetadata, method, dtoType) : class {};
 
 	class GeneratedDTO extends BaseClass {
 		constructor() {
@@ -76,34 +71,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 					});
 				}
 			}
-
-			/* Object.defineProperty(this, "page", { /// TODO ?????? ZACHEM PROVERIT
-				configurable: true,
-				enumerable: true,
-				value: undefined,
-				writable: true,
-			});*/
 		}
-	}
-
-	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
-		ApiPropertyObject({
-			description: "order by field",
-			entity: entityMetadata,
-			enum: FilterOrderByFromEntity(entity, entityMetadata, method, dtoType),
-			required: false,
-		})(GeneratedDTO.prototype, "orderBy");
-
-		ApiPropertyNumber({
-			description: "Page to return",
-			entity: entityMetadata,
-			example: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_PAGES_COUNT,
-			maximum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MAXIMUM_LIST_PAGES_COUNT,
-			minimum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_PAGES_COUNT,
-			multipleOf: NUMBER_CONSTANT.ONE,
-			required: true,
-			type: EApiPropertyDataType.INTEGER,
-		})(GeneratedDTO.prototype, "page");
 	}
 
 	for (const property of markedProperties) {
@@ -131,5 +99,10 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		value: `${entityMetadata.name}${CapitalizeString(method)}${CapitalizeString(dtoType)}DTO`,
 	});
 
-	return GeneratedDTO;
+	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE) {
+		// @ts-ignore
+		return DtoGenerateGetListResponse(entity, GeneratedDTO);
+	} else {
+		return GeneratedDTO;
+	}
 }
