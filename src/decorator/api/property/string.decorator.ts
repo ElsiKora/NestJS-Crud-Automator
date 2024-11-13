@@ -150,7 +150,7 @@ function validateOptions<T extends IApiBaseEntity>(properties: TApiPropertyStrin
 
 function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: TApiPropertyStringProperties<T>): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions & Record<string, any> = {
-		description: `${properties.entity.name} ${properties.description || ""}`,
+		description: `${properties.entity.name} ${properties.description ?? ""}`,
 		example: properties.example,
 		expose: properties.expose,
 		format: properties.format,

@@ -11,7 +11,7 @@ import { AllOrNoneOfListedProperties } from "../../validator";
 import {FilterOrderByFromEntity} from "../api";
 import type {ObjectLiteral} from "typeorm/index";
 
-export function DtoGetBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType,): Type<unknown> {
+export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType,): Type<unknown> {
 	class BaseQueryDTO {
 		@ApiPropertyNumber({
 			description: "Items per page",
