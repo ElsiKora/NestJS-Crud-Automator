@@ -1,21 +1,37 @@
-import { EApiRouteType } from "../../../../enum";
-
 import type { IDtoStrategy } from "../../../../interface";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "../../../../type";
+
+import { EApiRouteType } from "../../../../enum";
 
 export class DtoStrategyBody implements IDtoStrategy {
 	getDecoratorConfig(method: EApiRouteType, _metadata: TApiPropertyDescribeProperties): TApiPropertyDescribeDtoProperties {
 		switch (method) {
-			case EApiRouteType.UPDATE: {
-				return { expose: false, required: true, response: false };
+			case EApiRouteType.CREATE: {
+				return { isRequired: false };
+			}
+
+			case EApiRouteType.DELETE: {
+				return { isRequired: false };
+			}
+
+			case EApiRouteType.GET: {
+				return { isRequired: false };
+			}
+
+			case EApiRouteType.GET_LIST: {
+				return { isRequired: false };
 			}
 
 			case EApiRouteType.PARTIAL_UPDATE: {
-				return { expose: false, required: false, response: false };
+				return { isRequired: false };
+			}
+
+			case EApiRouteType.UPDATE: {
+				return { isRequired: true };
 			}
 
 			default: {
-				return { expose: false, required: false, response: false };
+				return { isRequired: false };
 			}
 		}
 	}

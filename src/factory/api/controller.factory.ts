@@ -1,6 +1,7 @@
 import type { Type } from "@nestjs/common";
 import type { ClassConstructor } from "class-transformer";
 import type { DeepPartial, FindOptionsOrder, FindOptionsWhere } from "typeorm";
+import type { FindOperator } from "typeorm/find-options/FindOperator";
 
 import type { IApiAuthenticationRequest, IApiControllerPrimaryColumn, IApiControllerProperties, IApiEntity, IApiGetListResponseResult } from "../../interface";
 import type { TApiControllerGetListQuery, TApiControllerMethod, TApiControllerMethodMap, TApiControllerMethodName, TApiControllerMethodNameMap, TApiControllerPropertiesRoute, TApiControllerTargetMethod, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetListPropertiesWhere, TApiFunctionGetProperties, TApiFunctionUpdateCriteria } from "../../type";
@@ -8,18 +9,142 @@ import type { TApiControllerGetListQuery, TApiControllerMethod, TApiControllerMe
 import { Controller } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { plainToInstance } from "class-transformer";
+import { Equal } from "typeorm";
+import { ILike, In, IsNull, LessThan, Like, MoreThan, Not } from "typeorm";
 import { Between, LessThanOrEqual, MoreThanOrEqual } from "typeorm";
 
 import { CONTROLLER_API_DECORATOR_CONSTANT, FUNCTION_API_DECORATOR_CONSTANT } from "../../constant";
 import { EApiDtoType, EApiRouteType } from "../../enum";
-import { ApiControllerWriteDtoSwagger, ApiControllerWriteMethod, CapitalizeString, DtoGenerate, ErrorException, GenerateEntityInformation } from "../../utility";
+import { EFilterOperation } from "../../enum/filter-operation.enum";
+import { ApiControllerTransformData, ApiControllerWriteDtoSwagger, ApiControllerWriteMethod, CapitalizeString, DtoGenerate, ErrorException, GenerateEntityInformation } from "../../utility";
 import { ApiControllerApplyDecorators } from "../../utility/api/controller/apply-decorators.utility";
 import { ApiControllerApplyMetadata } from "../../utility/api/controller/apply-metadata.utility";
 import { ApiControllerGetPrimaryColumn } from "../../utility/api/controller/get-primary-column.utility";
 import { ApiControllerHandleRequestRelations } from "../../utility/api/controller/handle-request-relations.utility";
-import { ApiControllerTransformRequest } from "../../utility/api/controller/transform-request.utility";
 import { ApiControllerValidateRequest } from "../../utility/api/controller/validate-request.utility";
 import { analyzeEntityMetadata } from "../../utility/dto/analize.utility";
+
+function transformFilter<E>(query: Record<string, any>): FindOptionsWhere<E> {
+	const filter: FindOptionsWhere<E> = {};
+
+	for (const fullKey of Object.keys(query)) {
+		if (!fullKey.includes("[")) continue;
+
+		const [key, field] = fullKey.split("[");
+		const cleanField: string = field.replace("]", "");
+
+		if (cleanField === "value") {
+			const operation: EFilterOperation = query[`${key}[operator]`] as EFilterOperation;
+			// eslint-disable-next-line @elsikora-typescript/no-unsafe-assignment
+			const value: any = query[fullKey];
+
+			if (!operation || !key) continue;
+
+			// @ts-ignore
+			filter[key as keyof E] = transformOperation(operation, value);
+		}
+	}
+
+	return filter;
+}
+
+function transformOperation(operation: EFilterOperation, value: any): FindOperator<any> {
+	switch (operation) {
+		case EFilterOperation.BETWEEN: {
+			const [start, end] = Array.isArray(value) ? value : [null, null];
+
+			return Between(start, end);
+		}
+
+		case EFilterOperation.CONT: {
+			return Like(`%${String(value)}%`);
+		}
+
+		case EFilterOperation.CONTL: {
+			return ILike(`%${String(value)}%`);
+		}
+
+		case EFilterOperation.ENDS: {
+			return Like(`%${String(value)}`);
+		}
+
+		case EFilterOperation.ENDSL: {
+			return ILike(`%${String(value)}`);
+		}
+
+		case EFilterOperation.EQ: {
+			return Equal(String(value));
+		}
+
+		case EFilterOperation.EQL: {
+			return ILike(String(value));
+		}
+
+		case EFilterOperation.EXCL: {
+			return Not(Like(`%${String(value)}%`));
+		}
+
+		case EFilterOperation.EXCLL: {
+			return Not(ILike(`%${String(value)}%`));
+		}
+
+		case EFilterOperation.GT: {
+			return MoreThan(String(value));
+		}
+
+		case EFilterOperation.GTE: {
+			return MoreThanOrEqual(String(value));
+		}
+
+		case EFilterOperation.IN: {
+			return In(Array.isArray(value) ? value : [value]);
+		}
+
+		case EFilterOperation.INL: {
+			return In(Array.isArray(value) ? value.map((v) => ILike(v)) : [ILike(value)]);
+		}
+
+		case EFilterOperation.ISNULL: {
+			return IsNull();
+		}
+
+		case EFilterOperation.LT: {
+			return LessThan(String(value));
+		}
+
+		case EFilterOperation.LTE: {
+			return LessThanOrEqual(String(value));
+		}
+
+		case EFilterOperation.NE: {
+			return Not(String(value));
+		}
+
+		case EFilterOperation.NEL: {
+			return Not(ILike(String(value)));
+		}
+
+		case EFilterOperation.NOTIN: {
+			return Not(In(Array.isArray(value) ? value : [value]));
+		}
+
+		case EFilterOperation.NOTINL: {
+			return Not(In(Array.isArray(value) ? value.map((v) => ILike(v)) : [ILike(value)]));
+		}
+
+		case EFilterOperation.NOTNULL: {
+			return Not(IsNull());
+		}
+
+		case EFilterOperation.STARTS: {
+			return Like(`${String(value)}%`);
+		}
+
+		case EFilterOperation.STARTSL: {
+			return ILike(`${String(value)}%`);
+		}
+	}
+}
 
 export class ApiControllerFactory<E> {
 	private readonly ENTITY!: IApiEntity<E>;
@@ -35,8 +160,8 @@ export class ApiControllerFactory<E> {
 			throw ErrorException(`Primary key for entity ${this.properties.entity.name} not found`);
 		}
 
-		Controller(this.properties.path || this.properties.entity.name.toLowerCase())(this.target);
-		ApiTags(this.properties.name || this.properties.entity.name)(this.target);
+		Controller(this.properties.path ?? this.properties.entity.name.toLowerCase())(this.target);
+		ApiTags(this.properties.name ?? this.properties.entity.name)(this.target);
 	}
 
 	protected [EApiRouteType.CREATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.CREATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
@@ -49,7 +174,7 @@ export class ApiControllerFactory<E> {
 						throw ErrorException("Primary key not found in entity columns");
 					}
 
-					ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { body }, { authenticationRequest, headers, ip });
+					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { body }, { authenticationRequest, headers, ip });
 					await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, body as Partial<E>);
 					await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, body);
 
@@ -65,7 +190,7 @@ export class ApiControllerFactory<E> {
 
 					const response: E = await this.service.get(requestProperties);
 
-					ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
+					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					return plainToInstance(dto as ClassConstructor<E>, response, {
 						excludeExtraneousValues: true,
@@ -90,7 +215,7 @@ export class ApiControllerFactory<E> {
 					throw ErrorException("Primary key not found in entity columns");
 				}
 
-				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { parameters }, { authenticationRequest, headers, ip });
+				ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { parameters }, { authenticationRequest, headers, ip });
 				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
 				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
 
@@ -108,32 +233,38 @@ export class ApiControllerFactory<E> {
 	protected [EApiRouteType.GET](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
-				const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
+				try {
+					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
-				if (!primaryKey) {
-					throw ErrorException("Primary key not found in entity columns");
+					if (!primaryKey) {
+						throw ErrorException("Primary key not found in entity columns");
+					}
+
+					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { parameters }, { authenticationRequest, headers, ip });
+					await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
+					await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
+
+					const requestProperties: TApiFunctionGetProperties<E> = {
+						relations: properties.routes[method]?.response?.relations,
+						where: {
+							[primaryKey.key]: primaryKey.value,
+						} as FindOptionsWhere<E>,
+					};
+
+					const response: E = await this.service.get(requestProperties);
+
+					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
+
+					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+
+					return plainToInstance(dto as ClassConstructor<E>, response, {
+						excludeExtraneousValues: true,
+					});
+				} catch (error) {
+					console.log("UEBANCHIK", error);
+
+					throw error;
 				}
-
-				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { parameters }, { authenticationRequest, headers, ip });
-				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
-				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
-
-				const requestProperties: TApiFunctionGetProperties<E> = {
-					relations: properties.routes[method]?.response?.relations,
-					where: {
-						[primaryKey.key]: primaryKey.value,
-					} as FindOptionsWhere<E>,
-				};
-
-				const response: E = await this.service.get(requestProperties);
-
-				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
-
-				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
-
-				return plainToInstance(dto as ClassConstructor<E>, response, {
-					excludeExtraneousValues: true,
-				});
 			},
 			"name",
 			{ value: methodName },
@@ -143,80 +274,47 @@ export class ApiControllerFactory<E> {
 	protected [EApiRouteType.GET_LIST](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET_LIST>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, query: TApiControllerGetListQuery<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<IApiGetListResponseResult<E>> {
-				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { query }, { authenticationRequest, headers, ip });
-				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, query);
-				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, query);
+				try {
+					console.log("CHERY BERRUY", query);
+					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { query }, { authenticationRequest, headers, ip });
+					await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, query);
+					await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, query);
 
-				const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
+					const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
 
-				const filter: TApiFunctionGetListPropertiesWhere<E> = {};
+					const filter: TApiFunctionGetListPropertiesWhere<E> = transformFilter<E>(getListQuery);
 
-				console.log("PRE FILTER", getListQuery);
-				if ("createdAtFrom" in getListQuery && "createdAtTo" in getListQuery && getListQuery.createdAtFrom && getListQuery.createdAtTo) {
-					filter.createdAt = Between(getListQuery.createdAtFrom as Date, getListQuery.createdAtTo as Date);
-					delete getListQuery.createdAtFrom;
-					delete getListQuery.createdAtTo;
-				} else if ("createdAtFrom" in getListQuery && getListQuery.createdAtFrom) {
-					filter.createdAt = MoreThanOrEqual(getListQuery.createdAtFrom as Date);
-					delete getListQuery.createdAtFrom;
-				} else if ("createdAtTo" in getListQuery && getListQuery.createdAtTo) {
-					filter.createdAt = LessThanOrEqual(getListQuery.createdAtTo as Date);
-					delete getListQuery.createdAtTo;
+					console.log("PRE FILTER", getListQuery);
+
+					const requestProperties: TApiFunctionGetListProperties<E> = {
+						relations: properties.routes[method]?.response?.relations,
+						skip: query.limit * (query.page - 1),
+						take: query.limit,
+						where: filter,
+					};
+
+					console.log("FILTER", requestProperties);
+					console.log("FILTER WHERE", requestProperties.where);
+
+					if (orderBy) {
+						requestProperties.order = {
+							[orderBy as never as string]: orderDirection ?? FUNCTION_API_DECORATOR_CONSTANT.DEFAULT_FILTER_ORDER_BY_DIRECTION,
+						} as FindOptionsOrder<E>;
+					}
+
+					const response: IApiGetListResponseResult<E> = await this.service.getList(requestProperties);
+					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
+
+					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+
+					return plainToInstance(dto as ClassConstructor<IApiGetListResponseResult<E>>, response, {
+						excludeExtraneousValues: true,
+					});
+				} catch (error) {
+					console.log("UEBANCHIK", error);
+
+					throw error;
 				}
-
-				if ("updatedAtFrom" in getListQuery && "updatedAtTo" in getListQuery && getListQuery.updatedAtFrom && getListQuery.updatedAtTo) {
-					filter.updatedAt = Between(getListQuery.updatedAtFrom as Date, getListQuery.updatedAtTo as Date);
-					delete getListQuery.updatedAtFrom;
-					delete getListQuery.updatedAtTo;
-				} else if ("updatedAtFrom" in getListQuery && getListQuery.updatedAtFrom) {
-					filter.updatedAt = MoreThanOrEqual(getListQuery.updatedAtFrom as Date);
-					delete getListQuery.updatedAtFrom;
-				} else if ("updatedAtTo" in getListQuery && getListQuery.updatedAtTo) {
-					filter.updatedAt = LessThanOrEqual(getListQuery.updatedAtTo as Date);
-					delete getListQuery.updatedAtTo;
-				}
-
-				if ("receivedAtFrom" in getListQuery && "receivedAtTo" in getListQuery && getListQuery.receivedAtFrom && getListQuery.receivedAtTo) {
-					filter.receivedAt = Between(getListQuery.receivedAtFrom as Date, getListQuery.receivedAtTo as Date);
-					delete getListQuery.receivedAtFrom;
-					delete getListQuery.receivedAtTo;
-				} else if ("receivedAtFrom" in getListQuery && getListQuery.receivedAtFrom) {
-					filter.receivedAt = MoreThanOrEqual(getListQuery.receivedAtFrom as Date);
-					delete getListQuery.receivedAtFrom;
-				} else if ("receivedAtTo" in getListQuery && getListQuery.receivedAtTo) {
-					filter.receivedAt = LessThanOrEqual(getListQuery.receivedAtTo as Date);
-					delete getListQuery.receivedAtTo;
-				}
-
-				for (const key of Object.keys(getListQuery) as Array<keyof E>) {
-					// @ts-ignore
-					// eslint-disable-next-line @elsikora-typescript/no-unsafe-assignment
-					filter[key] = getListQuery[key];
-				}
-
-				const requestProperties: TApiFunctionGetListProperties<E> = {
-					relations: properties.routes[method]?.response?.relations,
-					skip: query.limit * (query.page - 1),
-					take: query.limit,
-					where: filter,
-				};
-
-				console.log("FILTER", requestProperties);
-				console.log("FILTER WHERE", requestProperties.where);
-				if (orderBy) {
-					requestProperties.order = {
-						[orderBy as never as string]: orderDirection ?? FUNCTION_API_DECORATOR_CONSTANT.DEFAULT_FILTER_ORDER_BY_DIRECTION,
-					} as FindOptionsOrder<E>;
-				}
-
-				const response: IApiGetListResponseResult<E> = await this.service.getList(requestProperties);
-				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
-
-				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
-
-				return plainToInstance(dto as ClassConstructor<IApiGetListResponseResult<E>>, response, {
-					excludeExtraneousValues: true,
-				});
 			},
 			"name",
 			{ value: methodName },
@@ -232,7 +330,7 @@ export class ApiControllerFactory<E> {
 					throw ErrorException("Primary key not found in entity columns");
 				}
 
-				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { body, parameters }, { authenticationRequest, headers, ip });
+				ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { body, parameters }, { authenticationRequest, headers, ip });
 				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
 				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
 
@@ -242,7 +340,7 @@ export class ApiControllerFactory<E> {
 
 				const response: E = await this.service.update(requestCriteria, body);
 
-				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
+				ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
@@ -265,7 +363,7 @@ export class ApiControllerFactory<E> {
 					throw ErrorException("Primary key not found in entity columns");
 				}
 
-				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { body, parameters }, { authenticationRequest, headers, ip });
+				ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { body, parameters }, { authenticationRequest, headers, ip });
 				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
 				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
 
@@ -275,7 +373,7 @@ export class ApiControllerFactory<E> {
 
 				const response: E = await this.service.update(requestCriteria, body);
 
-				ApiControllerTransformRequest<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
+				ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 

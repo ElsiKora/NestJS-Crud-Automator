@@ -1,57 +1,58 @@
 import type { Type } from "@nestjs/common";
+import type { ObjectLiteral } from "typeorm/index";
 
 import { Validate } from "class-validator";
 
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT, NUMBER_CONSTANT } from "../../constant";
+import { ApiPropertyEnum } from "../../decorator/api/property/enum.decorator";
 import { ApiPropertyNumber } from "../../decorator/api/property/number.decorator";
-import { ApiPropertyObject } from "../../decorator/api/property/object.decorator";
-import {EApiDtoType, EApiPropertyDataType, EApiRouteType, EFilterOrderDirection} from "../../enum";
+import { EApiDtoType, EApiPropertyNumberType, EApiRouteType, EFilterOrderDirection } from "../../enum";
 import { IApiEntity } from "../../interface";
 import { AllOrNoneOfListedProperties } from "../../validator";
-import {FilterOrderByFromEntity} from "../api";
-import type {ObjectLiteral} from "typeorm/index";
+import { FilterOrderByFromEntity } from "../api";
+import { CapitalizeString } from "../capitalize-string.utility";
 
-export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType,): Type<unknown> {
+export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType): Type<unknown> {
 	class BaseQueryDTO {
 		@ApiPropertyNumber({
 			description: "Items per page",
 			entity: entityMetadata,
-			example: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_LENGTH,
+			exampleValue: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_LENGTH,
+			format: EApiPropertyNumberType.INTEGER,
+			isRequired: true,
 			maximum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MAXIMUM_LIST_LENGTH,
 			minimum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_LENGTH,
 			multipleOf: NUMBER_CONSTANT.ONE,
-			required: true,
-			type: EApiPropertyDataType.INTEGER,
 		})
 		limit!: number;
 
-		@ApiPropertyObject({
+		@ApiPropertyEnum({
 			description: "order by field",
 			entity: entityMetadata,
 			enum: FilterOrderByFromEntity(entity, entityMetadata, method, dtoType),
-			enumName: "EFilterOrderBy",
-			required: false,
+			enumName: `E${CapitalizeString(entityMetadata.name)}FilterOrderBy`,
+			isRequired: false,
 		})
 		orderBy?: string;
 
-		@ApiPropertyObject({
+		@ApiPropertyEnum({
 			description: "order direction",
 			entity: entityMetadata,
 			enum: EFilterOrderDirection,
 			enumName: "EFilterOrderDirection",
-			required: false,
+			isRequired: false,
 		})
 		orderDirection?: EFilterOrderDirection;
 
 		@ApiPropertyNumber({
 			description: "Page to return",
 			entity: entityMetadata,
-			example: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_PAGES_COUNT,
+			exampleValue: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_PAGES_COUNT,
+			format: EApiPropertyNumberType.INTEGER,
+			isRequired: true,
 			maximum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MAXIMUM_LIST_PAGES_COUNT,
 			minimum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_PAGES_COUNT,
 			multipleOf: NUMBER_CONSTANT.ONE,
-			required: true,
-			type: EApiPropertyDataType.INTEGER,
 		})
 		page!: number;
 

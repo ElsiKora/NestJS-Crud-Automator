@@ -17,7 +17,7 @@ export enum EFilterOperation {
 	LTE = "lte",
 	NE = "ne",
 	NEL = "nel",
-	NOTIN = "NOTIN",
+	NOTIN = "notin",
 	NOTINL = "notinl",
 	NOTNULL = "notnull",
 	STARTS = "starts",
@@ -100,4 +100,18 @@ export enum EFilterOperationBoolean {
 	EXCL = EFilterOperation.EXCL,
 	IN = EFilterOperation.IN,
 	NOTIN = EFilterOperation.NOTIN
+}
+
+export enum EFilterOperationRelation {
+	EQ = EFilterOperation.EQ,
+	ISNULL = EFilterOperation.ISNULL,
+	NE = EFilterOperation.NE,
+	NOTNULL = EFilterOperation.NOTNULL
+}
+
+export enum EFilterOperationUuid {
+	EQ = EFilterOperation.EQ,
+	ISNULL = EFilterOperation.ISNULL,
+	NE = EFilterOperation.NE,
+	NOTNULL = EFilterOperation.NOTNULL
 }

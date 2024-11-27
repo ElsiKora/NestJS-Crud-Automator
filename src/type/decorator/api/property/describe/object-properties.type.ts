@@ -1,12 +1,16 @@
+import type { Type } from "@nestjs/common";
+import type { ReferenceObject, SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
+
+import type { EApiPropertyDescribeType } from "../../../../../enum";
+
 import type { TApiPropertyDescribeArrayOptionalProperties, TApiPropertyDescribeArrayRequiredProperties } from "./array";
 import type { TApiPropertyDescribeBaseProperties } from "./base-properties.type";
 
-import type { EApiPropertyDescribeType } from "../../../../../enum";
-import type { Type } from "@nestjs/common";
-
-export type TApiPropertyDescribeObjectProperties = TApiPropertyDescribeBaseProperties & {
-	dataType?: [Function] | Function | Record<string, any> | Type<unknown> | undefined;
+export type TApiPropertyDescribeObjectProperties = {
+	additionalProperties?: boolean | ReferenceObject | SchemaObject;
+	dataType: Function | [Function] | Type<unknown> | undefined;
 	description: string;
-	nested?: boolean;
+	shouldValidateNested?: boolean;
 	type: EApiPropertyDescribeType.OBJECT;
-} & (TApiPropertyDescribeArrayOptionalProperties | TApiPropertyDescribeArrayRequiredProperties);
+} & (TApiPropertyDescribeArrayOptionalProperties | TApiPropertyDescribeArrayRequiredProperties) &
+	TApiPropertyDescribeBaseProperties;

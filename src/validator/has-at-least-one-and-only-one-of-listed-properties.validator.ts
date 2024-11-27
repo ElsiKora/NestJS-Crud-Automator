@@ -14,7 +14,7 @@ export class HasAtLeastOneAndOnlyOneOfListedProperties implements ValidatorConst
 		if (constraints.length > 0) {
 			let isExists: boolean = false;
 			let count: number = 0;
-			const indexableObject = properties.object as Record<string, any>;
+			const indexableObject: Record<string, any> = properties.object as Record<string, any>;
 
 			for (const constraint of constraints) {
 				if (indexableObject.hasOwnProperty(constraint) && indexableObject[constraint] !== undefined) {

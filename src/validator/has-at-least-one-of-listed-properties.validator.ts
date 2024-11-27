@@ -13,7 +13,7 @@ export class HasAtLeastOneOfListedProperties implements ValidatorConstraintInter
 
 		if (constraints.length > 0) {
 			let isExists: boolean = false;
-			const indexableObject = properties.object as Record<string, any>;
+			const indexableObject: Record<string, any> = properties.object as Record<string, any>;
 
 			for (const constraint of constraints) {
 				if (indexableObject.hasOwnProperty(constraint) && indexableObject[constraint] !== undefined) {

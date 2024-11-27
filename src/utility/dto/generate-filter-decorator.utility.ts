@@ -1,36 +1,51 @@
 import type { IApiEntity } from "../../interface";
 import type { TApiPropertyDescribeProperties } from "../../type";
 
-import { ApiPropertyString } from "../../decorator";
-import { EApiPropertyDataType, EApiPropertyDescribeType } from "../../enum";
+import { ApiPropertyEnum } from "../../decorator/api/property/enum.decorator";
+import { EApiPropertyDescribeType } from "../../enum";
 import {
 	EFilterOperationBoolean,
-	EFilterOperationDate,
-	EFilterOperationNumber,
+	EFilterOperationDate, EFilterOperationEnum,
+	EFilterOperationNumber, EFilterOperationObject,
+	EFilterOperationRelation, EFilterOperationString, EFilterOperationUuid
 } from "../../enum/filter-operation.enum";
-import { ErrorException } from "../error-exception.utility";
 
 export function DtoGenerateFilterDecorator<E>(metadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>): PropertyDecorator {
 	switch (metadata.type) {
 		case EApiPropertyDescribeType.BOOLEAN: {
-			// eslint-disable-next-line @elsikora-typescript/no-non-null-assertion
-			return ApiPropertyString({ description: metadata.description, entity, enum: EFilterOperationBoolean, enumName: "EFilterOperationBoolean", example: EFilterOperationBoolean.EQ, format: EApiPropertyDataType.STRING, pattern: "/^[a-zA-Zа-яА-Я0-9. ]{8,64}$/", required: false, type: EApiPropertyDataType.STRING });
+			return ApiPropertyEnum({ description: metadata.description, entity, enum: EFilterOperationBoolean, enumName: "EFilterOperationBoolean", isRequired: false });
 		}
 
 		case EApiPropertyDescribeType.DATE: {
 			// @ts-ignore
-			// eslint-disable-next-line @elsikora-typescript/no-non-null-assertion
-			return ApiPropertyString({ entity, enum: EFilterOperationDate, enumName: "EFilterOperationBoolean", example: EFilterOperationDate.BETWEEN, format: EApiPropertyDataType.STRING, pattern: "/^[a-zA-Zа-яА-Я0-9. ]{8,64}$/", required: false, type: EApiPropertyDataType.STRING });
+
+			return ApiPropertyEnum({ entity, enum: EFilterOperationDate, enumName: "EFilterOperationDate", isRequired: false });
+		}
+
+		case EApiPropertyDescribeType.ENUM: {
+			return ApiPropertyEnum({ description: metadata.description, entity, enum: EFilterOperationEnum, enumName: "EFilterOperationEnum", isRequired: false });
 		}
 
 		case EApiPropertyDescribeType.NUMBER: {
 			// @ts-ignore
-			// eslint-disable-next-line @elsikora-typescript/no-non-null-assertion
-			return ApiPropertyString({ description: metadata.description, entity, enum: EFilterOperationNumber, enumName: "EFilterOperationBoolean", example: EFilterOperationNumber.GT, format: EApiPropertyDataType.STRING, pattern: "/^[a-zA-Zа-яА-Я0-9. ]{8,64}$/", required: false, type: EApiPropertyDataType.STRING });
+
+			return ApiPropertyEnum({ description: metadata.description, entity, enum: EFilterOperationNumber, enumName: "EFilterOperationNumber", isRequired: false });
 		}
 
-		default: {
-			throw ErrorException(`Unknown property type ${metadata.type}`);
+		case EApiPropertyDescribeType.OBJECT: {
+			return ApiPropertyEnum({ description: metadata.description, entity, enum: EFilterOperationObject, enumName: "EFilterOperationObject", isRequired: false });
+		}
+
+		case EApiPropertyDescribeType.RELATION: {
+			return ApiPropertyEnum({ description: metadata.description, entity, enum: EFilterOperationRelation, enumName: "EFilterOperationRelation", isRequired: false });
+		}
+
+		case EApiPropertyDescribeType.STRING: {
+			return ApiPropertyEnum({ description: metadata.description, entity, enum: EFilterOperationString, enumName: "EFilterOperationString", isRequired: false });
+		}
+
+		case EApiPropertyDescribeType.UUID: {
+			return ApiPropertyEnum({ description: metadata.description, entity, enum: EFilterOperationUuid, enumName: "EFilterOperationUuid", isRequired: false });
 		}
 	}
 }

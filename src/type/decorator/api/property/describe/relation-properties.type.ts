@@ -1,8 +1,8 @@
-import type { TApiPropertyDescribeBaseProperties } from "./base-properties.type";
-
 import type { EApiPropertyDescribeType } from "../../../../../enum";
 
-export type TApiPropertyDescribeRelationProperties = TApiPropertyDescribeBaseProperties & {
+import type { TApiPropertyDescribeBaseProperties } from "./base-properties.type";
+
+export type TApiPropertyDescribeRelationProperties = {
 	description: string;
 	type: EApiPropertyDescribeType.RELATION;
-};
+} & TApiPropertyDescribeBaseProperties;

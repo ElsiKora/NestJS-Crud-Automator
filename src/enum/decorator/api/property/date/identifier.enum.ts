@@ -1,4 +1,4 @@
-export enum EApiPropertyDateType {
+export enum EApiPropertyDateIdentifier {
 	CREATED_AT = "created",
 	CREATED_AT_FROM = "createdAtFrom",
 	CREATED_AT_TO = "createdAtTo",

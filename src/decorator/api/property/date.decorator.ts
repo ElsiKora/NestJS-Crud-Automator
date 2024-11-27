@@ -1,111 +1,249 @@
+import type { ApiPropertyOptions } from "@nestjs/swagger";
+
+import type { TApiPropertyDateProperties } from "../../../type/decorator/api/property/date-properties.type";
+
 import { applyDecorators } from "@nestjs/common";
+import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { Exclude, Expose, Transform } from "class-transformer";
+import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsOptional } from "class-validator";
 
-import { Type } from "class-transformer";
+import { EApiPropertyDataType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "../../../enum";
 
-import { NUMBER_CONSTANT } from "../../../constant";
-import { EApiPropertyDataType, EApiPropertyDateType } from "../../../enum";
-
-import { ApiPropertyString } from "./string.decorator";
-
-import type { IApiBaseEntity } from "../../../interface";
-import { TApiPropertyDateProperties, TApiPropertyStringProperties } from "src/type";
-
-function getDescription(type: EApiPropertyDateType): string {
-	switch (type) {
-		case EApiPropertyDateType.CREATED_AT: {
+function getDescription(identifier: EApiPropertyDateIdentifier): string {
+	switch (identifier) {
+		case EApiPropertyDateIdentifier.CREATED_AT: {
 			return "creation date";
 		}
 
-		case EApiPropertyDateType.UPDATED_AT: {
-			return "last update date";
-		}
-
-		case EApiPropertyDateType.CREATED_AT_FROM: {
+		case EApiPropertyDateIdentifier.CREATED_AT_FROM: {
 			return "createdAt from";
 		}
 
-		case EApiPropertyDateType.CREATED_AT_TO: {
+		case EApiPropertyDateIdentifier.CREATED_AT_TO: {
 			return "createdAt to";
 		}
 
-		case EApiPropertyDateType.UPDATED_AT_TO: {
-			return "updatedAt to";
-		}
-
-		case EApiPropertyDateType.UPDATED_AT_FROM: {
-			return "updatedAt from";
-		}
-
-		case EApiPropertyDateType.EXPIRES_IN: {
-			return "expiration date";
-		}
-
-		case EApiPropertyDateType.REFRESH_IN: {
-			return "refresh date";
-		}
-
-		case EApiPropertyDateType.DATE: {
+		case EApiPropertyDateIdentifier.DATE: {
 			return "date";
 		}
 
-		case EApiPropertyDateType.RECEIVED_AT_FROM: {
-			return "receivedAt from";
+		case EApiPropertyDateIdentifier.EXPIRES_IN: {
+			return "expiration date";
 		}
 
-		case EApiPropertyDateType.RECEIVED_AT_TO: {
-			return "receivedAt to";
-		}
-
-		case EApiPropertyDateType.RECEIVED_AT: {
+		case EApiPropertyDateIdentifier.RECEIVED_AT: {
 			return "receivedAt date";
 		}
 
-		default: {
-			return "";
+		case EApiPropertyDateIdentifier.RECEIVED_AT_FROM: {
+			return "receivedAt from";
+		}
+
+		case EApiPropertyDateIdentifier.RECEIVED_AT_TO: {
+			return "receivedAt to";
+		}
+
+		case EApiPropertyDateIdentifier.REFRESH_IN: {
+			return "refresh date";
+		}
+
+		case EApiPropertyDateIdentifier.UPDATED_AT: {
+			return "last update date";
+		}
+
+		case EApiPropertyDateIdentifier.UPDATED_AT_FROM: {
+			return "updatedAt from";
+		}
+
+		case EApiPropertyDateIdentifier.UPDATED_AT_TO: {
+			return "updatedAt to";
 		}
 	}
 }
 
-export function ApiPropertyDate<T extends IApiBaseEntity>(properties: TApiPropertyDateProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
-	validateOptions<T>(properties);
+function getPattern(format: EApiPropertyDateType): string {
+	switch (format) {
+		case EApiPropertyDateType.DATE: {
+			return "^[0-9]{4}-[0-9]{2}-[0-9]{2}$";
+		}
 
-	const startOfYearUTCDate: string = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1, 0, 0, 0, 0)).toISOString();
+		case EApiPropertyDateType.DATE_TIME: {
+			return "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}Z$";
+		}
 
-	const apiPropertyStringOptions: TApiPropertyStringProperties<T> = {
-		description: getDescription(properties.type),
-		entity: properties.entity,
-		example: startOfYearUTCDate,
-		expose: properties.expose,
-		format: EApiPropertyDataType.DATE_TIME,
-		maxLength: startOfYearUTCDate.length,
-		minLength: startOfYearUTCDate.length,
-		nullable: properties.nullable,
-		pattern: "/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}Z$/",
-		required: !properties.response && properties.required,
-		response: properties.response,
-		type: EApiPropertyDataType.DATE_TIME,
-	};
-	const decorators: Array<PropertyDecorator> = [ApiPropertyString({ ...apiPropertyStringOptions })];
-
-	if (!properties.response) {
-		decorators.push(Type(() => Date));
+		case EApiPropertyDateType.TIME: {
+			return "^[0-9]{2}:[0-9]{2}:[0-9]{2}$";
+		}
 	}
+}
+
+function getExample(format: EApiPropertyDateType): string {
+	const startOfYearUTCDate: Date = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1, 0, 0, 0, 0));
+
+	switch (format) {
+		case EApiPropertyDateType.DATE: {
+			return startOfYearUTCDate.toISOString().split("T")[0];
+		}
+
+		case EApiPropertyDateType.DATE_TIME: {
+			return startOfYearUTCDate.toISOString();
+		}
+
+		case EApiPropertyDateType.TIME: {
+			return startOfYearUTCDate.toISOString().split("T")[1].split(".")[0];
+		}
+	}
+}
+
+function buildApiPropertyOptions(properties: TApiPropertyDateProperties): ApiPropertyOptions {
+	const example: string = getExample(properties.format);
+
+	const apiPropertyOptions: ApiPropertyOptions = {
+		description: `${properties.entity.name} ${getDescription(properties.identifier)}`,
+		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		nullable: properties.isNullable,
+		type: EApiPropertyDataType.STRING,
+	};
+
+	if (properties.isResponse === false || properties.isResponse === undefined) {
+		apiPropertyOptions.required = properties.isRequired;
+	}
+
+	if (properties.isArray) {
+		apiPropertyOptions.isArray = true;
+		apiPropertyOptions.minItems = properties.minItems;
+		apiPropertyOptions.maxItems = properties.maxItems;
+		apiPropertyOptions.uniqueItems = properties.isUniqueItems;
+		apiPropertyOptions.items = {
+			maxLength: example.length,
+			minLength: example.length,
+		};
+	} else {
+		apiPropertyOptions.minLength = example.length;
+		apiPropertyOptions.maxLength = example.length;
+	}
+
+	apiPropertyOptions.pattern = getPattern(properties.format);
+	apiPropertyOptions.example = example;
+	apiPropertyOptions.format = properties.format;
+
+	return apiPropertyOptions;
+}
+
+export function ApiPropertyDate(properties: TApiPropertyDateProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+	validateOptions(properties);
+
+	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(properties);
+	const decorators: Array<PropertyDecorator> = buildDecorators(properties, apiPropertyOptions);
 
 	return applyDecorators(...decorators);
 }
 
-function validateOptions<T extends IApiBaseEntity>(properties: TApiPropertyDateProperties<T>): void {
+function validateOptions(properties: TApiPropertyDateProperties): void {
 	const errors: Array<string> = [];
 
-	if (!properties.response && typeof properties.required !== "boolean") {
-		errors.push("Required is not defined");
+	if (properties.isArray === true) {
+		if (properties.minItems > properties.maxItems) {
+			errors.push("'minItems' is greater than 'maxItems'");
+		}
+
+		if (properties.minItems < 0) {
+			errors.push("'minItems' is less than 0");
+		}
+
+		if (properties.maxItems < 0) {
+			errors.push("'maxItems' is less than 0");
+		}
+
+		if (properties.isUniqueItems && properties.maxItems <= 1) {
+			errors.push("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
+		}
 	}
 
-	if (properties.response && properties.required) {
-		errors.push("Required is defined for response");
-	}
-
-	if (errors.length > NUMBER_CONSTANT.ZERO_LIST_LENGTH) {
+	if (errors.length > 0) {
 		throw new Error(`ApiPropertyDate error: ${errors.join("\n")}`);
 	}
+}
+
+function buildResponseDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse) {
+		decorators.push(ApiResponseProperty());
+
+		if (properties.isExpose === undefined || properties.isExpose) {
+			decorators.push(Expose());
+		} else {
+			decorators.push(Exclude());
+		}
+	}
+
+	return decorators;
+}
+
+function buildRequestDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse === false || properties.isResponse === undefined) {
+		if (!properties.isRequired) {
+			decorators.push(IsOptional());
+		}
+
+		if (properties.isArray === true) {
+			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
+
+			if (properties.minItems > 0) {
+				decorators.push(ArrayNotEmpty());
+			}
+		}
+	}
+
+	return decorators;
+}
+
+function buildTransformDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (!properties.isResponse) {
+		if (properties.isArray) {
+			decorators.push(
+				Transform(
+					({ value }: { value: unknown }) => {
+						if (!Array.isArray(value)) {
+							const singleValue: string = value as string;
+
+							return singleValue ? [new Date(singleValue)] : [];
+						}
+
+						return value.map((dateString: string) => (dateString ? new Date(dateString) : undefined));
+					},
+					{ toClassOnly: true },
+				),
+			);
+		} else {
+			decorators.push(Transform(({ value }: { value: string }) => (value ? new Date(value) : undefined), { toClassOnly: true }));
+		}
+	}
+
+	return decorators;
+}
+
+function buildFormatDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+	const isArray: boolean = properties.isArray ?? false;
+
+	if (!properties.isResponse) {
+		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		decorators.push(IsDate({ each: isArray }));
+	}
+
+	return decorators;
+}
+
+function buildDecorators(properties: TApiPropertyDateProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
+
+	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties));
+
+	return decorators;
 }

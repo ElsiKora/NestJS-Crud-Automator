@@ -9,15 +9,16 @@ import { Validate } from "class-validator";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
 import { EApiDtoType, EApiRouteType } from "../../enum";
+import { HasPairedCustomSuffixesFields } from "../../validator/has-paired-custom-suffixes-fields.validator";
 import { CapitalizeString } from "../capitalize-string.utility";
 import { ErrorException } from "../error-exception.utility";
 
 import { DtoBuildDecorator } from "./build-decorator.utility";
+import { DtoGenerateFilterDecorator } from "./generate-filter-decorator.utility";
 import { DtoGenerateGetListResponse } from "./generate-get-list-response.utility";
 import { DtoGetGetListQueryBaseClass } from "./get-get-list-query-base-class.utility";
 import { DtoIsPropertyShouldBeMarked } from "./is-property-should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "./is-should-be-generated.utility";
-import {DtoGenerateFilterDecorator} from "./generate-filter-decorator.utility";
 
 export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
@@ -58,6 +59,13 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 						writable: true,
 					});
 
+					Object.defineProperty(this, `${property.name as string}[values]`, {
+						configurable: true,
+						enumerable: true,
+						value: undefined,
+						writable: true,
+					});
+
 					Object.defineProperty(this, `${property.name as string}[operator]`, {
 						configurable: true,
 						enumerable: true,
@@ -83,15 +91,21 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 			for (const [, decorator] of decorators.entries()) {
 				if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
 					decorator(GeneratedDTO.prototype, `${property.name as string}[value]`);
-					console.log("PISICH", property.metadata);
-					try {
-						DtoGenerateFilterDecorator(property.metadata, entityMetadata)(GeneratedDTO.prototype, `${property.name as string}[operator]`);
-					} catch (error) {
-						console.log("ERROR", error);
-					}
 
-					} else {
+					DtoGenerateFilterDecorator(property.metadata, entityMetadata)(GeneratedDTO.prototype, `${property.name as string}[operator]`);
+				} else {
 					decorator(GeneratedDTO.prototype, property.name as string);
+				}
+			}
+		}
+
+		if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
+			const metadataArray: TApiPropertyDescribeProperties = Object.assign(property.metadata, { isArray: true, isUniqueItems: false, maxItems: 100, minItems: 0 });
+			const decoratorsArray: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, metadataArray, entityMetadata, dtoType, property.name as string, currentGuard);
+
+			if (decoratorsArray) {
+				for (const [, decorator] of decoratorsArray.entries()) {
+					decorator(GeneratedDTO.prototype, `${property.name as string}[values]`);
 				}
 			}
 		}
@@ -101,6 +115,18 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		for (const validator of dtoConfig.validators) {
 			Validate(validator.constraintClass as unknown as Function, validator.options)(GeneratedDTO.prototype, "object");
 		}
+	}
+	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
+		Object.defineProperty(GeneratedDTO.prototype, "object", {
+			configurable: true,
+			enumerable: true,
+			value: function (this: InstanceType<typeof GeneratedDTO>): InstanceType<typeof GeneratedDTO> {
+				return this;
+			},
+			writable: true,
+		});
+
+		Validate(HasPairedCustomSuffixesFields, ["operator", ["value", "values"]])(GeneratedDTO.prototype, "object");
 	}
 
 	Object.defineProperty(GeneratedDTO, "name", {

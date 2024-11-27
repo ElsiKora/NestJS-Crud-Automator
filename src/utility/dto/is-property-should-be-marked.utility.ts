@@ -15,7 +15,7 @@ export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApi
 
 	const properties: Record<EApiDtoType, TApiPropertyDescribeDtoProperties> | undefined = propertyMetadata.properties?.[method] as Record<EApiDtoType, TApiPropertyDescribeDtoProperties> | undefined;
 
-	if (properties?.[dtoType]?.enabled === false) {
+	if (properties?.[dtoType]?.isEnabled === false) {
 		return false;
 	}
 

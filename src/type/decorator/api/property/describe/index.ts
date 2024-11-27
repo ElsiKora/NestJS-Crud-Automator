@@ -10,3 +10,4 @@ export * from "./date-properties.type";
 export * from "./dto";
 export * from "./properties";
 export * from "./array";
+export * from "./enum-properties.type";

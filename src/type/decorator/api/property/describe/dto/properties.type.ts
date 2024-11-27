@@ -1,9 +1,15 @@
 import type { TApiPropertyDescribeDtoGuardProperties } from "./guard-properties.type";
 
 export type TApiPropertyDescribeDtoProperties = {
-	enabled?: boolean;
-	expose?: boolean;
 	guard?: TApiPropertyDescribeDtoGuardProperties;
-	required?: boolean;
-	response?: boolean;
-};
+	isEnabled?: boolean;
+} & (
+	| {
+			isExpose?: boolean;
+			isResponse: true;
+	  }
+	| {
+			isRequired: boolean;
+			isResponse?: false;
+	  }
+);

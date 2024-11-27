@@ -6,4 +6,5 @@ export enum EApiPropertyDescribeType {
 	RELATION = "relation",
 	STRING = "string",
 	UUID = "uuid",
+	ENUM = "enum",
 }

@@ -1,10 +1,9 @@
-import {EFilterOrderDirection} from "../../../../enum";
-import {TDateRangeKeys, TNonDateKeys} from "../../../utility";
+import type { EFilterOrderDirection } from "../../../../enum";
+import type { TFilterKeys } from "../../../utility";
 
-export type TApiControllerGetListQuery<E> = Partial<TNonDateKeys<E>> &
-	TDateRangeKeys<E> & {
-		limit: number;
-		orderBy?: keyof E;
-		orderDirection?: EFilterOrderDirection;
-		page: number;
-	};
+export type TApiControllerGetListQuery<E> = {
+	limit: number;
+	orderBy?: keyof E;
+	orderDirection?: EFilterOrderDirection;
+	page: number;
+} & Partial<TFilterKeys<E>>;

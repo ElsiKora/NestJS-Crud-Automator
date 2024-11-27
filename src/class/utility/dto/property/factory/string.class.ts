@@ -4,15 +4,16 @@ import type { IApiEntity, IDtoGenerateFactory } from "../../../../../interface";
 import type {
 	TApiPropertyDescribeDtoProperties,
 	TApiPropertyDescribeStringProperties,
-	TApiPropertyStringProperties
 } from "../../../../../type";
 
 export class DtoPropertyFactoryString<E> implements IDtoGenerateFactory<E> {
 	create(metadata: TApiPropertyDescribeStringProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties): PropertyDecorator {
+		const { type, ...restProperties }: TApiPropertyDescribeStringProperties = metadata;
+
 		return ApiPropertyString({
 			entity,
 			...config,
-			...metadata,
-		} as unknown as TApiPropertyStringProperties<typeof entity>);
+			...restProperties,
+		});
 	}
 }

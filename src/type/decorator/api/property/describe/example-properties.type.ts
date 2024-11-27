@@ -1,1 +1,1 @@
-export type TApiPropertyDescribeExampleProperties<T, TArrayT> = { example: T; isArray?: false } | { example: TArrayT; isArray: true };
+export type TApiPropertyDescribeExampleProperties<T> = { exampleValue: Array<T>; isArray: true } | { exampleValue: T; isArray?: false };

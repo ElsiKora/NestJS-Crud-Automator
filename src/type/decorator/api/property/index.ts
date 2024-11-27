@@ -1,7 +1,6 @@
-export * from "./describe";
-export * from "./base-properties.type";
-export * from "./date-properties.interface";
-export * from "./number-properties.interface";
-export * from "./object-properties.interface";
-export * from "./string-properties.interface";
-export * from "./uuid-properties.interface";
+export type * from "./date-properties.type";
+export type * from "./describe";
+export type * from "./number-properties.type";
+export type * from "./object-properties.type";
+export type * from "./string-properties.type";
+export type * from "./uuid-properties.type";

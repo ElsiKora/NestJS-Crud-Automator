@@ -9,7 +9,7 @@ import type { Type } from "@nestjs/common";
 
 export function DtoGenerateRelationResponse<E>(entity: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string): Type<unknown> {
 	class GeneratedRelationDTO {
-		@ApiPropertyUUID({ entity, expose: true, response: true })
+		@ApiPropertyUUID({ entity, isResponse: true })
 		id!: string;
 	}
 

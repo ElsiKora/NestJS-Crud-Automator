@@ -1,45 +1,49 @@
+import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { TApiPropertyNumberProperties } from "../../../type/decorator/api/property/number-properties.type";
+
+
 import { applyDecorators } from "@nestjs/common";
-
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
-
-import { Expose, Transform } from "class-transformer";
-
-import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDivisibleBy, IsEnum, isInt, IsNumber, IsOptional, Max, Min } from "class-validator";
-
+import { Exclude, Expose, Transform, Type } from "class-transformer";
+import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDivisibleBy, IsInt, isInt, IsNumber, IsOptional, Max, Min } from "class-validator";
 import random from "lodash/random";
 
 import { NUMBER_CONSTANT } from "../../../constant";
-import { EApiPropertyDataType, EApiPropertyDataTypeNumber } from "../../../enum";
+import { EApiPropertyDataType, EApiPropertyNumberType } from "../../../enum";
 
-import type { IApiBaseEntity } from "../../../interface";
-import type { ApiPropertyOptions } from "@nestjs/swagger";
-import { TApiPropertyNumberProperties } from "src/type";
-
-export function ApiPropertyNumber<T extends IApiBaseEntity>(properties: TApiPropertyNumberProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
-	if (properties.example === undefined) {
-		properties.example = random(properties.minimum, properties.maximum);
+export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+	if (properties.exampleValue === undefined) {
+		properties.exampleValue = random(properties.minimum, properties.maximum);
 	}
 
-	validateOptions<T>(properties);
+	validateOptions(properties);
 
-	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions<T>(properties);
-	const decorators: Array<PropertyDecorator> = buildDecorators<T>(properties, apiPropertyOptions);
+	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(properties);
+	const decorators: Array<PropertyDecorator> = buildDecorators(properties, apiPropertyOptions);
 
 	return applyDecorators(...decorators);
 }
 
-function getFormat<T extends IApiBaseEntity>(properties: TApiPropertyNumberProperties<T>): string {
-	switch (properties.type) {
-		case EApiPropertyDataType.INTEGER: {
+function getType(properties: TApiPropertyNumberProperties): EApiPropertyDataType.INTEGER | EApiPropertyDataType.NUMBER {
+	switch (properties.format) {
+		case EApiPropertyNumberType.DOUBLE: {
+			return EApiPropertyDataType.NUMBER;
+		}
+
+		case EApiPropertyNumberType.INTEGER: {
+			return EApiPropertyDataType.INTEGER;
+		}
+	}
+}
+
+function getFormat(properties: TApiPropertyNumberProperties): string {
+	switch (properties.format) {
+		case EApiPropertyNumberType.DOUBLE: {
+			return EApiPropertyNumberType.DOUBLE;
+		}
+
+		case EApiPropertyNumberType.INTEGER: {
 			return properties.maximum <= NUMBER_CONSTANT.MAX_INTEGER && properties.maximum >= NUMBER_CONSTANT.MIN_INTEGER ? "int32" : "int64";
-		}
-
-		case EApiPropertyDataType.FLOAT: {
-			return "float";
-		}
-
-		case EApiPropertyDataType.DOUBLE: {
-			return "double";
 		}
 
 		default: {
@@ -48,35 +52,59 @@ function getFormat<T extends IApiBaseEntity>(properties: TApiPropertyNumberPrope
 	}
 }
 
-function validateOptions<T extends IApiBaseEntity>(properties: TApiPropertyNumberProperties<T>): void {
+function validateOptions(properties: TApiPropertyNumberProperties): void {
 	const errors: Array<string> = [];
 
-	if (!properties.response && typeof properties.required !== "boolean") {
-		errors.push("Required is not defined");
-	}
-
-	if (properties.response && properties.required) {
-		errors.push("Required is defined for response");
-	}
-
-	if (!EApiPropertyDataTypeNumber.has(properties.type)) {
-		errors.push("Type is not valid for number property: " + properties.type);
-	}
-
 	if (properties.minimum > properties.maximum) {
-		errors.push("Minimum is greater than maximum");
+		errors.push("'minimum' is greater than maximum");
 	}
 
-	if (properties.example && properties.example < properties.minimum) {
-		errors.push("Example is less than minimum");
+	if (Array.isArray(properties.exampleValue)) {
+		for (const example of properties.exampleValue) {
+			if (!isInt(example / properties.multipleOf)) {
+				errors.push("'exampleValue' is not a multiple of 'multipleOf' value: " + String(example));
+			}
+		}
+	} else if (properties.exampleValue !== undefined && !isInt(properties.exampleValue / properties.multipleOf)) {
+		errors.push("'exampleValue' is not a multiple of 'multipleOf' value: " + String(properties.exampleValue));
 	}
 
-	if (properties.example && properties.example > properties.maximum) {
-		errors.push("Example is greater than maximum");
+	if (Array.isArray(properties.exampleValue)) {
+		for (const example of properties.exampleValue) {
+			if (example < properties.minimum) {
+				errors.push("'exampleValue' is less than 'minimum': " + String(example));
+			}
+		}
+	} else if (properties.exampleValue !== undefined && properties.exampleValue < properties.minimum) {
+		errors.push("'exampleValue' is less than 'minimum': " + String(properties.exampleValue));
 	}
 
-	if (properties.example && properties.multipleOf && !isInt(properties.example / properties.multipleOf)) {
-		errors.push("Example is not a multiple of 'multipleOf' value");
+	if (Array.isArray(properties.exampleValue)) {
+		for (const example of properties.exampleValue) {
+			if (example > properties.maximum) {
+				errors.push("'exampleValue' is greater than 'maximum': " + String(example));
+			}
+		}
+	} else if (properties.exampleValue !== undefined && properties.exampleValue > properties.maximum) {
+		errors.push("'exampleValue' is greater than 'maximum': " + String(properties.exampleValue));
+	}
+
+	if (properties.isArray === true) {
+		if (properties.minItems > properties.maxItems) {
+			errors.push("'minItems' is greater than 'maxItems'");
+		}
+
+		if (properties.minItems < 0) {
+			errors.push("'minItems' is less than 0");
+		}
+
+		if (properties.maxItems < 0) {
+			errors.push("'maxItems' is less than 0");
+		}
+
+		if (properties.isUniqueItems && properties.maxItems <= 1) {
+			errors.push("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
+		}
 	}
 
 	if (errors.length > 0) {
@@ -84,110 +112,131 @@ function validateOptions<T extends IApiBaseEntity>(properties: TApiPropertyNumbe
 	}
 }
 
-function buildApiPropertyOptions<T extends IApiBaseEntity>(properties: TApiPropertyNumberProperties<T>): ApiPropertyOptions {
+function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
-		description: `${properties.entity.name} ${properties.description || ""}`,
-		example: properties.example,
+		description: `${properties.entity.name} ${properties.description ?? ""}`,
 		format: getFormat(properties),
-		maximum: properties.maximum,
-		minimum: properties.minimum,
-		nullable: properties.nullable,
-		required: !properties.response && properties.required,
-		type: EApiPropertyDataType.NUMBER,
+		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		nullable: properties.isNullable,
+		type: getType(properties),
 	};
 
-	if (properties.enum) {
-		apiPropertyOptions.enum = properties.enum;
+	if (properties.isResponse === false || properties.isResponse === undefined) {
+		apiPropertyOptions.required = properties.isRequired;
 	}
 
 	if (properties.isArray) {
 		apiPropertyOptions.isArray = true;
 		apiPropertyOptions.minItems = properties.minItems;
 		apiPropertyOptions.maxItems = properties.maxItems;
-		apiPropertyOptions.uniqueItems = properties.uniqueItems;
+		apiPropertyOptions.uniqueItems = properties.isUniqueItems;
 	}
 
-	if (properties.isArray && properties.enum) {
-		delete apiPropertyOptions.type;
-	}
+	apiPropertyOptions.minimum = properties.minimum;
+	apiPropertyOptions.maximum = properties.maximum;
+	apiPropertyOptions.multipleOf = properties.multipleOf;
+	apiPropertyOptions.example = properties.exampleValue;
 
 	return apiPropertyOptions;
 }
 
-function buildDecorators<T extends IApiBaseEntity>(properties: TApiPropertyNumberProperties<T>, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+function buildResponseDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse) {
+		decorators.push(ApiResponseProperty());
+
+		if (properties.isExpose === undefined || properties.isExpose) {
+			decorators.push(Expose());
+		} else {
+			decorators.push(Exclude());
+		}
+	}
+
+	return decorators;
+}
+
+function buildRequestDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse === false || properties.isResponse === undefined) {
+		if (!properties.isRequired) {
+			decorators.push(IsOptional());
+		}
+
+		if (properties.isArray === true) {
+			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
+
+			if (properties.minItems > 0) {
+				decorators.push(ArrayNotEmpty());
+			}
+		}
+	}
+
+	return decorators;
+}
+
+function buildFormatDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+	const isArray: boolean = properties.isArray ?? false;
+
+	if (properties.isResponse === undefined || !properties.isResponse) {
+		switch (properties.format) {
+			case EApiPropertyNumberType.DOUBLE: {
+				// eslint-disable-next-line @elsikora-typescript/naming-convention
+				decorators.push(IsNumber({}, { each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyNumberType.INTEGER: {
+				// eslint-disable-next-line @elsikora-typescript/naming-convention
+				decorators.push(IsInt({ each: isArray }));
+
+				break;
+			}
+
+			default: {
+				throw new Error("ApiPropertyNumber error: Format is not valid for number property: " + properties.format);
+			}
+		}
+
+		decorators.push(Type(() => Number));
+	}
+
+	return decorators;
+}
+
+function buildTransformDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (!properties.isResponse) {
+		if (properties.isArray) {
+			decorators.push(Transform(({ value }: { value: Array<string> }) => value.map(Number), { toClassOnly: true }));
+		} else {
+			decorators.push(Transform(({ value }: { value: string }) => Number(value), { toClassOnly: true }));
+		}
+	}
+
+	return decorators;
+}
+
+function buildNumberValidationDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+	const isArray: boolean = properties.isArray ?? false;
+
+	if (!properties.isResponse) {
+		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		decorators.push(IsDivisibleBy(properties.multipleOf, { each: isArray }), Min(properties.minimum, { each: isArray }), Max(properties.maximum, { each: isArray }));
+	}
+
+	return decorators;
+}
+
+function buildDecorators(properties: TApiPropertyNumberProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
-	if (properties.response) {
-		decorators.push(ApiResponseProperty);
-
-		if (properties.expose) {
-			decorators.push(Expose());
-		}
-
-		decorators.push(
-			Transform(
-				({ value }: { value: string }) => {
-					return Number(value);
-				},
-				{ toClassOnly: true },
-			),
-		);
-	} else if (properties.isArray) {
-		if (!properties.required) {
-			decorators.push(IsOptional());
-		}
-
-		decorators.push(IsArray(), ArrayNotEmpty());
-
-		if (properties.minItems) {
-			decorators.push(ArrayMinSize(properties.minItems));
-		}
-
-		if (properties.maxItems) {
-			decorators.push(ArrayMaxSize(properties.maxItems));
-		}
-
-		if (properties.enum) {
-			decorators.push(IsEnum(properties.enum, { each: true }));
-		} else {
-			decorators.push(IsNumber({}, { each: true }));
-		}
-
-		if (properties.multipleOf) {
-			decorators.push(IsDivisibleBy(properties.multipleOf, { each: true }));
-		}
-
-		decorators.push(
-			Transform(({ value }: { value: Array<string> }) => value.map(Number), { toClassOnly: true }),
-			Min(properties.minimum, { each: true }),
-			Max(properties.maximum, { each: true }),
-		);
-	} else {
-		if (!properties.required) {
-			decorators.push(IsOptional());
-		}
-
-		if (properties.enum) {
-			decorators.push(IsEnum(properties.enum));
-		} else {
-			decorators.push(IsNumber());
-		}
-
-		if (properties.multipleOf) {
-			decorators.push(IsDivisibleBy(properties.multipleOf));
-		}
-
-		decorators.push(
-			Transform(
-				({ value }: { value: string }) => {
-					return Number(value);
-				},
-				{ toClassOnly: true },
-			),
-			Min(properties.minimum),
-			Max(properties.maximum),
-		);
-	}
+	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties), ...buildNumberValidationDecorators(properties));
 
 	return decorators;
 }

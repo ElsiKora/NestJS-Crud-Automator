@@ -5,10 +5,12 @@ import type { TApiPropertyDescribeBooleanProperties, TApiPropertyDescribeDtoProp
 
 export class DtoPropertyFactoryBoolean<E> implements IDtoGenerateFactory<E> {
 	create(metadata: TApiPropertyDescribeBooleanProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties): PropertyDecorator {
+		const { type, ...restProperties }: TApiPropertyDescribeBooleanProperties = metadata;
+
 		return ApiPropertyBoolean({
-			description: metadata.description,
 			entity,
 			...config,
+			...restProperties,
 		});
 	}
 }
