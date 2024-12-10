@@ -42,13 +42,15 @@ function buildApiPropertyOptions(uuidExample: string, properties: TApiPropertyUu
 			maxLength: uuidExample.length,
 			minLength: uuidExample.length,
 		};
+		apiPropertyOptions.example = [uuidExample];
 	} else {
 		apiPropertyOptions.minLength = uuidExample.length;
 		apiPropertyOptions.maxLength = uuidExample.length;
+		apiPropertyOptions.example = uuidExample;
 	}
 
 	apiPropertyOptions.format = EApiPropertyStringType.UUID;
-	apiPropertyOptions.example = uuidExample;
+
 	apiPropertyOptions.pattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$";
 
 	return apiPropertyOptions;

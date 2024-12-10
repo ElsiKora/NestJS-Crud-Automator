@@ -122,14 +122,18 @@ function buildApiPropertyOptions(properties: TApiPropertyStringProperties): ApiP
 			maxLength: properties.maxLength,
 			minLength: properties.minLength,
 		};
+		apiPropertyOptions.example = Array.isArray(properties.exampleValue)
+			? properties.exampleValue
+			: [properties.exampleValue];
 	} else {
 		apiPropertyOptions.maxLength = properties.maxLength;
 		apiPropertyOptions.minLength = properties.minLength;
+		apiPropertyOptions.example = properties.exampleValue;
 	}
 
 	apiPropertyOptions.format = properties.format;
 	apiPropertyOptions.pattern = properties.pattern.slice(1, -1);
-	apiPropertyOptions.example = properties.exampleValue;
+
 
 	return apiPropertyOptions;
 }

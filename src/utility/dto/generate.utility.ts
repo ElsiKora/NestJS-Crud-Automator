@@ -100,7 +100,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		}
 
 		if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
-			const metadataArray: TApiPropertyDescribeProperties = Object.assign(property.metadata, { isArray: true, isUniqueItems: false, maxItems: 100, minItems: 0 });
+			const metadataArray: TApiPropertyDescribeProperties = Object.assign(property.metadata, { isArray: true, isUniqueItems: false, maxItems: 100, minItems: 2 });
 			const decoratorsArray: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, metadataArray, entityMetadata, dtoType, property.name as string, currentGuard);
 
 			if (decoratorsArray) {
