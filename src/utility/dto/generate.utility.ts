@@ -10,7 +10,6 @@ import { Validate } from "class-validator";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
 import { EApiDtoType, EApiRouteType } from "../../enum";
 import { HasPairedCustomSuffixesFields } from "../../validator/has-paired-custom-suffixes-fields.validator";
-import { CapitalizeString } from "../capitalize-string.utility";
 import { ErrorException } from "../error-exception.utility";
 
 import { DtoBuildDecorator } from "./build-decorator.utility";
@@ -19,6 +18,7 @@ import { DtoGenerateGetListResponse } from "./generate-get-list-response.utility
 import { DtoGetGetListQueryBaseClass } from "./get-get-list-query-base-class.utility";
 import { DtoIsPropertyShouldBeMarked } from "./is-property-should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "./is-should-be-generated.utility";
+import {CamelCaseString} from "../camel-case-string.utility";
 
 export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
@@ -100,7 +100,9 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		}
 
 		if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
-			const metadataArray: TApiPropertyDescribeProperties = Object.assign(property.metadata, { isArray: true, isUniqueItems: false, maxItems: 100, minItems: 2 });
+			// @ts-ignore
+			const metadataArray: TApiPropertyDescribeProperties = { ...property.metadata, isArray: true, isUniqueItems: false, maxItems: 100, minItems: 2 };
+
 			const decoratorsArray: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, metadataArray, entityMetadata, dtoType, property.name as string, currentGuard);
 
 			if (decoratorsArray) {
@@ -116,6 +118,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 			Validate(validator.constraintClass as unknown as Function, validator.options)(GeneratedDTO.prototype, "object");
 		}
 	}
+
 	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
 		Object.defineProperty(GeneratedDTO.prototype, "object", {
 			configurable: true,
@@ -130,7 +133,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	}
 
 	Object.defineProperty(GeneratedDTO, "name", {
-		value: `${entityMetadata.name}${CapitalizeString(method)}${CapitalizeString(dtoType)}DTO`,
+		value: `${entityMetadata.name}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`,
 	});
 
 	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE) {

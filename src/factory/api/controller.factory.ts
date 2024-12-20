@@ -1,7 +1,6 @@
 import type { Type } from "@nestjs/common";
 import type { ClassConstructor } from "class-transformer";
 import type { DeepPartial, FindOptionsOrder, FindOptionsWhere } from "typeorm";
-import type { FindOperator } from "typeorm/find-options/FindOperator";
 
 import type { IApiAuthenticationRequest, IApiControllerPrimaryColumn, IApiControllerProperties, IApiEntity, IApiGetListResponseResult } from "../../interface";
 import type { TApiControllerGetListQuery, TApiControllerMethod, TApiControllerMethodMap, TApiControllerMethodName, TApiControllerMethodNameMap, TApiControllerPropertiesRoute, TApiControllerTargetMethod, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetListPropertiesWhere, TApiFunctionGetProperties, TApiFunctionUpdateCriteria } from "../../type";
@@ -9,142 +8,25 @@ import type { TApiControllerGetListQuery, TApiControllerMethod, TApiControllerMe
 import { Controller } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { plainToInstance } from "class-transformer";
-import { Equal } from "typeorm";
-import { ILike, In, IsNull, LessThan, Like, MoreThan, Not } from "typeorm";
-import { Between, LessThanOrEqual, MoreThanOrEqual } from "typeorm";
 
 import { CONTROLLER_API_DECORATOR_CONSTANT, FUNCTION_API_DECORATOR_CONSTANT } from "../../constant";
 import { EApiDtoType, EApiRouteType } from "../../enum";
-import { EFilterOperation } from "../../enum/filter-operation.enum";
-import { ApiControllerTransformData, ApiControllerWriteDtoSwagger, ApiControllerWriteMethod, CapitalizeString, DtoGenerate, ErrorException, GenerateEntityInformation } from "../../utility";
+import {
+	ApiControllerGetListTransformFilter,
+	ApiControllerTransformData,
+	ApiControllerWriteDtoSwagger,
+	ApiControllerWriteMethod,
+	CapitalizeString,
+	DtoGenerate,
+	ErrorException,
+	GenerateEntityInformation
+} from "../../utility";
 import { ApiControllerApplyDecorators } from "../../utility/api/controller/apply-decorators.utility";
 import { ApiControllerApplyMetadata } from "../../utility/api/controller/apply-metadata.utility";
 import { ApiControllerGetPrimaryColumn } from "../../utility/api/controller/get-primary-column.utility";
 import { ApiControllerHandleRequestRelations } from "../../utility/api/controller/handle-request-relations.utility";
 import { ApiControllerValidateRequest } from "../../utility/api/controller/validate-request.utility";
 import { analyzeEntityMetadata } from "../../utility/dto/analize.utility";
-
-function transformFilter<E>(query: Record<string, any>): FindOptionsWhere<E> {
-	const filter: FindOptionsWhere<E> = {};
-
-	for (const fullKey of Object.keys(query)) {
-		if (!fullKey.includes("[")) continue;
-
-		const [key, field] = fullKey.split("[");
-		const cleanField: string = field.replace("]", "");
-
-		if (cleanField === "value") {
-			const operation: EFilterOperation = query[`${key}[operator]`] as EFilterOperation;
-			// eslint-disable-next-line @elsikora-typescript/no-unsafe-assignment
-			const value: any = query[fullKey];
-
-			if (!operation || !key) continue;
-
-			// @ts-ignore
-			filter[key as keyof E] = transformOperation(operation, value);
-		}
-	}
-
-	return filter;
-}
-
-function transformOperation(operation: EFilterOperation, value: any): FindOperator<any> {
-	switch (operation) {
-		case EFilterOperation.BETWEEN: {
-			const [start, end] = Array.isArray(value) ? value : [null, null];
-
-			return Between(start, end);
-		}
-
-		case EFilterOperation.CONT: {
-			return Like(`%${String(value)}%`);
-		}
-
-		case EFilterOperation.CONTL: {
-			return ILike(`%${String(value)}%`);
-		}
-
-		case EFilterOperation.ENDS: {
-			return Like(`%${String(value)}`);
-		}
-
-		case EFilterOperation.ENDSL: {
-			return ILike(`%${String(value)}`);
-		}
-
-		case EFilterOperation.EQ: {
-			return Equal(String(value));
-		}
-
-		case EFilterOperation.EQL: {
-			return ILike(String(value));
-		}
-
-		case EFilterOperation.EXCL: {
-			return Not(Like(`%${String(value)}%`));
-		}
-
-		case EFilterOperation.EXCLL: {
-			return Not(ILike(`%${String(value)}%`));
-		}
-
-		case EFilterOperation.GT: {
-			return MoreThan(String(value));
-		}
-
-		case EFilterOperation.GTE: {
-			return MoreThanOrEqual(String(value));
-		}
-
-		case EFilterOperation.IN: {
-			return In(Array.isArray(value) ? value : [value]);
-		}
-
-		case EFilterOperation.INL: {
-			return In(Array.isArray(value) ? value.map((v) => ILike(v)) : [ILike(value)]);
-		}
-
-		case EFilterOperation.ISNULL: {
-			return IsNull();
-		}
-
-		case EFilterOperation.LT: {
-			return LessThan(String(value));
-		}
-
-		case EFilterOperation.LTE: {
-			return LessThanOrEqual(String(value));
-		}
-
-		case EFilterOperation.NE: {
-			return Not(String(value));
-		}
-
-		case EFilterOperation.NEL: {
-			return Not(ILike(String(value)));
-		}
-
-		case EFilterOperation.NOTIN: {
-			return Not(In(Array.isArray(value) ? value : [value]));
-		}
-
-		case EFilterOperation.NOTINL: {
-			return Not(In(Array.isArray(value) ? value.map((v) => ILike(v)) : [ILike(value)]));
-		}
-
-		case EFilterOperation.NOTNULL: {
-			return Not(IsNull());
-		}
-
-		case EFilterOperation.STARTS: {
-			return Like(`${String(value)}%`);
-		}
-
-		case EFilterOperation.STARTSL: {
-			return ILike(`${String(value)}%`);
-		}
-	}
-}
 
 export class ApiControllerFactory<E> {
 	private readonly ENTITY!: IApiEntity<E>;
@@ -282,7 +164,7 @@ export class ApiControllerFactory<E> {
 
 					const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
 
-					const filter: TApiFunctionGetListPropertiesWhere<E> = transformFilter<E>(getListQuery);
+					const filter: TApiFunctionGetListPropertiesWhere<E> = ApiControllerGetListTransformFilter<E>(getListQuery);
 
 					console.log("PRE FILTER", getListQuery);
 

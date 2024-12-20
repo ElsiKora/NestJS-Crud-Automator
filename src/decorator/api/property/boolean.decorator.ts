@@ -61,10 +61,10 @@ function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPro
 		apiPropertyOptions.minItems = properties.minItems;
 		apiPropertyOptions.maxItems = properties.maxItems;
 		apiPropertyOptions.uniqueItems = properties.isUniqueItems;
+		apiPropertyOptions.example = [true];
+	} else {
+		apiPropertyOptions.example = true;
 	}
-
-	apiPropertyOptions.example = true;
-
 	return apiPropertyOptions;
 }
 

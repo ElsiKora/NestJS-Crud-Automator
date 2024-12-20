@@ -1,22 +1,15 @@
-import fs from 'fs/promises';
-import path from 'path';
+import fs from "node:fs/promises";
 
 async function modifyPackageJson() {
-    const packageJson = JSON.parse(
-        await fs.readFile('package.json', 'utf8')
-    );
+	const packageJson = JSON.parse(await fs.readFile("package.json", "utf8"));
 
-    const distPackageJson = {
-        ...packageJson,
-    };
+	const distributionPackageJson = {
+		...packageJson,
+	};
 
-    delete distPackageJson.type;
+	delete distributionPackageJson.type;
 
-    await fs.writeFile(
-        'dist/package.json',
-        JSON.stringify(distPackageJson, null, 2),
-        'utf8'
-    );
+	await fs.writeFile("dist/package.json", JSON.stringify(distributionPackageJson, null, 2), "utf8");
 }
 
 modifyPackageJson().catch(console.error);

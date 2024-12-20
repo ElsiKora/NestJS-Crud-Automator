@@ -130,12 +130,15 @@ function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiP
 		apiPropertyOptions.minItems = properties.minItems;
 		apiPropertyOptions.maxItems = properties.maxItems;
 		apiPropertyOptions.uniqueItems = properties.isUniqueItems;
+		apiPropertyOptions.example = Array.isArray(properties.exampleValue) ? properties.exampleValue : [properties.exampleValue];
+	} else {
+		apiPropertyOptions.example = properties.exampleValue;
 	}
 
 	apiPropertyOptions.minimum = properties.minimum;
 	apiPropertyOptions.maximum = properties.maximum;
 	apiPropertyOptions.multipleOf = properties.multipleOf;
-	apiPropertyOptions.example = properties.exampleValue;
+
 
 	return apiPropertyOptions;
 }

@@ -63,13 +63,21 @@ function buildApiPropertyOptions(properties: TApiPropertyEnumProperties): ApiPro
 		apiPropertyOptions.minItems = properties.minItems;
 		apiPropertyOptions.maxItems = properties.maxItems;
 		apiPropertyOptions.uniqueItems = properties.isUniqueItems;
+
+		if (properties.exampleValue) {
+			apiPropertyOptions.example = Array.isArray(properties.exampleValue) ? properties.exampleValue : [properties.exampleValue];
+		} else {
+			apiPropertyOptions.example = [Object.values(properties.enum)[0]];
+		}
+	} else {
+		if (properties.exampleValue) {
+			apiPropertyOptions.example = properties.exampleValue;
+		} else {
+			apiPropertyOptions.example = Object.values(properties.enum)[0];
+		}
 	}
 
-	if (properties.exampleValue) {
-		apiPropertyOptions.example = properties.exampleValue;
-	} else {
-		apiPropertyOptions.example = Object.values(properties.enum)[0];
-	}
+
 
 	apiPropertyOptions.enum = properties.enum;
 

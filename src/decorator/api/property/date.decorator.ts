@@ -118,13 +118,14 @@ function buildApiPropertyOptions(properties: TApiPropertyDateProperties): ApiPro
 			maxLength: example.length,
 			minLength: example.length,
 		};
+		apiPropertyOptions.example = [example];
 	} else {
 		apiPropertyOptions.minLength = example.length;
 		apiPropertyOptions.maxLength = example.length;
+		apiPropertyOptions.example = example;
 	}
 
 	apiPropertyOptions.pattern = getPattern(properties.format);
-	apiPropertyOptions.example = example;
 	apiPropertyOptions.format = properties.format;
 
 	return apiPropertyOptions;
