@@ -1,3 +1,3 @@
-export * from "./base.interface";
-export * from "./properties.interface";
-export * from "./properties";
+export type * from "./base.interface";
+export type * from "./properties";
+export type * from "./properties.interface";

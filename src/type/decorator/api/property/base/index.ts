@@ -1,4 +1,4 @@
-export * from "./request-properties.type";
-export * from "./properties.type";
-export * from "./array";
-export * from "./response-properties.type";
+export type * from "./array";
+export type * from "./properties.type";
+export type * from "./request-properties.type";
+export type * from "./response-properties.type";

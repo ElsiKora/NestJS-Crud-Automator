@@ -1,5 +1,6 @@
-import type { IApiControllerPrimaryColumn, IApiEntity, IApiEntityColumn } from "../../../interface";
 import type { DeepPartial } from "typeorm";
+
+import type { IApiControllerPrimaryColumn, IApiEntity, IApiEntityColumn } from "../../../interface";
 
 export function ApiControllerGetPrimaryColumn<E>(parameters: DeepPartial<E> | Partial<E>, entityMetadata: IApiEntity<E>): IApiControllerPrimaryColumn<E> | undefined {
 	const primaryKeyColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>): column is IApiEntityColumn<E> => column.isPrimary);

@@ -69,15 +69,11 @@ function buildApiPropertyOptions(properties: TApiPropertyEnumProperties): ApiPro
 		} else {
 			apiPropertyOptions.example = [Object.values(properties.enum)[0]];
 		}
+	} else if (properties.exampleValue) {
+		apiPropertyOptions.example = properties.exampleValue;
 	} else {
-		if (properties.exampleValue) {
-			apiPropertyOptions.example = properties.exampleValue;
-		} else {
-			apiPropertyOptions.example = Object.values(properties.enum)[0];
-		}
+		apiPropertyOptions.example = Object.values(properties.enum)[0];
 	}
-
-
 
 	apiPropertyOptions.enum = properties.enum;
 

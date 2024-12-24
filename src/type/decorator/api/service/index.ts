@@ -1,2 +1,2 @@
-export * from "./keys.type";
-export * from "./properties.type";
+export type * from "./keys.type";
+export type * from "./properties.type";

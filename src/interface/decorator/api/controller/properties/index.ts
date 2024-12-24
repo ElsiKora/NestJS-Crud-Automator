@@ -1,1 +1,1 @@
-export * from "./route";
+export type * from "./route";

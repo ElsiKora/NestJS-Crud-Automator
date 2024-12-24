@@ -1,9 +1,9 @@
+import type { EApiRouteType } from "../../../enum";
+import type { IApiControllerProperties, IApiEntity } from "../../../interface";
+
 import { ErrorException } from "../../error-exception.utility";
 
 import { ApiControllerGetMethodName } from "./get-method-name.utility";
-
-import type { EApiRouteType } from "../../../enum";
-import type { IApiControllerProperties, IApiEntity } from "../../../interface";
 
 export function ApiControllerWriteMethod<E>(thisTarget: Record<string, (method: EApiRouteType, methodName: string, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>) => void>, target: Record<string, unknown>, method: EApiRouteType, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 	const methodName: string = ApiControllerGetMethodName(method);

@@ -1,1 +1,1 @@
-export * from "./strategy.interface";
+export type * from "./strategy.interface";

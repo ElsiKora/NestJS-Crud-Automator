@@ -65,6 +65,7 @@ function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPro
 	} else {
 		apiPropertyOptions.example = true;
 	}
+
 	return apiPropertyOptions;
 }
 

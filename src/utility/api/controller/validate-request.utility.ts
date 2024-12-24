@@ -1,7 +1,7 @@
-import { ErrorString } from "../../error-string.utility";
-
 import type { IApiControllerProperties, IApiRequestValidator } from "../../../interface";
 import type { TApiControllerGetListQuery } from "../../../type";
+
+import { ErrorString } from "../../error-string.utility";
 
 export async function ApiControllerValidateRequest<E>(validators: Array<IApiRequestValidator<E>> | undefined, properties: IApiControllerProperties<E>, parameters: Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
 	if (validators) {

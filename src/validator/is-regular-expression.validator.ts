@@ -1,6 +1,6 @@
-import { ValidatorConstraint } from "class-validator";
-
 import type { ValidatorConstraintInterface } from "class-validator";
+
+import { ValidatorConstraint } from "class-validator";
 
 @ValidatorConstraint()
 export class IsRegularExpression implements ValidatorConstraintInterface {

@@ -1,9 +1,10 @@
+import type { EApiPropertyDescribeType } from "../../../../../enum";
+
 import type { TApiPropertyDescribeArrayOptionalProperties, TApiPropertyDescribeArrayRequiredProperties } from "./array";
 import type { TApiPropertyDescribeBaseProperties } from "./base-properties.type";
 
-import type { EApiPropertyDescribeType } from "../../../../../enum";
-
-export type TApiPropertyDescribeUuidProperties = TApiPropertyDescribeBaseProperties & {
+export type TApiPropertyDescribeUuidProperties = {
 	description?: string;
 	type: EApiPropertyDescribeType.UUID;
-} & (TApiPropertyDescribeArrayOptionalProperties | TApiPropertyDescribeArrayRequiredProperties);
+} & (TApiPropertyDescribeArrayOptionalProperties | TApiPropertyDescribeArrayRequiredProperties) &
+	TApiPropertyDescribeBaseProperties;

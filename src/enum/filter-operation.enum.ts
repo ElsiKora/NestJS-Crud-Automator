@@ -40,7 +40,7 @@ export enum EFilterOperationString {
 	NOTINL = EFilterOperation.NOTINL,
 	NOTNULL = EFilterOperation.NOTNULL,
 	STARTS = EFilterOperation.STARTS,
-	STARTSL = EFilterOperation.STARTSL
+	STARTSL = EFilterOperation.STARTSL,
 }
 
 export enum EFilterOperationNumber {
@@ -54,7 +54,7 @@ export enum EFilterOperationNumber {
 	LTE = EFilterOperation.LTE,
 	NE = EFilterOperation.NE,
 	NOTIN = EFilterOperation.NOTIN,
-	NOTNULL = EFilterOperation.NOTNULL
+	NOTNULL = EFilterOperation.NOTNULL,
 }
 
 export enum EFilterOperationEnum {
@@ -63,21 +63,21 @@ export enum EFilterOperationEnum {
 	ISNULL = EFilterOperation.ISNULL,
 	NE = EFilterOperation.NE,
 	NOTIN = EFilterOperation.NOTIN,
-	NOTNULL = EFilterOperation.NOTNULL
+	NOTNULL = EFilterOperation.NOTNULL,
 }
 
 export enum EFilterOperationArray {
 	CONT = EFilterOperation.CONT,
 	EXCL = EFilterOperation.EXCL,
 	ISNULL = EFilterOperation.ISNULL,
-	NOTNULL = EFilterOperation.NOTNULL
+	NOTNULL = EFilterOperation.NOTNULL,
 }
 
 export enum EFilterOperationObject {
 	EQ = EFilterOperation.EQ,
 	ISNULL = EFilterOperation.ISNULL,
 	NE = EFilterOperation.NE,
-	NOTNULL = EFilterOperation.NOTNULL
+	NOTNULL = EFilterOperation.NOTNULL,
 }
 
 export enum EFilterOperationDate {
@@ -89,29 +89,29 @@ export enum EFilterOperationDate {
 	LT = EFilterOperation.LT,
 	LTE = EFilterOperation.LTE,
 	NE = EFilterOperation.NE,
-	NOTNULL = EFilterOperation.NOTNULL
+	NOTNULL = EFilterOperation.NOTNULL,
 }
 
 export enum EFilterOperationBoolean {
 	EQ = EFilterOperation.EQ,
-	ISNULL = EFilterOperation.ISNULL,
-	NE = EFilterOperation.NE,
-	NOTNULL = EFilterOperation.NOTNULL,
 	EXCL = EFilterOperation.EXCL,
 	IN = EFilterOperation.IN,
-	NOTIN = EFilterOperation.NOTIN
+	ISNULL = EFilterOperation.ISNULL,
+	NE = EFilterOperation.NE,
+	NOTIN = EFilterOperation.NOTIN,
+	NOTNULL = EFilterOperation.NOTNULL,
 }
 
 export enum EFilterOperationRelation {
 	EQ = EFilterOperation.EQ,
 	ISNULL = EFilterOperation.ISNULL,
 	NE = EFilterOperation.NE,
-	NOTNULL = EFilterOperation.NOTNULL
+	NOTNULL = EFilterOperation.NOTNULL,
 }
 
 export enum EFilterOperationUuid {
 	EQ = EFilterOperation.EQ,
 	ISNULL = EFilterOperation.ISNULL,
 	NE = EFilterOperation.NE,
-	NOTNULL = EFilterOperation.NOTNULL
+	NOTNULL = EFilterOperation.NOTNULL,
 }

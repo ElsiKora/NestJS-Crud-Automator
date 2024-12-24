@@ -1,1 +1,1 @@
-export * from "./method.type";
+export type * from "./method.type";

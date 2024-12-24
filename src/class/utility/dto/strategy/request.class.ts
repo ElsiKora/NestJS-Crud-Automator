@@ -10,10 +10,6 @@ export class DtoStrategyRequest implements IDtoStrategy {
 				return { isRequired: true };
 			}
 
-			case EApiRouteType.UPDATE: {
-				return { isRequired: true };
-			}
-
 			case EApiRouteType.DELETE: {
 				return { isRequired: true };
 			}
@@ -27,6 +23,10 @@ export class DtoStrategyRequest implements IDtoStrategy {
 			}
 
 			case EApiRouteType.PARTIAL_UPDATE: {
+				return { isRequired: true };
+			}
+
+			case EApiRouteType.UPDATE: {
 				return { isRequired: true };
 			}
 

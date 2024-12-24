@@ -1,13 +1,13 @@
-import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
-
-import { EErrorStringAction } from "../../../enum";
-
-import { ErrorException } from "../../../utility/error-exception.utility";
-import { ErrorString } from "../../../utility/error-string.utility";
+import type { Repository } from "typeorm";
 
 import type { IApiBaseEntity, IApiFunctionGetExecutorProperties, IApiFunctionProperties } from "../../../interface";
 import type { TApiFunctionGetProperties } from "../../../type";
-import type { Repository } from "typeorm";
+
+import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+
+import { EErrorStringAction } from "../../../enum";
+import { ErrorException } from "../../../utility/error-exception.utility";
+import { ErrorString } from "../../../utility/error-string.utility";
 
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecutorProperties<E>): Promise<E> {
 	const { entity, properties, repository }: IApiFunctionGetExecutorProperties<E> = options;

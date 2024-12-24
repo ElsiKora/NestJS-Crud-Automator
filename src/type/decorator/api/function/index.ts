@@ -1,9 +1,9 @@
-export * from "./get-properties.type";
-export * from "./create-properties.type";
-export * from "./get-list-properties.type";
-export * from "./update-properties.type";
-export * from "./delete-criteria.type";
-export * from "./update-criteria.type";
-export * from "./get-many.properties";
-export * from "./properties.type";
-export * from "./get-list-properties-where.type";
+export type * from "./create-properties.type";
+export type * from "./delete-criteria.type";
+export type * from "./get-list-properties-where.type";
+export type * from "./get-list-properties.type";
+export type * from "./get-many.properties";
+export type * from "./get-properties.type";
+export type * from "./properties.type";
+export type * from "./update-criteria.type";
+export type * from "./update-properties.type";

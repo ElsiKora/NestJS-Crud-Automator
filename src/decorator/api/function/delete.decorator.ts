@@ -1,16 +1,15 @@
-import { HttpException, InternalServerErrorException } from "@nestjs/common";
-
-import { EErrorStringAction } from "../../../enum";
-
-import { ErrorException } from "../../../utility/error-exception.utility";
-import { ErrorString } from "../../../utility/error-string.utility";
-
-import { ApiFunctionGet } from "./get.decorator";
+import type { Repository } from "typeorm";
 
 import type { IApiBaseEntity, IApiFunctionDeleteExecutorProperties, IApiFunctionProperties } from "../../../interface";
 import type { TApiFunctionDeleteCriteria, TApiFunctionGetProperties } from "../../../type";
 
-import type { Repository } from "typeorm";
+import { HttpException, InternalServerErrorException } from "@nestjs/common";
+
+import { EErrorStringAction } from "../../../enum";
+import { ErrorException } from "../../../utility/error-exception.utility";
+import { ErrorString } from "../../../utility/error-string.utility";
+
+import { ApiFunctionGet } from "./get.decorator";
 
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExecutorProperties<E>): Promise<E> {
 	const { criteria, entity, getFunction, repository }: IApiFunctionDeleteExecutorProperties<E> = options;

@@ -1,2 +1,2 @@
-export * from "./error-string-properties.interface";
-export * from "./api";
+export type * from "./api";
+export type * from "./error-string-properties.interface";

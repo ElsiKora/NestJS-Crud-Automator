@@ -10,6 +10,7 @@ import { Validate } from "class-validator";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
 import { EApiDtoType, EApiRouteType } from "../../enum";
 import { HasPairedCustomSuffixesFields } from "../../validator/has-paired-custom-suffixes-fields.validator";
+import { CamelCaseString } from "../camel-case-string.utility";
 import { ErrorException } from "../error-exception.utility";
 
 import { DtoBuildDecorator } from "./build-decorator.utility";
@@ -18,7 +19,6 @@ import { DtoGenerateGetListResponse } from "./generate-get-list-response.utility
 import { DtoGetGetListQueryBaseClass } from "./get-get-list-query-base-class.utility";
 import { DtoIsPropertyShouldBeMarked } from "./is-property-should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "./is-should-be-generated.utility";
-import {CamelCaseString} from "../camel-case-string.utility";
 
 export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {

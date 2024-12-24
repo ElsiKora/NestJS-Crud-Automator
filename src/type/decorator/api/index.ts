@@ -1,5 +1,5 @@
-export * from "./filter";
-export * from "./function";
-export * from "./property";
-export * from "./controller";
-export * from "./service";
+export type * from "./controller";
+export type * from "./filter";
+export type * from "./function";
+export type * from "./property";
+export type * from "./service";

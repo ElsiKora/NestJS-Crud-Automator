@@ -1,2 +1,2 @@
-export * from "./dto";
-export * from "./metadata-entry.interface";
+export type * from "./dto";
+export type * from "./metadata-entry.interface";

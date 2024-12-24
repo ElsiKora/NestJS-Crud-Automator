@@ -1,12 +1,10 @@
-import type { IApiControllerPropertiesRouteBase } from "./base.interface";
+import type { Type } from "@nestjs/common";
 
 import type { EApiDtoType, EApiRouteType } from "../../../../../../enum";
 
-import type { Type } from "@nestjs/common";
+import type { IApiControllerPropertiesRouteBase } from "./base.interface";
 
 export interface IApiControllerPropertiesRouteWithDto<E, R extends EApiRouteType> extends IApiControllerPropertiesRouteBase<E, R> {
 	autoDto?: never;
-	dto?: {
-		[key in EApiDtoType]?: Type<unknown>;
-	};
+	dto?: Partial<Record<EApiDtoType, Type<unknown>>>;
 }

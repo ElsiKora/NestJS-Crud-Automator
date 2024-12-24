@@ -1,7 +1,7 @@
-export * from "./auto-dto-config.interface";
-export * from "./with-auto-dto.interface";
-export * from "./with-dto.interface";
-export * from "./base-response.interface";
-export * from "./base-request.interface";
-export * from "./base.interface";
-export * from "./authentication.interface";
+export type * from "./authentication.interface";
+export type * from "./auto-dto-config.interface";
+export type * from "./base-request.interface";
+export type * from "./base-response.interface";
+export type * from "./base.interface";
+export type * from "./with-auto-dto.interface";
+export type * from "./with-dto.interface";

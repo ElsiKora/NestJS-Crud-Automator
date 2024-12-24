@@ -1,13 +1,12 @@
+import type { CallHandler, ExecutionContext, NestInterceptor } from "@nestjs/common";
+import type { FastifyRequest } from "fastify";
+import type { Observable } from "rxjs";
+
 import { randomUUID } from "node:crypto";
 
 import { HttpException, HttpStatus, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { ThrottlerException } from "@nestjs/throttler";
-
 import { catchError } from "rxjs/operators";
-
-import type { CallHandler, ExecutionContext, NestInterceptor } from "@nestjs/common";
-import type { FastifyRequest } from "fastify";
-import type { Observable } from "rxjs";
 
 @Injectable()
 export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {

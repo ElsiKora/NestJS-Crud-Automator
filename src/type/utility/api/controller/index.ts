@@ -1,1 +1,1 @@
-export * from "./transform-data";
+export type * from "./transform-data";

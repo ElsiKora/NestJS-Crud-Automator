@@ -124,7 +124,7 @@ function buildObjectValidationDecorators(properties: TApiPropertyObjectPropertie
 function buildTransformDecorators(properties: TApiPropertyObjectProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
-		decorators.push(Type(() => properties.type as Function));
+	decorators.push(Type(() => properties.type as Function));
 
 	return decorators;
 }

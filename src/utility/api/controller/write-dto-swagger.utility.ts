@@ -1,18 +1,18 @@
+import type { Type } from "@nestjs/common";
+
+import type { EApiRouteType } from "../../../enum";
+import type { IApiControllerProperties, IApiEntity } from "../../../interface";
+import type { TApiControllerPropertiesRoute, TMetadata } from "../../../type";
+
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
 
 import { MetadataStorage } from "../../../class";
-
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../../constant";
 import { EApiDtoType, EApiPropertyDescribeType } from "../../../enum";
 import { CapitalizeString } from "../../capitalize-string.utility";
 import { DtoGenerate } from "../../dto";
 
-import type { EApiRouteType } from "../../../enum";
-import type { IApiControllerProperties, IApiEntity } from "../../../interface";
-import type { TApiControllerPropertiesRoute, TMetadata } from "../../../type";
-import type { Type } from "@nestjs/common";
-
-export function ApiControllerWriteDtoSwagger<E>(target: Object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, entityMetadata: IApiEntity<E>): void {
+export function ApiControllerWriteDtoSwagger<E>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, entityMetadata: IApiEntity<E>): void {
 	const swaggerModels: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, target) || []) as Array<unknown>;
 
 	const requestDto: Type<unknown> | undefined = routeConfig.dto?.request || DtoGenerate(properties.entity, entity, method, EApiDtoType.REQUEST, routeConfig.autoDto?.[EApiDtoType.REQUEST], routeConfig.authentication?.guard);

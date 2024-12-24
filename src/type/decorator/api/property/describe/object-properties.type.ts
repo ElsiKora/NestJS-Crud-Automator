@@ -8,7 +8,7 @@ import type { TApiPropertyDescribeBaseProperties } from "./base-properties.type"
 
 export type TApiPropertyDescribeObjectProperties = {
 	additionalProperties?: boolean | ReferenceObject | SchemaObject;
-	dataType: Function | [Function] | Type<unknown> | undefined;
+	dataType: [Function] | Function | Type<unknown> | undefined;
 	description: string;
 	shouldValidateNested?: boolean;
 	type: EApiPropertyDescribeType.OBJECT;

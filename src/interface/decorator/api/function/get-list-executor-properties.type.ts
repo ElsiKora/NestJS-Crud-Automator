@@ -1,7 +1,7 @@
-import type { TApiFunctionGetListProperties } from "../../../../type";
-
-import type { IApiBaseEntity } from "../../../api-base-entity.interface";
 import type { Repository } from "typeorm";
+
+import type { TApiFunctionGetListProperties } from "../../../../type";
+import type { IApiBaseEntity } from "../../../api-base-entity.interface";
 
 export interface IApiFunctionGetListExecutorProperties<E extends IApiBaseEntity> {
 	entity: IApiBaseEntity;

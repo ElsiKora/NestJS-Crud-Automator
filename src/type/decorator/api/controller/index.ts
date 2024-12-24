@@ -1,5 +1,5 @@
-export * from "./constructor.type";
-export * from "./properties-route.type";
-export * from "./transformer-config.type";
-export * from "./properties";
-export * from "./get-list-query.type";
+export type * from "./constructor.type";
+export type * from "./get-list-query.type";
+export type * from "./properties";
+export type * from "./properties-route.type";
+export type * from "./transformer-config.type";

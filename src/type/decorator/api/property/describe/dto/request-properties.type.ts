@@ -1,6 +1,6 @@
-import type { TApiPropertyDescribeDtoProperties } from "./properties.type";
-
 import type { EApiDtoType } from "../../../../../../enum";
+
+import type { TApiPropertyDescribeDtoProperties } from "./properties.type";
 
 export type TApiPropertyDescribeDtoRequestProperties = {
 	[EApiDtoType.REQUEST]?: TApiPropertyDescribeDtoProperties;

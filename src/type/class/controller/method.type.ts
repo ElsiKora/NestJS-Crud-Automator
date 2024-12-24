@@ -1,5 +1,4 @@
 import type { ApiServiceBase } from "../../../class";
-
 import type { TApiServiceKeys } from "../../decorator";
 
 export type TApiControllerMethod<E> = {

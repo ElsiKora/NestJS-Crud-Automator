@@ -1,17 +1,16 @@
+import type { ColumnType } from "typeorm";
+import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
+import type { DiscriminatorValueMetadataArgs } from "typeorm/metadata-args/DiscriminatorValueMetadataArgs";
+import type { RelationMetadataArgs } from "typeorm/metadata-args/RelationMetadataArgs";
+import type { TableMetadataArgs } from "typeorm/metadata-args/TableMetadataArgs";
+
+import type { IApiBaseEntity, IApiEntity, IApiEntityColumn } from "../interface";
+
 import { DefaultNamingStrategy, getMetadataArgsStorage } from "typeorm";
 
 import { MetadataStorage } from "../class";
 
 import { ErrorException } from "./error-exception.utility";
-
-import type { IApiBaseEntity, IApiEntity, IApiEntityColumn } from "../interface";
-import type { ColumnType } from "typeorm";
-
-import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
-import type { DiscriminatorValueMetadataArgs } from "typeorm/metadata-args/DiscriminatorValueMetadataArgs";
-import type { RelationMetadataArgs } from "typeorm/metadata-args/RelationMetadataArgs";
-
-import type { TableMetadataArgs } from "typeorm/metadata-args/TableMetadataArgs";
 
 export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity<E> {
 	const generatedEntity: IApiEntity<E> = {
@@ -59,7 +58,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 			isPrimary: Boolean(options.primary),
 			metadata: (storage.getMetadata(entity.name, propertyName) as Record<string, any>) || undefined,
 			name: propertyName as keyof E,
-			type: options.type as ColumnType,
+			type: options.type!,
 		})),
 		...relationList.map(({ propertyName, relationType }: RelationMetadataArgs) => ({
 			isPrimary: false,

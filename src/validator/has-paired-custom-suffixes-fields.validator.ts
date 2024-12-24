@@ -9,9 +9,9 @@ type TValidationContext = {
 };
 
 enum EArgumentType {
-	SINGLE = "single",
 	ARRAY = "array",
-	NULL = "null"
+	NULL = "null",
+	SINGLE = "single",
 }
 
 type TOperationConfig = {
@@ -24,77 +24,77 @@ type TOperationConfig = {
 const DEFAULT_OPERATION_CONFIGS: Record<EFilterOperation, TOperationConfig> = {
 	[EFilterOperation.BETWEEN]: {
 		argumentType: EArgumentType.ARRAY,
-		exactLength: 2
+		exactLength: 2,
 	},
 	[EFilterOperation.CONT]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.CONTL]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.ENDS]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.ENDSL]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.EQ]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.EQL]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.EXCL]: {
-		argumentType: EArgumentType.ARRAY
+		argumentType: EArgumentType.ARRAY,
 	},
 	[EFilterOperation.EXCLL]: {
-		argumentType: EArgumentType.ARRAY
+		argumentType: EArgumentType.ARRAY,
 	},
 	[EFilterOperation.GT]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.GTE]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.IN]: {
 		argumentType: EArgumentType.ARRAY,
-		minLength: 1
+		minLength: 1,
 	},
 	[EFilterOperation.INL]: {
 		argumentType: EArgumentType.ARRAY,
-		minLength: 1
+		minLength: 1,
 	},
 	[EFilterOperation.ISNULL]: {
-		argumentType: EArgumentType.NULL
+		argumentType: EArgumentType.NULL,
 	},
 	[EFilterOperation.LT]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.LTE]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.NE]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.NEL]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.NOTIN]: {
 		argumentType: EArgumentType.ARRAY,
-		minLength: 1
+		minLength: 1,
 	},
 	[EFilterOperation.NOTINL]: {
 		argumentType: EArgumentType.ARRAY,
-		minLength: 1
+		minLength: 1,
 	},
 	[EFilterOperation.NOTNULL]: {
-		argumentType: EArgumentType.NULL
+		argumentType: EArgumentType.NULL,
 	},
 	[EFilterOperation.STARTS]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 	[EFilterOperation.STARTSL]: {
-		argumentType: EArgumentType.SINGLE
+		argumentType: EArgumentType.SINGLE,
 	},
 };
 
@@ -137,9 +137,7 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 					continue;
 				}
 
-				const valueFields: Array<string> = valueSuffixes
-					.filter((suffix: string) => groupSuffixes.has(suffix))
-					.map((suffix: string) => `${baseName}[${suffix}]`);
+				const valueFields: Array<string> = valueSuffixes.filter((suffix: string) => groupSuffixes.has(suffix)).map((suffix: string) => `${baseName}[${suffix}]`);
 
 				if (valueFields.length === 0) {
 					return `group "${baseName}" requires a value for ${operator} operation`;
@@ -185,9 +183,7 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 		const fields: Array<string> = Object.keys(indexableObject);
 		const fieldGroups: Map<string, Set<string>> = new Map<string, Set<string>>();
 
-		const suffixPattern: string = [operatorSuffix, ...valueSuffixes]
-			.map((suffix: string): string => suffix.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`))
-			.join("|");
+		const suffixPattern: string = [operatorSuffix, ...valueSuffixes].map((suffix: string): string => suffix.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)).join("|");
 		const regex: RegExp = new RegExp(`^(.+?)\\[(${suffixPattern})\\]$`);
 
 		for (const field of fields) {
@@ -227,13 +223,12 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 
 				if (operatorConfig.argumentType === EArgumentType.NULL) {
 					const valueCount: number = valueSuffixes.filter((suffix: string) => groupSuffixes.has(suffix)).length;
+
 					if (valueCount > 0) return false;
 					continue;
 				}
 
-				const valueFields: Array<string> = valueSuffixes
-					.filter((suffix: string) => groupSuffixes.has(suffix))
-					.map((suffix) => `${baseName}[${suffix}]`);
+				const valueFields: Array<string> = valueSuffixes.filter((suffix: string) => groupSuffixes.has(suffix)).map((suffix) => `${baseName}[${suffix}]`);
 
 				if (valueFields.length !== 1) return false;
 

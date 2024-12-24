@@ -1,6 +1,6 @@
 import type { ApiPropertyOptions } from "@nestjs/swagger";
-import type { TApiPropertyNumberProperties } from "../../../type/decorator/api/property/number-properties.type";
 
+import type { TApiPropertyNumberProperties } from "../../../type/decorator/api/property/number-properties.type";
 
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
@@ -138,7 +138,6 @@ function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiP
 	apiPropertyOptions.minimum = properties.minimum;
 	apiPropertyOptions.maximum = properties.maximum;
 	apiPropertyOptions.multipleOf = properties.multipleOf;
-
 
 	return apiPropertyOptions;
 }

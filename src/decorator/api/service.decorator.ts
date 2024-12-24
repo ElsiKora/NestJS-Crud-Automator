@@ -1,12 +1,11 @@
+import type { FindOptionsRelations } from "typeorm";
+
+import type { IApiBaseEntity, IApiGetListResponseResult } from "../../interface";
+import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties, TApiServiceProperties } from "../../type";
+
 import { EApiFunctionType } from "../../enum";
 
 import { ApiFunction } from "./function";
-
-import type { IApiBaseEntity, IApiGetListResponseResult } from "../../interface";
-
-import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties, TApiServiceProperties } from "../../type";
-
-import type { FindOptionsRelations } from "typeorm";
 
 export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProperties<E>) {
 	const { entity }: TApiServiceProperties<E> = properties;

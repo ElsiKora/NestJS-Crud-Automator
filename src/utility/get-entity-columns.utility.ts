@@ -1,9 +1,9 @@
-import { getMetadataArgsStorage } from "typeorm";
+import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
+import type { RelationMetadataArgs } from "typeorm/metadata-args/RelationMetadataArgs";
 
 import type { IGetEntityColumnsProperties } from "../interface/utility/get-entity-columns-properties.interface";
 
-import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
-import {RelationMetadataArgs} from "typeorm/metadata-args/RelationMetadataArgs";
+import { getMetadataArgsStorage } from "typeorm";
 
 export function GetEntityColumns<E>(properties: IGetEntityColumnsProperties): Array<keyof E> {
 	const { entity, shouldTakeGeneratedOnly, shouldTakeRelationsOnly } = properties;

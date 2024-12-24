@@ -1,2 +1,2 @@
-export * from "./properties.interface";
-export * from "./throttler-properties.interface";
+export type * from "./properties.interface";
+export type * from "./throttler-properties.interface";

@@ -1,6 +1,6 @@
-import { ValidatorConstraint } from "class-validator";
-
 import type { ValidationArguments, ValidatorConstraintInterface } from "class-validator";
+
+import { ValidatorConstraint } from "class-validator";
 
 @ValidatorConstraint({ async: false, name: "has-at-least-one-property" })
 export class HasAtLeastOneProperty implements ValidatorConstraintInterface {

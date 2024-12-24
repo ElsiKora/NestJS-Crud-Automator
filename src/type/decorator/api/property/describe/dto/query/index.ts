@@ -1,2 +1,2 @@
-export * from "./get-list-properties.type";
-export * from "./properties.type";
+export type * from "./get-list-properties.type";
+export type * from "./properties.type";

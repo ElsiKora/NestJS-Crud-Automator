@@ -1,17 +1,16 @@
-import { HttpException, InternalServerErrorException } from "@nestjs/common";
-
-import { EErrorStringAction } from "../../../enum";
-
-import { ErrorException } from "../../../utility/error-exception.utility";
-import { ErrorString } from "../../../utility/error-string.utility";
-
-import { ApiFunctionGet } from "./get.decorator";
+import type { DeepPartial, Repository } from "typeorm";
 
 import type { IApiBaseEntity, IApiFunctionProperties } from "../../../interface";
 import type { IApiFunctionUpdateExecutorProperties } from "../../../interface/decorator/api/function/update-executor-properties.type";
 import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "../../../type";
 
-import type { DeepPartial, Repository } from "typeorm";
+import { HttpException, InternalServerErrorException } from "@nestjs/common";
+
+import { EErrorStringAction } from "../../../enum";
+import { ErrorException } from "../../../utility/error-exception.utility";
+import { ErrorString } from "../../../utility/error-string.utility";
+
+import { ApiFunctionGet } from "./get.decorator";
 
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExecutorProperties<E>): Promise<E> {
 	const { criteria, entity, getFunction, properties, repository }: IApiFunctionUpdateExecutorProperties<E> = options;

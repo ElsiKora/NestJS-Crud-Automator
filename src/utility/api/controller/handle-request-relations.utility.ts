@@ -1,20 +1,14 @@
+import type { DeepPartial, FindOptionsWhere } from "typeorm";
+
+import type { IApiControllerProperties } from "../../../interface";
+import type { TApiControllerGetListQuery, TApiControllerMethod, TApiControllerPropertiesRouteBaseRequestRelations, TApiFunctionGetProperties, TApiServiceKeys } from "../../../type";
+
 import { BadRequestException } from "@nestjs/common";
 
 import { ApiServiceBase } from "../../../class";
 import { EApiControllerLoadRelationsStrategy } from "../../../enum";
-
 import { ErrorException } from "../../error-exception.utility";
 import { GetEntityColumns } from "../../get-entity-columns.utility";
-
-import type { IApiControllerProperties } from "../../../interface";
-import type {
-	TApiControllerGetListQuery,
-	TApiControllerMethod,
-	TApiControllerPropertiesRouteBaseRequestRelations,
-	TApiFunctionGetProperties,
-	TApiServiceKeys
-} from "../../../type";
-import type { DeepPartial, FindOptionsWhere } from "typeorm";
 
 export async function ApiControllerHandleRequestRelations<E>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
 	if (relationConfig?.loadRelations) {

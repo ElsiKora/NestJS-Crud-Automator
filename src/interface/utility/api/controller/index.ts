@@ -1,1 +1,1 @@
-export * from "./primary-column.interface";
+export type * from "./primary-column.interface";

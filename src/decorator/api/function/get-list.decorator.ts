@@ -1,14 +1,13 @@
+import type { Repository } from "typeorm";
+
+import type { IApiBaseEntity, IApiFunctionGetListExecutorProperties, IApiFunctionProperties, IApiGetListResponseResult } from "../../../interface";
+import type { TApiFunctionGetListProperties } from "../../../type";
+
 import { HttpException, InternalServerErrorException } from "@nestjs/common";
 
 import { EErrorStringAction } from "../../../enum";
-
 import { ErrorException } from "../../../utility/error-exception.utility";
 import { ErrorString } from "../../../utility/error-string.utility";
-
-import type { IApiBaseEntity, IApiFunctionGetListExecutorProperties, IApiFunctionProperties, IApiGetListResponseResult } from "../../../interface";
-
-import type { TApiFunctionGetListProperties} from "../../../type";
-import type { Repository } from "typeorm";
 
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListExecutorProperties<E>): Promise<IApiGetListResponseResult<E>> {
 	const { entity, properties, repository }: IApiFunctionGetListExecutorProperties<E> = options;
@@ -27,6 +26,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListEx
 		};
 	} catch (error) {
 		console.log("EBANINA", error);
+
 		if (error instanceof HttpException) {
 			throw error;
 		}

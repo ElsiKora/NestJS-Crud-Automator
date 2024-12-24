@@ -1,2 +1,2 @@
-export * from "./column.interface";
-export * from "./interface";
+export type * from "./column.interface";
+export type * from "./interface";

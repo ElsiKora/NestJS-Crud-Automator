@@ -1,3 +1,3 @@
-export * from "./object-to-transform.type";
-export * from "./data.type";
-export * from "./is-validation-properties.type";
+export type * from "./data.type";
+export type * from "./is-validation-properties.type";
+export type * from "./object-to-transform.type";

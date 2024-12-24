@@ -1,2 +1,2 @@
-export * from "./strategy";
 export * from "./property";
+export * from "./strategy";

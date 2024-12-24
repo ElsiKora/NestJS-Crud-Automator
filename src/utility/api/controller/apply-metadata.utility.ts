@@ -1,20 +1,17 @@
-import { assignMetadata } from "@nestjs/common";
+import type { Type } from "@nestjs/common";
 
+import type { EApiRouteType } from "../../../enum";
+import type { IApiControllerProperties, IApiEntity } from "../../../interface";
+import type { TApiControllerPropertiesRoute } from "../../../type";
+
+import { assignMetadata } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
 
 import { EApiDtoType } from "../../../enum";
-
 import { DtoGenerate } from "../../dto";
 
-import type { EApiRouteType } from "../../../enum";
-
-import type { IApiControllerProperties, IApiEntity } from "../../../interface";
-import type { TApiControllerPropertiesRoute } from "../../../type";
-
-import type { Type } from "@nestjs/common";
-
-export function ApiControllerApplyMetadata<E>(target: Object, targetPrototype: Object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>): void {
+export function ApiControllerApplyMetadata<E>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>): void {
 	let parameterIndex: number = 0;
 	let routeArgumentsMetadata: unknown = {};
 	const parameterTypes: Array<any> = [];

@@ -19,7 +19,7 @@ export class DtoStrategyResponse implements IDtoStrategy {
 			}
 
 			case EApiRouteType.GET_LIST: {
-				return { isResponse: true, isExpose: true };
+				return { isExpose: true, isResponse: true };
 			}
 
 			case EApiRouteType.PARTIAL_UPDATE: {

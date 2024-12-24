@@ -1,17 +1,17 @@
-import "reflect-metadata";
-
-import { getMetadataArgsStorage } from "typeorm";
-
-import { FILTER_API_INTERFACE_CONSTANT, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
+import type { Type } from "@nestjs/common";
+import type { ObjectLiteral } from "typeorm";
+import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
+import type { MetadataArgsStorage } from "typeorm/metadata-args/MetadataArgsStorage";
 
 import type { EApiDtoType, EApiRouteType } from "../../enum";
 import type { IApiEntity } from "../../interface";
 import type { IApiFilterOrderBy, TFilterFieldSelector } from "../../type";
 
-import type { Type } from "@nestjs/common";
-import type { ObjectLiteral } from "typeorm";
-import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
-import type { MetadataArgsStorage } from "typeorm/metadata-args/MetadataArgsStorage";
+import { getMetadataArgsStorage } from "typeorm";
+
+import { FILTER_API_INTERFACE_CONSTANT, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
+
+import "reflect-metadata";
 
 export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, fieldSelector?: TFilterFieldSelector<typeof entity>): IApiFilterOrderBy<typeof entity> {
 	const metadata: MetadataArgsStorage = getMetadataArgsStorage();
@@ -27,32 +27,29 @@ export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata
 		}
 	}
 
-	return columns.reduce(
-		(accumulator: IApiFilterOrderBy<typeof entity>, column: ColumnMetadataArgs) => {
-			const columnType: string | Type = (column.options?.type as string | Type) || (Reflect.getMetadata("design:type", entity.prototype as Object, column.propertyName) as string | Type);
+	return columns.reduce<IApiFilterOrderBy<typeof entity>>((accumulator: IApiFilterOrderBy<typeof entity>, column: ColumnMetadataArgs) => {
+		const columnType: string | Type = (column.options?.type as string | Type) || (Reflect.getMetadata("design:type", entity.prototype as object, column.propertyName) as string | Type);
 
-			if ((typeof columnType === "function" && (columnType === String || columnType === Number || columnType === Date)) || (FILTER_API_INTERFACE_CONSTANT.ALLOWED_ENTITY_TO_FILTER_COLUMNS.includes(columnType as string) && (fieldSelector === undefined || fieldSelector[column.propertyName as keyof typeof entity] !== false))) {
-				for (const metadataColumn of entityMetadata.columns) {
-					if (metadataColumn.name === column.propertyName && metadataColumn.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] && (metadataColumn.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]?.properties?.[method]?.[dtoType]?.filter === undefined || metadataColumn.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]?.properties?.[method]?.[dtoType]?.filter === true)) {
-						const snakeUpperCase: string = column.propertyName
-							.split("")
-							.map((char: string, index: number): string => {
-								if (index > 0 && char === char.toUpperCase() && char !== char.toLowerCase()) {
-									return "_" + char;
-								}
+		if ((typeof columnType === "function" && (columnType === String || columnType === Number || columnType === Date)) || (FILTER_API_INTERFACE_CONSTANT.ALLOWED_ENTITY_TO_FILTER_COLUMNS.includes(columnType as string) && (fieldSelector === undefined || fieldSelector[column.propertyName as keyof typeof entity] !== false))) {
+			for (const metadataColumn of entityMetadata.columns) {
+				if (metadataColumn.name === column.propertyName && metadataColumn.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] && (metadataColumn.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]?.properties?.[method]?.[dtoType]?.filter === undefined || metadataColumn.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]?.properties?.[method]?.[dtoType]?.filter === true)) {
+					const snakeUpperCase: string = column.propertyName
+						.split("")
+						.map((char: string, index: number): string => {
+							if (index > 0 && char === char.toUpperCase() && char !== char.toLowerCase()) {
+								return "_" + char;
+							}
 
-								return char;
-							})
-							.join("")
-							.toUpperCase();
+							return char;
+						})
+						.join("")
+						.toUpperCase();
 
-						accumulator[snakeUpperCase as keyof IApiFilterOrderBy<typeof entity>] = column.propertyName;
-					}
+					accumulator[snakeUpperCase as keyof IApiFilterOrderBy<typeof entity>] = column.propertyName;
 				}
 			}
+		}
 
-			return accumulator;
-		},
-		{} as IApiFilterOrderBy<typeof entity>,
-	);
+		return accumulator;
+	}, {});
 }
