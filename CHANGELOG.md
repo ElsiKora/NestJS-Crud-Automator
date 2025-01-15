@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.5.1
+
+### Patch Changes
+
+- b027d32: Refactor import path for UUID property type.
+
 ## 1.4.8
 
 ### Patch Changes
