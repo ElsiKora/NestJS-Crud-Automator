@@ -134,8 +134,6 @@ export class ApiControllerFactory<E> {
 						excludeExtraneousValues: true,
 					});
 				} catch (error) {
-					console.log("UEBANCHIK", error);
-
 					throw error;
 				}
 			},

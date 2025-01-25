@@ -1,5 +1,5 @@
 import type { ApiPropertyOptions } from "@nestjs/swagger";
-import type { TApiPropertyUuidProperties } from "src/type";
+import type { TApiPropertyUuidProperties } from "../../../type/decorator/api/property/uuid-properties.type";
 
 import { randomUUID } from "node:crypto";
 

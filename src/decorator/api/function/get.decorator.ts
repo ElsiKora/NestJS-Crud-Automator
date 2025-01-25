@@ -15,6 +15,8 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 	try {
 		const item: E | null = await repository.findOne(properties);
 
+		console.log("FILTER GET", properties);
+		console.log("RESULT GET", item);
 		if (!item) {
 			throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));
 		}
@@ -47,6 +49,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 			},
 			properties: TApiFunctionGetProperties<E>,
 		): Promise<E> {
+			console.log("ALO BLYAT", properties);
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
