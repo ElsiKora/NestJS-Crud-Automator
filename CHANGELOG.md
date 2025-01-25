@@ -4,6 +4,12 @@
 
 ### Patch Changes
 
+- 7c97b54: Update dependencies and adjust peer requirements
+
+## 1.5.2
+
+### Patch Changes
+
 - f60515c: Add error type utility and exception enum for consistency
 
 ## 1.5.1
