@@ -23,7 +23,7 @@ import {
 } from "@nestjs/common";
 
 import { ThrottlerException } from "@nestjs/throttler";
-import EException from "../enum/exception.enum";
+import {EException} from "../enum";
 
 const ExceptionMap: Record<EException, any> = {
 	[EException.NOT_FOUND]: NotFoundException,
