@@ -1,6 +1,6 @@
 {
 	"name": "@elsikora/nestjs-crud-automator",
-	"version": "1.5.2",
+	"version": "1.5.1",
 	"description": "A library for automating the creation of CRUD operations in NestJS.",
 	"keywords": [
 		"NestJS",
@@ -45,7 +45,6 @@
 		"@eslint-react/eslint-plugin": "^1.16.1",
 		"@eslint/compat": "^1.2.3",
 		"@eslint/js": "^9.15.0",
-		"@nestjs/passport": "^10.0.3",
 		"@stylistic/eslint-plugin": "^2.10.1",
 		"@types/eslint__js": "^8.42.3",
 		"@types/lodash": "^4.17.13",
@@ -72,11 +71,12 @@
 		"typescript-eslint": "^8.14.0"
 	},
 	"peerDependencies": {
-		"@nestjs/common": ">=10.4.7",
-		"@nestjs/core": ">=10.4.7",
-		"@nestjs/platform-fastify": ">=10.4.7",
-		"@nestjs/swagger": ">=8.0.3",
-		"@nestjs/throttler": ">=6.2.1",
+		"@nestjs/common": ">=11.0.5",
+		"@nestjs/core": ">=11.0.5",
+		"@nestjs/platform-fastify": ">=11.0.5",
+		"@nestjs/swagger": ">=11.0.3",
+		"@nestjs/passport": ">=11.0.5",
+		"@nestjs/throttler": ">=6.4.0",
 		"class-transformer": ">=0.5.1",
 		"class-validator": ">=0.14.1",
 		"fastify": ">=5.0.0",
