@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.5.3
+
+### Patch Changes
+
+- 61a7328: Refactor codebase with consistent formatting standards
+
 ## 1.5.2
 
 ### Patch Changes
