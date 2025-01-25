@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.5.4
+
+### Patch Changes
+
+- 81cfec0: Use named import for EException in is-error-of-type utility.
+
 ## 1.5.3
 
 ### Patch Changes
