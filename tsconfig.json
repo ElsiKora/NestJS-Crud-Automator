@@ -22,7 +22,7 @@
 		"strict": true,
 		"target": "ESNext",
 		"paths": {
-			"typeorm/*": ["./node_modules/typeorm/*"],
-		},
+			"typeorm/*": ["./node_modules/typeorm/*"]
+		}
 	}
 }

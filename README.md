@@ -1,9 +1,11 @@
 # API Controller Configuration Documentation
 
 ## Overview
+
 The API Controller configuration is a TypeScript-based configuration system that provides a comprehensive way to define API endpoints with authentication, request/response handling, validation, and data transformation capabilities.
 
 ## Table of Contents
+
 - [Basic Configuration Structure](#basic-configuration-structure)
 - [Route Configuration](#route-configuration)
 - [Authentication](#authentication)
@@ -20,16 +22,17 @@ The base configuration object follows this interface:
 
 ```typescript
 interface IApiControllerProperties<E> {
-    entity: IApiBaseEntity;
-    name?: string;
-    path?: string;
-    routes: {
-        [R in EApiRouteType]?: TApiControllerPropertiesRoute<E, R>;
-    };
+	entity: IApiBaseEntity;
+	name?: string;
+	path?: string;
+	routes: {
+		[R in EApiRouteType]?: TApiControllerPropertiesRoute<E, R>;
+	};
 }
 ```
 
 ### Properties:
+
 - `entity`: The base entity class for the controller
 - `name`: Optional name for the controller
 - `path`: Optional URL path for the controller
@@ -38,6 +41,7 @@ interface IApiControllerProperties<E> {
 ## Route Configuration
 
 Routes are defined using the `EApiRouteType` enum, which includes:
+
 - CREATE
 - GET
 - GET_LIST
@@ -46,6 +50,7 @@ Routes are defined using the `EApiRouteType` enum, which includes:
 - DELETE
 
 Each route can be configured with:
+
 - Authentication settings
 - Request handling
 - Response handling
@@ -53,6 +58,7 @@ Each route can be configured with:
 - Validation rules
 
 Example:
+
 ```typescript
 {
     [EApiRouteType.CREATE]: {
@@ -66,6 +72,7 @@ Example:
 ## Authentication
 
 Authentication configuration allows you to specify:
+
 - Bearer token strategies
 - Security strategies
 - Authentication guards
@@ -73,14 +80,15 @@ Authentication configuration allows you to specify:
 
 ```typescript
 interface IApiControllerPropertiesRouteAuthentication {
-    bearerStrategies?: Array<string>;
-    guard: Type<IAuthGuard>;
-    securityStrategies?: Array<string>;
-    type: EApiAuthenticationType;
+	bearerStrategies?: Array<string>;
+	guard: Type<IAuthGuard>;
+	securityStrategies?: Array<string>;
+	type: EApiAuthenticationType;
 }
 ```
 
 Example:
+
 ```typescript
 authentication: {
     bearerStrategies: ["accountAuthorization"],
@@ -93,21 +101,23 @@ authentication: {
 ## Request Handling
 
 Request configuration includes:
+
 - Relations loading
 - Data transformation
 - Request validation
 
 ```typescript
 interface IApiControllerPropertiesRouteBaseRequest<E, R> {
-    relations?: TApiControllerPropertiesRouteBaseRequestRelations<E>;
-    transformers?: TApiControllerPropertiesRouteBaseRequestTransformers<E, R>;
-    validators?: Array<IApiRequestValidator<E>>;
+	relations?: TApiControllerPropertiesRouteBaseRequestRelations<E>;
+	transformers?: TApiControllerPropertiesRouteBaseRequestTransformers<E, R>;
+	validators?: Array<IApiRequestValidator<E>>;
 }
 ```
 
 ### Relations Loading Strategies
 
 Two strategies are available:
+
 1. **AUTO**: Automatically loads relations
 2. **MANUAL**: Manually specify relations to load
 
@@ -126,17 +136,19 @@ relations: {
 ## Response Handling
 
 Response configuration allows you to:
+
 - Specify relations to include
 - Transform response data
 
 ```typescript
 interface IApiControllerPropertiesRouteBaseResponse<E, R> {
-    relations?: FindOptionsRelations<E>;
-    transformers?: TApiControllerPropertiesRouteBaseResponseTransformers<E, R>;
+	relations?: FindOptionsRelations<E>;
+	transformers?: TApiControllerPropertiesRouteBaseResponseTransformers<E, R>;
 }
 ```
 
 Example:
+
 ```typescript
 response: {
     relations: {
@@ -158,55 +170,58 @@ response: {
 ## Data Transformation
 
 Transformers can be configured for different DTO types:
+
 - BODY
 - QUERY
 - REQUEST
 - RESPONSE
 
 Two types of transformers are available:
+
 1. **DYNAMIC**: Uses predefined constants
 2. **STATIC**: Uses static values
 
 ```typescript
 type TApiRequestTransformer<E> = {
-    key: keyof IApiGetListResponseResult<E> | keyof Partial<E> | keyof TApiFunctionGetListProperties<E>;
+	key: keyof IApiGetListResponseResult<E> | keyof Partial<E> | keyof TApiFunctionGetListProperties<E>;
 } & (
-    | {
-        type: EApiControllerRequestTransformerType.DYNAMIC;
-        value: (typeof TRANSFORMER_VALUE_DTO_CONSTANT)[keyof typeof TRANSFORMER_VALUE_DTO_CONSTANT];
-    }
-    | {
-        type: EApiControllerRequestTransformerType.STATIC;
-        value: string;
-    }
+	| {
+			type: EApiControllerRequestTransformerType.DYNAMIC;
+			value: (typeof TRANSFORMER_VALUE_DTO_CONSTANT)[keyof typeof TRANSFORMER_VALUE_DTO_CONSTANT];
+	  }
+	| {
+			type: EApiControllerRequestTransformerType.STATIC;
+			value: string;
+	  }
 );
 ```
 
 ## Validation
 
 Validators can be configured for requests with:
+
 - Error type
 - Exception class
 - Validation function
 
 ```typescript
 interface IApiRequestValidator<E> {
-    errorType: EErrorStringAction;
-    exception: TApiException;
-    validationFunction: (entity: DeepPartial<E> | Partial<E> | TApiFunctionGetListProperties<E>) => boolean | Promise<boolean>;
+	errorType: EErrorStringAction;
+	exception: TApiException;
+	validationFunction: (entity: DeepPartial<E> | Partial<E> | TApiFunctionGetListProperties<E>) => boolean | Promise<boolean>;
 }
 ```
 
 Example:
+
 ```typescript
 validators: [
-    {
-        errorType: EErrorStringAction.ADDRESS_NOT_MATCH_PATTERN,
-        exception: BadRequestException,
-        validationFunction: (account: Partial<Account>): boolean => 
-            (account.id?.includes("7") ? account.id.includes("AAAA") : true)
-    }
-]
+	{
+		errorType: EErrorStringAction.ADDRESS_NOT_MATCH_PATTERN,
+		exception: BadRequestException,
+		validationFunction: (account: Partial<Account>): boolean => (account.id?.includes("7") ? account.id.includes("AAAA") : true),
+	},
+];
 ```
 
 ## Auto DTO Configuration
@@ -220,6 +235,7 @@ autoDto?: {
 ```
 
 Example:
+
 ```typescript
 autoDto: {
     [EApiDtoType.REQUEST]: {
@@ -268,7 +284,7 @@ Here's a complete example of a route configuration:
             {
                 errorType: EErrorStringAction.ADDRESS_NOT_MATCH_PATTERN,
                 exception: BadRequestException,
-                validationFunction: (account: Partial<Account>): boolean => 
+                validationFunction: (account: Partial<Account>): boolean =>
                     (account.id?.includes("7") ? account.id.includes("AAAA") : true)
             }
         ]
@@ -294,24 +310,27 @@ Here's a complete example of a route configuration:
 ## Best Practices
 
 1. **Authentication**
-    - Always specify appropriate bearer and security strategies
-    - Use proper guards for route protection
-    - Choose the correct authentication type
+
+   - Always specify appropriate bearer and security strategies
+   - Use proper guards for route protection
+   - Choose the correct authentication type
 
 2. **Relations**
-    - Use MANUAL strategy when you need precise control over relation loading
-    - Use AUTO strategy for simpler cases
-    - Always specify required services when using MANUAL strategy
+
+   - Use MANUAL strategy when you need precise control over relation loading
+   - Use AUTO strategy for simpler cases
+   - Always specify required services when using MANUAL strategy
 
 3. **Validation**
-    - Implement comprehensive validation rules
-    - Use appropriate error types and exceptions
-    - Consider both sync and async validation functions
+
+   - Implement comprehensive validation rules
+   - Use appropriate error types and exceptions
+   - Consider both sync and async validation functions
 
 4. **Transformation**
-    - Use DYNAMIC transformers for runtime values
-    - Use STATIC transformers for constant values
-    - Consider the DTO type when applying transformations
+   - Use DYNAMIC transformers for runtime values
+   - Use STATIC transformers for constant values
+   - Consider the DTO type when applying transformations
 
 ## Notes
 
