@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.5.2
+
+### Patch Changes
+
+- f60515c: Add error type utility and exception enum for consistency
+
 ## 1.5.1
 
 ### Patch Changes
