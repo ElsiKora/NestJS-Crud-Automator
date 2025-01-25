@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.5.5
+
+### Patch Changes
+
+- 9054d0c: Add new API actions and error handling enums
+
 ## 1.5.4
 
 ### Patch Changes
