@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.6.0
+
+### Minor Changes
+
+- cd1252f: Refactor and clean up API function decorators and utilities
+
 ## 1.5.5
 
 ### Patch Changes
