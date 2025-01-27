@@ -9,14 +9,38 @@ import { EErrorStringAction } from "../../../enum";
 import { ErrorException } from "../../../utility/error-exception.utility";
 import { ErrorString } from "../../../utility/error-string.utility";
 
+export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
+	const { entity }: IApiFunctionProperties = properties;
+
+	return function (target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+		void target;
+		void propertyKey;
+
+		descriptor.value = async function (
+			this: {
+				repository: Repository<E>;
+			},
+			properties: TApiFunctionGetProperties<E>,
+		): Promise<E> {
+			const repository: Repository<E> = this.repository;
+
+			if (!repository) {
+				throw ErrorException("Repository is not available in this context");
+			}
+
+			return executor<E>({ entity, properties, repository });
+		};
+
+		return descriptor;
+	};
+}
+
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecutorProperties<E>): Promise<E> {
 	const { entity, properties, repository }: IApiFunctionGetExecutorProperties<E> = options;
 
 	try {
 		const item: E | null = await repository.findOne(properties);
 
-		console.log("FILTER GET", properties);
-		console.log("RESULT GET", item);
 		if (!item) {
 			throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));
 		}
@@ -34,31 +58,4 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 			}),
 		);
 	}
-}
-
-export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
-	const { entity }: IApiFunctionProperties = properties;
-
-	return function (target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
-		void target;
-		void propertyKey;
-
-		descriptor.value = async function (
-			this: {
-				repository: Repository<E>;
-			},
-			properties: TApiFunctionGetProperties<E>,
-		): Promise<E> {
-			console.log("ALO BLYAT", properties);
-			const repository: Repository<E> = this.repository;
-
-			if (!repository) {
-				throw ErrorException("Repository is not available in this context");
-			}
-
-			return executor<E>({ entity, properties, repository });
-		};
-
-		return descriptor;
-	};
 }

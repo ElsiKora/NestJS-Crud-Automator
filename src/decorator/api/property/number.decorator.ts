@@ -24,16 +24,136 @@ export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): <Y>
 	return applyDecorators(...decorators);
 }
 
-function getType(properties: TApiPropertyNumberProperties): EApiPropertyDataType.INTEGER | EApiPropertyDataType.NUMBER {
-	switch (properties.format) {
-		case EApiPropertyNumberType.DOUBLE: {
-			return EApiPropertyDataType.NUMBER;
+function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiPropertyOptions {
+	const apiPropertyOptions: ApiPropertyOptions = {
+		description: `${properties.entity.name} ${properties.description ?? ""}`,
+		format: getFormat(properties),
+		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		nullable: properties.isNullable,
+		type: getType(properties),
+	};
+
+	apiPropertyOptions.required = properties.isResponse === false || properties.isResponse === undefined ? properties.isRequired : false;
+
+	if (properties.isArray) {
+		apiPropertyOptions.isArray = true;
+		apiPropertyOptions.minItems = properties.minItems;
+		apiPropertyOptions.maxItems = properties.maxItems;
+		apiPropertyOptions.uniqueItems = properties.isUniqueItems;
+		apiPropertyOptions.example = Array.isArray(properties.exampleValue) ? properties.exampleValue : [properties.exampleValue];
+	} else {
+		apiPropertyOptions.example = properties.exampleValue;
+	}
+
+	apiPropertyOptions.minimum = properties.minimum;
+	apiPropertyOptions.maximum = properties.maximum;
+
+	if (properties.isResponse === false || properties.isResponse === undefined) {
+		apiPropertyOptions.multipleOf = properties.multipleOf;
+	}
+
+	return apiPropertyOptions;
+}
+
+function buildDecorators(properties: TApiPropertyNumberProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
+
+	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties), ...buildNumberValidationDecorators(properties));
+
+	return decorators;
+}
+
+function buildFormatDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+	const isArray: boolean = properties.isArray ?? false;
+
+	if (properties.isResponse === undefined || !properties.isResponse) {
+		switch (properties.format) {
+			case EApiPropertyNumberType.DOUBLE: {
+				// eslint-disable-next-line @elsikora-typescript/naming-convention
+				decorators.push(IsNumber({}, { each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyNumberType.INTEGER: {
+				// eslint-disable-next-line @elsikora-typescript/naming-convention
+				decorators.push(IsInt({ each: isArray }));
+
+				break;
+			}
+
+			default: {
+				throw new Error("ApiPropertyNumber error: Format is not valid for number property: " + properties.format);
+			}
 		}
 
-		case EApiPropertyNumberType.INTEGER: {
-			return EApiPropertyDataType.INTEGER;
+		decorators.push(Type(() => Number));
+	}
+
+	return decorators;
+}
+
+function buildNumberValidationDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+	const isArray: boolean = properties.isArray ?? false;
+
+	if (!properties.isResponse) {
+		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		decorators.push(IsDivisibleBy(properties.multipleOf, { each: isArray }), Min(properties.minimum, { each: isArray }), Max(properties.maximum, { each: isArray }));
+	}
+
+	return decorators;
+}
+
+function buildRequestDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse === false || properties.isResponse === undefined) {
+		if (!properties.isRequired) {
+			decorators.push(IsOptional());
+		}
+
+		if (properties.isArray === true) {
+			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
+
+			if (properties.minItems > 0) {
+				decorators.push(ArrayNotEmpty());
+			}
 		}
 	}
+
+	return decorators;
+}
+
+function buildResponseDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse) {
+		decorators.push(ApiResponseProperty());
+
+		if (properties.isExpose === undefined || properties.isExpose) {
+			decorators.push(Expose());
+		} else {
+			decorators.push(Exclude());
+		}
+	}
+
+	return decorators;
+}
+
+function buildTransformDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (!properties.isResponse) {
+		if (properties.isArray) {
+			decorators.push(Transform(({ value }: { value: Array<string> }) => value.map(Number), { toClassOnly: true }));
+		} else {
+			decorators.push(Transform(({ value }: { value: string }) => Number(value), { toClassOnly: true }));
+		}
+	}
+
+	return decorators;
 }
 
 function getFormat(properties: TApiPropertyNumberProperties): string {
@@ -48,6 +168,18 @@ function getFormat(properties: TApiPropertyNumberProperties): string {
 
 		default: {
 			throw new Error("ApiPropertyNumber error: Format is not defined");
+		}
+	}
+}
+
+function getType(properties: TApiPropertyNumberProperties): EApiPropertyDataType.INTEGER | EApiPropertyDataType.NUMBER {
+	switch (properties.format) {
+		case EApiPropertyNumberType.DOUBLE: {
+			return EApiPropertyDataType.NUMBER;
+		}
+
+		case EApiPropertyNumberType.INTEGER: {
+			return EApiPropertyDataType.INTEGER;
 		}
 	}
 }
@@ -110,135 +242,4 @@ function validateOptions(properties: TApiPropertyNumberProperties): void {
 	if (errors.length > 0) {
 		throw new Error(`ApiPropertyNumber error: ${errors.join("\n")}`);
 	}
-}
-
-function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiPropertyOptions {
-	const apiPropertyOptions: ApiPropertyOptions = {
-		description: `${properties.entity.name} ${properties.description ?? ""}`,
-		format: getFormat(properties),
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
-		nullable: properties.isNullable,
-		type: getType(properties),
-	};
-
-	if (properties.isResponse === false || properties.isResponse === undefined) {
-		apiPropertyOptions.required = properties.isRequired;
-	}
-
-	if (properties.isArray) {
-		apiPropertyOptions.isArray = true;
-		apiPropertyOptions.minItems = properties.minItems;
-		apiPropertyOptions.maxItems = properties.maxItems;
-		apiPropertyOptions.uniqueItems = properties.isUniqueItems;
-		apiPropertyOptions.example = Array.isArray(properties.exampleValue) ? properties.exampleValue : [properties.exampleValue];
-	} else {
-		apiPropertyOptions.example = properties.exampleValue;
-	}
-
-	apiPropertyOptions.minimum = properties.minimum;
-	apiPropertyOptions.maximum = properties.maximum;
-	apiPropertyOptions.multipleOf = properties.multipleOf;
-
-	return apiPropertyOptions;
-}
-
-function buildResponseDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	if (properties.isResponse) {
-		decorators.push(ApiResponseProperty());
-
-		if (properties.isExpose === undefined || properties.isExpose) {
-			decorators.push(Expose());
-		} else {
-			decorators.push(Exclude());
-		}
-	}
-
-	return decorators;
-}
-
-function buildRequestDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	if (properties.isResponse === false || properties.isResponse === undefined) {
-		if (!properties.isRequired) {
-			decorators.push(IsOptional());
-		}
-
-		if (properties.isArray === true) {
-			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
-
-			if (properties.minItems > 0) {
-				decorators.push(ArrayNotEmpty());
-			}
-		}
-	}
-
-	return decorators;
-}
-
-function buildFormatDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-	const isArray: boolean = properties.isArray ?? false;
-
-	if (properties.isResponse === undefined || !properties.isResponse) {
-		switch (properties.format) {
-			case EApiPropertyNumberType.DOUBLE: {
-				// eslint-disable-next-line @elsikora-typescript/naming-convention
-				decorators.push(IsNumber({}, { each: isArray }));
-
-				break;
-			}
-
-			case EApiPropertyNumberType.INTEGER: {
-				// eslint-disable-next-line @elsikora-typescript/naming-convention
-				decorators.push(IsInt({ each: isArray }));
-
-				break;
-			}
-
-			default: {
-				throw new Error("ApiPropertyNumber error: Format is not valid for number property: " + properties.format);
-			}
-		}
-
-		decorators.push(Type(() => Number));
-	}
-
-	return decorators;
-}
-
-function buildTransformDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	if (!properties.isResponse) {
-		if (properties.isArray) {
-			decorators.push(Transform(({ value }: { value: Array<string> }) => value.map(Number), { toClassOnly: true }));
-		} else {
-			decorators.push(Transform(({ value }: { value: string }) => Number(value), { toClassOnly: true }));
-		}
-	}
-
-	return decorators;
-}
-
-function buildNumberValidationDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-	const isArray: boolean = properties.isArray ?? false;
-
-	if (!properties.isResponse) {
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
-		decorators.push(IsDivisibleBy(properties.multipleOf, { each: isArray }), Min(properties.minimum, { each: isArray }), Max(properties.maximum, { each: isArray }));
-	}
-
-	return decorators;
-}
-
-function buildDecorators(properties: TApiPropertyNumberProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties), ...buildNumberValidationDecorators(properties));
-
-	return decorators;
 }

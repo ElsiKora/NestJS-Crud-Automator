@@ -20,87 +20,6 @@ export function ApiPropertyString(properties: TApiPropertyStringProperties): <Y>
 	return applyDecorators(...decorators);
 }
 
-function validateOptions(properties: TApiPropertyStringProperties): void {
-	const errors: Array<string> = [];
-
-	if ((!properties.isResponse && (!properties.exampleValue || !properties.pattern)) || (properties.exampleValue && properties.pattern)) {
-		const matches: null | RegExpMatchArray = /^\/(.*?)\/([gimuy]*)$/.exec(properties.pattern);
-
-		if (matches) {
-			const pattern: string = matches[STRING_PROPERTY_API_INTERFACE_CONSTANT.REGEX_PATTERN_INDEX];
-			const flags: string = matches[STRING_PROPERTY_API_INTERFACE_CONSTANT.REGEX_FLAGS_INDEX];
-
-			const regex: RegExp = new RegExp(pattern, flags);
-
-			if (Array.isArray(properties.exampleValue)) {
-				for (const example of properties.exampleValue) {
-					if (!regex.test(example)) {
-						errors.push("RegExp 'pattern' does not match example string: " + example);
-					}
-				}
-			} else if (!regex.test(properties.exampleValue)) {
-				errors.push("RegExp 'pattern' does not match 'example' string: " + properties.exampleValue);
-			}
-		} else {
-			errors.push("Invalid RegExp 'pattern' format: " + properties.pattern);
-		}
-	}
-
-	if (properties.minLength > properties.maxLength) {
-		errors.push("'minLength' is greater than 'maxLength'");
-	}
-
-	if (properties.minLength < 0) {
-		errors.push("'minLength' is less than 0");
-	}
-
-	if (properties.maxLength < 0) {
-		errors.push("'maxLength' is less than 0");
-	}
-
-	if (Array.isArray(properties.exampleValue)) {
-		for (const example of properties.exampleValue) {
-			if (example.length < properties.minLength) {
-				errors.push("Example length is less than 'minLength': " + example);
-			}
-		}
-	} else if (properties.exampleValue.length < properties.minLength) {
-		errors.push("Example length is less than 'minLength': " + properties.exampleValue);
-	}
-
-	if (Array.isArray(properties.exampleValue)) {
-		for (const example of properties.exampleValue) {
-			if (example.length > properties.maxLength) {
-				errors.push("Example length is greater than 'maxLength': " + example);
-			}
-		}
-	} else if (properties.exampleValue.length > properties.maxLength) {
-		errors.push("Example length is greater than 'maxLength': " + properties.exampleValue);
-	}
-
-	if (properties.isArray === true) {
-		if (properties.minItems > properties.maxItems) {
-			errors.push("'minItems' is greater than 'maxItems'");
-		}
-
-		if (properties.minItems < 0) {
-			errors.push("'minItems' is less than 0");
-		}
-
-		if (properties.maxItems < 0) {
-			errors.push("'maxItems' is less than 0");
-		}
-
-		if (properties.isUniqueItems && properties.maxItems <= 1) {
-			errors.push("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
-		}
-	}
-
-	if (errors.length > 0) {
-		throw new Error(`ApiPropertyString error: ${errors.join("\n")}`);
-	}
-}
-
 function buildApiPropertyOptions(properties: TApiPropertyStringProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions & Record<string, any> = {
 		description: `${properties.entity.name} ${properties.description ?? ""}`,
@@ -109,9 +28,7 @@ function buildApiPropertyOptions(properties: TApiPropertyStringProperties): ApiP
 		type: EApiPropertyDataType.STRING,
 	};
 
-	if (properties.isResponse === false || properties.isResponse === undefined) {
-		apiPropertyOptions.required = properties.isRequired;
-	}
+	apiPropertyOptions.required = properties.isResponse === false || properties.isResponse === undefined ? properties.isRequired : false;
 
 	if (properties.isArray === true) {
 		apiPropertyOptions.isArray = true;
@@ -135,38 +52,10 @@ function buildApiPropertyOptions(properties: TApiPropertyStringProperties): ApiP
 	return apiPropertyOptions;
 }
 
-function buildResponseDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
+function buildDecorators(properties: TApiPropertyStringProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
-	if (properties.isResponse) {
-		decorators.push(ApiResponseProperty());
-
-		if (properties.isExpose === undefined || properties.isExpose) {
-			decorators.push(Expose());
-		} else {
-			decorators.push(Exclude());
-		}
-	}
-
-	return decorators;
-}
-
-function buildRequestDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	if (properties.isResponse === false || properties.isResponse === undefined) {
-		if (!properties.isRequired) {
-			decorators.push(IsOptional());
-		}
-
-		if (properties.isArray === true) {
-			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
-
-			if (properties.minItems > 0) {
-				decorators.push(ArrayNotEmpty());
-			}
-		}
-	}
+	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildStringValidationDecorators(properties));
 
 	return decorators;
 }
@@ -270,6 +159,42 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 	return decorators;
 }
 
+function buildRequestDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse === false || properties.isResponse === undefined) {
+		if (!properties.isRequired) {
+			decorators.push(IsOptional());
+		}
+
+		if (properties.isArray === true) {
+			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
+
+			if (properties.minItems > 0) {
+				decorators.push(ArrayNotEmpty());
+			}
+		}
+	}
+
+	return decorators;
+}
+
+function buildResponseDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse) {
+		decorators.push(ApiResponseProperty());
+
+		if (properties.isExpose === undefined || properties.isExpose) {
+			decorators.push(Expose());
+		} else {
+			decorators.push(Exclude());
+		}
+	}
+
+	return decorators;
+}
+
 function buildStringValidationDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
@@ -285,10 +210,83 @@ function buildStringValidationDecorators(properties: TApiPropertyStringPropertie
 	return decorators;
 }
 
-function buildDecorators(properties: TApiPropertyStringProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
+function validateOptions(properties: TApiPropertyStringProperties): void {
+	const errors: Array<string> = [];
 
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildStringValidationDecorators(properties));
+	if ((!properties.isResponse && (!properties.exampleValue || !properties.pattern)) || (properties.exampleValue && properties.pattern)) {
+		const matches: null | RegExpMatchArray = /^\/(.*?)\/([gimuy]*)$/.exec(properties.pattern);
 
-	return decorators;
+		if (matches) {
+			const pattern: string = matches[STRING_PROPERTY_API_INTERFACE_CONSTANT.REGEX_PATTERN_INDEX];
+			const flags: string = matches[STRING_PROPERTY_API_INTERFACE_CONSTANT.REGEX_FLAGS_INDEX];
+
+			const regex: RegExp = new RegExp(pattern, flags);
+
+			if (Array.isArray(properties.exampleValue)) {
+				for (const example of properties.exampleValue) {
+					if (!regex.test(example)) {
+						errors.push("RegExp 'pattern' does not match example string: " + example);
+					}
+				}
+			} else if (!regex.test(properties.exampleValue)) {
+				errors.push("RegExp 'pattern' does not match 'example' string: " + properties.exampleValue);
+			}
+		} else {
+			errors.push("Invalid RegExp 'pattern' format: " + properties.pattern);
+		}
+	}
+
+	if (properties.minLength > properties.maxLength) {
+		errors.push("'minLength' is greater than 'maxLength'");
+	}
+
+	if (properties.minLength < 0) {
+		errors.push("'minLength' is less than 0");
+	}
+
+	if (properties.maxLength < 0) {
+		errors.push("'maxLength' is less than 0");
+	}
+
+	if (Array.isArray(properties.exampleValue)) {
+		for (const example of properties.exampleValue) {
+			if (example.length < properties.minLength) {
+				errors.push("Example length is less than 'minLength': " + example);
+			}
+		}
+	} else if (properties.exampleValue.length < properties.minLength) {
+		errors.push("Example length is less than 'minLength': " + properties.exampleValue);
+	}
+
+	if (Array.isArray(properties.exampleValue)) {
+		for (const example of properties.exampleValue) {
+			if (example.length > properties.maxLength) {
+				errors.push("Example length is greater than 'maxLength': " + example);
+			}
+		}
+	} else if (properties.exampleValue.length > properties.maxLength) {
+		errors.push("Example length is greater than 'maxLength': " + properties.exampleValue);
+	}
+
+	if (properties.isArray === true) {
+		if (properties.minItems > properties.maxItems) {
+			errors.push("'minItems' is greater than 'maxItems'");
+		}
+
+		if (properties.minItems < 0) {
+			errors.push("'minItems' is less than 0");
+		}
+
+		if (properties.maxItems < 0) {
+			errors.push("'maxItems' is less than 0");
+		}
+
+		if (properties.isUniqueItems && properties.maxItems <= 1) {
+			errors.push("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
+		}
+	}
+
+	if (errors.length > 0) {
+		throw new Error(`ApiPropertyString error: ${errors.join("\n")}`);
+	}
 }

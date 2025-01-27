@@ -20,6 +20,10 @@ import { ApiControllerValidateRequest } from "../../utility/api/controller/valid
 import { analyzeEntityMetadata } from "../../utility/dto/analize.utility";
 
 export class ApiControllerFactory<E> {
+	protected get targetPrototype(): InstanceType<typeof this.target> {
+		return this.target.prototype as InstanceType<typeof this.target>;
+	}
+
 	private readonly ENTITY!: IApiEntity<E>;
 
 	constructor(
@@ -35,6 +39,35 @@ export class ApiControllerFactory<E> {
 
 		Controller(this.properties.path ?? this.properties.entity.name.toLowerCase())(this.target);
 		ApiTags(this.properties.name ?? this.properties.entity.name)(this.target);
+	}
+
+	createMethod(method: EApiRouteType): void {
+		if (!(method in this.properties.routes) || this.properties.routes[method]?.isEnabled !== false) {
+			const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = this.properties.routes[method] || {};
+			const routeDecorators: Array<MethodDecorator> | Array<PropertyDecorator> = routeConfig.decorators || [];
+			const methodName: TApiControllerMethodNameMap[typeof method] = `${CONTROLLER_API_DECORATOR_CONSTANT.RESERVED_METHOD_PREFIX}${CapitalizeString(method)}` as TApiControllerMethodNameMap[typeof method];
+
+			ApiControllerWriteMethod<E>(this as never, this.targetPrototype, method, this.properties, this.ENTITY);
+			const targetMethod: TApiControllerMethodMap<E>[typeof method] = this.targetPrototype[methodName];
+			ApiControllerApplyMetadata(this.target, this.targetPrototype, this.ENTITY, this.properties, method, methodName, routeConfig);
+			ApiControllerApplyDecorators(targetMethod, this.ENTITY, this.properties, method, methodName, routeConfig, routeDecorators);
+			ApiControllerWriteDtoSwagger(this.target, this.ENTITY, this.properties, method, routeConfig, this.ENTITY);
+
+			// Reflect.defineMetadata(PARAMTYPES_METADATA, [routeConfig.dto.request], this.target, methodNameOnController);
+			// Reflect.defineMetadata(PATH_METADATA, `:${this.ENTITY.name}`, this.target, methodNameOnController);
+
+			/* const dtoProperties: Record<string, unknown> = (Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, routeConfig.dto.request) || {}) as Record<string, unknown>;
+            const dtoPropertiesArray: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES_ARRAY, routeConfig.dto.request) || []) as Array<unknown>;
+
+            Reflect.defineMetadata(DECORATORS.API_MODEL_PROPERTIES, dtoProperties, routeConfig.dto.request);
+            Reflect.defineMetadata(DECORATORS.API_MODEL_PROPERTIES_ARRAY, dtoPropertiesArray, routeConfig.dto.request); */
+		}
+	}
+
+	init(): void {
+		for (const method of Object.values(EApiRouteType)) {
+			this.createMethod(method);
+		}
 	}
 
 	protected [EApiRouteType.CREATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.CREATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
@@ -66,11 +99,10 @@ export class ApiControllerFactory<E> {
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					return plainToInstance(dto as ClassConstructor<E>, response, {
+						// eslint-disable-next-line @elsikora-typescript/naming-convention
 						excludeExtraneousValues: true,
 					});
 				} catch (error) {
-					console.log(error);
-
 					throw error;
 				}
 			},
@@ -131,6 +163,7 @@ export class ApiControllerFactory<E> {
 					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
 					return plainToInstance(dto as ClassConstructor<E>, response, {
+						// eslint-disable-next-line @elsikora-typescript/naming-convention
 						excludeExtraneousValues: true,
 					});
 				} catch (error) {
@@ -146,7 +179,6 @@ export class ApiControllerFactory<E> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, query: TApiControllerGetListQuery<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<IApiGetListResponseResult<E>> {
 				try {
-					console.log("CHERY BERRUY", query);
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { query }, { authenticationRequest, headers, ip });
 					await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, query);
 					await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, query);
@@ -155,17 +187,12 @@ export class ApiControllerFactory<E> {
 
 					const filter: TApiFunctionGetListPropertiesWhere<E> = ApiControllerGetListTransformFilter<E>(getListQuery);
 
-					console.log("PRE FILTER", getListQuery);
-
 					const requestProperties: TApiFunctionGetListProperties<E> = {
 						relations: properties.routes[method]?.response?.relations,
 						skip: query.limit * (query.page - 1),
 						take: query.limit,
 						where: filter,
 					};
-
-					console.log("FILTER", requestProperties);
-					console.log("FILTER WHERE", requestProperties.where);
 
 					if (orderBy) {
 						requestProperties.order = {
@@ -179,11 +206,10 @@ export class ApiControllerFactory<E> {
 					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
 					return plainToInstance(dto as ClassConstructor<IApiGetListResponseResult<E>>, response, {
+						// eslint-disable-next-line @elsikora-typescript/naming-convention
 						excludeExtraneousValues: true,
 					});
 				} catch (error) {
-					console.log("UEBANCHIK", error);
-
 					throw error;
 				}
 			},
@@ -216,6 +242,7 @@ export class ApiControllerFactory<E> {
 				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
 				return plainToInstance(dto as ClassConstructor<E>, response, {
+					// eslint-disable-next-line @elsikora-typescript/naming-convention
 					excludeExtraneousValues: true,
 				});
 			},
@@ -224,7 +251,7 @@ export class ApiControllerFactory<E> {
 		);
 	}
 
-	// eslint-disable-next-line sonarjs/no-identical-functions
+	// eslint-disable-next-line @elsikora-sonar/no-identical-functions
 	protected [EApiRouteType.UPDATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
@@ -249,44 +276,12 @@ export class ApiControllerFactory<E> {
 				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
 				return plainToInstance(dto as ClassConstructor<E>, response, {
+					// eslint-disable-next-line @elsikora-typescript/naming-convention
 					excludeExtraneousValues: true,
 				});
 			},
 			"name",
 			{ value: methodName },
 		);
-	}
-
-	createMethod(method: EApiRouteType): void {
-		if (!(method in this.properties.routes) || this.properties.routes[method]?.isEnabled !== false) {
-			const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = this.properties.routes[method] || {};
-			const routeDecorators: Array<MethodDecorator> | Array<PropertyDecorator> = routeConfig.decorators || [];
-			const methodName: TApiControllerMethodNameMap[typeof method] = `${CONTROLLER_API_DECORATOR_CONSTANT.RESERVED_METHOD_PREFIX}${CapitalizeString(method)}` as TApiControllerMethodNameMap[typeof method];
-
-			ApiControllerWriteMethod<E>(this as never, this.targetPrototype, method, this.properties, this.ENTITY);
-			const targetMethod: TApiControllerMethodMap<E>[typeof method] = this.targetPrototype[methodName];
-			ApiControllerApplyMetadata(this.target, this.targetPrototype, this.ENTITY, this.properties, method, methodName, routeConfig);
-			ApiControllerApplyDecorators(targetMethod, this.ENTITY, this.properties, method, methodName, routeConfig, routeDecorators);
-			ApiControllerWriteDtoSwagger(this.target, this.ENTITY, this.properties, method, routeConfig, this.ENTITY);
-
-			// Reflect.defineMetadata(PARAMTYPES_METADATA, [routeConfig.dto.request], this.target, methodNameOnController);
-			// Reflect.defineMetadata(PATH_METADATA, `:${this.ENTITY.name}`, this.target, methodNameOnController);
-
-			/* const dtoProperties: Record<string, unknown> = (Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, routeConfig.dto.request) || {}) as Record<string, unknown>;
-            const dtoPropertiesArray: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES_ARRAY, routeConfig.dto.request) || []) as Array<unknown>;
-
-            Reflect.defineMetadata(DECORATORS.API_MODEL_PROPERTIES, dtoProperties, routeConfig.dto.request);
-            Reflect.defineMetadata(DECORATORS.API_MODEL_PROPERTIES_ARRAY, dtoPropertiesArray, routeConfig.dto.request); */
-		}
-	}
-
-	init(): void {
-		for (const method of Object.values(EApiRouteType)) {
-			this.createMethod(method);
-		}
-	}
-
-	protected get targetPrototype(): InstanceType<typeof this.target> {
-		return this.target.prototype as InstanceType<typeof this.target>;
 	}
 }

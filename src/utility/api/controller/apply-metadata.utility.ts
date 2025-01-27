@@ -30,8 +30,6 @@ export function ApiControllerApplyMetadata<E>(target: object, targetPrototype: o
 		routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.QUERY, parameterIndex);
 		parameterTypes.push(queryDto);
 		parameterIndex++;
-
-		console.log("ATTACHING QUERY DTO", queryDto, routeArgumentsMetadata, parameterIndex);
 	}
 
 	if (bodyDto) {

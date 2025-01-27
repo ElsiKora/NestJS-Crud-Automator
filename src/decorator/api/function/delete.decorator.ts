@@ -11,29 +11,6 @@ import { ErrorString } from "../../../utility/error-string.utility";
 
 import { ApiFunctionGet } from "./get.decorator";
 
-async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExecutorProperties<E>): Promise<E> {
-	const { criteria, entity, getFunction, repository }: IApiFunctionDeleteExecutorProperties<E> = options;
-
-	try {
-		const existingEntity: E = await getFunction({ where: criteria });
-
-		return await repository.remove(existingEntity);
-	} catch (error) {
-		console.log(error);
-
-		if (error instanceof HttpException) {
-			throw error;
-		}
-
-		throw new InternalServerErrorException(
-			ErrorString({
-				entity: entity,
-				type: EErrorStringAction.UPDATING_ERROR,
-			}),
-		);
-	}
-}
-
 export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
 	const { entity }: IApiFunctionProperties = properties;
 	const getDecorator: (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity });
@@ -75,4 +52,25 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 
 		return descriptor;
 	};
+}
+
+async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExecutorProperties<E>): Promise<E> {
+	const { criteria, entity, getFunction, repository }: IApiFunctionDeleteExecutorProperties<E> = options;
+
+	try {
+		const existingEntity: E = await getFunction({ where: criteria });
+
+		return await repository.remove(existingEntity);
+	} catch (error) {
+		if (error instanceof HttpException) {
+			throw error;
+		}
+
+		throw new InternalServerErrorException(
+			ErrorString({
+				entity: entity,
+				type: EErrorStringAction.UPDATING_ERROR,
+			}),
+		);
+	}
 }

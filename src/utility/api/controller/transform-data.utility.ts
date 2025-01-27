@@ -8,12 +8,54 @@ import { TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../constant/dto/transforme
 import { EApiControllerRequestTransformerType, EApiDtoType, EErrorStringAction } from "../../../enum";
 import { ErrorString } from "../../error-string.utility";
 
-function isApiGetListResponseResult<E>(object: TApiTransformDataIsValidationProperties<E>): object is IApiGetListResponseResult<E> {
-	return "items" in object && "totalCount" in object;
+export function ApiControllerTransformData<E, R extends EApiRouteType>(transformers: TApiControllerPropertiesRouteBaseRequestTransformers<E, R> | TApiControllerPropertiesRouteBaseResponseTransformers<E, R> | undefined, properties: IApiControllerProperties<E>, objectToTransform: TApiControllerTransformDataObjectToTransform<E>, data: TApiControllerTransformDataData): void {
+	if (!transformers) return;
+
+	if (EApiDtoType.BODY in transformers && transformers[EApiDtoType.BODY]) {
+		for (const transformer of transformers[EApiDtoType.BODY]) {
+			if (objectToTransform.body) processTransformer(transformer, objectToTransform.body, properties, data);
+		}
+	}
+
+	if (EApiDtoType.QUERY in transformers && transformers[EApiDtoType.QUERY]) {
+		for (const transformer of transformers[EApiDtoType.QUERY]) {
+			if (objectToTransform.query) processTransformer(transformer, objectToTransform.query, properties, data);
+		}
+	}
+
+	if (EApiDtoType.REQUEST in transformers && transformers[EApiDtoType.REQUEST]) {
+		for (const transformer of transformers[EApiDtoType.REQUEST]) {
+			if (objectToTransform.parameters) processTransformer(transformer, objectToTransform.parameters, properties, data);
+		}
+	}
+
+	if (EApiDtoType.RESPONSE in transformers && transformers[EApiDtoType.RESPONSE]) {
+		for (const transformer of transformers[EApiDtoType.RESPONSE]) {
+			if (objectToTransform.response) processTransformer(transformer, objectToTransform.response, properties, data);
+		}
+	}
+}
+
+function handleTransformation<E>(object: TApiTransformDataIsValidationProperties<E>, key: keyof E | keyof IApiGetListResponseResult<E> | keyof TApiControllerGetListQuery<E>, value: unknown): void {
+	if (isApiGetListResponseResult(object)) {
+		if (key in object) {
+			(object[key as keyof IApiGetListResponseResult<E>] as unknown) = value;
+		}
+	} else if (isApiFunctionGetListProperties(object)) {
+		if (key in object) {
+			(object[key as keyof TApiControllerGetListQuery<E>] as unknown) = value;
+		}
+	} else if (isPartialE(object) && key in object) {
+		(object[key as keyof E] as unknown) = value;
+	}
 }
 
 function isApiFunctionGetListProperties<E>(object: TApiTransformDataIsValidationProperties<E>): object is TApiControllerGetListQuery<E> {
 	return "limit" in object && "page" in object;
+}
+
+function isApiGetListResponseResult<E>(object: TApiTransformDataIsValidationProperties<E>): object is IApiGetListResponseResult<E> {
+	return "items" in object && "totalCount" in object;
 }
 
 function isPartialE<E>(object: TApiTransformDataIsValidationProperties<E>): object is Partial<E> {
@@ -117,48 +159,6 @@ function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToT
 			handleTransformation(objectToTransform, transformer.key, staticValue);
 
 			break;
-		}
-	}
-}
-
-function handleTransformation<E>(object: TApiTransformDataIsValidationProperties<E>, key: keyof E | keyof IApiGetListResponseResult<E> | keyof TApiControllerGetListQuery<E>, value: unknown): void {
-	if (isApiGetListResponseResult(object)) {
-		if (key in object) {
-			(object[key as keyof IApiGetListResponseResult<E>] as unknown) = value;
-		}
-	} else if (isApiFunctionGetListProperties(object)) {
-		if (key in object) {
-			(object[key as keyof TApiControllerGetListQuery<E>] as unknown) = value;
-		}
-	} else if (isPartialE(object) && key in object) {
-		(object[key as keyof E] as unknown) = value;
-	}
-}
-
-export function ApiControllerTransformData<E, R extends EApiRouteType>(transformers: TApiControllerPropertiesRouteBaseRequestTransformers<E, R> | TApiControllerPropertiesRouteBaseResponseTransformers<E, R> | undefined, properties: IApiControllerProperties<E>, objectToTransform: TApiControllerTransformDataObjectToTransform<E>, data: TApiControllerTransformDataData): void {
-	if (!transformers) return;
-
-	if (EApiDtoType.BODY in transformers && transformers[EApiDtoType.BODY]) {
-		for (const transformer of transformers[EApiDtoType.BODY]) {
-			if (objectToTransform.body) processTransformer(transformer, objectToTransform.body, properties, data);
-		}
-	}
-
-	if (EApiDtoType.QUERY in transformers && transformers[EApiDtoType.QUERY]) {
-		for (const transformer of transformers[EApiDtoType.QUERY]) {
-			if (objectToTransform.query) processTransformer(transformer, objectToTransform.query, properties, data);
-		}
-	}
-
-	if (EApiDtoType.REQUEST in transformers && transformers[EApiDtoType.REQUEST]) {
-		for (const transformer of transformers[EApiDtoType.REQUEST]) {
-			if (objectToTransform.parameters) processTransformer(transformer, objectToTransform.parameters, properties, data);
-		}
-	}
-
-	if (EApiDtoType.RESPONSE in transformers && transformers[EApiDtoType.RESPONSE]) {
-		for (const transformer of transformers[EApiDtoType.RESPONSE]) {
-			if (objectToTransform.response) processTransformer(transformer, objectToTransform.response, properties, data);
 		}
 	}
 }

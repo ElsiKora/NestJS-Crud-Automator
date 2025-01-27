@@ -37,7 +37,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 			} else if (typeof discriminatorValue.value === "string") {
 				return namingStrategy(discriminatorValue.value);
 			} else {
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-argument,@typescript-eslint/no-unsafe-member-access
+				// eslint-disable-next-line @elsikora-typescript/no-unsafe-member-access,@elsikora-typescript/no-unsafe-argument
 				return namingStrategy(discriminatorValue.value?.name);
 			}
 		}

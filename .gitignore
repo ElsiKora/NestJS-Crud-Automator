@@ -1,9 +1,21 @@
 # Compiled output
 /dist/
-/node_modules/
+/build/
+/out/
+/tmp/
+/temp/
 
 # Dependency directories
+/node_modules/
 jspm_packages/
+.pnp/
+.pnp.js
+.yarn/
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 
 # Logs
 logs/
@@ -13,6 +25,7 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+.pnpm-debug.log*
 
 # Error logs
 *.log.*
@@ -25,10 +38,18 @@ lerna-debug.log*
 .Trashes
 ehthumbs.db
 Thumbs.db
+[Dd]esktop.ini
 
 # Tests
 /coverage/
 /.nyc_output/
+.jest/
+junit.xml
+/cypress/videos/
+/cypress/screenshots/
+/test-results/
+/playwright-report/
+/e2e-results/
 
 # IDEs and editors
 /.idea/
@@ -48,6 +69,8 @@ Thumbs.db
 *.ipr
 *.iws
 .idea_modules/
+*.code-workspace
+.history/
 
 # IDE - Visual Studio Code
 .vscode/*
@@ -55,63 +78,173 @@ Thumbs.db
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+.vs/
 
 # Environment variables
 .env
+.env.*
 .env.local
+.env.*.local
 .env.development.local
 .env.test.local
 .env.production.local
+*.env
+.envrc
 
-# Elastic Beanstalk Files
+# Cloud Platform Files
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
-
-# Misc
-*.swp
-*.swo
-*.swn
-*.lock
-*.lock-wscript
-*.DS_Store
-*.retry
-*.dccache
-reaper.pid
+.pestenska/*
+.vercel
+.now
+.netlify
+.deployment/
+.terraform/
+*.tfstate
+*.tfstate.*
+.vagrant/
 
 # Dependency lock files
 /package-lock.json
 /yarn.lock
 /pnpm-lock.yaml
 /bun.lockb
-# ignore all .lock-wscript files
+*.lock-wscript
+composer.lock
+Gemfile.lock
 
-# Misc
+# Runtime data
 *.pid
 *.pid.lock
 *.seed
 *.pid.db
+pids/
+*.pid
 
 # System Files
 .husky/
+.git-rewrite/
 
-# PM2
+# Process Managers
 .pm2/
 ecosystem.config.js
+process.json
 
+# Framework specific
 # Next.js
 .next/
 out/
+next-env.d.ts
 
 # Nuxt.js
 .nuxt/
 dist/
+.output/
 
-# VuePress
-.vuepress/dist/
+# Gatsby
+.cache/
+public/
+
+# Vue
+.vue-test-utils/
+
+# React
+.react-debug/
+storybook-static/
+
+# Angular
+.angular/
+dist/
+tmp/
+/connect.lock
+/libpeerconnection.log
+
+# Docusaurus
+.docusaurus/
+.cache-loader/
+
+# Static site generators
+_site/
+.jekyll-cache/
+.jekyll-metadata
+.hugo_build.lock
 
 # Serverless architectures
 .serverless/
+.aws-sam/
+.sst/
 
-# Firebase
+# Service integrations
 .firebase/
+.amplify/
+.sentryclirc
+.contentful.json
+
+# Misc files
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+*.temp
+*~
+.svn/
+CVS/
+.hg/
+.fuse_hidden*
+.directory
+.nfs*
+._*
+.Trash-*
+
+# Package specific
+.rollup.cache/
+tsconfig.tsbuildinfo
+.eslintcache
+.stylelintcache
+.prettiercache
+.webpack/
+.turbo
+.svelte-kit
+
+# Local dev tools
+.nodemon-debug
+.clinic/
+.depcruise.cache
+
+# Documentation
+/docs/_build/
+/site/
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# TypeScript incremental compilation cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# macOS
+.AppleDouble
+.LSOverride
+Icon
+Network Trash Folder
+Temporary Items
+
+# Windows
+$RECYCLE.BIN/
+System Volume Information

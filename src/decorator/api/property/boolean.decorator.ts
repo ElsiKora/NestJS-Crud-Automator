@@ -18,32 +18,6 @@ export function ApiPropertyBoolean(properties: TApiPropertyBaseProperties): <Y>(
 	return applyDecorators(...decorators);
 }
 
-function validateOptions(properties: TApiPropertyBaseProperties): void {
-	const errors: Array<string> = [];
-
-	if (properties.isArray === true) {
-		if (properties.minItems > properties.maxItems) {
-			errors.push("'minItems' is greater than 'maxItems'");
-		}
-
-		if (properties.minItems < 0) {
-			errors.push("'minItems' is less than 0");
-		}
-
-		if (properties.maxItems < 0) {
-			errors.push("'maxItems' is less than 0");
-		}
-
-		if (properties.isUniqueItems && properties.maxItems <= 1) {
-			errors.push("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
-		}
-	}
-
-	if (errors.length > 0) {
-		throw new Error(`ApiPropertyBoolean error: ${errors.join("\n")}`);
-	}
-}
-
 function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${properties.entity.name} ${properties.description || ""}`,
@@ -52,9 +26,7 @@ function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPro
 		type: EApiPropertyDataType.BOOLEAN,
 	};
 
-	if (properties.isResponse === false || properties.isResponse === undefined) {
-		apiPropertyOptions.required = properties.isRequired;
-	}
+	apiPropertyOptions.required = properties.isResponse === false || properties.isResponse === undefined ? properties.isRequired : false;
 
 	if (properties.isArray) {
 		apiPropertyOptions.isArray = true;
@@ -69,17 +41,21 @@ function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPro
 	return apiPropertyOptions;
 }
 
-function buildResponseDecorators(properties: TApiPropertyBaseProperties): Array<PropertyDecorator> {
+function buildDecorators(properties: TApiPropertyBaseProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
+
+	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties));
+
+	return decorators;
+}
+
+function buildFormatDecorators(properties: TApiPropertyBaseProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
+	const isArray: boolean = properties.isArray ?? false;
 
-	if (properties.isResponse) {
-		decorators.push(ApiResponseProperty());
-
-		if (properties.isExpose === undefined || properties.isExpose) {
-			decorators.push(Expose());
-		} else {
-			decorators.push(Exclude());
-		}
+	if (properties.isResponse === undefined || !properties.isResponse) {
+		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		decorators.push(IsBoolean({ each: isArray }));
 	}
 
 	return decorators;
@@ -99,6 +75,22 @@ function buildRequestDecorators(properties: TApiPropertyBaseProperties): Array<P
 			if (properties.minItems > 0) {
 				decorators.push(ArrayNotEmpty());
 			}
+		}
+	}
+
+	return decorators;
+}
+
+function buildResponseDecorators(properties: TApiPropertyBaseProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse) {
+		decorators.push(ApiResponseProperty());
+
+		if (properties.isExpose === undefined || properties.isExpose) {
+			decorators.push(Expose());
+		} else {
+			decorators.push(Exclude());
 		}
 	}
 
@@ -193,22 +185,28 @@ function buildTransformDecorators(properties: TApiPropertyBaseProperties): Array
 	return decorators;
 }
 
-function buildFormatDecorators(properties: TApiPropertyBaseProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-	const isArray: boolean = properties.isArray ?? false;
+function validateOptions(properties: TApiPropertyBaseProperties): void {
+	const errors: Array<string> = [];
 
-	if (properties.isResponse === undefined || !properties.isResponse) {
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
-		decorators.push(IsBoolean({ each: isArray }));
+	if (properties.isArray === true) {
+		if (properties.minItems > properties.maxItems) {
+			errors.push("'minItems' is greater than 'maxItems'");
+		}
+
+		if (properties.minItems < 0) {
+			errors.push("'minItems' is less than 0");
+		}
+
+		if (properties.maxItems < 0) {
+			errors.push("'maxItems' is less than 0");
+		}
+
+		if (properties.isUniqueItems && properties.maxItems <= 1) {
+			errors.push("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
+		}
 	}
 
-	return decorators;
-}
-
-function buildDecorators(properties: TApiPropertyBaseProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties));
-
-	return decorators;
+	if (errors.length > 0) {
+		throw new Error(`ApiPropertyBoolean error: ${errors.join("\n")}`);
+	}
 }

@@ -1,17 +1,33 @@
 export function CamelCaseString(string: string): string {
-	const cleanString: string = string.replaceAll(/[^a-z0-9]+/gi, " ");
+	const knownCompounds: Record<string, string> = {
+		getlist: "GetList",
+		partialupdate: "PartialUpdate",
+	};
 
+	const cleanString: string = string.replaceAll(/[^a-z0-9]+/gi, " ");
 	const words: Array<string> = cleanString.split(" ");
 
 	if (words.length === 1) {
-		return words[0].charAt(0).toUpperCase() + words[0].toLowerCase().slice(1);
+		const word: string = words[0].toLowerCase();
+
+		if (knownCompounds[word]) {
+			return knownCompounds[word];
+		}
+
+		return word.charAt(0).toUpperCase() + word.slice(1);
 	}
 
 	return words
 		.map((word: string) => {
 			if (!word) return "";
 
-			return word.charAt(0).toUpperCase() + word.toLowerCase().slice(1);
+			const lowerWord: string = word.toLowerCase();
+
+			if (knownCompounds[lowerWord]) {
+				return knownCompounds[lowerWord];
+			}
+
+			return word.charAt(0).toUpperCase() + lowerWord.slice(1);
 		})
 		.join("");
 }

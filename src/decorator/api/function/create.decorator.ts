@@ -9,25 +9,6 @@ import { EErrorStringAction } from "../../../enum";
 import { ErrorException } from "../../../utility/error-exception.utility";
 import { ErrorString } from "../../../utility/error-string.utility";
 
-async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExecutorProperties<E>): Promise<E> {
-	const { entity, properties, repository }: IApiFunctionCreateExecutorProperties<E> = options;
-
-	try {
-		return await repository.save(properties);
-	} catch (error) {
-		if (error instanceof HttpException) {
-			throw error;
-		}
-
-		throw new InternalServerErrorException(
-			ErrorString({
-				entity: entity,
-				type: EErrorStringAction.CREATING_ERROR,
-			}),
-		);
-	}
-}
-
 export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
 	const { entity }: IApiFunctionProperties = properties;
 
@@ -52,4 +33,23 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 
 		return descriptor;
 	};
+}
+
+async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExecutorProperties<E>): Promise<E> {
+	const { entity, properties, repository }: IApiFunctionCreateExecutorProperties<E> = options;
+
+	try {
+		return await repository.save(properties);
+	} catch (error) {
+		if (error instanceof HttpException) {
+			throw error;
+		}
+
+		throw new InternalServerErrorException(
+			ErrorString({
+				entity: entity,
+				type: EErrorStringAction.CREATING_ERROR,
+			}),
+		);
+	}
 }

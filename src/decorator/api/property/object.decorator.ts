@@ -16,6 +16,95 @@ export function ApiPropertyObject(options: TApiPropertyObjectProperties): <Y>(ta
 	return applyDecorators(...decorators);
 }
 
+function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiPropertyOptions {
+	const apiPropertyOptions: ApiPropertyOptions = {
+		description: `${properties.entity.name} ${properties.description || ""}`,
+		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		nullable: properties.isNullable,
+		type: properties.type,
+	};
+
+	apiPropertyOptions.required = properties.isResponse === false || properties.isResponse === undefined ? properties.isRequired : false;
+
+	if (properties.additionalProperties) {
+		apiPropertyOptions.additionalProperties = properties.additionalProperties;
+	}
+
+	if (properties.isArray) {
+		apiPropertyOptions.isArray = true;
+		apiPropertyOptions.minItems = properties.minItems;
+		apiPropertyOptions.maxItems = properties.maxItems;
+		apiPropertyOptions.uniqueItems = properties.isUniqueItems;
+		apiPropertyOptions.description = `Array of ${properties.entity.name} ${properties.description || ""}`;
+	}
+
+	return apiPropertyOptions;
+}
+
+function buildDecorators(properties: TApiPropertyObjectProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
+
+	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildTransformDecorators(properties), ...buildObjectValidationDecorators(properties));
+
+	return decorators;
+}
+
+function buildObjectValidationDecorators(properties: TApiPropertyObjectProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+	const isArray: boolean = properties.isArray ?? false;
+
+	if (!properties.isResponse && properties.shouldValidateNested) {
+		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		decorators.push(ValidateNested({ each: isArray }));
+	}
+
+	return decorators;
+}
+
+function buildRequestDecorators(properties: TApiPropertyObjectProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse === false || properties.isResponse === undefined) {
+		if (!properties.isRequired) {
+			decorators.push(IsOptional());
+		}
+
+		if (properties.isArray === true) {
+			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
+
+			if (properties.minItems > 0) {
+				decorators.push(ArrayNotEmpty());
+			}
+		}
+	}
+
+	return decorators;
+}
+
+function buildResponseDecorators(properties: TApiPropertyObjectProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse) {
+		decorators.push(ApiResponseProperty());
+
+		if (properties.isExpose === undefined || properties.isExpose) {
+			decorators.push(Expose());
+		} else {
+			decorators.push(Exclude());
+		}
+	}
+
+	return decorators;
+}
+
+function buildTransformDecorators(properties: TApiPropertyObjectProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	decorators.push(Type(() => properties.type as () => any));
+
+	return decorators;
+}
+
 function validateOptions(properties: TApiPropertyObjectProperties): void {
 	const errors: Array<string> = [];
 
@@ -44,95 +133,4 @@ function validateOptions(properties: TApiPropertyObjectProperties): void {
 	if (errors.length > 0) {
 		throw new Error(`ApiPropertyString error: ${errors.join("\n")}`);
 	}
-}
-
-function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiPropertyOptions {
-	const apiPropertyOptions: ApiPropertyOptions = {
-		description: `${properties.entity.name} ${properties.description || ""}`,
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
-		nullable: properties.isNullable,
-		type: properties.type,
-	};
-
-	if (properties.isResponse === false || properties.isResponse === undefined) {
-		apiPropertyOptions.required = properties.isRequired;
-	}
-
-	if (properties.additionalProperties) {
-		apiPropertyOptions.additionalProperties = properties.additionalProperties;
-	}
-
-	if (properties.isArray) {
-		apiPropertyOptions.isArray = true;
-		apiPropertyOptions.minItems = properties.minItems;
-		apiPropertyOptions.maxItems = properties.maxItems;
-		apiPropertyOptions.uniqueItems = properties.isUniqueItems;
-		apiPropertyOptions.description = `Array of ${properties.entity.name} ${properties.description || ""}`;
-	}
-
-	return apiPropertyOptions;
-}
-
-function buildResponseDecorators(properties: TApiPropertyObjectProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	if (properties.isResponse) {
-		decorators.push(ApiResponseProperty());
-
-		if (properties.isExpose === undefined || properties.isExpose) {
-			decorators.push(Expose());
-		} else {
-			decorators.push(Exclude());
-		}
-	}
-
-	return decorators;
-}
-
-function buildRequestDecorators(properties: TApiPropertyObjectProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	if (properties.isResponse === false || properties.isResponse === undefined) {
-		if (!properties.isRequired) {
-			decorators.push(IsOptional());
-		}
-
-		if (properties.isArray === true) {
-			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
-
-			if (properties.minItems > 0) {
-				decorators.push(ArrayNotEmpty());
-			}
-		}
-	}
-
-	return decorators;
-}
-
-function buildObjectValidationDecorators(properties: TApiPropertyObjectProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-	const isArray: boolean = properties.isArray ?? false;
-
-	if (!properties.isResponse && properties.shouldValidateNested) {
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
-		decorators.push(ValidateNested({ each: isArray }));
-	}
-
-	return decorators;
-}
-
-function buildTransformDecorators(properties: TApiPropertyObjectProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	decorators.push(Type(() => properties.type as Function));
-
-	return decorators;
-}
-
-function buildDecorators(properties: TApiPropertyObjectProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildTransformDecorators(properties), ...buildObjectValidationDecorators(properties));
-
-	return decorators;
 }

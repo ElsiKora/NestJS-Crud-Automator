@@ -2,12 +2,6 @@ import { type ValidationArguments, ValidatorConstraint, ValidatorConstraintInter
 
 import { EFilterOperation } from "../enum/filter-operation.enum";
 
-type TValidationContext = {
-	__fieldGroups: Map<string, Set<string>>;
-	__operatorSuffix: string;
-	__valueSuffixes: Array<string>;
-};
-
 enum EArgumentType {
 	ARRAY = "array",
 	NULL = "null",
@@ -19,6 +13,12 @@ type TOperationConfig = {
 	exactLength?: number;
 	maxLength?: number;
 	minLength?: number;
+};
+
+type TValidationContext = {
+	__fieldGroups: Map<string, Set<string>>;
+	__operatorSuffix: string;
+	__valueSuffixes: Array<string>;
 };
 
 const DEFAULT_OPERATION_CONFIGS: Record<EFilterOperation, TOperationConfig> = {

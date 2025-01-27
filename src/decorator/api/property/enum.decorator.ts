@@ -8,13 +8,97 @@ import { Exclude, Expose } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, IsOptional } from "class-validator";
 
 export function ApiPropertyEnum(properties: TApiPropertyEnumProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
-	console.log("HELLO PIDORAS");
 	validateOptions(properties);
 
 	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(properties);
 	const decorators: Array<PropertyDecorator> = buildDecorators(properties, apiPropertyOptions);
 
 	return applyDecorators(...decorators);
+}
+
+function buildApiPropertyOptions(properties: TApiPropertyEnumProperties): ApiPropertyOptions {
+	const apiPropertyOptions: ApiPropertyOptions & Record<string, any> = {
+		description: `${properties.entity.name} ${properties.description ?? ""}`,
+		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		nullable: properties.isNullable,
+	};
+
+	apiPropertyOptions.required = properties.isResponse === false || properties.isResponse === undefined ? properties.isRequired : false;
+
+	if (properties.isArray === true) {
+		apiPropertyOptions.isArray = true;
+		apiPropertyOptions.minItems = properties.minItems;
+		apiPropertyOptions.maxItems = properties.maxItems;
+		apiPropertyOptions.uniqueItems = properties.isUniqueItems;
+
+		if (properties.exampleValue) {
+			apiPropertyOptions.example = Array.isArray(properties.exampleValue) ? properties.exampleValue : [properties.exampleValue];
+		} else {
+			apiPropertyOptions.example = [Object.values(properties.enum)[0]];
+		}
+	} else if (properties.exampleValue) {
+		apiPropertyOptions.example = properties.exampleValue;
+	} else {
+		apiPropertyOptions.example = Object.values(properties.enum)[0];
+	}
+
+	apiPropertyOptions.enum = properties.enum;
+
+	return apiPropertyOptions;
+}
+
+function buildDecorators(properties: TApiPropertyEnumProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
+
+	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties));
+
+	return decorators;
+}
+
+function buildFormatDecorators(properties: TApiPropertyEnumProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+	const isArray: boolean = properties.isArray ?? false;
+
+	// eslint-disable-next-line @elsikora-typescript/naming-convention
+	decorators.push(IsEnum(properties.enum, { each: isArray }));
+
+	return decorators;
+}
+
+function buildRequestDecorators(properties: TApiPropertyEnumProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse === false || properties.isResponse === undefined) {
+		if (!properties.isRequired) {
+			decorators.push(IsOptional());
+		}
+
+		if (properties.isArray === true) {
+			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
+
+			if (properties.minItems > 0) {
+				decorators.push(ArrayNotEmpty());
+			}
+		}
+	}
+
+	return decorators;
+}
+
+function buildResponseDecorators(properties: TApiPropertyEnumProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse) {
+		decorators.push(ApiResponseProperty());
+
+		if (properties.isExpose === undefined || properties.isExpose) {
+			decorators.push(Expose());
+		} else {
+			decorators.push(Exclude());
+		}
+	}
+
+	return decorators;
 }
 
 function validateOptions(properties: TApiPropertyEnumProperties): void {
@@ -45,91 +129,4 @@ function validateOptions(properties: TApiPropertyEnumProperties): void {
 	if (errors.length > 0) {
 		throw new Error(`ApiPropertyEnum error: ${errors.join("\n")}`);
 	}
-}
-
-function buildApiPropertyOptions(properties: TApiPropertyEnumProperties): ApiPropertyOptions {
-	const apiPropertyOptions: ApiPropertyOptions & Record<string, any> = {
-		description: `${properties.entity.name} ${properties.description ?? ""}`,
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
-		nullable: properties.isNullable,
-	};
-
-	if (properties.isResponse === false || properties.isResponse === undefined) {
-		apiPropertyOptions.required = properties.isRequired;
-	}
-
-	if (properties.isArray === true) {
-		apiPropertyOptions.isArray = true;
-		apiPropertyOptions.minItems = properties.minItems;
-		apiPropertyOptions.maxItems = properties.maxItems;
-		apiPropertyOptions.uniqueItems = properties.isUniqueItems;
-
-		if (properties.exampleValue) {
-			apiPropertyOptions.example = Array.isArray(properties.exampleValue) ? properties.exampleValue : [properties.exampleValue];
-		} else {
-			apiPropertyOptions.example = [Object.values(properties.enum)[0]];
-		}
-	} else if (properties.exampleValue) {
-		apiPropertyOptions.example = properties.exampleValue;
-	} else {
-		apiPropertyOptions.example = Object.values(properties.enum)[0];
-	}
-
-	apiPropertyOptions.enum = properties.enum;
-
-	return apiPropertyOptions;
-}
-
-function buildResponseDecorators(properties: TApiPropertyEnumProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	decorators.push(ApiResponseProperty());
-
-	if (properties.isResponse) {
-		if (properties.isExpose === undefined || properties.isExpose) {
-			decorators.push(Expose());
-		} else {
-			decorators.push(Exclude());
-		}
-	}
-
-	return decorators;
-}
-
-function buildRequestDecorators(properties: TApiPropertyEnumProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	if (properties.isResponse === false || properties.isResponse === undefined) {
-		if (!properties.isRequired) {
-			decorators.push(IsOptional());
-		}
-
-		if (properties.isArray === true) {
-			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
-
-			if (properties.minItems > 0) {
-				decorators.push(ArrayNotEmpty());
-			}
-		}
-	}
-
-	return decorators;
-}
-
-function buildFormatDecorators(properties: TApiPropertyEnumProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-	const isArray: boolean = properties.isArray ?? false;
-
-	// eslint-disable-next-line @elsikora-typescript/naming-convention
-	decorators.push(IsEnum(properties.enum, { each: isArray }));
-
-	return decorators;
-}
-
-function buildDecorators(properties: TApiPropertyEnumProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties));
-
-	return decorators;
 }

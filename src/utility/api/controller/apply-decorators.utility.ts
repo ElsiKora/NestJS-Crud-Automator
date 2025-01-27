@@ -80,8 +80,6 @@ export function ApiControllerApplyDecorators<E>(targetMethod: (properties: any, 
 
 	if (customDecorators.length > 0) {
 		for (const decorator of customDecorators) {
-			console.log("TARGET METHOD", targetMethod);
-			console.log("METHOD NAME", methodName);
 			const descriptor: TypedPropertyDescriptor<any> | undefined = Reflect.getOwnPropertyDescriptor(targetMethod, methodName);
 			(decorator as MethodDecorator | PropertyDecorator)(targetMethod, methodName, descriptor ?? { value: targetMethod });
 		}

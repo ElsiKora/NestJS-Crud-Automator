@@ -1,4 +1,5 @@
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+
 import type { TApiPropertyUuidProperties } from "../../../type/decorator/api/property/uuid-properties.type";
 
 import { randomUUID } from "node:crypto";
@@ -29,9 +30,7 @@ function buildApiPropertyOptions(uuidExample: string, properties: TApiPropertyUu
 		type: EApiPropertyDataType.STRING,
 	};
 
-	if (properties.isResponse === false || properties.isResponse === undefined) {
-		apiPropertyOptions.required = properties.isRequired;
-	}
+	apiPropertyOptions.required = properties.isResponse === false || properties.isResponse === undefined ? properties.isRequired : false;
 
 	if (properties.isArray) {
 		apiPropertyOptions.isArray = true;
@@ -54,6 +53,60 @@ function buildApiPropertyOptions(uuidExample: string, properties: TApiPropertyUu
 	apiPropertyOptions.pattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$";
 
 	return apiPropertyOptions;
+}
+
+function buildDecorators(properties: TApiPropertyUuidProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
+
+	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties));
+
+	return decorators;
+}
+
+function buildFormatDecorators(properties: TApiPropertyUuidProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+	const isArray: boolean = properties.isArray ?? false;
+
+	// eslint-disable-next-line @elsikora-typescript/naming-convention
+	decorators.push(IsUUID(undefined, { each: isArray }));
+
+	return decorators;
+}
+
+function buildRequestDecorators(properties: TApiPropertyUuidProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse === false || properties.isResponse === undefined) {
+		if (!properties.isRequired) {
+			decorators.push(IsOptional());
+		}
+
+		if (properties.isArray === true) {
+			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
+
+			if (properties.minItems > 0) {
+				decorators.push(ArrayNotEmpty());
+			}
+		}
+	}
+
+	return decorators;
+}
+
+function buildResponseDecorators(properties: TApiPropertyUuidProperties): Array<PropertyDecorator> {
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (properties.isResponse) {
+		decorators.push(ApiResponseProperty());
+
+		if (properties.isExpose === undefined || properties.isExpose) {
+			decorators.push(Expose());
+		} else {
+			decorators.push(Exclude());
+		}
+	}
+
+	return decorators;
 }
 
 function validateOptions(properties: TApiPropertyUuidProperties): void {
@@ -80,58 +133,4 @@ function validateOptions(properties: TApiPropertyUuidProperties): void {
 	if (errors.length > 0) {
 		throw new Error(`ApiPropertyUUID error: ${errors.join("\n")}`);
 	}
-}
-
-function buildResponseDecorators(properties: TApiPropertyUuidProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	if (properties.isResponse) {
-		decorators.push(ApiResponseProperty());
-
-		if (properties.isExpose === undefined || properties.isExpose) {
-			decorators.push(Expose());
-		} else {
-			decorators.push(Exclude());
-		}
-	}
-
-	return decorators;
-}
-
-function buildRequestDecorators(properties: TApiPropertyUuidProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	if (properties.isResponse === false || properties.isResponse === undefined) {
-		if (!properties.isRequired) {
-			decorators.push(IsOptional());
-		}
-
-		if (properties.isArray === true) {
-			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
-
-			if (properties.minItems > 0) {
-				decorators.push(ArrayNotEmpty());
-			}
-		}
-	}
-
-	return decorators;
-}
-
-function buildFormatDecorators(properties: TApiPropertyUuidProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-	const isArray: boolean = properties.isArray ?? false;
-
-	// eslint-disable-next-line @elsikora-typescript/naming-convention
-	decorators.push(IsUUID(undefined, { each: isArray }));
-
-	return decorators;
-}
-
-function buildDecorators(properties: TApiPropertyUuidProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties));
-
-	return decorators;
 }
