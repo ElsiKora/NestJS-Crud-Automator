@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.6.1
+
+### Patch Changes
+
+- d7e8aa3: Refactor decorators and utilities for consistency.
+
 ## 1.6.0
 
 ### Minor Changes
