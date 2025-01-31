@@ -184,8 +184,32 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 
 	if (!options.description && options.action) {
 		switch (options.action) {
+			case EApiAction.ARCHIVE: {
+				options.description = `This method is used for archiving \`${options.entity.name}\``;
+
+				break;
+			}
+
 			case EApiAction.AUTHENTICATION: {
 				options.description = `This method is used for authentication of \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.BULK_CREATE: {
+				options.description = `This method is used for bulk creating \`${options.entity.name}s\``;
+
+				break;
+			}
+
+			case EApiAction.BULK_DELETE: {
+				options.description = `This method is used for bulk deleting \`${options.entity.name}s\``;
+
+				break;
+			}
+
+			case EApiAction.BULK_UPDATE: {
+				options.description = `This method is used for bulk updating \`${options.entity.name}s\``;
 
 				break;
 			}
@@ -204,6 +228,24 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 
 			case EApiAction.DELETE: {
 				options.description = `This method is used for deleting \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.DOWNLOAD: {
+				options.description = `This method is used for downloading \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.DUPLICATE: {
+				options.description = `This method is used for duplicating \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.EXPORT: {
+				options.description = `This method is used for exporting \`${options.entity.name}\``;
 
 				break;
 			}
@@ -232,6 +274,18 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 				break;
 			}
 
+			case EApiAction.IMPORT: {
+				options.description = `This method is used for importing \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.LOGOUT: {
+				options.description = `This method is used for logout of \`${options.entity.name}\``;
+
+				break;
+			}
+
 			case EApiAction.PARTIAL_UPDATE: {
 				options.description = `This method is used for partial updating \`${options.entity.name}\``;
 
@@ -250,8 +304,50 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 				break;
 			}
 
+			case EApiAction.RESTORE: {
+				options.description = `This method is used for restoring \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.SEARCH: {
+				options.description = `This method is used for searching \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.SUBSCRIBE: {
+				options.description = `This method is used for subscribing to \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.UNSUBSCRIBE: {
+				options.description = `This method is used for unsubscribing from \`${options.entity.name}\``;
+
+				break;
+			}
+
 			case EApiAction.UPDATE: {
 				options.description = `This method is used for updating \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.UPLOAD: {
+				options.description = `This method is used for uploading \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.VALIDATE: {
+				options.description = `This method is used for validating \`${options.entity.name}\``;
+
+				break;
+			}
+
+			case EApiAction.VERIFY: {
+				options.description = `This method is used for verifying \`${options.entity.name}\``;
 
 				break;
 			}

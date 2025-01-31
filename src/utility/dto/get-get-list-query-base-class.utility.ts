@@ -3,7 +3,7 @@ import type { ObjectLiteral } from "typeorm/index";
 
 import { Validate } from "class-validator";
 
-import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT, NUMBER_CONSTANT } from "../../constant";
+import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "../../constant";
 import { ApiPropertyEnum } from "../../decorator/api/property/enum.decorator";
 import { ApiPropertyNumber } from "../../decorator/api/property/number.decorator";
 import { EApiDtoType, EApiPropertyNumberType, EApiRouteType, EFilterOrderDirection } from "../../enum";
@@ -22,7 +22,6 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 			isRequired: true,
 			maximum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MAXIMUM_LIST_LENGTH,
 			minimum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_LENGTH,
-			multipleOf: NUMBER_CONSTANT.ONE,
 		})
 		limit!: number;
 
@@ -52,7 +51,6 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 			isRequired: true,
 			maximum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MAXIMUM_LIST_PAGES_COUNT,
 			minimum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_PAGES_COUNT,
-			multipleOf: NUMBER_CONSTANT.ONE,
 		})
 		page!: number;
 

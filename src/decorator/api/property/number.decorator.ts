@@ -48,7 +48,7 @@ function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiP
 	apiPropertyOptions.minimum = properties.minimum;
 	apiPropertyOptions.maximum = properties.maximum;
 
-	if (properties.isResponse === false || properties.isResponse === undefined) {
+	if ((properties.isResponse === false || properties.isResponse === undefined) && properties.multipleOf !== undefined) {
 		apiPropertyOptions.multipleOf = properties.multipleOf;
 	}
 
@@ -98,7 +98,7 @@ function buildNumberValidationDecorators(properties: TApiPropertyNumberPropertie
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
 
-	if (!properties.isResponse) {
+	if ((properties.isResponse === false || properties.isResponse === undefined) && properties.multipleOf !== undefined) {
 		// eslint-disable-next-line @elsikora-typescript/naming-convention
 		decorators.push(IsDivisibleBy(properties.multipleOf, { each: isArray }), Min(properties.minimum, { each: isArray }), Max(properties.maximum, { each: isArray }));
 	}
@@ -191,14 +191,16 @@ function validateOptions(properties: TApiPropertyNumberProperties): void {
 		errors.push("'minimum' is greater than maximum");
 	}
 
-	if (Array.isArray(properties.exampleValue)) {
-		for (const example of properties.exampleValue) {
-			if (!isInt(example / properties.multipleOf)) {
-				errors.push("'exampleValue' is not a multiple of 'multipleOf' value: " + String(example));
+	if (properties.multipleOf !== undefined) {
+		if (Array.isArray(properties.exampleValue)) {
+			for (const example of properties.exampleValue) {
+				if (!isInt(example / properties.multipleOf)) {
+					errors.push("'exampleValue' is not a multiple of 'multipleOf' value: " + String(example));
+				}
 			}
+		} else if (properties.exampleValue !== undefined && !isInt(properties.exampleValue / properties.multipleOf)) {
+			errors.push("'exampleValue' is not a multiple of 'multipleOf' value: " + String(properties.exampleValue));
 		}
-	} else if (properties.exampleValue !== undefined && !isInt(properties.exampleValue / properties.multipleOf)) {
-		errors.push("'exampleValue' is not a multiple of 'multipleOf' value: " + String(properties.exampleValue));
 	}
 
 	if (Array.isArray(properties.exampleValue)) {

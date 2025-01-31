@@ -7,5 +7,5 @@ export type TApiPropertyNumberProperties = {
 	format: EApiPropertyNumberType;
 	maximum: number;
 	minimum: number;
-	multipleOf: number;
+	multipleOf?: number;
 } & TApiPropertyBaseProperties;

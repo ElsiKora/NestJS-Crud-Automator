@@ -1,10 +1,13 @@
+import type { IApiBaseEntity } from "../../interface";
+import type { TMetadata } from "../../type";
+
 import { MetadataStorage } from "../../class";
 
-export function analyzeEntityMetadata(entity: any) {
-	const storage = MetadataStorage.getInstance();
+export function analyzeEntityMetadata(entity: IApiBaseEntity): void {
+	const storage: MetadataStorage = MetadataStorage.getInstance();
+	// eslint-disable-next-line @elsikora-typescript/no-unsafe-argument
+	const bankMetadata: TMetadata | undefined = storage.getMetadata(entity.name);
 
-	// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-argument,@typescript-eslint/no-unsafe-assignment
-	const bankMetadata = storage.getMetadata(entity.name);
-
-	console.log("POPSIKL", bankMetadata);
+	// eslint-disable-next-line @elsikora-sonar/void-use
+	void bankMetadata;
 }

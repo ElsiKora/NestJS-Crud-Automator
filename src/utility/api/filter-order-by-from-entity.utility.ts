@@ -32,7 +32,7 @@ export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata
 
 		if ((typeof columnType === "function" && (columnType === String || columnType === Number || columnType === Date)) || (FILTER_API_INTERFACE_CONSTANT.ALLOWED_ENTITY_TO_FILTER_COLUMNS.includes(columnType as string) && (fieldSelector === undefined || fieldSelector[column.propertyName as keyof typeof entity] !== false))) {
 			for (const metadataColumn of entityMetadata.columns) {
-				if (metadataColumn.name === column.propertyName && metadataColumn.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] && (metadataColumn.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]?.properties?.[method]?.[dtoType]?.filter === undefined || metadataColumn.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]?.properties?.[method]?.[dtoType]?.filter === true)) {
+				if (metadataColumn.name === column.propertyName && metadataColumn.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] && (metadataColumn.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]?.properties?.[method]?.[dtoType]?.useAsOrderByFilter === undefined || metadataColumn.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]?.properties?.[method]?.[dtoType]?.useAsOrderByFilter === true)) {
 					const snakeUpperCase: string = column.propertyName
 						.split("")
 						.map((char: string, index: number): string => {

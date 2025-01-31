@@ -1,3 +1,3 @@
 export type TApiPropertyDescribeDtoQueryGetListProperties = {
-	filter?: boolean;
+	useAsOrderByFilter?: boolean;
 };

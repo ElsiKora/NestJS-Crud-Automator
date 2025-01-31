@@ -11,7 +11,7 @@ import { plainToInstance } from "class-transformer";
 
 import { CONTROLLER_API_DECORATOR_CONSTANT, FUNCTION_API_DECORATOR_CONSTANT } from "../../constant";
 import { EApiDtoType, EApiRouteType } from "../../enum";
-import { ApiControllerGetListTransformFilter, ApiControllerTransformData, ApiControllerWriteDtoSwagger, ApiControllerWriteMethod, CapitalizeString, DtoGenerate, ErrorException, GenerateEntityInformation } from "../../utility";
+import { ApiControllerGetListTransformFilter, ApiControllerTransformData, ApiControllerWriteDtoSwagger, ApiControllerWriteMethod, DtoGenerate, ErrorException, GenerateEntityInformation } from "../../utility";
 import { ApiControllerApplyDecorators } from "../../utility/api/controller/apply-decorators.utility";
 import { ApiControllerApplyMetadata } from "../../utility/api/controller/apply-metadata.utility";
 import { ApiControllerGetPrimaryColumn } from "../../utility/api/controller/get-primary-column.utility";
@@ -45,7 +45,7 @@ export class ApiControllerFactory<E> {
 		if (!(method in this.properties.routes) || this.properties.routes[method]?.isEnabled !== false) {
 			const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = this.properties.routes[method] || {};
 			const routeDecorators: Array<MethodDecorator> | Array<PropertyDecorator> = routeConfig.decorators || [];
-			const methodName: TApiControllerMethodNameMap[typeof method] = `${CONTROLLER_API_DECORATOR_CONSTANT.RESERVED_METHOD_PREFIX}${CapitalizeString(method)}` as TApiControllerMethodNameMap[typeof method];
+			const methodName: TApiControllerMethodNameMap[typeof method] = `${CONTROLLER_API_DECORATOR_CONSTANT.RESERVED_METHOD_PREFIX}${method}` as TApiControllerMethodNameMap[typeof method];
 
 			ApiControllerWriteMethod<E>(this as never, this.targetPrototype, method, this.properties, this.ENTITY);
 			const targetMethod: TApiControllerMethodMap<E>[typeof method] = this.targetPrototype[methodName];
@@ -185,7 +185,7 @@ export class ApiControllerFactory<E> {
 
 					const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
 
-					const filter: TApiFunctionGetListPropertiesWhere<E> = ApiControllerGetListTransformFilter<E>(getListQuery);
+					const filter: TApiFunctionGetListPropertiesWhere<E> = ApiControllerGetListTransformFilter<E>(getListQuery, entityMetadata);
 
 					const requestProperties: TApiFunctionGetListProperties<E> = {
 						relations: properties.routes[method]?.response?.relations,

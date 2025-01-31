@@ -1,4 +1,4 @@
-const RESERVED_METHOD_PREFIX: string = "apiController";
+const RESERVED_METHOD_PREFIX: string = "";
 
 export const CONTROLLER_API_DECORATOR_CONSTANT: {
 	readonly RESERVED_METHOD_PREFIX: string;

@@ -4,6 +4,7 @@ import type { IApiEntity } from "../../interface";
 
 import { ApiPropertyUUID } from "../../decorator/api/property/uuid.decorator";
 import { EApiDtoType, EApiRouteType } from "../../enum";
+import { CamelCaseString } from "../camel-case-string.utility";
 import { CapitalizeString } from "../capitalize-string.utility";
 
 export function DtoGenerateRelationResponse<E>(entity: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string): Type<unknown> {
@@ -12,7 +13,7 @@ export function DtoGenerateRelationResponse<E>(entity: IApiEntity<E>, method: EA
 		id!: string;
 	}
 
-	Object.defineProperty(GeneratedRelationDTO, "name", { value: `${entity.name}${CapitalizeString(method)}${CapitalizeString(dtoType)}${CapitalizeString(propertyName)}DTO` });
+	Object.defineProperty(GeneratedRelationDTO, "name", { value: `${entity.name}${CamelCaseString(method)}${CamelCaseString(dtoType)}${CapitalizeString(propertyName)}DTO` });
 
 	return GeneratedRelationDTO;
 }

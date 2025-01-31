@@ -9,7 +9,7 @@ import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { MetadataStorage } from "../../../class";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../../constant";
 import { EApiDtoType, EApiPropertyDescribeType } from "../../../enum";
-import { CapitalizeString } from "../../capitalize-string.utility";
+import { CamelCaseString } from "../../camel-case-string.utility";
 import { DtoGenerate } from "../../dto";
 
 export function ApiControllerWriteDtoSwagger<E>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, entityMetadata: IApiEntity<E>): void {
@@ -36,16 +36,19 @@ export function ApiControllerWriteDtoSwagger<E>(target: object, entity: IApiEnti
 						const relationClass: { new (): any; prototype: any } = class GeneratedDTO {
 							constructor() {
 								Object.defineProperty(this, "id", {
+									// eslint-disable-next-line @elsikora-typescript/naming-convention
 									configurable: true,
+									// eslint-disable-next-line @elsikora-typescript/naming-convention
 									enumerable: true,
 									value: undefined,
+									// eslint-disable-next-line @elsikora-typescript/naming-convention
 									writable: true,
 								});
 							}
 						};
 
 						Object.defineProperty(relationClass, "name", {
-							value: `${entityMetadata.name}${CapitalizeString(method)}${CapitalizeString(EApiDtoType.BODY)}${key}DTO`,
+							value: `${entityMetadata.name}${CamelCaseString(method)}${CamelCaseString(EApiDtoType.BODY)}${key}DTO`,
 						});
 
 						swaggerModels.push(relationClass);
