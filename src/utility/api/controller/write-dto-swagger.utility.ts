@@ -28,7 +28,7 @@ export function ApiControllerWriteDtoSwagger<E>(target: object, entity: IApiEnti
 
 			const storage: MetadataStorage = MetadataStorage.getInstance();
 
-			const metadata: TMetadata | undefined = storage.getMetadata(entityMetadata.name);
+			const metadata: TMetadata | undefined = storage.getMetadata(entityMetadata.name ?? "UnknownResource");
 
 			if (metadata)
 				for (const key of Object.keys(metadata)) {

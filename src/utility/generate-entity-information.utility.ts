@@ -27,7 +27,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 			throw ErrorException(`Table for entity ${entity.name} not found in metadata storage`);
 		}
 
-		const namingStrategy = (tableName: string | undefined): string => new DefaultNamingStrategy().tableName(entity.name, tableName);
+		const namingStrategy = (tableName: string | undefined): string => new DefaultNamingStrategy().tableName(entity.name ?? "UnknownResource", tableName);
 
 		if (!table.name && table.type === "entity-child") {
 			const discriminatorValue: DiscriminatorValueMetadataArgs | undefined = getMetadataArgsStorage().discriminatorValues.find(({ target }: DiscriminatorValueMetadataArgs): boolean => target === entity);
@@ -56,13 +56,13 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 	const entityColumns: Array<IApiEntityColumn<E>> = [
 		...columnList.map(({ options, propertyName }: ColumnMetadataArgs) => ({
 			isPrimary: Boolean(options.primary),
-			metadata: (storage.getMetadata(entity.name, propertyName) as Record<string, any>) || undefined,
+			metadata: (storage.getMetadata(entity.name ?? "UnknownResource", propertyName) as Record<string, any>) || undefined,
 			name: propertyName as keyof E,
 			type: options.type!,
 		})),
 		...relationList.map(({ propertyName, relationType }: RelationMetadataArgs) => ({
 			isPrimary: false,
-			metadata: (storage.getMetadata(entity.name, propertyName) as Record<string, any>) || undefined,
+			metadata: (storage.getMetadata(entity.name ?? "UnknownResource", propertyName) as Record<string, any>) || undefined,
 			name: propertyName as keyof E,
 			type: relationType as ColumnType,
 		})),
