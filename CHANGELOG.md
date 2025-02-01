@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.6.2
+
+### Patch Changes
+
+- 7e13abe: Handle missing entity names with default "UnknownResource"
+
 ## 1.6.1
 
 ### Patch Changes
