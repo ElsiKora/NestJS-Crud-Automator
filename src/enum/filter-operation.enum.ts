@@ -85,11 +85,11 @@ export enum EFilterOperationObject {
 
 export enum EFilterOperationRelation {
 	EQ = EFilterOperation.EQ,
+	IN = EFilterOperation.IN,
 	ISNULL = EFilterOperation.ISNULL,
 	NE = EFilterOperation.NE,
-	NOTNULL = EFilterOperation.NOTNULL,
-	IN = EFilterOperation.IN,
 	NOTIN = EFilterOperation.NOTIN,
+	NOTNULL = EFilterOperation.NOTNULL,
 }
 
 export enum EFilterOperationString {

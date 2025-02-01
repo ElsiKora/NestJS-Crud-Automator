@@ -34,11 +34,11 @@ export class ApiControllerFactory<E> {
 		analyzeEntityMetadata(this.properties.entity);
 
 		if (!this.ENTITY.primaryKey) {
-			throw ErrorException(`Primary key for entity ${this.properties.entity.name} not found`);
+			throw ErrorException(`Primary key for entity ${this.properties.entity.name ?? "UnknownResource"} not found`);
 		}
 
-		Controller(this.properties.path ?? this.properties.entity.name.toLowerCase())(this.target);
-		ApiTags(this.properties.name ?? this.properties.entity.name)(this.target);
+		Controller(this.properties.path ?? (this.properties.entity.name ? this.properties.entity.name.toLowerCase() : "UnknownResource"))(this.target);
+		ApiTags(this.properties.name ?? this.properties.entity.name ?? "UnknownResource")(this.target);
 	}
 
 	createMethod(method: EApiRouteType): void {

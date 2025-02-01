@@ -7,7 +7,7 @@ import { EApiPropertyNumberType } from "../../enum";
 
 type TClassType<T = any> = new (...arguments_: Array<any>) => T;
 
-export function DtoGenerateGetListResponse(resourceClass: TClassType, responseResourceClass: TClassType): Type<unknown> {
+export function DtoGenerateGetListResponse(resourceClass: TClassType, responseResourceClass: TClassType, name: string): Type<unknown> {
 	class ApiListGetResponse extends PickType(resourceClass, [] as const) {
 		@ApiPropertyNumber({
 			description: "Total number of items on page",
@@ -68,6 +68,10 @@ export function DtoGenerateGetListResponse(resourceClass: TClassType, responseRe
 		})
 		totalPages!: number;
 	}
+
+	Object.defineProperty(ApiListGetResponse, "name", {
+		value: name,
+	});
 
 	return ApiListGetResponse;
 }

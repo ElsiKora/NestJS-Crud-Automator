@@ -29,7 +29,7 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 			description: "order by field",
 			entity: entityMetadata,
 			enum: FilterOrderByFromEntity(entity, entityMetadata, method, dtoType),
-			enumName: `E${CapitalizeString(entityMetadata.name)}FilterOrderBy`,
+			enumName: `E${CapitalizeString(entityMetadata.name ?? "UnknownResource")}FilterOrderBy`,
 			isRequired: false,
 		})
 		orderBy?: string;

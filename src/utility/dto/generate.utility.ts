@@ -148,12 +148,12 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	}
 
 	Object.defineProperty(GeneratedDTO, "name", {
-		value: `${entityMetadata.name}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`,
+		value: `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`,
 	});
 
 	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE) {
 		// @ts-ignore
-		return DtoGenerateGetListResponse(entity, GeneratedDTO);
+		return DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`);
 	} else {
 		return GeneratedDTO;
 	}
