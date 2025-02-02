@@ -1,5 +1,11 @@
 # @elsikora/nestjs-crud-automator
 
+## 1.6.3
+
+### Patch Changes
+
+- 94f06f1: Fix DTO naming in GET_LIST response generation logic
+
 ## 1.6.2
 
 ### Patch Changes
