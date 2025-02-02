@@ -153,7 +153,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 
 	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE) {
 		// @ts-ignore
-		return DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`);
+		return DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`);
 	} else {
 		return GeneratedDTO;
 	}
