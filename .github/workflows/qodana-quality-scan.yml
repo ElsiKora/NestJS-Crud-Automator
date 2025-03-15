@@ -1,0 +1,34 @@
+name: Qodana Quality Scan
+
+env:
+  NODE_VERSION: 20
+  CHECKOUT_DEPTH: 0
+
+on: push
+
+jobs:
+  qodana_quality_scan:
+    name: Qodana Quality Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ env.CHECKOUT_DEPTH }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Qodana Scan
+        uses: JetBrains/qodana-action@v2024.3
+        env:
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}

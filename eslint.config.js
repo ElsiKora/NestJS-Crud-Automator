@@ -1,15 +1,19 @@
-import createConfig from "@elsikora/eslint-config";
+import { createConfig } from "@elsikora/eslint-config";
+
+const config = {
+	ignores: ["package-lock.json", "yarn.lock", "bun.lock", "pnpm-lock.yaml", "dist", "bin", "build", "out", "www", "public/build", "_site", "release", "node_modules", ".env", ".env.local", ".env.*", "coverage", ".cache", "public", "static", "assets", "uploads", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg", "*.ico", "*.md", "*.mdx", "tmp", ".temp", "**/*.d.ts", "**/*.spec.ts", "**/*.test.ts", "**/*.e2e-spec.ts", "__tests__", "test", "tests", ".rollup.cache"],
+};
 
 export default [
-	{
-		ignores: ["**/node_modules/", "**/.git/", "**/dist/", "**/build/", "**/coverage/", "**/.vscode/", "**/.idea/", "**/*.min.js", "**/*.bundle.js"],
-	},
-	...createConfig({
+	config,
+	...(await createConfig({
 		withCheckFile: true,
 		withJavascript: true,
 		withJson: true,
+		withMarkdown: true,
 		withNest: true,
 		withNode: true,
+		withNoSecrets: true,
 		withPackageJson: true,
 		withPerfectionist: true,
 		withPrettier: true,
@@ -20,5 +24,5 @@ export default [
 		withTypescript: true,
 		withUnicorn: true,
 		withYaml: true,
-	}),
+	})),
 ];
