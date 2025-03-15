@@ -1,0 +1,1 @@
+{"version":3,"file":"get-list-properties.type.js","sourceRoot":"","sources":["get-list-properties.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { FindManyOptions } from \"typeorm/index\";\n\nexport type TApiFunctionGetListProperties<E> = FindManyOptions<E>;\n"]}

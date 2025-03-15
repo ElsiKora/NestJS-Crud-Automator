@@ -11,13 +11,16 @@ import { ErrorString } from "../../../utility/error-string.utility";
 
 import { ApiFunctionGet } from "./get.decorator";
 
+// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
 export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
 	const { entity }: IApiFunctionProperties = properties;
 	const getDecorator: (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity });
 	let getFunction: (properties: TApiFunctionGetProperties<E>) => Promise<E>;
 
 	return function (target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+		// eslint-disable-next-line @elsikora/sonar/void-use
 		void target;
+		// eslint-disable-next-line @elsikora/sonar/void-use
 		void propertyKey;
 
 		descriptor.value = async function (

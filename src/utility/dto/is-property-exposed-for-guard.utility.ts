@@ -13,7 +13,7 @@ export function DtoIsPropertyExposedForGuard(method: EApiRouteType, propertyMeta
 		return true;
 	}
 
-	const { guards, isInverse = false }: TApiPropertyDescribeDtoGuardProperties = properties?.[dtoType]?.guard;
+	const { guards, isInverse = false }: TApiPropertyDescribeDtoGuardProperties = properties?.[dtoType]?.guard ?? {};
 	const guardArray: Array<Type<IAuthGuard>> = Array.isArray(guards) ? guards : [guards];
 	const isGuardMatch: boolean = guardArray.includes(currentGuard);
 

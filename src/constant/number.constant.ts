@@ -12,7 +12,7 @@ const SORT_ARGUMENT_MORE: number = 1;
 const MIN_INTEGER: number = -2_147_483_648;
 const MAX_INTEGER: number = 2_147_483_647;
 const MIN_BIGINT: number = -9_223_372_036_854_775_808;
-// eslint-disable-next-line @typescript-eslint/no-loss-of-precision
+// eslint-disable-next-line @elsikora/javascript/no-loss-of-precision
 const MAX_BIGINT: number = 9_223_372_036_854_775_807;
 const MILLISECONDS_IN_SECOND: number = 1000;
 

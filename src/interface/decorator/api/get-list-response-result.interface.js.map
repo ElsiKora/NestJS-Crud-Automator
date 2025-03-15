@@ -1,0 +1,1 @@
+{"version":3,"file":"get-list-response-result.interface.js","sourceRoot":"","sources":["get-list-response-result.interface.ts"],"names":[],"mappings":"","sourcesContent":["export interface IApiGetListResponseResult<T> {\n\tcount: number;\n\tcurrentPage: number;\n\titems: Array<T>;\n\ttotalCount: number;\n\ttotalPages: number;\n}\n"]}

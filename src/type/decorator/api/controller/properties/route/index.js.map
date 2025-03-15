@@ -1,0 +1,1 @@
+{"version":3,"file":"index.js","sourceRoot":"","sources":["index.ts"],"names":[],"mappings":"","sourcesContent":["export type * from \"./base-request-relations.type\";\nexport type * from \"./base-request-transformers.type\";\nexport type * from \"./base-response-transformers.type\";\n"]}

@@ -9,11 +9,14 @@ import { EErrorStringAction } from "../../../enum";
 import { ErrorException } from "../../../utility/error-exception.utility";
 import { ErrorString } from "../../../utility/error-string.utility";
 
+// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
 export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
 	const { entity }: IApiFunctionProperties = properties;
 
 	return function (target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+		// eslint-disable-next-line @elsikora/sonar/void-use
 		void target;
+		// eslint-disable-next-line @elsikora/sonar/void-use
 		void propertyKey;
 
 		descriptor.value = async function (

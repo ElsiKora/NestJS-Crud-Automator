@@ -1,0 +1,1 @@
+{"version":3,"file":"error-exception.utility.js","sourceRoot":"","sources":["error-exception.utility.ts"],"names":[],"mappings":"AAAA,MAAM,UAAU,cAAc,CAAC,OAAe;IAC7C,OAAO,IAAI,KAAK,CAAC,2BAA2B,OAAO,EAAE,CAAC,CAAC;AACxD,CAAC","sourcesContent":["export function ErrorException(message: string): Error {\n\treturn new Error(`[NestJS-Crud-Automator] ${message}`);\n}\n"]}

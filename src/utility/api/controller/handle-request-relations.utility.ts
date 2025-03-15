@@ -11,9 +11,8 @@ import { ErrorException } from "../../error-exception.utility";
 import { GetEntityColumns } from "../../get-entity-columns.utility";
 
 export async function ApiControllerHandleRequestRelations<E>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
-	if (relationConfig?.loadRelations) {
+	if (relationConfig?.shouldLoadRelations) {
 		for (const propertyName of GetEntityColumns<E>({ entity: properties.entity, shouldTakeRelationsOnly: true })) {
-			// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 			// @ts-expect-error
 			if (parameters[propertyName] !== undefined && typeof propertyName === "string") {
 				if (relationConfig.relationsLoadStrategy === EApiControllerLoadRelationsStrategy.MANUAL && !relationConfig.relationsToLoad.includes(propertyName)) {
@@ -40,7 +39,7 @@ export async function ApiControllerHandleRequestRelations<E>(controllerMethod: T
 				const service: unknown = controllerMethod[serviceName];
 
 				if (!service) {
-					if ((relationConfig.servicesLoadStrategy === EApiControllerLoadRelationsStrategy.AUTO && relationConfig.forceAllServicesToBeSpecified) || relationConfig.servicesLoadStrategy === EApiControllerLoadRelationsStrategy.MANUAL) {
+					if ((relationConfig.servicesLoadStrategy === EApiControllerLoadRelationsStrategy.AUTO && relationConfig.shouldForceAllServicesToBeSpecified) || relationConfig.servicesLoadStrategy === EApiControllerLoadRelationsStrategy.MANUAL) {
 						throw ErrorException(`Service ${serviceName as string} not found in controller`);
 					}
 					continue;
@@ -62,7 +61,6 @@ export async function ApiControllerHandleRequestRelations<E>(controllerMethod: T
 					throw new BadRequestException(`Invalid ${String(propertyName)} ID`);
 				}
 
-				// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 				// @ts-expect-error
 				parameters[propertyName] = entity;
 			}

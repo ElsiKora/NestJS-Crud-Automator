@@ -13,12 +13,12 @@ import { CamelCaseString } from "../../camel-case-string.utility";
 import { DtoGenerate } from "../../dto";
 
 export function ApiControllerWriteDtoSwagger<E>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, entityMetadata: IApiEntity<E>): void {
-	const swaggerModels: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, target) || []) as Array<unknown>;
+	const swaggerModels: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, target) ?? []) as Array<unknown>;
 
-	const requestDto: Type<unknown> | undefined = routeConfig.dto?.request || DtoGenerate(properties.entity, entity, method, EApiDtoType.REQUEST, routeConfig.autoDto?.[EApiDtoType.REQUEST], routeConfig.authentication?.guard);
-	const queryDto: Type<unknown> | undefined = routeConfig.dto?.query || DtoGenerate(properties.entity, entity, method, EApiDtoType.QUERY, routeConfig.autoDto?.[EApiDtoType.QUERY], routeConfig.authentication?.guard);
-	const bodyDto: Type<unknown> | undefined = routeConfig.dto?.body || DtoGenerate(properties.entity, entity, method, EApiDtoType.BODY, routeConfig.autoDto?.[EApiDtoType.BODY], routeConfig.authentication?.guard);
-	const responseDto: Type<unknown> | undefined = routeConfig.dto?.response || DtoGenerate(properties.entity, entity, method, EApiDtoType.RESPONSE, routeConfig.autoDto?.[EApiDtoType.RESPONSE], routeConfig.authentication?.guard);
+	const requestDto: Type<unknown> | undefined = routeConfig.dto?.request ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.REQUEST, routeConfig.autoDto?.[EApiDtoType.REQUEST], routeConfig.authentication?.guard);
+	const queryDto: Type<unknown> | undefined = routeConfig.dto?.query ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.QUERY, routeConfig.autoDto?.[EApiDtoType.QUERY], routeConfig.authentication?.guard);
+	const bodyDto: Type<unknown> | undefined = routeConfig.dto?.body ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.BODY, routeConfig.autoDto?.[EApiDtoType.BODY], routeConfig.authentication?.guard);
+	const responseDto: Type<unknown> | undefined = routeConfig.dto?.response ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.RESPONSE, routeConfig.autoDto?.[EApiDtoType.RESPONSE], routeConfig.authentication?.guard);
 
 	const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, responseDto];
 
@@ -36,19 +36,19 @@ export function ApiControllerWriteDtoSwagger<E>(target: object, entity: IApiEnti
 						const relationClass: { new (): any; prototype: any } = class GeneratedDTO {
 							constructor() {
 								Object.defineProperty(this, "id", {
-									// eslint-disable-next-line @elsikora-typescript/naming-convention
+									// eslint-disable-next-line @elsikora/typescript/naming-convention
 									configurable: true,
-									// eslint-disable-next-line @elsikora-typescript/naming-convention
+									// eslint-disable-next-line @elsikora/typescript/naming-convention
 									enumerable: true,
 									value: undefined,
-									// eslint-disable-next-line @elsikora-typescript/naming-convention
+									// eslint-disable-next-line @elsikora/typescript/naming-convention
 									writable: true,
 								});
 							}
 						};
 
 						Object.defineProperty(relationClass, "name", {
-							value: `${entityMetadata.name}${CamelCaseString(method)}${CamelCaseString(EApiDtoType.BODY)}${key}DTO`,
+							value: `${String(entityMetadata.name)}${CamelCaseString(method)}${CamelCaseString(EApiDtoType.BODY)}${key}DTO`,
 						});
 
 						swaggerModels.push(relationClass);

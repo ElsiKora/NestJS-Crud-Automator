@@ -1,3 +1,4 @@
+/* eslint-disable @elsikora/javascript/no-dupe-class-members */
 import type { IMetadataEntry } from "../interface";
 import type { TMetadata } from "../type";
 
@@ -48,12 +49,14 @@ export class MetadataStorage {
 		if (!this.STORAGE.has(entityName)) {
 			this.STORAGE.set(entityName, new Map());
 		}
+		// eslint-disable-next-line @elsikora/typescript/no-non-null-assertion
 		const entityMetadata: Map<string, IMetadataEntry> = this.STORAGE.get(entityName)!;
 
 		if (!entityMetadata.has(propertyName)) {
 			entityMetadata.set(propertyName, { [PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]: {} });
 		}
 
+		// eslint-disable-next-line @elsikora/typescript/no-non-null-assertion
 		const propertyMetadata: IMetadataEntry = entityMetadata.get(propertyName)!;
 		propertyMetadata[key] = value;
 	}

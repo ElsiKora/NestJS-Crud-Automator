@@ -1,0 +1,1 @@
+{"version":3,"file":"base.interface.js","sourceRoot":"","sources":["base.interface.ts"],"names":[],"mappings":"","sourcesContent":["import type { ApiServiceBase } from \"../../../../class\";\n\nexport interface IApiControllerBase<E> {\n\tservice: ApiServiceBase<E>;\n}\n"]}

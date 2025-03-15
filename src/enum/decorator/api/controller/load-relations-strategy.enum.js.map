@@ -1,0 +1,1 @@
+{"version":3,"file":"load-relations-strategy.enum.js","sourceRoot":"","sources":["load-relations-strategy.enum.ts"],"names":[],"mappings":"AAAA,MAAM,CAAN,IAAY,mCAGX;AAHD,WAAY,mCAAmC;IAC9C,oDAAa,CAAA;IACb,wDAAiB,CAAA;AAClB,CAAC,EAHW,mCAAmC,KAAnC,mCAAmC,QAG9C","sourcesContent":["export enum EApiControllerLoadRelationsStrategy {\n\tAUTO = \"AUTO\",\n\tMANUAL = \"MANUAL\",\n}\n"]}

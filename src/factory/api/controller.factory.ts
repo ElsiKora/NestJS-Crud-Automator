@@ -43,8 +43,8 @@ export class ApiControllerFactory<E> {
 
 	createMethod(method: EApiRouteType): void {
 		if (!(method in this.properties.routes) || this.properties.routes[method]?.isEnabled !== false) {
-			const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = this.properties.routes[method] || {};
-			const routeDecorators: Array<MethodDecorator> | Array<PropertyDecorator> = routeConfig.decorators || [];
+			const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = this.properties.routes[method] ?? {};
+			const routeDecorators: Array<MethodDecorator> | Array<PropertyDecorator> = routeConfig.decorators ?? [];
 			const methodName: TApiControllerMethodNameMap[typeof method] = `${CONTROLLER_API_DECORATOR_CONSTANT.RESERVED_METHOD_PREFIX}${method}` as TApiControllerMethodNameMap[typeof method];
 
 			ApiControllerWriteMethod<E>(this as never, this.targetPrototype, method, this.properties, this.ENTITY);
@@ -73,38 +73,34 @@ export class ApiControllerFactory<E> {
 	protected [EApiRouteType.CREATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.CREATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
-				try {
-					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(body, entityMetadata);
+				const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(body, entityMetadata);
 
-					if (!primaryKey) {
-						throw ErrorException("Primary key not found in entity columns");
-					}
-
-					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { body }, { authenticationRequest, headers, ip });
-					await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, body as Partial<E>);
-					await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, body);
-
-					const createResponse: E = await this.service.create(body);
-					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
-
-					const requestProperties: TApiFunctionGetProperties<E> = {
-						relations: properties.routes[method]?.response?.relations,
-						where: {
-							[primaryKey.key]: createResponse[primaryKey.key],
-						} as FindOptionsWhere<E>,
-					};
-
-					const response: E = await this.service.get(requestProperties);
-
-					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
-
-					return plainToInstance(dto as ClassConstructor<E>, response, {
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
-						excludeExtraneousValues: true,
-					});
-				} catch (error) {
-					throw error;
+				if (!primaryKey) {
+					throw ErrorException("Primary key not found in entity columns");
 				}
+
+				ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { body }, { authenticationRequest, headers, ip });
+				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, body as Partial<E>);
+				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, body);
+
+				const createResponse: E = await this.service.create(body);
+				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+
+				const requestProperties: TApiFunctionGetProperties<E> = {
+					relations: properties.routes[method]?.response?.relations,
+					where: {
+						[primaryKey.key]: createResponse[primaryKey.key],
+					} as FindOptionsWhere<E>,
+				};
+
+				const response: E = await this.service.get(requestProperties);
+
+				ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
+
+				return plainToInstance(dto as ClassConstructor<E>, response, {
+					// eslint-disable-next-line @elsikora/typescript/naming-convention
+					excludeExtraneousValues: true,
+				});
 			},
 			"name",
 			{ value: methodName },
@@ -138,37 +134,33 @@ export class ApiControllerFactory<E> {
 	protected [EApiRouteType.GET](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
-				try {
-					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
+				const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
-					if (!primaryKey) {
-						throw ErrorException("Primary key not found in entity columns");
-					}
-
-					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { parameters }, { authenticationRequest, headers, ip });
-					await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
-					await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
-
-					const requestProperties: TApiFunctionGetProperties<E> = {
-						relations: properties.routes[method]?.response?.relations,
-						where: {
-							[primaryKey.key]: primaryKey.value,
-						} as FindOptionsWhere<E>,
-					};
-
-					const response: E = await this.service.get(requestProperties);
-
-					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
-
-					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
-
-					return plainToInstance(dto as ClassConstructor<E>, response, {
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
-						excludeExtraneousValues: true,
-					});
-				} catch (error) {
-					throw error;
+				if (!primaryKey) {
+					throw ErrorException("Primary key not found in entity columns");
 				}
+
+				ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { parameters }, { authenticationRequest, headers, ip });
+				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, parameters);
+				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, parameters);
+
+				const requestProperties: TApiFunctionGetProperties<E> = {
+					relations: properties.routes[method]?.response?.relations,
+					where: {
+						[primaryKey.key]: primaryKey.value,
+					} as FindOptionsWhere<E>,
+				};
+
+				const response: E = await this.service.get(requestProperties);
+
+				ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
+
+				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+
+				return plainToInstance(dto as ClassConstructor<E>, response, {
+					// eslint-disable-next-line @elsikora/typescript/naming-convention
+					excludeExtraneousValues: true,
+				});
 			},
 			"name",
 			{ value: methodName },
@@ -178,40 +170,36 @@ export class ApiControllerFactory<E> {
 	protected [EApiRouteType.GET_LIST](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET_LIST>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, query: TApiControllerGetListQuery<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<IApiGetListResponseResult<E>> {
-				try {
-					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { query }, { authenticationRequest, headers, ip });
-					await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, query);
-					await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, query);
+				ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { query }, { authenticationRequest, headers, ip });
+				await ApiControllerValidateRequest<E>(properties.routes[method]?.request?.validators, properties, query);
+				await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, query);
 
-					const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
+				const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
 
-					const filter: TApiFunctionGetListPropertiesWhere<E> = ApiControllerGetListTransformFilter<E>(getListQuery, entityMetadata);
+				const filter: TApiFunctionGetListPropertiesWhere<E> = ApiControllerGetListTransformFilter<E>(getListQuery, entityMetadata);
 
-					const requestProperties: TApiFunctionGetListProperties<E> = {
-						relations: properties.routes[method]?.response?.relations,
-						skip: query.limit * (query.page - 1),
-						take: query.limit,
-						where: filter,
-					};
+				const requestProperties: TApiFunctionGetListProperties<E> = {
+					relations: properties.routes[method]?.response?.relations,
+					skip: query.limit * (query.page - 1),
+					take: query.limit,
+					where: filter,
+				};
 
-					if (orderBy) {
-						requestProperties.order = {
-							[orderBy as never as string]: orderDirection ?? FUNCTION_API_DECORATOR_CONSTANT.DEFAULT_FILTER_ORDER_BY_DIRECTION,
-						} as FindOptionsOrder<E>;
-					}
-
-					const response: IApiGetListResponseResult<E> = await this.service.getList(requestProperties);
-					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
-
-					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
-
-					return plainToInstance(dto as ClassConstructor<IApiGetListResponseResult<E>>, response, {
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
-						excludeExtraneousValues: true,
-					});
-				} catch (error) {
-					throw error;
+				if (orderBy) {
+					requestProperties.order = {
+						[orderBy as never as string]: orderDirection ?? FUNCTION_API_DECORATOR_CONSTANT.DEFAULT_FILTER_ORDER_BY_DIRECTION,
+					} as FindOptionsOrder<E>;
 				}
+
+				const response: IApiGetListResponseResult<E> = await this.service.getList(requestProperties);
+				ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
+
+				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+
+				return plainToInstance(dto as ClassConstructor<IApiGetListResponseResult<E>>, response, {
+					// eslint-disable-next-line @elsikora/typescript/naming-convention
+					excludeExtraneousValues: true,
+				});
 			},
 			"name",
 			{ value: methodName },
@@ -242,7 +230,7 @@ export class ApiControllerFactory<E> {
 				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
 				return plainToInstance(dto as ClassConstructor<E>, response, {
-					// eslint-disable-next-line @elsikora-typescript/naming-convention
+					// eslint-disable-next-line @elsikora/typescript/naming-convention
 					excludeExtraneousValues: true,
 				});
 			},
@@ -251,7 +239,7 @@ export class ApiControllerFactory<E> {
 		);
 	}
 
-	// eslint-disable-next-line @elsikora-sonar/no-identical-functions
+	// eslint-disable-next-line @elsikora/sonar/no-identical-functions
 	protected [EApiRouteType.UPDATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
@@ -276,7 +264,7 @@ export class ApiControllerFactory<E> {
 				const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
 				return plainToInstance(dto as ClassConstructor<E>, response, {
-					// eslint-disable-next-line @elsikora-typescript/naming-convention
+					// eslint-disable-next-line @elsikora/typescript/naming-convention
 					excludeExtraneousValues: true,
 				});
 			},

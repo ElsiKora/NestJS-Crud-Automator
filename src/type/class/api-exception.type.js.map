@@ -1,0 +1,1 @@
+{"version":3,"file":"api-exception.type.js","sourceRoot":"","sources":["api-exception.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { HttpException, HttpExceptionOptions } from \"@nestjs/common\";\n\nexport type TApiException = new (objectOrError?: object | string, descriptionOrOptions?: HttpExceptionOptions | string) => HttpException;\n"]}

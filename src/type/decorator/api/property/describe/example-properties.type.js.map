@@ -1,0 +1,1 @@
+{"version":3,"file":"example-properties.type.js","sourceRoot":"","sources":["example-properties.type.ts"],"names":[],"mappings":"","sourcesContent":["export type TApiPropertyDescribeExampleProperties<T> = { exampleValue: Array<T>; isArray: true } | { exampleValue: T; isArray?: false };\n"]}

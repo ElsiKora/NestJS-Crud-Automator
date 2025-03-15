@@ -1,0 +1,1 @@
+{"version":3,"file":"auto-dto-config.interface.js","sourceRoot":"","sources":["auto-dto-config.interface.ts"],"names":[],"mappings":"","sourcesContent":["import type { IApiDtoValidator } from \"../../../../../api-dto-validator.interface\";\n\nexport interface IApiControllerPropertiesRouteAutoDtoConfig {\n\tvalidators?: Array<IApiDtoValidator>;\n}\n"]}

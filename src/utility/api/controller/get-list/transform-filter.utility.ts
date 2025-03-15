@@ -14,12 +14,12 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, any
 	for (const fullKey of Object.keys(query)) {
 		if (!fullKey.includes("[")) continue;
 
-		const [key, field] = fullKey.split("[");
+		const [key, field]: Array<string> = fullKey.split("[");
 		const cleanField: string = field.replace("]", "");
 
 		if (cleanField === "value" || cleanField === "values") {
 			const operation: EFilterOperation = query[`${key}[operator]`] as EFilterOperation;
-			// eslint-disable-next-line @elsikora-typescript/no-unsafe-assignment
+			// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
 			const value: any = query[fullKey];
 
 			if (!operation || !key || value === undefined || value === null) continue;
@@ -27,6 +27,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, any
 			const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>) => column.name == key);
 
 			// @ts-ignore
+			// eslint-disable-next-line @elsikora/typescript/no-unsafe-member-access
 			if (column && column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME].type === EApiPropertyDescribeType.RELATION) {
 				// @ts-ignore
 				filter[key as keyof E] = { id: ApiControllerGetListTransformOperation(operation, value) };

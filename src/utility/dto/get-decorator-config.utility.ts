@@ -6,6 +6,7 @@ import { DTO_UTILITY_CONSTANT } from "../../constant/utility/dto/constant";
 
 import { DtoValidatePropertyConfig } from "./validate-property-config.utility";
 
+// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
 export const DtoGetDecoratorConfig = <M extends EApiRouteType, D extends EApiDtoType>(method: M, metadata: TApiPropertyDescribeProperties, dtoType: D, propertyName: string): TApiPropertyDescribeDtoProperties => {
 	const strategy: Record<EApiDtoType, IDtoStrategy>[D] = DTO_UTILITY_CONSTANT.DTO_STRATEGIES[dtoType];
 

@@ -1,0 +1,1 @@
+{"version":3,"file":"date-range-keys.type.js","sourceRoot":"","sources":["date-range-keys.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { TDateKeys } from \"./date-keys.type\";\n\nexport type TDateRangeKeys<E> = {\n\t[K in keyof TDateKeys<E> as `${K & string}From` | `${K & string}To`]: Date;\n};\n"]}

@@ -1,0 +1,1 @@
+{"version":3,"file":"error-string-properties.interface.js","sourceRoot":"","sources":["error-string-properties.interface.ts"],"names":[],"mappings":"","sourcesContent":["import type { EErrorStringAction } from \"../../enum\";\n\nexport interface IErrorStringProperties<T> {\n\tentity: T;\n\ttype: EErrorStringAction;\n}\n"]}

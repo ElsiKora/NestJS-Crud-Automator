@@ -2,6 +2,7 @@ import type { ValidationArguments, ValidatorConstraintInterface } from "class-va
 
 import { ValidatorConstraint } from "class-validator";
 
+// eslint-disable-next-line @elsikora/typescript/naming-convention
 @ValidatorConstraint({ async: false, name: "all-or-none-of-listed-properties" })
 export class AllOrNoneOfListedProperties implements ValidatorConstraintInterface {
 	defaultMessage(properties: ValidationArguments): string {
@@ -13,7 +14,7 @@ export class AllOrNoneOfListedProperties implements ValidatorConstraintInterface
 
 		if (constraints.length > 0) {
 			const indexableObject: Record<string, any> = properties.object as Record<string, any>;
-			const definedFields: Array<string> = constraints.filter((field: string) => indexableObject.hasOwnProperty(field) && indexableObject[field] !== undefined);
+			const definedFields: Array<string> = constraints.filter((field: string) => Object.prototype.hasOwnProperty.call(indexableObject, field) && indexableObject[field] !== undefined);
 
 			return definedFields.length === 0 || definedFields.length === constraints.length;
 		}

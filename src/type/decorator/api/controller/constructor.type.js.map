@@ -1,0 +1,1 @@
+{"version":3,"file":"constructor.type.js","sourceRoot":"","sources":["constructor.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { ApiServiceBase } from \"../../../../class\";\n\nexport type TApiControllerConstructor = new (...arguments_: Array<any>) => { service: ApiServiceBase<any> };\n"]}

@@ -8,6 +8,7 @@ import type { TApiPropertyDescribeProperties } from "../../type";
 import { Validate } from "class-validator";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
+import { DTO_GENERATE_CONSTANT } from "../../constant/utility/dto/generate.constant";
 import { EApiDtoType, EApiRouteType } from "../../enum";
 import { HasPairedCustomSuffixesFields } from "../../validator/has-paired-custom-suffixes-fields.validator";
 import { CamelCaseString } from "../camel-case-string.utility";
@@ -26,7 +27,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	}
 
 	if (!entityMetadata.primaryKey?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]) {
-		throw ErrorException(`Primary key for entity ${entityMetadata.name} not found in metadata storage`);
+		throw ErrorException(`Primary key for entity ${String(entityMetadata.name)} not found in metadata storage`);
 	}
 
 	const markedProperties: Array<{
@@ -53,42 +54,42 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 			for (const property of markedProperties) {
 				if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
 					Object.defineProperty(this, `${property.name as string}[value]`, {
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
 						value: undefined,
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
 
 					Object.defineProperty(this, `${property.name as string}[values]`, {
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
 						value: undefined,
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
 
 					Object.defineProperty(this, `${property.name as string}[operator]`, {
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
 						value: undefined,
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
 				} else {
 					Object.defineProperty(this, property.name, {
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
 						value: undefined,
-						// eslint-disable-next-line @elsikora-typescript/naming-convention
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
 				}
@@ -113,7 +114,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 
 		if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
 			// @ts-ignore
-			const metadataArray: TApiPropertyDescribeProperties = { ...property.metadata, isArray: true, isUniqueItems: false, maxItems: 100, minItems: 2 };
+			const metadataArray: TApiPropertyDescribeProperties = { ...property.metadata, isArray: true, isUniqueItems: false, maxItems: DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES, minItems: DTO_GENERATE_CONSTANT.MINIMUM_FILTER_PROPERTIES };
 
 			const decoratorsArray: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, metadataArray, entityMetadata, dtoType, property.name as string, currentGuard);
 
@@ -133,14 +134,14 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 
 	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
 		Object.defineProperty(GeneratedDTO.prototype, "object", {
-			// eslint-disable-next-line @elsikora-typescript/naming-convention
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			configurable: true,
-			// eslint-disable-next-line @elsikora-typescript/naming-convention
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			enumerable: true,
 			value: function (this: InstanceType<typeof GeneratedDTO>): InstanceType<typeof GeneratedDTO> {
 				return this;
 			},
-			// eslint-disable-next-line @elsikora-typescript/naming-convention
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			writable: true,
 		});
 
@@ -151,10 +152,6 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		value: `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`,
 	});
 
-	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE) {
-		// @ts-ignore
-		return DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`);
-	} else {
-		return GeneratedDTO;
-	}
+	// @ts-ignore
+	return method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE ? DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`) : GeneratedDTO;
 }

@@ -9,7 +9,6 @@ export class OnlyOneOfListedProperties implements ValidatorConstraintInterface {
 		return `only one of the following properties must be provided: ${properties.constraints.join(", ")}`;
 	}
 
-	// eslint-disable-next-line @elsikora/typescript/naming-convention
 	validate(_value: unknown, properties: ValidationArguments): boolean {
 		const constraints: Array<string> = properties.constraints as Array<string>;
 

@@ -149,8 +149,9 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 					return `group "${baseName}" can only have one value with suffix [${[...valueSuffixes].join(", ")}] when operator is present`;
 				}
 
-				const value: unknown = indexableObject[valueFields[0]];
-				const isArray = Array.isArray(value);
+				// @ts-ignore
+				const value: Array<any> = indexableObject[valueFields[0]];
+				const isArray: boolean = Array.isArray(value);
 
 				if (operatorConfig.argumentType === EArgumentType.ARRAY && !isArray) {
 					return `group "${baseName}" with ${operator} operation requires an array value`;
@@ -179,7 +180,6 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 		return `fields must have valid operator-value suffix pairs`;
 	}
 
-	// eslint-disable-next-line @elsikora/typescript/naming-convention
 	validate(_value: unknown, properties: { constraints: [string, Array<string>] } & ValidationArguments): boolean {
 		const [operatorSuffix, valueSuffixes]: [string, Array<string>] = properties.constraints;
 		const indexableObject: Record<string, unknown> = properties.object as Record<string, unknown>;
@@ -235,7 +235,8 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 
 				if (valueFields.length !== 1) return false;
 
-				const value: unknown = indexableObject[valueFields[0]];
+				// @ts-ignore
+				const value: Array<any> = indexableObject[valueFields[0]];
 				const isArray: boolean = Array.isArray(value);
 
 				if (operatorConfig.argumentType === EArgumentType.ARRAY && !isArray) return false;

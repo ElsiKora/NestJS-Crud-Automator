@@ -1,0 +1,1 @@
+{"version":3,"file":"update-criteria.type.js","sourceRoot":"","sources":["update-criteria.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { FindOptionsWhere } from \"typeorm\";\n\nexport type TApiFunctionUpdateCriteria<E> = FindOptionsWhere<E>;\n"]}

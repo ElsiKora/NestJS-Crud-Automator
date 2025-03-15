@@ -1,0 +1,1 @@
+{"version":3,"file":"update-properties.type.js","sourceRoot":"","sources":["update-properties.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { DeepPartial } from \"typeorm\";\n\nexport type TApiFunctionUpdateProperties<E> = DeepPartial<E>;\n"]}

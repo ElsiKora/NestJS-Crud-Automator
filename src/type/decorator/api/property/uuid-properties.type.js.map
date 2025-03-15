@@ -1,0 +1,1 @@
+{"version":3,"file":"uuid-properties.type.js","sourceRoot":"","sources":["uuid-properties.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { TApiPropertyBaseProperties } from \"./base\";\n\nexport type TApiPropertyUuidProperties = TApiPropertyBaseProperties;\n"]}

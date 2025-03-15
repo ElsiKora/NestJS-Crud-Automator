@@ -1,0 +1,1 @@
+{"version":3,"file":"throttler-properties.interface.js","sourceRoot":"","sources":["throttler-properties.interface.ts"],"names":[],"mappings":"","sourcesContent":["export interface IApiMethodThrottlerProperties {\n\tlimit: number;\n\tttl: number;\n}\n"]}

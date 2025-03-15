@@ -21,23 +21,24 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 	};
 
 	generatedEntity.tableName = ((): string => {
+		// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
 		const table: TableMetadataArgs | undefined = getMetadataArgsStorage().tables.find(({ target }: TableMetadataArgs): boolean => (target as Function).name === entity.name);
 
 		if (!table) {
-			throw ErrorException(`Table for entity ${entity.name} not found in metadata storage`);
+			throw ErrorException(`Table for entity ${String(entity.name)} not found in metadata storage`);
 		}
 
 		const namingStrategy = (tableName: string | undefined): string => new DefaultNamingStrategy().tableName(entity.name ?? "UnknownResource", tableName);
 
 		if (!table.name && table.type === "entity-child") {
-			const discriminatorValue: DiscriminatorValueMetadataArgs | undefined = getMetadataArgsStorage().discriminatorValues.find(({ target }: DiscriminatorValueMetadataArgs): boolean => target === entity);
+			const discriminatorValue: DiscriminatorValueMetadataArgs | undefined = getMetadataArgsStorage().discriminatorValues.find(({ target }: DiscriminatorValueMetadataArgs): boolean => target == entity);
 
 			if (!discriminatorValue?.value) {
-				throw ErrorException(`Discriminator value for entity ${entity.name} not found in metadata storage`);
+				throw ErrorException(`Discriminator value for entity ${String(entity.name)} not found in metadata storage`);
 			} else if (typeof discriminatorValue.value === "string") {
 				return namingStrategy(discriminatorValue.value);
 			} else {
-				// eslint-disable-next-line @elsikora-typescript/no-unsafe-member-access,@elsikora-typescript/no-unsafe-argument
+				// eslint-disable-next-line @elsikora/typescript/no-unsafe-argument,@elsikora/typescript/no-unsafe-member-access
 				return namingStrategy(discriminatorValue.value?.name);
 			}
 		}
@@ -49,8 +50,10 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 
 	const storage: MetadataStorage = MetadataStorage.getInstance();
 
+	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
 	const columnList: Array<ColumnMetadataArgs> = getMetadataArgsStorage().columns.filter(({ target }: ColumnMetadataArgs): boolean => (target as Function).name === entity.name);
 
+	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
 	const relationList: Array<RelationMetadataArgs> = getMetadataArgsStorage().relations.filter(({ target }: RelationMetadataArgs): boolean => (target as Function).name === entity.name);
 
 	const entityColumns: Array<IApiEntityColumn<E>> = [
@@ -58,6 +61,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 			isPrimary: Boolean(options.primary),
 			metadata: (storage.getMetadata(entity.name ?? "UnknownResource", propertyName) as Record<string, any>) || undefined,
 			name: propertyName as keyof E,
+			// eslint-disable-next-line @elsikora/typescript/no-non-null-assertion
 			type: options.type!,
 		})),
 		...relationList.map(({ propertyName, relationType }: RelationMetadataArgs) => ({
@@ -68,11 +72,11 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 		})),
 	];
 
-	entityColumns.map((column: IApiEntityColumn<E>) => {
+	for (const column of entityColumns) {
 		if (column.isPrimary) {
 			generatedEntity.primaryKey = column;
 		}
-	});
+	}
 
 	generatedEntity.columns = entityColumns;
 
