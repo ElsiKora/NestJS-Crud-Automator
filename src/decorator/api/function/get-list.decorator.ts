@@ -9,10 +9,10 @@ import { EErrorStringAction } from "../../../enum";
 import { ErrorException } from "../../../utility/error-exception.utility";
 import { ErrorString } from "../../../utility/error-string.utility";
 
+// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
 export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
 	const { entity }: IApiFunctionProperties = properties;
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
 	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (
 			this: {
@@ -42,6 +42,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListEx
 		return {
 			count: items.length,
 			// @ts-ignore
+			// eslint-disable-next-line @elsikora/sonar/no-nested-conditional,@elsikora/unicorn/no-nested-ternary
 			currentPage: items.length === 0 ? 0 : properties.skip ? Math.ceil(properties.skip / properties?.take) + 1 : 1,
 			items,
 			totalCount,

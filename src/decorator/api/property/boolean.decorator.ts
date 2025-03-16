@@ -20,8 +20,8 @@ export function ApiPropertyBoolean(properties: TApiPropertyBaseProperties): <Y>(
 
 function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
-		description: `${properties.entity.name} ${properties.description || ""}`,
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: properties.isNullable,
 		type: EApiPropertyDataType.BOOLEAN,
 	};
@@ -54,7 +54,7 @@ function buildFormatDecorators(properties: TApiPropertyBaseProperties): Array<Pr
 	const isArray: boolean = properties.isArray ?? false;
 
 	if (properties.isResponse === undefined || !properties.isResponse) {
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		decorators.push(IsBoolean({ each: isArray }));
 	}
 
@@ -131,15 +131,15 @@ function buildTransformDecorators(properties: TApiPropertyBaseProperties): Array
 							return [false];
 						}
 
-						return value.map((value_: any) => {
-							if (value_ === undefined || value_ === null) return false;
+						return value.map((_value: any) => {
+							if (_value === undefined || _value === null) return false;
 
-							if (typeof value_ === "boolean") return value_;
+							if (typeof _value === "boolean") return _value;
 
-							if (typeof value_ === "number") return value_ !== 0;
+							if (typeof _value === "number") return _value !== 0;
 
-							if (typeof value_ === "string") {
-								const normalized: string = value_.toLowerCase().trim();
+							if (typeof _value === "string") {
+								const normalized: string = _value.toLowerCase().trim();
 
 								if (normalized === "true" || normalized === "1") return true;
 

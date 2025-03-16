@@ -24,8 +24,8 @@ export function ApiPropertyUUID(properties: TApiPropertyUuidProperties): <Y>(tar
 
 function buildApiPropertyOptions(uuidExample: string, properties: TApiPropertyUuidProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
-		description: `${properties.entity.name} ${properties.description ?? "identifier"}`,
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		description: `${String(properties.entity.name)} ${properties.description ?? "identifier"}`,
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: properties.isNullable,
 		type: EApiPropertyDataType.STRING,
 	};
@@ -67,7 +67,7 @@ function buildFormatDecorators(properties: TApiPropertyUuidProperties): Array<Pr
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
 
-	// eslint-disable-next-line @elsikora-typescript/naming-convention
+	// eslint-disable-next-line @elsikora/typescript/naming-convention
 	decorators.push(IsUUID(undefined, { each: isArray }));
 
 	return decorators;

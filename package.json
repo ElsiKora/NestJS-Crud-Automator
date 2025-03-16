@@ -1,6 +1,6 @@
 {
 	"name": "@elsikora/nestjs-crud-automator",
-	"version": "1.6.2",
+	"version": "1.6.3-dev.1",
 	"description": "A library for automating the creation of CRUD operations in NestJS.",
 	"keywords": [
 		"NestJS",
@@ -17,58 +17,54 @@
 	"license": "MIT",
 	"author": "ElsiKora",
 	"type": "module",
-	"exports": {
-		".": {
-			"require": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		}
-	},
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"files": [
 		"dist"
 	],
 	"scripts": {
+		"prebuild": "rimraf dist",
 		"build": "npm run prebuild && tsc -p tsconfig.build.json && node scripts/modify-package.js",
+		"commit": "cz",
 		"format": "prettier --check .",
 		"format:fix": "prettier --write .",
-		"lint": "eslint ./src && prettier --check .",
-		"lint:fix": "eslint ./src --fix && prettier --write .",
-		"patch": "changeset",
-		"prebuild": "rm -rf dist/*",
-		"release": "npm install && npm run build && changeset publish"
+		"lint": "eslint ./",
+		"lint:all": "npm run lint && npm run lint:types",
+		"lint:all:fix": "npm run lint:fix && npm run lint:types:fix",
+		"lint:fix": "eslint --fix ./",
+		"lint:types": "tsc --noEmit",
+		"lint:types:fix": "tsc --noEmit --skipLibCheck",
+		"prepare": "husky",
+		"release": "semantic-release"
 	},
 	"devDependencies": {
-		"@changesets/cli": "^2.27.12",
-		"@elsikora/eslint-config": "^3.2.3",
-		"@elsikora/eslint-plugin-nestjs-typed": "^2.0.4",
-		"@eslint-react/eslint-plugin": "^1.24.1",
-		"@eslint/compat": "^1.2.5",
-		"@eslint/js": "^9.19.0",
-		"@stylistic/eslint-plugin": "^2.13.0",
-		"@types/eslint__js": "^8.42.3",
+		"@commitlint/cli": "^19.8.0",
+		"@commitlint/config-conventional": "^19.8.0",
+		"@elsikora/commitizen-plugin-commitlint-ai": "^1.0.0",
+		"@elsikora/eslint-config": "^3.7.6",
+		"@elsikora/eslint-plugin-nestjs-typed": "^3.0.1",
+		"@saithodev/semantic-release-backmerge": "^4.0.1",
+		"@semantic-release/changelog": "^6.0.3",
+		"@semantic-release/commit-analyzer": "^13.0.1",
+		"@semantic-release/git": "^10.0.1",
+		"@semantic-release/github": "^11.0.1",
+		"@semantic-release/npm": "^12.0.1",
+		"@semantic-release/release-notes-generator": "^14.0.3",
 		"@types/lodash": "^4.17.14",
 		"@types/node": "^22.9.3",
-		"@typescript-eslint/eslint-plugin": "^8.21.0",
-		"@typescript-eslint/parser": "^8.21.0",
-		"eslint-config-prettier": "^10.0.1",
-		"eslint-plugin-check-file": "^2.8.0",
-		"eslint-plugin-jsonc": "^2.19.1",
-		"eslint-plugin-n": "^17.15.1",
+		"commitizen": "^4.3.1",
+		"conventional-changelog-conventionalcommits": "^8.0.0",
+		"eslint": "^9.22.0",
+		"eslint-plugin-n": "^17.16.2",
 		"eslint-plugin-ng-module-sort": "^1.3.1",
-		"eslint-plugin-package-json": "^0.21.1",
-		"eslint-plugin-perfectionist": "^4.7.0",
-		"eslint-plugin-prettier": "^5.2.3",
-		"eslint-plugin-regexp": "^2.7.0",
-		"eslint-plugin-sonarjs": "^3.0.1",
-		"eslint-plugin-tailwindcss": "^3.18.0",
-		"eslint-plugin-typeorm": "^0.0.19",
+		"eslint-plugin-no-secrets": "^2.2.1",
 		"eslint-plugin-typeorm-typescript": "^0.5.0",
-		"eslint-plugin-unicorn": "^56.0.1",
-		"eslint-plugin-yml": "^1.16.0",
-		"prettier": "^3.4.2",
-		"typescript": "^5.7.3",
-		"typescript-eslint": "^8.21.0"
+		"husky": "^9.1.7",
+		"lint-staged": "^15.5.0",
+		"prettier": "^3.5.3",
+		"rimraf": "^6.0.1",
+		"semantic-release": "^24.2.3",
+		"typescript": "^5.7.3"
 	},
 	"peerDependencies": {
 		"@nestjs/common": ">=11.0.5",
@@ -85,5 +81,14 @@
 	},
 	"publishConfig": {
 		"access": "public"
+	},
+	"config": {
+		"commitizen": {
+			"path": "@elsikora/commitizen-plugin-commitlint-ai"
+		}
+	},
+	"dependencies": {
+		"reflect-metadata": "^0.2.2",
+		"rxjs": "^7.8.2"
 	}
 }

@@ -36,9 +36,5 @@ export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApi
 		return true;
 	}
 
-	if (dtoType !== EApiDtoType.REQUEST && dtoType !== EApiDtoType.QUERY && dtoType !== EApiDtoType.BODY) {
-		return true;
-	}
-
-	return false;
+	return dtoType !== EApiDtoType.REQUEST && dtoType !== EApiDtoType.QUERY && dtoType !== EApiDtoType.BODY;
 }

@@ -1,3 +1,4 @@
+/* eslint-disable @elsikora/sonar/void-use */
 import type { IApiGetListResponseResult } from "../../interface";
 import type { TApiFunctionGetManyProperties, TApiFunctionUpdateCriteria } from "../../type";
 import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "../../type";
@@ -15,6 +16,7 @@ export class ApiServiceBase<E> {
 		return Promise.resolve();
 	}
 
+	// eslint-disable-next-line @elsikora/sonar/no-identical-functions
 	get(properties: TApiFunctionGetProperties<E>): Promise<E> {
 		void properties;
 

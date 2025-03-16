@@ -9,7 +9,7 @@ import { ApiPropertyNumber } from "../../decorator/api/property/number.decorator
 import { EApiDtoType, EApiPropertyNumberType, EApiRouteType, EFilterOrderDirection } from "../../enum";
 import { IApiEntity } from "../../interface";
 import { AllOrNoneOfListedProperties } from "../../validator";
-import { FilterOrderByFromEntity } from "../api";
+import { FilterOrderByFromEntity } from "../api/filter-order-by-from-entity.utility";
 import { CapitalizeString } from "../capitalize-string.utility";
 
 export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType): Type<unknown> {

@@ -24,6 +24,7 @@ type TValidationContext = {
 const DEFAULT_OPERATION_CONFIGS: Record<EFilterOperation, TOperationConfig> = {
 	[EFilterOperation.BETWEEN]: {
 		argumentType: EArgumentType.ARRAY,
+		// eslint-disable-next-line @elsikora/typescript/no-magic-numbers
 		exactLength: 2,
 	},
 	[EFilterOperation.CONT]: {
@@ -98,6 +99,7 @@ const DEFAULT_OPERATION_CONFIGS: Record<EFilterOperation, TOperationConfig> = {
 	},
 };
 
+// eslint-disable-next-line @elsikora/typescript/naming-convention
 @ValidatorConstraint({ async: false, name: "has-paired-custom-suffixes-fields" })
 export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterface {
 	defaultMessage(properties: ValidationArguments): string {
@@ -121,7 +123,7 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 
 				const operatorField: string = `${baseName}[${operatorSuffix}]`;
 				const operatorValue: string = indexableObject[operatorField] as string;
-				const operator = operatorValue as EFilterOperation;
+				const operator: EFilterOperation = operatorValue as EFilterOperation;
 				const operatorConfig: TOperationConfig = DEFAULT_OPERATION_CONFIGS[operator];
 
 				if (!operatorConfig) {
@@ -147,8 +149,9 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 					return `group "${baseName}" can only have one value with suffix [${[...valueSuffixes].join(", ")}] when operator is present`;
 				}
 
-				const value: unknown = indexableObject[valueFields[0]];
-				const isArray = Array.isArray(value);
+				// @ts-ignore
+				const value: Array<any> = indexableObject[valueFields[0]];
+				const isArray: boolean = Array.isArray(value);
 
 				if (operatorConfig.argumentType === EArgumentType.ARRAY && !isArray) {
 					return `group "${baseName}" with ${operator} operation requires an array value`;
@@ -216,7 +219,7 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 			if (groupSuffixes.has(operatorSuffix)) {
 				const operatorField: string = `${baseName}[${operatorSuffix}]`;
 				const operatorValue: string = indexableObject[operatorField] as string;
-				const operator = operatorValue as EFilterOperation;
+				const operator: EFilterOperation = operatorValue as EFilterOperation;
 				const operatorConfig: TOperationConfig = DEFAULT_OPERATION_CONFIGS[operator];
 
 				if (!operatorConfig) return false;
@@ -228,12 +231,13 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 					continue;
 				}
 
-				const valueFields: Array<string> = valueSuffixes.filter((suffix: string) => groupSuffixes.has(suffix)).map((suffix) => `${baseName}[${suffix}]`);
+				const valueFields: Array<string> = valueSuffixes.filter((suffix: string) => groupSuffixes.has(suffix)).map((suffix: string) => `${baseName}[${suffix}]`);
 
 				if (valueFields.length !== 1) return false;
 
-				const value: unknown = indexableObject[valueFields[0]];
-				const isArray = Array.isArray(value);
+				// @ts-ignore
+				const value: Array<any> = indexableObject[valueFields[0]];
+				const isArray: boolean = Array.isArray(value);
 
 				if (operatorConfig.argumentType === EArgumentType.ARRAY && !isArray) return false;
 

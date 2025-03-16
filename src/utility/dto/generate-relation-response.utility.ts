@@ -13,7 +13,7 @@ export function DtoGenerateRelationResponse<E>(entity: IApiEntity<E>, method: EA
 		id!: string;
 	}
 
-	Object.defineProperty(GeneratedRelationDTO, "name", { value: `${entity.name}${CamelCaseString(method)}${CamelCaseString(dtoType)}${CapitalizeString(propertyName)}DTO` });
+	Object.defineProperty(GeneratedRelationDTO, "name", { value: `${String(entity.name)}${CamelCaseString(method)}${CamelCaseString(dtoType)}${CapitalizeString(propertyName)}DTO` });
 
 	return GeneratedRelationDTO;
 }

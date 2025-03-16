@@ -8,6 +8,6 @@ export function analyzeEntityMetadata(entity: IApiBaseEntity): void {
 
 	const bankMetadata: TMetadata | undefined = storage.getMetadata(entity.name ?? "UnknownResource");
 
-	// eslint-disable-next-line @elsikora-sonar/void-use
+	// eslint-disable-next-line @elsikora/sonar/void-use
 	void bankMetadata;
 }

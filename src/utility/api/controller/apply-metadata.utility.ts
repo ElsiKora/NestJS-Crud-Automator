@@ -16,9 +16,9 @@ export function ApiControllerApplyMetadata<E>(target: object, targetPrototype: o
 	let routeArgumentsMetadata: unknown = {};
 	const parameterTypes: Array<any> = [];
 
-	const requestDto: Type<unknown> | undefined = routeConfig.dto?.request || DtoGenerate(properties.entity, entity, method, EApiDtoType.REQUEST, routeConfig.autoDto?.[EApiDtoType.REQUEST], routeConfig.authentication?.guard);
-	const queryDto: Type<unknown> | undefined = routeConfig.dto?.query || DtoGenerate(properties.entity, entity, method, EApiDtoType.QUERY, routeConfig.autoDto?.[EApiDtoType.QUERY], routeConfig.authentication?.guard);
-	const bodyDto: Type<unknown> | undefined = routeConfig.dto?.body || DtoGenerate(properties.entity, entity, method, EApiDtoType.BODY, routeConfig.autoDto?.[EApiDtoType.BODY], routeConfig.authentication?.guard);
+	const requestDto: Type<unknown> | undefined = routeConfig.dto?.request ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.REQUEST, routeConfig.autoDto?.[EApiDtoType.REQUEST], routeConfig.authentication?.guard);
+	const queryDto: Type<unknown> | undefined = routeConfig.dto?.query ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.QUERY, routeConfig.autoDto?.[EApiDtoType.QUERY], routeConfig.authentication?.guard);
+	const bodyDto: Type<unknown> | undefined = routeConfig.dto?.body ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.BODY, routeConfig.autoDto?.[EApiDtoType.BODY], routeConfig.authentication?.guard);
 
 	if (requestDto) {
 		routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.PARAM, parameterIndex);

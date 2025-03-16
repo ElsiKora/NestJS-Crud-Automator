@@ -1,4 +1,8 @@
+/* eslint-disable @elsikora/sonar/todo-tag */
+
 // TODO: Implement check for all exceptions
+
+import type { HttpException } from "@nestjs/common";
 
 import {
 	BadRequestException,
@@ -57,7 +61,7 @@ const ExceptionMap: Record<EException, any> = {
 };
 
 export function IsErrorOfType(error: unknown, type: EException): boolean {
-	const ExceptionClass = ExceptionMap[type];
+	const ExceptionClass: HttpException = ExceptionMap[type] as HttpException;
 
 	if (!ExceptionClass) {
 		return false;
@@ -67,15 +71,12 @@ export function IsErrorOfType(error: unknown, type: EException): boolean {
 		return false;
 	}
 
+	// @ts-ignore
 	if (error instanceof ExceptionClass) {
 		return true;
 	}
 
-	const errorObject = error as { name?: string };
+	const errorObject: { name?: string } = error as { name?: string };
 
-	if (errorObject.name && errorObject.name === ExceptionClass.name) {
-		return true;
-	}
-
-	return false;
+	return !!(errorObject.name && errorObject.name === ExceptionClass.name);
 }

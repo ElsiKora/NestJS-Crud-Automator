@@ -18,14 +18,14 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 					let correlationId: string = request.headers["x-correlation-id"] as string;
 					const errorResponse: object | string = error.getResponse();
 
-					if (correlationId === undefined) {
+					if (correlationId == undefined) {
 						correlationId = randomUUID();
 					}
 
 					let customErrorResponse: Record<string, any> = {};
 					customErrorResponse.statusCode = HttpStatus.TOO_MANY_REQUESTS;
 
-					if (typeof errorResponse === "object" && errorResponse !== null) {
+					if (typeof errorResponse === "object" && errorResponse != null) {
 						customErrorResponse = { ...errorResponse };
 					} else {
 						customErrorResponse.message = errorResponse;
@@ -40,13 +40,13 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 					let correlationId: string = request.headers["x-correlation-id"] as string;
 					const errorResponse: object | string = error.getResponse();
 
-					if (correlationId === undefined) {
+					if (correlationId == undefined) {
 						correlationId = randomUUID();
 					}
 
 					let customErrorResponse: Record<string, any> = {};
 
-					if (typeof errorResponse === "object" && errorResponse !== null) {
+					if (typeof errorResponse === "object" && errorResponse != null) {
 						customErrorResponse = { ...errorResponse };
 					} else {
 						customErrorResponse.message = errorResponse;
@@ -59,7 +59,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 					const request: FastifyRequest = context.switchToHttp().getRequest<FastifyRequest>();
 					let correlationId: string = request.headers["x-correlation-id"] as string;
 
-					if (correlationId === undefined) {
+					if (correlationId == undefined) {
 						correlationId = randomUUID();
 					}
 

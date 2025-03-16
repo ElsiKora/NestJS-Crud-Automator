@@ -26,9 +26,9 @@ export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): <Y>
 
 function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
-		description: `${properties.entity.name} ${properties.description ?? ""}`,
+		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
 		format: getFormat(properties),
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: properties.isNullable,
 		type: getType(properties),
 	};
@@ -70,21 +70,21 @@ function buildFormatDecorators(properties: TApiPropertyNumberProperties): Array<
 	if (properties.isResponse === undefined || !properties.isResponse) {
 		switch (properties.format) {
 			case EApiPropertyNumberType.DOUBLE: {
-				// eslint-disable-next-line @elsikora-typescript/naming-convention
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsNumber({}, { each: isArray }));
 
 				break;
 			}
 
 			case EApiPropertyNumberType.INTEGER: {
-				// eslint-disable-next-line @elsikora-typescript/naming-convention
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsInt({ each: isArray }));
 
 				break;
 			}
 
 			default: {
-				throw new Error("ApiPropertyNumber error: Format is not valid for number property: " + properties.format);
+				throw new Error(`ApiPropertyNumber error: Format is not valid for number property: ${String(properties.format)}`);
 			}
 		}
 
@@ -99,7 +99,7 @@ function buildNumberValidationDecorators(properties: TApiPropertyNumberPropertie
 	const isArray: boolean = properties.isArray ?? false;
 
 	if ((properties.isResponse === false || properties.isResponse === undefined) && properties.multipleOf !== undefined) {
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		decorators.push(IsDivisibleBy(properties.multipleOf, { each: isArray }), Min(properties.minimum, { each: isArray }), Max(properties.maximum, { each: isArray }));
 	}
 

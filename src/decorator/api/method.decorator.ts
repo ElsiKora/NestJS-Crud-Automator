@@ -7,175 +7,176 @@ import { Throttle } from "@nestjs/throttler";
 import { EApiAction } from "../../enum";
 import { DtoGenerateException } from "../../utility/dto/generate-exception.utility";
 
+// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters,@elsikora/typescript/no-unsafe-function-type
 export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	let summary: string = "";
 
 	if (options.action) {
 		switch (options.action) {
 			case EApiAction.ARCHIVE: {
-				summary = `Archiving \`${options.entity.name}\``;
+				summary = `Archiving \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.AUTHENTICATION: {
-				summary = `Authentication of \`${options.entity.name}\``;
+				summary = `Authentication of \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.BULK_CREATE: {
-				summary = `Bulk creating \`${options.entity.name}s\``;
+				summary = `Bulk creating \`${String(options.entity.name)}s\``;
 
 				break;
 			}
 
 			case EApiAction.BULK_DELETE: {
-				summary = `Bulk deleting \`${options.entity.name}s\``;
+				summary = `Bulk deleting \`${String(options.entity.name)}s\``;
 
 				break;
 			}
 
 			case EApiAction.BULK_UPDATE: {
-				summary = `Bulk updating \`${options.entity.name}s\``;
+				summary = `Bulk updating \`${String(options.entity.name)}s\``;
 
 				break;
 			}
 
 			case EApiAction.CONFIRMATION: {
-				summary = `Confirmation of \`${options.entity.name}\``;
+				summary = `Confirmation of \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.CREATE: {
-				summary = `Creating \`${options.entity.name}\``;
+				summary = `Creating \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.DELETE: {
-				summary = `Deleting \`${options.entity.name}\``;
+				summary = `Deleting \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.DOWNLOAD: {
-				summary = `Downloading \`${options.entity.name}\``;
+				summary = `Downloading \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.DUPLICATE: {
-				summary = `Duplicating \`${options.entity.name}\``;
+				summary = `Duplicating \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.EXPORT: {
-				summary = `Exporting \`${options.entity.name}\``;
+				summary = `Exporting \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.FETCH: {
-				summary = `Fetching \`${options.entity.name}\``;
+				summary = `Fetching \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.FETCH_LIST: {
-				summary = `Fetching list of \`${options.entity.name}s\``;
+				summary = `Fetching list of \`${String(options.entity.name)}s\``;
 
 				break;
 			}
 
 			case EApiAction.FETCH_SIMPLE_LIST: {
-				summary = `Fetching simple list of \`${options.entity.name}s\``;
+				summary = `Fetching simple list of \`${String(options.entity.name)}s\``;
 
 				break;
 			}
 
 			case EApiAction.FETCH_SPECIFIED: {
-				summary = `Fetching \`${options.entity.name}\` of specified item`;
+				summary = `Fetching \`${String(options.entity.name)}\` of specified item`;
 
 				break;
 			}
 
 			case EApiAction.IMPORT: {
-				summary = `Importing \`${options.entity.name}\``;
+				summary = `Importing \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.LOGOUT: {
-				summary = `Logout of \`${options.entity.name}\``;
+				summary = `Logout of \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.PARTIAL_UPDATE: {
-				summary = `Partial updating \`${options.entity.name}\``;
+				summary = `Partial updating \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.REFRESH: {
-				summary = `Refresh of \`${options.entity.name}\``;
+				summary = `Refresh of \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.REGISTRATION: {
-				summary = `Registration of \`${options.entity.name}\``;
+				summary = `Registration of \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.RESTORE: {
-				summary = `Restoring \`${options.entity.name}\``;
+				summary = `Restoring \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.SEARCH: {
-				summary = `Searching for \`${options.entity.name}\``;
+				summary = `Searching for \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.SUBSCRIBE: {
-				summary = `Subscribing to \`${options.entity.name}\``;
+				summary = `Subscribing to \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.UNSUBSCRIBE: {
-				summary = `Unsubscribing from \`${options.entity.name}\``;
+				summary = `Unsubscribing from \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.UPDATE: {
-				summary = `Updating \`${options.entity.name}\``;
+				summary = `Updating \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.UPLOAD: {
-				summary = `Uploading \`${options.entity.name}\``;
+				summary = `Uploading \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.VALIDATE: {
-				summary = `Validating \`${options.entity.name}\``;
+				summary = `Validating \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.VERIFY: {
-				summary = `Verifying \`${options.entity.name}\``;
+				summary = `Verifying \`${String(options.entity.name)}\``;
 
 				break;
 			}
@@ -185,169 +186,169 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 	if (!options.description && options.action) {
 		switch (options.action) {
 			case EApiAction.ARCHIVE: {
-				options.description = `This method is used for archiving \`${options.entity.name}\``;
+				options.description = `This method is used for archiving \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.AUTHENTICATION: {
-				options.description = `This method is used for authentication of \`${options.entity.name}\``;
+				options.description = `This method is used for authentication of \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.BULK_CREATE: {
-				options.description = `This method is used for bulk creating \`${options.entity.name}s\``;
+				options.description = `This method is used for bulk creating \`${String(options.entity.name)}s\``;
 
 				break;
 			}
 
 			case EApiAction.BULK_DELETE: {
-				options.description = `This method is used for bulk deleting \`${options.entity.name}s\``;
+				options.description = `This method is used for bulk deleting \`${String(options.entity.name)}s\``;
 
 				break;
 			}
 
 			case EApiAction.BULK_UPDATE: {
-				options.description = `This method is used for bulk updating \`${options.entity.name}s\``;
+				options.description = `This method is used for bulk updating \`${String(options.entity.name)}s\``;
 
 				break;
 			}
 
 			case EApiAction.CONFIRMATION: {
-				options.description = `This method is used for confirmation of \`${options.entity.name}\``;
+				options.description = `This method is used for confirmation of \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.CREATE: {
-				options.description = `This method is used for creating \`${options.entity.name}\``;
+				options.description = `This method is used for creating \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.DELETE: {
-				options.description = `This method is used for deleting \`${options.entity.name}\``;
+				options.description = `This method is used for deleting \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.DOWNLOAD: {
-				options.description = `This method is used for downloading \`${options.entity.name}\``;
+				options.description = `This method is used for downloading \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.DUPLICATE: {
-				options.description = `This method is used for duplicating \`${options.entity.name}\``;
+				options.description = `This method is used for duplicating \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.EXPORT: {
-				options.description = `This method is used for exporting \`${options.entity.name}\``;
+				options.description = `This method is used for exporting \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.FETCH: {
-				options.description = `This method is used for fetching \`${options.entity.name}\``;
+				options.description = `This method is used for fetching \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.FETCH_LIST: {
-				options.description = `This method is used for fetching list of \`${options.entity.name}s\``;
+				options.description = `This method is used for fetching list of \`${String(options.entity.name)}s\``;
 
 				break;
 			}
 
 			case EApiAction.FETCH_SIMPLE_LIST: {
-				options.description = `This method is used for fetching simple list of \`${options.entity.name}s\``;
+				options.description = `This method is used for fetching simple list of \`${String(options.entity.name)}s\``;
 
 				break;
 			}
 
 			case EApiAction.FETCH_SPECIFIED: {
-				options.description = `This method is used for fetching \`${options.entity.name}\` of specified item`;
+				options.description = `This method is used for fetching \`${String(options.entity.name)}\` of specified item`;
 
 				break;
 			}
 
 			case EApiAction.IMPORT: {
-				options.description = `This method is used for importing \`${options.entity.name}\``;
+				options.description = `This method is used for importing \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.LOGOUT: {
-				options.description = `This method is used for logout of \`${options.entity.name}\``;
+				options.description = `This method is used for logout of \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.PARTIAL_UPDATE: {
-				options.description = `This method is used for partial updating \`${options.entity.name}\``;
+				options.description = `This method is used for partial updating \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.REFRESH: {
-				options.description = `This method is used for refresh of \`${options.entity.name}\``;
+				options.description = `This method is used for refresh of \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.REGISTRATION: {
-				options.description = `This method is used for registration of \`${options.entity.name}\``;
+				options.description = `This method is used for registration of \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.RESTORE: {
-				options.description = `This method is used for restoring \`${options.entity.name}\``;
+				options.description = `This method is used for restoring \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.SEARCH: {
-				options.description = `This method is used for searching \`${options.entity.name}\``;
+				options.description = `This method is used for searching \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.SUBSCRIBE: {
-				options.description = `This method is used for subscribing to \`${options.entity.name}\``;
+				options.description = `This method is used for subscribing to \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.UNSUBSCRIBE: {
-				options.description = `This method is used for unsubscribing from \`${options.entity.name}\``;
+				options.description = `This method is used for unsubscribing from \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.UPDATE: {
-				options.description = `This method is used for updating \`${options.entity.name}\``;
+				options.description = `This method is used for updating \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.UPLOAD: {
-				options.description = `This method is used for uploading \`${options.entity.name}\``;
+				options.description = `This method is used for uploading \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.VALIDATE: {
-				options.description = `This method is used for validating \`${options.entity.name}\``;
+				options.description = `This method is used for validating \`${String(options.entity.name)}\``;
 
 				break;
 			}
 
 			case EApiAction.VERIFY: {
-				options.description = `This method is used for verifying \`${options.entity.name}\``;
+				options.description = `This method is used for verifying \`${String(options.entity.name)}\``;
 
 				break;
 			}
@@ -369,7 +370,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 	}
 
 	if (options.responses) {
-		if (options.responses.unauthorized) {
+		if (options.responses.hasUnauthorized) {
 			decorators.push(
 				ApiUnauthorizedResponse({
 					description: "Unauthorized",
@@ -378,7 +379,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			);
 		}
 
-		if (options.responses.forbidden) {
+		if (options.responses.hasForbidden) {
 			decorators.push(
 				ApiForbiddenResponse({
 					description: "Forbiddeb",
@@ -387,7 +388,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			);
 		}
 
-		if (options.responses.internalServerError) {
+		if (options.responses.hasInternalServerError) {
 			decorators.push(
 				ApiInternalServerErrorResponse({
 					description: "Internal Server Error",
@@ -396,7 +397,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			);
 		}
 
-		if (options.responses.notFound) {
+		if (options.responses.hasNotFound) {
 			decorators.push(
 				ApiNotFoundResponse({
 					description: "Not Found",
@@ -405,7 +406,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			);
 		}
 
-		if (options.responses.badRequest) {
+		if (options.responses.hasBadRequest) {
 			decorators.push(
 				ApiBadRequestResponse({
 					description: "Bad Request",
@@ -414,7 +415,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			);
 		}
 
-		if (options.responses.tooManyRequests) {
+		if (options.responses.hasTooManyRequests) {
 			decorators.push(
 				ApiTooManyRequestsResponse({
 					description: "Too Many Requests",
@@ -424,6 +425,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 		}
 	}
 
+	// eslint-disable-next-line @elsikora/typescript/switch-exhaustiveness-check
 	switch (options.method) {
 		case RequestMethod.DELETE: {
 			decorators.push(Delete(options.path));
@@ -456,13 +458,13 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 		}
 
 		default: {
-			throw new Error(`ApiMethod error: Method ${options.method} is not supported`);
+			throw new Error(`ApiMethod error: Method ${String(options.method)} is not supported`);
 		}
 	}
 
 	if (options.authentication) {
 		if (options.authentication?.bearerStrategies?.length) {
-			for (const strategy of options.authentication?.bearerStrategies) {
+			for (const strategy of options.authentication?.bearerStrategies ?? []) {
 				decorators.push(ApiBearerAuth(strategy));
 			}
 		}

@@ -5,6 +5,7 @@ import { EApiRouteType } from "../../../../enum";
 
 export class DtoStrategyRequest implements IDtoStrategy {
 	getDecoratorConfig(method: EApiRouteType, _metadata: TApiPropertyDescribeProperties): TApiPropertyDescribeDtoProperties {
+		// eslint-disable-next-line @elsikora/sonar/no-all-duplicated-branches
 		switch (method) {
 			case EApiRouteType.CREATE: {
 				return { isRequired: true };

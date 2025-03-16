@@ -18,8 +18,8 @@ export function ApiPropertyObject(options: TApiPropertyObjectProperties): <Y>(ta
 
 function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
-		description: `${properties.entity.name} ${properties.description || ""}`,
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: properties.isNullable,
 		type: properties.type,
 	};
@@ -35,7 +35,7 @@ function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiP
 		apiPropertyOptions.minItems = properties.minItems;
 		apiPropertyOptions.maxItems = properties.maxItems;
 		apiPropertyOptions.uniqueItems = properties.isUniqueItems;
-		apiPropertyOptions.description = `Array of ${properties.entity.name} ${properties.description || ""}`;
+		apiPropertyOptions.description = `Array of ${String(properties.entity.name)} ${properties.description ?? ""}`;
 	}
 
 	return apiPropertyOptions;
@@ -54,7 +54,7 @@ function buildObjectValidationDecorators(properties: TApiPropertyObjectPropertie
 	const isArray: boolean = properties.isArray ?? false;
 
 	if (!properties.isResponse && properties.shouldValidateNested) {
-		// eslint-disable-next-line @elsikora-typescript/naming-convention
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		decorators.push(ValidateNested({ each: isArray }));
 	}
 

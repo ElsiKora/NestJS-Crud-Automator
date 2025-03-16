@@ -10,9 +10,9 @@ export const ApiController =
 		factory.init();
 
 		const ValidatedController: { new (...arguments_: Array<any>): {}; prototype: {} } = class extends target {
-			// eslint-disable-next-line @typescript-eslint/naming-convention
+			// eslint-disable-next-line @elsikora/typescript/no-useless-constructor
 			constructor(..._arguments: any) {
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+				// eslint-disable-next-line @elsikora/typescript/no-unsafe-argument
 				super(..._arguments);
 			}
 		};

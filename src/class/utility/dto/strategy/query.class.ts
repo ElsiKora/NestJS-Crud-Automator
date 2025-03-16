@@ -1,3 +1,4 @@
+/* eslint-disable @elsikora/sonar/no-duplicated-branches */
 import type { IDtoStrategy } from "../../../../interface";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "../../../../type";
 

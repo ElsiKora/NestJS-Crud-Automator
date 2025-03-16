@@ -1,24 +1,28 @@
 name: Snyk Security Scan
+
+env:
+  NODE_VERSION: 20
+  SNYK_GLOBAL_PACKAGES: snyk snyk-to-html
+
 on: push
 
 jobs:
-  build:
+  snyk_security_scan:
     name: Snyk Security Scan
-    environment: snyk-npm
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Setup Snyk
         run: |
-          npm install snyk -g
-          npm install snyk-to-html -g
+          npm install ${{ env.SNYK_GLOBAL_PACKAGES }} -g
           snyk auth ${{ secrets.SNYK_TOKEN }}
 
       - name: Install dependencies

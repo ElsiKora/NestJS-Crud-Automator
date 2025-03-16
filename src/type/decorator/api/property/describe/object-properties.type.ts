@@ -8,6 +8,7 @@ import type { TApiPropertyDescribeBaseProperties } from "./base-properties.type"
 
 export type TApiPropertyDescribeObjectProperties = {
 	additionalProperties?: boolean | ReferenceObject | SchemaObject;
+	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
 	dataType: [Function] | Function | Type<unknown> | undefined;
 	description: string;
 	shouldValidateNested?: boolean;
