@@ -1,1 +1,0 @@
-{"version":3,"file":"index.js","sourceRoot":"","sources":["index.ts"],"names":[],"mappings":"","sourcesContent":["export type * from \"./array\";\nexport type * from \"./properties.type\";\nexport type * from \"./request-properties.type\";\nexport type * from \"./response-properties.type\";\n"]}

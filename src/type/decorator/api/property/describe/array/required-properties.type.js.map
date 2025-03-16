@@ -1,1 +1,0 @@
-{"version":3,"file":"required-properties.type.js","sourceRoot":"","sources":["required-properties.type.ts"],"names":[],"mappings":"","sourcesContent":["export type TApiPropertyDescribeArrayRequiredProperties = {\n\tisArray: true;\n\tisUniqueItems: boolean;\n\tmaxItems: number;\n\tminItems: number;\n};\n"]}

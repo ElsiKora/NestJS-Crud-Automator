@@ -1,1 +1,0 @@
-{"version":3,"file":"index.js","sourceRoot":"","sources":["index.ts"],"names":[],"mappings":"","sourcesContent":["export type * from \"./method-map.type\";\nexport type * from \"./method-name-map.type\";\nexport type * from \"./method-name.type\";\nexport type * from \"./target-methods.type\";\n"]}

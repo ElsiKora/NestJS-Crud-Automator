@@ -1,1 +1,0 @@
-{"version":3,"file":"api-authentication-request.interface.js","sourceRoot":"","sources":["api-authentication-request.interface.ts"],"names":[],"mappings":"","sourcesContent":["import type { IApiBaseEntity } from \"./api-base-entity.interface\";\n\nexport interface IApiAuthenticationRequest {\n\tuser: IApiBaseEntity;\n}\n"]}

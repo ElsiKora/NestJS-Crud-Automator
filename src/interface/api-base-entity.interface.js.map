@@ -1,1 +1,0 @@
-{"version":3,"file":"api-base-entity.interface.js","sourceRoot":"","sources":["api-base-entity.interface.ts"],"names":[],"mappings":"","sourcesContent":["import type { ObjectLiteral } from \"typeorm\";\n\nexport interface IApiBaseEntity extends ObjectLiteral {\n\tname?: string;\n}\n"]}

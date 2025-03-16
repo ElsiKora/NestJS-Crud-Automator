@@ -1,1 +1,0 @@
-{"version":3,"file":"column.interface.js","sourceRoot":"","sources":["column.interface.ts"],"names":[],"mappings":"","sourcesContent":["import type { ColumnType } from \"typeorm\";\n\nexport interface IApiEntityColumn<E> {\n\tisPrimary: boolean;\n\tmetadata?: Record<string, any>;\n\tname: keyof E;\n\ttype: ColumnType;\n}\n"]}

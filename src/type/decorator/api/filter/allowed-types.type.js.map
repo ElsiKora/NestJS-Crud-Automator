@@ -1,1 +1,0 @@
-{"version":3,"file":"allowed-types.type.js","sourceRoot":"","sources":["allowed-types.type.ts"],"names":[],"mappings":"","sourcesContent":["export type TApiFilterAllowedTypes = Date | number | string;\n"]}

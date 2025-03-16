@@ -1,1 +1,0 @@
-{"version":3,"file":"response-properties.type.js","sourceRoot":"","sources":["response-properties.type.ts"],"names":[],"mappings":"","sourcesContent":["export type TApiPropertyBaseResponseProperties = {\n\tisExpose?: boolean;\n\tisResponse: true;\n};\n"]}

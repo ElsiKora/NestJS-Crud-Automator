@@ -1,1 +1,0 @@
-{"version":3,"file":"primary-column.interface.js","sourceRoot":"","sources":["primary-column.interface.ts"],"names":[],"mappings":"","sourcesContent":["export interface IApiControllerPrimaryColumn<E> {\n\tkey: keyof E;\n\tvalue: string;\n}\n"]}

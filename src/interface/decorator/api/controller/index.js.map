@@ -1,1 +1,0 @@
-{"version":3,"file":"index.js","sourceRoot":"","sources":["index.ts"],"names":[],"mappings":"","sourcesContent":["export type * from \"./base.interface\";\nexport type * from \"./properties\";\nexport type * from \"./properties.interface\";\n"]}

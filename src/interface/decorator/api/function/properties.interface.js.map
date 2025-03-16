@@ -1,1 +1,0 @@
-{"version":3,"file":"properties.interface.js","sourceRoot":"","sources":["properties.interface.ts"],"names":[],"mappings":"","sourcesContent":["import type { IApiBaseEntity } from \"../../../api-base-entity.interface\";\n\nexport interface IApiFunctionProperties {\n\tentity: IApiBaseEntity;\n}\n"]}

@@ -1,1 +1,0 @@
-{"version":3,"file":"delete-criteria.type.js","sourceRoot":"","sources":["delete-criteria.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { FindOptionsWhere } from \"typeorm\";\n\nexport type TApiFunctionDeleteCriteria<E> = FindOptionsWhere<E>;\n"]}

@@ -1,1 +1,0 @@
-{"version":3,"file":"index.js","sourceRoot":"","sources":["index.ts"],"names":[],"mappings":"","sourcesContent":["export type * from \"./column.interface\";\nexport type * from \"./interface\";\n"]}

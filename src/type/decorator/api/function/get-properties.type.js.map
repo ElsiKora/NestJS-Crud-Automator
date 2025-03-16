@@ -1,1 +1,0 @@
-{"version":3,"file":"get-properties.type.js","sourceRoot":"","sources":["get-properties.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { FindOneOptions } from \"typeorm\";\n\nexport type TApiFunctionGetProperties<E> = FindOneOptions<E>;\n"]}

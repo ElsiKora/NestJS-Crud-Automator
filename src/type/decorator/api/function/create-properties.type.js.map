@@ -1,1 +1,0 @@
-{"version":3,"file":"create-properties.type.js","sourceRoot":"","sources":["create-properties.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { DeepPartial } from \"typeorm\";\n\nexport type TApiFunctionCreateProperties<E> = DeepPartial<E>;\n"]}

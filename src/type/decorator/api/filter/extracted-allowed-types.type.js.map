@@ -1,1 +1,0 @@
-{"version":3,"file":"extracted-allowed-types.type.js","sourceRoot":"","sources":["extracted-allowed-types.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { TApiFilterAllowedTypes } from \"./allowed-types.type\";\n\nexport type TApiFilterExctractedAllowedTypes<T> = T extends TApiFilterAllowedTypes ? T : never;\n"]}

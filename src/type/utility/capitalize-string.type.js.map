@@ -1,1 +1,0 @@
-{"version":3,"file":"capitalize-string.type.js","sourceRoot":"","sources":["capitalize-string.type.ts"],"names":[],"mappings":"","sourcesContent":["export type TCapitalizeString<S extends string> = S extends `${infer F}${infer R}` ? `${Uppercase<F>}${R}` : S;\n"]}

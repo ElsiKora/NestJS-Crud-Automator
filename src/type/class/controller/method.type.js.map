@@ -1,1 +1,0 @@
-{"version":3,"file":"method.type.js","sourceRoot":"","sources":["method.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { ApiServiceBase } from \"../../../class\";\nimport type { TApiServiceKeys } from \"../../decorator\";\n\nexport type TApiControllerMethod<E> = {\n\tservice: ApiServiceBase<E>;\n} & Partial<TApiServiceKeys<E>>;\n"]}

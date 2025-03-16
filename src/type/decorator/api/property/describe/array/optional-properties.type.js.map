@@ -1,1 +1,0 @@
-{"version":3,"file":"optional-properties.type.js","sourceRoot":"","sources":["optional-properties.type.ts"],"names":[],"mappings":"","sourcesContent":["export type TApiPropertyDescribeArrayOptionalProperties = {\n\tisArray?: false;\n};\n"]}

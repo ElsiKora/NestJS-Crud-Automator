@@ -1,1 +1,0 @@
-{"version":3,"file":"request-properties.type.js","sourceRoot":"","sources":["request-properties.type.ts"],"names":[],"mappings":"","sourcesContent":["export type TApiPropertyBaseRequestProperties = {\n\tisRequired: boolean;\n\tisResponse?: false;\n};\n"]}

@@ -1,1 +1,0 @@
-{"version":3,"file":"index.js","sourceRoot":"","sources":["index.ts"],"names":[],"mappings":"","sourcesContent":["export type * from \"./data.type\";\nexport type * from \"./is-validation-properties.type\";\nexport type * from \"./object-to-transform.type\";\n"]}

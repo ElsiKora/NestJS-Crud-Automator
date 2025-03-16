@@ -1,1 +1,0 @@
-{"version":3,"file":"api-dto-validator.interface.js","sourceRoot":"","sources":["api-dto-validator.interface.ts"],"names":[],"mappings":"","sourcesContent":["export interface IApiDtoValidator {\n\t// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type\n\tconstraintClass: Function;\n\toptions?: Array<any>;\n}\n"]}

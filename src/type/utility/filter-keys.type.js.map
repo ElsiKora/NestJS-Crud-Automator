@@ -1,1 +1,0 @@
-{"version":3,"file":"filter-keys.type.js","sourceRoot":"","sources":["filter-keys.type.ts"],"names":[],"mappings":"","sourcesContent":["import type { EFilterOperation } from \"../../enum/filter-operation.enum\";\n\nexport type TFilterKeys<T> = {\n\t[K in keyof T]: {\n\t\toperator: EFilterOperation;\n\t\tvalue: T[K];\n\t};\n};\n"]}
