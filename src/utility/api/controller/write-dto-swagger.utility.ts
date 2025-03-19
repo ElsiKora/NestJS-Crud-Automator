@@ -32,7 +32,7 @@ export function ApiControllerWriteDtoSwagger<E>(target: object, entity: IApiEnti
 
 			if (metadata)
 				for (const key of Object.keys(metadata)) {
-					if (metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] && metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME].type === EApiPropertyDescribeType.RELATION) {
+					if (metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] && metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]?.type === EApiPropertyDescribeType.RELATION) {
 						const relationClass: { new (): any; prototype: any } = class GeneratedDTO {
 							constructor() {
 								Object.defineProperty(this, "id", {
