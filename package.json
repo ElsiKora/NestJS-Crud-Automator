@@ -17,13 +17,20 @@
 	"license": "MIT",
 	"author": "ElsiKora",
 	"type": "module",
+	"exports": {
+		".": {
+			"require": "./dist/cjs/index.js",
+			"import": "./dist/esm/index.js"
+		}
+	},
 	"main": "dist/cjs/index.js",
+	"module": "dist/esm/index.js",
 	"files": [
 		"dist"
 	],
 	"scripts": {
 		"prebuild": "rimraf dist",
-		"build": "npm run prebuild && rollup -c && node scripts/modify-package.js",
+		"build": "npm run prebuild && rollup -c",
 		"commit": "cz",
 		"format": "prettier --check .",
 		"format:fix": "prettier --write .",
@@ -36,11 +43,22 @@
 		"prepare": "husky",
 		"release": "semantic-release"
 	},
+	"config": {
+		"commitizen": {
+			"path": "@elsikora/commitizen-plugin-commitlint-ai"
+		}
+	},
+	"dependencies": {
+		"@elsikora/pluralizer": "^2.0.0",
+		"@rollup/plugin-node-resolve": "^16.0.1",
+		"reflect-metadata": "^0.2.2",
+		"rxjs": "^7.8.2"
+	},
 	"devDependencies": {
 		"@commitlint/cli": "^19.8.0",
 		"@commitlint/config-conventional": "^19.8.0",
 		"@elsikora/commitizen-plugin-commitlint-ai": "^1.0.0",
-		"@elsikora/eslint-config": "^3.7.7",
+		"@elsikora/eslint-config": "^3.7.9",
 		"@elsikora/eslint-plugin-nestjs-typed": "^3.0.1",
 		"@rollup/plugin-typescript": "^12.1.2",
 		"@saithodev/semantic-release-backmerge": "^4.0.1",
@@ -64,6 +82,7 @@
 		"prettier": "^3.5.3",
 		"rimraf": "^6.0.1",
 		"rollup": "^4.36.0",
+		"rollup-plugin-generate-package-json": "^3.2.0",
 		"semantic-release": "^24.2.3",
 		"tslib": "^2.8.1",
 		"typescript": "^5.8.2"
@@ -83,16 +102,5 @@
 	},
 	"publishConfig": {
 		"access": "public"
-	},
-	"config": {
-		"commitizen": {
-			"path": "@elsikora/commitizen-plugin-commitlint-ai"
-		}
-	},
-	"dependencies": {
-		"@elsikora/pluralizer": "^1.0.2",
-		"@rollup/plugin-node-resolve": "^16.0.1",
-		"reflect-metadata": "^0.2.2",
-		"rxjs": "^7.8.2"
 	}
 }

@@ -12,5 +12,9 @@ export function ApiControllerWriteMethod<E>(thisTarget: Record<string, (method: 
 		throw ErrorException(`Reserved method ${methodName} already defined`);
 	}
 
-	thisTarget[method](method, methodName, properties, entityMetadata);
+	if (thisTarget[method]) {
+		thisTarget[method](method, methodName, properties, entityMetadata);
+	} else {
+		throw ErrorException(`Method ${methodName} not implemented`);
+	}
 }

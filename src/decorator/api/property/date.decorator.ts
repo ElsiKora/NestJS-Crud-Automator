@@ -192,7 +192,7 @@ function getExample(format: EApiPropertyDateType): string {
 
 	switch (format) {
 		case EApiPropertyDateType.DATE: {
-			return startOfYearUTCDate.toISOString().split("T")[0];
+			return startOfYearUTCDate.toISOString().split("T")[0] ?? "2025-01-01";
 		}
 
 		case EApiPropertyDateType.DATE_TIME: {
@@ -200,7 +200,7 @@ function getExample(format: EApiPropertyDateType): string {
 		}
 
 		case EApiPropertyDateType.TIME: {
-			return startOfYearUTCDate.toISOString().split("T")[1].split(".")[0];
+			return startOfYearUTCDate.toISOString().split("T")[1]?.split(".")[0] ?? "00:00:00";
 		}
 	}
 }

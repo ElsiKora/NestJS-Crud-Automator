@@ -7,7 +7,7 @@ export function CamelCaseString(string: string): string {
 	const cleanString: string = string.replaceAll(/[^a-z0-9]+/gi, " ");
 	const words: Array<string> = cleanString.split(" ");
 
-	if (words.length === 1) {
+	if (words.length === 1 && words[0]) {
 		const word: string = words[0].toLowerCase();
 
 		if (knownCompounds[word]) {

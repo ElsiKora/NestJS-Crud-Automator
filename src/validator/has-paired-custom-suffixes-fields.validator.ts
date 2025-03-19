@@ -150,6 +150,7 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 				}
 
 				// @ts-ignore
+				// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
 				const value: Array<any> = indexableObject[valueFields[0]];
 				const isArray: boolean = Array.isArray(value);
 
@@ -236,6 +237,7 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 				if (valueFields.length !== 1) return false;
 
 				// @ts-ignore
+				// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
 				const value: Array<any> = indexableObject[valueFields[0]];
 				const isArray: boolean = Array.isArray(value);
 
