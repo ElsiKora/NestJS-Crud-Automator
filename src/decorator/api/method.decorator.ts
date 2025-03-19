@@ -1,5 +1,6 @@
 import type { IApiBaseEntity, IApiMethodProperties } from "../../interface";
 
+import pluralizer from "@elsikora/pluralizer";
 import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, UseGuards } from "@nestjs/common";
 import { ApiBadRequestResponse, ApiBearerAuth, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
@@ -14,13 +15,13 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 	if (options.action) {
 		switch (options.action) {
 			case EApiAction.ARCHIVE: {
-				summary = `Archiving \`${String(options.entity.name)}\``;
+				summary = `Archiving \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.AUTHENTICATION: {
-				summary = `Authentication of \`${String(options.entity.name)}\``;
+				summary = `Authentication of \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
@@ -44,43 +45,43 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			}
 
 			case EApiAction.CONFIRMATION: {
-				summary = `Confirmation of \`${String(options.entity.name)}\``;
+				summary = `Confirmation of \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.CREATE: {
-				summary = `Creating \`${String(options.entity.name)}\``;
+				summary = `Creating \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.DELETE: {
-				summary = `Deleting \`${String(options.entity.name)}\``;
+				summary = `Deleting \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.DOWNLOAD: {
-				summary = `Downloading \`${String(options.entity.name)}\``;
+				summary = `Downloading \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.DUPLICATE: {
-				summary = `Duplicating \`${String(options.entity.name)}\``;
+				summary = `Duplicating \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.EXPORT: {
-				summary = `Exporting \`${String(options.entity.name)}\``;
+				summary = `Exporting \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.FETCH: {
-				summary = `Fetching \`${String(options.entity.name)}\``;
+				summary = `Fetching \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
@@ -98,85 +99,85 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			}
 
 			case EApiAction.FETCH_SPECIFIED: {
-				summary = `Fetching \`${String(options.entity.name)}\` of specified item`;
+				summary = `Fetching \`${pluralizer.toPlural(String(options.entity.name))}\` of specified item`;
 
 				break;
 			}
 
 			case EApiAction.IMPORT: {
-				summary = `Importing \`${String(options.entity.name)}\``;
+				summary = `Importing \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.LOGOUT: {
-				summary = `Logout of \`${String(options.entity.name)}\``;
+				summary = `Logout of \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.PARTIAL_UPDATE: {
-				summary = `Partial updating \`${String(options.entity.name)}\``;
+				summary = `Partial updating \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.REFRESH: {
-				summary = `Refresh of \`${String(options.entity.name)}\``;
+				summary = `Refresh of \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.REGISTRATION: {
-				summary = `Registration of \`${String(options.entity.name)}\``;
+				summary = `Registration of \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.RESTORE: {
-				summary = `Restoring \`${String(options.entity.name)}\``;
+				summary = `Restoring \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.SEARCH: {
-				summary = `Searching for \`${String(options.entity.name)}\``;
+				summary = `Searching for \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.SUBSCRIBE: {
-				summary = `Subscribing to \`${String(options.entity.name)}\``;
+				summary = `Subscribing to \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.UNSUBSCRIBE: {
-				summary = `Unsubscribing from \`${String(options.entity.name)}\``;
+				summary = `Unsubscribing from \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.UPDATE: {
-				summary = `Updating \`${String(options.entity.name)}\``;
+				summary = `Updating \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.UPLOAD: {
-				summary = `Uploading \`${String(options.entity.name)}\``;
+				summary = `Uploading \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.VALIDATE: {
-				summary = `Validating \`${String(options.entity.name)}\``;
+				summary = `Validating \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.VERIFY: {
-				summary = `Verifying \`${String(options.entity.name)}\``;
+				summary = `Verifying \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
@@ -186,13 +187,13 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 	if (!options.description && options.action) {
 		switch (options.action) {
 			case EApiAction.ARCHIVE: {
-				options.description = `This method is used for archiving \`${String(options.entity.name)}\``;
+				options.description = `This method is used for archiving \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.AUTHENTICATION: {
-				options.description = `This method is used for authentication of \`${String(options.entity.name)}\``;
+				options.description = `This method is used for authentication of \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
@@ -216,43 +217,43 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			}
 
 			case EApiAction.CONFIRMATION: {
-				options.description = `This method is used for confirmation of \`${String(options.entity.name)}\``;
+				options.description = `This method is used for confirmation of \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.CREATE: {
-				options.description = `This method is used for creating \`${String(options.entity.name)}\``;
+				options.description = `This method is used for creating \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.DELETE: {
-				options.description = `This method is used for deleting \`${String(options.entity.name)}\``;
+				options.description = `This method is used for deleting \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.DOWNLOAD: {
-				options.description = `This method is used for downloading \`${String(options.entity.name)}\``;
+				options.description = `This method is used for downloading \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.DUPLICATE: {
-				options.description = `This method is used for duplicating \`${String(options.entity.name)}\``;
+				options.description = `This method is used for duplicating \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.EXPORT: {
-				options.description = `This method is used for exporting \`${String(options.entity.name)}\``;
+				options.description = `This method is used for exporting \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.FETCH: {
-				options.description = `This method is used for fetching \`${String(options.entity.name)}\``;
+				options.description = `This method is used for fetching \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
@@ -270,85 +271,85 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			}
 
 			case EApiAction.FETCH_SPECIFIED: {
-				options.description = `This method is used for fetching \`${String(options.entity.name)}\` of specified item`;
+				options.description = `This method is used for fetching \`${pluralizer.toPlural(String(options.entity.name))}\` of specified item`;
 
 				break;
 			}
 
 			case EApiAction.IMPORT: {
-				options.description = `This method is used for importing \`${String(options.entity.name)}\``;
+				options.description = `This method is used for importing \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.LOGOUT: {
-				options.description = `This method is used for logout of \`${String(options.entity.name)}\``;
+				options.description = `This method is used for logout of \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.PARTIAL_UPDATE: {
-				options.description = `This method is used for partial updating \`${String(options.entity.name)}\``;
+				options.description = `This method is used for partial updating \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.REFRESH: {
-				options.description = `This method is used for refresh of \`${String(options.entity.name)}\``;
+				options.description = `This method is used for refresh of \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.REGISTRATION: {
-				options.description = `This method is used for registration of \`${String(options.entity.name)}\``;
+				options.description = `This method is used for registration of \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.RESTORE: {
-				options.description = `This method is used for restoring \`${String(options.entity.name)}\``;
+				options.description = `This method is used for restoring \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.SEARCH: {
-				options.description = `This method is used for searching \`${String(options.entity.name)}\``;
+				options.description = `This method is used for searching \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.SUBSCRIBE: {
-				options.description = `This method is used for subscribing to \`${String(options.entity.name)}\``;
+				options.description = `This method is used for subscribing to \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.UNSUBSCRIBE: {
-				options.description = `This method is used for unsubscribing from \`${String(options.entity.name)}\``;
+				options.description = `This method is used for unsubscribing from \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.UPDATE: {
-				options.description = `This method is used for updating \`${String(options.entity.name)}\``;
+				options.description = `This method is used for updating \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.UPLOAD: {
-				options.description = `This method is used for uploading \`${String(options.entity.name)}\``;
+				options.description = `This method is used for uploading \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.VALIDATE: {
-				options.description = `This method is used for validating \`${String(options.entity.name)}\``;
+				options.description = `This method is used for validating \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
 
 			case EApiAction.VERIFY: {
-				options.description = `This method is used for verifying \`${String(options.entity.name)}\``;
+				options.description = `This method is used for verifying \`${pluralizer.toPlural(String(options.entity.name))}\``;
 
 				break;
 			}
