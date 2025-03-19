@@ -1,6 +1,6 @@
 {
 	"name": "@elsikora/nestjs-crud-automator",
-	"version": "1.6.3",
+	"version": "1.6.4-dev.1",
 	"description": "A library for automating the creation of CRUD operations in NestJS.",
 	"keywords": [
 		"NestJS",
@@ -17,14 +17,13 @@
 	"license": "MIT",
 	"author": "ElsiKora",
 	"type": "module",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
+	"main": "dist/cjs/index.js",
 	"files": [
 		"dist"
 	],
 	"scripts": {
 		"prebuild": "rimraf dist",
-		"build": "npm run prebuild && tsc -p tsconfig.build.json && node scripts/modify-package.js",
+		"build": "npm run prebuild && rollup -c && node scripts/modify-package.js",
 		"commit": "cz",
 		"format": "prettier --check .",
 		"format:fix": "prettier --write .",
@@ -41,8 +40,9 @@
 		"@commitlint/cli": "^19.8.0",
 		"@commitlint/config-conventional": "^19.8.0",
 		"@elsikora/commitizen-plugin-commitlint-ai": "^1.0.0",
-		"@elsikora/eslint-config": "^3.7.6",
+		"@elsikora/eslint-config": "^3.7.7",
 		"@elsikora/eslint-plugin-nestjs-typed": "^3.0.1",
+		"@rollup/plugin-typescript": "^12.1.2",
 		"@saithodev/semantic-release-backmerge": "^4.0.1",
 		"@semantic-release/changelog": "^6.0.3",
 		"@semantic-release/commit-analyzer": "^13.0.1",
@@ -50,8 +50,8 @@
 		"@semantic-release/github": "^11.0.1",
 		"@semantic-release/npm": "^12.0.1",
 		"@semantic-release/release-notes-generator": "^14.0.3",
-		"@types/lodash": "^4.17.14",
-		"@types/node": "^22.9.3",
+		"@types/lodash": "^4.17.16",
+		"@types/node": "^22.13.10",
 		"commitizen": "^4.3.1",
 		"conventional-changelog-conventionalcommits": "^8.0.0",
 		"eslint": "^9.22.0",
@@ -63,8 +63,10 @@
 		"lint-staged": "^15.5.0",
 		"prettier": "^3.5.3",
 		"rimraf": "^6.0.1",
+		"rollup": "^4.36.0",
 		"semantic-release": "^24.2.3",
-		"typescript": "^5.7.3"
+		"tslib": "^2.8.1",
+		"typescript": "^5.8.2"
 	},
 	"peerDependencies": {
 		"@nestjs/common": ">=11.0.5",
@@ -88,6 +90,8 @@
 		}
 	},
 	"dependencies": {
+		"@elsikora/pluralizer": "^1.0.2",
+		"@rollup/plugin-node-resolve": "^16.0.1",
 		"reflect-metadata": "^0.2.2",
 		"rxjs": "^7.8.2"
 	}
