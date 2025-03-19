@@ -1,8 +1,9 @@
 import { Type } from "@nestjs/common";
 import { PickType } from "@nestjs/swagger";
+import { ApiPropertyNumber } from "src/decorator/api/property/number.decorator";
+import { ApiPropertyObject } from "src/decorator/api/property/object.decorator";
 
 import LIST_DTO_CONSTANT from "../../constant/dto/list.constant";
-import { ApiPropertyNumber, ApiPropertyObject } from "../../decorator";
 import { EApiPropertyNumberType } from "../../enum";
 
 type TClassType<T = any> = new (...arguments_: Array<any>) => T;

@@ -1,7 +1,6 @@
-import type { IApiEntity, IDtoGenerateFactory } from "src/interface";
-import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeNumberProperties } from "src/type";
-
 import type { EApiRouteType } from "../../../../../enum";
+import type { IApiEntity, IDtoGenerateFactory } from "../../../../../interface";
+import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeNumberProperties } from "../../../../../type";
 
 import { ApiPropertyNumber } from "../../../../../decorator/api/property/number.decorator";
 import { EApiDtoType } from "../../../../../enum";
