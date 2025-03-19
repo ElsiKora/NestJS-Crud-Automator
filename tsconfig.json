@@ -1,31 +1,32 @@
 {
 	"compilerOptions": {
-		"module": "CommonJS",
-		"target": "ES2021",
-		"esModuleInterop": true,
-		"declaration": true,
-		"declarationDir": "dist/types",
-		"experimentalDecorators": true,
-		"strict": true,
-
 		"allowSyntheticDefaultImports": true,
 		"baseUrl": "./",
+		"declaration": true,
+		"emitDeclarationOnly": false,
 		"emitDecoratorMetadata": true,
+		"esModuleInterop": true,
+		"experimentalDecorators": true,
+		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
-		"forceConsistentCasingInFileNames": false,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
 		"noFallthroughCasesInSwitch": false,
+		"noImplicitOverride": true,
 		"noImplicitReturns": true,
+		"noUncheckedIndexedAccess": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"outDir": "./dist",
+		"paths": {
+			"typeorm/*": ["./node_modules/typeorm/*"]
+		},
 		"removeComments": true,
 		"skipLibCheck": true,
 		"sourceMap": true,
-		"emitDeclarationOnly": false,
-		"paths": {
-			"typeorm/*": ["./node_modules/typeorm/*"]
-		}
+		"strict": true,
+		"target": "ESNext"
 	},
-	"include": ["src/**/*.ts", "src/**/*.tsx"],
-	"exclude": ["node_modules", "dist"]
+	"exclude": ["node_modules", "dist"],
+	"include": ["src/**/*.ts", "src/**/*.tsx"]
 }
