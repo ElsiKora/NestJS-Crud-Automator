@@ -8,6 +8,7 @@ import { HttpException, InternalServerErrorException } from "@nestjs/common";
 import { EErrorStringAction } from "../../../enum";
 import { ErrorException } from "../../../utility/error-exception.utility";
 import { ErrorString } from "../../../utility/error-string.utility";
+import { LoggerUtility } from "../../../utility/logger.utility";
 
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
 export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
@@ -47,6 +48,8 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 		if (error instanceof HttpException) {
 			throw error;
 		}
+
+		LoggerUtility.getLogger("ApiFunctionCreate").verbose(`Error creating entity ${String(entity.name)}:`, error);
 
 		throw new InternalServerErrorException(
 			ErrorString({

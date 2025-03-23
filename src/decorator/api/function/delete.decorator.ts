@@ -8,6 +8,7 @@ import { HttpException, InternalServerErrorException } from "@nestjs/common";
 import { EErrorStringAction } from "../../../enum";
 import { ErrorException } from "../../../utility/error-exception.utility";
 import { ErrorString } from "../../../utility/error-string.utility";
+import { LoggerUtility } from "../../../utility/logger.utility";
 
 import { ApiFunctionGet } from "./get.decorator";
 
@@ -68,6 +69,8 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExe
 		if (error instanceof HttpException) {
 			throw error;
 		}
+
+		LoggerUtility.getLogger("ApiFunctionDelete").verbose(`Error deleting entity ${String(entity.name)}:`, error);
 
 		throw new InternalServerErrorException(
 			ErrorString({

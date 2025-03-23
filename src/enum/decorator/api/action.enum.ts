@@ -21,6 +21,7 @@ export enum EApiAction {
 	REGISTRATION = "registration",
 	RESTORE = "restore",
 	SEARCH = "search",
+	SOLVE = "solve",
 	SUBSCRIBE = "subscribe",
 	UNSUBSCRIBE = "unsubscribe",
 	UPDATE = "update",
