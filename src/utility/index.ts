@@ -7,3 +7,4 @@ export * from "./error-string.utility";
 export * from "./generate-entity-information.utility";
 export * from "./get-entity-columns.utility";
 export * from "./is-error-of-type.utility";
+export * from "./logger.utility";
