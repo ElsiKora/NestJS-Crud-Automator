@@ -10,6 +10,7 @@ export type TApiRequestTransformer<E> = {
 		  }
 		| keyof IApiGetListResponseResult<E>
 		| keyof Partial<E>;
+	shouldSetValueEvenIfMissing?: boolean;
 } & (
 	| {
 			type: EApiControllerRequestTransformerType.DYNAMIC;

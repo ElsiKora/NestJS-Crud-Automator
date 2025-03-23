@@ -1,5 +1,5 @@
 import type { EApiRouteType } from "../../../enum";
-import type { IApiControllerProperties, IApiGetListResponseResult } from "../../../interface";
+import type { IApiBaseEntity, IApiControllerProperties, IApiGetListResponseResult } from "../../../interface";
 import type { TApiControllerGetListQuery, TApiControllerPropertiesRouteBaseRequestTransformers, TApiControllerPropertiesRouteBaseResponseTransformers, TApiControllerTransformDataData, TApiControllerTransformDataObjectToTransform, TApiRequestTransformer, TApiTransformDataIsValidationProperties } from "../../../type";
 
 import { InternalServerErrorException } from "@nestjs/common";
@@ -36,7 +36,7 @@ export function ApiControllerTransformData<E, R extends EApiRouteType>(transform
 	}
 }
 
-function handleTransformation<E>(object: TApiTransformDataIsValidationProperties<E>, key: keyof E | keyof IApiGetListResponseResult<E> | keyof TApiControllerGetListQuery<E>, value: unknown): void {
+function handleTransformation<E>(object: TApiTransformDataIsValidationProperties<E>, key: keyof E | keyof IApiGetListResponseResult<E> | keyof TApiControllerGetListQuery<E>, value: unknown, entity: IApiBaseEntity, shouldSetValueEvenIfMissing: boolean = false): void {
 	if (isApiGetListResponseResult(object)) {
 		if (key in object) {
 			(object[key as keyof IApiGetListResponseResult<E>] as unknown) = value;
@@ -47,6 +47,15 @@ function handleTransformation<E>(object: TApiTransformDataIsValidationProperties
 		}
 	} else if (isPartialE(object) && key in object) {
 		(object[key as keyof E] as unknown) = value;
+	} else if (shouldSetValueEvenIfMissing) {
+		(object[key as keyof E] as unknown) = value;
+	} else {
+		throw new InternalServerErrorException(
+			ErrorString({
+				entity,
+				type: EErrorStringAction.KEY_FOR_TRANSFORM_NOT_IN_OBJECT,
+			}),
+		);
 	}
 }
 
@@ -77,13 +86,13 @@ function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToT
 							);
 						}
 
-						handleTransformation(objectToTransform, transformer.key, data.authenticationRequest.user);
+						handleTransformation(objectToTransform, transformer.key, data.authenticationRequest.user, properties.entity, transformer.shouldSetValueEvenIfMissing);
 
 						break;
 					}
 
 					case TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_IP: {
-						handleTransformation(objectToTransform, transformer.key, data.ip);
+						handleTransformation(objectToTransform, transformer.key, data.ip, properties.entity, transformer.shouldSetValueEvenIfMissing);
 
 						break;
 					}
@@ -98,7 +107,7 @@ function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToT
 							);
 						}
 
-						handleTransformation(objectToTransform, transformer.key, data.headers["x-signature"]);
+						handleTransformation(objectToTransform, transformer.key, data.headers["x-signature"], properties.entity, transformer.shouldSetValueEvenIfMissing);
 
 						break;
 					}
@@ -113,7 +122,7 @@ function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToT
 							);
 						}
 
-						handleTransformation(objectToTransform, transformer.key, data.headers["x-timestamp"]);
+						handleTransformation(objectToTransform, transformer.key, data.headers["x-timestamp"], properties.entity, transformer.shouldSetValueEvenIfMissing);
 
 						break;
 					}
@@ -128,7 +137,7 @@ function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToT
 							);
 						}
 
-						handleTransformation(objectToTransform, transformer.key, data.headers["user-agent"]);
+						handleTransformation(objectToTransform, transformer.key, data.headers["user-agent"], properties.entity, transformer.shouldSetValueEvenIfMissing);
 
 						break;
 					}
@@ -156,7 +165,7 @@ function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToT
 
 		case EApiControllerRequestTransformerType.STATIC: {
 			const staticValue: string = transformer.value;
-			handleTransformation(objectToTransform, transformer.key, staticValue);
+			handleTransformation(objectToTransform, transformer.key, staticValue, properties.entity, transformer.shouldSetValueEvenIfMissing);
 
 			break;
 		}
