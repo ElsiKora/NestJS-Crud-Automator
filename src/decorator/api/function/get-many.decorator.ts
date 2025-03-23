@@ -9,6 +9,7 @@ import { HttpException, InternalServerErrorException, NotFoundException } from "
 import { EErrorStringAction } from "../../../enum";
 import { ErrorException } from "../../../utility/error-exception.utility";
 import { ErrorString } from "../../../utility/error-string.utility";
+import { LoggerUtility } from "../../../utility/logger.utility";
 
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
 export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
@@ -54,6 +55,8 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 		if (error instanceof HttpException) {
 			throw error;
 		}
+
+		LoggerUtility.getLogger("ApiFunctionGetMany").verbose(`Error fetching multiple entity ${String(entity.name)}:`, error);
 
 		throw new InternalServerErrorException(
 			ErrorString({

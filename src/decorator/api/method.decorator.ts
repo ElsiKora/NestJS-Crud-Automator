@@ -146,6 +146,12 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 				break;
 			}
 
+			case EApiAction.SOLVE: {
+				summary = `Solving \`${pluralizer.toSingular(String(options.entity.name))}\``;
+
+				break;
+			}
+
 			case EApiAction.SUBSCRIBE: {
 				summary = `Subscribing to \`${pluralizer.toSingular(String(options.entity.name))}\``;
 
@@ -314,6 +320,12 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 
 			case EApiAction.SEARCH: {
 				options.description = `This method is used for searching \`${pluralizer.toSingular(String(options.entity.name))}\``;
+
+				break;
+			}
+
+			case EApiAction.SOLVE: {
+				options.description = `This method is used for solving \`${pluralizer.toSingular(String(options.entity.name))}\``;
 
 				break;
 			}
