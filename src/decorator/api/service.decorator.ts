@@ -1,4 +1,4 @@
-import type { FindOptionsRelations } from "typeorm";
+import type { EntityManager, FindOptionsRelations } from "typeorm";
 
 import type { IApiBaseEntity, IApiGetListResponseResult } from "../../interface";
 import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties, TApiServiceProperties } from "../../type";
@@ -24,7 +24,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						configurable: true,
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
-						value: async function (properties: TApiFunctionGetListProperties<E>, relations: FindOptionsRelations<E>): Promise<IApiGetListResponseResult<E>> {
+						value: async function (properties: TApiFunctionGetListProperties<E>, relations: FindOptionsRelations<E>, eventManager?: EntityManager): Promise<IApiGetListResponseResult<E>> {
 							const apiFunctionDecorator: (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
 								entity,
 								relations,
@@ -52,7 +52,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.GET_LIST, descriptor);
 
-							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionGetListProperties<E>) => Promise<IApiGetListResponseResult<E>>).call(this, properties);
+							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionGetListProperties<E>, relations: FindOptionsRelations<E>, eventManager?: EntityManager) => Promise<IApiGetListResponseResult<E>>).call(this, properties, relations, eventManager);
 						},
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
@@ -65,7 +65,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						configurable: true,
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
-						value: async function (properties: TApiFunctionGetProperties<E>): Promise<E> {
+						value: async function (properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager): Promise<E> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
 								entity,
 								type: EApiFunctionType.GET,
@@ -92,7 +92,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.GET, descriptor);
 
-							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionGetProperties<E>) => Promise<E>).call(this, properties);
+							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager) => Promise<E>).call(this, properties, eventManager);
 						},
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
@@ -105,7 +105,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						configurable: true,
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
-						value: async function (properties: TApiFunctionGetManyProperties<E>): Promise<E> {
+						value: async function (properties: TApiFunctionGetManyProperties<E>, eventManager?: EntityManager): Promise<Array<E>> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
 								entity,
 								type: EApiFunctionType.GET_MANY,
@@ -132,7 +132,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.GET_MANY, descriptor);
 
-							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionGetManyProperties<E>) => Promise<E>).call(this, properties);
+							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionGetManyProperties<E>, eventManager?: EntityManager) => Promise<Array<E>>).call(this, properties, eventManager);
 						},
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
@@ -145,7 +145,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						configurable: true,
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
-						value: async function (properties: TApiFunctionCreateProperties<E>): Promise<E> {
+						value: async function (properties: TApiFunctionCreateProperties<E>, eventManager?: EntityManager): Promise<E> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
 								entity,
 								type: EApiFunctionType.CREATE,
@@ -172,7 +172,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.CREATE, descriptor);
 
-							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionCreateProperties<E>) => Promise<E>).call(this, properties);
+							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionCreateProperties<E>, eventManager?: EntityManager) => Promise<E>).call(this, properties, eventManager);
 						},
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
@@ -185,7 +185,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						configurable: true,
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
-						value: async function (criteria: TApiFunctionUpdateCriteria<E>, properties: TApiFunctionUpdateProperties<E>): Promise<E> {
+						value: async function (criteria: TApiFunctionUpdateCriteria<E>, properties: TApiFunctionUpdateProperties<E>, eventManager?: EntityManager): Promise<E> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
 								entity,
 								type: EApiFunctionType.UPDATE,
@@ -212,7 +212,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.UPDATE, descriptor);
 
-							return (decoratedDescriptor.value as (this: any, criteria: TApiFunctionUpdateCriteria<E>, properties: TApiFunctionUpdateProperties<E>) => Promise<E>).call(this, criteria, properties);
+							return (decoratedDescriptor.value as (this: any, criteria: TApiFunctionUpdateCriteria<E>, properties: TApiFunctionUpdateProperties<E>, eventManager?: EntityManager) => Promise<E>).call(this, criteria, properties, eventManager);
 						},
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
@@ -225,7 +225,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						configurable: true,
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
-						value: async function (criteria: TApiFunctionDeleteCriteria<E>): Promise<void> {
+						value: async function (criteria: TApiFunctionDeleteCriteria<E>, eventManager?: EntityManager): Promise<void> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
 								entity,
 								type: EApiFunctionType.DELETE,
@@ -252,7 +252,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.DELETE, descriptor);
 
-							return (decoratedDescriptor.value as (this: any, criteria: TApiFunctionDeleteCriteria<E>) => Promise<void>).call(this, criteria);
+							return (decoratedDescriptor.value as (this: any, criteria: TApiFunctionDeleteCriteria<E>, eventManager?: EntityManager) => Promise<void>).call(this, criteria, eventManager);
 						},
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,

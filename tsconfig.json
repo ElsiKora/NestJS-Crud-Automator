@@ -21,7 +21,6 @@
 		"paths": {
 			"typeorm/*": ["./node_modules/typeorm/*"]
 		},
-		"removeComments": true,
 		"skipLibCheck": true,
 		"sourceMap": true,
 		"strict": true,
