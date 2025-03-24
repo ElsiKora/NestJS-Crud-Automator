@@ -1,3 +1,15 @@
+# [1.8.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.7.0...v1.8.0) (2025-03-24)
+
+
+### Bug Fixes
+
+* **api:** correct return type for getmany function from single entity to array ([8527d53](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/8527d530e24ce5485b98e17fc7a1b374079713a5))
+
+
+### Features
+
+* **api:** add transaction support to api service methods ([328fbe4](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/328fbe49be0fb38399a0ddc11ba3550c70ffc985))
+
 # [1.7.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.6.5...v1.7.0) (2025-03-23)
 
 
