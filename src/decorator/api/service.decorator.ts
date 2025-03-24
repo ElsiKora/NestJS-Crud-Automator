@@ -105,7 +105,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						configurable: true,
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
-						value: async function (properties: TApiFunctionGetManyProperties<E>, eventManager?: EntityManager): Promise<E> {
+						value: async function (properties: TApiFunctionGetManyProperties<E>, eventManager?: EntityManager): Promise<Array<E>> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
 								entity,
 								type: EApiFunctionType.GET_MANY,
@@ -132,7 +132,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							const decoratedDescriptor: PropertyDescriptor = apiFunctionDecorator(this, EApiFunctionType.GET_MANY, descriptor);
 
-							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionGetManyProperties<E>, eventManager?: EntityManager) => Promise<E>).call(this, properties, eventManager);
+							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionGetManyProperties<E>, eventManager?: EntityManager) => Promise<Array<E>>).call(this, properties, eventManager);
 						},
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
