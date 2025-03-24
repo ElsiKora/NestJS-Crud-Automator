@@ -1,4 +1,5 @@
-import type { Repository } from "typeorm";
+import type { EntityManager, Repository } from "typeorm";
+import type { EntitySchema } from "typeorm/index";
 
 import type { IApiBaseEntity, IApiFunctionProperties } from "../../../interface";
 import type { IApiFunctionGetManyExecutorProperties } from "../../../interface/decorator/api/function/get-many-executor-properties.interface";
@@ -26,6 +27,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 				repository: Repository<E>;
 			},
 			properties: TApiFunctionGetManyProperties<E>,
+			eventManager?: EntityManager,
 		): Promise<Array<E>> {
 			const repository: Repository<E> = this.repository;
 
@@ -33,7 +35,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 				throw ErrorException("Repository is not available in this context");
 			}
 
-			return executor<E>({ entity, properties, repository });
+			return executor<E>({ entity, eventManager, properties, repository });
 		};
 
 		return descriptor;
@@ -41,10 +43,17 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 }
 
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyExecutorProperties<E>): Promise<Array<E>> {
-	const { entity, properties, repository }: IApiFunctionGetManyExecutorProperties<E> = options;
+	const { entity, eventManager, properties, repository }: IApiFunctionGetManyExecutorProperties<E> = options;
 
 	try {
-		const items: Array<E> = await repository.find(properties);
+		let items: Array<E>;
+
+		if (eventManager) {
+			const eventRepository: Repository<E> = eventManager.getRepository<E>(entity as EntitySchema);
+			items = await eventRepository.find(properties);
+		} else {
+			items = await repository.find(properties);
+		}
 
 		if (items.length === 0) {
 			throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));

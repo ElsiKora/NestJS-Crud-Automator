@@ -1,4 +1,4 @@
-import type { FindOptionsWhere, Repository } from "typeorm";
+import type { EntityManager, FindOptionsWhere, Repository } from "typeorm";
 
 import type { TApiFunctionGetProperties } from "../../../../type";
 import type { IApiBaseEntity } from "../../../api-base-entity.interface";
@@ -6,6 +6,7 @@ import type { IApiBaseEntity } from "../../../api-base-entity.interface";
 export interface IApiFunctionDeleteExecutorProperties<E extends IApiBaseEntity> {
 	criteria: FindOptionsWhere<E>;
 	entity: IApiBaseEntity;
-	getFunction: (properties: TApiFunctionGetProperties<E>) => Promise<E>;
+	eventManager?: EntityManager;
+	getFunction: (properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager) => Promise<E>;
 	repository: Repository<E>;
 }
