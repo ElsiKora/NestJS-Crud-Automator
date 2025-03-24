@@ -1,14 +1,14 @@
 <p align="center">
-  <img src="https://6jft62zmy9nx2oea.public.blob.vercel-storage.com/nestjs-crud-automator-HhXThTDhKyqznMLCgdmWhsPa287fIi.png" width="500" alt="project-logo">
-</p>
+		<img src="https://6jft62zmy9nx2oea.public.blob.vercel-storage.com/nestjs-crud-automator-HhXThTDhKyqznMLCgdmWhsPa287fIi.png" width="500" alt="project-logo">
+			</p>
 
 <h1 align="center">🚀 NestJS-Crud-Automator</h1>
-<p align="center"><em>A powerful library for automating CRUD operations in NestJS applications</em></p>
+<p align="center"><em>Automate CRUD operations in NestJS with powerful decorators and type-safe APIs</em></p>
 
 <p align="center">
     <a aria-label="ElsiKora logo" href="https://elsikora.com">
   <img src="https://img.shields.io/badge/MADE%20BY%20ElsiKora-333333.svg?style=for-the-badge" alt="ElsiKora">
-</a> <img src="https://img.shields.io/badge/version-blue.svg?style=for-the-badge&logo=npm&logoColor=white" alt="version"> <img src="https://img.shields.io/badge/typescript-blue.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="typescript"> <img src="https://img.shields.io/badge/nestjs-red.svg?style=for-the-badge&logo=nestjs&logoColor=white" alt="nestjs"> <img src="https://img.shields.io/badge/typeorm-orange.svg?style=for-the-badge&logo=database&logoColor=white" alt="typeorm"> <img src="https://img.shields.io/badge/license-green.svg?style=for-the-badge&logo=license&logoColor=white" alt="license">
+</a> <img src="https://img.shields.io/badge/version-blue.svg?style=for-the-badge&logo=npm&logoColor=white" alt="version"> <img src="https://img.shields.io/badge/typescript-blue.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="typescript"> <img src="https://img.shields.io/badge/nestjs-red.svg?style=for-the-badge&logo=nestjs&logoColor=white" alt="nestjs"> <img src="https://img.shields.io/badge/typeorm-orange.svg?style=for-the-badge&logo=typeorm&logoColor=white" alt="typeorm"> <img src="https://img.shields.io/badge/license-green.svg?style=for-the-badge&logo=license&logoColor=white" alt="license"> <img src="https://img.shields.io/badge/swagger-green.svg?style=for-the-badge&logo=swagger&logoColor=white" alt="swagger">
 </p>
 
 
@@ -23,19 +23,21 @@
 
 
 ## 📖 Description
-NestJS-Crud-Automator is a comprehensive library designed to reduce boilerplate code and accelerate development by automatically generating fully-featured CRUD operations for NestJS applications. By leveraging TypeORM entities and built-in decorators, developers can quickly scaffold controllers and services with standardized endpoints for creating, reading, updating, and deleting resources. The library provides rich validation, sophisticated request/response transformation, automatic Swagger documentation, and supports complex filtering operations for list endpoints. NestJS-Crud-Automator is ideal for enterprise applications, microservices architectures, and any project where consistent API design and reduced development time are priorities.
+NestJS-Crud-Automator is a comprehensive library designed to streamline the development of RESTful APIs in NestJS applications. It eliminates boilerplate code by providing decorators that automatically generate controllers, services, DTOs, and validation. With strong TypeScript support, it offers type-safe CRUD operations while enforcing best practices in API design. The library integrates seamlessly with TypeORM, enhances Swagger documentation, and provides built-in validation through class-validator. It's perfect for developers looking to accelerate development without sacrificing code quality or architectural principles. Whether you're building a simple API or a complex enterprise application, NestJS-Crud-Automator helps maintain clean, consistent, and well-documented endpoints with minimal effort.
 
 ## 🚀 Features
-- ✨ **Zero-configuration CRUD controllers with automatic Swagger documentation**
-- ✨ **Smart DTO generation for requests, responses, and query parameters**
-- ✨ **Advanced filtering system with support for complex query operations**
-- ✨ **Request transformation and validation pipeline**
-- ✨ **Authentication and authorization integration**
-- ✨ **Automatic relations handling with configurable loading strategies**
-- ✨ **Comprehensive TypeScript support with full type safety**
-- ✨ **Customizable error handling with correlation IDs for tracing**
-- ✨ **Efficient throttling support to prevent API abuse**
-- ✨ **ESM and CommonJS module support**
+- ✨ **Automatic CRUD operations with a single decorator**
+- ✨ **Type-safe API development with full TypeScript support**
+- ✨ **Seamless integration with TypeORM for database operations**
+- ✨ **Auto-generated DTOs with comprehensive validation rules**
+- ✨ **Complete Swagger/OpenAPI documentation generation**
+- ✨ **Customizable request/response transformers**
+- ✨ **Built-in relation handling and eager/lazy loading support**
+- ✨ **Automatic validation using class-validator**
+- ✨ **Request correlation tracking for improved debugging**
+- ✨ **Rate limiting and throttling capabilities**
+- ✨ **Powerful filtering, pagination, and sorting for list endpoints**
+- ✨ **Custom validation decorators for complex business rules**
 
 ## 🛠 Installation
 ```bash
@@ -52,23 +54,39 @@ pnpm add @elsikora/nestjs-crud-automator
 bun add @elsikora/nestjs-crud-automator
 
 
-Ensure you have the required peer dependencies installed:
+You'll also need to install peer dependencies if you haven't already:
 
 
 npm install @nestjs/common @nestjs/swagger typeorm class-transformer class-validator reflect-metadata
+
+
+Once installed, you need to set up your NestJS module to import the library:
+
+typescript
+// app.module.ts
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+// Import other modules and entities as needed
+
+@Module({
+  imports: [
+    TypeOrmModule.forRoot({
+      // your TypeORM configuration
+    }),
+    // Register your entities and other modules
+  ],
+})
+export class AppModule {}
 ```
 
 ## 💡 Usage
 ## Basic Usage
 
-NestJS-Crud-Automator provides a set of decorators that automate the creation of controllers and services for your entities.
-
-### Entity Definition
-
-First, define your TypeORM entity with the `ApiPropertyDescribe` decorators to provide metadata for Swagger and validation:
+Create an entity using TypeORM and enhance it with property decorators:
 
 ```typescript
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+// user.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 import { ApiPropertyDescribe } from '@elsikora/nestjs-crud-automator';
 import { EApiPropertyDescribeType, EApiPropertyStringType } from '@elsikora/nestjs-crud-automator';
 
@@ -77,7 +95,7 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   @ApiPropertyDescribe({
     type: EApiPropertyDescribeType.UUID,
-    description: 'Unique identifier'
+    description: 'Unique identifier',
   })
   id: string;
 
@@ -100,18 +118,19 @@ export class User {
     format: EApiPropertyStringType.EMAIL,
     minLength: 5,
     maxLength: 100,
-    pattern: '/^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$/',
-    exampleValue: 'john@example.com'
+    pattern: '/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/',
+    exampleValue: 'john.doe@example.com'
   })
   email: string;
 }
 ```
 
-### Service Implementation
+## Creating a Service
 
-Create a service that extends the base functionality:
+Create a service that extends the base service class:
 
 ```typescript
+// user.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -130,50 +149,57 @@ export class UserService extends ApiServiceBase<User> {
     super();
   }
   
-  // You can override the default methods or add custom methods
+  // You can add custom methods here
   async findByEmail(email: string): Promise<User | undefined> {
-    return this.repository.findOne({
-      where: { email }
-    });
+    return this.repository.findOne({ where: { email } });
   }
 }
 ```
 
-### Controller Implementation
+## Creating a Controller
 
-Implement a controller with automatic CRUD endpoints:
+Create a controller with automated CRUD operations:
 
 ```typescript
+// user.controller.ts
 import { Controller } from '@nestjs/common';
 import { ApiController } from '@elsikora/nestjs-crud-automator';
 import { User } from './user.entity';
 import { UserService } from './user.service';
 
-@ApiController({
+@ApiController<User>({
   entity: User,
   name: 'Users',
   path: 'users',
   routes: {
-    // Configure routes (all enabled by default)
+    // Configure specific routes if needed
   }
 })
 @Controller('users')
 export class UserController {
-  constructor(public service: UserService) {}
+  constructor(
+    public service: UserService
+  ) {}
+  
+  // The controller methods are automatically generated
+  // You can add custom endpoints here if needed
 }
 ```
 
-## Advanced Configuration
+## Custom Route Configuration
 
-### Custom Route Configuration
-
-Customize each route with authentication, validation, and transformation:
+You can customize individual routes with advanced options:
 
 ```typescript
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { EApiControllerLoadRelationsStrategy, EApiAuthenticationType, EApiDtoType, EApiRouteType } from '@elsikora/nestjs-crud-automator';
+// user.controller.ts with route customization
+import { Controller } from '@nestjs/common';
+import { ApiController } from '@elsikora/nestjs-crud-automator';
+import { EApiRouteType, EApiControllerLoadRelationsStrategy } from '@elsikora/nestjs-crud-automator';
+import { User } from './user.entity';
+import { UserService } from './user.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@ApiController({
+@ApiController<User>({
   entity: User,
   name: 'Users',
   path: 'users',
@@ -181,26 +207,16 @@ import { EApiControllerLoadRelationsStrategy, EApiAuthenticationType, EApiDtoTyp
     [EApiRouteType.CREATE]: {
       authentication: {
         guard: JwtAuthGuard,
-        type: EApiAuthenticationType.USER,
+        type: 'user',
         bearerStrategies: ['jwt']
       },
       request: {
         validators: [
-          {
-            errorType: EErrorStringAction.VALIDATION_ERROR,
-            exception: BadRequestException,
-            validationFunction: (body: Partial<User>) => {
-              return body.username && body.username.length >= 3;
-            }
-          }
+          // custom validators
         ],
         transformers: {
-          [EApiDtoType.BODY]: [
-            {
-              key: 'createdAt',
-              type: EApiControllerRequestTransformerType.DYNAMIC,
-              value: TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_TIMESTAMP
-            }
+          body: [
+            // request transformers
           ]
         }
       }
@@ -216,221 +232,251 @@ import { EApiControllerLoadRelationsStrategy, EApiAuthenticationType, EApiDtoTyp
     }
   }
 })
-```
-
-### Working with Relations
-
-Configure automatic loading of relations:
-
-```typescript
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
-import { ApiPropertyDescribe } from '@elsikora/nestjs-crud-automator';
-import { EApiPropertyDescribeType } from '@elsikora/nestjs-crud-automator';
-
-@Entity('posts')
-export class Post {
-  @PrimaryGeneratedColumn('uuid')
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.UUID,
-    description: 'Post ID'
-  })
-  id: string;
-  
-  @Column()
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.STRING,
-    // configuration...
-  })
-  title: string;
-  
-  @ManyToOne(() => User)
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.RELATION,
-    description: 'Post author'
-  })
-  author: User;
-}
-
-// In controller:
-@ApiController({
-  entity: Post,
-  name: 'Posts',
-  path: 'posts',
-  routes: {
-    [EApiRouteType.GET]: {
-      request: {
-        relations: {
-          shouldLoadRelations: true,
-          relationsLoadStrategy: EApiControllerLoadRelationsStrategy.MANUAL,
-          relationsToLoad: ['author'],
-          servicesLoadStrategy: EApiControllerLoadRelationsStrategy.MANUAL,
-          relationsServices: {
-            author: 'userService'
-          }
-        }
-      }
-    }
-  }
-})
-export class PostController {
+@Controller('users')
+export class UserController {
   constructor(
-    public service: PostService,
-    public userService: UserService
+    public service: UserService
   ) {}
 }
 ```
 
-## Advanced Filtering
+## Working with DTOs
 
-The GET_LIST endpoint supports sophisticated filtering operations:
-
-```typescript
-// Request example for filtering
-// GET /users?page=1&limit=10&orderBy=createdAt&orderDirection=desc&username[operator]=cont&username[value]=john&createdAt[operator]=between&createdAt[values]=["2023-01-01","2023-12-31"]
-```
-
-Supported operations include:
-- `eq` - Equal
-- `ne` - Not equal
-- `gt` - Greater than
-- `gte` - Greater than or equal
-- `lt` - Less than
-- `lte` - Less than or equal
-- `in` - In array
-- `notin` - Not in array
-- `cont` - Contains (for strings)
-- `starts` - Starts with
-- `ends` - Ends with
-- `isnull` - Is null
-- `notnull` - Is not null
-- `between` - Between two values
-
-## Custom DTOs and Validation
-
-You can provide custom DTOs instead of auto-generated ones:
+The library automatically generates DTOs for your entities, but you can also provide custom ones:
 
 ```typescript
-import { IsEmail, IsString, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+// custom-create-user.dto.ts
+import { ApiPropertyString, ApiPropertyUUID } from '@elsikora/nestjs-crud-automator';
+import { EApiPropertyStringType } from '@elsikora/nestjs-crud-automator';
 
-export class CreateUserDto {
-  @ApiProperty()
-  @IsString()
-  @MinLength(3)
+export class CustomCreateUserDto {
+  @ApiPropertyString({
+    entity: { name: 'User' },
+    description: 'User name',
+    format: EApiPropertyStringType.STRING,
+    minLength: 3,
+    maxLength: 50,
+    pattern: '/^[a-zA-Z0-9_-]+$/',
+    exampleValue: 'john_doe',
+    isRequired: true
+  })
   username: string;
-  
-  @ApiProperty()
-  @IsEmail()
+
+  @ApiPropertyString({
+    entity: { name: 'User' },
+    description: 'User email',
+    format: EApiPropertyStringType.EMAIL,
+    minLength: 5,
+    maxLength: 100,
+    pattern: '/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/',
+    exampleValue: 'john.doe@example.com',
+    isRequired: true
+  })
   email: string;
 }
-
-// In controller:
-@ApiController({
-  entity: User,
-  name: 'Users',
-  path: 'users',
-  routes: {
-    [EApiRouteType.CREATE]: {
-      dto: {
-        body: CreateUserDto,
-        response: UserResponseDto
-      }
-    }
-  }
-})
 ```
 
-## Throttling and Rate Limiting
+## Request Validation
 
-Implement rate limiting on endpoints:
+You can add custom validators to your endpoints:
 
 ```typescript
-import { EApiRouteType } from '@elsikora/nestjs-crud-automator';
+// user.validator.ts
+import { EErrorStringAction, EException } from '@elsikora/nestjs-crud-automator';
+import { BadRequestException } from '@nestjs/common';
+import { User } from './user.entity';
 
-@ApiController({
-  entity: User,
-  name: 'Users',
-  path: 'users',
-  routes: {
-    [EApiRouteType.CREATE]: {
-      // Apply method-level throttling
-      decorators: [
-        ApiMethod({
-          throttler: {
-            limit: 5,
-            ttl: 60000 // 1 minute
-          }
-        })
-      ]
-    }
+export const UniqueEmailValidator = {
+  errorType: EErrorStringAction.VALIDATION_ERROR,
+  exception: BadRequestException,
+  validationFunction: async (entity: Partial<User>, userService: any) => {
+    if (!entity.email) return true;
+    const existingUser = await userService.findByEmail(entity.email);
+    return !existingUser;
   }
-})
+};
 ```
 
-## Correlation ID for Request Tracing
+## Using Filters, Pagination and Sorting
 
-Use the built-in correlation ID interceptor for request tracing:
+With the GET_LIST endpoints, you get built-in filtering, pagination and sorting:
 
 ```typescript
+// Example HTTP request
+// GET /users?limit=10&page=1&orderBy=username&orderDirection=asc&username[operator]=cont&username[value]=john
+```
+
+## Using the Correlation ID Interceptor
+
+Add the built-in correlation ID interceptor for better request tracking:
+
+```typescript
+// main.ts
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { CorrelationIDResponseBodyInterceptor } from '@elsikora/nestjs-crud-automator';
+import { AppModule } from './app.module';
 
-@Module({
-  providers: [
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: CorrelationIDResponseBodyInterceptor,
-    },
-  ],
-})
-export class AppModule {}
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  
+  app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
+  app.useGlobalPipes(new ValidationPipe({ transform: true }));
+  
+  const config = new DocumentBuilder()
+    .setTitle('My API')
+    .setDescription('API Documentation')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+    
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
+  
+  await app.listen(3000);
+}
+bootstrap();
 ```
 
-This will ensure all responses and errors include a correlation ID for tracing through logs.
+## Custom Property Decorators
+
+The library provides various property decorators for different data types:
+
+```typescript
+// Example of various property decorators
+import { 
+  ApiPropertyBoolean, 
+  ApiPropertyDate, 
+  ApiPropertyNumber, 
+  ApiPropertyObject, 
+  ApiPropertyString, 
+  ApiPropertyUUID,
+  ApiPropertyEnum
+} from '@elsikora/nestjs-crud-automator';
+import { 
+  EApiPropertyDateIdentifier, 
+  EApiPropertyDateType,
+  EApiPropertyNumberType,
+  EApiPropertyStringType
+} from '@elsikora/nestjs-crud-automator';
+
+// Example enum
+enum UserRole {
+  ADMIN = 'admin',
+  USER = 'user'
+}
+
+class ExampleDto {
+  @ApiPropertyUUID({ entity: { name: 'Example' }, isRequired: true })
+  id: string;
+  
+  @ApiPropertyString({
+    entity: { name: 'Example' },
+    description: 'Example name',
+    format: EApiPropertyStringType.STRING,
+    minLength: 3,
+    maxLength: 50,
+    pattern: '/^[a-zA-Z0-9 ]+$/',
+    exampleValue: 'Example Item',
+    isRequired: true
+  })
+  name: string;
+  
+  @ApiPropertyBoolean({
+    entity: { name: 'Example' },
+    description: 'Is active',
+    isRequired: false
+  })
+  isActive: boolean;
+  
+  @ApiPropertyNumber({
+    entity: { name: 'Example' },
+    description: 'Price',
+    format: EApiPropertyNumberType.DOUBLE,
+    minimum: 0,
+    maximum: 1000,
+    multipleOf: 0.01,
+    exampleValue: 29.99,
+    isRequired: true
+  })
+  price: number;
+  
+  @ApiPropertyDate({
+    entity: { name: 'Example' },
+    format: EApiPropertyDateType.DATE_TIME,
+    identifier: EApiPropertyDateIdentifier.CREATED_AT,
+    isResponse: true
+  })
+  createdAt: Date;
+  
+  @ApiPropertyEnum({
+    entity: { name: 'Example' },
+    description: 'User role',
+    enum: UserRole,
+    enumName: 'UserRole',
+    isRequired: true
+  })
+  role: UserRole;
+}
+```
 
 ## 🛣 Roadmap
 | Task / Feature | Status |
 |---------------|--------|
-| ## Future Development | 🚧 In Progress |
-| - GraphQL support with automatic query and mutation generation | 🚧 In Progress |
-| - Integration with NestJS caching mechanisms | 🚧 In Progress |
-| - Extension to support NoSQL databases beyond TypeORM | 🚧 In Progress |
-| - Event sourcing support for audit logging | 🚧 In Progress |
-| - Expanded filtering capabilities with full-text search | 🚧 In Progress |
-| - Integration with file upload handling | 🚧 In Progress |
-| - Custom response serialization strategies | 🚧 In Progress |
-| - Enhanced performance optimization options | 🚧 In Progress |
-| - More comprehensive test utilities | 🚧 In Progress |
-| - Custom pagination strategies | 🚧 In Progress |
-| (done) Zero-configuration CRUD controllers with automatic Swagger documentation | 🚧 In Progress |
-| (done) Smart DTO generation for requests, responses, and query parameters | 🚧 In Progress |
-| (done) Advanced filtering system with support for complex query operations | 🚧 In Progress |
+| ✅ Core CRUD operations | ✅ Done |
+| ✅ TypeORM integration | ✅ Done |
+| ✅ Auto-generated DTOs | ✅ Done |
+| ✅ Swagger documentation | ✅ Done |
+| ✅ Request validation | ✅ Done |
+| ✅ Response transformation | ✅ Done |
+| ✅ Request correlation tracking | ✅ Done |
+| ✅ Filtering, pagination and sorting | ✅ Done |
+| ✅ Custom validation decorators | ✅ Done |
+| ✅ Authentication integration | ✅ Done |
+| 🚧 MongoDB support | 🚧 In Progress |
+| 🚧 GraphQL support | 🚧 In Progress |
+| 🚧 Caching mechanisms | 🚧 In Progress |
+| 🚧 Advanced query building | 🚧 In Progress |
+| 🚧 Soft delete functionality | 🚧 In Progress |
+| 🚧 Event dispatching | 🚧 In Progress |
+| 🚧 Bulk operations | 🚧 In Progress |
+| 🚧 File upload handling | 🚧 In Progress |
+| 🚧 Custom migration scripts | 🚧 In Progress |
+| 🚧 CLI for scaffold generation | 🚧 In Progress |
 
 ## ❓ FAQ
 ## Frequently Asked Questions
 
-### Does this library work with NestJS microservices?
-Yes, NestJS-Crud-Automator is designed to work with both monolithic NestJS applications and microservices architectures.
+### What is NestJS-Crud-Automator?
+NestJS-Crud-Automator is a library that automates the creation of CRUD (Create, Read, Update, Delete) operations in NestJS applications. It provides decorators and utilities to generate controllers, services, DTOs, and validation with minimal boilerplate code.
 
-### How does performance compare to manually written controllers?
-The library is optimized for performance and should have minimal overhead compared to manually written controllers. In many cases, the standardized patterns may even lead to better performance through consistent implementations.
+### Does it work with any database?
+Currently, the library is optimized for TypeORM which supports multiple databases including PostgreSQL, MySQL, MariaDB, SQLite, MS SQL Server, Oracle, and MongoDB. Support for other ORMs is planned for future releases.
 
-### Can I use this with custom database schemas?
-Yes, as long as you use TypeORM, the library works with any valid entity configuration, including custom database schemas.
+### How do I customize the generated endpoints?
+You can customize the endpoints by providing configuration in the `routes` property of the `@ApiController` decorator. Each route type (CREATE, GET, GET_LIST, UPDATE, PARTIAL_UPDATE, DELETE) can be configured separately with custom authentication, validation, transformation, and relation loading strategies.
 
-### How can I extend the automatically generated endpoints?
-You can always add additional methods to your controller that handle special cases or extend the functionality of the auto-generated endpoints.
+### Can I extend the generated functionality?
+Yes! The generated CRUD operations serve as a starting point. You can extend the controllers and services with custom methods to implement business-specific logic.
 
-### Is there a way to disable certain CRUD operations?
-Yes, you can disable any operation by setting `isEnabled: false` in the route configuration object.
+### Does it support validation?
+Yes, it integrates with class-validator and provides automatic validation based on the property decorators. You can also add custom validators to the routes configuration.
 
-### How does this library handle transactions?
-The library uses TypeORM's underlying transaction mechanisms. You can implement transaction handling in your custom service methods.
+### How does it handle relationships?
+The library provides automatic relation loading with configurable strategies. You can specify eager or lazy loading, and control which relations are loaded for each endpoint.
 
-### Does this work with MongoDB?
-Yes, as long as you use TypeORM with MongoDB, the library should work properly with MongoDB entities.
+### Can I use it with GraphQL?
+Currently, the library focuses on REST APIs, but GraphQL support is planned for future releases.
 
-### How can I migrate from the base NestJS CRUD module?
-The library provides a significantly different API from NestJS's CRUD module, so migration will require changing your decorators and service implementations. However, the entity structure can remain largely the same.
+### How do I handle authentication?
+You can configure authentication at the route level by specifying the authentication guard, type, and strategies in the route configuration.
+
+### What about performance?
+The library is designed to be lightweight and efficient. It uses TypeORM's query builder to optimize database queries and supports pagination, filtering, and sorting for list endpoints.
+
+### Can I use it with existing NestJS applications?
+Yes, the library is designed to integrate seamlessly with existing NestJS applications. You can apply it gradually to specific modules or entities without affecting the rest of your application.
 
 ## 🔒 License
 This project is licensed under **MIT License

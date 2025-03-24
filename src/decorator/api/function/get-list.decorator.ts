@@ -1,4 +1,5 @@
-import type { Repository } from "typeorm";
+import type { EntityManager, Repository } from "typeorm";
+import type { EntitySchema } from "typeorm/index";
 
 import type { IApiBaseEntity, IApiFunctionGetListExecutorProperties, IApiFunctionProperties, IApiGetListResponseResult } from "../../../interface";
 import type { TApiFunctionGetListProperties } from "../../../type";
@@ -20,6 +21,7 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 				repository: Repository<E>;
 			},
 			properties: TApiFunctionGetListProperties<E>,
+			eventManager?: EntityManager,
 		): Promise<IApiGetListResponseResult<E>> {
 			const repository: Repository<E> = this.repository;
 
@@ -27,7 +29,7 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 				throw ErrorException("Repository is not available in this context");
 			}
 
-			return executor<E>({ entity, properties, repository });
+			return executor<E>({ entity, eventManager, properties, repository });
 		};
 
 		return descriptor;
@@ -35,10 +37,18 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 }
 
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListExecutorProperties<E>): Promise<IApiGetListResponseResult<E>> {
-	const { entity, properties, repository }: IApiFunctionGetListExecutorProperties<E> = options;
+	const { entity, eventManager, properties, repository }: IApiFunctionGetListExecutorProperties<E> = options;
 
 	try {
-		const [items, totalCount]: [Array<E>, number] = await repository.findAndCount(properties);
+		let items: Array<E>;
+		let totalCount: number;
+
+		if (eventManager) {
+			const eventRepository: Repository<E> = eventManager.getRepository<E>(entity as EntitySchema);
+			[items, totalCount] = await eventRepository.findAndCount(properties);
+		} else {
+			[items, totalCount] = await repository.findAndCount(properties);
+		}
 
 		return {
 			count: items.length,

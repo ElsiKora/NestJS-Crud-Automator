@@ -1,4 +1,5 @@
-import type { Repository } from "typeorm";
+import type { EntityManager, Repository } from "typeorm";
+import type { EntitySchema } from "typeorm/index";
 
 import type { IApiBaseEntity, IApiFunctionCreateExecutorProperties, IApiFunctionProperties } from "../../../interface";
 import type { TApiFunctionCreateProperties } from "../../../type";
@@ -25,6 +26,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 				repository: Repository<E>;
 			},
 			properties: TApiFunctionCreateProperties<E>,
+			eventManager?: EntityManager,
 		): Promise<IApiBaseEntity> {
 			const repository: Repository<E> = this.repository;
 
@@ -32,7 +34,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 				throw ErrorException("Repository is not available in this context");
 			}
 
-			return executor<E>({ entity, properties, repository });
+			return executor<E>({ entity, eventManager, properties, repository });
 		};
 
 		return descriptor;
@@ -40,9 +42,15 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 }
 
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExecutorProperties<E>): Promise<E> {
-	const { entity, properties, repository }: IApiFunctionCreateExecutorProperties<E> = options;
+	const { entity, eventManager, properties, repository }: IApiFunctionCreateExecutorProperties<E> = options;
 
 	try {
+		if (eventManager) {
+			const eventRepository: Repository<E> = eventManager.getRepository<E>(entity as EntitySchema);
+
+			return await eventRepository.save(properties);
+		}
+
 		return await repository.save(properties);
 	} catch (error) {
 		if (error instanceof HttpException) {

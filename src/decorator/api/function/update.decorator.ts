@@ -1,4 +1,5 @@
-import type { DeepPartial, Repository } from "typeorm";
+import type { DeepPartial, EntityManager, Repository } from "typeorm";
+import type { EntitySchema } from "typeorm/index";
 
 import type { IApiBaseEntity, IApiFunctionProperties } from "../../../interface";
 import type { IApiFunctionUpdateExecutorProperties } from "../../../interface/decorator/api/function/update-executor-properties.interface";
@@ -17,7 +18,7 @@ import { ApiFunctionGet } from "./get.decorator";
 export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
 	const { entity }: IApiFunctionProperties = properties;
 	const getDecorator: (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity });
-	let getFunction: (properties: TApiFunctionGetProperties<E>) => Promise<E>;
+	let getFunction: (properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager) => Promise<E>;
 
 	return function (target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		// eslint-disable-next-line @elsikora/sonar/void-use
@@ -31,6 +32,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 			},
 			criteria: TApiFunctionUpdateCriteria<E>,
 			properties: TApiFunctionUpdateProperties<E>,
+			eventManager?: EntityManager,
 		): Promise<E> {
 			const repository: Repository<E> = this.repository;
 
@@ -39,7 +41,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 			}
 
 			if (!getFunction) {
-				const getDescriptor: TypedPropertyDescriptor<(properties: TApiFunctionGetProperties<E>) => Promise<E>> = {
+				const getDescriptor: TypedPropertyDescriptor<(properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager) => Promise<E>> = {
 					value: function () {
 						return Promise.reject(ErrorException("Not implemented"));
 					},
@@ -53,7 +55,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 				}
 			}
 
-			return executor<E>({ criteria, entity, getFunction, properties, repository });
+			return executor<E>({ criteria, entity, eventManager, getFunction, properties, repository });
 		};
 
 		return descriptor;
@@ -61,10 +63,10 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 }
 
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExecutorProperties<E>): Promise<E> {
-	const { criteria, entity, getFunction, properties, repository }: IApiFunctionUpdateExecutorProperties<E> = options;
+	const { criteria, entity, eventManager, getFunction, properties, repository }: IApiFunctionUpdateExecutorProperties<E> = options;
 
 	try {
-		const existingEntity: E = await getFunction({ where: criteria });
+		const existingEntity: E = await getFunction({ where: criteria }, eventManager);
 
 		const updatedProperties: Partial<E> = {};
 
@@ -80,6 +82,12 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			...existingEntity,
 			...updatedProperties,
 		};
+
+		if (eventManager) {
+			const eventRepository: Repository<E> = eventManager.getRepository<E>(entity as EntitySchema);
+
+			return await eventRepository.save(mergedEntity);
+		}
 
 		return await repository.save(mergedEntity);
 	} catch (error) {
