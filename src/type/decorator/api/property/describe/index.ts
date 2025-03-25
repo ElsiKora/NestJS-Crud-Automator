@@ -6,7 +6,7 @@ export type * from "./dto";
 export type * from "./enum-properties.type";
 export type * from "./example-properties.type";
 export type * from "./number-properties.type";
-export type * from "./object-properties.type";
+export type * from "./object";
 export type * from "./properties";
 export type * from "./properties.type";
 export type * from "./string-properties.type";

@@ -100,6 +100,7 @@ export class ApiControllerFactory<E> {
 				return plainToInstance(dto as ClassConstructor<E>, response, {
 					// eslint-disable-next-line @elsikora/typescript/naming-convention
 					excludeExtraneousValues: true,
+					strategy: "excludeAll",
 				});
 			},
 			"name",

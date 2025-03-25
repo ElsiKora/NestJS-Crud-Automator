@@ -1,8 +1,10 @@
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { ClassConstructor } from "class-transformer";
 
-import type { TApiPropertyObjectProperties } from "../../../type/decorator/api/property/object-properties.type";
+import type { TApiPropertyObjectProperties } from "../../../type/decorator/api/property/object/properties.type";
 
 import { applyDecorators } from "@nestjs/common";
+import { getSchemaPath } from "@nestjs/swagger";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { Exclude, Expose, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, ValidateNested } from "class-validator";
@@ -21,8 +23,27 @@ function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiP
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: properties.isNullable,
-		type: properties.type,
 	};
+
+	if (Array.isArray(properties.type)) {
+		// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
+		apiPropertyOptions.oneOf = properties.type.map((type: Function) => {
+			return { $ref: getSchemaPath(type) };
+		});
+
+		if (properties.discriminator) {
+			apiPropertyOptions.discriminator = {
+				// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
+				mapping: Object.fromEntries(Object.keys(properties.discriminator.mapping).map((key: string) => [key, getSchemaPath(properties.discriminator?.mapping[key] as Function)])),
+				propertyName: properties.discriminator.propertyName,
+			};
+		}
+
+		// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
+		apiPropertyOptions.type = "object" as any;
+	} else {
+		apiPropertyOptions.type = properties.type;
+	}
 
 	apiPropertyOptions.required = properties.isResponse === false || properties.isResponse === undefined ? properties.isRequired : false;
 
@@ -100,7 +121,22 @@ function buildResponseDecorators(properties: TApiPropertyObjectProperties): Arra
 function buildTransformDecorators(properties: TApiPropertyObjectProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
-	decorators.push(Type(() => properties.type as () => any));
+	if (Array.isArray(properties.type) && properties.discriminator) {
+		decorators.push(
+			Type(() => Object, {
+				discriminator: {
+					property: properties.discriminator.propertyName,
+					subTypes: Object.entries(properties.discriminator.mapping).map(([key, value]: [string, ClassConstructor<any>]) => {
+						return { name: key, value };
+					}),
+				},
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				keepDiscriminatorProperty: properties.discriminator.shouldKeepDiscriminatorProperty,
+			}),
+		);
+	} else {
+		decorators.push(Type(() => properties.type as () => any));
+	}
 
 	return decorators;
 }

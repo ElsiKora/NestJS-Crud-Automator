@@ -1,6 +1,6 @@
 import type { EApiDtoType, EApiRouteType } from "../../../../../enum";
 import type { IApiEntity, IDtoGenerateFactory } from "../../../../../interface";
-import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeObjectProperties } from "../../../../../type";
+import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeObjectProperties, TApiPropertyObjectProperties } from "../../../../../type";
 
 import { ApiPropertyObject } from "../../../../../decorator/api/property/object.decorator";
 
@@ -13,6 +13,6 @@ export class DtoPropertyFactoryObject<E> implements IDtoGenerateFactory<E> {
 			type: dataType,
 			...config,
 			...restProperties,
-		});
+		} as TApiPropertyObjectProperties);
 	}
 }

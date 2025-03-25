@@ -1,6 +1,7 @@
 export * from "./boolean.decorator";
 export * from "./date.decorator";
 export * from "./describe.decorator";
+export * from "./enum.decorator";
 export * from "./number.decorator";
 export * from "./object.decorator";
 export * from "./string.decorator";

@@ -5,11 +5,12 @@ import type { ObjectLiteral } from "typeorm";
 import type { IApiControllerPropertiesRouteAutoDtoConfig, IApiEntity } from "../../interface";
 import type { TApiPropertyDescribeProperties } from "../../type";
 
+import { ApiExtraModels } from "@nestjs/swagger";
 import { Validate } from "class-validator";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
 import { DTO_GENERATE_CONSTANT } from "../../constant/utility/dto/generate.constant";
-import { EApiDtoType, EApiRouteType } from "../../enum";
+import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "../../enum";
 import { HasPairedCustomSuffixesFields } from "../../validator/has-paired-custom-suffixes-fields.validator";
 import { CamelCaseString } from "../camel-case-string.utility";
 import { ErrorException } from "../error-exception.utility";
@@ -29,6 +30,9 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	if (!entityMetadata.primaryKey?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]) {
 		throw ErrorException(`Primary key for entity ${String(entityMetadata.name)} not found in metadata storage`);
 	}
+
+	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
+	const extraModels: Array<Function> = [];
 
 	const markedProperties: Array<{
 		isPrimary: boolean;
@@ -124,6 +128,10 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 				}
 			}
 		}
+
+		if (property.metadata.type === EApiPropertyDescribeType.OBJECT && Array.isArray(property.metadata.dataType)) {
+			extraModels.push(...property.metadata.dataType);
+		}
 	}
 
 	if (dtoConfig?.validators) {
@@ -148,10 +156,14 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		Validate(HasPairedCustomSuffixesFields, ["operator", ["value", "values"]])(GeneratedDTO.prototype, "object");
 	}
 
+	if (extraModels.length > 0) {
+		ApiExtraModels(...extraModels)(GeneratedDTO);
+	}
+
 	Object.defineProperty(GeneratedDTO, "name", {
-		value: `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`,
+		value: `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`,
 	});
 
 	// @ts-ignore
-	return method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE ? DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`) : GeneratedDTO;
+	return method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE ? DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`) : GeneratedDTO;
 }
