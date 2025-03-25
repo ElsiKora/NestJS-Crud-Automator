@@ -1,4 +1,5 @@
 export * from "./boolean.decorator";
+export * from "./copy.decorator";
 export * from "./date.decorator";
 export * from "./describe.decorator";
 export * from "./enum.decorator";
