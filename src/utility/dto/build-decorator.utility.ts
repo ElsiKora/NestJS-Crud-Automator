@@ -13,7 +13,7 @@ import { DtoHandleDateProperty } from "./handle-date-property.utility";
 import { DtoIsPropertyExposedForGuard } from "./is-property-exposed-for-guard.utility";
 
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
-export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, propertyName: string, currentGuard?: Type<IAuthGuard>): Array<PropertyDecorator> | undefined {
+export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, propertyName: string, currentGuard?: Type<IAuthGuard>, generatedDTOs?: Record<string, Type<unknown>>): Array<PropertyDecorator> | undefined {
 	type TAllowed = TDtoGenerateIsAllowedCombination<M, D>;
 
 	type TPropertiesType = TAllowed extends true ? TApiPropertyDescribeDtoProperties : never;
@@ -49,5 +49,5 @@ export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoT
 
 	const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, propertyMetadata, dtoType, propertyName);
 
-	return [DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName)];
+	return [DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName, generatedDTOs)];
 }

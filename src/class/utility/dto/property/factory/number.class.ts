@@ -13,6 +13,7 @@ export class DtoPropertyFactoryNumber<E> implements IDtoGenerateFactory<E> {
 			entity,
 			...config,
 			...restProperties,
+			// @ts-ignore
 			multipleOf: dtoType === EApiDtoType.REQUEST ? undefined : metadata.multipleOf,
 		});
 	}

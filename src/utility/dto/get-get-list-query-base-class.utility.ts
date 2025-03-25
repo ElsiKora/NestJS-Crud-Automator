@@ -22,6 +22,7 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 			isRequired: true,
 			maximum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MAXIMUM_LIST_LENGTH,
 			minimum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_LENGTH,
+			multipleOf: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.LIST_MULTIPLE_OF,
 		})
 		limit!: number;
 
@@ -51,6 +52,7 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 			isRequired: true,
 			maximum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MAXIMUM_LIST_PAGES_COUNT,
 			minimum: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_PAGES_COUNT,
+			multipleOf: GET_LIST_QUERY_DTO_FACTORY_CONSTANT.LIST_MULTIPLE_OF,
 		})
 		page!: number;
 

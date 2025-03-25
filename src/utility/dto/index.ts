@@ -1,5 +1,6 @@
 export * from "./build-decorator.utility";
 export * from "./generate-decorator.utility";
+export * from "./generate-dynamic.utility";
 export * from "./generate-exception.utility";
 export * from "./generate-get-list-response.utility";
 export * from "./generate-relation-response.utility";

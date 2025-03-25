@@ -41,6 +41,22 @@ function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiP
 
 		// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
 		apiPropertyOptions.type = "object" as any;
+	} else if ("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated) {
+		// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
+		apiPropertyOptions.oneOf = Object.entries(properties.generatedDTOs).map(([_key, value]: [string, Function]) => {
+			return { $ref: getSchemaPath(value) };
+		});
+
+		if (properties.discriminator) {
+			apiPropertyOptions.discriminator = {
+				// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
+				mapping: Object.fromEntries(Object.keys(properties.discriminator.mapping).map((key: string) => [key, getSchemaPath(properties.generatedDTOs[key] as Function)])),
+				propertyName: properties.discriminator.propertyName,
+			};
+		}
+
+		// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
+		apiPropertyOptions.type = "object" as any;
 	} else {
 		apiPropertyOptions.type = properties.type;
 	}
@@ -128,6 +144,19 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 					property: properties.discriminator.propertyName,
 					subTypes: Object.entries(properties.discriminator.mapping).map(([key, value]: [string, ClassConstructor<any>]) => {
 						return { name: key, value };
+					}),
+				},
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				keepDiscriminatorProperty: properties.discriminator.shouldKeepDiscriminatorProperty,
+			}),
+		);
+	} else if ("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated) {
+		decorators.push(
+			Type(() => Object, {
+				discriminator: {
+					property: properties.discriminator.propertyName,
+					subTypes: Object.entries(properties.discriminator.mapping).map(([key, value]: [string, string]) => {
+						return { name: key, value: properties.generatedDTOs[value] as ClassConstructor<any> };
 					}),
 				},
 				// eslint-disable-next-line @elsikora/typescript/naming-convention

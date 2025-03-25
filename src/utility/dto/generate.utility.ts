@@ -16,6 +16,7 @@ import { CamelCaseString } from "../camel-case-string.utility";
 import { ErrorException } from "../error-exception.utility";
 
 import { DtoBuildDecorator } from "./build-decorator.utility";
+import { DtoGenerateDynamic } from "./generate-dynamic.utility";
 import { DtoGenerateFilterDecorator } from "./generate-filter-decorator.utility";
 import { DtoGenerateGetListResponse } from "./generate-get-list-response.utility";
 import { DtoGetGetListQueryBaseClass } from "./get-get-list-query-base-class.utility";
@@ -102,7 +103,9 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	}
 
 	for (const property of markedProperties) {
-		const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard);
+		const generatedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard);
+
+		const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard, generatedDTOs);
 
 		if (decorators) {
 			for (const [, decorator] of decorators.entries()) {
@@ -130,7 +133,14 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		}
 
 		if (property.metadata.type === EApiPropertyDescribeType.OBJECT && Array.isArray(property.metadata.dataType)) {
+			// @ts-ignore
 			extraModels.push(...property.metadata.dataType);
+		}
+
+		if (generatedDTOs) {
+			for (const [, value] of Object.entries(generatedDTOs)) {
+				extraModels.push(value);
+			}
 		}
 	}
 
