@@ -18,9 +18,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 					let correlationId: string = request.headers["x-correlation-id"] as string;
 					const errorResponse: object | string = error.getResponse();
 
-					if (correlationId == undefined) {
-						correlationId = randomUUID();
-					}
+					correlationId ??= randomUUID();
 
 					let customErrorResponse: Record<string, any> = {};
 					customErrorResponse.statusCode = HttpStatus.TOO_MANY_REQUESTS;
@@ -40,9 +38,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 					let correlationId: string = request.headers["x-correlation-id"] as string;
 					const errorResponse: object | string = error.getResponse();
 
-					if (correlationId == undefined) {
-						correlationId = randomUUID();
-					}
+					correlationId ??= randomUUID();
 
 					let customErrorResponse: Record<string, any> = {};
 
@@ -59,9 +55,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 					const request: FastifyRequest = context.switchToHttp().getRequest<FastifyRequest>();
 					let correlationId: string = request.headers["x-correlation-id"] as string;
 
-					if (correlationId == undefined) {
-						correlationId = randomUUID();
-					}
+					correlationId ??= randomUUID();
 
 					if (!(error instanceof Error)) {
 						error = new InternalServerErrorException("Unknown error");
