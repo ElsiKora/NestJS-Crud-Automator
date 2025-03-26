@@ -8,14 +8,18 @@ import { DTO_UTILITY_CONSTANT } from "../../constant/utility/dto/constant";
 import { ErrorException } from "../error-exception.utility";
 
 /**
- *
- * @param metadata
- * @param entity
- * @param config
- * @param method
- * @param dtoType
- * @param propertyName
- * @param generatedDTOs
+ * Factory function that generates appropriate property decorators based on property type.
+ * Uses factories defined in DTO_UTILITY_CONSTANT to create the correct decorator for each property type.
+ * @param {TApiPropertyDescribeProperties} metadata - Metadata describing the property
+ * @param {IApiEntity<E>} entity - The entity metadata
+ * @param {TApiPropertyDescribeDtoProperties} config - Configuration for the decorator
+ * @param {EApiRouteType} method - The API route type (CREATE, DELETE, GET, etc.)
+ * @param {EApiDtoType} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
+ * @param {string} propertyName - The name of the property
+ * @param {Record<string, Type<unknown>>} [generatedDTOs] - Optional record of dynamically generated DTOs
+ * @returns {PropertyDecorator} The generated property decorator
+ * @throws {Error} When property type has no registered factory
+ * @template E - The entity type
  */
 export function DtoGenerateDecorator<E>(metadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string, generatedDTOs?: Record<string, Type<unknown>>): PropertyDecorator {
 	const factory: IDtoGenerateFactory<E> = DTO_UTILITY_CONSTANT.PROPERTY_DECORATOR_FACTORIES[metadata.type] as IDtoGenerateFactory<E>;

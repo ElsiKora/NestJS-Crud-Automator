@@ -18,6 +18,11 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 
 	private schemasInfo: Record<string, string> = {};
 
+	/**
+	 * Provides a custom error message based on the type of validation failure
+	 * @param {ValidationArguments} _arguments - Validation arguments containing property information
+	 * @returns {string} A descriptive error message explaining why validation failed
+	 */
 	defaultMessage(_arguments: ValidationArguments): string {
 		const propertyName: string = _arguments.property;
 
@@ -60,6 +65,12 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 		}
 	}
 
+	/**
+	 * Validates whether an object matches one of the allowed schemas based on its discriminator field
+	 * @param {unknown} value - The value being validated
+	 * @param {ValidationArguments} _arguments - Validation arguments containing constraints
+	 * @returns {boolean} True if the value matches a valid schema, false otherwise
+	 */
 	validate(value: unknown, _arguments: ValidationArguments): boolean {
 		if (!value || typeof value !== "object" || Array.isArray(value)) {
 			this.errorType = EMastMatchOneOfSchemasValidationErrorType.SCHEMA_MISMATCH;
@@ -138,6 +149,12 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 		}
 	}
 
+	/**
+	 * Prepares the list of allowed schemas and their names based on validation constraints
+	 * @param {ValidationArguments} _arguments - Validation arguments containing constraints
+	 * @returns {void}
+	 * @private
+	 */
 	private prepareAllowedSchemas(_arguments: ValidationArguments): void {
 		this.allowedValues = [];
 		this.schemasInfo = {};

@@ -4,8 +4,10 @@ import type { TMetadata } from "../../type";
 import { MetadataStorage } from "../../class";
 
 /**
- *
- * @param entity
+ * Analyzes entity metadata using the MetadataStorage singleton class.
+ * Currently only retrieves metadata but doesn't perform further operations.
+ * @param {IApiBaseEntity} entity - The entity to analyze metadata for
+ * @returns {void}
  */
 export function analyzeEntityMetadata(entity: IApiBaseEntity): void {
 	const storage: MetadataStorage = MetadataStorage.getInstance();

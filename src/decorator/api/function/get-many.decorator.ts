@@ -13,10 +13,12 @@ import { ErrorString } from "../../../utility/error-string.utility";
 import { LoggerUtility } from "../../../utility/logger.utility";
 
 /**
- *
- * @param properties
+ * Creates a decorator that adds functionality to retrieve multiple entities to a service method
+ * @param {IApiFunctionProperties} properties - Configuration properties for the get-many function
+ * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle retrieving multiple entities
  */
-export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
+// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
+export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFunctionProperties): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties = properties;
 
 	return function (target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
@@ -46,8 +48,11 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 }
 
 /**
- *
- * @param options
+ * Executes the retrieval of multiple entities with error handling
+ * @param {IApiFunctionGetManyExecutorProperties<E>} options - Properties required for retrieving multiple entities
+ * @returns {Promise<Array<E>>} An array of retrieved entity instances
+ * @throws {NotFoundException} If no entities are found
+ * @throws {InternalServerErrorException} If the retrieval operation fails
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyExecutorProperties<E>): Promise<Array<E>> {
 	const { entity, eventManager, properties, repository }: IApiFunctionGetManyExecutorProperties<E> = options;

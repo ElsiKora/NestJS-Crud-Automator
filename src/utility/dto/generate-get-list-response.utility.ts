@@ -9,10 +9,13 @@ import { EApiPropertyNumberType } from "../../enum";
 type TClassType<T = any> = new (...arguments_: Array<any>) => T;
 
 /**
- *
- * @param resourceClass
- * @param responseResourceClass
- * @param name
+ * Generates a DTO for paginated list responses with appropriate metadata.
+ * Creates a class with count, currentPage, items, totalCount, and totalPages properties,
+ * all properly decorated with Swagger and validation decorators.
+ * @param {TClassType} resourceClass - The class representing the entity being listed
+ * @param {TClassType} responseResourceClass - The response DTO class for individual items
+ * @param {string} name - The name for the generated DTO class
+ * @returns {Type<unknown>} A generated DTO class for paginated list responses
  */
 export function DtoGenerateGetListResponse(resourceClass: TClassType, responseResourceClass: TClassType, name: string): Type<unknown> {
 	class ApiListGetResponse extends PickType(resourceClass, [] as const) {

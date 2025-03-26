@@ -9,8 +9,11 @@ import { EApiPropertyNumberType, EApiPropertyStringType } from "../../enum";
 import { CamelCaseString } from "../camel-case-string.utility";
 
 /**
- *
- * @param httpStatus
+ * Creates exception DTOs with standardized properties based on HTTP status codes.
+ * Generates a class with properties like correlationID, error name, message, status code, and timestamp,
+ * all properly decorated with Swagger and validation decorators.
+ * @param {HttpStatus} httpStatus - The HTTP status code for the exception
+ * @returns {Type<unknown>} A generated DTO class for the exception
  */
 export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 	const errorName: string = HttpStatus[httpStatus];

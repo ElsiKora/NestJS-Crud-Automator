@@ -7,11 +7,12 @@ import type { TApiPropertyDescribeDtoProperties } from "../../type";
 import type { TApiPropertyDescribeDtoGuardProperties } from "../../type/decorator/api/property/describe/dto/guard-properties.type";
 
 /**
- *
- * @param method
- * @param propertyMetadata
- * @param dtoType
- * @param currentGuard
+ * Determines if a property should be exposed for the current authentication guard
+ * @param {EApiRouteType} method - The API route type (GET, POST, etc.)
+ * @param {TApiPropertyDescribeProperties} propertyMetadata - The property's metadata
+ * @param {EApiDtoType} dtoType - The DTO type (request, response, etc.)
+ * @param {Type<IAuthGuard>} currentGuard - The current authentication guard
+ * @returns {boolean} True if the property should be exposed, false otherwise
  */
 export function DtoIsPropertyExposedForGuard(method: EApiRouteType, propertyMetadata: TApiPropertyDescribeProperties, dtoType: EApiDtoType, currentGuard?: Type<IAuthGuard>): boolean {
 	const properties: Record<EApiDtoType, TApiPropertyDescribeDtoProperties> | undefined = propertyMetadata.properties?.[method] as Record<EApiDtoType, TApiPropertyDescribeDtoProperties> | undefined;

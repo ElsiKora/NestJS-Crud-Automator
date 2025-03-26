@@ -10,8 +10,59 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsOptional 
 import { EApiPropertyDataType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "../../../enum";
 
 /**
+ * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
+ * for date properties in DTOs.
  *
- * @param properties
+ * This decorator handles date properties with support for:
+ * - Various date formats (date, datetime, time)
+ * - Predefined date types (createdAt, updatedAt, expiresIn, etc.)
+ * - Single dates or arrays of dates
+ * - Response/Request specific decorators
+ * - Automatic transformation from string to Date objects
+ * - Validation with appropriate patterns for each format
+ *
+ * The decorator provides appropriate examples and validation patterns based on the format,
+ * and handles string-to-Date transformation for request DTOs.
+ * @param {TApiPropertyDateProperties} properties - Configuration options for the date property
+ * @returns {Function} A decorator function that can be applied to a class property
+ * @example
+ * ```typescript
+ * // Simple date property (YYYY-MM-DD)
+ * class EventDto {
+ *   @ApiPropertyDate({
+ *     entity: { name: 'Event' },
+ *     identifier: EApiPropertyDateIdentifier.DATE,
+ *     format: EApiPropertyDateType.DATE,
+ *     isRequired: true
+ *   })
+ *   date: Date;
+ * }
+ *
+ * // DateTime property for createdAt (ISO format)
+ * class UserDto {
+ *   @ApiPropertyDate({
+ *     entity: { name: 'User' },
+ *     identifier: EApiPropertyDateIdentifier.CREATED_AT,
+ *     format: EApiPropertyDateType.DATE_TIME,
+ *     isResponse: true
+ *   })
+ *   createdAt: Date;
+ * }
+ *
+ * // Array of time values
+ * class ScheduleDto {
+ *   @ApiPropertyDate({
+ *     entity: { name: 'Schedule' },
+ *     identifier: EApiPropertyDateIdentifier.DATE,
+ *     format: EApiPropertyDateType.TIME,
+ *     isArray: true,
+ *     minItems: 1,
+ *     maxItems: 10,
+ *     isUniqueItems: true
+ *   })
+ *   availableTimes: Date[];
+ * }
+ * ```
  */
 export function ApiPropertyDate(properties: TApiPropertyDateProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions(properties);
@@ -23,8 +74,10 @@ export function ApiPropertyDate(properties: TApiPropertyDateProperties): <Y>(tar
 }
 
 /**
- *
- * @param properties
+ * Builds the API property options object from the provided date property configuration
+ * @param {TApiPropertyDateProperties} properties - The date property configuration
+ * @returns {ApiPropertyOptions} The Swagger API property options object
+ * @private
  */
 function buildApiPropertyOptions(properties: TApiPropertyDateProperties): ApiPropertyOptions {
 	const example: string = getExample(properties.format);
@@ -61,9 +114,11 @@ function buildApiPropertyOptions(properties: TApiPropertyDateProperties): ApiPro
 }
 
 /**
- *
- * @param properties
- * @param apiPropertyOptions
+ * Builds all the necessary decorators for the date property based on the configuration
+ * @param {TApiPropertyDateProperties} properties - The date property configuration
+ * @param {ApiPropertyOptions} apiPropertyOptions - The Swagger API property options
+ * @returns {Array<PropertyDecorator>} An array of decorators to apply to the property
+ * @private
  */
 function buildDecorators(properties: TApiPropertyDateProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
@@ -74,8 +129,11 @@ function buildDecorators(properties: TApiPropertyDateProperties, apiPropertyOpti
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for date format validation.
+ * Applies IsDate validator with appropriate configuration for single values or arrays.
+ * @param {TApiPropertyDateProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of date format validation decorators
+ * @private
  */
 function buildFormatDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -90,8 +148,11 @@ function buildFormatDecorators(properties: TApiPropertyDateProperties): Array<Pr
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for request validation including optional status,
+ * array validation, and size constraints for date properties.
+ * @param {TApiPropertyDateProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of request validation decorators
+ * @private
  */
 function buildRequestDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -114,8 +175,11 @@ function buildRequestDecorators(properties: TApiPropertyDateProperties): Array<P
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for response serialization including API response property,
+ * expose, and exclude decorators for date properties.
+ * @param {TApiPropertyDateProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of response serialization decorators
+ * @private
  */
 function buildResponseDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -134,8 +198,12 @@ function buildResponseDecorators(properties: TApiPropertyDateProperties): Array<
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for type transformation from string to Date objects.
+ * Handles both single values and arrays with appropriate transformers,
+ * including special handling for null/undefined values.
+ * @param {TApiPropertyDateProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of type transformation decorators
+ * @private
  */
 function buildTransformDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -165,8 +233,11 @@ function buildTransformDecorators(properties: TApiPropertyDateProperties): Array
 }
 
 /**
- *
- * @param identifier
+ * Gets the appropriate description text based on the date property identifier.
+ * Maps identifiers like CREATED_AT, UPDATED_AT, EXPIRES_IN to human-readable descriptions.
+ * @param {EApiPropertyDateIdentifier} identifier - The date property identifier
+ * @returns {string} The human-readable description for the date property
+ * @private
  */
 function getDescription(identifier: EApiPropertyDateIdentifier): string {
 	switch (identifier) {
@@ -221,8 +292,12 @@ function getDescription(identifier: EApiPropertyDateIdentifier): string {
 }
 
 /**
- *
- * @param format
+ * Generates an example date string based on the specified format.
+ * Creates examples for DATE (YYYY-MM-DD), DATE_TIME (ISO), and TIME (HH:MM:SS) formats
+ * using the start of the current year as a reference.
+ * @param {EApiPropertyDateType} format - The date format type
+ * @returns {string} An example date string in the specified format
+ * @private
  */
 function getExample(format: EApiPropertyDateType): string {
 	const startOfYearUTCDate: Date = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1, 0, 0, 0, 0));
@@ -243,8 +318,11 @@ function getExample(format: EApiPropertyDateType): string {
 }
 
 /**
- *
- * @param format
+ * Gets the appropriate regex pattern for validating a date string in the specified format.
+ * Provides patterns for DATE (YYYY-MM-DD), DATE_TIME (ISO format), and TIME (HH:MM:SS) formats.
+ * @param {EApiPropertyDateType} format - The date format type
+ * @returns {string} A regex pattern string for validating the date format
+ * @private
  */
 function getPattern(format: EApiPropertyDateType): string {
 	switch (format) {
@@ -263,8 +341,13 @@ function getPattern(format: EApiPropertyDateType): string {
 }
 
 /**
- *
- * @param properties
+ * Validates the configuration options for the API property date.
+ * Checks for logical consistency in array options including min/max items,
+ * unique items constraints, and other validation rules.
+ * @param {TApiPropertyDateProperties} properties - The property configuration to validate
+ * @returns {void}
+ * @throws {Error} If the configuration is invalid with detailed error messages
+ * @private
  */
 function validateOptions(properties: TApiPropertyDateProperties): void {
 	const errors: Array<string> = [];

@@ -13,10 +13,12 @@ import { LoggerUtility } from "../../../utility/logger.utility";
 import { ApiFunctionGet } from "./get.decorator";
 
 /**
- *
- * @param properties
+ * Creates a decorator that adds entity deletion functionality to a service method
+ * @param {IApiFunctionProperties} properties - Configuration properties for the delete function
+ * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle entity deletion
  */
-export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
+// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
+export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunctionProperties): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties = properties;
 	const getDecorator: (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity });
 	let getFunction: (properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager) => Promise<E>;
@@ -63,8 +65,10 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 }
 
 /**
- *
- * @param options
+ * Executes the entity deletion operation with error handling
+ * @param {IApiFunctionDeleteExecutorProperties<E>} options - Properties required for entity deletion
+ * @returns {Promise<E>} The deleted entity instance
+ * @throws {InternalServerErrorException} If the deletion operation fails
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExecutorProperties<E>): Promise<E> {
 	const { criteria, entity, eventManager, getFunction, repository }: IApiFunctionDeleteExecutorProperties<E> = options;

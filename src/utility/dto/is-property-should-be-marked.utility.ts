@@ -8,13 +8,14 @@ import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "../../enum
 import { DtoIsPropertyExposedForGuard } from "./is-property-exposed-for-guard.utility";
 
 /**
- *
- * @param method
- * @param dtoType
- * @param propertyName
- * @param propertyMetadata
- * @param isPrimary
- * @param currentGuard
+ * Determines if a property should be marked for inclusion in a specific DTO type
+ * @param {EApiRouteType} method - The API route type (GET, POST, etc.)
+ * @param {EApiDtoType} dtoType - The DTO type (request, response, etc.)
+ * @param {string} propertyName - The name of the property
+ * @param {TApiPropertyDescribeProperties} propertyMetadata - The property's metadata
+ * @param {boolean} isPrimary - Whether the property is a primary key
+ * @param {Type<IAuthGuard>} currentGuard - The current authentication guard
+ * @returns {boolean} True if the property should be marked, false otherwise
  */
 export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApiDtoType, propertyName: string, propertyMetadata: TApiPropertyDescribeProperties, isPrimary: boolean, currentGuard?: Type<IAuthGuard>): boolean {
 	const isDateField: boolean = ["createdAt", "receivedAt", "updatedAt"].includes(propertyName);

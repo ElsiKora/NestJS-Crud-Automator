@@ -13,11 +13,15 @@ import { FilterOrderByFromEntity } from "../api/filter-order-by-from-entity.util
 import { CapitalizeString } from "../capitalize-string.utility";
 
 /**
- *
- * @param entity
- * @param entityMetadata
- * @param method
- * @param dtoType
+ * Creates a base class for list query DTOs with pagination and sorting properties.
+ * Includes limit, orderBy, orderDirection, and page fields with appropriate validation rules
+ * to ensure consistent pagination behavior.
+ * @param {ObjectLiteral} entity - The entity class or prototype
+ * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
+ * @param {EApiRouteType} method - The API route type (GET_LIST)
+ * @param {EApiDtoType} dtoType - The type of DTO (QUERY)
+ * @returns {Type<unknown>} A base class for list query DTOs
+ * @template E - The entity type
  */
 export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType): Type<unknown> {
 	class BaseQueryDTO {

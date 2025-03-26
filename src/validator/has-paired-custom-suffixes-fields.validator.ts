@@ -8,6 +8,11 @@ import { THasPairedCustomSuffixesFieldsOperationConfig, THasPairedCustomSuffixes
 // eslint-disable-next-line @elsikora/typescript/naming-convention
 @ValidatorConstraint({ async: false, name: "has-paired-custom-suffixes-fields" })
 export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstraintInterface {
+	/**
+	 * Provides a custom error message describing the validation failure
+	 * @param {ValidationArguments} properties - Validation arguments containing the object being validated
+	 * @returns {string} A descriptive error message explaining why validation failed
+	 */
 	defaultMessage(properties: ValidationArguments): string {
 		const object: THasPairedCustomSuffixesFieldsValidationContext = properties.object as THasPairedCustomSuffixesFieldsValidationContext;
 		const fieldGroups: Map<string, Set<string>> = object.__fieldGroups;
@@ -87,6 +92,12 @@ export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstrai
 		return `fields must have valid operator-value suffix pairs`;
 	}
 
+	/**
+	 * Validates that fields with suffixes follow the proper operator-value pairing pattern
+	 * @param {unknown} _value - The value being validated (unused)
+	 * @param {{ constraints: [string, Array<string>] } & ValidationArguments} properties - Validation arguments and constraints
+	 * @returns {boolean} True if the object has properly paired suffixes, false otherwise
+	 */
 	validate(_value: unknown, properties: { constraints: [string, Array<string>] } & ValidationArguments): boolean {
 		const [operatorSuffix, valueSuffixes]: [string, Array<string>] = properties.constraints;
 		const indexableObject: Record<string, unknown> = properties.object as Record<string, unknown>;

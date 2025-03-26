@@ -13,8 +13,10 @@ import { MetadataStorage } from "../class";
 import { ErrorException } from "./error-exception.utility";
 
 /**
- *
- * @param entity
+ * Generates metadata information about an entity including columns, table name, and primary key
+ * @param {IApiBaseEntity} entity - The entity to generate information for
+ * @returns {IApiEntity<E>} The generated entity information object
+ * @template E - The entity type
  */
 export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity<E> {
 	const generatedEntity: IApiEntity<E> = {

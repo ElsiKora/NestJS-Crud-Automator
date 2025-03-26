@@ -8,11 +8,14 @@ import { CamelCaseString } from "../camel-case-string.utility";
 import { CapitalizeString } from "../capitalize-string.utility";
 
 /**
- *
- * @param entity
- * @param method
- * @param dtoType
- * @param propertyName
+ * Creates a simple relationship DTO containing only an ID field.
+ * Used for representing related entities in API responses with minimal information.
+ * @param {IApiEntity<E>} entity - The entity metadata
+ * @param {EApiRouteType} method - The API route type (CREATE, DELETE, GET, etc.)
+ * @param {EApiDtoType} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
+ * @param {string} propertyName - The name of the relation property
+ * @returns {Type<unknown>} A generated DTO class for relation representation
+ * @template E - The entity type
  */
 export function DtoGenerateRelationResponse<E>(entity: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string): Type<unknown> {
 	class GeneratedRelationDTO {

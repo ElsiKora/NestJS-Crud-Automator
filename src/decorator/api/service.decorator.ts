@@ -8,8 +8,10 @@ import { EApiFunctionType } from "../../enum";
 import { ApiFunction } from "./function";
 
 /**
- *
- * @param properties
+ * Creates a class decorator that adds CRUD operations to a service class for a specific entity
+ * @param {TApiServiceProperties<E>} properties - Configuration properties for the service
+ * @returns {Function} A class decorator function that extends the target class with CRUD methods
+ * @template E - The entity type
  */
 export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProperties<E>) {
 	const { entity }: TApiServiceProperties<E> = properties;

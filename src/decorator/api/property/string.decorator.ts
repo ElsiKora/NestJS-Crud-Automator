@@ -12,8 +12,71 @@ import { EApiPropertyDataType, EApiPropertyStringType } from "../../../enum";
 import { IsRegularExpressionValidator } from "../../../validator";
 
 /**
+ * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
+ * for string properties in DTOs.
  *
- * @param properties
+ * This decorator handles string properties with support for:
+ * - Various string formats (email, URL, UUID, IP, date, etc.)
+ * - Single strings or arrays of strings
+ * - Response/Request specific decorators
+ * - Pattern validation with regex
+ * - Length validation
+ * - Case sensitivity options (uppercase, lowercase)
+ * - Transformation rules
+ *
+ * The decorator applies appropriate validation rules based on the format and configuration.
+ * @param {TApiPropertyStringProperties} properties - Configuration options for the string property
+ * @returns {Function} A decorator function that can be applied to a class property
+ * @example
+ * ```typescript
+ * // Simple string property
+ * class UserDto {
+ *   @ApiPropertyString({
+ *     entity: { name: 'User' },
+ *     description: 'name',
+ *     format: EApiPropertyStringType.STRING,
+ *     isRequired: true,
+ *     minLength: 2,
+ *     maxLength: 100,
+ *     pattern: '/^[a-zA-Z ]+$/',
+ *     exampleValue: 'John Doe'
+ *   })
+ *   name: string;
+ * }
+ *
+ * // Email format
+ * class ContactDto {
+ *   @ApiPropertyString({
+ *     entity: { name: 'Contact' },
+ *     description: 'email address',
+ *     format: EApiPropertyStringType.EMAIL,
+ *     isRequired: true,
+ *     minLength: 5,
+ *     maxLength: 255,
+ *     pattern: '/^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$/',
+ *     exampleValue: 'user@example.com'
+ *   })
+ *   email: string;
+ * }
+ *
+ * // Array of URLs
+ * class WebsitesDto {
+ *   @ApiPropertyString({
+ *     entity: { name: 'Website' },
+ *     description: 'links',
+ *     format: EApiPropertyStringType.URL,
+ *     isArray: true,
+ *     minItems: 1,
+ *     maxItems: 5,
+ *     isUniqueItems: true,
+ *     minLength: 10,
+ *     maxLength: 2000,
+ *     pattern: '/^https?:\\/\\/[\\w\\-]+(\\.[\\w\\-]+)+[/#?]?.*$/',
+ *     exampleValue: ['https://example.com', 'https://another-example.org']
+ *   })
+ *   websites: string[];
+ * }
+ * ```
  */
 export function ApiPropertyString(properties: TApiPropertyStringProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions(properties);
@@ -25,8 +88,12 @@ export function ApiPropertyString(properties: TApiPropertyStringProperties): <Y>
 }
 
 /**
- *
- * @param properties
+ * Builds the API property options object from the provided property configuration.
+ * Sets up string-specific properties including format, pattern, example value,
+ * and length constraints.
+ * @param {TApiPropertyStringProperties} properties - The property configuration
+ * @returns {ApiPropertyOptions} The Swagger API property options object
+ * @private
  */
 function buildApiPropertyOptions(properties: TApiPropertyStringProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions & Record<string, any> = {
@@ -61,9 +128,13 @@ function buildApiPropertyOptions(properties: TApiPropertyStringProperties): ApiP
 }
 
 /**
- *
- * @param properties
- * @param apiPropertyOptions
+ * Builds all the necessary decorators for the string property based on the configuration.
+ * Combines API property decorators, response decorators, request decorators, format decorators,
+ * and string validation decorators.
+ * @param {TApiPropertyStringProperties} properties - The property configuration
+ * @param {ApiPropertyOptions} apiPropertyOptions - The Swagger API property options
+ * @returns {Array<PropertyDecorator>} An array of decorators to apply to the property
+ * @private
  */
 function buildDecorators(properties: TApiPropertyStringProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
@@ -74,8 +145,12 @@ function buildDecorators(properties: TApiPropertyStringProperties, apiPropertyOp
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for string format validation based on the specified format type.
+ * Handles various formats like email, URL, UUID, IP, date, regexp, and case-sensitive strings.
+ * Applies appropriate validation decorators for each format type.
+ * @param {TApiPropertyStringProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of format-specific validation decorators
+ * @private
  */
 function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -178,8 +253,11 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for request validation including optional status,
+ * array validation, and size constraints for string properties.
+ * @param {TApiPropertyStringProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of request validation decorators
+ * @private
  */
 function buildRequestDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -202,8 +280,11 @@ function buildRequestDecorators(properties: TApiPropertyStringProperties): Array
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for response serialization including API response property,
+ * expose, and exclude decorators for string properties.
+ * @param {TApiPropertyStringProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of response serialization decorators
+ * @private
  */
 function buildResponseDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -222,8 +303,11 @@ function buildResponseDecorators(properties: TApiPropertyStringProperties): Arra
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for string-specific validation including pattern matching and length validation.
+ * Applies appropriate validation rules for both single string values and arrays of strings.
+ * @param {TApiPropertyStringProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of string validation decorators
+ * @private
  */
 function buildStringValidationDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -241,8 +325,17 @@ function buildStringValidationDecorators(properties: TApiPropertyStringPropertie
 }
 
 /**
- *
- * @param properties
+ * Validates the configuration options for the API property string.
+ * Performs extensive validation including:
+ * - Pattern and example value consistency
+ * - Length constraints (min/max length)
+ * - Array options consistency (min/max items, unique items)
+ * - Example value length validation against min/max constraints
+ * - Regular expression pattern validity
+ * @param {TApiPropertyStringProperties} properties - The property configuration to validate
+ * @returns {void}
+ * @throws {Error} If the configuration is invalid with detailed error messages
+ * @private
  */
 function validateOptions(properties: TApiPropertyStringProperties): void {
 	const errors: Array<string> = [];

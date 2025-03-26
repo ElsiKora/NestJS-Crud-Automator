@@ -13,17 +13,22 @@ import { DtoHandleDateProperty } from "./handle-date-property.utility";
 import { DtoIsPropertyExposedForGuard } from "./is-property-exposed-for-guard.utility";
 
 /**
- *
- * @param method
- * @param propertyMetadata
- * @param entity
- * @param dtoType
- * @param propertyName
- * @param currentGuard
- * @param generatedDTOs
- * @param isVerbose
+ * Creates property decorators for DTOs based on property metadata, entity information, and context.
+ * Handles special cases for date properties and guard-based exposure rules.
+ * @param {M} method - The API route type (CREATE, DELETE, GET, etc.)
+ * @param {TApiPropertyDescribeProperties} propertyMetadata - Metadata describing the property
+ * @param {IApiEntity<E>} entity - The entity metadata
+ * @param {D} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
+ * @param {string} propertyName - The name of the property
+ * @param {Type<IAuthGuard>} [currentGuard] - Optional authentication guard
+ * @param {Record<string, Type<unknown>>} [generatedDTOs] - Optional record of dynamically generated DTOs
+ * @returns {Array<PropertyDecorator> | undefined} Array of property decorators or undefined if property should not be included
+ * @template E - The entity type
+ * @template M - The API route type
+ * @template D - The DTO type
  */
-export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, propertyName: string, currentGuard?: Type<IAuthGuard>, generatedDTOs?: Record<string, Type<unknown>>, isVerbose?: boolean): Array<PropertyDecorator> | undefined {
+// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
+export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, propertyName: string, currentGuard?: Type<IAuthGuard>, generatedDTOs?: Record<string, Type<unknown>>): Array<PropertyDecorator> | undefined {
 	type TAllowed = TDtoGenerateIsAllowedCombination<M, D>;
 
 	type TPropertiesType = TAllowed extends true ? TApiPropertyDescribeDtoProperties : never;
@@ -58,10 +63,6 @@ export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoT
 	}
 
 	const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, propertyMetadata, dtoType, propertyName);
-
-	if (isVerbose) {
-		console.log("I WANT", config, method, dtoType, propertyName);
-	}
 
 	return [DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName, generatedDTOs)];
 }

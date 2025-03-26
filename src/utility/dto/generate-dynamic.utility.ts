@@ -12,14 +12,21 @@ import { DtoBuildDecorator } from "./build-decorator.utility";
 import { DtoIsPropertyExposedForGuard } from "./is-property-exposed-for-guard.utility";
 
 /**
- *
- * @param method
- * @param propertyMetadata
- * @param entity
- * @param dtoType
- * @param _propertyName
- * @param currentGuard
+ * Generates dynamic DTOs for object-type properties based on property metadata.
+ * Creates classes on the fly with appropriate decorators for each property and sets up
+ * proper inheritance and naming conventions.
+ * @param {M} method - The API route type (CREATE, DELETE, GET, etc.)
+ * @param {TApiPropertyDescribeProperties} propertyMetadata - Metadata describing the property
+ * @param {IApiEntity<E>} entity - The entity metadata
+ * @param {D} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
+ * @param {string} _propertyName - The name of the property
+ * @param {Type<IAuthGuard>} [currentGuard] - Optional authentication guard
+ * @returns {Record<string, Type<unknown>> | undefined} A record of generated DTO classes or undefined if generation not needed
+ * @template E - The entity type
+ * @template M - The API route type
+ * @template D - The DTO type
  */
+// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
 export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, _propertyName: string, currentGuard?: Type<IAuthGuard>): Record<string, Type<unknown>> | undefined {
 	if (propertyMetadata.type !== EApiPropertyDescribeType.OBJECT) {
 		return undefined;
@@ -72,7 +79,7 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 
 			for (const propertyName of Object.keys(data)) {
 				if (data[propertyName]) {
-					const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, data[propertyName], entity, dtoType, propertyName, currentGuard, {}, true);
+					const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, data[propertyName], entity, dtoType, propertyName, currentGuard, {});
 
 					if (decorators) {
 						for (const [, decorator] of decorators.entries()) {

@@ -12,10 +12,12 @@ import { ErrorString } from "../../../utility/error-string.utility";
 import { LoggerUtility } from "../../../utility/logger.utility";
 
 /**
- *
- * @param properties
+ * Creates a decorator that adds entity creation functionality to a service method
+ * @param {IApiFunctionProperties} properties - Configuration properties for the create function
+ * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle entity creation
  */
-export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
+// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
+export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunctionProperties): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties = properties;
 
 	return function (target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
@@ -45,8 +47,10 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 }
 
 /**
- *
- * @param options
+ * Executes the entity creation operation with error handling
+ * @param {IApiFunctionCreateExecutorProperties<E>} options - Properties required for entity creation
+ * @returns {Promise<E>} The created entity instance
+ * @throws {InternalServerErrorException} If the creation operation fails
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExecutorProperties<E>): Promise<E> {
 	const { entity, eventManager, properties, repository }: IApiFunctionCreateExecutorProperties<E> = options;

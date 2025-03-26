@@ -24,13 +24,18 @@ import { DtoIsPropertyShouldBeMarked } from "./is-property-should-be-marked.util
 import { DtoIsShouldBeGenerated } from "./is-should-be-generated.utility";
 
 /**
- *
- * @param entity
- * @param entityMetadata
- * @param method
- * @param dtoType
- * @param dtoConfig
- * @param currentGuard
+ * Core utility for DTO generation that determines which properties should be included in the DTO.
+ * Builds decorators, handles special cases like filter queries, and generates the appropriate class
+ * based on entity metadata, route type, and DTO type.
+ * @param {ObjectLiteral} entity - The entity class or prototype
+ * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
+ * @param {EApiRouteType} method - The API route type (CREATE, DELETE, GET, etc.)
+ * @param {EApiDtoType} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
+ * @param {IApiControllerPropertiesRouteAutoDtoConfig} [dtoConfig] - Optional configuration for automatic DTO generation
+ * @param {Type<IAuthGuard>} [currentGuard] - Optional authentication guard for property visibility control
+ * @returns {Type<unknown> | undefined} The generated DTO class or undefined if no DTO should be generated
+ * @throws {Error} When primary key metadata is missing
+ * @template E - The entity type
  */
 export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {

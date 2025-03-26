@@ -61,9 +61,10 @@ const ExceptionMap: Record<EException, any> = {
 };
 
 /**
- *
- * @param error
- * @param type
+ * Checks if an error is of a specific exception type
+ * @param {unknown} error - The error to check
+ * @param {EException} type - The exception type to compare against
+ * @returns {boolean} True if the error is of the specified type, false otherwise
  */
 export function IsErrorOfType(error: unknown, type: EException): boolean {
 	const ExceptionClass: HttpException = ExceptionMap[type] as HttpException;

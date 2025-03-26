@@ -20,7 +20,8 @@ export class LoggerUtility extends ConsoleLogger {
 
 	/**
 	 * Static method to create a logger with a specific context
-	 * @param context
+	 * @param {string} context - The context name for the logger
+	 * @returns {LoggerUtility} A new logger instance with the specified context
 	 */
 	public static getLogger(context?: string): LoggerUtility {
 		return new LoggerUtility(`NestJS-Crud-Automator/${context ?? "Core"}`);
@@ -28,6 +29,8 @@ export class LoggerUtility extends ConsoleLogger {
 
 	/**
 	 * Get the current log level from environment variable
+	 * @returns {Array<LogLevel>} Array of enabled log levels based on environment configuration
+	 * @private
 	 */
 	private static getLogLevelsFromEnv(): Array<LogLevel> {
 		const logLevel: string = process.env[this.ENV_LOG_LEVEL_KEY] ?? "none";

@@ -11,11 +11,18 @@ import { ErrorException } from "../../error-exception.utility";
 import { GetEntityColumns } from "../../get-entity-columns.utility";
 
 /**
- *
- * @param controllerMethod
- * @param properties
- * @param relationConfig
- * @param parameters
+ * Manages loading related entities when processing API requests.
+ * Determines which relations to load based on configuration strategy (MANUAL or AUTO),
+ * finds the appropriate service for each relation, and loads the related entities.
+ * @param {TApiControllerMethod<E>} controllerMethod - The controller method with access to service instances
+ * @param {IApiControllerProperties<E>} properties - Controller configuration properties
+ * @param {TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined} relationConfig - Configuration for relation loading
+ * @param {DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E>} parameters - The request parameters containing relation IDs
+ * @returns {Promise<void>} A promise that resolves when all relations are loaded
+ * @throws {BadRequestException} When an invalid relation ID is provided
+ * @throws {Error} When service configuration is invalid or services are not found
+ * @template E - The entity type
+ * @template R - The route type
  */
 export async function ApiControllerHandleRequestRelations<E>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
 	if (relationConfig?.shouldLoadRelations) {

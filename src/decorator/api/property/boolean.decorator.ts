@@ -10,8 +10,55 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, IsOption
 import { EApiPropertyDataType } from "../../../enum";
 
 /**
+ * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
+ * for boolean properties in DTOs.
  *
- * @param properties
+ * This decorator handles boolean properties with support for:
+ * - Single boolean values or arrays of booleans
+ * - Response/Request specific decorators
+ * - Intelligent type conversion from various input types to boolean
+ * - Array validation with min/max items
+ * - Nullable values
+ *
+ * The decorator provides smart type conversion that handles string values ('true'/'false', '1'/'0'),
+ * number values (0/non-zero), and proper boolean values. This makes it robust when working with
+ * form data and query parameters.
+ * @param {TApiPropertyBaseProperties} properties - Configuration options for the boolean property
+ * @returns {Function} A decorator function that can be applied to a class property
+ * @example
+ * ```typescript
+ * // Simple boolean property
+ * class UserDto {
+ *   @ApiPropertyBoolean({
+ *     entity: { name: 'User' },
+ *     description: 'is active',
+ *     isRequired: true
+ *   })
+ *   isActive: boolean;
+ * }
+ *
+ * // Optional boolean property
+ * class ProductDto {
+ *   @ApiPropertyBoolean({
+ *     entity: { name: 'Product' },
+ *     description: 'is featured',
+ *     isRequired: false
+ *   })
+ *   isFeatured?: boolean;
+ * }
+ *
+ * // Array of boolean flags
+ * class PermissionsDto {
+ *   @ApiPropertyBoolean({
+ *     entity: { name: 'Permission' },
+ *     description: 'flags',
+ *     isArray: true,
+ *     minItems: 1,
+ *     maxItems: 10
+ *   })
+ *   flags: boolean[];
+ * }
+ * ```
  */
 export function ApiPropertyBoolean(properties: TApiPropertyBaseProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions(properties);
@@ -23,8 +70,10 @@ export function ApiPropertyBoolean(properties: TApiPropertyBaseProperties): <Y>(
 }
 
 /**
- *
- * @param properties
+ * Builds the API property options object from the provided property configuration
+ * @param {TApiPropertyBaseProperties} properties - The property configuration
+ * @returns {ApiPropertyOptions} The Swagger API property options object
+ * @private
  */
 function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
@@ -50,9 +99,11 @@ function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPro
 }
 
 /**
- *
- * @param properties
- * @param apiPropertyOptions
+ * Builds all the necessary decorators for the property based on the configuration
+ * @param {TApiPropertyBaseProperties} properties - The property configuration
+ * @param {ApiPropertyOptions} apiPropertyOptions - The Swagger API property options
+ * @returns {Array<PropertyDecorator>} An array of decorators to apply to the property
+ * @private
  */
 function buildDecorators(properties: TApiPropertyBaseProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
@@ -63,8 +114,10 @@ function buildDecorators(properties: TApiPropertyBaseProperties, apiPropertyOpti
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for format validation
+ * @param {TApiPropertyBaseProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of format validation decorators
+ * @private
  */
 function buildFormatDecorators(properties: TApiPropertyBaseProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -79,8 +132,10 @@ function buildFormatDecorators(properties: TApiPropertyBaseProperties): Array<Pr
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for request validation including optional status and array validation
+ * @param {TApiPropertyBaseProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of request validation decorators
+ * @private
  */
 function buildRequestDecorators(properties: TApiPropertyBaseProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -103,8 +158,10 @@ function buildRequestDecorators(properties: TApiPropertyBaseProperties): Array<P
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for response serialization including API response property and expose/exclude
+ * @param {TApiPropertyBaseProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of response serialization decorators
+ * @private
  */
 function buildResponseDecorators(properties: TApiPropertyBaseProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -123,8 +180,10 @@ function buildResponseDecorators(properties: TApiPropertyBaseProperties): Array<
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for type transformation including handling various input types to boolean
+ * @param {TApiPropertyBaseProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of type transformation decorators
+ * @private
  */
 function buildTransformDecorators(properties: TApiPropertyBaseProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -215,8 +274,11 @@ function buildTransformDecorators(properties: TApiPropertyBaseProperties): Array
 }
 
 /**
- *
- * @param properties
+ * Validates the configuration options for the API property
+ * @param {TApiPropertyBaseProperties} properties - The property configuration to validate
+ * @returns {void}
+ * @throws {Error} If the configuration is invalid
+ * @private
  */
 function validateOptions(properties: TApiPropertyBaseProperties): void {
 	const errors: Array<string> = [];

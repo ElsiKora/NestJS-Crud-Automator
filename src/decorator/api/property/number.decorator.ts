@@ -12,8 +12,70 @@ import { NUMBER_CONSTANT } from "../../../constant";
 import { EApiPropertyDataType, EApiPropertyNumberType } from "../../../enum";
 
 /**
+ * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
+ * for number properties in DTOs.
  *
- * @param properties
+ * This decorator handles number properties with support for:
+ * - Integer and double/float formats
+ * - Single numbers or arrays of numbers
+ * - Response/Request specific decorators
+ * - Min/max value constraints
+ * - Multiple-of validation
+ * - Automatic transformation from string to number
+ * - Range validation
+ *
+ * The decorator can automatically generate an example value within the specified range
+ * if one is not provided, and applies appropriate validation rules based on the configuration.
+ * @param {TApiPropertyNumberProperties} properties - Configuration options for the number property
+ * @returns {Function} A decorator function that can be applied to a class property
+ * @example
+ * ```typescript
+ * // Simple integer property
+ * class ProductDto {
+ *   @ApiPropertyNumber({
+ *     entity: { name: 'Product' },
+ *     description: 'quantity',
+ *     format: EApiPropertyNumberType.INTEGER,
+ *     isRequired: true,
+ *     minimum: 1,
+ *     maximum: 100,
+ *     exampleValue: 10
+ *   })
+ *   quantity: number;
+ * }
+ *
+ * // Float property with multiple-of validation
+ * class PriceDto {
+ *   @ApiPropertyNumber({
+ *     entity: { name: 'Price' },
+ *     description: 'amount',
+ *     format: EApiPropertyNumberType.DOUBLE,
+ *     isRequired: true,
+ *     minimum: 0.01,
+ *     maximum: 999999.99,
+ *     multipleOf: 0.01,
+ *     exampleValue: 29.99
+ *   })
+ *   amount: number;
+ * }
+ *
+ * // Array of numbers
+ * class PointsDto {
+ *   @ApiPropertyNumber({
+ *     entity: { name: 'Coordinate' },
+ *     description: 'values',
+ *     format: EApiPropertyNumberType.INTEGER,
+ *     isArray: true,
+ *     minItems: 2,
+ *     maxItems: 3,
+ *     isUniqueItems: true,
+ *     minimum: -180,
+ *     maximum: 180,
+ *     exampleValue: [45, 90, 135]
+ *   })
+ *   coordinates: number[];
+ * }
+ * ```
  */
 export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	if (properties.exampleValue === undefined) {
@@ -29,8 +91,12 @@ export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): <Y>
 }
 
 /**
- *
- * @param properties
+ * Builds the API property options object from the provided property configuration.
+ * Sets up number-specific properties including format, min/max values, example value,
+ * and multiple-of constraint.
+ * @param {TApiPropertyNumberProperties} properties - The property configuration
+ * @returns {ApiPropertyOptions} The Swagger API property options object
+ * @private
  */
 function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
@@ -56,7 +122,7 @@ function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiP
 	apiPropertyOptions.minimum = properties.minimum;
 	apiPropertyOptions.maximum = properties.maximum;
 
-	if ((properties.isResponse === false || properties.isResponse === undefined) && properties.multipleOf !== undefined) {
+	if ((properties.isResponse === false || properties.isResponse === undefined) && properties.multipleOf != undefined) {
 		apiPropertyOptions.multipleOf = properties.multipleOf;
 	}
 
@@ -64,9 +130,13 @@ function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiP
 }
 
 /**
- *
- * @param properties
- * @param apiPropertyOptions
+ * Builds all the necessary decorators for the number property based on the configuration.
+ * Combines API property decorators, response decorators, request decorators, format decorators,
+ * transform decorators, and number validation decorators.
+ * @param {TApiPropertyNumberProperties} properties - The property configuration
+ * @param {ApiPropertyOptions} apiPropertyOptions - The Swagger API property options
+ * @returns {Array<PropertyDecorator>} An array of decorators to apply to the property
+ * @private
  */
 function buildDecorators(properties: TApiPropertyNumberProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
@@ -77,8 +147,11 @@ function buildDecorators(properties: TApiPropertyNumberProperties, apiPropertyOp
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for number format validation based on the specified format type.
+ * Handles integer and double/float formats with appropriate validators.
+ * @param {TApiPropertyNumberProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of format-specific validation decorators
+ * @private
  */
 function buildFormatDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -112,14 +185,17 @@ function buildFormatDecorators(properties: TApiPropertyNumberProperties): Array<
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for number-specific validation including multiple-of constraint,
+ * minimum value, and maximum value validation.
+ * @param {TApiPropertyNumberProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of number validation decorators
+ * @private
  */
 function buildNumberValidationDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
 
-	if ((properties.isResponse === false || properties.isResponse === undefined) && properties.multipleOf !== undefined) {
+	if ((properties.isResponse === false || properties.isResponse === undefined) && properties.multipleOf != undefined) {
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		decorators.push(IsDivisibleBy(properties.multipleOf, { each: isArray }), Min(properties.minimum, { each: isArray }), Max(properties.maximum, { each: isArray }));
 	}
@@ -128,8 +204,11 @@ function buildNumberValidationDecorators(properties: TApiPropertyNumberPropertie
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for request validation including optional status,
+ * array validation, and size constraints for number properties.
+ * @param {TApiPropertyNumberProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of request validation decorators
+ * @private
  */
 function buildRequestDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -152,8 +231,11 @@ function buildRequestDecorators(properties: TApiPropertyNumberProperties): Array
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for response serialization including API response property,
+ * expose, and exclude decorators for number properties.
+ * @param {TApiPropertyNumberProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of response serialization decorators
+ * @private
  */
 function buildResponseDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -172,8 +254,11 @@ function buildResponseDecorators(properties: TApiPropertyNumberProperties): Arra
 }
 
 /**
- *
- * @param properties
+ * Builds decorators for type transformation from string to number.
+ * Handles both single values and arrays with appropriate transformers.
+ * @param {TApiPropertyNumberProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array of type transformation decorators
+ * @private
  */
 function buildTransformDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
@@ -190,8 +275,11 @@ function buildTransformDecorators(properties: TApiPropertyNumberProperties): Arr
 }
 
 /**
- *
- * @param properties
+ * Determines the appropriate Swagger format for the number property.
+ * Maps integer types to int32/int64 based on value range, and handles double format.
+ * @param {TApiPropertyNumberProperties} properties - The property configuration
+ * @returns {string} The Swagger format string
+ * @private
  */
 function getFormat(properties: TApiPropertyNumberProperties): string {
 	switch (properties.format) {
@@ -210,8 +298,11 @@ function getFormat(properties: TApiPropertyNumberProperties): string {
 }
 
 /**
- *
- * @param properties
+ * Determines the appropriate Swagger data type for the number property.
+ * Maps formatter types to the corresponding API property data types.
+ * @param {TApiPropertyNumberProperties} properties - The property configuration
+ * @returns {EApiPropertyDataType.INTEGER | EApiPropertyDataType.NUMBER} The Swagger data type
+ * @private
  */
 function getType(properties: TApiPropertyNumberProperties): EApiPropertyDataType.INTEGER | EApiPropertyDataType.NUMBER {
 	switch (properties.format) {
@@ -226,8 +317,16 @@ function getType(properties: TApiPropertyNumberProperties): EApiPropertyDataType
 }
 
 /**
- *
- * @param properties
+ * Validates the configuration options for the API property number.
+ * Performs extensive validation including:
+ * - Min/max values consistency
+ * - Multiple-of constraints and example value compatibility
+ * - Example values within min/max range
+ * - Array options consistency (min/max items, unique items)
+ * @param {TApiPropertyNumberProperties} properties - The property configuration to validate
+ * @returns {void}
+ * @throws {Error} If the configuration is invalid with detailed error messages
+ * @private
  */
 function validateOptions(properties: TApiPropertyNumberProperties): void {
 	const errors: Array<string> = [];
@@ -236,7 +335,7 @@ function validateOptions(properties: TApiPropertyNumberProperties): void {
 		errors.push("'minimum' is greater than maximum");
 	}
 
-	if (properties.multipleOf !== undefined) {
+	if (properties.multipleOf != undefined) {
 		if (Array.isArray(properties.exampleValue)) {
 			for (const example of properties.exampleValue) {
 				if (!isInt(example / properties.multipleOf)) {

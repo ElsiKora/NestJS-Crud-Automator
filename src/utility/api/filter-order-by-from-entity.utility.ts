@@ -14,12 +14,17 @@ import { FILTER_API_INTERFACE_CONSTANT, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT
 import "reflect-metadata";
 
 /**
- *
- * @param entity
- * @param entityMetadata
- * @param method
- * @param dtoType
- * @param fieldSelector
+ * Extracts filterable and sortable fields from an entity for building query filters.
+ * Analyzes entity columns, checks if they're of allowed types, and transforms
+ * property names to snake_case for use in filter and order-by operations.
+ * @param {ObjectLiteral} entity - The entity class
+ * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
+ * @param {EApiRouteType} method - The type of route (CREATE, DELETE, GET, etc.)
+ * @param {EApiDtoType} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
+ * @param {TFilterFieldSelector<typeof entity>} [fieldSelector] - Optional selector to include/exclude specific fields
+ * @returns {TApiFilterOrderBy<typeof entity>} An object mapping snake_case column names to camelCase property names
+ * @throws {Error} When a field in the fieldSelector doesn't exist in the entity
+ * @template E - The entity type
  */
 export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, fieldSelector?: TFilterFieldSelector<typeof entity>): TApiFilterOrderBy<typeof entity> {
 	const metadata: MetadataArgsStorage = getMetadataArgsStorage();

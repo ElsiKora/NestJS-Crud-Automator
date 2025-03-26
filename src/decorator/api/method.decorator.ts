@@ -9,9 +9,12 @@ import { EApiAction } from "../../enum";
 import { DtoGenerateException } from "../../utility/dto/generate-exception.utility";
 
 /**
- *
- * @param options
+ * Creates a decorator for controller methods that combines NestJS route decorators with Swagger documentation
+ * @param {IApiMethodProperties<T>} options - Configuration options for the API method
+ * @returns {Function} A decorator function that applies multiple decorators to a controller method
+ * @template T - The entity type for the API method
  */
+// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters,@elsikora/typescript/no-unsafe-function-type
 export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	let summary: string = "";
 

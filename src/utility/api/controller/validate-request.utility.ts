@@ -4,10 +4,13 @@ import type { TApiControllerGetListQuery } from "../../../type";
 import { ErrorString } from "../../error-string.utility";
 
 /**
- *
- * @param validators
- * @param properties
- * @param parameters
+ * Validates incoming request parameters against defined validators.
+ * Sequentially applies validation functions and throws appropriate exceptions with error messages when validation fails.
+ * @param {Array<IApiRequestValidator<E>> | undefined} validators - List of request validators to apply
+ * @param {IApiControllerProperties<E>} properties - Controller configuration properties
+ * @param {Partial<E> | TApiControllerGetListQuery<E>} parameters - The request parameters to validate
+ * @returns {Promise<void>} A promise that resolves when validation passes
+ * @template E - The entity type
  */
 export async function ApiControllerValidateRequest<E>(validators: Array<IApiRequestValidator<E>> | undefined, properties: IApiControllerProperties<E>, parameters: Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
 	if (validators) {
