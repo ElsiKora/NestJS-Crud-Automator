@@ -1,1 +1,1 @@
-export type * from "./primary-column.interface";
+export { type IApiControllerPrimaryColumn } from "./primary-column.interface";

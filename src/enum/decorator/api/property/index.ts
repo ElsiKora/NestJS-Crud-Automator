@@ -1,5 +1,5 @@
-export * from "./data-type.enum";
+export { EApiPropertyDataType } from "./data-type.enum";
 export * from "./date";
-export * from "./desribe-type.enum";
-export * from "./number-type.enum";
-export * from "./string-type.enum";
+export { EApiPropertyDescribeType } from "./desribe-type.enum";
+export { EApiPropertyNumberType } from "./number-type.enum";
+export { EApiPropertyStringType } from "./string-type.enum";

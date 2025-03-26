@@ -1,13 +1,21 @@
+import { LIST_DTO_CONSTANT } from "@constant/dto";
+import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
+import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
+import { EApiPropertyNumberType } from "@enum/decorator/api";
 import { Type } from "@nestjs/common";
 import { PickType } from "@nestjs/swagger";
-import { ApiPropertyNumber } from "src/decorator/api/property/number.decorator";
-import { ApiPropertyObject } from "src/decorator/api/property/object.decorator";
-
-import LIST_DTO_CONSTANT from "../../constant/dto/list.constant";
-import { EApiPropertyNumberType } from "../../enum";
 
 type TClassType<T = any> = new (...arguments_: Array<any>) => T;
 
+/**
+ * Generates a DTO for paginated list responses with appropriate metadata.
+ * Creates a class with count, currentPage, items, totalCount, and totalPages properties,
+ * all properly decorated with Swagger and validation decorators.
+ * @param {TClassType} resourceClass - The class representing the entity being listed
+ * @param {TClassType} responseResourceClass - The response DTO class for individual items
+ * @param {string} name - The name for the generated DTO class
+ * @returns {Type<unknown>} A generated DTO class for paginated list responses
+ */
 export function DtoGenerateGetListResponse(resourceClass: TClassType, responseResourceClass: TClassType, name: string): Type<unknown> {
 	class ApiListGetResponse extends PickType(resourceClass, [] as const) {
 		@ApiPropertyNumber({

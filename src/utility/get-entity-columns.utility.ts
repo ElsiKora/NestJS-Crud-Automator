@@ -1,10 +1,15 @@
+import type { IGetEntityColumnsProperties } from "@interface/utility/get-entity-columns-properties.interface";
 import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
 import type { RelationMetadataArgs } from "typeorm/metadata-args/RelationMetadataArgs";
 
-import type { IGetEntityColumnsProperties } from "../interface/utility/get-entity-columns-properties.interface";
-
 import { getMetadataArgsStorage } from "typeorm";
 
+/**
+ * Retrieves column and relation property names from an entity based on specified filters
+ * @param {IGetEntityColumnsProperties} properties - Configuration options for retrieving entity columns
+ * @returns {Array<keyof E>} Array of property names from the entity
+ * @template E - The entity type
+ */
 export function GetEntityColumns<E>(properties: IGetEntityColumnsProperties): Array<keyof E> {
 	const { entity, shouldTakeGeneratedOnly, shouldTakeRelationsOnly }: IGetEntityColumnsProperties = properties;
 

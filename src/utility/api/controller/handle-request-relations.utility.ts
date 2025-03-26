@@ -1,15 +1,30 @@
+import type { IApiControllerProperties } from "@interface/decorator/api";
+import type { TApiControllerMethod } from "@type/class";
+import type { TApiControllerGetListQuery, TApiControllerPropertiesRouteBaseRequestRelations } from "@type/decorator/api/controller";
+import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
+import type { TApiServiceKeys } from "@type/decorator/api/service";
 import type { DeepPartial, FindOptionsWhere } from "typeorm";
 
-import type { IApiControllerProperties } from "../../../interface";
-import type { TApiControllerGetListQuery, TApiControllerMethod, TApiControllerPropertiesRouteBaseRequestRelations, TApiFunctionGetProperties, TApiServiceKeys } from "../../../type";
-
+import { ApiServiceBase } from "@class/api";
+import { EApiControllerLoadRelationsStrategy } from "@enum/decorator/api";
 import { BadRequestException } from "@nestjs/common";
+import { ErrorException } from "@utility/error-exception.utility";
+import { GetEntityColumns } from "@utility/get-entity-columns.utility";
 
-import { ApiServiceBase } from "../../../class";
-import { EApiControllerLoadRelationsStrategy } from "../../../enum";
-import { ErrorException } from "../../error-exception.utility";
-import { GetEntityColumns } from "../../get-entity-columns.utility";
-
+/**
+ * Manages loading related entities when processing API requests.
+ * Determines which relations to load based on configuration strategy (MANUAL or AUTO),
+ * finds the appropriate service for each relation, and loads the related entities.
+ * @param {TApiControllerMethod<E>} controllerMethod - The controller method with access to service instances
+ * @param {IApiControllerProperties<E>} properties - Controller configuration properties
+ * @param {TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined} relationConfig - Configuration for relation loading
+ * @param {DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E>} parameters - The request parameters containing relation IDs
+ * @returns {Promise<void>} A promise that resolves when all relations are loaded
+ * @throws {BadRequestException} When an invalid relation ID is provided
+ * @throws {Error} When service configuration is invalid or services are not found
+ * @template E - The entity type
+ * @template R - The route type
+ */
 export async function ApiControllerHandleRequestRelations<E>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
 	if (relationConfig?.shouldLoadRelations) {
 		for (const propertyName of GetEntityColumns<E>({ entity: properties.entity, shouldTakeRelationsOnly: true })) {

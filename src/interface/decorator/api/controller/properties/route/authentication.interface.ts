@@ -1,7 +1,6 @@
+import type { EApiAuthenticationType } from "@enum/decorator/api";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
-
-import type { EApiAuthenticationType } from "../../../../../../enum";
 
 export interface IApiControllerPropertiesRouteAuthentication {
 	bearerStrategies?: Array<string>;

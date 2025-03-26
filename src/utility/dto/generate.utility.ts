@@ -1,26 +1,40 @@
+import type { IApiControllerPropertiesRouteAutoDtoConfig } from "@interface/decorator/api";
+import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
+import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { ObjectLiteral } from "typeorm";
 
-import type { IApiControllerPropertiesRouteAutoDtoConfig, IApiEntity } from "../../interface";
-import type { TApiPropertyDescribeProperties } from "../../type";
-
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
+import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { ApiExtraModels } from "@nestjs/swagger";
+import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
+import { DtoGenerateDynamic } from "@utility/dto/generate-dynamic.utility";
+import { DtoGenerateFilterDecorator } from "@utility/dto/generate-filter-decorator.utility";
+import { DtoGenerateGetListResponse } from "@utility/dto/generate-get-list-response.utility";
+import { DtoGetGetListQueryBaseClass } from "@utility/dto/get-get-list-query-base-class.utility";
+import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is-property-should-be-marked.utility";
+import { DtoIsShouldBeGenerated } from "@utility/dto/is-should-be-generated.utility";
+import { ErrorException } from "@utility/error-exception.utility";
+import { HasPairedCustomSuffixesFieldsValidator } from "@validator/has-paired-custom-suffixes-fields.validator";
 import { Validate } from "class-validator";
 
-import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
-import { DTO_GENERATE_CONSTANT } from "../../constant/utility/dto/generate.constant";
-import { EApiDtoType, EApiRouteType } from "../../enum";
-import { HasPairedCustomSuffixesFields } from "../../validator/has-paired-custom-suffixes-fields.validator";
-import { CamelCaseString } from "../camel-case-string.utility";
-import { ErrorException } from "../error-exception.utility";
-
-import { DtoBuildDecorator } from "./build-decorator.utility";
-import { DtoGenerateFilterDecorator } from "./generate-filter-decorator.utility";
-import { DtoGenerateGetListResponse } from "./generate-get-list-response.utility";
-import { DtoGetGetListQueryBaseClass } from "./get-get-list-query-base-class.utility";
-import { DtoIsPropertyShouldBeMarked } from "./is-property-should-be-marked.utility";
-import { DtoIsShouldBeGenerated } from "./is-should-be-generated.utility";
-
+/**
+ * Core utility for DTO generation that determines which properties should be included in the DTO.
+ * Builds decorators, handles special cases like filter queries, and generates the appropriate class
+ * based on entity metadata, route type, and DTO type.
+ * @param {ObjectLiteral} entity - The entity class or prototype
+ * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
+ * @param {EApiRouteType} method - The API route type (CREATE, DELETE, GET, etc.)
+ * @param {EApiDtoType} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
+ * @param {IApiControllerPropertiesRouteAutoDtoConfig} [dtoConfig] - Optional configuration for automatic DTO generation
+ * @param {Type<IAuthGuard>} [currentGuard] - Optional authentication guard for property visibility control
+ * @returns {Type<unknown> | undefined} The generated DTO class or undefined if no DTO should be generated
+ * @throws {Error} When primary key metadata is missing
+ * @template E - The entity type
+ */
 export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
 		return undefined;
@@ -29,6 +43,9 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	if (!entityMetadata.primaryKey?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]) {
 		throw ErrorException(`Primary key for entity ${String(entityMetadata.name)} not found in metadata storage`);
 	}
+
+	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
+	const extraModels: Array<Function> = [];
 
 	const markedProperties: Array<{
 		isPrimary: boolean;
@@ -98,7 +115,9 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	}
 
 	for (const property of markedProperties) {
-		const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard);
+		const generatedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard);
+
+		const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard, generatedDTOs);
 
 		if (decorators) {
 			for (const [, decorator] of decorators.entries()) {
@@ -124,6 +143,17 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 				}
 			}
 		}
+
+		if (property.metadata.type === EApiPropertyDescribeType.OBJECT && Array.isArray(property.metadata.dataType)) {
+			// @ts-ignore
+			extraModels.push(...property.metadata.dataType);
+		}
+
+		if (generatedDTOs) {
+			for (const [, value] of Object.entries(generatedDTOs)) {
+				extraModels.push(value);
+			}
+		}
 	}
 
 	if (dtoConfig?.validators) {
@@ -145,13 +175,17 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 			writable: true,
 		});
 
-		Validate(HasPairedCustomSuffixesFields, ["operator", ["value", "values"]])(GeneratedDTO.prototype, "object");
+		Validate(HasPairedCustomSuffixesFieldsValidator, ["operator", ["value", "values"]])(GeneratedDTO.prototype, "object");
+	}
+
+	if (extraModels.length > 0) {
+		ApiExtraModels(...extraModels)(GeneratedDTO);
 	}
 
 	Object.defineProperty(GeneratedDTO, "name", {
-		value: `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`,
+		value: `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`,
 	});
 
 	// @ts-ignore
-	return method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE ? DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`) : GeneratedDTO;
+	return method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE ? DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`) : GeneratedDTO;
 }

@@ -1,4 +1,5 @@
 import typescript from "@rollup/plugin-typescript";
+import dtsPathAlias from "rollup-plugin-dts-path-alias";
 import generatePackageJson from "rollup-plugin-generate-package-json";
 
 const external = ["@elsikora/pluralizer", "@nestjs/common", "@nestjs/swagger", "@nestjs/throttler", "node:crypto", "rxjs/operators", "typeorm", "class-transformer", "reflect-metadata", "class-validator", "lodash/random", "@nestjs/common/constants", "@nestjs/common/enums/route-paramtypes.enum", "@nestjs/swagger/dist/constants", "typeorm/index"];
@@ -19,12 +20,14 @@ export default [
 			},
 			format: "esm",
 			preserveModules: true,
+			preserveModulesRoot: "src",
 			sourcemap: true,
 		},
 		plugins: [
 			resolve({
 				include: ["node_modules/tslib/**"],
 			}),
+			dtsPathAlias(),
 			typescript({
 				declaration: true,
 				declarationDir: "dist/esm",
@@ -60,6 +63,7 @@ export default [
 			resolve({
 				include: ["node_modules/tslib/**"],
 			}),
+			dtsPathAlias(),
 			typescript({
 				declaration: true,
 				declarationDir: "dist/cjs",

@@ -1,17 +1,30 @@
+import type { EApiRouteType } from "@enum/decorator/api";
+import type { IApiControllerProperties } from "@interface/decorator/api";
+import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
+import type { TMetadata } from "@type/class";
+import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 
-import type { EApiRouteType } from "../../../enum";
-import type { IApiControllerProperties, IApiEntity } from "../../../interface";
-import type { TApiControllerPropertiesRoute, TMetadata } from "../../../type";
-
+import { MetadataStorage } from "@class/metadata-storage.class";
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { EApiDtoType, EApiPropertyDescribeType } from "@enum/decorator/api";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DtoGenerate } from "@utility/dto";
 
-import { MetadataStorage } from "../../../class";
-import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../../constant";
-import { EApiDtoType, EApiPropertyDescribeType } from "../../../enum";
-import { CamelCaseString } from "../../camel-case-string.utility";
-import { DtoGenerate } from "../../dto";
-
+/**
+ * Generates and registers Swagger documentation for DTOs.
+ * Creates or uses existing DTOs for request, query, body, and response,
+ * and ensures they're properly registered with Swagger for API documentation.
+ * @param {object} target - The target controller class
+ * @param {IApiEntity<E>} entity - The entity definition
+ * @param {IApiControllerProperties<E>} properties - Controller configuration properties
+ * @param {EApiRouteType} method - The type of route (CREATE, DELETE, GET, etc.)
+ * @param {TApiControllerPropertiesRoute<E, typeof method>} routeConfig - Route-specific configuration
+ * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
+ * @returns {void}
+ * @template E - The entity type
+ */
 export function ApiControllerWriteDtoSwagger<E>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, entityMetadata: IApiEntity<E>): void {
 	const swaggerModels: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, target) ?? []) as Array<unknown>;
 

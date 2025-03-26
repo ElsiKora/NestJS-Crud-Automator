@@ -1,3 +1,3 @@
-export type * from "./base.interface";
-export type * from "./properties";
-export type * from "./properties.interface";
+export { type IApiControllerBase } from "./base.interface";
+export { type IApiControllerProperties } from "./properties.interface";
+export type * from "./properties/route";

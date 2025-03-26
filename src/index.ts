@@ -1,10 +1,10 @@
 export * from "./class";
 export * from "./constant";
-export * from "./decorator";
-export * from "./decorator/api/method.decorator";
+export * from "./decorator/api";
 export * from "./enum";
-export * from "./factory";
+export * from "./factory/api";
 export * from "./interceptor";
 export type * from "./interface";
 export type * from "./type";
 export * from "./utility";
+export * from "./validator";

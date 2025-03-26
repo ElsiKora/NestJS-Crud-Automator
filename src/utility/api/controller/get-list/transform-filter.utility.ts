@@ -1,13 +1,21 @@
+import type { EFilterOperation } from "@enum/filter-operation.enum";
+import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { FindOptionsWhere } from "typeorm/index";
 
-import type { EFilterOperation } from "../../../../enum/filter-operation.enum";
-import type { IApiEntity, IApiEntityColumn } from "../../../../interface";
-
-import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../../../constant";
-import { EApiPropertyDescribeType } from "../../../../enum";
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { EApiPropertyDescribeType } from "@enum/decorator/api";
 
 import { ApiControllerGetListTransformOperation } from "./transform-operation.utility";
 
+/**
+ * Transforms query parameters into TypeORM FindOptionsWhere filter objects.
+ * Parses query parameters with filter operations and converts them to appropriate database filters.
+ * Handles special cases for relation properties.
+ * @param {Record<string, any>} query - The query parameters from the HTTP request
+ * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
+ * @returns {FindOptionsWhere<E>} The TypeORM filter object for the query
+ * @template E - The entity type
+ */
 export function ApiControllerGetListTransformFilter<E>(query: Record<string, any>, entityMetadata: IApiEntity<E>): FindOptionsWhere<E> {
 	const filter: FindOptionsWhere<E> = {};
 

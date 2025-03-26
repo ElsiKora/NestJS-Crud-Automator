@@ -1,4 +1,4 @@
-export * from "./body.class";
-export * from "./query.class";
-export * from "./request.class";
-export * from "./response.class";
+export { DtoStrategyBody } from "./body.class";
+export { DtoStrategyQuery } from "./query.class";
+export { DtoStrategyRequest } from "./request.class";
+export { DtoStrategyResponse } from "./response.class";

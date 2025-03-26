@@ -1,3 +1,3 @@
-import type { TApiPropertyDescribeDtoBodyProperties, TApiPropertyDescribeDtoQueryProperties, TApiPropertyDescribeDtoRequestProperties, TApiPropertyDescribeDtoResponseProperties } from "../dto";
+import type { TApiPropertyDescribeDtoBodyProperties, TApiPropertyDescribeDtoQueryProperties, TApiPropertyDescribeDtoRequestProperties, TApiPropertyDescribeDtoResponseProperties } from "@type/decorator/api/property/describe/dto";
 
 export type TApiPropertyDescribePropertiesBaseDtoProperties = Partial<TApiPropertyDescribeDtoBodyProperties> & Partial<TApiPropertyDescribeDtoQueryProperties> & Partial<TApiPropertyDescribeDtoRequestProperties> & Partial<TApiPropertyDescribeDtoResponseProperties>;

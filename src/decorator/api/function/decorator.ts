@@ -1,10 +1,9 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { TApiFunctionProperties } from "@type/decorator/api/function";
 import type { Repository } from "typeorm";
 
-import type { IApiBaseEntity } from "../../../interface";
-import type { TApiFunctionProperties } from "../../../type";
-
-import { EApiFunctionType } from "../../../enum";
-import { ErrorException } from "../../../utility/error-exception.utility";
+import { EApiFunctionType } from "@enum/decorator/api";
+import { ErrorException } from "@utility/error-exception.utility";
 
 import { ApiFunctionCreate } from "./create.decorator";
 import { ApiFunctionDelete } from "./delete.decorator";
@@ -15,8 +14,15 @@ import { ApiFunctionUpdate } from "./update.decorator";
 
 type TDecoratorFunction = (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor;
 
+/**
+ * Main decorator factory for API service functions that selects and applies the appropriate function decorator
+ * based on the specified type (create, update, delete, get, getList, getMany)
+ * @param {TApiFunctionProperties<E>} properties - Configuration properties for the API function
+ * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that applies the appropriate function decorator
+ * @template E - The entity type for the API function
+ */
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
-export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctionProperties<E>) {
+export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity, type }: TApiFunctionProperties<E> = properties;
 
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {

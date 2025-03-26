@@ -1,2 +1,2 @@
-export type * from "./properties.interface";
-export type * from "./throttler-properties.interface";
+export { type IApiMethodProperties } from "./properties.interface";
+export { type IApiMethodThrottlerProperties } from "./throttler-properties.interface";

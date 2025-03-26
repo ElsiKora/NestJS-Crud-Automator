@@ -1,9 +1,15 @@
 import type { FindOperator } from "typeorm/find-options/FindOperator";
 
+import { EFilterOperation } from "@enum/filter-operation.enum";
 import { Between, Equal, ILike, In, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not } from "typeorm/index";
 
-import { EFilterOperation } from "../../../../enum/filter-operation.enum";
-
+/**
+ * Converts filter operation enum values to TypeORM query operators.
+ * Supports various operations like BETWEEN, CONTAINS, EQUALS, GREATER_THAN, etc.
+ * @param {EFilterOperation} operation - The filter operation type from the enum
+ * @param {any} value - The value to filter by
+ * @returns {FindOperator<any>} The TypeORM FindOperator for the specified operation and value
+ */
 // eslint-disable-next-line @elsikora/typescript/explicit-module-boundary-types
 export function ApiControllerGetListTransformOperation(operation: EFilterOperation, value: any): FindOperator<any> {
 	switch (operation) {

@@ -1,7 +1,6 @@
+import type { IApiGetListResponseResult } from "@interface/decorator/api";
+import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import type { DeepPartial } from "typeorm/index";
-
-import type { IApiGetListResponseResult } from "../../../../../interface";
-import type { TApiControllerGetListQuery } from "../../../../decorator";
 
 export type TApiControllerTransformDataObjectToTransform<E> = {
 	body?: DeepPartial<E>;

@@ -1,3 +1,8 @@
+/**
+ * Converts a string to camel case format with special handling for known compound words
+ * @param {string} string - The string to convert to camel case
+ * @returns {string} The camel-cased string
+ */
 export function CamelCaseString(string: string): string {
 	const knownCompounds: Record<string, string> = {
 		getlist: "GetList",

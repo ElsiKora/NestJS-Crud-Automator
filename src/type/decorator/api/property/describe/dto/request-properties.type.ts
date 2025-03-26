@@ -1,6 +1,5 @@
-import type { EApiDtoType } from "../../../../../../enum";
-
-import type { TApiPropertyDescribeDtoProperties } from "./properties.type";
+import type { EApiDtoType } from "@enum/decorator/api";
+import type { TApiPropertyDescribeDtoProperties } from "@type/decorator/api/property";
 
 export type TApiPropertyDescribeDtoRequestProperties = {
 	[EApiDtoType.REQUEST]?: TApiPropertyDescribeDtoProperties;

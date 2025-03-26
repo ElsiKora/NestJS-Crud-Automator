@@ -1,6 +1,6 @@
-import type { EApiRouteType } from "../../../../enum";
-import type { TApiControllerPropertiesRoute } from "../../../../type";
-import type { IApiBaseEntity } from "../../../api-base-entity.interface";
+import type { EApiRouteType } from "@enum/decorator/api";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 
 export interface IApiControllerProperties<E> {
 	entity: IApiBaseEntity;

@@ -1,4 +1,4 @@
-import type { ApiServiceBase } from "../../../../class";
+import type { ApiServiceBase } from "@class/api";
 
 export interface IApiControllerBase<E> {
 	service: ApiServiceBase<E>;

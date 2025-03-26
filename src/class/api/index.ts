@@ -1,1 +1,1 @@
-export * from "./service-base.class";
+export { ApiServiceBase } from "./service-base.class";

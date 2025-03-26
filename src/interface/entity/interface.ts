@@ -1,6 +1,5 @@
-import type { IApiBaseEntity } from "../api-base-entity.interface";
-
-import type { IApiEntityColumn } from "./column.interface";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiEntityColumn } from "@interface/entity/column.interface";
 
 export interface IApiEntity<E> extends IApiBaseEntity {
 	columns: Array<IApiEntityColumn<E>>;

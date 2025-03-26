@@ -1,10 +1,16 @@
-import type { IDtoGenerateFactory, IDtoStrategy } from "../../../interface";
+import type { IDtoStrategy } from "@interface/class";
+import type { IDtoGenerateFactory } from "@interface/dto-generate-factory.interface";
 
-import { DtoStrategyBody, DtoStrategyQuery, DtoStrategyRequest, DtoStrategyResponse } from "../../../class";
-import { DtoPropertyFactoryBoolean, DtoPropertyFactoryDate, DtoPropertyFactoryNumber, DtoPropertyFactoryObject, DtoPropertyFactoryString, DtoPropertyFactoryUuid } from "../../../class/utility/dto";
-import { DtoPropertyFactoryEnum } from "../../../class/utility/dto/property/factory/enum.class";
-import { DtoPropertyFactoryRelation } from "../../../class/utility/dto/property/factory/relation.class";
-import { EApiDtoType, EApiPropertyDescribeType } from "../../../enum";
+import { DtoPropertyFactoryBoolean } from "@class/utility/dto/property/factory/boolean.class";
+import { DtoPropertyFactoryDate } from "@class/utility/dto/property/factory/date.class";
+import { DtoPropertyFactoryEnum } from "@class/utility/dto/property/factory/enum.class";
+import { DtoPropertyFactoryNumber } from "@class/utility/dto/property/factory/number.class";
+import { DtoPropertyFactoryObject } from "@class/utility/dto/property/factory/object.class";
+import { DtoPropertyFactoryRelation } from "@class/utility/dto/property/factory/relation.class";
+import { DtoPropertyFactoryString } from "@class/utility/dto/property/factory/string.class";
+import { DtoPropertyFactoryUuid } from "@class/utility/dto/property/factory/uuid.class";
+import { DtoStrategyBody, DtoStrategyQuery, DtoStrategyRequest, DtoStrategyResponse } from "@class/utility/dto/strategy";
+import { EApiDtoType, EApiPropertyDescribeType } from "@enum/decorator/api";
 
 const DTO_STRATEGIES: Record<EApiDtoType, IDtoStrategy> = {
 	[EApiDtoType.BODY]: new DtoStrategyBody(),

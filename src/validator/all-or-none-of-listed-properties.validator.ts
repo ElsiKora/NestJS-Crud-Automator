@@ -4,7 +4,7 @@ import { ValidatorConstraint } from "class-validator";
 
 // eslint-disable-next-line @elsikora/typescript/naming-convention
 @ValidatorConstraint({ async: false, name: "all-or-none-of-listed-properties" })
-export class AllOrNoneOfListedProperties implements ValidatorConstraintInterface {
+export class AllOrNoneOfListedPropertiesValidator implements ValidatorConstraintInterface {
 	defaultMessage(properties: ValidationArguments): string {
 		return `either all or none of the following properties must be provided: ${properties.constraints.join(", ")}`;
 	}

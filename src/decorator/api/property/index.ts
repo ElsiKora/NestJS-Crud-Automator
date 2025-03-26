@@ -1,7 +1,9 @@
-export * from "./boolean.decorator";
-export * from "./date.decorator";
-export * from "./describe.decorator";
-export * from "./number.decorator";
-export * from "./object.decorator";
-export * from "./string.decorator";
-export * from "./uuid.decorator";
+export { ApiPropertyBoolean } from "./boolean.decorator";
+export { ApiPropertyCopy } from "./copy.decorator";
+export { ApiPropertyDate } from "./date.decorator";
+export { ApiPropertyDescribe } from "./describe.decorator";
+export { ApiPropertyEnum } from "./enum.decorator";
+export { ApiPropertyNumber } from "./number.decorator";
+export { ApiPropertyObject } from "./object.decorator";
+export { ApiPropertyString } from "./string.decorator";
+export { ApiPropertyUUID } from "./uuid.decorator";

@@ -1,10 +1,6 @@
+import type { EApiAction } from "@enum/decorator/api";
+import type { IApiControllerPropertiesRouteAuthentication, IApiMethodThrottlerProperties, IApiResponseType } from "@interface/decorator/api";
 import type { HttpStatus, RequestMethod, Type } from "@nestjs/common";
-
-import type { EApiAction } from "../../../../enum";
-import type { IApiControllerPropertiesRouteAuthentication } from "../controller";
-import type { IApiResponseType } from "../response-type.interface";
-
-import type { IApiMethodThrottlerProperties } from "./throttler-properties.interface";
 
 export interface IApiMethodProperties<T> {
 	action?: EApiAction;

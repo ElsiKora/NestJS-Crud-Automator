@@ -1,15 +1,28 @@
+import type { IApiControllerProperties } from "@interface/decorator/api";
+import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
+import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 
-import type { IApiControllerProperties, IApiEntity } from "../../../interface";
-import type { TApiControllerPropertiesRoute } from "../../../type";
-
+import { ApiMethod } from "@decorator/api/method.decorator";
+import { EApiAction, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
+import { DtoGenerate } from "@utility/dto/generate.utility";
+import { ErrorException } from "@utility/error-exception.utility";
 
-import { ApiMethod } from "../../../decorator/api/method.decorator";
-import { EApiAction, EApiDtoType, EApiRouteType } from "../../../enum";
-import { DtoGenerate } from "../../dto/generate.utility";
-import { ErrorException } from "../../error-exception.utility";
-
+/**
+ * Applies appropriate decorators to controller methods based on the route type.
+ * Configures HTTP methods, status codes, paths, and response types for API endpoints.
+ * @param {Function} targetMethod - The controller method to apply decorators to
+ * @param {IApiEntity<E>} entity - The entity metadata for the controller
+ * @param {IApiControllerProperties<E>} properties - Controller configuration properties
+ * @param {EApiRouteType} method - The type of route to configure (CREATE, DELETE, GET, etc.)
+ * @param {string} methodName - The name of the method being decorated
+ * @param {TApiControllerPropertiesRoute<E, typeof method>} routeConfig - Route-specific configuration
+ * @param {Array<MethodDecorator> | Array<PropertyDecorator>} decorators - Additional decorators to apply
+ * @returns {void}
+ * @throws {Error} If the method type is not implemented
+ * @template E - The entity type
+ */
 export function ApiControllerApplyDecorators<E>(targetMethod: (properties: any, body: any, headers: any, ip: any, authenticationRequest: any) => any, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>): void {
 	const responseDto: Type<unknown> | undefined = routeConfig.dto?.response ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.RESPONSE, routeConfig.autoDto?.[EApiDtoType.RESPONSE], routeConfig.authentication?.guard);
 	const customDecorators: Array<MethodDecorator> = [...decorators];

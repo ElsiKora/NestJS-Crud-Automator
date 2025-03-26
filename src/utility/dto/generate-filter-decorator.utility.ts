@@ -1,10 +1,19 @@
-import type { IApiEntity } from "../../interface";
-import type { TApiPropertyDescribeProperties } from "../../type";
+import type { IApiEntity } from "@interface/entity";
+import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
-import { ApiPropertyEnum } from "../../decorator/api/property/enum.decorator";
-import { EApiPropertyDescribeType } from "../../enum";
-import { EFilterOperationBoolean, EFilterOperationDate, EFilterOperationEnum, EFilterOperationNumber, EFilterOperationObject, EFilterOperationRelation, EFilterOperationString, EFilterOperationUuid } from "../../enum/filter-operation.enum";
+import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";
+import { EApiPropertyDescribeType } from "@enum/decorator/api";
+import { EFilterOperationBoolean, EFilterOperationDate, EFilterOperationEnum, EFilterOperationNumber, EFilterOperationObject, EFilterOperationRelation, EFilterOperationString, EFilterOperationUuid } from "@enum/filter-operation.enum";
 
+/**
+ * Generates filter operation enum decorators based on property type.
+ * Maps different property types (boolean, date, enum, number, string, etc.) to their
+ * corresponding filter operation enums.
+ * @param {TApiPropertyDescribeProperties} metadata - Metadata describing the property
+ * @param {IApiEntity<E>} entity - The entity metadata
+ * @returns {PropertyDecorator} A decorator that adds the appropriate filter operation enum
+ * @template E - The entity type
+ */
 export function DtoGenerateFilterDecorator<E>(metadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>): PropertyDecorator {
 	switch (metadata.type) {
 		case EApiPropertyDescribeType.BOOLEAN: {
