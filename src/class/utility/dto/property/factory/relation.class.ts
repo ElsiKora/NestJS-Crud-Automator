@@ -1,11 +1,12 @@
-import type { EApiRouteType } from "../../../../../enum";
-import type { IApiEntity, IDtoGenerateFactory } from "../../../../../interface";
-import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeUuidProperties } from "../../../../../type";
+import type { EApiRouteType } from "@enum/decorator/api";
+import type { IDtoGenerateFactory } from "@interface/dto-generate-factory.interface";
+import type { IApiEntity } from "@interface/entity";
+import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeUuidProperties } from "@type/decorator/api/property";
 
-import { ApiPropertyObject } from "../../../../../decorator/api/property/object.decorator";
-import { ApiPropertyUUID } from "../../../../../decorator/api/property/uuid.decorator";
-import { EApiDtoType } from "../../../../../enum";
-import { DtoGenerateRelationResponse } from "../../../../../utility/dto/generate-relation-response.utility";
+import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
+import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
+import { EApiDtoType } from "@enum/decorator/api";
+import { DtoGenerateRelationResponse } from "@utility/dto/generate-relation-response.utility";
 
 export class DtoPropertyFactoryRelation<E> implements IDtoGenerateFactory<E> {
 	create(metadata: TApiPropertyDescribeUuidProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string): PropertyDecorator {

@@ -1,8 +1,7 @@
 import type { FindOperator } from "typeorm/find-options/FindOperator";
 
+import { EFilterOperation } from "@enum/filter-operation.enum";
 import { Between, Equal, ILike, In, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not } from "typeorm/index";
-
-import { EFilterOperation } from "../../../../enum/filter-operation.enum";
 
 /**
  * Converts filter operation enum values to TypeORM query operators.

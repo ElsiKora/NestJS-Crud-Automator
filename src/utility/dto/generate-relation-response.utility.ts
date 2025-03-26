@@ -1,11 +1,10 @@
 import type { Type } from "@nestjs/common";
 
-import type { IApiEntity } from "../../interface";
-
-import { ApiPropertyUUID } from "../../decorator/api/property/uuid.decorator";
-import { EApiDtoType, EApiRouteType } from "../../enum";
-import { CamelCaseString } from "../camel-case-string.utility";
-import { CapitalizeString } from "../capitalize-string.utility";
+import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
+import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import { IApiEntity } from "@interface/entity";
+import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { CapitalizeString } from "@utility/capitalize-string.utility";
 
 /**
  * Creates a simple relationship DTO containing only an ID field.

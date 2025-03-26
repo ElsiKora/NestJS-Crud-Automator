@@ -1,14 +1,13 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiFunctionDeleteExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
+import type { TApiFunctionDeleteCriteria, TApiFunctionGetProperties } from "@type/decorator/api/function";
 import type { EntityManager, EntitySchema, Repository } from "typeorm";
 
-import type { IApiBaseEntity, IApiFunctionDeleteExecutorProperties, IApiFunctionProperties } from "../../../interface";
-import type { TApiFunctionDeleteCriteria, TApiFunctionGetProperties } from "../../../type";
-
+import { EErrorStringAction } from "@enum/utility";
 import { HttpException, InternalServerErrorException } from "@nestjs/common";
-
-import { EErrorStringAction } from "../../../enum";
-import { ErrorException } from "../../../utility/error-exception.utility";
-import { ErrorString } from "../../../utility/error-string.utility";
-import { LoggerUtility } from "../../../utility/logger.utility";
+import { ErrorException } from "@utility/error-exception.utility";
+import { ErrorString } from "@utility/error-string.utility";
+import { LoggerUtility } from "@utility/logger.utility";
 
 import { ApiFunctionGet } from "./get.decorator";
 

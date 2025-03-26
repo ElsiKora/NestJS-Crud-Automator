@@ -1,6 +1,5 @@
-import type { EApiDtoType, EApiRouteType } from "../../../../../../enum";
-
-import type { TApiPropertyDescribePropertiesBaseDtoProperties } from "./base-dto-properties.type";
+import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import type { TApiPropertyDescribePropertiesBaseDtoProperties } from "@type/decorator/api/property";
 
 export type TApiPropertyDescribePropertiesBaseProperties = {
 	[EApiRouteType.CREATE]?: Pick<TApiPropertyDescribePropertiesBaseDtoProperties, EApiDtoType.BODY | EApiDtoType.RESPONSE>;

@@ -1,9 +1,8 @@
+import { EMastMatchOneOfSchemasValidationErrorType } from "@enum/validator";
+import { IMustMatchOneOfSchemasDiscriminatorConfig } from "@interface/validator";
 import { Type } from "@nestjs/common";
+import { TTypeDiscriminator, TTypeDynamicDiscriminator } from "@type/decorator/api/property";
 import { registerDecorator, ValidationArguments, ValidationOptions, ValidatorConstraint, ValidatorConstraintInterface } from "class-validator";
-
-import { EMastMatchOneOfSchemasValidationErrorType } from "../enum";
-import { IMustMatchOneOfSchemasDiscriminatorConfig } from "../interface";
-import { TTypeDiscriminator, TTypeDynamicDiscriminator } from "../type";
 
 // eslint-disable-next-line @elsikora/typescript/naming-convention
 @ValidatorConstraint({ async: false, name: "must-match-one-of-schemas" })

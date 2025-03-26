@@ -1,4 +1,4 @@
-import { EApiPropertyDataType } from "../data-type.enum";
+import { EApiPropertyDataType } from "@enum/decorator/api/property/data-type.enum";
 
 export enum EApiPropertyDateType {
 	DATE = EApiPropertyDataType.DATE,

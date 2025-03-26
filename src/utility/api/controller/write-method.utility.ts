@@ -1,9 +1,9 @@
-import type { EApiRouteType } from "../../../enum";
-import type { IApiControllerProperties, IApiEntity } from "../../../interface";
+import type { EApiRouteType } from "@enum/decorator/api";
+import type { IApiControllerProperties } from "@interface/decorator/api";
+import type { IApiEntity } from "@interface/entity";
 
-import { ErrorException } from "../../error-exception.utility";
-
-import { ApiControllerGetMethodName } from "./get-method-name.utility";
+import { ApiControllerGetMethodName } from "@utility/api/controller/get-method-name.utility";
+import { ErrorException } from "@utility/error-exception.utility";
 
 /**
  * Creates controller methods dynamically.

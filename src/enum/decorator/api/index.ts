@@ -1,7 +1,7 @@
-export * from "./action.enum";
-export * from "./authentication-type.enum";
+export { EApiAction } from "./action.enum";
+export { EApiAuthenticationType } from "./authentication-type.enum";
 export * from "./controller";
-export * from "./dto-type.enum";
+export { EApiDtoType } from "./dto-type.enum";
 export * from "./function";
 export * from "./property";
-export * from "./route-type.enum";
+export { EApiRouteType } from "./route-type.enum";

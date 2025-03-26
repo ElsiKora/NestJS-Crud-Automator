@@ -1,6 +1,5 @@
+import type { EApiControllerLoadRelationsStrategy } from "@enum/decorator/api";
 import type { FindOptionsRelations } from "typeorm";
-
-import type { EApiControllerLoadRelationsStrategy } from "../../../../../../enum";
 
 export type TApiControllerPropertiesRouteBaseRequestRelations<E> = {
 	relationsLoadStrategy: EApiControllerLoadRelationsStrategy;

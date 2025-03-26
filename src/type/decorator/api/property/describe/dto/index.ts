@@ -1,5 +1,6 @@
-export type * from "./body-properties.type";
-export type * from "./properties.type";
+export { type TApiPropertyDescribeDtoBodyProperties } from "./body-properties.type";
+export { type TApiPropertyDescribeDtoGuardProperties } from "./guard-properties.type";
+export { type TApiPropertyDescribeDtoProperties } from "./properties.type";
 export type * from "./query";
-export type * from "./request-properties.type";
-export type * from "./response-properties.type";
+export { type TApiPropertyDescribeDtoRequestProperties } from "./request-properties.type";
+export { type TApiPropertyDescribeDtoResponseProperties } from "./response-properties.type";

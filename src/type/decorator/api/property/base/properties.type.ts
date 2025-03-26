@@ -1,8 +1,5 @@
-import type { IApiBaseEntity } from "../../../../../interface";
-
-import type { TApiPropertyBaseArrayOptionalProperties, TApiPropertyBaseArrayRequiredProperties } from "./array";
-import type { TApiPropertyBaseRequestProperties } from "./request-properties.type";
-import type { TApiPropertyBaseResponseProperties } from "./response-properties.type";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { TApiPropertyBaseArrayOptionalProperties, TApiPropertyBaseArrayRequiredProperties, TApiPropertyBaseRequestProperties, TApiPropertyBaseResponseProperties } from "@type/decorator/api/property";
 
 export type TApiPropertyBaseProperties = {
 	description?: string;

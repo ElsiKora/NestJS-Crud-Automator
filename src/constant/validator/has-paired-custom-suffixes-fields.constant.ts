@@ -1,7 +1,7 @@
-import type { THasPairedCustomSuffixesFieldsOperationConfig } from "../../type";
+import type { THasPairedCustomSuffixesFieldsOperationConfig } from "@type/validator/has-paired-custom-suffixes-fields";
 
-import { EHasPairedCustomSuffixesFieldsArgumentType } from "../../enum";
-import { EFilterOperation } from "../../enum/filter-operation.enum";
+import { EFilterOperation } from "@enum/filter-operation.enum";
+import { EHasPairedCustomSuffixesFieldsArgumentType } from "@enum/validator";
 
 const DEFAULT_OPERATION_CONFIGS: Record<EFilterOperation, THasPairedCustomSuffixesFieldsOperationConfig> = {
 	[EFilterOperation.BETWEEN]: {

@@ -1,14 +1,13 @@
+import type { IApiControllerProperties } from "@interface/decorator/api";
+import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
+import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 
-import type { IApiControllerProperties, IApiEntity } from "../../../interface";
-import type { TApiControllerPropertiesRoute } from "../../../type";
-
+import { ApiMethod } from "@decorator/api/method.decorator";
+import { EApiAction, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
-
-import { ApiMethod } from "../../../decorator/api/method.decorator";
-import { EApiAction, EApiDtoType, EApiRouteType } from "../../../enum";
-import { DtoGenerate } from "../../dto/generate.utility";
-import { ErrorException } from "../../error-exception.utility";
+import { DtoGenerate } from "@utility/dto/generate.utility";
+import { ErrorException } from "@utility/error-exception.utility";
 
 /**
  * Applies appropriate decorators to controller methods based on the route type.

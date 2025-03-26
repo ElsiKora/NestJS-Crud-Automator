@@ -1,10 +1,9 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { TApiFunctionProperties } from "@type/decorator/api/function";
 import type { Repository } from "typeorm";
 
-import type { IApiBaseEntity } from "../../../interface";
-import type { TApiFunctionProperties } from "../../../type";
-
-import { EApiFunctionType } from "../../../enum";
-import { ErrorException } from "../../../utility/error-exception.utility";
+import { EApiFunctionType } from "@enum/decorator/api";
+import { ErrorException } from "@utility/error-exception.utility";
 
 import { ApiFunctionCreate } from "./create.decorator";
 import { ApiFunctionDelete } from "./delete.decorator";

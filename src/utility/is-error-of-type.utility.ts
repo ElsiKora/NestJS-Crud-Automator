@@ -4,6 +4,7 @@
 
 import type { HttpException } from "@nestjs/common";
 
+import { EException } from "@enum/exception.enum";
 import {
 	BadRequestException,
 	ConflictException,
@@ -26,8 +27,6 @@ import {
 	UnsupportedMediaTypeException,
 } from "@nestjs/common";
 import { ThrottlerException } from "@nestjs/throttler";
-
-import { EException } from "../enum";
 
 const ExceptionMap: Record<EException, any> = {
 	[EException.BAD_REQUEST]: BadRequestException,

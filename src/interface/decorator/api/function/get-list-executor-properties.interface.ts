@@ -1,7 +1,6 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { TApiFunctionGetListProperties } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
-
-import type { TApiFunctionGetListProperties } from "../../../../type";
-import type { IApiBaseEntity } from "../../../api-base-entity.interface";
 
 export interface IApiFunctionGetListExecutorProperties<E extends IApiBaseEntity> {
 	entity: IApiBaseEntity;

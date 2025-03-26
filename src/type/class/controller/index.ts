@@ -1,1 +1,1 @@
-export type * from "./method.type";
+export { type TApiControllerMethod } from "./method.type";

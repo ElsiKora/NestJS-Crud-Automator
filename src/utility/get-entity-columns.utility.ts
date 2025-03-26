@@ -1,7 +1,6 @@
+import type { IGetEntityColumnsProperties } from "@interface/utility/get-entity-columns-properties.interface";
 import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
 import type { RelationMetadataArgs } from "typeorm/metadata-args/RelationMetadataArgs";
-
-import type { IGetEntityColumnsProperties } from "../interface/utility/get-entity-columns-properties.interface";
 
 import { getMetadataArgsStorage } from "typeorm";
 

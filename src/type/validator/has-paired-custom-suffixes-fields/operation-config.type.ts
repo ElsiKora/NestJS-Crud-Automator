@@ -1,4 +1,4 @@
-import type { EHasPairedCustomSuffixesFieldsArgumentType } from "../../../enum";
+import type { EHasPairedCustomSuffixesFieldsArgumentType } from "@enum/validator";
 
 export type THasPairedCustomSuffixesFieldsOperationConfig = {
 	argumentType: EHasPairedCustomSuffixesFieldsArgumentType;

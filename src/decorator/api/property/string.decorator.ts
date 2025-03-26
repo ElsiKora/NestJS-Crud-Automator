@@ -1,15 +1,13 @@
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { TApiPropertyStringProperties } from "@type/decorator/api/property";
 
-import type { TApiPropertyStringProperties } from "../../../type/decorator/api/property/string-properties.type";
-
+import { STRING_PROPERTY_API_INTERFACE_CONSTANT } from "@constant/interface/api";
+import { EApiPropertyDataType, EApiPropertyStringType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { IsRegularExpressionValidator } from "@validator/is-regular-expression.validator";
 import { Exclude, Expose, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsEmail, IsIP, IsLowercase, IsOptional, IsString, IsUppercase, IsUrl, IsUUID, Length, Matches, Validate } from "class-validator";
-
-import { STRING_PROPERTY_API_INTERFACE_CONSTANT } from "../../../constant";
-import { EApiPropertyDataType, EApiPropertyStringType } from "../../../enum";
-import { IsRegularExpressionValidator } from "../../../validator";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators

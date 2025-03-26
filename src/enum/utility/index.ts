@@ -1,1 +1,1 @@
-export * from "./error-string-action.enum";
+export { EErrorStringAction } from "./error-string-action.enum";

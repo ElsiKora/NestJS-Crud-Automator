@@ -1,15 +1,13 @@
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { TApiPropertyNumberProperties } from "@type/decorator/api/property";
 
-import type { TApiPropertyNumberProperties } from "../../../type/decorator/api/property/number-properties.type";
-
+import { NUMBER_CONSTANT } from "@constant/number.constant";
+import { EApiPropertyDataType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { Exclude, Expose, Transform, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDivisibleBy, IsInt, isInt, IsNumber, IsOptional, Max, Min } from "class-validator";
 import random from "lodash/random";
-
-import { NUMBER_CONSTANT } from "../../../constant";
-import { EApiPropertyDataType, EApiPropertyNumberType } from "../../../enum";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators

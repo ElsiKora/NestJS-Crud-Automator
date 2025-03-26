@@ -1,15 +1,14 @@
+import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
+import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
+import type { TDtoGenerateIsAllowedCombination } from "@type/utility";
 
-import type { EApiDtoType, EApiRouteType } from "../../enum";
-import type { IApiEntity } from "../../interface";
-import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties, TDtoGenerateIsAllowedCombination } from "../../type";
-
-import { EApiPropertyDescribeType } from "../../enum";
-import { CamelCaseString } from "../camel-case-string.utility";
-
-import { DtoBuildDecorator } from "./build-decorator.utility";
-import { DtoIsPropertyExposedForGuard } from "./is-property-exposed-for-guard.utility";
+import { EApiPropertyDescribeType } from "@enum/decorator/api";
+import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
+import { DtoIsPropertyExposedForGuard } from "@utility/dto/is-property-exposed-for-guard.utility";
 
 /**
  * Generates dynamic DTOs for object-type properties based on property metadata.

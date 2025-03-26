@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
 		"allowSyntheticDefaultImports": true,
-		"baseUrl": "./",
+		"baseUrl": "./src",
 		"declaration": true,
 		"emitDeclarationOnly": false,
 		"emitDecoratorMetadata": true,
@@ -19,7 +19,17 @@
 		"noUnusedParameters": true,
 		"outDir": "./dist",
 		"paths": {
-			"typeorm/*": ["./node_modules/typeorm/*"]
+			"@class/*": ["class/*"],
+			"@constant/*": ["constant/*"],
+			"@decorator/*": ["decorator/*"],
+			"@enum/*": ["enum/*"],
+			"@factory/*": ["factory/*"],
+			"@interceptor/*": ["interceptor/*"],
+			"@interface/*": ["interface/*"],
+			"@type/*": ["type/*"],
+			"@utility/*": ["utility/*"],
+			"@validator/*": ["validator/*"],
+			"typeorm/*": ["../node_modules/typeorm/*"]
 		},
 		"skipLibCheck": true,
 		"sourceMap": true,

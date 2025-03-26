@@ -1,5 +1,5 @@
-import type { EApiDtoType } from "../../../../enum";
-import type { TApiRequestTransformer } from "../../../api-request-transformer.type";
+import type { EApiDtoType } from "@enum/decorator/api";
+import type { TApiRequestTransformer } from "@type/api-request-transformer.type";
 
 export type TApiControllerTransformerConfig<E> = {
 	[EApiDtoType.BODY]?: Array<TApiRequestTransformer<E>>;

@@ -1,10 +1,10 @@
-import type { EApiDtoType, EApiRouteType } from "../../enum";
-import type { IDtoStrategy } from "../../interface";
-import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties, TDtoGenerateIsAllowedCombination } from "../../type";
+import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import type { IDtoStrategy } from "@interface/class";
+import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
+import type { TDtoGenerateIsAllowedCombination } from "@type/utility";
 
-import { DTO_UTILITY_CONSTANT } from "../../constant/utility/dto/constant";
-
-import { DtoValidatePropertyConfig } from "./validate-property-config.utility";
+import { DTO_UTILITY_CONSTANT } from "@constant/utility/dto/constant";
+import { DtoValidatePropertyConfig } from "@utility/dto/validate-property-config.utility";
 
 /**
  * Retrieves the configuration for property decorators based on method, metadata, and DTO type.

@@ -1,6 +1,5 @@
 import type { ApiPropertyOptions } from "@nestjs/swagger";
-
-import type { TApiPropertyEnumProperties } from "../../../type/decorator/api/property/enum-properties.type";
+import type { TApiPropertyEnumProperties } from "@type/decorator/api/property/enum-properties.type";
 
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";

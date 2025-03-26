@@ -1,15 +1,14 @@
+import type { EApiRouteType } from "@enum/decorator/api";
+import type { IApiControllerProperties } from "@interface/decorator/api";
+import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
+import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 
-import type { EApiRouteType } from "../../../enum";
-import type { IApiControllerProperties, IApiEntity } from "../../../interface";
-import type { TApiControllerPropertiesRoute } from "../../../type";
-
+import { EApiDtoType } from "@enum/decorator/api";
 import { assignMetadata } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
-
-import { EApiDtoType } from "../../../enum";
-import { DtoGenerate } from "../../dto";
+import { DtoGenerate } from "@utility/dto";
 
 /**
  * Applies metadata for NestJS controller methods to enable proper dependency injection.

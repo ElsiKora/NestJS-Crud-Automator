@@ -1,14 +1,15 @@
+import type { IApiControllerProperties } from "@interface/decorator/api";
+import type { TApiControllerMethod } from "@type/class";
+import type { TApiControllerGetListQuery, TApiControllerPropertiesRouteBaseRequestRelations } from "@type/decorator/api/controller";
+import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
+import type { TApiServiceKeys } from "@type/decorator/api/service";
 import type { DeepPartial, FindOptionsWhere } from "typeorm";
 
-import type { IApiControllerProperties } from "../../../interface";
-import type { TApiControllerGetListQuery, TApiControllerMethod, TApiControllerPropertiesRouteBaseRequestRelations, TApiFunctionGetProperties, TApiServiceKeys } from "../../../type";
-
+import { ApiServiceBase } from "@class/api";
+import { EApiControllerLoadRelationsStrategy } from "@enum/decorator/api";
 import { BadRequestException } from "@nestjs/common";
-
-import { ApiServiceBase } from "../../../class";
-import { EApiControllerLoadRelationsStrategy } from "../../../enum";
-import { ErrorException } from "../../error-exception.utility";
-import { GetEntityColumns } from "../../get-entity-columns.utility";
+import { ErrorException } from "@utility/error-exception.utility";
+import { GetEntityColumns } from "@utility/get-entity-columns.utility";
 
 /**
  * Manages loading related entities when processing API requests.

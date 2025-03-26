@@ -1,10 +1,10 @@
 export * from "./api";
-export * from "./camel-case-string.utility";
-export * from "./capitalize-string.utility";
+export { CamelCaseString } from "./camel-case-string.utility";
+export { CapitalizeString } from "./capitalize-string.utility";
 export * from "./dto";
-export * from "./error-exception.utility";
-export * from "./error-string.utility";
-export * from "./generate-entity-information.utility";
-export * from "./get-entity-columns.utility";
-export * from "./is-error-of-type.utility";
-export * from "./logger.utility";
+export { ErrorException } from "./error-exception.utility";
+export { ErrorString } from "./error-string.utility";
+export { GenerateEntityInformation } from "./generate-entity-information.utility";
+export { GetEntityColumns } from "./get-entity-columns.utility";
+export { IsErrorOfType } from "./is-error-of-type.utility";
+export { LoggerUtility } from "./logger.utility";

@@ -1,7 +1,6 @@
-import type { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
-import type { TApiPropertyDescribeProperties } from "../../type";
+import type { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 export interface IMetadataEntry {
-	// @ts-ignore
 	[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]: Partial<TApiPropertyDescribeProperties>;
 }

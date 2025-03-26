@@ -1,4 +1,4 @@
-import type { TApiPropertyDescribeDtoGuardProperties } from "./guard-properties.type";
+import type { TApiPropertyDescribeDtoGuardProperties } from "@type/decorator/api/property";
 
 export type TApiPropertyDescribeDtoProperties = {
 	guard?: TApiPropertyDescribeDtoGuardProperties;

@@ -1,8 +1,5 @@
-import type { EApiRouteType } from "../../../../../../enum";
-
-import type { IApiControllerPropertiesRouteAuthentication } from "./authentication.interface";
-import type { IApiControllerPropertiesRouteBaseRequest } from "./base-request.interface";
-import type { IApiControllerPropertiesRouteBaseResponse } from "./base-response.interface";
+import type { EApiRouteType } from "@enum/decorator/api";
+import type { IApiControllerPropertiesRouteAuthentication, IApiControllerPropertiesRouteBaseRequest, IApiControllerPropertiesRouteBaseResponse } from "@interface/decorator/api";
 
 export interface IApiControllerPropertiesRouteBase<E, R extends EApiRouteType> {
 	authentication?: IApiControllerPropertiesRouteAuthentication;

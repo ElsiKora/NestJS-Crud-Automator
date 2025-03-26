@@ -1,1 +1,1 @@
-export type * from "./strategy.interface";
+export { type IDtoStrategy } from "./strategy.interface";

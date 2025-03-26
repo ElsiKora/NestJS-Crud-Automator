@@ -1,6 +1,5 @@
 import type { Type } from "@nestjs/common";
-
-import type { TTypeDiscriminator, TTypeDynamicDiscriminator } from "../../type";
+import type { TTypeDiscriminator, TTypeDynamicDiscriminator } from "@type/decorator/api/property";
 
 export interface IMustMatchOneOfSchemasDiscriminatorConfig {
 	discriminator: TTypeDiscriminator | TTypeDynamicDiscriminator;

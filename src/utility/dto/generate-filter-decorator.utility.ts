@@ -1,9 +1,9 @@
-import type { IApiEntity } from "../../interface";
-import type { TApiPropertyDescribeProperties } from "../../type";
+import type { IApiEntity } from "@interface/entity";
+import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
-import { ApiPropertyEnum } from "../../decorator/api/property/enum.decorator";
-import { EApiPropertyDescribeType } from "../../enum";
-import { EFilterOperationBoolean, EFilterOperationDate, EFilterOperationEnum, EFilterOperationNumber, EFilterOperationObject, EFilterOperationRelation, EFilterOperationString, EFilterOperationUuid } from "../../enum/filter-operation.enum";
+import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";
+import { EApiPropertyDescribeType } from "@enum/decorator/api";
+import { EFilterOperationBoolean, EFilterOperationDate, EFilterOperationEnum, EFilterOperationNumber, EFilterOperationObject, EFilterOperationRelation, EFilterOperationString, EFilterOperationUuid } from "@enum/filter-operation.enum";
 
 /**
  * Generates filter operation enum decorators based on property type.

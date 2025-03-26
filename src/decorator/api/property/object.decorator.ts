@@ -1,15 +1,12 @@
 import type { ApiPropertyOptions } from "@nestjs/swagger";
+import type { TApiPropertyObjectProperties } from "@type/decorator/api/property";
 import type { ClassConstructor } from "class-transformer";
 
-import type { TApiPropertyObjectProperties } from "../../../type/decorator/api/property/object/properties.type";
-
 import { applyDecorators } from "@nestjs/common";
-import { getSchemaPath } from "@nestjs/swagger";
-import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
+import { MustMatchOneOfSchemasValidator } from "@validator/must-match-one-of-schemas.validator";
 import { Exclude, Expose, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, ValidateNested } from "class-validator";
-
-import { MustMatchOneOfSchemasValidator } from "../../../validator";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators

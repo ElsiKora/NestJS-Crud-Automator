@@ -1,4 +1,5 @@
-import type { IApiBaseEntity, IErrorStringProperties } from "../interface";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IErrorStringProperties } from "@interface/utility";
 
 /**
  * Generates a formatted error string with the entity name

@@ -1,15 +1,13 @@
-import type { EntityManager, Repository } from "typeorm";
-import type { EntitySchema } from "typeorm/index";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiFunctionCreateExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
+import type { TApiFunctionCreateProperties } from "@type/decorator/api/function";
+import type { EntityManager, EntitySchema, Repository } from "typeorm";
 
-import type { IApiBaseEntity, IApiFunctionCreateExecutorProperties, IApiFunctionProperties } from "../../../interface";
-import type { TApiFunctionCreateProperties } from "../../../type";
-
+import { EErrorStringAction } from "@enum/utility";
 import { HttpException, InternalServerErrorException } from "@nestjs/common";
-
-import { EErrorStringAction } from "../../../enum";
-import { ErrorException } from "../../../utility/error-exception.utility";
-import { ErrorString } from "../../../utility/error-string.utility";
-import { LoggerUtility } from "../../../utility/logger.utility";
+import { ErrorException } from "@utility/error-exception.utility";
+import { ErrorString } from "@utility/error-string.utility";
+import { LoggerUtility } from "@utility/logger.utility";
 
 /**
  * Creates a decorator that adds entity creation functionality to a service method

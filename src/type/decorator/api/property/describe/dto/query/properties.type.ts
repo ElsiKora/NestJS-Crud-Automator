@@ -1,7 +1,5 @@
-import type { EApiDtoType } from "../../../../../../../enum";
-import type { TApiPropertyDescribeDtoProperties } from "../properties.type";
-
-import type { TApiPropertyDescribeDtoQueryGetListProperties } from "./get-list-properties.type";
+import type { EApiDtoType } from "@enum/decorator/api";
+import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeDtoQueryGetListProperties } from "@type/decorator/api/property";
 
 export type TApiPropertyDescribeDtoQueryProperties = {
 	[EApiDtoType.QUERY]?: TApiPropertyDescribeDtoProperties & TApiPropertyDescribeDtoQueryGetListProperties;

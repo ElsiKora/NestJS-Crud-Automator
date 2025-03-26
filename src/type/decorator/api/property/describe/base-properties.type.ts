@@ -1,4 +1,4 @@
-import type { TApiPropertyDescribePropertiesBaseProperties } from "./properties/base-properties.type";
+import type { TApiPropertyDescribePropertiesBaseProperties } from "@type/decorator/api/property";
 
 export type TApiPropertyDescribeBaseProperties = {
 	isNullable?: boolean;

@@ -1,14 +1,15 @@
+import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
+import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
-import type { EApiDtoType, EApiRouteType } from "../../../enum";
-import type { IApiEntity, IApiEntityColumn } from "../../../interface";
-import type { TApiPropertyDescribeProperties } from "../../../type";
-
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { applyDecorators } from "@nestjs/common";
-
-import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../../constant";
-import { DtoBuildDecorator, DtoGenerateDynamic, ErrorException, GenerateEntityInformation } from "../../../utility";
+import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
+import { DtoGenerateDynamic } from "@utility/dto/generate-dynamic.utility";
+import { ErrorException } from "@utility/error-exception.utility";
+import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
 /**
  * Decorator that copies decorators from an automatically generated DTO property.

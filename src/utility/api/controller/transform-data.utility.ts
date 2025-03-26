@@ -1,12 +1,15 @@
-import type { EApiRouteType } from "../../../enum";
-import type { IApiBaseEntity, IApiControllerProperties, IApiGetListResponseResult } from "../../../interface";
-import type { TApiControllerGetListQuery, TApiControllerPropertiesRouteBaseRequestTransformers, TApiControllerPropertiesRouteBaseResponseTransformers, TApiControllerTransformDataData, TApiControllerTransformDataObjectToTransform, TApiRequestTransformer, TApiTransformDataIsValidationProperties } from "../../../type";
+import type { EApiRouteType } from "@enum/decorator/api";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiControllerProperties, IApiGetListResponseResult } from "@interface/decorator/api";
+import type { TApiRequestTransformer } from "@type/api-request-transformer.type";
+import type { TApiControllerGetListQuery, TApiControllerPropertiesRouteBaseRequestTransformers, TApiControllerPropertiesRouteBaseResponseTransformers } from "@type/decorator/api/controller";
+import type { TApiControllerTransformDataData, TApiControllerTransformDataObjectToTransform, TApiTransformDataIsValidationProperties } from "@type/utility";
 
+import { TRANSFORMER_VALUE_DTO_CONSTANT } from "@constant/dto";
+import { EApiControllerRequestTransformerType, EApiDtoType } from "@enum/decorator/api";
+import { EErrorStringAction } from "@enum/utility";
 import { InternalServerErrorException } from "@nestjs/common";
-
-import { TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../constant/dto/transformer-value.constant";
-import { EApiControllerRequestTransformerType, EApiDtoType, EErrorStringAction } from "../../../enum";
-import { ErrorString } from "../../error-string.utility";
+import { ErrorString } from "@utility/error-string.utility";
 
 /**
  * Transforms data between request/response objects and entity objects.

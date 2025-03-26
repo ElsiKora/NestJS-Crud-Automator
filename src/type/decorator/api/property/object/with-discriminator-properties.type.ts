@@ -1,8 +1,7 @@
 import type { Type } from "@nestjs/common";
 import type { ReferenceObject, SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
+import type { TApiPropertyBaseProperties } from "@type/decorator/api/property/base";
 import type { ClassConstructor } from "class-transformer";
-
-import type { TApiPropertyBaseProperties } from "../base";
 
 export type TApiPropertyObjectWithDiscriminatorProperties = {
 	additionalProperties?: boolean | ReferenceObject | SchemaObject;

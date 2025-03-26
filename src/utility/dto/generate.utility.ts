@@ -1,27 +1,25 @@
+import type { IApiControllerPropertiesRouteAutoDtoConfig } from "@interface/decorator/api";
+import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
+import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { ObjectLiteral } from "typeorm";
 
-import type { IApiControllerPropertiesRouteAutoDtoConfig, IApiEntity } from "../../interface";
-import type { TApiPropertyDescribeProperties } from "../../type";
-
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
+import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { ApiExtraModels } from "@nestjs/swagger";
+import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
+import { DtoGenerateDynamic } from "@utility/dto/generate-dynamic.utility";
+import { DtoGenerateFilterDecorator } from "@utility/dto/generate-filter-decorator.utility";
+import { DtoGenerateGetListResponse } from "@utility/dto/generate-get-list-response.utility";
+import { DtoGetGetListQueryBaseClass } from "@utility/dto/get-get-list-query-base-class.utility";
+import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is-property-should-be-marked.utility";
+import { DtoIsShouldBeGenerated } from "@utility/dto/is-should-be-generated.utility";
+import { ErrorException } from "@utility/error-exception.utility";
+import { HasPairedCustomSuffixesFieldsValidator } from "@validator/has-paired-custom-suffixes-fields.validator";
 import { Validate } from "class-validator";
-
-import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
-import { DTO_GENERATE_CONSTANT } from "../../constant/utility/dto/generate.constant";
-import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "../../enum";
-import { HasPairedCustomSuffixesFieldsValidator } from "../../validator/has-paired-custom-suffixes-fields.validator";
-import { CamelCaseString } from "../camel-case-string.utility";
-import { ErrorException } from "../error-exception.utility";
-
-import { DtoBuildDecorator } from "./build-decorator.utility";
-import { DtoGenerateDynamic } from "./generate-dynamic.utility";
-import { DtoGenerateFilterDecorator } from "./generate-filter-decorator.utility";
-import { DtoGenerateGetListResponse } from "./generate-get-list-response.utility";
-import { DtoGetGetListQueryBaseClass } from "./get-get-list-query-base-class.utility";
-import { DtoIsPropertyShouldBeMarked } from "./is-property-should-be-marked.utility";
-import { DtoIsShouldBeGenerated } from "./is-should-be-generated.utility";
 
 /**
  * Core utility for DTO generation that determines which properties should be included in the DTO.

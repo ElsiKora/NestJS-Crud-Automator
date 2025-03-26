@@ -1,6 +1,6 @@
-import type { EApiRouteType } from "../../../enum";
+import type { EApiRouteType } from "@enum/decorator/api";
 
-import { CONTROLLER_API_DECORATOR_CONSTANT } from "../../../constant";
+import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 
 /**
  * Generates a standardized method name for controller methods based on the API route type.

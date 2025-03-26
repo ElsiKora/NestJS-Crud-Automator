@@ -1,11 +1,9 @@
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
+import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
-import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "../../type";
-
-import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "../../enum";
-
-import { DtoIsPropertyExposedForGuard } from "./is-property-exposed-for-guard.utility";
+import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { DtoIsPropertyExposedForGuard } from "@utility/dto/is-property-exposed-for-guard.utility";
 
 /**
  * Determines if a property should be marked for inclusion in a specific DTO type

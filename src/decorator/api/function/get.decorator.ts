@@ -1,14 +1,13 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiFunctionGetExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
+import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
 import type { EntityManager, EntitySchema, Repository } from "typeorm";
 
-import type { IApiBaseEntity, IApiFunctionGetExecutorProperties, IApiFunctionProperties } from "../../../interface";
-import type { TApiFunctionGetProperties } from "../../../type";
-
+import { EErrorStringAction } from "@enum/utility";
 import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
-
-import { EErrorStringAction } from "../../../enum";
-import { ErrorException } from "../../../utility/error-exception.utility";
-import { ErrorString } from "../../../utility/error-string.utility";
-import { LoggerUtility } from "../../../utility/logger.utility";
+import { ErrorException } from "@utility/error-exception.utility";
+import { ErrorString } from "@utility/error-string.utility";
+import { LoggerUtility } from "@utility/logger.utility";
 
 /**
  * Creates a decorator that adds single entity retrieval functionality to a service method

@@ -1,16 +1,16 @@
 import type { Type } from "@nestjs/common";
 import type { ObjectLiteral } from "typeorm/index";
 
+import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "@constant/factory/dto";
+import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";
+import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
+import { EApiDtoType, EApiPropertyNumberType, EApiRouteType } from "@enum/decorator/api";
+import { EFilterOrderDirection } from "@enum/filter-order-direction.enum";
+import { IApiEntity } from "@interface/entity";
+import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
+import { CapitalizeString } from "@utility/capitalize-string.utility";
+import { AllOrNoneOfListedPropertiesValidator } from "@validator/all-or-none-of-listed-properties.validator";
 import { Validate } from "class-validator";
-
-import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "../../constant";
-import { ApiPropertyEnum } from "../../decorator/api/property/enum.decorator";
-import { ApiPropertyNumber } from "../../decorator/api/property/number.decorator";
-import { EApiDtoType, EApiPropertyNumberType, EApiRouteType, EFilterOrderDirection } from "../../enum";
-import { IApiEntity } from "../../interface";
-import { AllOrNoneOfListedPropertiesValidator } from "../../validator";
-import { FilterOrderByFromEntity } from "../api/filter-order-by-from-entity.utility";
-import { CapitalizeString } from "../capitalize-string.utility";
 
 /**
  * Creates a base class for list query DTOs with pagination and sorting properties.

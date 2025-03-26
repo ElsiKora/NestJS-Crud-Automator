@@ -1,1 +1,1 @@
-export * from "./type.enum";
+export { EApiFunctionType } from "./type.enum";

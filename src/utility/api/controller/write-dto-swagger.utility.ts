@@ -1,16 +1,16 @@
+import type { EApiRouteType } from "@enum/decorator/api";
+import type { IApiControllerProperties } from "@interface/decorator/api";
+import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
+import type { TMetadata } from "@type/class";
+import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 
-import type { EApiRouteType } from "../../../enum";
-import type { IApiControllerProperties, IApiEntity } from "../../../interface";
-import type { TApiControllerPropertiesRoute, TMetadata } from "../../../type";
-
+import { MetadataStorage } from "@class/metadata-storage.class";
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { EApiDtoType, EApiPropertyDescribeType } from "@enum/decorator/api";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
-
-import { MetadataStorage } from "../../../class";
-import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../../constant";
-import { EApiDtoType, EApiPropertyDescribeType } from "../../../enum";
-import { CamelCaseString } from "../../camel-case-string.utility";
-import { DtoGenerate } from "../../dto";
+import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DtoGenerate } from "@utility/dto";
 
 /**
  * Generates and registers Swagger documentation for DTOs.

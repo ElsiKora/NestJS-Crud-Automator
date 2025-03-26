@@ -1,10 +1,7 @@
+import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
-
-import type { EApiDtoType, EApiRouteType } from "../../enum";
-import type { TApiPropertyDescribeProperties } from "../../type";
-import type { TApiPropertyDescribeDtoProperties } from "../../type";
-import type { TApiPropertyDescribeDtoGuardProperties } from "../../type/decorator/api/property/describe/dto/guard-properties.type";
+import type { TApiPropertyDescribeDtoGuardProperties, TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 /**
  * Determines if a property should be exposed for the current authentication guard

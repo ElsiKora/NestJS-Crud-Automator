@@ -1,7 +1,7 @@
-import type { TApiPropertyDescribeProperties } from "../../../type";
+import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
-import { MetadataStorage } from "../../../class";
-import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../../constant";
+import { MetadataStorage } from "@class/metadata-storage.class";
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 
 /**
  * Creates a decorator for entity properties that provides metadata used for automatic

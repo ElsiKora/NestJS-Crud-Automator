@@ -1,10 +1,9 @@
+import type { EFilterOperation } from "@enum/filter-operation.enum";
+import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { FindOptionsWhere } from "typeorm/index";
 
-import type { EFilterOperation } from "../../../../enum/filter-operation.enum";
-import type { IApiEntity, IApiEntityColumn } from "../../../../interface";
-
-import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../../../constant";
-import { EApiPropertyDescribeType } from "../../../../enum";
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { EApiPropertyDescribeType } from "@enum/decorator/api";
 
 import { ApiControllerGetListTransformOperation } from "./transform-operation.utility";
 

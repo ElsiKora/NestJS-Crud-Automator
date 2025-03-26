@@ -1,1 +1,1 @@
-export * from "./correlation-id-response-body.interceptor";
+export { CorrelationIDResponseBodyInterceptor } from "./correlation-id-response-body.interceptor";

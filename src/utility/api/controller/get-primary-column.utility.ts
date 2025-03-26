@@ -1,6 +1,6 @@
+import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
+import type { IApiControllerPrimaryColumn } from "@interface/utility";
 import type { DeepPartial } from "typeorm";
-
-import type { IApiControllerPrimaryColumn, IApiEntity, IApiEntityColumn } from "../../../interface";
 
 /**
  * Extracts the primary key column and its value from an entity's metadata.

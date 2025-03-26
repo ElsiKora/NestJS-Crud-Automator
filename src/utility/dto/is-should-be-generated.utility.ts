@@ -1,4 +1,4 @@
-import { EApiDtoType, EApiRouteType } from "../../enum";
+import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 
 /**
  * Determines if a DTO should be generated for a given route method and DTO type.

@@ -1,9 +1,8 @@
+import { VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT } from "@constant/validator";
+import { EFilterOperation } from "@enum/filter-operation.enum";
+import { EHasPairedCustomSuffixesFieldsArgumentType } from "@enum/validator";
+import { THasPairedCustomSuffixesFieldsOperationConfig, THasPairedCustomSuffixesFieldsValidationContext } from "@type/validator/has-paired-custom-suffixes-fields";
 import { type ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface } from "class-validator";
-
-import { VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT } from "../constant";
-import { EHasPairedCustomSuffixesFieldsArgumentType } from "../enum";
-import { EFilterOperation } from "../enum/filter-operation.enum";
-import { THasPairedCustomSuffixesFieldsOperationConfig, THasPairedCustomSuffixesFieldsValidationContext } from "../type";
 
 // eslint-disable-next-line @elsikora/typescript/naming-convention
 @ValidatorConstraint({ async: false, name: "has-paired-custom-suffixes-fields" })

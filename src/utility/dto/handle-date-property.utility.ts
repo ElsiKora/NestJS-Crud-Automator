@@ -1,4 +1,4 @@
-import { EApiPropertyDateIdentifier } from "../../enum";
+import { EApiPropertyDateIdentifier } from "@enum/decorator/api";
 
 /**
  * Helper utility for handling date-related properties in DTOs.

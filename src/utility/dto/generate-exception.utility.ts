@@ -1,12 +1,13 @@
+import { DATE_CONSTANT } from "@constant/date.constant";
+import { EXCEPTION_DTO_CONSTANT } from "@constant/dto";
+import { NUMBER_CONSTANT } from "@constant/number.constant";
+import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";
+import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
+import { ApiPropertyString } from "@decorator/api/property/string.decorator";
+import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
+import { EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
 import { HttpStatus, type Type } from "@nestjs/common";
-
-import { DATE_CONSTANT, EXCEPTION_DTO_CONSTANT, NUMBER_CONSTANT } from "../../constant";
-import { ApiPropertyEnum } from "../../decorator/api/property/enum.decorator";
-import { ApiPropertyNumber } from "../../decorator/api/property/number.decorator";
-import { ApiPropertyString } from "../../decorator/api/property/string.decorator";
-import { ApiPropertyUUID } from "../../decorator/api/property/uuid.decorator";
-import { EApiPropertyNumberType, EApiPropertyStringType } from "../../enum";
-import { CamelCaseString } from "../camel-case-string.utility";
+import { CamelCaseString } from "@utility/camel-case-string.utility";
 
 /**
  * Creates exception DTOs with standardized properties based on HTTP status codes.

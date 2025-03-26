@@ -1,15 +1,13 @@
 import type { ApiPropertyOptions } from "@nestjs/swagger";
-
-import type { TApiPropertyUuidProperties } from "../../../type/decorator/api/property/uuid-properties.type";
+import type { TApiPropertyUuidProperties } from "@type/decorator/api/property";
 
 import { randomUUID } from "node:crypto";
 
+import { EApiPropertyDataType, EApiPropertyStringType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { Exclude, Expose } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, IsUUID } from "class-validator";
-
-import { EApiPropertyDataType, EApiPropertyStringType } from "../../../enum";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators

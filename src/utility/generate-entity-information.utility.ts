@@ -1,16 +1,14 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { ColumnType } from "typeorm";
 import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
 import type { DiscriminatorValueMetadataArgs } from "typeorm/metadata-args/DiscriminatorValueMetadataArgs";
 import type { RelationMetadataArgs } from "typeorm/metadata-args/RelationMetadataArgs";
 import type { TableMetadataArgs } from "typeorm/metadata-args/TableMetadataArgs";
 
-import type { IApiBaseEntity, IApiEntity, IApiEntityColumn } from "../interface";
-
+import { MetadataStorage } from "@class/metadata-storage.class";
+import { ErrorException } from "@utility/error-exception.utility";
 import { DefaultNamingStrategy, getMetadataArgsStorage } from "typeorm";
-
-import { MetadataStorage } from "../class";
-
-import { ErrorException } from "./error-exception.utility";
 
 /**
  * Generates metadata information about an entity including columns, table name, and primary key

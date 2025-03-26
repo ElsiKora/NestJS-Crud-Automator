@@ -1,11 +1,11 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiGetListResponseResult } from "@interface/decorator/api";
+import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
+import type { TApiServiceProperties } from "@type/decorator/api/service";
 import type { EntityManager, FindOptionsRelations } from "typeorm";
 
-import type { IApiBaseEntity, IApiGetListResponseResult } from "../../interface";
-import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties, TApiServiceProperties } from "../../type";
-
-import { EApiFunctionType } from "../../enum";
-
-import { ApiFunction } from "./function";
+import { ApiFunction } from "@decorator/api/function";
+import { EApiFunctionType } from "@enum/decorator/api";
 
 /**
  * Creates a class decorator that adds CRUD operations to a service class for a specific entity

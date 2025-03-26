@@ -1,7 +1,7 @@
-import type { IApiBaseEntity } from "../../interface";
-import type { TMetadata } from "../../type";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { TMetadata } from "@type/class";
 
-import { MetadataStorage } from "../../class";
+import { MetadataStorage } from "@class/metadata-storage.class";
 
 /**
  * Analyzes entity metadata using the MetadataStorage singleton class.

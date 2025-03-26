@@ -1,2 +1,2 @@
-export type * from "./operation-config.type";
-export type * from "./validation-context.type";
+export { type THasPairedCustomSuffixesFieldsOperationConfig } from "./operation-config.type";
+export { type THasPairedCustomSuffixesFieldsValidationContext } from "./validation-context.type";

@@ -1,11 +1,11 @@
+import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import type { IDtoGenerateFactory } from "@interface/dto-generate-factory.interface";
+import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
+import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
-import type { EApiDtoType, EApiRouteType } from "../../enum";
-import type { IApiEntity, IDtoGenerateFactory } from "../../interface";
-import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "../../type";
-
-import { DTO_UTILITY_CONSTANT } from "../../constant/utility/dto/constant";
-import { ErrorException } from "../error-exception.utility";
+import { DTO_UTILITY_CONSTANT } from "@constant/utility/dto/constant";
+import { ErrorException } from "@utility/error-exception.utility";
 
 /**
  * Factory function that generates appropriate property decorators based on property type.
