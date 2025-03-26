@@ -228,8 +228,7 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 	} else if ("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated) {
 		decorators.push(
 			MustMatchOneOfSchemasValidator({
-				// @ts-ignore
-				discriminator: {},
+				discriminator: properties.discriminator,
 				schemas: properties.generatedDTOs,
 			}),
 			Type(() => Object, {
