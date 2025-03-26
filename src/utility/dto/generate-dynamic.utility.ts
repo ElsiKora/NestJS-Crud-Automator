@@ -6,6 +6,7 @@ import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties 
 import type { TDtoGenerateIsAllowedCombination } from "@type/utility";
 
 import { EApiPropertyDescribeType } from "@enum/decorator/api";
+import { ApiExtraModels } from "@nestjs/swagger";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoIsPropertyExposedForGuard } from "@utility/dto/is-property-exposed-for-guard.utility";
@@ -60,6 +61,29 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 		}
 
 		for (const { data, name } of dataForGeneration) {
+			const nestedDTOs: Record<string, Record<string, Type<unknown>>> = {};
+			const allNestedTypes: Array<Type<unknown>> = [];
+
+			for (const propertyName of Object.keys(data)) {
+				const propertyData: TApiPropertyDescribeProperties | undefined = data[propertyName];
+
+				if (propertyData && propertyData.type === EApiPropertyDescribeType.OBJECT && !Array.isArray(propertyData.dataType) && "isDynamicallyGenerated" in propertyData && propertyData.isDynamicallyGenerated) {
+					const nestedPropertyName: string = `${_propertyName}${CamelCaseString(name)}${CamelCaseString(propertyName)}`;
+
+					const childNestedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(method, propertyData, entity, dtoType, nestedPropertyName, currentGuard);
+
+					if (childNestedDTOs && Object.keys(childNestedDTOs).length > 0) {
+						nestedDTOs[propertyName] = childNestedDTOs;
+
+						for (const dto of Object.values(childNestedDTOs)) {
+							if (dto) {
+								allNestedTypes.push(dto);
+							}
+						}
+					}
+				}
+			}
+
 			class GeneratedDTO {
 				constructor() {
 					for (const propertyName of Object.keys(data)) {
@@ -78,7 +102,9 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 
 			for (const propertyName of Object.keys(data)) {
 				if (data[propertyName]) {
-					const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, data[propertyName], entity, dtoType, propertyName, currentGuard, {});
+					const propertyGeneratedDTOs: Record<string, Type<unknown>> = nestedDTOs[propertyName] ?? {};
+
+					const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, data[propertyName], entity, dtoType, propertyName, currentGuard, propertyGeneratedDTOs);
 
 					if (decorators) {
 						for (const [, decorator] of decorators.entries()) {
@@ -91,6 +117,10 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 			Object.defineProperty(GeneratedDTO, "name", {
 				value: `${entity.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}${CamelCaseString(_propertyName)}${CamelCaseString(name)}DTO`,
 			});
+
+			if (allNestedTypes.length > 0) {
+				ApiExtraModels(...allNestedTypes)(GeneratedDTO);
+			}
 
 			generatedDTOs[name] = GeneratedDTO;
 		}
