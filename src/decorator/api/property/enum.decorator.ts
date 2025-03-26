@@ -7,6 +7,10 @@ import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { Exclude, Expose } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, IsOptional } from "class-validator";
 
+/**
+ *
+ * @param properties
+ */
 export function ApiPropertyEnum(properties: TApiPropertyEnumProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions(properties);
 
@@ -16,6 +20,10 @@ export function ApiPropertyEnum(properties: TApiPropertyEnumProperties): <Y>(tar
 	return applyDecorators(...decorators);
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildApiPropertyOptions(properties: TApiPropertyEnumProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions & Record<string, any> = {
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
@@ -47,6 +55,11 @@ function buildApiPropertyOptions(properties: TApiPropertyEnumProperties): ApiPro
 	return apiPropertyOptions;
 }
 
+/**
+ *
+ * @param properties
+ * @param apiPropertyOptions
+ */
 function buildDecorators(properties: TApiPropertyEnumProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
@@ -55,6 +68,10 @@ function buildDecorators(properties: TApiPropertyEnumProperties, apiPropertyOpti
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildFormatDecorators(properties: TApiPropertyEnumProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
@@ -65,6 +82,10 @@ function buildFormatDecorators(properties: TApiPropertyEnumProperties): Array<Pr
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildRequestDecorators(properties: TApiPropertyEnumProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -85,6 +106,10 @@ function buildRequestDecorators(properties: TApiPropertyEnumProperties): Array<P
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildResponseDecorators(properties: TApiPropertyEnumProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -101,6 +126,10 @@ function buildResponseDecorators(properties: TApiPropertyEnumProperties): Array<
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function validateOptions(properties: TApiPropertyEnumProperties): void {
 	const errors: Array<string> = [];
 

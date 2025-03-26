@@ -11,6 +11,10 @@ import random from "lodash/random";
 import { NUMBER_CONSTANT } from "../../../constant";
 import { EApiPropertyDataType, EApiPropertyNumberType } from "../../../enum";
 
+/**
+ *
+ * @param properties
+ */
 export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	if (properties.exampleValue === undefined) {
 		properties.exampleValue = random(properties.minimum, properties.maximum);
@@ -24,6 +28,10 @@ export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): <Y>
 	return applyDecorators(...decorators);
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
@@ -55,6 +63,11 @@ function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiP
 	return apiPropertyOptions;
 }
 
+/**
+ *
+ * @param properties
+ * @param apiPropertyOptions
+ */
 function buildDecorators(properties: TApiPropertyNumberProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
@@ -63,6 +76,10 @@ function buildDecorators(properties: TApiPropertyNumberProperties, apiPropertyOp
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildFormatDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
@@ -94,6 +111,10 @@ function buildFormatDecorators(properties: TApiPropertyNumberProperties): Array<
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildNumberValidationDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
@@ -106,6 +127,10 @@ function buildNumberValidationDecorators(properties: TApiPropertyNumberPropertie
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildRequestDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -126,6 +151,10 @@ function buildRequestDecorators(properties: TApiPropertyNumberProperties): Array
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildResponseDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -142,6 +171,10 @@ function buildResponseDecorators(properties: TApiPropertyNumberProperties): Arra
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildTransformDecorators(properties: TApiPropertyNumberProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -156,6 +189,10 @@ function buildTransformDecorators(properties: TApiPropertyNumberProperties): Arr
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function getFormat(properties: TApiPropertyNumberProperties): string {
 	switch (properties.format) {
 		case EApiPropertyNumberType.DOUBLE: {
@@ -172,6 +209,10 @@ function getFormat(properties: TApiPropertyNumberProperties): string {
 	}
 }
 
+/**
+ *
+ * @param properties
+ */
 function getType(properties: TApiPropertyNumberProperties): EApiPropertyDataType.INTEGER | EApiPropertyDataType.NUMBER {
 	switch (properties.format) {
 		case EApiPropertyNumberType.DOUBLE: {
@@ -184,6 +225,10 @@ function getType(properties: TApiPropertyNumberProperties): EApiPropertyDataType
 	}
 }
 
+/**
+ *
+ * @param properties
+ */
 function validateOptions(properties: TApiPropertyNumberProperties): void {
 	const errors: Array<string> = [];
 

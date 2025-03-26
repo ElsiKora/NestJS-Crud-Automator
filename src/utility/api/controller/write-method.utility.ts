@@ -5,6 +5,14 @@ import { ErrorException } from "../../error-exception.utility";
 
 import { ApiControllerGetMethodName } from "./get-method-name.utility";
 
+/**
+ *
+ * @param thisTarget
+ * @param target
+ * @param method
+ * @param properties
+ * @param entityMetadata
+ */
 export function ApiControllerWriteMethod<E>(thisTarget: Record<string, (method: EApiRouteType, methodName: string, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>) => void>, target: Record<string, unknown>, method: EApiRouteType, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 	const methodName: string = ApiControllerGetMethodName(method);
 

@@ -4,7 +4,7 @@ import { ValidatorConstraint } from "class-validator";
 
 // eslint-disable-next-line @elsikora/typescript/naming-convention
 @ValidatorConstraint({ async: false, name: "has-at-least-one-property" })
-export class HasAtLeastOneProperty implements ValidatorConstraintInterface {
+export class HasAtLeastOnePropertyValidator implements ValidatorConstraintInterface {
 	defaultMessage(): string {
 		return "at least one property must be provided";
 	}

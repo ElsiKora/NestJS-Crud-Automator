@@ -12,6 +12,15 @@ import { EApiDtoType, EApiPropertyDescribeType } from "../../../enum";
 import { CamelCaseString } from "../../camel-case-string.utility";
 import { DtoGenerate } from "../../dto";
 
+/**
+ *
+ * @param target
+ * @param entity
+ * @param properties
+ * @param method
+ * @param routeConfig
+ * @param entityMetadata
+ */
 export function ApiControllerWriteDtoSwagger<E>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, entityMetadata: IApiEntity<E>): void {
 	const swaggerModels: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, target) ?? []) as Array<unknown>;
 

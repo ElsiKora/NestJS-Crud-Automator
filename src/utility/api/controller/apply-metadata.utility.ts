@@ -11,6 +11,16 @@ import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
 import { EApiDtoType } from "../../../enum";
 import { DtoGenerate } from "../../dto";
 
+/**
+ *
+ * @param target
+ * @param targetPrototype
+ * @param entity
+ * @param properties
+ * @param method
+ * @param methodName
+ * @param routeConfig
+ */
 export function ApiControllerApplyMetadata<E>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>): void {
 	let parameterIndex: number = 0;
 	let routeArgumentsMetadata: unknown = {};

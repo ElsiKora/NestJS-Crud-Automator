@@ -10,6 +10,13 @@ import { EApiControllerLoadRelationsStrategy } from "../../../enum";
 import { ErrorException } from "../../error-exception.utility";
 import { GetEntityColumns } from "../../get-entity-columns.utility";
 
+/**
+ *
+ * @param controllerMethod
+ * @param properties
+ * @param relationConfig
+ * @param parameters
+ */
 export async function ApiControllerHandleRequestRelations<E>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
 	if (relationConfig?.shouldLoadRelations) {
 		for (const propertyName of GetEntityColumns<E>({ entity: properties.entity, shouldTakeRelationsOnly: true })) {

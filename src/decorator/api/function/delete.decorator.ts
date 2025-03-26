@@ -12,7 +12,10 @@ import { LoggerUtility } from "../../../utility/logger.utility";
 
 import { ApiFunctionGet } from "./get.decorator";
 
-// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
+/**
+ *
+ * @param properties
+ */
 export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
 	const { entity }: IApiFunctionProperties = properties;
 	const getDecorator: (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity });
@@ -59,6 +62,10 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 	};
 }
 
+/**
+ *
+ * @param options
+ */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExecutorProperties<E>): Promise<E> {
 	const { criteria, entity, eventManager, getFunction, repository }: IApiFunctionDeleteExecutorProperties<E> = options;
 

@@ -10,6 +10,16 @@ import { EApiAction, EApiDtoType, EApiRouteType } from "../../../enum";
 import { DtoGenerate } from "../../dto/generate.utility";
 import { ErrorException } from "../../error-exception.utility";
 
+/**
+ *
+ * @param targetMethod
+ * @param entity
+ * @param properties
+ * @param method
+ * @param methodName
+ * @param routeConfig
+ * @param decorators
+ */
 export function ApiControllerApplyDecorators<E>(targetMethod: (properties: any, body: any, headers: any, ip: any, authenticationRequest: any) => any, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>): void {
 	const responseDto: Type<unknown> | undefined = routeConfig.dto?.response ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.RESPONSE, routeConfig.autoDto?.[EApiDtoType.RESPONSE], routeConfig.authentication?.guard);
 	const customDecorators: Array<MethodDecorator> = [...decorators];

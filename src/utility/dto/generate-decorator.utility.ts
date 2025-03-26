@@ -7,6 +7,16 @@ import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties 
 import { DTO_UTILITY_CONSTANT } from "../../constant/utility/dto/constant";
 import { ErrorException } from "../error-exception.utility";
 
+/**
+ *
+ * @param metadata
+ * @param entity
+ * @param config
+ * @param method
+ * @param dtoType
+ * @param propertyName
+ * @param generatedDTOs
+ */
 export function DtoGenerateDecorator<E>(metadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string, generatedDTOs?: Record<string, Type<unknown>>): PropertyDecorator {
 	const factory: IDtoGenerateFactory<E> = DTO_UTILITY_CONSTANT.PROPERTY_DECORATOR_FACTORIES[metadata.type] as IDtoGenerateFactory<E>;
 

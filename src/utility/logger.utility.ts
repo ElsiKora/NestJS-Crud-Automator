@@ -20,6 +20,7 @@ export class LoggerUtility extends ConsoleLogger {
 
 	/**
 	 * Static method to create a logger with a specific context
+	 * @param context
 	 */
 	public static getLogger(context?: string): LoggerUtility {
 		return new LoggerUtility(`NestJS-Crud-Automator/${context ?? "Core"}`);

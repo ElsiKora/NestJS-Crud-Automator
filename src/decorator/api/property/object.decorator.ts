@@ -9,6 +9,8 @@ import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { Exclude, Expose, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, ValidateNested } from "class-validator";
 
+import { MustMatchOneOfSchemasValidator } from "../../../validator";
+
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
  * for object properties in DTOs.
@@ -208,6 +210,10 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 
 	if (Array.isArray(properties.type) && properties.discriminator) {
 		decorators.push(
+			MustMatchOneOfSchemasValidator({
+				discriminator: properties.discriminator,
+				schemas: properties.type,
+			}),
 			Type(() => Object, {
 				discriminator: {
 					property: properties.discriminator.propertyName,
@@ -221,6 +227,11 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 		);
 	} else if ("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated) {
 		decorators.push(
+			MustMatchOneOfSchemasValidator({
+				// @ts-ignore
+				discriminator: {},
+				schemas: properties.generatedDTOs,
+			}),
 			Type(() => Object, {
 				discriminator: {
 					property: properties.discriminator.propertyName,
@@ -273,6 +284,6 @@ function validateOptions(properties: TApiPropertyObjectProperties): void {
 	}
 
 	if (errors.length > 0) {
-		throw new Error(`ApiPropertyString error: ${errors.join("\n")}`);
+		throw new Error(`ApiPropertyObject error: ${errors.join("\n")}`);
 	}
 }

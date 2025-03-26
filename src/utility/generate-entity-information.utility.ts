@@ -12,6 +12,10 @@ import { MetadataStorage } from "../class";
 
 import { ErrorException } from "./error-exception.utility";
 
+/**
+ *
+ * @param entity
+ */
 export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity<E> {
 	const generatedEntity: IApiEntity<E> = {
 		columns: [],

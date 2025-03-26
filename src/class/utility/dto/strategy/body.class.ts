@@ -7,7 +7,7 @@ export class DtoStrategyBody implements IDtoStrategy {
 	getDecoratorConfig(method: EApiRouteType, _metadata: TApiPropertyDescribeProperties): TApiPropertyDescribeDtoProperties {
 		switch (method) {
 			case EApiRouteType.CREATE: {
-				return { isRequired: false };
+				return { isRequired: true };
 			}
 
 			case EApiRouteType.DELETE: {

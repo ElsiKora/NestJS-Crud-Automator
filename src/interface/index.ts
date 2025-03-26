@@ -6,3 +6,4 @@ export type * from "./decorator";
 export type * from "./dto-generate-factory.interface";
 export type * from "./entity";
 export type * from "./utility";
+export type * from "./validator";

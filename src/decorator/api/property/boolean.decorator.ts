@@ -9,6 +9,10 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, IsOption
 
 import { EApiPropertyDataType } from "../../../enum";
 
+/**
+ *
+ * @param properties
+ */
 export function ApiPropertyBoolean(properties: TApiPropertyBaseProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions(properties);
 
@@ -18,6 +22,10 @@ export function ApiPropertyBoolean(properties: TApiPropertyBaseProperties): <Y>(
 	return applyDecorators(...decorators);
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
@@ -41,6 +49,11 @@ function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPro
 	return apiPropertyOptions;
 }
 
+/**
+ *
+ * @param properties
+ * @param apiPropertyOptions
+ */
 function buildDecorators(properties: TApiPropertyBaseProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
@@ -49,6 +62,10 @@ function buildDecorators(properties: TApiPropertyBaseProperties, apiPropertyOpti
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildFormatDecorators(properties: TApiPropertyBaseProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
@@ -61,6 +78,10 @@ function buildFormatDecorators(properties: TApiPropertyBaseProperties): Array<Pr
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildRequestDecorators(properties: TApiPropertyBaseProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -81,6 +102,10 @@ function buildRequestDecorators(properties: TApiPropertyBaseProperties): Array<P
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildResponseDecorators(properties: TApiPropertyBaseProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -97,6 +122,10 @@ function buildResponseDecorators(properties: TApiPropertyBaseProperties): Array<
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildTransformDecorators(properties: TApiPropertyBaseProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -185,6 +214,10 @@ function buildTransformDecorators(properties: TApiPropertyBaseProperties): Array
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function validateOptions(properties: TApiPropertyBaseProperties): void {
 	const errors: Array<string> = [];
 

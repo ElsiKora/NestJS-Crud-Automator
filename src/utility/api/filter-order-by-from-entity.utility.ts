@@ -13,6 +13,14 @@ import { FILTER_API_INTERFACE_CONSTANT, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT
 
 import "reflect-metadata";
 
+/**
+ *
+ * @param entity
+ * @param entityMetadata
+ * @param method
+ * @param dtoType
+ * @param fieldSelector
+ */
 export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, fieldSelector?: TFilterFieldSelector<typeof entity>): TApiFilterOrderBy<typeof entity> {
 	const metadata: MetadataArgsStorage = getMetadataArgsStorage();
 	const columns: Array<ColumnMetadataArgs> = metadata.columns.filter((column: ColumnMetadataArgs) => column.target == entity);

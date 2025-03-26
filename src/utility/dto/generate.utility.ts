@@ -11,7 +11,7 @@ import { Validate } from "class-validator";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../../constant";
 import { DTO_GENERATE_CONSTANT } from "../../constant/utility/dto/generate.constant";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "../../enum";
-import { HasPairedCustomSuffixesFields } from "../../validator/has-paired-custom-suffixes-fields.validator";
+import { HasPairedCustomSuffixesFieldsValidator } from "../../validator/has-paired-custom-suffixes-fields.validator";
 import { CamelCaseString } from "../camel-case-string.utility";
 import { ErrorException } from "../error-exception.utility";
 
@@ -23,6 +23,15 @@ import { DtoGetGetListQueryBaseClass } from "./get-get-list-query-base-class.uti
 import { DtoIsPropertyShouldBeMarked } from "./is-property-should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "./is-should-be-generated.utility";
 
+/**
+ *
+ * @param entity
+ * @param entityMetadata
+ * @param method
+ * @param dtoType
+ * @param dtoConfig
+ * @param currentGuard
+ */
 export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
 		return undefined;
@@ -163,7 +172,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 			writable: true,
 		});
 
-		Validate(HasPairedCustomSuffixesFields, ["operator", ["value", "values"]])(GeneratedDTO.prototype, "object");
+		Validate(HasPairedCustomSuffixesFieldsValidator, ["operator", ["value", "values"]])(GeneratedDTO.prototype, "object");
 	}
 
 	if (extraModels.length > 0) {

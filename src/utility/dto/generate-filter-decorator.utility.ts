@@ -5,6 +5,11 @@ import { ApiPropertyEnum } from "../../decorator/api/property/enum.decorator";
 import { EApiPropertyDescribeType } from "../../enum";
 import { EFilterOperationBoolean, EFilterOperationDate, EFilterOperationEnum, EFilterOperationNumber, EFilterOperationObject, EFilterOperationRelation, EFilterOperationString, EFilterOperationUuid } from "../../enum/filter-operation.enum";
 
+/**
+ *
+ * @param metadata
+ * @param entity
+ */
 export function DtoGenerateFilterDecorator<E>(metadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>): PropertyDecorator {
 	switch (metadata.type) {
 		case EApiPropertyDescribeType.BOOLEAN: {

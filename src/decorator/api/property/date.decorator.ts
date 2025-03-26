@@ -9,6 +9,10 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsOptional 
 
 import { EApiPropertyDataType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "../../../enum";
 
+/**
+ *
+ * @param properties
+ */
 export function ApiPropertyDate(properties: TApiPropertyDateProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions(properties);
 
@@ -18,6 +22,10 @@ export function ApiPropertyDate(properties: TApiPropertyDateProperties): <Y>(tar
 	return applyDecorators(...decorators);
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildApiPropertyOptions(properties: TApiPropertyDateProperties): ApiPropertyOptions {
 	const example: string = getExample(properties.format);
 
@@ -52,6 +60,11 @@ function buildApiPropertyOptions(properties: TApiPropertyDateProperties): ApiPro
 	return apiPropertyOptions;
 }
 
+/**
+ *
+ * @param properties
+ * @param apiPropertyOptions
+ */
 function buildDecorators(properties: TApiPropertyDateProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
@@ -60,6 +73,10 @@ function buildDecorators(properties: TApiPropertyDateProperties, apiPropertyOpti
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildFormatDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
@@ -72,6 +89,10 @@ function buildFormatDecorators(properties: TApiPropertyDateProperties): Array<Pr
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildRequestDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -92,6 +113,10 @@ function buildRequestDecorators(properties: TApiPropertyDateProperties): Array<P
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildResponseDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -108,6 +133,10 @@ function buildResponseDecorators(properties: TApiPropertyDateProperties): Array<
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildTransformDecorators(properties: TApiPropertyDateProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -135,6 +164,10 @@ function buildTransformDecorators(properties: TApiPropertyDateProperties): Array
 	return decorators;
 }
 
+/**
+ *
+ * @param identifier
+ */
 function getDescription(identifier: EApiPropertyDateIdentifier): string {
 	switch (identifier) {
 		case EApiPropertyDateIdentifier.CREATED_AT: {
@@ -187,6 +220,10 @@ function getDescription(identifier: EApiPropertyDateIdentifier): string {
 	}
 }
 
+/**
+ *
+ * @param format
+ */
 function getExample(format: EApiPropertyDateType): string {
 	const startOfYearUTCDate: Date = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1, 0, 0, 0, 0));
 
@@ -205,6 +242,10 @@ function getExample(format: EApiPropertyDateType): string {
 	}
 }
 
+/**
+ *
+ * @param format
+ */
 function getPattern(format: EApiPropertyDateType): string {
 	switch (format) {
 		case EApiPropertyDateType.DATE: {
@@ -221,6 +262,10 @@ function getPattern(format: EApiPropertyDateType): string {
 	}
 }
 
+/**
+ *
+ * @param properties
+ */
 function validateOptions(properties: TApiPropertyDateProperties): void {
 	const errors: Array<string> = [];
 

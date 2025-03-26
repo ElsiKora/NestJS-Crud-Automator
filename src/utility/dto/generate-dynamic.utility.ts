@@ -11,7 +11,15 @@ import { CamelCaseString } from "../camel-case-string.utility";
 import { DtoBuildDecorator } from "./build-decorator.utility";
 import { DtoIsPropertyExposedForGuard } from "./is-property-exposed-for-guard.utility";
 
-// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
+/**
+ *
+ * @param method
+ * @param propertyMetadata
+ * @param entity
+ * @param dtoType
+ * @param _propertyName
+ * @param currentGuard
+ */
 export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, _propertyName: string, currentGuard?: Type<IAuthGuard>): Record<string, Type<unknown>> | undefined {
 	if (propertyMetadata.type !== EApiPropertyDescribeType.OBJECT) {
 		return undefined;
@@ -64,7 +72,7 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 
 			for (const propertyName of Object.keys(data)) {
 				if (data[propertyName]) {
-					const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, data[propertyName], entity, dtoType, propertyName, currentGuard);
+					const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, data[propertyName], entity, dtoType, propertyName, currentGuard, {}, true);
 
 					if (decorators) {
 						for (const [, decorator] of decorators.entries()) {

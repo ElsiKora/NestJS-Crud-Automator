@@ -7,6 +7,13 @@ import { EApiDtoType, EApiRouteType } from "../../enum";
 import { CamelCaseString } from "../camel-case-string.utility";
 import { CapitalizeString } from "../capitalize-string.utility";
 
+/**
+ *
+ * @param entity
+ * @param method
+ * @param dtoType
+ * @param propertyName
+ */
 export function DtoGenerateRelationResponse<E>(entity: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string): Type<unknown> {
 	class GeneratedRelationDTO {
 		@ApiPropertyUUID({ entity, isResponse: true })

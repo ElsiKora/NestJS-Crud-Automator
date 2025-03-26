@@ -11,6 +11,10 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, IsUUID 
 
 import { EApiPropertyDataType, EApiPropertyStringType } from "../../../enum";
 
+/**
+ *
+ * @param properties
+ */
 export function ApiPropertyUUID(properties: TApiPropertyUuidProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	const uuidExample: string = randomUUID();
 
@@ -22,6 +26,11 @@ export function ApiPropertyUUID(properties: TApiPropertyUuidProperties): <Y>(tar
 	return applyDecorators(...decorators);
 }
 
+/**
+ *
+ * @param uuidExample
+ * @param properties
+ */
 function buildApiPropertyOptions(uuidExample: string, properties: TApiPropertyUuidProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${String(properties.entity.name)} ${properties.description ?? "identifier"}`,
@@ -55,6 +64,11 @@ function buildApiPropertyOptions(uuidExample: string, properties: TApiPropertyUu
 	return apiPropertyOptions;
 }
 
+/**
+ *
+ * @param properties
+ * @param apiPropertyOptions
+ */
 function buildDecorators(properties: TApiPropertyUuidProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
@@ -63,6 +77,10 @@ function buildDecorators(properties: TApiPropertyUuidProperties, apiPropertyOpti
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildFormatDecorators(properties: TApiPropertyUuidProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
@@ -73,6 +91,10 @@ function buildFormatDecorators(properties: TApiPropertyUuidProperties): Array<Pr
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildRequestDecorators(properties: TApiPropertyUuidProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -93,6 +115,10 @@ function buildRequestDecorators(properties: TApiPropertyUuidProperties): Array<P
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildResponseDecorators(properties: TApiPropertyUuidProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -109,6 +135,10 @@ function buildResponseDecorators(properties: TApiPropertyUuidProperties): Array<
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function validateOptions(properties: TApiPropertyUuidProperties): void {
 	const errors: Array<string> = [];
 

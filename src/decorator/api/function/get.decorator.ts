@@ -10,7 +10,10 @@ import { ErrorException } from "../../../utility/error-exception.utility";
 import { ErrorString } from "../../../utility/error-string.utility";
 import { LoggerUtility } from "../../../utility/logger.utility";
 
-// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
+/**
+ *
+ * @param properties
+ */
 export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
 	const { entity }: IApiFunctionProperties = properties;
 
@@ -40,6 +43,10 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 	};
 }
 
+/**
+ *
+ * @param options
+ */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecutorProperties<E>): Promise<E> {
 	const { entity, eventManager, properties, repository }: IApiFunctionGetExecutorProperties<E> = options;
 

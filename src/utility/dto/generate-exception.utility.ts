@@ -8,6 +8,10 @@ import { ApiPropertyUUID } from "../../decorator/api/property/uuid.decorator";
 import { EApiPropertyNumberType, EApiPropertyStringType } from "../../enum";
 import { CamelCaseString } from "../camel-case-string.utility";
 
+/**
+ *
+ * @param httpStatus
+ */
 export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 	const errorName: string = HttpStatus[httpStatus];
 

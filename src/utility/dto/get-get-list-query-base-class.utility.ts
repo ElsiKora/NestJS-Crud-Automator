@@ -8,10 +8,17 @@ import { ApiPropertyEnum } from "../../decorator/api/property/enum.decorator";
 import { ApiPropertyNumber } from "../../decorator/api/property/number.decorator";
 import { EApiDtoType, EApiPropertyNumberType, EApiRouteType, EFilterOrderDirection } from "../../enum";
 import { IApiEntity } from "../../interface";
-import { AllOrNoneOfListedProperties } from "../../validator";
+import { AllOrNoneOfListedPropertiesValidator } from "../../validator";
 import { FilterOrderByFromEntity } from "../api/filter-order-by-from-entity.utility";
 import { CapitalizeString } from "../capitalize-string.utility";
 
+/**
+ *
+ * @param entity
+ * @param entityMetadata
+ * @param method
+ * @param dtoType
+ */
 export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType): Type<unknown> {
 	class BaseQueryDTO {
 		@ApiPropertyNumber({
@@ -56,7 +63,7 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 		})
 		page!: number;
 
-		@Validate(AllOrNoneOfListedProperties, ["orderBy", "orderDirection"])
+		@Validate(AllOrNoneOfListedPropertiesValidator, ["orderBy", "orderDirection"])
 		object(): this {
 			return this;
 		}

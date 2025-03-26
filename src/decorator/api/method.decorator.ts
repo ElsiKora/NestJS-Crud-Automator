@@ -8,7 +8,10 @@ import { Throttle } from "@nestjs/throttler";
 import { EApiAction } from "../../enum";
 import { DtoGenerateException } from "../../utility/dto/generate-exception.utility";
 
-// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters,@elsikora/typescript/no-unsafe-function-type
+/**
+ *
+ * @param options
+ */
 export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	let summary: string = "";
 

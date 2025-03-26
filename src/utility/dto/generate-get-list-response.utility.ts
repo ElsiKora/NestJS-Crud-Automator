@@ -8,6 +8,12 @@ import { EApiPropertyNumberType } from "../../enum";
 
 type TClassType<T = any> = new (...arguments_: Array<any>) => T;
 
+/**
+ *
+ * @param resourceClass
+ * @param responseResourceClass
+ * @param name
+ */
 export function DtoGenerateGetListResponse(resourceClass: TClassType, responseResourceClass: TClassType, name: string): Type<unknown> {
 	class ApiListGetResponse extends PickType(resourceClass, [] as const) {
 		@ApiPropertyNumber({

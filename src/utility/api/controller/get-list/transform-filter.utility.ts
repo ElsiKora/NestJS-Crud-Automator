@@ -8,6 +8,11 @@ import { EApiPropertyDescribeType } from "../../../../enum";
 
 import { ApiControllerGetListTransformOperation } from "./transform-operation.utility";
 
+/**
+ *
+ * @param query
+ * @param entityMetadata
+ */
 export function ApiControllerGetListTransformFilter<E>(query: Record<string, any>, entityMetadata: IApiEntity<E>): FindOptionsWhere<E> {
 	const filter: FindOptionsWhere<E> = {};
 

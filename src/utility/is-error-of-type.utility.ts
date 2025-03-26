@@ -60,6 +60,11 @@ const ExceptionMap: Record<EException, any> = {
 	[EException.UPGRADE_REQUIRED]: undefined,
 };
 
+/**
+ *
+ * @param error
+ * @param type
+ */
 export function IsErrorOfType(error: unknown, type: EException): boolean {
 	const ExceptionClass: HttpException = ExceptionMap[type] as HttpException;
 

@@ -7,6 +7,10 @@ import { EApiFunctionType } from "../../enum";
 
 import { ApiFunction } from "./function";
 
+/**
+ *
+ * @param properties
+ */
 export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProperties<E>) {
 	const { entity }: TApiServiceProperties<E> = properties;
 

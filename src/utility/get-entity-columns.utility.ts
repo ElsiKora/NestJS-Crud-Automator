@@ -5,6 +5,10 @@ import type { IGetEntityColumnsProperties } from "../interface/utility/get-entit
 
 import { getMetadataArgsStorage } from "typeorm";
 
+/**
+ *
+ * @param properties
+ */
 export function GetEntityColumns<E>(properties: IGetEntityColumnsProperties): Array<keyof E> {
 	const { entity, shouldTakeGeneratedOnly, shouldTakeRelationsOnly }: IGetEntityColumnsProperties = properties;
 

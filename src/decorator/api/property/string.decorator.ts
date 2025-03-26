@@ -9,8 +9,12 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsEmail, Is
 
 import { STRING_PROPERTY_API_INTERFACE_CONSTANT } from "../../../constant";
 import { EApiPropertyDataType, EApiPropertyStringType } from "../../../enum";
-import { IsRegularExpression } from "../../../validator";
+import { IsRegularExpressionValidator } from "../../../validator";
 
+/**
+ *
+ * @param properties
+ */
 export function ApiPropertyString(properties: TApiPropertyStringProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	validateOptions(properties);
 
@@ -20,6 +24,10 @@ export function ApiPropertyString(properties: TApiPropertyStringProperties): <Y>
 	return applyDecorators(...decorators);
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildApiPropertyOptions(properties: TApiPropertyStringProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions & Record<string, any> = {
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
@@ -52,6 +60,11 @@ function buildApiPropertyOptions(properties: TApiPropertyStringProperties): ApiP
 	return apiPropertyOptions;
 }
 
+/**
+ *
+ * @param properties
+ * @param apiPropertyOptions
+ */
 function buildDecorators(properties: TApiPropertyStringProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
 
@@ -60,6 +73,10 @@ function buildDecorators(properties: TApiPropertyStringProperties, apiPropertyOp
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
@@ -99,7 +116,7 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 
 			case EApiPropertyStringType.REGEXP: {
 				decorators.push(
-					Validate(IsRegularExpression, {
+					Validate(IsRegularExpressionValidator, {
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						each: isArray,
 						message: `${String(properties.description)} must be valid regular expression string`,
@@ -160,6 +177,10 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildRequestDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -180,6 +201,10 @@ function buildRequestDecorators(properties: TApiPropertyStringProperties): Array
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildResponseDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
@@ -196,6 +221,10 @@ function buildResponseDecorators(properties: TApiPropertyStringProperties): Arra
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function buildStringValidationDecorators(properties: TApiPropertyStringProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
@@ -211,6 +240,10 @@ function buildStringValidationDecorators(properties: TApiPropertyStringPropertie
 	return decorators;
 }
 
+/**
+ *
+ * @param properties
+ */
 function validateOptions(properties: TApiPropertyStringProperties): void {
 	const errors: Array<string> = [];
 

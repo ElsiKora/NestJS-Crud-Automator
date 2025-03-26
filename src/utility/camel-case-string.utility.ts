@@ -1,3 +1,7 @@
+/**
+ *
+ * @param string
+ */
 export function CamelCaseString(string: string): string {
 	const knownCompounds: Record<string, string> = {
 		getlist: "GetList",

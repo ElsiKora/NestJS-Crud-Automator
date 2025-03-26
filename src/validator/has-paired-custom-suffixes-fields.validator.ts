@@ -1,109 +1,15 @@
 import { type ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface } from "class-validator";
 
+import { VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT } from "../constant";
+import { EHasPairedCustomSuffixesFieldsArgumentType } from "../enum";
 import { EFilterOperation } from "../enum/filter-operation.enum";
-
-enum EArgumentType {
-	ARRAY = "array",
-	NULL = "null",
-	SINGLE = "single",
-}
-
-type TOperationConfig = {
-	argumentType: EArgumentType;
-	exactLength?: number;
-	maxLength?: number;
-	minLength?: number;
-};
-
-type TValidationContext = {
-	__fieldGroups: Map<string, Set<string>>;
-	__operatorSuffix: string;
-	__valueSuffixes: Array<string>;
-};
-
-const DEFAULT_OPERATION_CONFIGS: Record<EFilterOperation, TOperationConfig> = {
-	[EFilterOperation.BETWEEN]: {
-		argumentType: EArgumentType.ARRAY,
-		// eslint-disable-next-line @elsikora/typescript/no-magic-numbers
-		exactLength: 2,
-	},
-	[EFilterOperation.CONT]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.CONTL]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.ENDS]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.ENDSL]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.EQ]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.EQL]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.EXCL]: {
-		argumentType: EArgumentType.ARRAY,
-	},
-	[EFilterOperation.EXCLL]: {
-		argumentType: EArgumentType.ARRAY,
-	},
-	[EFilterOperation.GT]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.GTE]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.IN]: {
-		argumentType: EArgumentType.ARRAY,
-		minLength: 1,
-	},
-	[EFilterOperation.INL]: {
-		argumentType: EArgumentType.ARRAY,
-		minLength: 1,
-	},
-	[EFilterOperation.ISNULL]: {
-		argumentType: EArgumentType.NULL,
-	},
-	[EFilterOperation.LT]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.LTE]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.NE]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.NEL]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.NOTIN]: {
-		argumentType: EArgumentType.ARRAY,
-		minLength: 1,
-	},
-	[EFilterOperation.NOTINL]: {
-		argumentType: EArgumentType.ARRAY,
-		minLength: 1,
-	},
-	[EFilterOperation.NOTNULL]: {
-		argumentType: EArgumentType.NULL,
-	},
-	[EFilterOperation.STARTS]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-	[EFilterOperation.STARTSL]: {
-		argumentType: EArgumentType.SINGLE,
-	},
-};
+import { THasPairedCustomSuffixesFieldsOperationConfig, THasPairedCustomSuffixesFieldsValidationContext } from "../type";
 
 // eslint-disable-next-line @elsikora/typescript/naming-convention
 @ValidatorConstraint({ async: false, name: "has-paired-custom-suffixes-fields" })
-export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterface {
+export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstraintInterface {
 	defaultMessage(properties: ValidationArguments): string {
-		const object: TValidationContext = properties.object as TValidationContext;
+		const object: THasPairedCustomSuffixesFieldsValidationContext = properties.object as THasPairedCustomSuffixesFieldsValidationContext;
 		const fieldGroups: Map<string, Set<string>> = object.__fieldGroups;
 		const operatorSuffix: string = object.__operatorSuffix;
 		const valueSuffixes: Array<string> = object.__valueSuffixes;
@@ -124,13 +30,13 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 				const operatorField: string = `${baseName}[${operatorSuffix}]`;
 				const operatorValue: string = indexableObject[operatorField] as string;
 				const operator: EFilterOperation = operatorValue as EFilterOperation;
-				const operatorConfig: TOperationConfig = DEFAULT_OPERATION_CONFIGS[operator];
+				const operatorConfig: THasPairedCustomSuffixesFieldsOperationConfig = VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT.DEFAULT_OPERATION_CONFIGS[operator];
 
 				if (!operatorConfig) {
 					return `Invalid operator "${operator}" for group "${baseName}"`;
 				}
 
-				if (operatorConfig.argumentType === EArgumentType.NULL) {
+				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.NULL) {
 					const valueCount: number = valueSuffixes.filter((suffix: string) => groupSuffixes.has(suffix)).length;
 
 					if (valueCount > 0) {
@@ -154,11 +60,11 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 				const value: Array<any> = indexableObject[valueFields[0]];
 				const isArray: boolean = Array.isArray(value);
 
-				if (operatorConfig.argumentType === EArgumentType.ARRAY && !isArray) {
+				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.ARRAY && !isArray) {
 					return `group "${baseName}" with ${operator} operation requires an array value`;
 				}
 
-				if (operatorConfig.argumentType === EArgumentType.SINGLE && isArray) {
+				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.SINGLE && isArray) {
 					return `group "${baseName}" with ${operator} operation requires a single value, not an array`;
 				}
 
@@ -206,9 +112,9 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 			}
 		}
 
-		(properties.object as TValidationContext).__fieldGroups = fieldGroups;
-		(properties.object as TValidationContext).__operatorSuffix = operatorSuffix;
-		(properties.object as TValidationContext).__valueSuffixes = valueSuffixes;
+		(properties.object as THasPairedCustomSuffixesFieldsValidationContext).__fieldGroups = fieldGroups;
+		(properties.object as THasPairedCustomSuffixesFieldsValidationContext).__operatorSuffix = operatorSuffix;
+		(properties.object as THasPairedCustomSuffixesFieldsValidationContext).__valueSuffixes = valueSuffixes;
 
 		for (const [baseName, groupSuffixes] of fieldGroups) {
 			const hasValueSuffix: boolean = valueSuffixes.some((suffix: string) => groupSuffixes.has(suffix));
@@ -221,11 +127,11 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 				const operatorField: string = `${baseName}[${operatorSuffix}]`;
 				const operatorValue: string = indexableObject[operatorField] as string;
 				const operator: EFilterOperation = operatorValue as EFilterOperation;
-				const operatorConfig: TOperationConfig = DEFAULT_OPERATION_CONFIGS[operator];
+				const operatorConfig: THasPairedCustomSuffixesFieldsOperationConfig = VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT.DEFAULT_OPERATION_CONFIGS[operator];
 
 				if (!operatorConfig) return false;
 
-				if (operatorConfig.argumentType === EArgumentType.NULL) {
+				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.NULL) {
 					const valueCount: number = valueSuffixes.filter((suffix: string) => groupSuffixes.has(suffix)).length;
 
 					if (valueCount > 0) return false;
@@ -241,9 +147,9 @@ export class HasPairedCustomSuffixesFields implements ValidatorConstraintInterfa
 				const value: Array<any> = indexableObject[valueFields[0]];
 				const isArray: boolean = Array.isArray(value);
 
-				if (operatorConfig.argumentType === EArgumentType.ARRAY && !isArray) return false;
+				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.ARRAY && !isArray) return false;
 
-				if (operatorConfig.argumentType === EArgumentType.SINGLE && isArray) return false;
+				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.SINGLE && isArray) return false;
 
 				if (isArray) {
 					if (operatorConfig.exactLength !== undefined && value.length !== operatorConfig.exactLength) return false;

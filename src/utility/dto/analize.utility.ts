@@ -3,6 +3,10 @@ import type { TMetadata } from "../../type";
 
 import { MetadataStorage } from "../../class";
 
+/**
+ *
+ * @param entity
+ */
 export function analyzeEntityMetadata(entity: IApiBaseEntity): void {
 	const storage: MetadataStorage = MetadataStorage.getInstance();
 

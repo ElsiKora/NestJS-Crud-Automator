@@ -7,6 +7,15 @@ import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "../../enum
 
 import { DtoIsPropertyExposedForGuard } from "./is-property-exposed-for-guard.utility";
 
+/**
+ *
+ * @param method
+ * @param dtoType
+ * @param propertyName
+ * @param propertyMetadata
+ * @param isPrimary
+ * @param currentGuard
+ */
 export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApiDtoType, propertyName: string, propertyMetadata: TApiPropertyDescribeProperties, isPrimary: boolean, currentGuard?: Type<IAuthGuard>): boolean {
 	const isDateField: boolean = ["createdAt", "receivedAt", "updatedAt"].includes(propertyName);
 

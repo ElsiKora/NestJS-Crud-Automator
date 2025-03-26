@@ -3,3 +3,4 @@ export type * from "./class";
 export type * from "./decorator";
 export type * from "./factory";
 export type * from "./utility";
+export type * from "./validator";

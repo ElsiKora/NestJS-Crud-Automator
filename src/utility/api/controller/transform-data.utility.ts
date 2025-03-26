@@ -8,6 +8,13 @@ import { TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../constant/dto/transforme
 import { EApiControllerRequestTransformerType, EApiDtoType, EErrorStringAction } from "../../../enum";
 import { ErrorString } from "../../error-string.utility";
 
+/**
+ *
+ * @param transformers
+ * @param properties
+ * @param objectToTransform
+ * @param data
+ */
 export function ApiControllerTransformData<E, R extends EApiRouteType>(transformers: TApiControllerPropertiesRouteBaseRequestTransformers<E, R> | TApiControllerPropertiesRouteBaseResponseTransformers<E, R> | undefined, properties: IApiControllerProperties<E>, objectToTransform: TApiControllerTransformDataObjectToTransform<E>, data: TApiControllerTransformDataData): void {
 	if (!transformers) return;
 
@@ -36,6 +43,14 @@ export function ApiControllerTransformData<E, R extends EApiRouteType>(transform
 	}
 }
 
+/**
+ *
+ * @param object
+ * @param key
+ * @param value
+ * @param entity
+ * @param shouldSetValueEvenIfMissing
+ */
 function handleTransformation<E>(object: TApiTransformDataIsValidationProperties<E>, key: keyof E | keyof IApiGetListResponseResult<E> | keyof TApiControllerGetListQuery<E>, value: unknown, entity: IApiBaseEntity, shouldSetValueEvenIfMissing: boolean = false): void {
 	if (isApiGetListResponseResult(object)) {
 		if (key in object) {
@@ -59,18 +74,37 @@ function handleTransformation<E>(object: TApiTransformDataIsValidationProperties
 	}
 }
 
+/**
+ *
+ * @param object
+ */
 function isApiFunctionGetListProperties<E>(object: TApiTransformDataIsValidationProperties<E>): object is TApiControllerGetListQuery<E> {
 	return "limit" in object && "page" in object;
 }
 
+/**
+ *
+ * @param object
+ */
 function isApiGetListResponseResult<E>(object: TApiTransformDataIsValidationProperties<E>): object is IApiGetListResponseResult<E> {
 	return "items" in object && "totalCount" in object;
 }
 
+/**
+ *
+ * @param object
+ */
 function isPartialE<E>(object: TApiTransformDataIsValidationProperties<E>): object is Partial<E> {
 	return !isApiGetListResponseResult(object) && !isApiFunctionGetListProperties(object);
 }
 
+/**
+ *
+ * @param transformer
+ * @param objectToTransform
+ * @param properties
+ * @param data
+ */
 function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToTransform: TApiTransformDataIsValidationProperties<E>, properties: IApiControllerProperties<E>, data: TApiControllerTransformDataData): void {
 	switch (transformer.type) {
 		case EApiControllerRequestTransformerType.DYNAMIC: {

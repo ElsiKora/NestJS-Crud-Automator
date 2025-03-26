@@ -15,7 +15,10 @@ import { ApiFunctionUpdate } from "./update.decorator";
 
 type TDecoratorFunction = (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor;
 
-// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
+/**
+ *
+ * @param properties
+ */
 export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctionProperties<E>) {
 	const { entity, type }: TApiFunctionProperties<E> = properties;
 
