@@ -38,7 +38,7 @@ export const DtoGetDecoratorConfig = <M extends EApiRouteType, D extends EApiDto
 		const customConfig: Record<D, TPropertiesType>[D] = properties[dtoType];
 		DtoValidatePropertyConfig(customConfig, propertyName);
 
-		config = { ...config, ...customConfig };
+		config = { ...config, ...customConfig } as TApiPropertyDescribeDtoProperties;
 	}
 
 	return config;

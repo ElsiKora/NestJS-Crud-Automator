@@ -1,6 +1,6 @@
 import type { EErrorStringAction } from "@enum/utility";
 
-export interface IErrorStringProperties<T> {
+export type TErrorStringBaseProperties<T> = {
 	entity: T;
 	type: EErrorStringAction;
-}
+};

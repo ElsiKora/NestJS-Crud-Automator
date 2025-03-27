@@ -7,4 +7,5 @@ export interface IApiControllerPropertiesRouteBase<E, R extends EApiRouteType> {
 	isEnabled?: boolean;
 	request?: IApiControllerPropertiesRouteBaseRequest<E, R>;
 	response?: IApiControllerPropertiesRouteBaseResponse<E, R>;
+	shouldWriteToController?: boolean;
 }

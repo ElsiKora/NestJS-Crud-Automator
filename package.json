@@ -57,7 +57,7 @@
 		"@commitlint/cli": "^19.8.0",
 		"@commitlint/config-conventional": "^19.8.0",
 		"@elsikora/commitizen-plugin-commitlint-ai": "^1.0.0",
-		"@elsikora/eslint-config": "^3.7.12",
+		"@elsikora/eslint-config": "^3.7.13",
 		"@elsikora/eslint-plugin-nestjs-typed": "^3.0.1",
 		"@rollup/plugin-node-resolve": "^16.0.1",
 		"@rollup/plugin-typescript": "^12.1.2",

@@ -9,6 +9,14 @@ export function CamelCaseString(string: string): string {
 		partialupdate: "PartialUpdate",
 	};
 
+	const hasInternalCaps: boolean = /[a-z][A-Z]/.test(string);
+
+	if (hasInternalCaps) {
+		const firstChar: string = string.charAt(0).toUpperCase();
+
+		return firstChar + string.slice(1);
+	}
+
 	const cleanString: string = string.replaceAll(/[^a-z0-9]+/gi, " ");
 	const words: Array<string> = cleanString.split(" ");
 

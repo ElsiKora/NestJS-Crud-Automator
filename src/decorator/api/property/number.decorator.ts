@@ -76,9 +76,7 @@ import random from "lodash/random";
  * ```
  */
 export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
-	if (properties.exampleValue === undefined) {
-		properties.exampleValue = random(properties.minimum, properties.maximum);
-	}
+	properties.exampleValue ??= random(properties.minimum, properties.maximum);
 
 	validateOptions(properties);
 
@@ -101,11 +99,11 @@ function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiP
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
 		format: getFormat(properties),
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
-		nullable: properties.isNullable,
+		nullable: !!properties.isNullable,
 		type: getType(properties),
 	};
 
-	apiPropertyOptions.required = properties.isResponse === false || properties.isResponse === undefined ? properties.isRequired : false;
+	apiPropertyOptions.required = properties.isRequired;
 
 	if (properties.isArray) {
 		apiPropertyOptions.isArray = true;
@@ -241,7 +239,7 @@ function buildResponseDecorators(properties: TApiPropertyNumberProperties): Arra
 	if (properties.isResponse) {
 		decorators.push(ApiResponseProperty());
 
-		if (properties.isExpose === undefined || properties.isExpose) {
+		if (!("isExpose" in properties) || properties.isExpose === undefined || ("isExpose" in properties && properties.isExpose)) {
 			decorators.push(Expose());
 		} else {
 			decorators.push(Exclude());
