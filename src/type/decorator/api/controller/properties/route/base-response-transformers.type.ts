@@ -1,5 +1,5 @@
-import type { EApiDtoType, EApiRouteType } from "../../../../../../enum";
-import type { TApiControllerTransformerConfig } from "../../transformer-config.type";
+import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import type { TApiControllerTransformerConfig } from "@type/decorator/api/controller";
 
 export type TApiControllerPropertiesRouteBaseResponseTransformers<E, R extends EApiRouteType> = R extends EApiRouteType
 	? {

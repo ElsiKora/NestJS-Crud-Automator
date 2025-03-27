@@ -4,6 +4,7 @@
 
 import type { HttpException } from "@nestjs/common";
 
+import { EException } from "@enum/exception.enum";
 import {
 	BadRequestException,
 	ConflictException,
@@ -26,8 +27,6 @@ import {
 	UnsupportedMediaTypeException,
 } from "@nestjs/common";
 import { ThrottlerException } from "@nestjs/throttler";
-
-import { EException } from "../enum";
 
 const ExceptionMap: Record<EException, any> = {
 	[EException.BAD_REQUEST]: BadRequestException,
@@ -60,6 +59,12 @@ const ExceptionMap: Record<EException, any> = {
 	[EException.UPGRADE_REQUIRED]: undefined,
 };
 
+/**
+ * Checks if an error is of a specific exception type
+ * @param {unknown} error - The error to check
+ * @param {EException} type - The exception type to compare against
+ * @returns {boolean} True if the error is of the specified type, false otherwise
+ */
 export function IsErrorOfType(error: unknown, type: EException): boolean {
 	const ExceptionClass: HttpException = ExceptionMap[type] as HttpException;
 

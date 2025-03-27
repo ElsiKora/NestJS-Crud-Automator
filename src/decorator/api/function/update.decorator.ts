@@ -1,21 +1,23 @@
-import type { DeepPartial, EntityManager, Repository } from "typeorm";
-import type { EntitySchema } from "typeorm/index";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiFunctionProperties, IApiFunctionUpdateExecutorProperties } from "@interface/decorator/api/function";
+import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
+import type { DeepPartial, EntityManager, EntitySchema, Repository } from "typeorm";
 
-import type { IApiBaseEntity, IApiFunctionProperties } from "../../../interface";
-import type { IApiFunctionUpdateExecutorProperties } from "../../../interface/decorator/api/function/update-executor-properties.interface";
-import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "../../../type";
-
+import { EErrorStringAction } from "@enum/utility";
 import { HttpException, InternalServerErrorException } from "@nestjs/common";
-
-import { EErrorStringAction } from "../../../enum";
-import { ErrorException } from "../../../utility/error-exception.utility";
-import { ErrorString } from "../../../utility/error-string.utility";
-import { LoggerUtility } from "../../../utility/logger.utility";
+import { ErrorException } from "@utility/error-exception.utility";
+import { ErrorString } from "@utility/error-string.utility";
+import { LoggerUtility } from "@utility/logger.utility";
 
 import { ApiFunctionGet } from "./get.decorator";
 
+/**
+ * Creates a decorator that adds entity update functionality to a service method
+ * @param {IApiFunctionProperties} properties - Configuration properties for the update function
+ * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle entity updates
+ */
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
-export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
+export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunctionProperties): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties = properties;
 	const getDecorator: (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity });
 	let getFunction: (properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager) => Promise<E>;
@@ -62,6 +64,12 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 	};
 }
 
+/**
+ * Executes the entity update operation with error handling
+ * @param {IApiFunctionUpdateExecutorProperties<E>} options - Properties required for entity update
+ * @returns {Promise<E>} The updated entity instance
+ * @throws {InternalServerErrorException} If the update operation fails
+ */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExecutorProperties<E>): Promise<E> {
 	const { criteria, entity, eventManager, getFunction, properties, repository }: IApiFunctionUpdateExecutorProperties<E> = options;
 

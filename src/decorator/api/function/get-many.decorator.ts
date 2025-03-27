@@ -1,19 +1,21 @@
-import type { EntityManager, Repository } from "typeorm";
-import type { EntitySchema } from "typeorm/index";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiFunctionGetManyExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
+import type { TApiFunctionGetManyProperties } from "@type/decorator/api/function";
+import type { EntityManager, EntitySchema, Repository } from "typeorm";
 
-import type { IApiBaseEntity, IApiFunctionProperties } from "../../../interface";
-import type { IApiFunctionGetManyExecutorProperties } from "../../../interface/decorator/api/function/get-many-executor-properties.interface";
-import type { TApiFunctionGetManyProperties } from "../../../type";
-
+import { EErrorStringAction } from "@enum/utility";
 import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { ErrorException } from "@utility/error-exception.utility";
+import { ErrorString } from "@utility/error-string.utility";
+import { LoggerUtility } from "@utility/logger.utility";
 
-import { EErrorStringAction } from "../../../enum";
-import { ErrorException } from "../../../utility/error-exception.utility";
-import { ErrorString } from "../../../utility/error-string.utility";
-import { LoggerUtility } from "../../../utility/logger.utility";
-
+/**
+ * Creates a decorator that adds functionality to retrieve multiple entities to a service method
+ * @param {IApiFunctionProperties} properties - Configuration properties for the get-many function
+ * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle retrieving multiple entities
+ */
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
-export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
+export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFunctionProperties): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties = properties;
 
 	return function (target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
@@ -42,6 +44,13 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 	};
 }
 
+/**
+ * Executes the retrieval of multiple entities with error handling
+ * @param {IApiFunctionGetManyExecutorProperties<E>} options - Properties required for retrieving multiple entities
+ * @returns {Promise<Array<E>>} An array of retrieved entity instances
+ * @throws {NotFoundException} If no entities are found
+ * @throws {InternalServerErrorException} If the retrieval operation fails
+ */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyExecutorProperties<E>): Promise<Array<E>> {
 	const { entity, eventManager, properties, repository }: IApiFunctionGetManyExecutorProperties<E> = options;
 

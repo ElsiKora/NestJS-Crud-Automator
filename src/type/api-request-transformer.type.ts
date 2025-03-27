@@ -1,6 +1,6 @@
-import type { TRANSFORMER_VALUE_DTO_CONSTANT } from "../constant/dto/transformer-value.constant";
-import type { EApiControllerRequestTransformerType } from "../enum";
-import type { IApiGetListResponseResult } from "../interface";
+import type { TRANSFORMER_VALUE_DTO_CONSTANT } from "@constant/dto";
+import type { EApiControllerRequestTransformerType } from "@enum/decorator/api";
+import type { IApiGetListResponseResult } from "@interface/decorator/api";
 
 export type TApiRequestTransformer<E> = {
 	key:

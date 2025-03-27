@@ -1,4 +1,4 @@
-import type { EApiDtoType, EApiRouteType } from "../../../enum";
+import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 
 export type TDtoGenerateAllowedCombinations = {
 	[EApiRouteType.CREATE]: EApiDtoType.BODY | EApiDtoType.RESPONSE;

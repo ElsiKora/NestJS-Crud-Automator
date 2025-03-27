@@ -1,4 +1,4 @@
 export type TApiPropertyBaseRequestProperties = {
-	isRequired: boolean;
-	isResponse?: false;
+	isRequired?: boolean;
+	isResponse?: boolean;
 };

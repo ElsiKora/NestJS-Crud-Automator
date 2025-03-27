@@ -1,8 +1,9 @@
 /* eslint-disable @elsikora/javascript/no-dupe-class-members */
-import type { IMetadataEntry } from "../interface";
-import type { TMetadata } from "../type";
 
-import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "../constant";
+import type { IMetadataEntry } from "@interface/class";
+import type { TMetadata } from "@type/class";
+
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 
 export class MetadataStorage {
 	private static instance: MetadataStorage;

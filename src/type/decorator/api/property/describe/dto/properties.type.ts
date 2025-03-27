@@ -1,15 +1,17 @@
-import type { TApiPropertyDescribeDtoGuardProperties } from "./guard-properties.type";
+import type { TApiPropertyDescribeDtoGuardProperties } from "@type/decorator/api/property";
 
 export type TApiPropertyDescribeDtoProperties = {
 	guard?: TApiPropertyDescribeDtoGuardProperties;
 	isEnabled?: boolean;
+	isRequired?: boolean;
+	isResponse?: boolean;
 } & (
 	| {
 			isExpose?: boolean;
 			isResponse: true;
 	  }
 	| {
-			isRequired: boolean;
+			isExpose?: never;
 			isResponse?: false;
 	  }
 );

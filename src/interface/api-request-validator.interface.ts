@@ -1,5 +1,6 @@
-import type { EErrorStringAction } from "../enum";
-import type { TApiControllerGetListQuery, TApiException } from "../type";
+import type { EErrorStringAction } from "@enum/utility";
+import type { TApiException } from "@type/class";
+import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 
 export interface IApiRequestValidator<E> {
 	errorType: EErrorStringAction;

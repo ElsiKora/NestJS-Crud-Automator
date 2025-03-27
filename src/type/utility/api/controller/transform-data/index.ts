@@ -1,3 +1,3 @@
-export type * from "./data.type";
-export type * from "./is-validation-properties.type";
-export type * from "./object-to-transform.type";
+export { type TApiControllerTransformDataData } from "./data.type";
+export { type TApiTransformDataIsValidationProperties } from "./is-validation-properties.type";
+export { type TApiControllerTransformDataObjectToTransform } from "./object-to-transform.type";

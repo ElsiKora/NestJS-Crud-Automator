@@ -1,2 +1,2 @@
-export type * from "./column.interface";
-export type * from "./interface";
+export { type IApiEntityColumn } from "./column.interface";
+export { type IApiEntity } from "./interface";

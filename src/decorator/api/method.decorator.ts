@@ -1,13 +1,19 @@
-import type { IApiBaseEntity, IApiMethodProperties } from "../../interface";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiMethodProperties } from "@interface/decorator/api";
 
 import { pluralizer } from "@elsikora/pluralizer";
+import { EApiAction } from "@enum/decorator/api";
 import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, UseGuards } from "@nestjs/common";
 import { ApiBadRequestResponse, ApiBearerAuth, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
+import { DtoGenerateException } from "@utility/dto/generate-exception.utility";
 
-import { EApiAction } from "../../enum";
-import { DtoGenerateException } from "../../utility/dto/generate-exception.utility";
-
+/**
+ * Creates a decorator for controller methods that combines NestJS route decorators with Swagger documentation
+ * @param {IApiMethodProperties<T>} options - Configuration options for the API method
+ * @returns {Function} A decorator function that applies multiple decorators to a controller method
+ * @template T - The entity type for the API method
+ */
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters,@elsikora/typescript/no-unsafe-function-type
 export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
 	let summary: string = "";

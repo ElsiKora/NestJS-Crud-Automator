@@ -1,2 +1,2 @@
-export type * from "./api";
-export type * from "./error-string-properties.interface";
+export type * from "./api/controller";
+export { type IGetEntityColumnsProperties } from "./get-entity-columns-properties.interface";

@@ -1,8 +1,8 @@
+import type { EApiRouteType } from "@enum/decorator/api";
+import type { IApiAuthenticationRequest } from "@interface/api-authentication-request.interface";
+import type { IApiGetListResponseResult } from "@interface/decorator/api";
+import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import type { DeepPartial } from "typeorm";
-
-import type { EApiRouteType } from "../../../../enum";
-import type { IApiAuthenticationRequest, IApiGetListResponseResult } from "../../../../interface";
-import type { TApiControllerGetListQuery } from "../../../decorator";
 
 export type TApiControllerMethodMap<E> = {
 	[EApiRouteType.CREATE]: (body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<E>;

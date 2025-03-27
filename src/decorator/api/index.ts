@@ -1,5 +1,5 @@
-export * from "./controller.decorator";
+export { ApiController } from "./controller.decorator";
 export * from "./function";
-export * from "./method.decorator";
+export { ApiMethod } from "./method.decorator";
 export * from "./property";
-export * from "./service.decorator";
+export { ApiService } from "./service.decorator";

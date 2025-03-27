@@ -1,12 +1,20 @@
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
+import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
-import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "../../type";
+import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { DtoIsPropertyExposedForGuard } from "@utility/dto/is-property-exposed-for-guard.utility";
 
-import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "../../enum";
-
-import { DtoIsPropertyExposedForGuard } from "./is-property-exposed-for-guard.utility";
-
+/**
+ * Determines if a property should be marked for inclusion in a specific DTO type
+ * @param {EApiRouteType} method - The API route type (GET, POST, etc.)
+ * @param {EApiDtoType} dtoType - The DTO type (request, response, etc.)
+ * @param {string} propertyName - The name of the property
+ * @param {TApiPropertyDescribeProperties} propertyMetadata - The property's metadata
+ * @param {boolean} isPrimary - Whether the property is a primary key
+ * @param {Type<IAuthGuard>} currentGuard - The current authentication guard
+ * @returns {boolean} True if the property should be marked, false otherwise
+ */
 export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApiDtoType, propertyName: string, propertyMetadata: TApiPropertyDescribeProperties, isPrimary: boolean, currentGuard?: Type<IAuthGuard>): boolean {
 	const isDateField: boolean = ["createdAt", "receivedAt", "updatedAt"].includes(propertyName);
 

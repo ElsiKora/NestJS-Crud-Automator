@@ -1,3 +1,4 @@
 export * from "./api";
-export * from "./metadata-storage.class";
-export * from "./utility";
+export { MetadataStorage } from "./metadata-storage.class";
+export * from "./utility/dto/property/factory";
+export * from "./utility/dto/strategy";

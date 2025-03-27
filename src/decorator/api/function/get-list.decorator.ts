@@ -1,18 +1,21 @@
-import type { EntityManager, Repository } from "typeorm";
-import type { EntitySchema } from "typeorm/index";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiFunctionGetListExecutorProperties, IApiFunctionProperties, IApiGetListResponseResult } from "@interface/decorator/api";
+import type { TApiFunctionGetListProperties } from "@type/decorator/api/function";
+import type { EntityManager, EntitySchema, Repository } from "typeorm";
 
-import type { IApiBaseEntity, IApiFunctionGetListExecutorProperties, IApiFunctionProperties, IApiGetListResponseResult } from "../../../interface";
-import type { TApiFunctionGetListProperties } from "../../../type";
-
+import { EErrorStringAction } from "@enum/utility";
 import { HttpException, InternalServerErrorException } from "@nestjs/common";
+import { ErrorException } from "@utility/error-exception.utility";
+import { ErrorString } from "@utility/error-string.utility";
+import { LoggerUtility } from "@utility/logger.utility";
 
-import { EErrorStringAction } from "../../../enum";
-import { ErrorException } from "../../../utility/error-exception.utility";
-import { ErrorString } from "../../../utility/error-string.utility";
-import { LoggerUtility } from "../../../utility/logger.utility";
-
+/**
+ * Creates a decorator that adds entity list retrieval functionality to a service method
+ * @param {IApiFunctionProperties} properties - Configuration properties for the get-list function
+ * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle entity list retrieval
+ */
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
-export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFunctionProperties) {
+export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFunctionProperties): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties = properties;
 
 	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
@@ -36,6 +39,12 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 	};
 }
 
+/**
+ * Executes the entity list retrieval operation with error handling
+ * @param {IApiFunctionGetListExecutorProperties<E>} options - Properties required for entity list retrieval
+ * @returns {Promise<IApiGetListResponseResult<E>>} The paginated list of entities with count information
+ * @throws {InternalServerErrorException} If the list retrieval operation fails
+ */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListExecutorProperties<E>): Promise<IApiGetListResponseResult<E>> {
 	const { entity, eventManager, properties, repository }: IApiFunctionGetListExecutorProperties<E> = options;
 

@@ -2,13 +2,16 @@ const MINIMUM_LIST_LENGTH: number = 1;
 const MAXIMUM_LIST_LENGTH: number = 100;
 const MINIMUM_LIST_PAGES_COUNT: number = 1;
 const MAXIMUM_LIST_PAGES_COUNT: number = 100;
+const LIST_MULTIPLE_OF: number = 1;
 
 export const GET_LIST_QUERY_DTO_FACTORY_CONSTANT: {
+	readonly LIST_MULTIPLE_OF: number;
 	readonly MAXIMUM_LIST_LENGTH: number;
 	readonly MAXIMUM_LIST_PAGES_COUNT: number;
 	readonly MINIMUM_LIST_LENGTH: number;
 	readonly MINIMUM_LIST_PAGES_COUNT: number;
 } = {
+	LIST_MULTIPLE_OF,
 	MAXIMUM_LIST_LENGTH,
 	MAXIMUM_LIST_PAGES_COUNT,
 	MINIMUM_LIST_LENGTH,

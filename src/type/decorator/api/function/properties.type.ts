@@ -1,6 +1,5 @@
+import type { EApiFunctionType } from "@enum/decorator/api";
 import type { FindOptionsRelations } from "typeorm";
-
-import type { EApiFunctionType } from "../../../../enum";
 
 export type TApiFunctionProperties<E> = {
 	entity: new () => E;

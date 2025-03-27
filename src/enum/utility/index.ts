@@ -1,1 +1,1 @@
-export * from "./error-string-action.enum";
+export * from "./error-string";

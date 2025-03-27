@@ -1,7 +1,6 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 import type { EntityManager, FindOptionsWhere, Repository } from "typeorm";
-
-import type { TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "../../../../type";
-import type { IApiBaseEntity } from "../../../api-base-entity.interface";
 
 export interface IApiFunctionUpdateExecutorProperties<E extends IApiBaseEntity> {
 	criteria: FindOptionsWhere<E>;

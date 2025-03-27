@@ -1,1 +1,1 @@
-export * from "./controller.factory";
+export { ApiControllerFactory } from "./controller.factory";

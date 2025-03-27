@@ -1,2 +1,2 @@
-export type * from "./optional-properties.type";
-export type * from "./required-properties.type";
+export { type TApiPropertyDescribeArrayOptionalProperties } from "./optional-properties.type";
+export { type TApiPropertyDescribeArrayRequiredProperties } from "./required-properties.type";

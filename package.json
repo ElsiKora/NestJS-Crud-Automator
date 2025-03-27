@@ -1,6 +1,6 @@
 {
 	"name": "@elsikora/nestjs-crud-automator",
-	"version": "1.8.0",
+	"version": "1.9.0-dev.2",
 	"description": "A library for automating the creation of CRUD operations in NestJS.",
 	"keywords": [
 		"NestJS",
@@ -50,7 +50,6 @@
 	},
 	"dependencies": {
 		"@elsikora/pluralizer": "^2.0.0",
-		"@rollup/plugin-node-resolve": "^16.0.1",
 		"reflect-metadata": "^0.2.2",
 		"rxjs": "^7.8.2"
 	},
@@ -58,8 +57,9 @@
 		"@commitlint/cli": "^19.8.0",
 		"@commitlint/config-conventional": "^19.8.0",
 		"@elsikora/commitizen-plugin-commitlint-ai": "^1.0.0",
-		"@elsikora/eslint-config": "^3.7.12",
+		"@elsikora/eslint-config": "^3.7.13",
 		"@elsikora/eslint-plugin-nestjs-typed": "^3.0.1",
+		"@rollup/plugin-node-resolve": "^16.0.1",
 		"@rollup/plugin-typescript": "^12.1.2",
 		"@saithodev/semantic-release-backmerge": "^4.0.1",
 		"@semantic-release/changelog": "^6.0.3",
@@ -82,9 +82,11 @@
 		"prettier": "^3.5.3",
 		"rimraf": "^6.0.1",
 		"rollup": "^4.37.0",
+		"rollup-plugin-dts-path-alias": "^0.0.3",
 		"rollup-plugin-generate-package-json": "^3.2.0",
 		"semantic-release": "^24.2.3",
 		"tslib": "^2.8.1",
+		"typeorm": "^0.3.21",
 		"typescript": "^5.8.2"
 	},
 	"peerDependencies": {

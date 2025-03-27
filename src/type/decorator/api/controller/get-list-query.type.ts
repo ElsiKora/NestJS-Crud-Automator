@@ -1,5 +1,5 @@
-import type { EFilterOrderDirection } from "../../../../enum";
-import type { TFilterKeys } from "../../../utility";
+import type { EFilterOrderDirection } from "@enum/filter-order-direction.enum";
+import type { TFilterKeys } from "@type/utility";
 
 export type TApiControllerGetListQuery<E> = {
 	limit: number;

@@ -1,9 +1,7 @@
 /* eslint-disable @elsikora/sonar/void-use */
+import type { IApiGetListResponseResult } from "@interface/decorator/api";
+import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 import type { EntityManager } from "typeorm";
-
-import type { IApiGetListResponseResult } from "../../interface";
-import type { TApiFunctionGetManyProperties, TApiFunctionUpdateCriteria } from "../../type";
-import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "../../type";
 
 export class ApiServiceBase<E> {
 	create(properties: TApiFunctionCreateProperties<E>, eventManager?: EntityManager): Promise<E> {

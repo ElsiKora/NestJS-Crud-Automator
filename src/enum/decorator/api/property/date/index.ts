@@ -1,2 +1,2 @@
-export * from "./identifier.enum";
-export * from "./type.enum";
+export { EApiPropertyDateIdentifier } from "./identifier.enum";
+export { EApiPropertyDateType } from "./type.enum";
