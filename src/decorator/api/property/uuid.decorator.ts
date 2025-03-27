@@ -74,11 +74,11 @@ function buildApiPropertyOptions(uuidExample: string, properties: TApiPropertyUu
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${String(properties.entity.name)} ${properties.description ?? "identifier"}`,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
-		nullable: properties.isNullable,
+		nullable: !!properties.isNullable,
 		type: EApiPropertyDataType.STRING,
 	};
 
-	apiPropertyOptions.required = properties.isResponse === false || properties.isResponse === undefined ? properties.isRequired : false;
+	apiPropertyOptions.required = properties.isRequired;
 
 	if (properties.isArray) {
 		apiPropertyOptions.isArray = true;
@@ -176,7 +176,7 @@ function buildResponseDecorators(properties: TApiPropertyUuidProperties): Array<
 	if (properties.isResponse) {
 		decorators.push(ApiResponseProperty());
 
-		if (properties.isExpose === undefined || properties.isExpose) {
+		if (!("isExpose" in properties) || properties.isExpose === undefined || ("isExpose" in properties && properties.isExpose)) {
 			decorators.push(Expose());
 		} else {
 			decorators.push(Exclude());

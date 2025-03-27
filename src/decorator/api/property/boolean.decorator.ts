@@ -77,11 +77,11 @@ function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPro
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
-		nullable: properties.isNullable,
+		nullable: !!properties.isNullable,
 		type: EApiPropertyDataType.BOOLEAN,
 	};
 
-	apiPropertyOptions.required = properties.isResponse === false || properties.isResponse === undefined ? properties.isRequired : false;
+	apiPropertyOptions.required = properties.isRequired;
 
 	if (properties.isArray) {
 		apiPropertyOptions.isArray = true;
@@ -167,7 +167,7 @@ function buildResponseDecorators(properties: TApiPropertyBaseProperties): Array<
 	if (properties.isResponse) {
 		decorators.push(ApiResponseProperty());
 
-		if (properties.isExpose === undefined || properties.isExpose) {
+		if (!("isExpose" in properties) || properties.isExpose === undefined || ("isExpose" in properties && properties.isExpose)) {
 			decorators.push(Expose());
 		} else {
 			decorators.push(Exclude());

@@ -54,7 +54,7 @@ function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiP
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
-		nullable: properties.isNullable,
+		nullable: !!properties.isNullable,
 	};
 
 	if (Array.isArray(properties.type)) {
@@ -93,7 +93,7 @@ function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiP
 		apiPropertyOptions.type = properties.type;
 	}
 
-	apiPropertyOptions.required = properties.isResponse === false || properties.isResponse === undefined ? properties.isRequired : false;
+	apiPropertyOptions.required = properties.isRequired;
 
 	if (properties.additionalProperties) {
 		apiPropertyOptions.additionalProperties = properties.additionalProperties;
@@ -185,7 +185,7 @@ function buildResponseDecorators(properties: TApiPropertyObjectProperties): Arra
 	if (properties.isResponse) {
 		decorators.push(ApiResponseProperty());
 
-		if (properties.isExpose === undefined || properties.isExpose) {
+		if (!("isExpose" in properties) || properties.isExpose === undefined || ("isExpose" in properties && properties.isExpose)) {
 			decorators.push(Expose());
 		} else {
 			decorators.push(Exclude());

@@ -3,13 +3,15 @@ import type { TApiPropertyDescribeDtoGuardProperties } from "@type/decorator/api
 export type TApiPropertyDescribeDtoProperties = {
 	guard?: TApiPropertyDescribeDtoGuardProperties;
 	isEnabled?: boolean;
+	isRequired?: boolean;
+	isResponse?: boolean;
 } & (
 	| {
 			isExpose?: boolean;
 			isResponse: true;
 	  }
 	| {
-			isRequired: boolean;
+			isExpose?: never;
 			isResponse?: false;
 	  }
 );
