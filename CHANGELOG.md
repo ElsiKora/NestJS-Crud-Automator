@@ -1,3 +1,20 @@
+# [1.9.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.8.0...v1.9.0) (2025-03-27)
+
+
+### Bug Fixes
+
+* **decorator:** use provided discriminator value for dynamically generated dtos ([2b16a41](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/2b16a412f19637602a0ca33004cf86c45f88495d))
+* **dto:** ensure consistent handling of required and nullable properties in api decorators ([4773e60](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/4773e6013dd77ff0604ac109f125f04a8c48c0c9))
+
+
+### Features
+
+* **api-property:** add support for discriminated object types ([b91da48](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/b91da48f49596bd3916bd9dc67bc6e5be8635a57))
+* **decorator:** add apiproperty copy decorator and improve jsdoc documentation ([b2a5eae](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/b2a5eae6b9159d37c5e3370bf0d789cb8cebb0a1))
+* **dto:** add support for dynamically generated dtos with discriminators ([cea34d2](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/cea34d2c8888205038147ade80e638d0f8a43407))
+* **dto:** add support for nested dynamic dtos and improve camel case handling ([a56fe5c](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/a56fe5c1db0985f38b6075a5b4fc4ac3597db8b3))
+* **validator:** add schema validation and improve decorator documentation ([d075bb4](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/d075bb411bff418b01defdc6021e71fa3239d031))
+
 # [1.8.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.7.0...v1.8.0) (2025-03-24)
 
 
