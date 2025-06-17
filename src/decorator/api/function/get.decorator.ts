@@ -1,23 +1,27 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function-execution-context.interface";
 import type { IApiFunctionGetExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
 import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
-import { EntityManager, Repository } from "typeorm";
+import type { EntityManager, Repository } from "typeorm";
 
+import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
+import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { ErrorException } from "@utility/error-exception.utility";
 import { ErrorString } from "@utility/error-string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
-import { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function-execution-context.interface";
-import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
-import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 
 /**
  * Creates a decorator that adds single entity retrieval functionality to a service method
  * @param {IApiFunctionProperties} properties - Configuration properties for the get function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle single entity retrieval
  */
-// eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
+
+/**
+ *
+ * @param properties
+ */
 export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
 
@@ -27,31 +31,31 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 		// eslint-disable-next-line @elsikora/sonar/void-use
 		void _propertyKey;
 
-		descriptor.value = async function (
-			this: { repository: Repository<E> },
-			getProperties: TApiFunctionGetProperties<E>,
-			eventManager?: EntityManager,
-		): Promise<E> {
+		descriptor.value = async function (this: { repository: Repository<E> }, getProperties: TApiFunctionGetProperties<E>, eventManager?: EntityManager): Promise<E> {
 			const entityInstance = new entity();
+
 			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetProperties<E>, any> = {
-				data: { getProperties, eventManager, repository: this.repository },
+				data: { eventManager, getProperties, repository: this.repository },
 				entity: entityInstance,
 				functionType: EApiFunctionType.GET,
 				result: getProperties,
 			};
-			
+
 			const result = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => any, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.BEFORE as any, executionContext);
+
 			if (result) {
 				executionContext.result = result;
 			}
-			
+
 			const repository: Repository<E> = this.repository;
+
 			if (!repository) {
 				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => any, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.BEFORE_ERROR as any, executionContext, new Error("Repository is not available in this context"));
+
 				throw ErrorException("Repository is not available in this context");
 			}
 
-			return executor<E>({ constructor: this.constructor as new () => any, entity, eventManager, properties: executionContext.result as TApiFunctionGetProperties<E>, repository });
+			return executor<E>({ constructor: this.constructor as new () => any, entity, eventManager, properties: executionContext.result!, repository });
 		};
 
 		return descriptor;
@@ -83,13 +87,14 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 		}
 
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, E, any> = {
-			data: { properties, eventManager, repository },
+			data: { eventManager, properties, repository },
 			entity: item,
 			functionType: EApiFunctionType.GET,
 			result: item,
 		};
-		
+
 		const afterResult = await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, item, EApiFunctionType.GET, EApiSubscriberOnType.AFTER as any, executionContext);
+
 		if (afterResult) {
 			return afterResult;
 		}
@@ -97,14 +102,16 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 		return item;
 	} catch (error) {
 		const entityInstance = new entity();
+
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, never, any> = {
-			data: { properties, eventManager, repository },
+			data: { eventManager, properties, repository },
 			entity: entityInstance,
 			functionType: EApiFunctionType.GET,
 		};
-		
+
 		if (error instanceof HttpException) {
 			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.AFTER_ERROR as any, executionContext, error);
+
 			throw error;
 		}
 

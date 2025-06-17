@@ -1,7 +1,7 @@
+import resolve from "@rollup/plugin-node-resolve";
 import typescript from "@rollup/plugin-typescript";
 import dtsPathAlias from "rollup-plugin-dts-path-alias";
 import generatePackageJson from "rollup-plugin-generate-package-json";
-import resolve from "@rollup/plugin-node-resolve";
 
 const external = ["@elsikora/pluralizer", "@nestjs/common", "@nestjs/core", "@nestjs/swagger", "dotenv", "@nestjs/throttler", "node:crypto", "rxjs/operators", "typeorm", "class-transformer", "reflect-metadata", "class-validator", "lodash/random", "@nestjs/common/constants", "@nestjs/common/enums/route-paramtypes.enum", "@nestjs/swagger/dist/constants", "typeorm/index"];
 

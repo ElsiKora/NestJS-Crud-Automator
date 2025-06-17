@@ -1,1 +1,1 @@
-export * from "./observable.decorator"; 
+export * from "./observable.decorator";

@@ -22,7 +22,7 @@ export default [
 		withSonar: true,
 		withStylistic: true,
 		withTypeorm: true,
-		withTypescript: true,
+		withTypescriptStrict: true,
 		withUnicorn: true,
 		withYaml: true,
 	})),

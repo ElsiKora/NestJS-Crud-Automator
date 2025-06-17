@@ -1,2 +1,2 @@
 export * from "./function.decorator";
-export * from "./route.decorator"; 
+export * from "./route.decorator";

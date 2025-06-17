@@ -1,4 +1,5 @@
 import type { LogLevel } from "@nestjs/common";
+
 import { ConsoleLogger, Injectable } from "@nestjs/common";
 import { config } from "dotenv";
 
@@ -12,7 +13,6 @@ export class LoggerUtility extends ConsoleLogger {
 	private static readonly ENV_LOG_LEVEL_KEY: string = "NCD_LOG_LEVEL";
 
 	constructor(context?: string) {
-		// eslint-disable-next-line @elsikora/javascript/constructor-super
 		if (context) {
 			super(context, {
 				logLevels: LoggerUtility.getLogLevelsFromEnv(),
@@ -36,7 +36,7 @@ export class LoggerUtility extends ConsoleLogger {
 	 */
 	private static getLogLevelsFromEnv(): Array<LogLevel> {
 		const logLevel: string = process.env[this.ENV_LOG_LEVEL_KEY] ?? "none";
-		
+
 		if (!logLevel) {
 			// Default log levels if not specified in env
 			return ["error", "warn", "log"];

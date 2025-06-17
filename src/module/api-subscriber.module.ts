@@ -1,10 +1,10 @@
+import { ApiSubscriberDiscoveryService } from "@class/api/subscriber/discovery-service.class";
 import { Module } from "@nestjs/common";
 import { DiscoveryModule } from "@nestjs/core";
-import { ApiSubscriberDiscoveryService } from "@class/api/subscriber/discovery-service.class";
 
 @Module({
-    imports: [DiscoveryModule],
-    providers: [ApiSubscriberDiscoveryService],
-    exports: [ApiSubscriberDiscoveryService]
+	exports: [ApiSubscriberDiscoveryService],
+	imports: [DiscoveryModule],
+	providers: [ApiSubscriberDiscoveryService],
 })
-export class ApiSubscriberModule {} 
+export class ApiSubscriberModule {}

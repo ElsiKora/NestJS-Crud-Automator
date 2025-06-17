@@ -3,9 +3,9 @@ import type { TApiFunctionDeleteCriteria, TApiFunctionGetProperties } from "@typ
 import type { EntityManager, Repository } from "typeorm";
 
 export interface IApiFunctionDeleteExecutorProperties<E extends IApiBaseEntity> {
-	constructor: new (...args: Array<any>) => any;
+	constructor: new (...arguments_: Array<any>) => any;
 	criteria: TApiFunctionDeleteCriteria<E>;
-	entity: new (...args: Array<any>) => E;
+	entity: new (...arguments_: Array<any>) => E;
 	eventManager?: EntityManager;
 	getFunction: (properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager) => Promise<E>;
 	repository: Repository<E>;

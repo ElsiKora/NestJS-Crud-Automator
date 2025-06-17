@@ -1,6 +1,6 @@
-export * from "./execution-context.interface";
-export * from "./function-execution-context.interface";
-export * from "./function.interface";
-export * from "./interface";
-export * from "./route-execution-context.interface";
-export * from "./route.interface"; 
+export type * from "./execution-context.interface";
+export type * from "./function-execution-context.interface";
+export type * from "./function.interface";
+export type * from "./interface";
+export type * from "./route-execution-context.interface";
+export type * from "./route.interface";

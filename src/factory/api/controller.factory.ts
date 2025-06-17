@@ -1,4 +1,6 @@
 import type { IApiAuthenticationRequest } from "@interface/api-authentication-request.interface";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route-execution-context.interface";
 import type { IApiControllerProperties, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { IApiControllerPrimaryColumn } from "@interface/utility";
@@ -10,6 +12,7 @@ import type { TApiControllerMethodMap, TApiControllerMethodName, TApiControllerM
 import type { ClassConstructor } from "class-transformer";
 import type { DeepPartial, FindOptionsOrder, FindOptionsWhere } from "typeorm";
 
+import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT, FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { Controller } from "@nestjs/common";
@@ -19,9 +22,6 @@ import { analyzeEntityMetadata, DtoGenerate } from "@utility/dto";
 import { ErrorException } from "@utility/error-exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { plainToInstance } from "class-transformer";
-import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
-import { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route-execution-context.interface";
-import { IApiBaseEntity } from "@interface/api-base-entity.interface";
 
 export class ApiControllerFactory<E extends IApiBaseEntity> {
 	protected get targetPrototype(): InstanceType<typeof this.target> {
@@ -82,14 +82,15 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const entityInstance = new (properties.entity as new () => E)();
-				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest }> = {
+
+				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; body: DeepPartial<E>; headers: Record<string, string>; ip: string }> = {
+					data: { entityMetadata, method, methodName, properties },
 					entity: entityInstance,
+					result: { authenticationRequest, body, headers, ip },
 					routeType: EApiRouteType.CREATE,
-					result: { body, headers, ip, authenticationRequest },
-					data: { method, methodName, properties, entityMetadata },
 				};
-				
-				const beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.BEFORE as any, beforeExecutionContext);
+
+				const beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.BEFORE, beforeExecutionContext);
 
 				if (beforeResult) {
 					body = beforeResult.body;
@@ -102,7 +103,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(body, entityMetadata);
 
 					if (!primaryKey) {
-						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.BEFORE_ERROR as any, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+
 						throw ErrorException("Primary key not found in entity columns");
 					}
 
@@ -122,27 +124,28 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, E> = {
-						result: response,
+						data: { ...(beforeExecutionContext.data as any), authenticationRequest, body, headers, ip },
 						entity: response,
+						result: response,
 						routeType: EApiRouteType.CREATE,
-						data: { ...(beforeExecutionContext.data as any), body, headers, ip, authenticationRequest }
 					};
-					
-					const afterResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, response, EApiRouteType.CREATE, EApiSubscriberOnType.AFTER as any, afterExecutionContext);
+
+					const afterResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, response, EApiRouteType.CREATE, EApiSubscriberOnType.AFTER, afterExecutionContext);
 
 					const finalResponse = afterResult ?? response;
+
 					return plainToInstance(dto as ClassConstructor<E>, finalResponse, {
 						excludeExtraneousValues: true,
 						strategy: "excludeAll",
 					});
-
 				} catch (error) {
 					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
+						data: { ...(beforeExecutionContext.data as any), authenticationRequest, body, headers, ip },
 						entity: entityInstance,
 						routeType: EApiRouteType.CREATE,
-						data: { ...(beforeExecutionContext.data as any), body, headers, ip, authenticationRequest }
 					};
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.AFTER_ERROR as any, errorExecutionContext, error as Error);
+					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+
 					throw error;
 				}
 			},
@@ -155,14 +158,15 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<void> {
 				const entityInstance = new (properties.entity as new () => E)();
-				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest }> = {
+
+				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; headers: Record<string, string>; ip: string; parameters: Partial<E> }> = {
+					data: { entityMetadata, method, methodName, properties },
 					entity: entityInstance,
+					result: { authenticationRequest, headers, ip, parameters },
 					routeType: EApiRouteType.DELETE,
-					result: { parameters, headers, ip, authenticationRequest },
-					data: { method, methodName, properties, entityMetadata },
 				};
-				
-				const beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.BEFORE as any, beforeExecutionContext);
+
+				const beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.BEFORE, beforeExecutionContext);
 
 				if (beforeResult) {
 					parameters = beforeResult.parameters;
@@ -175,7 +179,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
 					if (!primaryKey) {
-						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.BEFORE_ERROR as any, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.BEFORE_ERROR, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+
 						throw ErrorException("Primary key not found in entity columns");
 					}
 
@@ -188,23 +193,23 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					} as TApiFunctionDeleteCriteria<E>;
 
 					await this.service.delete(requestCriteria);
-					
+
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, Partial<E>> = {
-						result: parameters,
+						data: { ...(beforeExecutionContext.data as any), authenticationRequest, headers, ip, parameters },
 						entity: entityInstance,
+						result: parameters,
 						routeType: EApiRouteType.DELETE,
-						data: { ...(beforeExecutionContext.data as any), parameters, headers, ip, authenticationRequest }
 					};
 
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.AFTER as any, afterExecutionContext);
-
+					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.AFTER, afterExecutionContext);
 				} catch (error) {
 					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
+						data: { ...(beforeExecutionContext.data as any), authenticationRequest, headers, ip, parameters },
 						entity: entityInstance,
 						routeType: EApiRouteType.DELETE,
-						data: { ...(beforeExecutionContext.data as any), parameters, headers, ip, authenticationRequest }
 					};
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.AFTER_ERROR as any, errorExecutionContext, error as Error);
+					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+
 					throw error;
 				}
 			},
@@ -217,14 +222,15 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const entityInstance = new (properties.entity as new () => E)();
-				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest }> = {
+
+				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; headers: Record<string, string>; ip: string; parameters: Partial<E> }> = {
+					data: { entityMetadata, method, methodName, properties },
 					entity: entityInstance,
+					result: { authenticationRequest, headers, ip, parameters },
 					routeType: EApiRouteType.GET,
-					result: { parameters, headers, ip, authenticationRequest },
-					data: { method, methodName, properties, entityMetadata },
 				};
-				
-				const beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.BEFORE as any, beforeExecutionContext);
+
+				const beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.BEFORE, beforeExecutionContext);
 
 				if (beforeResult) {
 					parameters = beforeResult.parameters;
@@ -237,7 +243,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
 					if (!primaryKey) {
-						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.BEFORE_ERROR as any, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.BEFORE_ERROR, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+
 						throw ErrorException("Primary key not found in entity columns");
 					}
 
@@ -255,13 +262,13 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, E> = {
-						result: response,
+						data: { ...(beforeExecutionContext.data as any), authenticationRequest, headers, ip, parameters },
 						entity: response,
+						result: response,
 						routeType: EApiRouteType.GET,
-						data: { ...(beforeExecutionContext.data as any), parameters, headers, ip, authenticationRequest }
 					};
-					
-					const afterResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, response, EApiRouteType.GET, EApiSubscriberOnType.AFTER as any, afterExecutionContext);
+
+					const afterResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, response, EApiRouteType.GET, EApiSubscriberOnType.AFTER, afterExecutionContext);
 
 					const finalResponse = afterResult ?? response;
 					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
@@ -269,14 +276,14 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					return plainToInstance(dto as ClassConstructor<E>, finalResponse, {
 						excludeExtraneousValues: true,
 					});
-
 				} catch (error) {
 					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
+						data: { ...(beforeExecutionContext.data as any), authenticationRequest, headers, ip, parameters },
 						entity: entityInstance,
 						routeType: EApiRouteType.GET,
-						data: { ...(beforeExecutionContext.data as any), parameters, headers, ip, authenticationRequest }
 					};
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.AFTER_ERROR as any, errorExecutionContext, error as Error);
+					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+
 					throw error;
 				}
 			},
@@ -289,14 +296,15 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, query: TApiControllerGetListQuery<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<IApiGetListResponseResult<E>> {
 				const entityInstance = new (properties.entity as new () => E)();
-				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { query: TApiControllerGetListQuery<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest }> = {
+
+				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; headers: Record<string, string>; ip: string; query: TApiControllerGetListQuery<E> }> = {
+					data: { entityMetadata, method, methodName, properties },
 					entity: entityInstance,
+					result: { authenticationRequest, headers, ip, query },
 					routeType: EApiRouteType.GET_LIST,
-					result: { query, headers, ip, authenticationRequest },
-					data: { method, methodName, properties, entityMetadata },
 				};
-				
-				const beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.GET_LIST, EApiSubscriberOnType.BEFORE as any, beforeExecutionContext);
+
+				const beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.GET_LIST, EApiSubscriberOnType.BEFORE, beforeExecutionContext);
 
 				if (beforeResult) {
 					query = beforeResult.query;
@@ -328,13 +336,13 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, IApiGetListResponseResult<E>> = {
-						result: response,
+						data: { ...(beforeExecutionContext.data as any), authenticationRequest, headers, ip, query },
 						entity: entityInstance,
+						result: response,
 						routeType: EApiRouteType.GET_LIST,
-						data: { ...(beforeExecutionContext.data as any), query, headers, ip, authenticationRequest }
 					};
-					
-					const afterResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.GET_LIST, EApiSubscriberOnType.AFTER as any, afterExecutionContext);
+
+					const afterResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.GET_LIST, EApiSubscriberOnType.AFTER, afterExecutionContext);
 
 					const finalResponse = afterResult ?? response;
 					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
@@ -342,14 +350,14 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					return plainToInstance(dto as ClassConstructor<IApiGetListResponseResult<E>>, finalResponse, {
 						excludeExtraneousValues: true,
 					});
-
 				} catch (error) {
 					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
+						data: { ...(beforeExecutionContext.data as any), authenticationRequest, headers, ip, query },
 						entity: entityInstance,
 						routeType: EApiRouteType.GET_LIST,
-						data: { ...(beforeExecutionContext.data as any), query, headers, ip, authenticationRequest }
 					};
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR as any, errorExecutionContext, error as Error);
+					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+
 					throw error;
 				}
 			},
@@ -362,14 +370,15 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const entityInstance = new (properties.entity as new () => E)();
-				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest }> = {
+
+				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; body: DeepPartial<E>; headers: Record<string, string>; ip: string; parameters: Partial<E> }> = {
+					data: { entityMetadata, method, methodName, properties },
 					entity: entityInstance,
+					result: { authenticationRequest, body, headers, ip, parameters },
 					routeType: EApiRouteType.PARTIAL_UPDATE,
-					result: { parameters, body, headers, ip, authenticationRequest },
-					data: { method, methodName, properties, entityMetadata },
 				};
-				
-				const beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.BEFORE as any, beforeExecutionContext);
+
+				const beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.BEFORE, beforeExecutionContext);
 
 				if (beforeResult) {
 					parameters = beforeResult.parameters;
@@ -383,7 +392,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
 					if (!primaryKey) {
-						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.BEFORE_ERROR as any, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.BEFORE_ERROR, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+
 						throw ErrorException("Primary key not found in entity columns");
 					}
 
@@ -400,13 +410,13 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, E> = {
-						result: response,
+						data: { ...(beforeExecutionContext.data as any), authenticationRequest, body, headers, ip, parameters },
 						entity: response,
+						result: response,
 						routeType: EApiRouteType.PARTIAL_UPDATE,
-						data: { ...(beforeExecutionContext.data as any), parameters, body, headers, ip, authenticationRequest }
 					};
-					
-					const afterResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, response, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.AFTER as any, afterExecutionContext);
+
+					const afterResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, response, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.AFTER, afterExecutionContext);
 
 					const finalResponse = afterResult ?? response;
 					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
@@ -414,14 +424,14 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					return plainToInstance(dto as ClassConstructor<E>, finalResponse, {
 						excludeExtraneousValues: true,
 					});
-
 				} catch (error) {
 					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
+						data: { ...(beforeExecutionContext.data as any), authenticationRequest, body, headers, ip, parameters },
 						entity: entityInstance,
 						routeType: EApiRouteType.PARTIAL_UPDATE,
-						data: { ...(beforeExecutionContext.data as any), parameters, body, headers, ip, authenticationRequest }
 					};
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.AFTER_ERROR as any, errorExecutionContext, error as Error);
+					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+
 					throw error;
 				}
 			},
@@ -430,19 +440,19 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		);
 	}
 
-	// eslint-disable-next-line @elsikora/sonar/no-identical-functions
 	protected [EApiRouteType.UPDATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
-				const entityInstance = new (properties.entity as new () => E)();
-				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest }> = {
+				const entityInstance: E = new (properties.entity as new () => E)();
+
+				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; body: DeepPartial<E>; headers: Record<string, string>; ip: string; parameters: Partial<E> }> = {
+					data: { entityMetadata, method, methodName, properties },
 					entity: entityInstance,
+					result: { authenticationRequest, body, headers, ip, parameters },
 					routeType: EApiRouteType.UPDATE,
-					result: { parameters, body, headers, ip, authenticationRequest },
-					data: { method, methodName, properties, entityMetadata },
 				};
-				
-				const beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.BEFORE as any, beforeExecutionContext);
+
+				const beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.BEFORE, beforeExecutionContext);
 
 				if (beforeResult) {
 					parameters = beforeResult.parameters;
@@ -456,7 +466,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
 					if (!primaryKey) {
-						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR as any, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+
 						throw ErrorException("Primary key not found in entity columns");
 					}
 
@@ -473,28 +484,28 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, E> = {
-						result: response,
+						data: { ...(beforeExecutionContext.data as any), authenticationRequest, body, headers, ip, parameters },
 						entity: response,
+						result: response,
 						routeType: EApiRouteType.UPDATE,
-						data: { ...(beforeExecutionContext.data as any), parameters, body, headers, ip, authenticationRequest }
 					};
-					
-					const afterResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, response, EApiRouteType.UPDATE, EApiSubscriberOnType.AFTER as any, afterExecutionContext);
-					
+
+					const afterResult = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, response, EApiRouteType.UPDATE, EApiSubscriberOnType.AFTER, afterExecutionContext);
+
 					const finalResponse = afterResult ?? response;
 					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
 					return plainToInstance(dto as ClassConstructor<E>, finalResponse, {
 						excludeExtraneousValues: true,
 					});
-				
 				} catch (error) {
 					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
+						data: { ...(beforeExecutionContext.data as any), authenticationRequest, body, headers, ip, parameters },
 						entity: entityInstance,
 						routeType: EApiRouteType.UPDATE,
-						data: { ...(beforeExecutionContext.data as any), parameters, body, headers, ip, authenticationRequest }
 					};
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.AFTER_ERROR as any, errorExecutionContext, error as Error);
+					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => any, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+
 					throw error;
 				}
 			},

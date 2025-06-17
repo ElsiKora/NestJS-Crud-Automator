@@ -1,1 +1,1 @@
-export interface IApiSubscriber {} 
+export interface IApiSubscriber {}

@@ -1,4 +1,4 @@
-import { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 
 export interface IApiSubscriberExecutionContext<E extends IApiBaseEntity, Result = unknown, Input = unknown> {
 	/**
@@ -15,4 +15,4 @@ export interface IApiSubscriberExecutionContext<E extends IApiBaseEntity, Result
 	 * The mutable data payload that subscribers can modify.
 	 */
 	result?: Result;
-} 
+}
