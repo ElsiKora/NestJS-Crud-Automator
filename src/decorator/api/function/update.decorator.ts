@@ -123,16 +123,14 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 		return result;
 	} catch (error) {
 		const entityInstance = new entity();
-
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, never, any> = {
-			data: { criteria, eventManager, repository },
+			data: { criteria, eventManager, properties, repository },
 			entity: entityInstance,
 			functionType: EApiFunctionType.UPDATE,
 		};
 
 		if (error instanceof HttpException) {
 			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER_ERROR as any, executionContext, error);
-
 			throw error;
 		}
 

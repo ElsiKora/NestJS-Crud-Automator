@@ -113,7 +113,6 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExe
 		return result;
 	} catch (error) {
 		const entityInstance = new entity();
-
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, never, any> = {
 			data: { criteria, eventManager, repository },
 			entity: entityInstance,
@@ -122,7 +121,6 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExe
 
 		if (error instanceof HttpException) {
 			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.DELETE, EApiSubscriberOnType.AFTER_ERROR as any, executionContext, error);
-
 			throw error;
 		}
 

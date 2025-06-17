@@ -32,7 +32,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 				result: createProperties,
 			};
 
-			const result = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<any>) => any, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE as any, executionContext);
+			const result = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<any>) => any, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE, executionContext);
 
 			if (result) {
 				executionContext.result = result;
@@ -41,7 +41,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<any>) => any, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE_ERROR as any, executionContext, new Error("Repository is not available in this context"));
+				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<any>) => any, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, executionContext, new Error("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}
@@ -81,7 +81,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 			result: result,
 		};
 
-		const afterResult = await ApiSubscriberExecutor.executeFunctionSubscribers<E, E, Record<string, any>>(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER as any, executionContext);
+		const afterResult = await ApiSubscriberExecutor.executeFunctionSubscribers<E, E, Record<string, any>>(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER, executionContext);
 
 		if (afterResult) {
 			return afterResult;
@@ -91,21 +91,19 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 	} catch (error) {
 		const entityInstance = new entity();
 
-		const executionContext: IApiSubscriberFunctionExecutionContext<E, E, Record<string, any>> = {
-			data: { eventManager, repository },
+		const executionContext: IApiSubscriberFunctionExecutionContext<E, never, Record<string, any>> = {
+			data: { eventManager, properties, repository },
 			entity: entityInstance,
 			functionType: EApiFunctionType.CREATE,
 		};
 
 		if (error instanceof HttpException) {
-			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR as any, executionContext, error);
-
+			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR, executionContext, error);
 			throw error;
 		}
 
 		LoggerUtility.getLogger("ApiFunctionCreate").verbose(`Error creating entity ${String(entity.name)}:`, error);
-
-		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR as any, executionContext, error as Error);
+		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR, executionContext, error as Error);
 
 		throw new InternalServerErrorException(
 			ErrorString({

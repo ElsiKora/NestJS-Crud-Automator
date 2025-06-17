@@ -4,6 +4,7 @@ import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/fun
 import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.interface";
 
 import { createRegistry } from "@elsikora/cladi";
+import { IApiFunctionSubscriberProperties, IApiRouteSubscriberProperties } from "@interface/decorator/api/subscriber";
 
 class ApiSubscriberRegistry {
 	private readonly functionSubscribers: IRegistry<SubscriberWrapper<IApiSubscriberFunction<any>>>;
@@ -16,15 +17,15 @@ class ApiSubscriberRegistry {
 	}
 
 	public getFunctionSubscribers<E extends IApiBaseEntity>(entityName: string): Array<IApiSubscriberFunction<E>> {
-		return (this.functionSubscribers.get(entityName)?.subscribers ?? []) as Array<IApiSubscriberFunction<E>>;
+		return (this.functionSubscribers.get(entityName)?.subscribers ?? []).map(s => s.subscriber) as Array<IApiSubscriberFunction<E>>;
 	}
 
 	public getRouteSubscribers<E extends IApiBaseEntity>(entityName: string): Array<IApiSubscriberRoute<E>> {
-		return (this.routeSubscribers.get(entityName)?.subscribers ?? []) as Array<IApiSubscriberRoute<E>>;
+		return (this.routeSubscribers.get(entityName)?.subscribers ?? []).map(s => s.subscriber) as Array<IApiSubscriberRoute<E>>;
 	}
 
-	public registerFunctionSubscriber<E extends IApiBaseEntity>(entity: new (...arguments_: Array<any>) => E, subscriber: IApiSubscriberFunction<E>): void {
-		const entityName = entity.name;
+	public registerFunctionSubscriber<E extends IApiBaseEntity>(properties: IApiFunctionSubscriberProperties<E>, subscriber: IApiSubscriberFunction<E>): void {
+		const entityName = properties.entity.name;
 		let wrapper = this.functionSubscribers.get(entityName);
 
 		if (!wrapper) {
@@ -32,11 +33,11 @@ class ApiSubscriberRegistry {
 			this.functionSubscribers.register(wrapper);
 		}
 
-		wrapper.subscribers.push(subscriber);
+		wrapper.addSubscriber(subscriber, properties.priority);
 	}
 
-	public registerRouteSubscriber<E extends IApiBaseEntity>(entity: new (...arguments_: Array<any>) => E, subscriber: IApiSubscriberRoute<E>): void {
-		const entityName = entity.name;
+	public registerRouteSubscriber<E extends IApiBaseEntity>(properties: IApiRouteSubscriberProperties<E>, subscriber: IApiSubscriberRoute<E>): void {
+		const entityName = properties.entity.name;
 		let wrapper = this.routeSubscribers.get(entityName);
 
 		if (!wrapper) {
@@ -44,15 +45,20 @@ class ApiSubscriberRegistry {
 			this.routeSubscribers.register(wrapper);
 		}
 
-		wrapper.subscribers.push(subscriber);
+		wrapper.addSubscriber(subscriber, properties.priority);
 	}
 }
 
 class SubscriberWrapper<T> {
 	constructor(
 		private readonly name: string,
-		public subscribers: Array<T> = [],
+		public subscribers: Array<{ subscriber: T, priority: number }> = [],
 	) {}
+	
+	addSubscriber(subscriber: T, priority = 0) {
+		this.subscribers.push({ subscriber, priority });
+		this.subscribers.sort((a, b) => b.priority - a.priority);
+	}
 
 	getName(): string {
 		return this.name;
