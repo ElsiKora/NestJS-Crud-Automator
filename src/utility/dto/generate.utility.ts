@@ -40,7 +40,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		return undefined;
 	}
 
-	if (!entityMetadata.primaryKey?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME]) {
+	if (!entityMetadata.primaryKey?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]) {
 		throw ErrorException(`Primary key for entity ${String(entityMetadata.name)} not found in metadata storage`);
 	}
 
@@ -54,10 +54,10 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	}> = [];
 
 	for (const column of entityMetadata.columns) {
-		if (column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] && DtoIsPropertyShouldBeMarked(method, dtoType, column.name as string, column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] as TApiPropertyDescribeProperties, column.isPrimary, currentGuard)) {
+		if (column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] && DtoIsPropertyShouldBeMarked(method, dtoType, column.name as string, column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties, column.isPrimary, currentGuard)) {
 			markedProperties.push({
 				isPrimary: column.isPrimary,
-				metadata: column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] as TApiPropertyDescribeProperties,
+				metadata: column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties,
 				name: column.name,
 			});
 		}
@@ -71,42 +71,38 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 			for (const property of markedProperties) {
 				if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
 					Object.defineProperty(this, `${property.name as string}[value]`, {
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						enumerable: true,
 						value: undefined,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						writable: true,
 					});
 
 					Object.defineProperty(this, `${property.name as string}[values]`, {
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						enumerable: true,
 						value: undefined,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						writable: true,
 					});
 
 					Object.defineProperty(this, `${property.name as string}[operator]`, {
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						enumerable: true,
 						value: undefined,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						writable: true,
 					});
 				} else {
 					Object.defineProperty(this, property.name, {
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						enumerable: true,
 						value: undefined,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						writable: true,
 					});
 				}
@@ -164,14 +160,13 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 
 	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
 		Object.defineProperty(GeneratedDTO.prototype, "object", {
-			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			configurable: true,
-			// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 			enumerable: true,
 			value: function (this: InstanceType<typeof GeneratedDTO>): InstanceType<typeof GeneratedDTO> {
 				return this;
 			},
-			// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 			writable: true,
 		});
 

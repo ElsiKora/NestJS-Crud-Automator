@@ -48,7 +48,7 @@ export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata
 
 		if (isAllowedType) {
 			for (const metadataColumn of entityMetadata.columns) {
-				const metadata: Record<string, any> | undefined = metadataColumn.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] as Record<string, any> | undefined;
+				const metadata: Record<string, any> | undefined = metadataColumn.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as Record<string, any> | undefined;
 				// eslint-disable-next-line @elsikora/typescript/no-unsafe-member-access
 				const useAsFilter: boolean | undefined = (metadata?.properties?.[method]?.[dtoType]?.useAsOrderByFilter as boolean) ?? false;
 

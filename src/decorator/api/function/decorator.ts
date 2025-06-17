@@ -28,7 +28,6 @@ export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctio
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		const originalMethod: unknown = descriptor.value;
 
-		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		descriptor.value = function (this: { repository: Repository<E> }, ...arguments_: Array<any>): any {
 			let decoratorFunction: TDecoratorFunction;
 

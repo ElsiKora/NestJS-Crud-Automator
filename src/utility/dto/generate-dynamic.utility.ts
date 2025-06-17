@@ -88,12 +88,11 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 				constructor() {
 					for (const propertyName of Object.keys(data)) {
 						Object.defineProperty(this, propertyName, {
-							// eslint-disable-next-line @elsikora/typescript/naming-convention
 							configurable: true,
-							// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 							enumerable: true,
 							value: undefined,
-							// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 							writable: true,
 						});
 					}
