@@ -96,7 +96,7 @@ export function ApiPropertyString(properties: TApiPropertyStringProperties): <Y>
 function buildApiPropertyOptions(properties: TApiPropertyStringProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions & Record<string, any> = {
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
-		// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 		nullable: !!properties.isNullable,
 		type: EApiPropertyDataType.STRING,
 	};
@@ -158,7 +158,6 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 		switch (properties.format) {
 			case EApiPropertyStringType.DATE: {
 				decorators.push(
-					// eslint-disable-next-line @elsikora/typescript/naming-convention
 					IsDate({ each: isArray }),
 					Type(() => Date),
 				);
@@ -167,21 +166,18 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 			}
 
 			case EApiPropertyStringType.EMAIL: {
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsEmail({}, { each: isArray }));
 
 				break;
 			}
 
 			case EApiPropertyStringType.IP: {
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsIP(STRING_PROPERTY_API_INTERFACE_CONSTANT.IP_VERSION, { each: isArray }));
 
 				break;
 			}
 
 			case EApiPropertyStringType.LOWERCASE_STRING: {
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsString({ each: isArray }), IsLowercase({ each: isArray }));
 
 				break;
@@ -190,11 +186,10 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 			case EApiPropertyStringType.REGEXP: {
 				decorators.push(
 					Validate(IsRegularExpressionValidator, {
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						each: isArray,
 						message: `${String(properties.description)} must be valid regular expression string`,
 					}),
-					// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 					Matches(new RegExp(properties.pattern.slice(1, -1)), { each: isArray }),
 					Type(() => RegExp),
 				);
@@ -203,14 +198,12 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 			}
 
 			case EApiPropertyStringType.STRING: {
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsString({ each: isArray }));
 
 				break;
 			}
 
 			case EApiPropertyStringType.UPPERCASE_STRING: {
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsString({ each: isArray }), IsUppercase({ each: isArray }));
 
 				break;
@@ -221,12 +214,12 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 					IsUrl(
 						{
 							protocols: ["https", "http"],
-							// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 							require_host: true,
-							// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 							require_protocol: true,
 						},
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						{ each: isArray },
 					),
 				);
@@ -235,7 +228,6 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 			}
 
 			case EApiPropertyStringType.UUID: {
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsUUID("all", { each: isArray }));
 
 				break;
@@ -312,10 +304,8 @@ function buildStringValidationDecorators(properties: TApiPropertyStringPropertie
 	const isArray: boolean = properties.isArray ?? false;
 
 	if (properties.isResponse === false || properties.isResponse === undefined) {
-		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		Matches(new RegExp(properties.pattern.slice(1, -1)), { each: isArray });
 
-		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		Length(properties.minLength, properties.maxLength, { each: isArray });
 	}
 

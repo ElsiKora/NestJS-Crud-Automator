@@ -76,7 +76,7 @@ export function ApiPropertyBoolean(properties: TApiPropertyBaseProperties): <Y>(
 function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
-		// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 		nullable: !!properties.isNullable,
 		type: EApiPropertyDataType.BOOLEAN,
 	};
@@ -122,7 +122,6 @@ function buildFormatDecorators(properties: TApiPropertyBaseProperties): Array<Pr
 	const isArray: boolean = properties.isArray ?? false;
 
 	if (properties.isResponse === undefined || !properties.isResponse) {
-		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		decorators.push(IsBoolean({ each: isArray }));
 	}
 

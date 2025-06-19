@@ -1,6 +1,9 @@
 import type { LogLevel } from "@nestjs/common";
 
 import { ConsoleLogger, Injectable } from "@nestjs/common";
+import { config } from "dotenv";
+
+config();
 
 /**
  * Custom logger that extends NestJS's ConsoleLogger with environment-based log level filtering
@@ -9,9 +12,8 @@ import { ConsoleLogger, Injectable } from "@nestjs/common";
 export class LoggerUtility extends ConsoleLogger {
 	private static readonly ENV_LOG_LEVEL_KEY: string = "NCD_LOG_LEVEL";
 
-	// eslint-disable-next-line @elsikora/javascript/constructor-super,@elsikora/sonar/super-invocation
 	constructor(context?: string) {
-		if (context != null) {
+		if (context) {
 			super(context, {
 				logLevels: LoggerUtility.getLogLevelsFromEnv(),
 			});

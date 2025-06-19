@@ -1,1 +1,2 @@
-export { ApiServiceBase } from "./service-base.class";
+export * from "./service-base.class";
+export * from "./subscriber";

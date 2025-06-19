@@ -36,7 +36,7 @@ export function ApiPropertyCopy<E>(entity: Type<E>, propertyName: keyof E, metho
 			throw ErrorException(`Property ${String(propertyName)} not found in entity ${String(entity.name)}`);
 		}
 
-		let propertyMetadata: TApiPropertyDescribeProperties = column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME] as TApiPropertyDescribeProperties;
+		let propertyMetadata: TApiPropertyDescribeProperties = column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties;
 
 		if (!propertyMetadata) {
 			throw ErrorException(`Metadata for property ${String(propertyName)} in entity ${String(entity.name)} not found`);

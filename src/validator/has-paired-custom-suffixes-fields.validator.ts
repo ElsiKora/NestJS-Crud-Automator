@@ -4,7 +4,6 @@ import { EHasPairedCustomSuffixesFieldsArgumentType } from "@enum/validator";
 import { THasPairedCustomSuffixesFieldsOperationConfig, THasPairedCustomSuffixesFieldsValidationContext } from "@type/validator/has-paired-custom-suffixes-fields";
 import { type ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface } from "class-validator";
 
-// eslint-disable-next-line @elsikora/typescript/naming-convention
 @ValidatorConstraint({ async: false, name: "has-paired-custom-suffixes-fields" })
 export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstraintInterface {
 	/**
