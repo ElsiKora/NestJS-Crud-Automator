@@ -26,9 +26,8 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 				if (!Object.prototype.hasOwnProperty.call(this, EApiFunctionType.GET_LIST)) {
 					Object.defineProperty(this, EApiFunctionType.GET_LIST, {
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						enumerable: true,
 						value: async function (properties: TApiFunctionGetListProperties<E>, relations: FindOptionsRelations<E>, eventManager?: EntityManager): Promise<IApiGetListResponseResult<E>> {
 							const apiFunctionDecorator: (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
@@ -38,21 +37,19 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 							});
 
 							const descriptor: {
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
 								configurable: boolean;
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								enumerable: boolean;
 								value: () => void;
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								writable: boolean;
 							} = {
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
 								configurable: true,
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								enumerable: true,
 								// eslint-disable-next-line @elsikora/sonar/no-nested-functions
 								value: () => void 0,
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								writable: true,
 							};
 
@@ -60,16 +57,15 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionGetListProperties<E>, relations: FindOptionsRelations<E>, eventManager?: EntityManager) => Promise<IApiGetListResponseResult<E>>).call(this, properties, relations, eventManager);
 						},
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						writable: true,
 					});
 				}
 
 				if (!Object.prototype.hasOwnProperty.call(this, EApiFunctionType.GET)) {
 					Object.defineProperty(this, EApiFunctionType.GET, {
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						enumerable: true,
 						value: async function (properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager): Promise<E> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
@@ -78,21 +74,19 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 							});
 
 							const descriptor: {
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
 								configurable: boolean;
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								enumerable: boolean;
 								value: () => void;
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								writable: boolean;
 							} = {
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
 								configurable: true,
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								enumerable: true,
 								// eslint-disable-next-line @elsikora/sonar/no-nested-functions
 								value: () => void 0,
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								writable: true,
 							};
 
@@ -100,16 +94,15 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager) => Promise<E>).call(this, properties, eventManager);
 						},
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						writable: true,
 					});
 				}
 
 				if (!Object.prototype.hasOwnProperty.call(this, EApiFunctionType.GET_MANY)) {
 					Object.defineProperty(this, EApiFunctionType.GET_MANY, {
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						enumerable: true,
 						value: async function (properties: TApiFunctionGetManyProperties<E>, eventManager?: EntityManager): Promise<Array<E>> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
@@ -118,21 +111,19 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 							});
 
 							const descriptor: {
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
 								configurable: boolean;
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								enumerable: boolean;
 								value: () => void;
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								writable: boolean;
 							} = {
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
 								configurable: true,
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								enumerable: true,
 								// eslint-disable-next-line @elsikora/sonar/no-nested-functions
 								value: () => void 0,
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								writable: true,
 							};
 
@@ -140,16 +131,15 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionGetManyProperties<E>, eventManager?: EntityManager) => Promise<Array<E>>).call(this, properties, eventManager);
 						},
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						writable: true,
 					});
 				}
 
 				if (!Object.prototype.hasOwnProperty.call(this, EApiFunctionType.CREATE)) {
 					Object.defineProperty(this, EApiFunctionType.CREATE, {
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						enumerable: true,
 						value: async function (properties: TApiFunctionCreateProperties<E>, eventManager?: EntityManager): Promise<E> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
@@ -158,21 +148,19 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 							});
 
 							const descriptor: {
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
 								configurable: boolean;
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								enumerable: boolean;
 								value: () => void;
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								writable: boolean;
 							} = {
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
 								configurable: true,
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								enumerable: true,
 								// eslint-disable-next-line @elsikora/sonar/no-nested-functions
 								value: () => void 0,
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								writable: true,
 							};
 
@@ -180,16 +168,15 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							return (decoratedDescriptor.value as (this: any, properties: TApiFunctionCreateProperties<E>, eventManager?: EntityManager) => Promise<E>).call(this, properties, eventManager);
 						},
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						writable: true,
 					});
 				}
 
 				if (!Object.prototype.hasOwnProperty.call(this, EApiFunctionType.UPDATE)) {
 					Object.defineProperty(this, EApiFunctionType.UPDATE, {
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						enumerable: true,
 						value: async function (criteria: TApiFunctionUpdateCriteria<E>, properties: TApiFunctionUpdateProperties<E>, eventManager?: EntityManager): Promise<E> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
@@ -198,21 +185,19 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 							});
 
 							const descriptor: {
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
 								configurable: boolean;
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								enumerable: boolean;
 								value: () => void;
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								writable: boolean;
 							} = {
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
 								configurable: true,
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								enumerable: true,
 								// eslint-disable-next-line @elsikora/sonar/no-nested-functions
 								value: () => void 0,
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								writable: true,
 							};
 
@@ -220,16 +205,15 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							return (decoratedDescriptor.value as (this: any, criteria: TApiFunctionUpdateCriteria<E>, properties: TApiFunctionUpdateProperties<E>, eventManager?: EntityManager) => Promise<E>).call(this, criteria, properties, eventManager);
 						},
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						writable: true,
 					});
 				}
 
 				if (!Object.prototype.hasOwnProperty.call(this, EApiFunctionType.DELETE)) {
 					Object.defineProperty(this, EApiFunctionType.DELETE, {
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						enumerable: true,
 						value: async function (criteria: TApiFunctionDeleteCriteria<E>, eventManager?: EntityManager): Promise<void> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
@@ -238,21 +222,19 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 							});
 
 							const descriptor: {
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
 								configurable: boolean;
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								enumerable: boolean;
 								value: () => void;
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								writable: boolean;
 							} = {
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
 								configurable: true,
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								enumerable: true,
 								// eslint-disable-next-line @elsikora/sonar/no-nested-functions
 								value: () => void 0,
-								// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 								writable: true,
 							};
 
@@ -260,7 +242,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 
 							return (decoratedDescriptor.value as (this: any, criteria: TApiFunctionDeleteCriteria<E>, eventManager?: EntityManager) => Promise<void>).call(this, criteria, eventManager);
 						},
-						// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 						writable: true,
 					});
 				}

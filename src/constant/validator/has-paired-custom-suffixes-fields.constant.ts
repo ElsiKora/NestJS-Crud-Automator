@@ -6,7 +6,7 @@ import { EHasPairedCustomSuffixesFieldsArgumentType } from "@enum/validator";
 const DEFAULT_OPERATION_CONFIGS: Record<EFilterOperation, THasPairedCustomSuffixesFieldsOperationConfig> = {
 	[EFilterOperation.BETWEEN]: {
 		argumentType: EHasPairedCustomSuffixesFieldsArgumentType.ARRAY,
-		// eslint-disable-next-line @elsikora/typescript/no-magic-numbers
+
 		exactLength: 2,
 	},
 	[EFilterOperation.CONT]: {

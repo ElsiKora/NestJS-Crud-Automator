@@ -53,7 +53,7 @@ export function ApiPropertyObject(options: TApiPropertyObjectProperties): <Y>(ta
 function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
-		// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 		nullable: !!properties.isNullable,
 	};
 
@@ -138,7 +138,6 @@ function buildObjectValidationDecorators(properties: TApiPropertyObjectPropertie
 	const isArray: boolean = properties.isArray ?? false;
 
 	if (!properties.isResponse && properties.shouldValidateNested) {
-		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		decorators.push(ValidateNested({ each: isArray }));
 	}
 
@@ -218,7 +217,7 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 						return { name: key, value };
 					}),
 				},
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 				keepDiscriminatorProperty: properties.discriminator.shouldKeepDiscriminatorProperty,
 			}),
 		);
@@ -235,7 +234,7 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 						return { name: key, value: properties.generatedDTOs[value] as ClassConstructor<any> };
 					}),
 				},
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
+
 				keepDiscriminatorProperty: properties.discriminator.shouldKeepDiscriminatorProperty,
 			}),
 		);
