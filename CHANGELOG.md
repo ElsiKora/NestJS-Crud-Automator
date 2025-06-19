@@ -1,3 +1,11 @@
+# [1.10.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.9.0...v1.10.0) (2025-06-19)
+
+
+### Features
+
+* **emitter:** new base emitter functionality ([2fbe0a6](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/2fbe0a6955a44312baf0318a60470943f261765b))
+* **emitter:** upgraded emitter ([af6c4e5](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/af6c4e5b6e9140b845247027c6c5b698c308c11d))
+
 # [1.9.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.8.0...v1.9.0) (2025-03-27)
 
 
