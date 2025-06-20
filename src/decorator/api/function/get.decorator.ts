@@ -14,13 +14,9 @@ import { LoggerUtility } from "@utility/logger.utility";
 
 /**
  * Creates a decorator that adds single entity retrieval functionality to a service method
- * @param {IApiFunctionProperties} properties - Configuration properties for the get function
+ * @template E The entity type
+ * @param {IApiFunctionProperties<E>} properties - Configuration properties for the get function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle single entity retrieval
- */
-
-/**
- *
- * @param properties
  */
 export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
@@ -64,6 +60,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 
 /**
  * Executes the single entity retrieval operation with error handling
+ * @template E The entity type
  * @param {IApiFunctionGetExecutorProperties<E>} options - Properties required for entity retrieval
  * @returns {Promise<E>} The retrieved entity instance
  * @throws {NotFoundException} If the entity is not found

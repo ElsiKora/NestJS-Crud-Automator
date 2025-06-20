@@ -4,9 +4,6 @@ import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/s
 import type { DeepPartial } from "typeorm";
 
 export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubscriber {
-	// TODO: CHECK IF WE NEED THIS REALLY
-	[key: string]: unknown;
-
 	onAfterCreate?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
 	onAfterDelete?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
 

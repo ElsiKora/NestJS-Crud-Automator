@@ -32,7 +32,7 @@ const PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerat
 
 export const DTO_UTILITY_CONSTANT: {
 	readonly DTO_STRATEGIES: Record<EApiDtoType, IDtoStrategy>;
-	readonly PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerateFactory<any>>;
+	readonly PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerateFactory<unknown>>;
 } = {
 	DTO_STRATEGIES,
 	PROPERTY_DECORATOR_FACTORIES,

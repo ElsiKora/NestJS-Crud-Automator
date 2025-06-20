@@ -16,13 +16,9 @@ import { ApiFunctionGet } from "./get.decorator";
 
 /**
  * Creates a decorator that adds entity update functionality to a service method
- * @param {IApiFunctionProperties} properties - Configuration properties for the update function
+ * @template E The entity type
+ * @param {IApiFunctionProperties<E>} properties - Configuration properties for the update function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle entity updates
- */
-
-/**
- *
- * @param properties
  */
 export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
@@ -78,6 +74,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 
 /**
  * Executes the entity update operation with error handling
+ * @template E The entity type
  * @param {IApiFunctionUpdateExecutorProperties<E>} options - Properties required for entity update
  * @returns {Promise<E>} The updated entity instance
  * @throws {InternalServerErrorException} If the update operation fails

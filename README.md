@@ -1,616 +1,658 @@
-# NestJS CRUD Automator: Полное руководство
+<p align="center">
+  <img src="https://6jft62zmy9nx2oea.public.blob.vercel-storage.com/nestjs-crud-automator-HhXThTDhKyqznMLCgdmWhsPa287fIi.png" width="500" alt="project-logo">
+</p>
 
-Этот документ представляет собой исчерпывающее руководство по библиотеке `nestjs-crud-automator`. Он охватывает все: от основных концепций до тонкостей архитектуры и продвинутых сценариев использования.
+<h1 align="center">NestJS-Crud-Automator 🚀</h1>
+<p align="center"><em>A powerful library for automating CRUD operations in NestJS applications</em></p>
 
-## Оглавление
+<p align="center">
+    <a aria-label="ElsiKora logo" href="https://elsikora.com">
+  <img src="https://img.shields.io/badge/MADE%20BY%20ElsiKora-333333.svg?style=for-the-badge" alt="ElsiKora">
+</a> <img src="https://img.shields.io/badge/npm-blue.svg?style=for-the-badge&logo=npm&logoColor=white" alt="npm"> <img src="https://img.shields.io/badge/typescript-blue.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="typescript"> <img src="https://img.shields.io/badge/nestjs-red.svg?style=for-the-badge&logo=nestjs&logoColor=white" alt="nestjs"> <img src="https://img.shields.io/badge/swagger-green.svg?style=for-the-badge&logo=swagger&logoColor=white" alt="swagger"> <img src="https://img.shields.io/badge/license-blue.svg?style=for-the-badge&logo=license&logoColor=white" alt="license"> <img src="https://img.shields.io/badge/version-1.6.2-brightgreen.svg?style=for-the-badge&logo=v&logoColor=white" alt="version-1.6.2">
+</p>
 
-1.  [Введение](#1-введение)
-    *   [Какую проблему решает?](#какую-проблему-решает)
-    *   [Философия дизайна](#философия-дизайна)
-2.  [Ключевые концепции](#2-ключевые-концепции)
-    *   [Генерация кода в реальном времени](#генерация-кода-в-реальном-времени)
-    *   [Конфигурация через декораторы](#конфигурация-через-декораторы)
-    *   [Соглашение вместо конфигурации](#соглашение-вместо-конфигурации)
-    *   [Расширяемость и кастомизация](#расширяемость-и-кастомизация)
-3.  [Полное руководство по началу работы](#3-полное-руководство-по-началу-работы)
-    *   [Шаг 1: Установка](#шаг-1-установка)
-    *   [Шаг 2: Определение сущностей](#шаг-2-определение-сущностей)
-    *   [Шаг 3: Создание сервисов](#шаг-3-создание-сервисов)
-    *   [Шаг 4: Создание контроллера](#шаг-4-создание-контроллера)
-    *   [Шаг 5: Настройка модуля](#шаг-5-настройка-модуля)
-    *   [Шаг 6: Запуск и тестирование](#шаг-6-запуск-и-тестирование)
-4.  [Основные декораторы: Подробный обзор](#4-основные-декораторы-подробный-обзор)
-    *   [`@ApiController`](#apicontroller-1)
-    *   [`@ApiService`](#apiservice-1)
-    *   [`@ApiFunction`](#apifunction-1)
-    *   [`@ApiPropertyDescribe`](#apipropertydescribe-1)
-5.  [Детальная конфигурация маршрутов](#5-детальная-конфигурация-маршрутов)
-    *   [Структура конфигурации маршрута](#структура-конфигурации-маршрута)
-    *   [Управление DTO (`dto` и `autoDto`)](#управление-dto-dto-и-autodto)
-    *   [Аутентификация (`authentication`)](#аутентификация-authentication)
-    *   [Обработка связей (`relations`)](#обработка-связей-relations)
-    *   [Трансформация данных (`transformers`)](#трансформация-данных-transformers)
-    *   [Пользовательская валидация (`validators`)](#пользовательская-валидация-validators)
-6.  [Конфигурация свойств (`@ApiPropertyDescribe`)](#6-конфигурация-свойств-apipropertydescribe)
-    *   [Дискриминационное объединение](#дискриминационное-объединение)
-    *   [Общие свойства](#общие-свойства)
-    *   [Конфигурация по типам](#конфигурация-по-типам)
-    *   [Переопределение свойств (`properties`)](#переопределение-свойств-properties)
-7.  [Продвинутые возможности](#7-продвинутые-возможности)
-    *   [Динамическая генерация DTO](#динамическая-генерация-dto)
-    *   [Полиморфные DTO (`oneOf`)](#полиморфные-dto-oneof)
-    *   [Система подписчиков (Hooks)](#система-подписчиков-hooks)
-8.  [Архитектурный обзор](#8-архитектурный-обзор)
-    *   [Хранилище метаданных (`MetadataStorage`)](#хранилище-метаданных-metadatastorage)
-    *   [Конвейер генерации DTO](#конвейер-генерации-dto)
-    *   [Система подписчиков](#система-подписчиков)
-    *   [Пользовательские валидаторы](#пользовательские-валидаторы)
-9.  [Справочник по API](#9-справочник-по-api)
-    *   [Перечисления (`Enums`)](#перечисления-enums)
-    *   [Типы (`Types`)](#типы-types)
 
----
+## 📚 Table of Contents
+- [Description](#-description)
+- [Features](#-features)
+- [Installation](#-installation)
+- [Usage](#-usage)
+  - [Basic Usage](#basic-usage)
+  - [Advanced Usage](#advanced-usage)
+- [Subscriber System (Hooks)](#subscriber-system-hooks-intercepting-and-extending-logic)
+- [Swagger Documentation](#swagger-documentation)
+- [Roadmap](#-roadmap)
+- [FAQ](#-faq)
+- [License](#-license)
 
-## 1. Введение
 
-### Какую проблему решает?
+## 📖 Description
+NestJS-Crud-Automator is a comprehensive library designed to eliminate repetitive code when building RESTful APIs with NestJS. It provides a suite of decorators, utilities, and validation tools that automatically generate controllers, DTOs, and service methods for handling Create, Read, Update, and Delete operations. This library significantly reduces development time by providing a declarative approach to API development. By simply describing your entity properties once, the library auto-generates all the necessary boilerplate code including Swagger documentation, validation rules, and transformation logic. Perfect for developers working on data-heavy applications who want to focus on business logic rather than repetitive CRUD implementation.
 
-В типичном NestJS-приложении создание полного набора CRUD-эндпоинтов для сущности включает в себя:
--   Создание контроллера с пятью или более методами (`create`, `getOne`, `getList`, `update`, `delete`).
--   Написание соответствующих методов в сервисе, которые взаимодействуют с базой данных.
--   Определение нескольких DTO (Data Transfer Objects) для валидации входящих данных (`CreateUserDto`, `UpdateUserDto`, `UserListQueryDto`) и сериализации ответов (`UserResponseDto`).
--   Добавление декораторов `@Body()`, `@Query()`, `@Param()` в методы контроллера.
--   Добавление декораторов `@Api...` от `@nestjs/swagger` для документации.
+The core philosophy of this library is built on four pillars: being **Declarative** (describe your API, don't code it), writing **Minimum Code** (drastically reduce boilerplate), ensuring **Flexibility** (override or extend any automated behavior), and guaranteeing **Type-Safety** (leverage TypeScript to prevent errors). It achieves this through real-time in-memory code generation, a heavy reliance on decorators for configuration, and smart conventions to reduce setup.
 
-Этот процесс утомителен, подвержен ошибкам и приводит к большому количеству однотипного кода. `nestjs-crud-automator` решает эту проблему, беря на себя всю рутинную работу. Вы описываете *что* вы хотите получить, а не *как* это сделать.
+## 🚀 Features
+- ✨ **🏗️ Automatic generation of controllers, DTOs, and service methods for CRUD operations**
+- ✨ **📝 Comprehensive Swagger/OpenAPI documentation generation for all endpoints**
+- ✨ **✅ Built-in validation rules with class-validator integration**
+- ✨ **🔄 Data transformation with class-transformer for request/response handling**
+- ✨ **🧩 Type-safe decorators for entity properties with rich metadata support**
+- ✨ **🔒 Authentication and authorization guards integration**
+- ✨ **🔍 Advanced filtering, sorting, and pagination for list operations**
+- ✨ **📚 Support for object relations with automatic loading strategies**
+- ✨ **⚡ Performance optimized with TypeORM integration for database operations**
+- ✨ **🌐 Full support for TypeScript with strong typing throughout the library**
+- ✨ **Hooks and Subscriber System:** Intercept and extend business logic at both the controller and service level.
+- ✨ **Dynamic and Polymorphic DTOs:** Generate DTOs on-the-fly based on discriminator fields.
+- ✨ **Field-Level RBAC:** Show/hide fields in responses based on user roles using guards.
+- ✨ **Request Tracing:** Built-in `CorrelationIDResponseBodyInterceptor` to correlate requests and logs.
+- ✨ **Convention over Configuration:** Smart defaults for service and DTO naming to reduce boilerplate.
 
-### Философия дизайна
-
-1.  **Декларативность**: Вы описываете желаемое состояние API с помощью декораторов. Логика генерации скрыта от вас.
-2.  **Минимум кода**: Цель — сократить объем шаблонного кода до абсолютного минимума.
-3.  **Гибкость**: Несмотря на автоматизацию, у вас остается полный контроль. Любую часть сгенерированного поведения можно переопределить или расширить.
-4.  **Типобезопасность**: Максимальное использование возможностей TypeScript для предотвращения ошибок на этапе конфигурации.
-
-## 2. Ключевые концепции
-
-### Генерация кода в реальном времени
-
-В отличие от инструментов, генерирующих файлы с кодом (schematics), эта библиотека генерирует классы и применяет декораторы в памяти во время запуска приложения. Когда NestJS инициализирует ваш декорированный контроллер, `nestjs-crud-automator` динамически создает методы, DTO, и привязывает к ним метаданные NestJS и Swagger.
-
-### Конфигурация через декораторы
-
-Вся конфигурация происходит через декораторы TypeScript. Это позволяет держать конфигурацию рядом с кодом, к которому она относится (например, правила валидации поля — рядом с определением поля в сущности).
-
-### Соглашение вместо конфигурации
-
-Библиотека использует разумные соглашения для уменьшения явной конфигурации:
--   **Именование сервисов связей**: Если у сущности `Book` есть связь `author: Author`, библиотека будет ожидать, что сервис для `Author` будет доступен в контроллере под ключом `authorService`.
--   **Префиксы методов**: Генерируемые методы имеют внутренний префикс `__NCD__` (например, `__NCD__create`), чтобы избежать конфликтов с вашими собственными методами в контроллере.
--   **Именование DTO**: Генерируемые DTO получают предсказуемые имена, например `UserCreateBodyDto`, `UserGetListQueryDto`.
-
-### Расширяемость и кастомизация
-
-Вы можете "вмешаться" в любой этап процесса:
--   **Заменить DTO**: Предоставить свой собственный класс DTO вместо сгенерированного.
--   **Дополнить DTO**: Добавить пользовательские валидаторы `class-validator` в сгенерированный DTO.
--   **Добавить валидацию**: Внедрить асинхронную логику валидации, которая выполняется перед основной логикой маршрута.
--   **Трансформировать данные**: Изменить входящие или исходящие данные.
--   **Использовать хуки (подписчики)**: Выполнить код до или после любой операции на уровне контроллера или сервиса.
-
-## 3. Полное руководство по началу работы
-
-Создадим API для блога с пользователями и постами.
-
-### Шаг 1: Установка
+## 🛠 Installation
 ```bash
-npm install nestjs-crud-automator class-validator class-transformer @nestjs/swagger typeorm @nestjs/typeorm
+## Installation
+
+Install NestJS-Crud-Automator using your preferred package manager:
+
+
+# Using npm
+npm install @elsikora/nestjs-crud-automator
+
+# Using yarn
+yarn add @elsikora/nestjs-crud-automator
+
+# Using pnpm
+pnpm add @elsikora/nestjs-crud-automator
+
+
+### Prerequisites
+
+Make sure you have the following dependencies installed in your NestJS project:
+
+- NestJS (^9.0.0)
+- TypeORM (^0.3.0)
+- class-validator (^0.14.0)
+- class-transformer (^0.5.1)
+- @nestjs/swagger (^6.0.0)
+
+You might need to install these peer dependencies if they're not already in your project:
+
+
+npm install @nestjs/common @nestjs/swagger @nestjs/throttler typeorm class-transformer class-validator reflect-metadata
 ```
 
-### Шаг 2: Определение сущностей
+## 💡 Usage
+## Basic Usage
 
-Опишем сущности `User` и `Post` и их свойства с помощью `@ApiPropertyDescribe`.
+### 1. Define Your Entity
 
-`user.entity.ts`
+First, define your entity with the `ApiPropertyDescribe` decorators to provide metadata for CRUD generation:
+
 ```typescript
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
-import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType } from 'nestjs-crud-automator';
-import { Post } from '../post/post.entity';
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType, EApiPropertyDateIdentifier, EApiPropertyDateType } from '@elsikora/nestjs-crud-automator';
 
-@Entity()
-export class User {
-    @PrimaryGeneratedColumn('uuid')
-    @ApiPropertyDescribe({ type: EApiPropertyDescribeType.UUID })
-    id: string;
+@Entity('users')
+export class UserEntity {
+  @PrimaryGeneratedColumn('uuid')
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.UUID,
+    description: 'User unique identifier'
+  })
+  id: string;
 
-    @Column({ unique: true })
-    @ApiPropertyDescribe({
-        type: EApiPropertyDescribeType.STRING,
-        format: EApiPropertyStringType.EMAIL,
-        description: 'User email, must be unique.',
-        properties: {
-            create: { body: { isRequired: true } },
-            update: { body: { isRequired: false } },
-        }
-    })
-    email: string;
+  @Column()
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.STRING,
+    description: 'User name',
+    format: EApiPropertyStringType.STRING,
+    minLength: 3,
+    maxLength: 50,
+    pattern: '/^[a-zA-Z0-9_-]+$/',
+    exampleValue: 'john_doe'
+  })
+  username: string;
 
-    @OneToMany(() => Post, post => post.author)
-    @ApiPropertyDescribe({ type: EApiPropertyDescribeType.RELATION, description: 'User posts' })
-    posts: Post[];
+  @Column()
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.STRING,
+    description: 'User email',
+    format: EApiPropertyStringType.EMAIL,
+    minLength: 5,
+    maxLength: 255,
+    pattern: '/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/',
+    exampleValue: 'user@example.com'
+  })
+  email: string;
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.DATE,
+    identifier: EApiPropertyDateIdentifier.CREATED_AT,
+    format: EApiPropertyDateType.DATE_TIME
+  })
+  createdAt: Date;
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.DATE,
+    identifier: EApiPropertyDateIdentifier.UPDATED_AT,
+    format: EApiPropertyDateType.DATE_TIME
+  })
+  updatedAt: Date;
 }
 ```
 
-`post.entity.ts`
-```typescript
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
-import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType } from 'nestjs-crud-automator';
-import { User } from '../user/user.entity';
+### 2. Create a Service
 
-@Entity()
-export class Post {
-    @PrimaryGeneratedColumn('uuid')
-    @ApiPropertyDescribe({ type: EApiPropertyDescribeType.UUID })
-    id: string;
+Create a service with the `ApiService` decorator to add CRUD operations:
 
-    @Column()
-    @ApiPropertyDescribe({
-        type: EApiPropertyDescribeType.STRING,
-        format: EApiPropertyStringType.STRING,
-        minLength: 5,
-        properties: { create: { body: { isRequired: true } } }
-    })
-    title: string;
-
-    @ManyToOne(() => User, user => user.posts)
-    @ApiPropertyDescribe({ type: EApiPropertyDescribeType.RELATION })
-    author: User;
-}
-```
-
-### Шаг 3: Создание сервисов
-
-Сервисы — это тонкие слои, которые наследуются от `ApiServiceBase` и предоставляют реализацию для `@ApiFunction`.
-
-`user.service.ts`
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { ApiService, ApiServiceBase, ApiFunction } from 'nestjs-crud-automator';
-import { User } from './user.entity';
-import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ApiService, ApiServiceBase } from '@elsikora/nestjs-crud-automator';
+import { UserEntity } from './user.entity';
 
 @Injectable()
-@ApiService({ entity: User })
-export class UserService extends ApiServiceBase<User> {
-    constructor(@InjectRepository(User) public readonly repository: Repository<User>) {
-        super();
-    }
+@ApiService<UserEntity>({
+  entity: UserEntity
+})
+export class UserService extends ApiServiceBase<UserEntity> {
+  constructor(
+    @InjectRepository(UserEntity)
+    public repository: Repository<UserEntity>
+  ) {
+    super();
+  }
 
-    @ApiFunction() public get;
-    @ApiFunction() public getList;
-    @ApiFunction() public create;
-    @ApiFunction() public update;
-    @ApiFunction() public delete;
+  // You can add custom methods here that go beyond basic CRUD
+  async findByEmail(email: string): Promise<UserEntity | undefined> {
+    return this.repository.findOne({ where: { email } });
+  }
 }
 ```
 
-`post.service.ts` (аналогично)
+### 3. Create a Controller
+
+Create a controller with the `ApiController` decorator to generate all CRUD endpoints:
+
 ```typescript
-// ... imports
-@Injectable()
-@ApiService({ entity: Post })
-export class PostService extends ApiServiceBase<Post> {
-    constructor(@InjectRepository(Post) public readonly repository: Repository<Post>) {
-        super();
-    }
-    // ... @ApiFunction() declarations for get, getList, create, etc.
-}
-```
+import { Controller, UseGuards } from '@nestjs/common';
+import { ApiController, EApiRouteType } from '@elsikora/nestjs-crud-automator';
+import { UserEntity } from './user.entity';
+import { UserService } from './user.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-### Шаг 4: Создание контроллера
-
-Создадим контроллер для постов. Мы хотим иметь возможность создавать посты, указывая `author` по его `id`.
-
-`post.controller.ts`
-```typescript
-import { Controller } from '@nestjs/common';
-import { ApiController, EApiControllerLoadRelationsStrategy } from 'nestjs-crud-automator';
-import { PostService } from './post.service';
-import { Post } from './post.entity';
-import { UserService } from '../user/user.service';
-
-@Controller('posts')
-@ApiController({
-    entity: Post,
-    routes: {
-        create: {
-            // Включаем автоматическую обработку связей
-            relations: {
-                shouldLoadRelations: true,
-                // Библиотека будет искать сервисы по соглашению (author -> authorService)
-                servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-                // Все связи в DTO будут обработаны
-                relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-            }
-        },
-        get: {},
-        getList: {},
+@Controller('users')
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  name: 'Users',
+  routes: {
+    [EApiRouteType.CREATE]: {
+      authentication: {
+        guard: JwtAuthGuard,
+        bearerStrategies: ['jwt']
+      }
     },
+    [EApiRouteType.UPDATE]: {
+      authentication: {
+        guard: JwtAuthGuard,
+        bearerStrategies: ['jwt']
+      }
+    },
+    [EApiRouteType.DELETE]: {
+      authentication: {
+        guard: JwtAuthGuard,
+        bearerStrategies: ['jwt']
+      }
+    },
+    [EApiRouteType.GET]: {},
+    [EApiRouteType.GET_LIST]: {}
+  }
+})
+export class UserController {
+  constructor(public service: UserService) {}
+}
+```
+
+## Advanced Usage
+
+### Custom Validation
+
+Add custom validators to your DTOs:
+
+```typescript
+import { ApiController, EApiRouteType, EApiDtoType, AllOrNoneOfListedPropertiesValidator } from '@elsikora/nestjs-crud-automator';
+
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  name: 'Users',
+  routes: {
+    [EApiRouteType.CREATE]: {
+      autoDto: {
+        [EApiDtoType.BODY]: {
+          validators: [
+            {
+              constraintClass: AllOrNoneOfListedPropertiesValidator,
+              options: ['firstName', 'lastName']
+            }
+          ]
+        }
+      }
+    }
+  }
+})
+export class UserController {
+  constructor(public service: UserService) {}
+}
+```
+
+### Request Transformation
+
+Automatically transform request data:
+
+```typescript
+import { ApiController, EApiRouteType, EApiDtoType, EApiControllerRequestTransformerType, TRANSFORMER_VALUE_DTO_CONSTANT } from '@elsikora/nestjs-crud-automator';
+
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  name: 'Users',
+  routes: {
+    [EApiRouteType.CREATE]: {
+      request: {
+        transformers: {
+          [EApiDtoType.BODY]: [
+            {
+              key: 'createdBy',
+              type: EApiControllerRequestTransformerType.DYNAMIC,
+              value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
+              shouldSetValueEvenIfMissing: true
+            }
+          ]
+        }
+      }
+    }
+  }
+})
+export class UserController {
+  constructor(public service: UserService) {}
+}
+```
+
+### Handling Relations
+
+Automatically load related entities:
+
+```typescript
+import { ApiController, EApiRouteType, EApiControllerLoadRelationsStrategy } from '@elsikora/nestjs-crud-automator';
+
+@ApiController<PostEntity>({
+  entity: PostEntity,
+  name: 'Posts',
+  routes: {
+    [EApiRouteType.GET]: {
+      request: {
+        relations: {
+          shouldLoadRelations: true,
+          relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+          servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+          shouldForceAllServicesToBeSpecified: false,
+          relationsToLoad: ['author', 'comments']
+        }
+      },
+      response: {
+        relations: ['author', 'comments']
+      }
+    }
+  }
 })
 export class PostController {
-    // Важно: public service и public authorService
-    constructor(
-        public readonly service: PostService,
-        public readonly authorService: UserService, // Сервис для связи 'author'
-    ) {}
+  constructor(
+    public service: PostService,
+    public authorService: UserService,
+    public commentsService: CommentService
+  ) {}
 }
 ```
 
-### Шаг 5: Настройка модуля
+### Custom DTOs
 
-Собираем все вместе в модуле.
+Use custom DTOs instead of auto-generated ones:
 
 ```typescript
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { ApiSubscriberDiscoveryService } from 'nestjs-crud-automator';
-import { User } from './user/user.entity';
-import { Post } from './post/post.entity';
-import { UserService } from './user/user.service';
-import { PostService } from './post/post.service';
-import { PostController } from './post/post.controller';
-import { UserController } from './user/user.controller'; // Предполагаем, что он тоже создан
+import { ApiController, EApiRouteType } from '@elsikora/nestjs-crud-automator';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UserResponseDto } from './dto/user-response.dto';
 
-@Module({
-    imports: [
-        // ... TypeOrmModule.forRoot(...)
-        TypeOrmModule.forFeature([User, Post])
-    ],
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  name: 'Users',
+  routes: {
+    [EApiRouteType.CREATE]: {
+      dto: {
+        body: CreateUserDto,
+        response: UserResponseDto
+      }
+    },
+    [EApiRouteType.UPDATE]: {
+      dto: {
+        body: UpdateUserDto,
+        response: UserResponseDto
+      }
+    }
+  }
+})
+export class UserController {
+  constructor(public service: UserService) {}
+}
+```
+
+### `CorrelationIDResponseBodyInterceptor`: Request Tracing
+
+To simplify debugging and request tracing in complex systems, the library provides the `CorrelationIDResponseBodyInterceptor`. This interceptor should be registered globally in your `main.ts`.
+
+**What it does:**
+
+1.  Intercepts all exceptions in the application (`HttpException` and others).
+2.  Looks for the `x-correlation-id` header in the incoming request headers.
+3.  If the header is found, its value is added to the body of the error response.
+4.  If the header is not found, a new `UUID` is generated, which is added to both the response and the logs (if `LoggerUtility` is used).
+5.  Adds a `timestamp` field to the error response body.
+
+This allows you to link a specific client request with the logs on the server, which is invaluable when investigating incidents.
+
+**Registration:** `main.ts`
+```typescript
+import { CorrelationIDResponseBodyInterceptor } from '@elsikora/nestjs-crud-automator';
+
+async function bootstrap() {
+    const app = await NestFactory.create(AppModule);
+    // ...
+    app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
+    // ...
+    await app.listen(3000);
+}
+```
+
+### Subscriber System (Hooks): Intercepting and Extending Logic
+
+This is the most powerful feature for extending the default behavior. It allows you to "subscribe" to events in the CRUD request lifecycle and execute your code before, after, or in case of an error in the main operation. This is an ideal solution for tasks such as:
+
+-   Auditing.
+-   Sending notifications.
+-   Complex, context-dependent validation.
+-   Data enrichment before saving.
+-   Custom error handling.
+
+#### Enabling the Subscriber System
+
+To get the subscriber system working, you need to follow **three mandatory steps**:
+
+1.  **Import `ApiSubscriberModule`**: This module provides the `ApiSubscriberDiscoveryService`, which is responsible for discovering your subscribers. You need to import it into the root module of your application.
+    `app.module.ts`
+    ```typescript
+    import { ApiSubscriberModule } from "@elsikora/nestjs-crud-automator";
+
+    @Module({
+        imports: [
+            // ... other modules
+            ApiSubscriberModule, // <--- IMPORTANT
+        ],
+        // ...
+    })
+    export class AppModule {}
+    ```
+
+2.  **Make the controller "observable"**: Add the `@ApiControllerObservable()` decorator to the controller class whose events you want to monitor.
+    ```typescript
+    import { ApiController, ApiControllerObservable } from "@elsikora/nestjs-crud-automator";
+
+    @Controller("posts")
+    @ApiController({
+        /* ... */
+    })
+    @ApiControllerObservable() // <--- IMPORTANT
+    export class PostController {
+        /* ... */
+    }
+    ```
+
+3.  **Make the service "observable"**: Similarly, add the `@ApiServiceObservable()` decorator to the service class.
+    ```typescript
+    import { ApiService, ApiServiceBase, ApiServiceObservable } from "@elsikora/nestjs-crud-automator";
+
+    @Injectable()
+    @ApiService({
+        /* ... */
+    })
+    @ApiServiceObservable() // <--- IMPORTANT
+    export class PostService extends ApiServiceBase<Post> {
+        /* ... */
+    }
+    ```
+Without these steps, your subscriber classes will simply not be discovered and called.
+
+#### Two Levels of Interception
+
+There are two types of subscribers that operate at different levels of abstraction:
+
+1.  **`ApiRouteSubscriberBase`** (Controller Level): Intercepts data at the highest level. Ideal for working with the HTTP context: headers, IP address, authenticated user (`request.user`). The hooks of this subscriber are called before and after the main logic of the _controller_.
+2.  **`ApiFunctionSubscriberBase`** (Service Level): Intercepts data immediately before and after calling a repository method (database). Ideal for manipulating data that is to be saved or data that has just been retrieved from the DB.
+
+#### Lifecycle and Execution Order
+
+Understanding the order in which hooks are called is critically important:
+
+1.  **Incoming Request**
+2.  `onBefore...` hooks of **Route** subscribers (executed in `priority` order from highest to lowest).
+3.  Internal controller logic (transformers for `request`, `query`, `body`; validators).
+4.  A service method is called (e.g., `service.create(body)`).
+5.  `onBefore...` hooks of **Function** subscribers (executed in `priority` order).
+6.  The main logic of `@ApiFunction` is executed (e.g., `repository.save(body)`).
+7.  `onAfter...` hooks of **Function** subscribers (executed in **reverse** `priority` order).
+8.  The result is returned to the controller.
+9.  `onAfter...` hooks of **Route** subscribers (executed in **reverse** `priority` order).
+10. **The response is sent to the client.**
+
+In case of an error at any stage, execution is interrupted, and the corresponding `on...Error...` hooks are called.
+
+#### Example 1: Auditing with `ApiRouteSubscriberBase`
+
+**Task**: Log which user created which post.
+
+1.  **Create the subscriber:** `post-audit.subscriber.ts`
+    ```typescript
+    import { Injectable } from "@nestjs/common";
+    import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteExecutionContext } from "@elsikora/nestjs-crud-automator";
+    import { Post } from "./post.entity";
+    import { User } from "../user/user.entity"; // Assuming User is in request.user
+
+    @Injectable()
+    @ApiRouteSubscriber({ entity: Post, priority: 10 }) // Specify entity and priority
+    export class PostAuditSubscriber extends ApiRouteSubscriberBase<Post> {
+        // Hook is called AFTER a post is successfully created in the controller
+        async onAfterCreate(context: IApiSubscriberRouteExecutionContext<Post, Post, { user: User }>): Promise<Post> {
+            const createdPost = context.result; // Result of the controller's operation
+            const currentUser = context.data.user; // Immutable input data, including request.user
+
+            if (createdPost && currentUser) {
+                console.log(`AUDIT: User ${currentUser.id} created Post ${createdPost.id} with title "${createdPost.title}"`);
+            }
+
+            // We don't want to change the result, so we just return it
+            return createdPost;
+        }
+    }
+    ```
+
+2.  **Register the subscriber:** Add `PostAuditSubscriber` to the `providers` of your module.
+
+#### Example 2: Data Enrichment with `ApiFunctionSubscriberBase`
+
+**Task**: When creating a post, automatically generate a `slug` from the `title` before saving it to the database.
+
+1.  **Create the subscriber:** `post-slug.subscriber.ts`
+    ```typescript
+    import { Injectable } from "@nestjs/common";
+    import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, IApiSubscriberFunctionExecutionContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
+    import { Post } from "./post.entity";
+    import slugify from "slugify"; // third-party library
+
+    @Injectable()
+    @ApiFunctionSubscriber({ entity: Post })
+    export class PostSlugSubscriber extends ApiFunctionSubscriberBase<Post> {
+        // Hook is called BEFORE repository.save() is called
+        async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<Post, TApiFunctionCreateProperties<Post>>): Promise<TApiFunctionCreateProperties<Post>> {
+            const postData = context.result; // This is the object that will go into repository.save()
+
+            if (postData.body.title) {
+                // Modify the object, adding the slug
+                postData.body.slug = slugify(postData.body.title, { lower: true, strict: true });
+                console.log(`ENRICHMENT: Generated slug: ${postData.body.slug}`);
+            }
+
+            // Return the modified object, which will be saved
+            return postData;
+        }
+    }
+    ```
+
+2.  **Register the subscriber:** Add `PostSlugSubscriber` to the module's `providers`.
+    ```typescript
+    // ...
     providers: [
         UserService,
         PostService,
-        // Сервис для обнаружения подписчиков (если вы их используете)
-        ApiSubscriberDiscoveryService,
+        PostSlugSubscriber, // <-- Register our subscriber as a provider
     ],
-    controllers: [PostController, UserController],
-})
-export class AppModule {}
-```
-
-### Шаг 6: Запуск и тестирование
-
-Теперь вы можете запустить приложение. У вас будут рабочие эндпоинты `GET /posts`, `GET /posts/:id` и `POST /posts`.
-
-Пример запроса на создание поста:
-`POST /posts`
-```json
-{
-    "title": "My First Post",
-    "author": "a1b2c3d4-e5f6-..." // UUID пользователя
-}
-```
-Библиотека автоматически проверит, существует ли пользователь с таким `id`, и если да, привяжет его к новому посту.
-
-## 4. Основные декораторы: Подробный обзор
-
-### `@ApiController`
-
-Превращает обычный класс NestJS в автоматизированный CRUD-контроллер.
-
-| Свойство | Тип                                    | Описание                                                                                                                  |
-| :------- | :------------------------------------- | :------------------------------------------------------------------------------------------------------------------------ |
-| `entity` | `new () => E`                          | **Обязательно.** Класс-конструктор сущности TypeORM, которой управляет контроллер.                                         |
-| `routes` | `Record<EApiRouteType, RouteConfig<E>>` | **Обязательно.** Объект, где ключ - это тип маршрута (`create`, `getList` и т.д.), а значение - его конфигурация. |
-
-### `@ApiService`
-
-Связывает сервис с сущностью и включает его в механизм `nestjs-crud-automator`.
-
-| Свойство | Тип           | Описание                                                       |
-| :------- | :------------ | :------------------------------------------------------------- |
-| `entity` | `new () => E` | **Обязательно.** Класс-конструктор сущности, с которой работает сервис. |
-
-### `@ApiFunction`
-
-Декоратор-маркер для методов внутри `@ApiService`. Сообщает библиотеке, что она должна предоставить реализацию для этого метода.
-
-```typescript
-@ApiFunction()
-public getList; // Реализация будет предоставлена
-```
-
-### `@ApiPropertyDescribe`
-
-Самый важный и подробный декоратор. Применяется к свойствам сущности и управляет их поведением в DTO, валидации и Swagger-документации. Его конфигурация подробно рассмотрена в [секции 6](#6-конфигурация-свойств-apipropertydescribe).
-
-## 5. Детальная конфигурация маршрутов
-
-### Структура конфигурации маршрута
-
-Каждый ключ в объекте `routes` декоратора `@ApiController` принимает объект конфигурации.
-
-```typescript
-// TApiControllerPropertiesRoute<E, R>
-{
-    dto?: { /* ... */ },
-    autoDto?: { /* ... */ },
-    authentication?: { /* ... */ },
-    relations?: { /* ... */ },
-    transformers?: { /* ... */ },
-    validators?: { /* ... */ }
-}
-```
-
-### Управление DTO (`dto` и `autoDto`)
-
-Вы можете либо предоставить свои собственные DTO, либо настроить их автоматическую генерацию.
-
--   **`dto`**: Используйте, если у вас есть готовые классы DTO.
-    ```typescript
-    dto: {
-        query: GetPostsQueryDto,    // для GET /posts
-        response: PostResponseDto,  // для ответа
-    }
-    ```
--   **`autoDto`**: Используйте для настройки генерации.
-    ```typescript
-    autoDto: {
-        // Добавить кастомные class-validator'ы в сгенерированный DTO
-        body: {
-            validators: [{ constraintClass: CustomBodyValidator }]
-        }
-    }
+    // ...
     ```
 
-### Аутентификация (`authentication`)
+### Swagger Documentation
 
-Привязывает гвард аутентификации к маршруту.
+The library automatically generates Swagger/OpenAPI documentation for all endpoints. To enable it in your NestJS application:
 
 ```typescript
-authentication: {
-    guard: JwtAuthGuard, // Экземпляр гварда
-    // Опционально: тип аутентификации для документации
-    type: EApiAuthenticationType.USER,
+import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  
+  const config = new DocumentBuilder()
+    .setTitle('Your API')
+    .setDescription('API description')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+    
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
+
+  await app.listen(3000);
 }
+bootstrap();
 ```
 
-### Обработка связей (`relations`)
+### Custom Filtering
 
-Включает и настраивает автоматическую загрузку связанных сущностей по их ID.
-
-| Свойство                            | Тип                                   | Описание                                                                                                                |
-| :---------------------------------- | :------------------------------------ | :---------------------------------------------------------------------------------------------------------------------- |
-| `shouldLoadRelations`               | `boolean`                             | Включает или выключает эту функцию.                                                                                      |
-| `relationsLoadStrategy`             | `EApiControllerLoadRelationsStrategy` | `AUTO`: обрабатывать все связи. `MANUAL`: обрабатывать только те, что указаны в `relationsToLoad`.                          |
-| `relationsToLoad`                   | `Array<keyof E>`                      | **Обязательно для `MANUAL`**. Список связей для обработки.                                                                  |
-| `servicesLoadStrategy`              | `EApiControllerLoadRelationsStrategy` | `AUTO`: искать сервисы по соглашению (`author` -> `authorService`). `MANUAL`: использовать маппинг из `relationsServices`. |
-| `relationsServices`                 | `Record<keyof E, string>`             | **Обязательно для `MANUAL`**. Объект, где ключ - имя связи, а значение - ключ сервиса в контроллере.                       |
-| `shouldForceAllServicesToBeSpecified`| `boolean`                             | В режиме `AUTO`, если `true`, выдаст ошибку, если сервис для связи не найден. По умолчанию `false`.                           |
-
-
-### Трансформация данных (`transformers`)
-
-Позволяет изменять объекты `request`, `query`, `body` или `response`.
-
--   `type`: `STATIC` или `DYNAMIC`.
--   `key`: Имя свойства, которое нужно добавить или изменить.
--   `value`: Значение (для `STATIC`) или константа из `TRANSFORMER_VALUE_DTO_CONSTANT` (для `DYNAMIC`).
--   `shouldSetValueEvenIfMissing`: Если `true`, добавит свойство, даже если его не было в объекте.
-
-Пример: Добавить IP-адрес клиента в тело запроса при создании.
-```typescript
-transformers: {
-    body: [{
-        type: EApiControllerRequestTransformerType.DYNAMIC,
-        key: 'creatorIp',
-        value: TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_IP,
-        shouldSetValueEvenIfMissing: true,
-    }]
-}
-```
-
-### Пользовательская валидация (`validators`)
-
-Добавляет асинхронные функции валидации.
+The library provides advanced filtering capabilities for list endpoints:
 
 ```typescript
-validators: [{
-    // Функция, возвращающая true или false. Может быть асинхронной.
-    validationFunction: async (body, // or query, or params
-    ) => {
-        // ...
-        return true;
-    },
-    // Исключение, которое будет выброшено при false.
-    exception: ConflictException,
-    // Ключ для генерации сообщения об ошибке.
-    errorType: EErrorStringAction.ALREADY_EXISTS,
-}]
+// GET /users?username[operator]=cont&username[value]=john&createdAt[operator]=between&createdAt[values]=["2023-01-01","2023-12-31"]
 ```
 
-## 6. Конфигурация свойств (`@ApiPropertyDescribe`)
+This query would search for users with "john" in their username and created between Jan 1 and Dec 31, 2023.
 
-### Дискриминационное объединение
+## 🛣 Roadmap
+## Roadmap
 
-Конфигурация `@ApiPropertyDescribe` — это [дискриминационное объединение](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions). Свойство `type` (`EApiPropertyDescribeType`) действует как дискриминант, определяя, какие другие свойства доступны в объекте.
+| Task / Feature | Status |
+|---------------|--------|
+| Core CRUD operations | ✅ Done |
+| TypeORM integration | ✅ Done |
+| Swagger/OpenAPI documentation | ✅ Done |
+| Validation with class-validator | ✅ Done |
+| Transformation with class-transformer | ✅ Done |
+| Advanced filtering for GET_LIST operation | ✅ Done |
+| Authentication guard integration | ✅ Done |
+| Request/response transformers | ✅ Done |
+| Relation loading strategies | ✅ Done |
+| Custom validator integration | ✅ Done |
+| Pagination support | ✅ Done |
+| Error handling with standardized responses | ✅ Done |
+| Support for TypeScript decorators | ✅ Done |
+| Support for ESM and CommonJS modules | ✅ Done |
+| Subscriber System | ✅ Done |
+| MongoDB support | 🚧 In Progress |
+| GraphQL integration | 🚧 In Progress |
+| Support for soft deletes | 🚧 In Progress |
+| Role-based access control | 🚧 In Progress |
+| Cache integration | 🚧 In Progress |
+| Audit logging middleware | 🚧 In Progress |
+| Bulk operations (create many, update many) | 🚧 In Progress |
+| Query complexity analyzer | 🚧 In Progress |
+| Rate limiting enhancements | 🚧 In Progress |
+| Custom parameter decorators | 🚧 In Progress |
 
-### Общие свойства
+## ❓ FAQ
+## Frequently Asked Questions
 
-Эти свойства доступны для **всех** типов `EApiPropertyDescribeType`.
+### How does NestJS-Crud-Automator compare to @nestjsx/crud?
 
-| Свойство         | Тип                                                   | Описание                                                                                                                                                                                                         |
-| :--------------- | :---------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`           | `EApiPropertyDescribeType`                            | **Дискриминант.** Определяет основной тип свойства (`STRING`, `NUMBER`, `OBJECT` и т.д.).                                                                                                                         |
-| `description`    | `string`                                              | Описание для Swagger-документации.                                                                                                                                                                               |
-| `isNullable`     | `boolean`                                             | Если `true`, помечает свойство как `nullable` в Swagger. По умолчанию `false`.                                                                                                                                   |
-| `isArray`        | `boolean`                                             | Если `true`, помечает свойство как массив. Позволяет использовать `minItems`, `maxItems`.                                                                                                                         |
-| `example`        | `any`                                                 | Пример значения для Swagger.                                                                                                                                                                                     |
-| `properties`     | `TApiPropertyDescribePropertiesBaseProperties`        | Позволяет переопределить поведение свойства для конкретных маршрутов и типов DTO. См. [ниже](#переопределение-свойств-properties). |
+While @nestjsx/crud provides similar functionality, NestJS-Crud-Automator offers more comprehensive TypeScript integration, better Swagger documentation, and more flexible customization options. It's designed from the ground up to work with the latest NestJS and TypeORM versions.
 
-### Конфигурация по типам
+### Can I customize the generated endpoints?
 
-В зависимости от `type`, становятся доступны дополнительные свойства.
+Yes! The library provides multiple ways to customize your endpoints:
+1. You can disable specific routes
+2. Add authentication guards to specific routes
+3. Customize DTO validation and transformation
+4. Add custom request validators
+5. Override the auto-generated DTOs with your own
 
--   **`type: EApiPropertyDescribeType.STRING`**
-    -   `format`: `EApiPropertyStringType` (`EMAIL`, `URL`, `UUID` и т.д.) - определяет и формат Swagger, и декоратор `class-validator` (`@IsEmail()`, `@IsUrl()`).
-    -   `minLength`, `maxLength`, `pattern`: Стандартные правила валидации строк.
--   **`type: EApiPropertyDescribeType.NUMBER`**
-    -   `format`: `EApiPropertyNumberType` (`INTEGER`, `DOUBLE`).
-    -   `minimum`, `maximum`, `multipleOf`: Стандартные правила валидации чисел.
--   **`type: EApiPropertyDescribeType.DATE`**
-    -   `format`: `EApiPropertyDateType` (`DATE`, `DATE_TIME`, `TIME`).
-    -   `identifier`: `EApiPropertyDateIdentifier` - Семантический идентификатор (`CREATED_AT`, `UPDATED_AT`), который позволяет библиотеке автоматически создавать поля для фильтрации по диапазону (`createdAtFrom`, `createdAtTo`).
--   **`type: EApiPropertyDescribeType.OBJECT`**
-    -   `dataType`: Либо класс DTO для вложенного объекта, либо конфигурация для полиморфного объекта (`oneOf`).
-    -   `discriminator`: Конфигурация дискриминатора для `oneOf`.
+### Does it support pagination?
 
-### Переопределение свойств (`properties`)
+Yes, the GET_LIST operation automatically includes pagination with limit and page parameters, and returns count, currentPage, totalCount, and totalPages in the response.
 
-Это мощнейший механизм, позволяющий одному `@ApiPropertyDescribe` определять разное поведение для одного и того же поля в разных контекстах.
+### How is filtering implemented?
 
-```typescript
-@ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.STRING,
-    // ...
-    properties: {
-        // Контекст: маршрут create (POST /)
-        [EApiRouteType.CREATE]: {
-            // Контекст: тело запроса
-            [EApiDtoType.BODY]: {
-                // Поле обязательно при создании
-                isRequired: true,
-                // Но скрыто в ответе
-                isExpose: false,
-            }
-        },
-        // Контекст: маршрут update (PUT/PATCH /:id)
-        [EApiRouteType.UPDATE]: {
-            [EApiDtoType.BODY]: {
-                // Поле необязательно при обновлении
-                isRequired: false,
-            }
-        },
-        // Контекст: маршрут getList (GET /)
-        [EApiRouteType.GET_LIST]: {
-            [EApiDtoType.QUERY]: {
-                // Разрешить сортировку по этому полю
-                useAsOrderByFilter: true,
-            }
-        }
-    }
-})
-```
+Filtering is implemented using a flexible operator-based approach that supports various operations like equals, contains, greater than, less than, between, etc. Filters can be applied to any property of your entity.
 
-## 7. Продвинутые возможности
+### Can I use this with NestJS microservices?
 
-### Динамическая генерация DTO
+Yes, while the library primarily targets REST APIs, you can use the generated DTOs and validation logic in microservice implementations as well.
 
-Для каждого маршрута библиотека генерирует до 4-х классов DTO: `Request` (для параметров пути, например, `:id`), `Query` (для `GET` запросов), `Body` и `Response`.
+### Does it support file uploads?
 
--   **`GET_LIST` Query DTO**: Самый сложный. Кроме пагинации (`limit`, `page`) и сортировки (`orderBy`, `orderDirection`), он включает поля для фильтрации для каждого свойства, помеченного в `@ApiPropertyDescribe`. Фильтрация имеет формат:
-    -   `имяПоля[value]=значение`
-    -   `имяПоля[values]=значение1,значение2`
-    -   `имяПоля[operator]=eq` (оператор из `EFilterOperation`)
+The core library doesn't include file upload functionality, but you can easily extend the generated controllers to add file upload capabilities using NestJS's built-in features.
 
-### Полиморфные DTO (`oneOf`)
+### Is it compatible with custom database repositories?
 
-Вы можете определять свойства, которые могут принимать одну из нескольких форм, используя `discriminator`.
+Yes, as long as your repository follows the TypeORM Repository pattern, it will work with NestJS-Crud-Automator.
 
-```typescript
-@ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.OBJECT,
-    // ...
-    dataType: [NotificationEmailDto, NotificationSmsDto],
-    discriminator: {
-        propertyName: 'type', // Поле, по которому определяется тип
-        mapping: {
-            'email': NotificationEmailDto,
-            'sms': NotificationSmsDto,
-        }
-    }
-})
-notification: NotificationEmailDto | NotificationSmsDto;
-```
-Библиотека автоматически применит валидатор `MustMatchOneOfSchemasValidator` и сгенерирует корректную `oneOf` схему для Swagger.
+## 🔒 License
+This project is licensed under **MIT License
 
-### Система подписчиков (Hooks)
+Copyright (c) 2025 ElsiKora
 
-Это реализация паттерна "Наблюдатель" для встраивания в жизненный цикл запроса.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
--   **`ApiRouteSubscriberBase`**: Перехватывает события на уровне контроллера. Имеет доступ к HTTP-контексту.
--   **`ApiFunctionSubscriberBase`**: Перехватывает события на уровне сервиса. Идеально для логики, близкой к БД.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-**Порядок выполнения:**
-1.  `onBefore...` хуки Route-подписчиков (по приоритету).
-2.  Логика контроллера (трансформация, валидация).
-3.  Вызов метода сервиса.
-4.  `onBefore...` хуки Function-подписчиков (по приоритету).
-5.  Логика сервиса (`@ApiFunction`).
-6.  `onAfter...` хуки Function-подписчиков (в обратном порядке приоритета).
-7.  Возврат результата в контроллер.
-8.  `onAfter...` хуки Route-подписчиков (в обратном порядке приоритета).
-9.  Отправка ответа клиенту.
-
-## 8. Архитектурный обзор
-
-### Хранилище метаданных (`MetadataStorage`)
-
-Это глобальный синглтон, который служит центральным реестром для всей информации, собранной из декораторов `@ApiPropertyDescribe`. Это позволяет отделить фазу сбора информации (когда NestJS сканирует классы) от фазы ее использования (когда генерируются DTO и контроллеры).
-
-### Конвейер генерации DTO
-```mermaid
-graph TD
-    A[DtoGenerate] --> B{DtoIsShouldBeGenerated?};
-    B -->|Yes| C[Iterate Entity Properties];
-    C --> D{DtoIsPropertyShouldBeMarked?};
-    D -->|Yes| E[DtoGetDecoratorConfig];
-    E --> F[DtoBuildDecorator];
-    F --> G[DtoGenerateDecorator Factory];
-    G --> H[Specific Factory e.g. String];
-    H --> I[Create Decorator Array];
-    I --> A;
-    D -->|No| C;
-    B -->|No| J[End];
-    C --> K[Build DTO Class];
-```
-
-### Система подписчиков
-```mermaid
-graph TD
-    subgraph App Startup
-        A(Provider with @Api...Subscriber) --> B[DiscoveryService];
-        B --> C[apiSubscriberRegistry.register];
-    end
-    subgraph Request Lifecycle
-        D[Incoming Request] --> E[ApiSubscriberExecutor];
-        E -->|Gets subscribers for entity| C;
-        E --> F[Execute Hooks in Priority Order];
-        F --> G[Call Original Method];
-        G --> H[Execute Post-Hooks];
-        H --> I[Return Response];
-    end
-```
-
-### Пользовательские валидаторы
-
-Библиотека поставляется с набором мощных, многоразовых валидаторов `class-validator`.
--   `HasPairedCustomSuffixesFieldsValidator`: Сердце механизма фильтрации. Он использует регулярное выражение для разбора полей вида `name[suffix]`, группирует их по `name` и затем для каждой группы проверяет логику:
-    1.  Если есть `value`/`values`, должен быть и `operator`.
-    2.  Если есть `operator`, должен быть хотя бы один `value`/`values` (кроме операторов типа `isnull`).
-    3.  Проверяет, что тип значения (массив или одиночное) соответствует требованиям оператора (например, `in` требует массив, `eq` - одиночное значение).
--   `MustMatchOneOfSchemasValidator`: Валидирует полиморфные объекты. Проверяет наличие поля-дискриминатора и соответствие его значения одному из ключей в `mapping`.
-
-## 9. Справочник по API
-*(Этот раздел можно расширить, детально описав каждый enum и сложный тип)*
-
-### Перечисления (`Enums`)
--   `EApiRouteType`: Типы маршрутов (`CREATE`, `GET_LIST`, ...).
--   `EApiDtoType`: Типы DTO (`BODY`, `QUERY`, ...).
--   `EApiPropertyDescribeType`: Основные типы свойств (`STRING`, `NUMBER`, ...).
--   `EFilterOperation`: Все возможные операторы для фильтрации (`EQ`, `GT`, `CONT`, ...).
--   ... и многие другие.
-
-### Типы (`Types`)
--   `TApiControllerPropertiesRoute`: Конфигурация одного маршрута.
--   `TApiPropertyDescribeProperties`: Конфигурация одного свойства.
--   ... и другие.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.**.

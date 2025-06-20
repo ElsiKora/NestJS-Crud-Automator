@@ -15,13 +15,9 @@ import { LoggerUtility } from "@utility/logger.utility";
 
 /**
  * Creates a decorator that adds entity list retrieval functionality to a service method
- * @param {IApiFunctionProperties} properties - Configuration properties for the get-list function
+ * @template E The entity type
+ * @param {IApiFunctionProperties<E>} properties - Configuration properties for the get-list function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle entity list retrieval
- */
-
-/**
- *
- * @param properties
  */
 export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
@@ -59,7 +55,27 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 }
 
 /**
+ * Calculates the current page number based on the provided properties.
+ * @template E The entity type
+ * @param {TApiFunctionGetListProperties<E>} properties - The properties for the get-list function.
+ * @param {number} itemsLength - The number of items on the current page.
+ * @returns {number} The current page number.
+ */
+function calculateCurrentPage<E extends IApiBaseEntity>(properties: TApiFunctionGetListProperties<E>, itemsLength: number): number {
+	if (itemsLength === 0) {
+		return 0;
+	}
+
+	if (properties.skip) {
+		return Math.ceil(properties.skip / (properties.take ?? 1)) + 1;
+	}
+
+	return 1;
+}
+
+/**
  * Executes the entity list retrieval operation with error handling
+ * @template E The entity type
  * @param {IApiFunctionGetListExecutorProperties<E>} options - Properties required for entity list retrieval
  * @returns {Promise<IApiGetListResponseResult<E>>} The paginated list of entities with count information
  * @throws {InternalServerErrorException} If the list retrieval operation fails
@@ -80,8 +96,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListEx
 
 		const result: IApiGetListResponseResult<E> = {
 			count: items.length,
-			// eslint-disable-next-line @elsikora/prettier/prettier,@elsikora/sonar/no-nested-conditional
-			currentPage: items.length === 0 ? 0 : (properties.skip ? Math.ceil(properties.skip / (properties.take ?? 1)) + 1 : 1),
+			currentPage: calculateCurrentPage<E>(properties, items.length),
 			items,
 			totalCount,
 			totalPages: Math.ceil(totalCount / (properties.take ?? 1)),

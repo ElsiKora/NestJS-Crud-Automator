@@ -15,13 +15,9 @@ import { LoggerUtility } from "@utility/logger.utility";
 
 /**
  * Creates a decorator that adds functionality to retrieve multiple entities to a service method
- * @param {IApiFunctionProperties} properties - Configuration properties for the get-many function
+ * @template E The entity type
+ * @param {IApiFunctionProperties<E>} properties - Configuration properties for the get-many function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle retrieving multiple entities
- */
-
-/**
- *
- * @param properties
  */
 export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
@@ -65,6 +61,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 
 /**
  * Executes the retrieval of multiple entities with error handling
+ * @template E The entity type
  * @param {IApiFunctionGetManyExecutorProperties<E>} options - Properties required for retrieving multiple entities
  * @returns {Promise<Array<E>>} An array of retrieved entity instances
  * @throws {NotFoundException} If no entities are found

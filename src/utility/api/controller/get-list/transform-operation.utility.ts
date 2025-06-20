@@ -10,12 +10,6 @@ import { Between, Equal, ILike, In, IsNull, LessThan, LessThanOrEqual, Like, Mor
  * @param {any} value - The value to filter by
  * @returns {FindOperator<any>} The TypeORM FindOperator for the specified operation and value
  */
-
-/**
- *
- * @param operation
- * @param value
- */
 export function ApiControllerGetListTransformOperation(operation: EFilterOperation, value: unknown): FindOperator<unknown> {
 	switch (operation) {
 		case EFilterOperation.BETWEEN: {

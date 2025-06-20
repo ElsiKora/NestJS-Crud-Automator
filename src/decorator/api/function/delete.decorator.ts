@@ -17,13 +17,9 @@ import { ApiFunctionGet } from "./get.decorator";
 
 /**
  * Creates a decorator that adds entity deletion functionality to a service method
- * @param {IApiFunctionProperties} properties - Configuration properties for the delete function
+ * @template E The entity type
+ * @param {IApiFunctionProperties<E>} properties - Configuration properties for the delete function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle entity deletion
- */
-
-/**
- *
- * @param properties
  */
 export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
@@ -79,6 +75,7 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 
 /**
  * Executes the entity deletion operation with error handling
+ * @template E The entity type
  * @param {IApiFunctionDeleteExecutorProperties<E>} options - Properties required for entity deletion
  * @returns {Promise<E>} The deleted entity instance
  * @throws {InternalServerErrorException} If the deletion operation fails

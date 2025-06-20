@@ -15,6 +15,7 @@ import { LoggerUtility } from "@utility/logger.utility";
 
 /**
  * Creates a decorator that adds entity creation functionality to a service method
+ * @template E The entity type
  * @param {IApiFunctionProperties<E>} properties - Configuration properties for the create function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle entity creation
  */
@@ -55,6 +56,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 
 /**
  * Executes the entity creation operation with error handling
+ * @template E The entity type
  * @param {IApiFunctionCreateExecutorProperties<E>} options - Properties required for entity creation
  * @returns {Promise<E>} The created entity instance
  * @throws {InternalServerErrorException} If the creation operation fails
