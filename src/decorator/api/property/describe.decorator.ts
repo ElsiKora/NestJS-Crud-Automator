@@ -85,7 +85,7 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
  * ```
  */
 export function ApiPropertyDescribe(properties: TApiPropertyDescribeProperties) {
-	return (target: Record<any, any>, propertyKey: string): void => {
+	return (target: Record<never, unknown>, propertyKey: string): void => {
 		const entityName: string = target.constructor.name;
 		MetadataStorage.getInstance().setMetadata(entityName, propertyKey, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY, properties);
 	};

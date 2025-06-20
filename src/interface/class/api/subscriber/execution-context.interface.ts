@@ -4,12 +4,12 @@ export interface IApiSubscriberExecutionContext<E extends IApiBaseEntity, Result
 	/**
 	 * An immutable container for metadata (e.g., transaction manager, HTTP headers)
 	 */
-	readonly data: Input;
+	readonly DATA: Input;
 
 	/**
 	 * The entity instance the operation is being performed on.
 	 */
-	readonly entity: E;
+	readonly ENTITY: E;
 
 	/**
 	 * The mutable data payload that subscribers can modify.

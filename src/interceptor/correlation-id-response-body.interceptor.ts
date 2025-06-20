@@ -10,7 +10,7 @@ import { catchError } from "rxjs/operators";
 
 @Injectable()
 export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
-	intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+	intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
 		return next.handle().pipe(
 			catchError((error: unknown) => {
 				if (error instanceof ThrottlerException) {
@@ -20,7 +20,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 
 					correlationId ??= randomUUID();
 
-					let customErrorResponse: Record<string, any> = {};
+					let customErrorResponse: Record<string, unknown> = {};
 					customErrorResponse.statusCode = HttpStatus.TOO_MANY_REQUESTS;
 
 					if (typeof errorResponse === "object" && errorResponse != null) {
@@ -40,7 +40,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 
 					correlationId ??= randomUUID();
 
-					let customErrorResponse: Record<string, any> = {};
+					let customErrorResponse: Record<string, unknown> = {};
 
 					if (typeof errorResponse === "object" && errorResponse != null) {
 						customErrorResponse = { ...errorResponse };
@@ -63,7 +63,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 
 					const internalError: HttpException | InternalServerErrorException = error as HttpException | InternalServerErrorException;
 					const errorResponse: string = "Internal server error";
-					const customErrorResponse: Record<string, any> = {};
+					const customErrorResponse: Record<string, unknown> = {};
 					customErrorResponse.statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
 					customErrorResponse.message = errorResponse;
 					customErrorResponse.error = "Internal server error";

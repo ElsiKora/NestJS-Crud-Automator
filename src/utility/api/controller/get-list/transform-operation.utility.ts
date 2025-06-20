@@ -16,11 +16,11 @@ import { Between, Equal, ILike, In, IsNull, LessThan, LessThanOrEqual, Like, Mor
  * @param operation
  * @param value
  */
-export function ApiControllerGetListTransformOperation(operation: EFilterOperation, value: any): FindOperator<any> {
+export function ApiControllerGetListTransformOperation(operation: EFilterOperation, value: unknown): FindOperator<unknown> {
 	switch (operation) {
 		case EFilterOperation.BETWEEN: {
 			// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
-			const [start, end]: any = Array.isArray(value) ? value : [null, null];
+			const [start, end]: Array<unknown> = Array.isArray(value) ? value : [null, null];
 
 			return Between(start, end);
 		}
@@ -70,7 +70,7 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 		}
 
 		case EFilterOperation.INL: {
-			return In(Array.isArray(value) ? value.map((v: any) => ILike(v)) : [ILike(value)]);
+			return In(Array.isArray(value) ? value.map((v: unknown) => ILike(v)) : [ILike(value)]);
 		}
 
 		case EFilterOperation.ISNULL: {
@@ -98,7 +98,7 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 		}
 
 		case EFilterOperation.NOTINL: {
-			return Not(In(Array.isArray(value) ? value.map((v: any) => ILike(v)) : [ILike(value)]));
+			return Not(In(Array.isArray(value) ? value.map((v: unknown) => ILike(v)) : [ILike(value)]));
 		}
 
 		case EFilterOperation.NOTNULL: {

@@ -1,5 +1,6 @@
-import { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import { IApiFunctionSubscriberProperties } from "@interface/decorator/api/subscriber";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiFunctionSubscriberProperties } from "@interface/decorator/api/subscriber";
+
 import { SUBSCRIBER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/subscriber.constant";
 
 /**

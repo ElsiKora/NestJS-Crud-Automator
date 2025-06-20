@@ -3,9 +3,9 @@ import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctio
 import type { EntityManager, Repository } from "typeorm";
 
 export interface IApiFunctionUpdateExecutorProperties<E extends IApiBaseEntity> {
-	constructor: new (...arguments_: Array<any>) => any;
+	constructor: new (...arguments_: Array<unknown>) => unknown;
 	criteria: TApiFunctionUpdateCriteria<E>;
-	entity: new (...arguments_: Array<any>) => E;
+	entity: new (...arguments_: Array<unknown>) => E;
 	eventManager?: EntityManager;
 	getFunction: (properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager) => Promise<E>;
 	properties: TApiFunctionUpdateProperties<E>;

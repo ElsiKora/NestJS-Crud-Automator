@@ -96,9 +96,9 @@ export function ApiPropertyEnum(properties: TApiPropertyEnumProperties): <Y>(tar
  * @private
  */
 function buildApiPropertyOptions(properties: TApiPropertyEnumProperties): ApiPropertyOptions {
-	const apiPropertyOptions: ApiPropertyOptions & Record<string, any> = {
+	const apiPropertyOptions: ApiPropertyOptions & Record<string, unknown> = {
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
-
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: !!properties.isNullable,
 	};
 
@@ -150,7 +150,7 @@ function buildDecorators(properties: TApiPropertyEnumProperties, apiPropertyOpti
 function buildFormatDecorators(properties: TApiPropertyEnumProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
-
+	// eslint-disable-next-line @elsikora/typescript/naming-convention
 	decorators.push(IsEnum(properties.enum, { each: isArray }));
 
 	return decorators;

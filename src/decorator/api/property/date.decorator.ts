@@ -82,7 +82,7 @@ function buildApiPropertyOptions(properties: TApiPropertyDateProperties): ApiPro
 
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${String(properties.entity.name)} ${getDescription(properties.identifier)}`,
-
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: !!properties.isNullable,
 		type: EApiPropertyDataType.STRING,
 	};
@@ -138,6 +138,7 @@ function buildFormatDecorators(properties: TApiPropertyDateProperties): Array<Pr
 	const isArray: boolean = properties.isArray ?? false;
 
 	if (!properties.isResponse) {
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		decorators.push(IsDate({ each: isArray }));
 	}
 

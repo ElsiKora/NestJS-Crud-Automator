@@ -16,7 +16,7 @@ import { ApiControllerGetListTransformOperation } from "./transform-operation.ut
  * @returns {FindOptionsWhere<E>} The TypeORM filter object for the query
  * @template E - The entity type
  */
-export function ApiControllerGetListTransformFilter<E>(query: Record<string, any>, entityMetadata: IApiEntity<E>): FindOptionsWhere<E> {
+export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>): FindOptionsWhere<E> {
 	const filter: FindOptionsWhere<E> = {};
 
 	for (const fullKey of Object.keys(query)) {
@@ -30,8 +30,8 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, any
 
 		if (cleanField === "value" || cleanField === "values") {
 			const operation: EFilterOperation = query[`${String(key)}[operator]`] as EFilterOperation;
-			// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
-			const value: any = query[fullKey];
+
+			const value: unknown = query[fullKey];
 
 			if (!operation || !key || value === undefined || value === null) continue;
 

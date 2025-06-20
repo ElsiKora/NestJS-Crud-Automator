@@ -71,38 +71,42 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 			for (const property of markedProperties) {
 				if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
 					Object.defineProperty(this, `${property.name as string}[value]`, {
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
 						value: undefined,
-
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
 
 					Object.defineProperty(this, `${property.name as string}[values]`, {
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
 						value: undefined,
-
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
 
 					Object.defineProperty(this, `${property.name as string}[operator]`, {
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
 						value: undefined,
-
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
 				} else {
 					Object.defineProperty(this, property.name, {
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
-
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						enumerable: true,
 						value: undefined,
-
+						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
 				}
@@ -154,19 +158,22 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 
 	if (dtoConfig?.validators) {
 		for (const validator of dtoConfig.validators) {
-			Validate(validator.constraintClass as unknown as () => any, validator.options)(GeneratedDTO.prototype, "object");
+			Validate(validator.constraintClass as unknown as () => unknown, validator.options)(GeneratedDTO.prototype, "object");
 		}
 	}
 
 	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
 		Object.defineProperty(GeneratedDTO.prototype, "object", {
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			configurable: true,
 
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			enumerable: true,
 			value: function (this: InstanceType<typeof GeneratedDTO>): InstanceType<typeof GeneratedDTO> {
 				return this;
 			},
 
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			writable: true,
 		});
 

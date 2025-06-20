@@ -4,7 +4,7 @@ import type { TApiPropertyDescribeBaseProperties } from "@type/decorator/api/pro
 
 export type TApiPropertyDescribeEnumProperties = {
 	description: string;
-	enum: Record<string, any>;
+	enum: Record<string, unknown>;
 	enumName: string;
 	type: EApiPropertyDescribeType.ENUM;
 } & (TApiPropertyDescribeArrayOptionalProperties | TApiPropertyDescribeArrayRequiredProperties) &

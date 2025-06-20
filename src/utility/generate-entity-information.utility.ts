@@ -63,14 +63,14 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 	const entityColumns: Array<IApiEntityColumn<E>> = [
 		...columnList.map(({ options, propertyName }: ColumnMetadataArgs) => ({
 			isPrimary: Boolean(options.primary),
-			metadata: (storage.getMetadata(entity.name ?? "UnknownResource", propertyName) as Record<string, any>) || undefined,
+			metadata: (storage.getMetadata(entity.name ?? "UnknownResource", propertyName) as Record<string, unknown>) || undefined,
 			name: propertyName as keyof E,
 			// eslint-disable-next-line @elsikora/typescript/no-non-null-assertion
 			type: options.type!,
 		})),
 		...relationList.map(({ propertyName, relationType }: RelationMetadataArgs) => ({
 			isPrimary: false,
-			metadata: (storage.getMetadata(entity.name ?? "UnknownResource", propertyName) as Record<string, any>) || undefined,
+			metadata: (storage.getMetadata(entity.name ?? "UnknownResource", propertyName) as Record<string, unknown>) || undefined,
 			name: propertyName as keyof E,
 			type: relationType as ColumnType,
 		})),

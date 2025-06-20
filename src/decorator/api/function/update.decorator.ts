@@ -26,21 +26,21 @@ import { ApiFunctionGet } from "./get.decorator";
  */
 export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
-	const getDecorator: (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity });
+	const getDecorator: (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity });
 	let getFunction: (properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager) => Promise<E>;
 
 	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (this: { repository: Repository<E> }, criteria: TApiFunctionUpdateCriteria<E>, updateProperties: TApiFunctionUpdateProperties<E>, eventManager?: EntityManager): Promise<E> {
-			const entityInstance = new entity();
+			const entityInstance: E = new entity();
 
-			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionUpdateProperties<E>, any> = {
-				data: { criteria, eventManager, repository: this.repository },
-				entity: entityInstance,
-				functionType: EApiFunctionType.UPDATE,
+			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionUpdateProperties<E>> = {
+				DATA: { criteria, eventManager, repository: this.repository },
+				ENTITY: entityInstance,
+				FUNCTION_TYPE: EApiFunctionType.UPDATE,
 				result: updateProperties,
 			};
 
-			const result = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => any, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE as any, executionContext);
+			const result: TApiFunctionUpdateProperties<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE, executionContext);
 
 			if (result) {
 				executionContext.result = result;
@@ -49,7 +49,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => any, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR as any, executionContext, new Error("Repository is not available in this context"));
+				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, executionContext, new Error("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}
@@ -69,7 +69,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 				}
 			}
 
-			return executor<E>({ constructor: this.constructor as new () => any, criteria, entity, eventManager, getFunction, properties: executionContext.result!, repository });
+			return executor<E>({ constructor: this.constructor as new () => unknown, criteria, entity, eventManager, getFunction, properties: executionContext.result ?? ({} as unknown as TApiFunctionUpdateProperties<E>), repository });
 		};
 
 		return descriptor;
@@ -107,14 +107,14 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			result = await repository.save(mergedEntity);
 		}
 
-		const executionContext: IApiSubscriberFunctionExecutionContext<E, E, any> = {
-			data: { criteria, eventManager, repository },
-			entity: result,
-			functionType: EApiFunctionType.UPDATE,
+		const executionContext: IApiSubscriberFunctionExecutionContext<E, E> = {
+			DATA: { criteria, eventManager, repository },
+			ENTITY: result,
+			FUNCTION_TYPE: EApiFunctionType.UPDATE,
 			result: result,
 		};
 
-		const afterResult = await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, result, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER as any, executionContext);
+		const afterResult: E | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, result, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER, executionContext);
 
 		if (afterResult) {
 			return afterResult;
@@ -122,20 +122,22 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 
 		return result;
 	} catch (error) {
-		const entityInstance = new entity();
-		const executionContext: IApiSubscriberFunctionExecutionContext<E, never, any> = {
-			data: { criteria, eventManager, properties, repository },
-			entity: entityInstance,
-			functionType: EApiFunctionType.UPDATE,
+		const entityInstance: E = new entity();
+
+		const executionContext: IApiSubscriberFunctionExecutionContext<E, never> = {
+			DATA: { criteria, eventManager, properties, repository },
+			ENTITY: entityInstance,
+			FUNCTION_TYPE: EApiFunctionType.UPDATE,
 		};
 
 		if (error instanceof HttpException) {
-			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER_ERROR as any, executionContext, error);
+			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER_ERROR, executionContext, error);
+
 			throw error;
 		}
 
 		LoggerUtility.getLogger("ApiFunctionUpdate").verbose(`Error updating entity ${String(entity.name)}:`, error);
-		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER_ERROR as any, executionContext, error as Error);
+		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER_ERROR, executionContext, error as Error);
 
 		throw new InternalServerErrorException(
 			ErrorString({
