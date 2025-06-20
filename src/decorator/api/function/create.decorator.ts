@@ -15,6 +15,7 @@ import { LoggerUtility } from "@utility/logger.utility";
 
 /**
  * Creates a decorator that adds entity creation functionality to a service method
+ * @template E The entity type
  * @param {IApiFunctionProperties<E>} properties - Configuration properties for the create function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle entity creation
  */
@@ -23,16 +24,16 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 
 	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (this: { repository: Repository<E> }, createProperties: TApiFunctionCreateProperties<E>, eventManager?: EntityManager): Promise<IApiBaseEntity> {
-			const entityInstance = new entity();
+			const entityInstance: E = new entity();
 
-			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionCreateProperties<E>, Record<string, any>> = {
-				data: { eventManager, repository: this.repository },
-				entity: entityInstance,
-				functionType: EApiFunctionType.CREATE,
+			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionCreateProperties<E>, Record<string, unknown>> = {
+				DATA: { eventManager, repository: this.repository },
+				ENTITY: entityInstance,
+				FUNCTION_TYPE: EApiFunctionType.CREATE,
 				result: createProperties,
 			};
 
-			const result = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<any>) => any, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE, executionContext);
+			const result: TApiFunctionCreateProperties<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE, executionContext);
 
 			if (result) {
 				executionContext.result = result;
@@ -41,12 +42,12 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<any>) => any, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, executionContext, new Error("Repository is not available in this context"));
+				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, executionContext, new Error("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}
 
-			return executor<E>({ constructor: this.constructor as new (...arguments_: Array<any>) => any, entity, eventManager, properties: executionContext.result!, repository });
+			return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, eventManager, properties: executionContext.result ?? ({} as unknown as TApiFunctionCreateProperties<E>), repository });
 		};
 
 		return descriptor;
@@ -55,6 +56,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 
 /**
  * Executes the entity creation operation with error handling
+ * @template E The entity type
  * @param {IApiFunctionCreateExecutorProperties<E>} options - Properties required for entity creation
  * @returns {Promise<E>} The created entity instance
  * @throws {InternalServerErrorException} If the creation operation fails
@@ -72,16 +74,16 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 			result = await repository.save(properties);
 		}
 
-		const entityInstance = new entity();
+		const entityInstance: E = new entity();
 
-		const executionContext: IApiSubscriberFunctionExecutionContext<E, E, Record<string, any>> = {
-			data: { eventManager, repository },
-			entity: entityInstance,
-			functionType: EApiFunctionType.CREATE,
+		const executionContext: IApiSubscriberFunctionExecutionContext<E, E, Record<string, unknown>> = {
+			DATA: { eventManager, repository },
+			ENTITY: entityInstance,
+			FUNCTION_TYPE: EApiFunctionType.CREATE,
 			result: result,
 		};
 
-		const afterResult = await ApiSubscriberExecutor.executeFunctionSubscribers<E, E, Record<string, any>>(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER, executionContext);
+		const afterResult: E | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers<E, E, Record<string, unknown>>(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER, executionContext);
 
 		if (afterResult) {
 			return afterResult;
@@ -89,16 +91,17 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 
 		return result;
 	} catch (error) {
-		const entityInstance = new entity();
+		const entityInstance: E = new entity();
 
-		const executionContext: IApiSubscriberFunctionExecutionContext<E, never, Record<string, any>> = {
-			data: { eventManager, properties, repository },
-			entity: entityInstance,
-			functionType: EApiFunctionType.CREATE,
+		const executionContext: IApiSubscriberFunctionExecutionContext<E, never, Record<string, unknown>> = {
+			DATA: { eventManager, properties, repository },
+			ENTITY: entityInstance,
+			FUNCTION_TYPE: EApiFunctionType.CREATE,
 		};
 
 		if (error instanceof HttpException) {
 			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR, executionContext, error);
+
 			throw error;
 		}
 

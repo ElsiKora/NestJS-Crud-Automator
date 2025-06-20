@@ -1,7 +1,9 @@
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 
 /**
- *
+ * Decorator that marks a controller as observable, allowing it to be monitored by subscribers.
+ * When a controller is marked as observable, its methods can be intercepted by subscribers that listen for specific events.
+ * @returns {ClassDecorator} - A decorator that marks a controller as observable.
  */
 export function ApiControllerObservable(): ClassDecorator {
 	return (target: object) => {

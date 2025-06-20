@@ -53,7 +53,7 @@ export function ApiPropertyObject(options: TApiPropertyObjectProperties): <Y>(ta
 function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
-
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: !!properties.isNullable,
 	};
 
@@ -71,8 +71,7 @@ function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiP
 			};
 		}
 
-		// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
-		apiPropertyOptions.type = "object" as any;
+		apiPropertyOptions.type = "object" as never;
 	} else if ("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated) {
 		// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
 		apiPropertyOptions.oneOf = Object.entries(properties.generatedDTOs).map(([_key, value]: [string, Function]) => {
@@ -87,8 +86,7 @@ function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiP
 			};
 		}
 
-		// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
-		apiPropertyOptions.type = "object" as any;
+		apiPropertyOptions.type = "object" as never;
 	} else {
 		apiPropertyOptions.type = properties.type;
 	}
@@ -138,6 +136,7 @@ function buildObjectValidationDecorators(properties: TApiPropertyObjectPropertie
 	const isArray: boolean = properties.isArray ?? false;
 
 	if (!properties.isResponse && properties.shouldValidateNested) {
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		decorators.push(ValidateNested({ each: isArray }));
 	}
 
@@ -213,11 +212,11 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 			Type(() => Object, {
 				discriminator: {
 					property: properties.discriminator.propertyName,
-					subTypes: Object.entries(properties.discriminator.mapping).map(([key, value]: [string, ClassConstructor<any>]) => {
+					subTypes: Object.entries(properties.discriminator.mapping).map(([key, value]: [string, ClassConstructor<unknown>]) => {
 						return { name: key, value };
 					}),
 				},
-
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				keepDiscriminatorProperty: properties.discriminator.shouldKeepDiscriminatorProperty,
 			}),
 		);
@@ -231,15 +230,15 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 				discriminator: {
 					property: properties.discriminator.propertyName,
 					subTypes: Object.entries(properties.discriminator.mapping).map(([key, value]: [string, string]) => {
-						return { name: key, value: properties.generatedDTOs[value] as ClassConstructor<any> };
+						return { name: key, value: properties.generatedDTOs[value] as ClassConstructor<unknown> };
 					}),
 				},
-
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				keepDiscriminatorProperty: properties.discriminator.shouldKeepDiscriminatorProperty,
 			}),
 		);
 	} else {
-		decorators.push(Type(() => properties.type as () => any));
+		decorators.push(Type(() => properties.type as () => unknown));
 	}
 
 	return decorators;

@@ -19,7 +19,7 @@ const DTO_STRATEGIES: Record<EApiDtoType, IDtoStrategy> = {
 	[EApiDtoType.RESPONSE]: new DtoStrategyResponse(),
 };
 
-const PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerateFactory<any>> = {
+const PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerateFactory<unknown>> = {
 	[EApiPropertyDescribeType.BOOLEAN]: new DtoPropertyFactoryBoolean(),
 	[EApiPropertyDescribeType.DATE]: new DtoPropertyFactoryDate(),
 	[EApiPropertyDescribeType.ENUM]: new DtoPropertyFactoryEnum(),
@@ -32,7 +32,7 @@ const PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerat
 
 export const DTO_UTILITY_CONSTANT: {
 	readonly DTO_STRATEGIES: Record<EApiDtoType, IDtoStrategy>;
-	readonly PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerateFactory<any>>;
+	readonly PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerateFactory<unknown>>;
 } = {
 	DTO_STRATEGIES,
 	PROPERTY_DECORATOR_FACTORIES,
