@@ -85,8 +85,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 				const entityInstance: E = new (properties.entity as new () => E)();
 
 				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; body: DeepPartial<E>; headers: Record<string, string>; ip: string }> = {
-					data: { entityMetadata, method, methodName, properties },
-					entity: entityInstance,
+					DATA: { entityMetadata, method, methodName, properties },
+					ENTITY: entityInstance,
 					result: { authenticationRequest, body, headers, ip },
 					ROUTE_TYPE: EApiRouteType.CREATE,
 				};
@@ -132,8 +132,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, E> = {
-						data: { ...(beforeExecutionContext.data as object), authenticationRequest, body, headers, ip },
-						entity: response,
+						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, body, headers, ip },
+						ENTITY: response,
 						result: response,
 						ROUTE_TYPE: EApiRouteType.CREATE,
 					};
@@ -149,8 +149,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					});
 				} catch (error) {
 					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
-						data: { ...(beforeExecutionContext.data as object), authenticationRequest, body, headers, ip },
-						entity: entityInstance,
+						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, body, headers, ip },
+						ENTITY: entityInstance,
 						ROUTE_TYPE: EApiRouteType.CREATE,
 					};
 					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
@@ -169,8 +169,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 				const entityInstance: E = new (properties.entity as new () => E)();
 
 				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; headers: Record<string, string>; ip: string; parameters: Partial<E> }> = {
-					data: { entityMetadata, method, methodName, properties },
-					entity: entityInstance,
+					DATA: { entityMetadata, method, methodName, properties },
+					ENTITY: entityInstance,
 					result: { authenticationRequest, headers, ip, parameters },
 					ROUTE_TYPE: EApiRouteType.DELETE,
 				};
@@ -211,8 +211,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					await this.service.delete(requestCriteria);
 
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, Partial<E>> = {
-						data: { ...(beforeExecutionContext.data as object), authenticationRequest, headers, ip, parameters },
-						entity: entityInstance,
+						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, headers, ip, parameters },
+						ENTITY: entityInstance,
 						result: parameters,
 						ROUTE_TYPE: EApiRouteType.DELETE,
 					};
@@ -220,8 +220,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.AFTER, afterExecutionContext);
 				} catch (error) {
 					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
-						data: { ...(beforeExecutionContext.data as object), authenticationRequest, headers, ip, parameters },
-						entity: entityInstance,
+						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, headers, ip, parameters },
+						ENTITY: entityInstance,
 						ROUTE_TYPE: EApiRouteType.DELETE,
 					};
 					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
@@ -240,8 +240,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 				const entityInstance: E = new (properties.entity as new () => E)();
 
 				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; headers: Record<string, string>; ip: string; parameters: Partial<E> }> = {
-					data: { entityMetadata, method, methodName, properties },
-					entity: entityInstance,
+					DATA: { entityMetadata, method, methodName, properties },
+					ENTITY: entityInstance,
 					result: { authenticationRequest, headers, ip, parameters },
 					ROUTE_TYPE: EApiRouteType.GET,
 				};
@@ -285,8 +285,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, E> = {
-						data: { ...(beforeExecutionContext.data as object), authenticationRequest, headers, ip, parameters },
-						entity: response,
+						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, headers, ip, parameters },
+						ENTITY: response,
 						result: response,
 						ROUTE_TYPE: EApiRouteType.GET,
 					};
@@ -302,8 +302,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					});
 				} catch (error) {
 					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
-						data: { ...(beforeExecutionContext.data as object), authenticationRequest, headers, ip, parameters },
-						entity: entityInstance,
+						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, headers, ip, parameters },
+						ENTITY: entityInstance,
 						ROUTE_TYPE: EApiRouteType.GET,
 					};
 					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
@@ -322,8 +322,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 				const entityInstance: E = new (properties.entity as new () => E)();
 
 				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; headers: Record<string, string>; ip: string; query: TApiControllerGetListQuery<E> }> = {
-					data: { entityMetadata, method, methodName, properties },
-					entity: entityInstance,
+					DATA: { entityMetadata, method, methodName, properties },
+					ENTITY: entityInstance,
 					result: { authenticationRequest, headers, ip, query },
 					ROUTE_TYPE: EApiRouteType.GET_LIST,
 				};
@@ -367,8 +367,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, IApiGetListResponseResult<E>> = {
-						data: { ...(beforeExecutionContext.data as object), authenticationRequest, headers, ip, query },
-						entity: entityInstance,
+						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, headers, ip, query },
+						ENTITY: entityInstance,
 						result: response,
 						ROUTE_TYPE: EApiRouteType.GET_LIST,
 					};
@@ -384,8 +384,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					});
 				} catch (error) {
 					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
-						data: { ...(beforeExecutionContext.data as object), authenticationRequest, headers, ip, query },
-						entity: entityInstance,
+						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, headers, ip, query },
+						ENTITY: entityInstance,
 						ROUTE_TYPE: EApiRouteType.GET_LIST,
 					};
 					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => object, entityInstance, EApiRouteType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
@@ -404,8 +404,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 				const entityInstance: E = new (properties.entity as new () => E)();
 
 				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; body: DeepPartial<E>; headers: Record<string, string>; ip: string; parameters: Partial<E> }> = {
-					data: { entityMetadata, method, methodName, properties },
-					entity: entityInstance,
+					DATA: { entityMetadata, method, methodName, properties },
+					ENTITY: entityInstance,
 					result: { authenticationRequest, body, headers, ip, parameters },
 					ROUTE_TYPE: EApiRouteType.PARTIAL_UPDATE,
 				};
@@ -450,8 +450,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, E> = {
-						data: { ...(beforeExecutionContext.data as object), authenticationRequest, body, headers, ip, parameters },
-						entity: response,
+						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, body, headers, ip, parameters },
+						ENTITY: response,
 						result: response,
 						ROUTE_TYPE: EApiRouteType.PARTIAL_UPDATE,
 					};
@@ -467,8 +467,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					});
 				} catch (error) {
 					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
-						data: { ...(beforeExecutionContext.data as object), authenticationRequest, body, headers, ip, parameters },
-						entity: entityInstance,
+						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, body, headers, ip, parameters },
+						ENTITY: entityInstance,
 						ROUTE_TYPE: EApiRouteType.PARTIAL_UPDATE,
 					};
 					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
@@ -487,8 +487,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 				const entityInstance: E = new (properties.entity as new () => E)();
 
 				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; body: DeepPartial<E>; headers: Record<string, string>; ip: string; parameters: Partial<E> }> = {
-					data: { entityMetadata, method, methodName, properties },
-					entity: entityInstance,
+					DATA: { entityMetadata, method, methodName, properties },
+					ENTITY: entityInstance,
 					result: { authenticationRequest, body, headers, ip, parameters },
 					ROUTE_TYPE: EApiRouteType.UPDATE,
 				};
@@ -533,8 +533,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, E> = {
-						data: { ...(beforeExecutionContext.data as object), authenticationRequest, body, headers, ip, parameters },
-						entity: response,
+						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, body, headers, ip, parameters },
+						ENTITY: response,
 						result: response,
 						ROUTE_TYPE: EApiRouteType.UPDATE,
 					};
@@ -550,8 +550,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					});
 				} catch (error) {
 					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
-						data: { ...(beforeExecutionContext.data as object), authenticationRequest, body, headers, ip, parameters },
-						entity: entityInstance,
+						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, body, headers, ip, parameters },
+						ENTITY: entityInstance,
 						ROUTE_TYPE: EApiRouteType.UPDATE,
 					};
 					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);

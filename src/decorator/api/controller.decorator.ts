@@ -1,13 +1,11 @@
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiControllerProperties } from "@interface/decorator/api";
-import type { TApiControllerConstructor } from "@type/decorator/api/controller";
-import type { TApiControllerTargetMethod } from "@type/factory/api/controller";
+import type { IApiBaseEntity, IApiControllerProperties } from "../../interface";
+import type { TApiControllerConstructor } from "../../type";
 
-import { ApiControllerFactory } from "@factory/api";
+import { ApiControllerFactory } from "../../factory/api/controller.factory";
 
 export const ApiController =
 	<E extends IApiBaseEntity>(options: IApiControllerProperties<E>) =>
-	(target: TApiControllerTargetMethod<E>): TApiControllerConstructor => {
+	<T extends TApiControllerConstructor>(target: T): T => {
 		const factory: ApiControllerFactory<E> = new ApiControllerFactory<E>(target, options);
 		factory.init();
 
@@ -21,5 +19,5 @@ export const ApiController =
 		};
 		Object.defineProperty(ValidatedController, "name", { value: target.name });
 
-		return ValidatedController as TApiControllerConstructor;
+		return ValidatedController as T;
 	};

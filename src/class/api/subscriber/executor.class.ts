@@ -26,7 +26,7 @@ export class ApiSubscriberExecutor {
 
 		for (const subscriber of subscribers) {
 			const hookName: string = `on${onType}${CapitalizeString(functionType)}`;
-			const hook: unknown = subscriber[hookName];
+			const hook: unknown = subscriber[hookName as keyof IApiSubscriberFunction<IApiBaseEntity>];
 
 			if (typeof hook === "function") {
 				subscriberLogger.verbose(`Executing function hook ${hookName} from ${subscriber.constructor.name} for entity ${entity.constructor.name}`);
@@ -51,7 +51,7 @@ export class ApiSubscriberExecutor {
 
 		for (const subscriber of subscribers) {
 			const hookName: string = `on${onType}${CapitalizeString(routeType)}`;
-			const hook: unknown = subscriber[hookName];
+			const hook: unknown = subscriber[hookName as keyof IApiSubscriberRoute<IApiBaseEntity>];
 
 			if (typeof hook === "function") {
 				subscriberLogger.verbose(`Executing route hook ${hookName} from ${subscriber.constructor.name} for entity ${entity.constructor.name}`);
