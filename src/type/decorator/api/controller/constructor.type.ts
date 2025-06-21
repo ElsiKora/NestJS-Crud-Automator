@@ -1,3 +1,4 @@
 import type { ApiServiceBase } from "@class/api";
 
-export type TApiControllerConstructor = new (...arguments_: Array<unknown>) => { service: ApiServiceBase<unknown> };
+// eslint-disable-next-line @elsikora/typescript/no-explicit-any
+export type TApiControllerConstructor = new (...arguments_: Array<any>) => { service: ApiServiceBase<any> };
