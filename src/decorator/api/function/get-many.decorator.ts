@@ -3,6 +3,7 @@ import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/ap
 import type { IApiFunctionGetManyExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
 import type { TApiFunctionGetManyProperties } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
+import type { FindManyOptions } from "typeorm/index";
 
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
@@ -14,13 +15,9 @@ import { LoggerUtility } from "@utility/logger.utility";
 
 /**
  * Creates a decorator that adds functionality to retrieve multiple entities to a service method
- * @param {IApiFunctionProperties} properties - Configuration properties for the get-many function
+ * @template E The entity type
+ * @param {IApiFunctionProperties<E>} properties - Configuration properties for the get-many function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle retrieving multiple entities
- */
-
-/**
- *
- * @param properties
  */
 export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
@@ -32,16 +29,16 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 		void _propertyKey;
 
 		descriptor.value = async function (this: { repository: Repository<E> }, getManyProperties: TApiFunctionGetManyProperties<E>, eventManager?: EntityManager): Promise<Array<E>> {
-			const entityInstance = new entity();
+			const entityInstance: E = new entity();
 
-			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetManyProperties<E>, any> = {
-				data: { eventManager, getManyProperties, repository: this.repository },
-				entity: entityInstance,
-				functionType: EApiFunctionType.GET_MANY,
+			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetManyProperties<E>> = {
+				DATA: { eventManager, getManyProperties, repository: this.repository },
+				ENTITY: entityInstance,
+				FUNCTION_TYPE: EApiFunctionType.GET_MANY,
 				result: getManyProperties,
 			};
 
-			const result = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => any, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE as any, executionContext);
+			const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE, executionContext);
 
 			if (result) {
 				executionContext.result = result;
@@ -50,12 +47,12 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => any, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE_ERROR as any, executionContext, new Error("Repository is not available in this context"));
+				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE_ERROR, executionContext, new Error("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}
 
-			return executor<E>({ constructor: this.constructor as new () => any, entity, eventManager, properties: executionContext.result!, repository });
+			return executor<E>({ constructor: this.constructor as new () => unknown, entity, eventManager, properties: executionContext.result ?? ({} as unknown as TApiFunctionGetManyProperties<E>), repository });
 		};
 
 		return descriptor;
@@ -64,6 +61,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 
 /**
  * Executes the retrieval of multiple entities with error handling
+ * @template E The entity type
  * @param {IApiFunctionGetManyExecutorProperties<E>} options - Properties required for retrieving multiple entities
  * @returns {Promise<Array<E>>} An array of retrieved entity instances
  * @throws {NotFoundException} If no entities are found
@@ -86,14 +84,14 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 			throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));
 		}
 
-		const executionContext: IApiSubscriberFunctionExecutionContext<E, Array<E>, any> = {
-			data: { eventManager, properties, repository },
-			entity: new entity(),
-			functionType: EApiFunctionType.GET_MANY,
+		const executionContext: IApiSubscriberFunctionExecutionContext<E, Array<E>> = {
+			DATA: { eventManager, properties, repository },
+			ENTITY: new entity(),
+			FUNCTION_TYPE: EApiFunctionType.GET_MANY,
 			result: items,
 		};
 
-		const afterResult = await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, new entity(), EApiFunctionType.GET_MANY, EApiSubscriberOnType.AFTER as any, executionContext);
+		const afterResult: Array<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, new entity(), EApiFunctionType.GET_MANY, EApiSubscriberOnType.AFTER, executionContext);
 
 		if (afterResult) {
 			return afterResult;
@@ -101,20 +99,22 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 
 		return items;
 	} catch (error) {
-		const entityInstance = new entity();
-		const executionContext: IApiSubscriberFunctionExecutionContext<E, never, any> = {
-			data: { properties, eventManager, repository },
-			entity: entityInstance,
-			functionType: EApiFunctionType.GET_MANY,
+		const entityInstance: E = new entity();
+
+		const executionContext: IApiSubscriberFunctionExecutionContext<E, never> = {
+			DATA: { eventManager, properties, repository },
+			ENTITY: entityInstance,
+			FUNCTION_TYPE: EApiFunctionType.GET_MANY,
 		};
 
 		if (error instanceof HttpException) {
-			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.AFTER_ERROR as any, executionContext, error);
+			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.AFTER_ERROR, executionContext, error);
+
 			throw error;
 		}
 
 		LoggerUtility.getLogger("ApiFunctionGetMany").verbose(`Error fetching multiple entity ${String(entity.name)}:`, error);
-		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.AFTER_ERROR as any, executionContext, error as Error);
+		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.AFTER_ERROR, executionContext, error as Error);
 
 		throw new InternalServerErrorException(
 			ErrorString({

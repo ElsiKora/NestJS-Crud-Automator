@@ -4,6 +4,7 @@ import { EHasPairedCustomSuffixesFieldsArgumentType } from "@enum/validator";
 import { THasPairedCustomSuffixesFieldsOperationConfig, THasPairedCustomSuffixesFieldsValidationContext } from "@type/validator/has-paired-custom-suffixes-fields";
 import { type ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface } from "class-validator";
 
+// eslint-disable-next-line @elsikora/typescript/naming-convention
 @ValidatorConstraint({ async: false, name: "has-paired-custom-suffixes-fields" })
 export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstraintInterface {
 	/**
@@ -60,7 +61,7 @@ export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstrai
 
 				// @ts-ignore
 				// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
-				const value: Array<any> = indexableObject[valueFields[0]];
+				const value: Array<unknown> = indexableObject[valueFields[0]];
 				const isArray: boolean = Array.isArray(value);
 
 				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.ARRAY && !isArray) {
@@ -153,7 +154,7 @@ export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstrai
 
 				// @ts-ignore
 				// eslint-disable-next-line @elsikora/typescript/no-unsafe-assignment
-				const value: Array<any> = indexableObject[valueFields[0]];
+				const value: Array<unknown> = indexableObject[valueFields[0]];
 				const isArray: boolean = Array.isArray(value);
 
 				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.ARRAY && !isArray) return false;

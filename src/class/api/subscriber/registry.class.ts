@@ -2,47 +2,47 @@ import type { IRegistry } from "@elsikora/cladi";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function.interface";
 import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.interface";
+import type { IApiFunctionSubscriberProperties, IApiRouteSubscriberProperties } from "@interface/decorator/api/subscriber";
 
 import { createRegistry } from "@elsikora/cladi";
-import { IApiFunctionSubscriberProperties, IApiRouteSubscriberProperties } from "@interface/decorator/api/subscriber";
 
 class ApiSubscriberRegistry {
-	private readonly functionSubscribers: IRegistry<SubscriberWrapper<IApiSubscriberFunction<any>>>;
+	private readonly FUNCTION_SUBSCRIBERS: IRegistry<SubscriberWrapper<IApiSubscriberFunction<IApiBaseEntity>>>;
 
-	private readonly routeSubscribers: IRegistry<SubscriberWrapper<IApiSubscriberRoute<any>>>;
+	private readonly ROUTE_SUBSCRIBERS: IRegistry<SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity>>>;
 
 	constructor() {
-		this.functionSubscribers = createRegistry<SubscriberWrapper<IApiSubscriberFunction<any>>>({});
-		this.routeSubscribers = createRegistry<SubscriberWrapper<IApiSubscriberRoute<any>>>({});
+		this.FUNCTION_SUBSCRIBERS = createRegistry<SubscriberWrapper<IApiSubscriberFunction<IApiBaseEntity>>>({});
+		this.ROUTE_SUBSCRIBERS = createRegistry<SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity>>>({});
 	}
 
 	public getFunctionSubscribers<E extends IApiBaseEntity>(entityName: string): Array<IApiSubscriberFunction<E>> {
-		return (this.functionSubscribers.get(entityName)?.subscribers ?? []).map(s => s.subscriber) as Array<IApiSubscriberFunction<E>>;
+		return (this.FUNCTION_SUBSCRIBERS.get(entityName)?.subscribers ?? []).map((s: { priority: number; subscriber: IApiSubscriberFunction<IApiBaseEntity> }) => s.subscriber) as Array<IApiSubscriberFunction<E>>;
 	}
 
 	public getRouteSubscribers<E extends IApiBaseEntity>(entityName: string): Array<IApiSubscriberRoute<E>> {
-		return (this.routeSubscribers.get(entityName)?.subscribers ?? []).map(s => s.subscriber) as Array<IApiSubscriberRoute<E>>;
+		return (this.ROUTE_SUBSCRIBERS.get(entityName)?.subscribers ?? []).map((s: { priority: number; subscriber: IApiSubscriberRoute<IApiBaseEntity> }) => s.subscriber) as Array<IApiSubscriberRoute<E>>;
 	}
 
 	public registerFunctionSubscriber<E extends IApiBaseEntity>(properties: IApiFunctionSubscriberProperties<E>, subscriber: IApiSubscriberFunction<E>): void {
-		const entityName = properties.entity.name;
-		let wrapper = this.functionSubscribers.get(entityName);
+		const entityName: string = properties.entity.name;
+		let wrapper: SubscriberWrapper<IApiSubscriberFunction<IApiBaseEntity>> | undefined = this.FUNCTION_SUBSCRIBERS.get(entityName);
 
 		if (!wrapper) {
 			wrapper = new SubscriberWrapper(entityName);
-			this.functionSubscribers.register(wrapper);
+			this.FUNCTION_SUBSCRIBERS.register(wrapper);
 		}
 
 		wrapper.addSubscriber(subscriber, properties.priority);
 	}
 
 	public registerRouteSubscriber<E extends IApiBaseEntity>(properties: IApiRouteSubscriberProperties<E>, subscriber: IApiSubscriberRoute<E>): void {
-		const entityName = properties.entity.name;
-		let wrapper = this.routeSubscribers.get(entityName);
+		const entityName: string = properties.entity.name;
+		let wrapper: SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity>> | undefined = this.ROUTE_SUBSCRIBERS.get(entityName);
 
 		if (!wrapper) {
 			wrapper = new SubscriberWrapper(entityName);
-			this.routeSubscribers.register(wrapper);
+			this.ROUTE_SUBSCRIBERS.register(wrapper);
 		}
 
 		wrapper.addSubscriber(subscriber, properties.priority);
@@ -52,12 +52,12 @@ class ApiSubscriberRegistry {
 class SubscriberWrapper<T> {
 	constructor(
 		private readonly name: string,
-		public subscribers: Array<{ subscriber: T, priority: number }> = [],
+		public subscribers: Array<{ priority: number; subscriber: T }> = [],
 	) {}
-	
-	addSubscriber(subscriber: T, priority = 0) {
-		this.subscribers.push({ subscriber, priority });
-		this.subscribers.sort((a, b) => b.priority - a.priority);
+
+	addSubscriber(subscriber: T, priority: number = 0): void {
+		this.subscribers.push({ priority, subscriber });
+		this.subscribers.sort((a: { priority: number; subscriber: T }, b: { priority: number; subscriber: T }) => b.priority - a.priority);
 	}
 
 	getName(): string {
@@ -65,4 +65,4 @@ class SubscriberWrapper<T> {
 	}
 }
 
-export const apiSubscriberRegistry = new ApiSubscriberRegistry();
+export const apiSubscriberRegistry: ApiSubscriberRegistry = new ApiSubscriberRegistry();

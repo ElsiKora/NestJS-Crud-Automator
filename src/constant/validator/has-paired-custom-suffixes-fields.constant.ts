@@ -3,11 +3,13 @@ import type { THasPairedCustomSuffixesFieldsOperationConfig } from "@type/valida
 import { EFilterOperation } from "@enum/filter-operation.enum";
 import { EHasPairedCustomSuffixesFieldsArgumentType } from "@enum/validator";
 
+const BETWEEN_EXACT_LENGTH: number = 2;
+
 const DEFAULT_OPERATION_CONFIGS: Record<EFilterOperation, THasPairedCustomSuffixesFieldsOperationConfig> = {
 	[EFilterOperation.BETWEEN]: {
 		argumentType: EHasPairedCustomSuffixesFieldsArgumentType.ARRAY,
 
-		exactLength: 2,
+		exactLength: BETWEEN_EXACT_LENGTH,
 	},
 	[EFilterOperation.CONT]: {
 		argumentType: EHasPairedCustomSuffixesFieldsArgumentType.SINGLE,

@@ -2,6 +2,7 @@ import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
+import type { TApiControllerMethodMap } from "@type/factory/api/controller";
 
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiAction, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
@@ -23,7 +24,7 @@ import { ErrorException } from "@utility/error-exception.utility";
  * @throws {Error} If the method type is not implemented
  * @template E - The entity type
  */
-export function ApiControllerApplyDecorators<E>(targetMethod: (properties: any, body: any, headers: any, ip: any, authenticationRequest: any) => any, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>): void {
+export function ApiControllerApplyDecorators<E>(targetMethod: TApiControllerMethodMap<E>[typeof method], entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>): void {
 	const responseDto: Type<unknown> | undefined = routeConfig.dto?.response ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.RESPONSE, routeConfig.autoDto?.[EApiDtoType.RESPONSE], routeConfig.authentication?.guard);
 	const customDecorators: Array<MethodDecorator> = [...decorators];
 
@@ -93,7 +94,7 @@ export function ApiControllerApplyDecorators<E>(targetMethod: (properties: any, 
 
 	if (customDecorators.length > 0) {
 		for (const decorator of customDecorators) {
-			const descriptor: TypedPropertyDescriptor<any> | undefined = Reflect.getOwnPropertyDescriptor(targetMethod, methodName);
+			const descriptor: TypedPropertyDescriptor<unknown> | undefined = Reflect.getOwnPropertyDescriptor(targetMethod, methodName);
 			(decorator as MethodDecorator | PropertyDecorator)(targetMethod, methodName, descriptor ?? { value: targetMethod });
 		}
 	}

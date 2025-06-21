@@ -2,7 +2,7 @@
 
 // TODO: Implement check for all exceptions
 
-import type { HttpException } from "@nestjs/common";
+import type { HttpException, Type } from "@nestjs/common";
 
 import { EException } from "@enum/exception.enum";
 import {
@@ -28,7 +28,7 @@ import {
 } from "@nestjs/common";
 import { ThrottlerException } from "@nestjs/throttler";
 
-const ExceptionMap: Record<EException, any> = {
+const ExceptionMap: Record<EException, Type<HttpException> | undefined> = {
 	[EException.BAD_REQUEST]: BadRequestException,
 	[EException.CONFLICT]: ConflictException,
 	[EException.EXPECTATION_FAILED]: undefined,
@@ -66,7 +66,7 @@ const ExceptionMap: Record<EException, any> = {
  * @returns {boolean} True if the error is of the specified type, false otherwise
  */
 export function IsErrorOfType(error: unknown, type: EException): boolean {
-	const ExceptionClass: HttpException = ExceptionMap[type] as HttpException;
+	const ExceptionClass: HttpException | undefined = ExceptionMap[type] as HttpException | undefined;
 
 	if (!ExceptionClass) {
 		return false;

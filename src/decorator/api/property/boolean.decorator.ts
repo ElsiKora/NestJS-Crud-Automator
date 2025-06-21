@@ -76,7 +76,7 @@ export function ApiPropertyBoolean(properties: TApiPropertyBaseProperties): <Y>(
 function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPropertyOptions {
 	const apiPropertyOptions: ApiPropertyOptions = {
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
-
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: !!properties.isNullable,
 		type: EApiPropertyDataType.BOOLEAN,
 	};
@@ -122,6 +122,7 @@ function buildFormatDecorators(properties: TApiPropertyBaseProperties): Array<Pr
 	const isArray: boolean = properties.isArray ?? false;
 
 	if (properties.isResponse === undefined || !properties.isResponse) {
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		decorators.push(IsBoolean({ each: isArray }));
 	}
 
@@ -216,7 +217,7 @@ function buildTransformDecorators(properties: TApiPropertyBaseProperties): Array
 							return [false];
 						}
 
-						return value.map((_value: any) => {
+						return value.map((_value: unknown) => {
 							if (_value === undefined || _value === null) return false;
 
 							if (typeof _value === "boolean") return _value;
@@ -242,7 +243,7 @@ function buildTransformDecorators(properties: TApiPropertyBaseProperties): Array
 		} else {
 			decorators.push(
 				Transform(
-					({ value }: { value: any }) => {
+					({ value }: { value: unknown }) => {
 						if (value === undefined || value === null) return false;
 
 						if (typeof value === "boolean") return value;

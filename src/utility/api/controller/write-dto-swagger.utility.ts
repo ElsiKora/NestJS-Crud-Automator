@@ -46,14 +46,15 @@ export function ApiControllerWriteDtoSwagger<E>(target: object, entity: IApiEnti
 			if (metadata)
 				for (const key of Object.keys(metadata)) {
 					if (metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] && metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]?.type === EApiPropertyDescribeType.RELATION) {
-						const relationClass: { new (): any; prototype: any } = class GeneratedDTO {
+						const relationClass: { new (): unknown; prototype: unknown } = class GeneratedDTO {
 							constructor() {
 								Object.defineProperty(this, "id", {
+									// eslint-disable-next-line @elsikora/typescript/naming-convention
 									configurable: true,
-
+									// eslint-disable-next-line @elsikora/typescript/naming-convention
 									enumerable: true,
 									value: undefined,
-
+									// eslint-disable-next-line @elsikora/typescript/naming-convention
 									writable: true,
 								});
 							}

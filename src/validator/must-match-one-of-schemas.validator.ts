@@ -4,6 +4,7 @@ import { Type } from "@nestjs/common";
 import { TTypeDiscriminator, TTypeDynamicDiscriminator } from "@type/decorator/api/property";
 import { registerDecorator, ValidationArguments, ValidationOptions, ValidatorConstraint, ValidatorConstraintInterface } from "class-validator";
 
+// eslint-disable-next-line @elsikora/typescript/naming-convention
 @ValidatorConstraint({ async: false, name: "must-match-one-of-schemas" })
 export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInterface {
 	private allowedValues: Array<string> = [];

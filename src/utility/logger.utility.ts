@@ -13,11 +13,9 @@ export class LoggerUtility extends ConsoleLogger {
 	private static readonly ENV_LOG_LEVEL_KEY: string = "NCD_LOG_LEVEL";
 
 	constructor(context?: string) {
-		if (context) {
-			super(context, {
-				logLevels: LoggerUtility.getLogLevelsFromEnv(),
-			});
-		}
+		super(context ?? "DefaultContext", {
+			logLevels: LoggerUtility.getLogLevelsFromEnv(),
+		});
 	}
 
 	/**

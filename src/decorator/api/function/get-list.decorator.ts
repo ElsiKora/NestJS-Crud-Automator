@@ -3,6 +3,7 @@ import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/ap
 import type { IApiFunctionGetListExecutorProperties, IApiFunctionProperties, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiFunctionGetListProperties } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
+import type { FindManyOptions } from "typeorm/index";
 
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
@@ -14,29 +15,25 @@ import { LoggerUtility } from "@utility/logger.utility";
 
 /**
  * Creates a decorator that adds entity list retrieval functionality to a service method
- * @param {IApiFunctionProperties} properties - Configuration properties for the get-list function
+ * @template E The entity type
+ * @param {IApiFunctionProperties<E>} properties - Configuration properties for the get-list function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle entity list retrieval
- */
-
-/**
- *
- * @param properties
  */
 export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
 
 	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (this: { repository: Repository<E> }, getListProperties: TApiFunctionGetListProperties<E>, eventManager?: EntityManager): Promise<IApiGetListResponseResult<E>> {
-			const entityInstance = new entity();
+			const entityInstance: E = new entity();
 
-			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetListProperties<E>, any> = {
-				data: { eventManager, getListProperties, repository: this.repository },
-				entity: entityInstance,
-				functionType: EApiFunctionType.GET_LIST,
+			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetListProperties<E>> = {
+				DATA: { eventManager, getListProperties, repository: this.repository },
+				ENTITY: entityInstance,
+				FUNCTION_TYPE: EApiFunctionType.GET_LIST,
 				result: getListProperties,
 			};
 
-			const result = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => any, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE as any, executionContext);
+			const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE, executionContext);
 
 			if (result) {
 				executionContext.result = result;
@@ -45,12 +42,12 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => any, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE_ERROR as any, executionContext, new Error("Repository is not available in this context"));
+				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE_ERROR, executionContext, new Error("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}
 
-			return executor<E>({ constructor: this.constructor as new () => any, entity, eventManager, properties: executionContext.result!, repository });
+			return executor<E>({ constructor: this.constructor as new () => unknown, entity, eventManager, properties: executionContext.result ?? ({} as unknown as TApiFunctionGetListProperties<E>), repository });
 		};
 
 		return descriptor;
@@ -58,7 +55,27 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 }
 
 /**
+ * Calculates the current page number based on the provided properties.
+ * @template E The entity type
+ * @param {TApiFunctionGetListProperties<E>} properties - The properties for the get-list function.
+ * @param {number} itemsLength - The number of items on the current page.
+ * @returns {number} The current page number.
+ */
+function calculateCurrentPage<E extends IApiBaseEntity>(properties: TApiFunctionGetListProperties<E>, itemsLength: number): number {
+	if (itemsLength === 0) {
+		return 0;
+	}
+
+	if (properties.skip) {
+		return Math.ceil(properties.skip / (properties.take ?? 1)) + 1;
+	}
+
+	return 1;
+}
+
+/**
  * Executes the entity list retrieval operation with error handling
+ * @template E The entity type
  * @param {IApiFunctionGetListExecutorProperties<E>} options - Properties required for entity list retrieval
  * @returns {Promise<IApiGetListResponseResult<E>>} The paginated list of entities with count information
  * @throws {InternalServerErrorException} If the list retrieval operation fails
@@ -79,20 +96,20 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListEx
 
 		const result: IApiGetListResponseResult<E> = {
 			count: items.length,
-			currentPage: items.length === 0 ? 0 : (properties.skip ? Math.ceil(properties.skip / (properties.take ?? 1)) + 1 : 1),
+			currentPage: calculateCurrentPage<E>(properties, items.length),
 			items,
 			totalCount,
 			totalPages: Math.ceil(totalCount / (properties.take ?? 1)),
 		};
 
-		const executionContext: IApiSubscriberFunctionExecutionContext<E, IApiGetListResponseResult<E>, any> = {
-			data: { eventManager, properties, repository },
-			entity: new entity(),
-			functionType: EApiFunctionType.GET_LIST,
+		const executionContext: IApiSubscriberFunctionExecutionContext<E, IApiGetListResponseResult<E>> = {
+			DATA: { eventManager, properties, repository },
+			ENTITY: new entity(),
+			FUNCTION_TYPE: EApiFunctionType.GET_LIST,
 			result: result,
 		};
 
-		const afterResult = await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, new entity(), EApiFunctionType.GET_LIST, EApiSubscriberOnType.AFTER as any, executionContext);
+		const afterResult: IApiGetListResponseResult<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, new entity(), EApiFunctionType.GET_LIST, EApiSubscriberOnType.AFTER, executionContext);
 
 		if (afterResult) {
 			return afterResult;
@@ -100,20 +117,22 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListEx
 
 		return result;
 	} catch (error) {
-		const entityInstance = new entity();
-		const executionContext: IApiSubscriberFunctionExecutionContext<E, never, any> = {
-			data: { properties, eventManager, repository },
-			entity: entityInstance,
-			functionType: EApiFunctionType.GET_LIST,
+		const entityInstance: E = new entity();
+
+		const executionContext: IApiSubscriberFunctionExecutionContext<E, never> = {
+			DATA: { eventManager, properties, repository },
+			ENTITY: entityInstance,
+			FUNCTION_TYPE: EApiFunctionType.GET_LIST,
 		};
 
 		if (error instanceof HttpException) {
-			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR as any, executionContext, error);
+			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR, executionContext, error);
+
 			throw error;
 		}
 
 		LoggerUtility.getLogger("ApiFunctionGetList").verbose(`Error fetching list for entity ${String(entity.name)}:`, error);
-		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR as any, executionContext, error as Error);
+		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR, executionContext, error as Error);
 
 		throw new InternalServerErrorException(
 			ErrorString({

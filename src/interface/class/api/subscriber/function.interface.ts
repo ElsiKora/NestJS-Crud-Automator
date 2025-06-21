@@ -4,8 +4,6 @@ import type { IApiSubscriber } from "@interface/class/api/subscriber/interface";
 import type { TApiFunctionCreateProperties } from "@type/decorator/api/function";
 
 export interface IApiSubscriberFunction<E extends IApiBaseEntity> extends IApiSubscriber {
-	[key: string]: any;
-
 	onAfterCreate?(context: IApiSubscriberFunctionExecutionContext<E, E>): Promise<E | undefined>;
 	onAfterDelete?(context: IApiSubscriberFunctionExecutionContext<E, E>): Promise<E | undefined>;
 

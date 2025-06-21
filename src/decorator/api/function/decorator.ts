@@ -12,8 +12,6 @@ import { ApiFunctionGetMany } from "./get-many.decorator";
 import { ApiFunctionGet } from "./get.decorator";
 import { ApiFunctionUpdate } from "./update.decorator";
 
-type TDecoratorFunction = (target: any, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor;
-
 /**
  * Main decorator factory for API service functions that selects and applies the appropriate function decorator
  * based on the specified type (create, update, delete, get, getList, getMany)
@@ -28,8 +26,9 @@ export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctio
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		const originalMethod: unknown = descriptor.value;
 
-		descriptor.value = function (this: { repository: Repository<E> }, ...arguments_: Array<any>): any {
-			let decoratorFunction: TDecoratorFunction;
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		descriptor.value = function (this: { repository: Repository<E> }, ...arguments_: Array<unknown>): unknown {
+			let decoratorFunction: (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor;
 
 			switch (type) {
 				case EApiFunctionType.CREATE: {
@@ -74,7 +73,7 @@ export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctio
 			}
 
 			const modifiedDescriptor: PropertyDescriptor = decoratorFunction(this, propertyKey, { value: originalMethod });
-			const modifiedMethod: (...arguments__: Array<any>) => R = modifiedDescriptor.value as (...arguments__: Array<any>) => R;
+			const modifiedMethod: (...arguments__: Array<unknown>) => R = modifiedDescriptor.value as (...arguments__: Array<unknown>) => R;
 
 			return modifiedMethod.apply(this, arguments_);
 		};

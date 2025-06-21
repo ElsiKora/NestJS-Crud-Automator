@@ -12,7 +12,7 @@ export type TApiPropertyObjectWithDiscriminatorProperties = {
 } & TApiPropertyBaseProperties;
 
 export type TTypeDiscriminator = {
-	mapping: Record<string, ClassConstructor<any>>;
+	mapping: Record<string, ClassConstructor<unknown>>;
 	propertyName: string;
 	shouldKeepDiscriminatorProperty?: boolean;
 };

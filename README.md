@@ -17,6 +17,10 @@
 - [Features](#-features)
 - [Installation](#-installation)
 - [Usage](#-usage)
+  - [Basic Usage](#basic-usage)
+  - [Advanced Usage](#advanced-usage)
+- [Subscriber System (Hooks)](#subscriber-system-hooks-intercepting-and-extending-logic)
+- [Swagger Documentation](#swagger-documentation)
 - [Roadmap](#-roadmap)
 - [FAQ](#-faq)
 - [License](#-license)
@@ -24,6 +28,8 @@
 
 ## 📖 Description
 NestJS-Crud-Automator is a comprehensive library designed to eliminate repetitive code when building RESTful APIs with NestJS. It provides a suite of decorators, utilities, and validation tools that automatically generate controllers, DTOs, and service methods for handling Create, Read, Update, and Delete operations. This library significantly reduces development time by providing a declarative approach to API development. By simply describing your entity properties once, the library auto-generates all the necessary boilerplate code including Swagger documentation, validation rules, and transformation logic. Perfect for developers working on data-heavy applications who want to focus on business logic rather than repetitive CRUD implementation.
+
+The core philosophy of this library is built on four pillars: being **Declarative** (describe your API, don't code it), writing **Minimum Code** (drastically reduce boilerplate), ensuring **Flexibility** (override or extend any automated behavior), and guaranteeing **Type-Safety** (leverage TypeScript to prevent errors). It achieves this through real-time in-memory code generation, a heavy reliance on decorators for configuration, and smart conventions to reduce setup.
 
 ## 🚀 Features
 - ✨ **🏗️ Automatic generation of controllers, DTOs, and service methods for CRUD operations**
@@ -36,6 +42,11 @@ NestJS-Crud-Automator is a comprehensive library designed to eliminate repetitiv
 - ✨ **📚 Support for object relations with automatic loading strategies**
 - ✨ **⚡ Performance optimized with TypeORM integration for database operations**
 - ✨ **🌐 Full support for TypeScript with strong typing throughout the library**
+- ✨ **Hooks and Subscriber System:** Intercept and extend business logic at both the controller and service level.
+- ✨ **Dynamic and Polymorphic DTOs:** Generate DTOs on-the-fly based on discriminator fields.
+- ✨ **Field-Level RBAC:** Show/hide fields in responses based on user roles using guards.
+- ✨ **Request Tracing:** Built-in `CorrelationIDResponseBodyInterceptor` to correlate requests and logs.
+- ✨ **Convention over Configuration:** Smart defaults for service and DTO naming to reduce boilerplate.
 
 ## 🛠 Installation
 ```bash
@@ -338,6 +349,187 @@ export class UserController {
 }
 ```
 
+### `CorrelationIDResponseBodyInterceptor`: Request Tracing
+
+To simplify debugging and request tracing in complex systems, the library provides the `CorrelationIDResponseBodyInterceptor`. This interceptor should be registered globally in your `main.ts`.
+
+**What it does:**
+
+1.  Intercepts all exceptions in the application (`HttpException` and others).
+2.  Looks for the `x-correlation-id` header in the incoming request headers.
+3.  If the header is found, its value is added to the body of the error response.
+4.  If the header is not found, a new `UUID` is generated, which is added to both the response and the logs (if `LoggerUtility` is used).
+5.  Adds a `timestamp` field to the error response body.
+
+This allows you to link a specific client request with the logs on the server, which is invaluable when investigating incidents.
+
+**Registration:** `main.ts`
+```typescript
+import { CorrelationIDResponseBodyInterceptor } from '@elsikora/nestjs-crud-automator';
+
+async function bootstrap() {
+    const app = await NestFactory.create(AppModule);
+    // ...
+    app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
+    // ...
+    await app.listen(3000);
+}
+```
+
+### Subscriber System (Hooks): Intercepting and Extending Logic
+
+This is the most powerful feature for extending the default behavior. It allows you to "subscribe" to events in the CRUD request lifecycle and execute your code before, after, or in case of an error in the main operation. This is an ideal solution for tasks such as:
+
+-   Auditing.
+-   Sending notifications.
+-   Complex, context-dependent validation.
+-   Data enrichment before saving.
+-   Custom error handling.
+
+#### Enabling the Subscriber System
+
+To get the subscriber system working, you need to follow **three mandatory steps**:
+
+1.  **Import `ApiSubscriberModule`**: This module provides the `ApiSubscriberDiscoveryService`, which is responsible for discovering your subscribers. You need to import it into the root module of your application.
+    `app.module.ts`
+    ```typescript
+    import { ApiSubscriberModule } from "@elsikora/nestjs-crud-automator";
+
+    @Module({
+        imports: [
+            // ... other modules
+            ApiSubscriberModule, // <--- IMPORTANT
+        ],
+        // ...
+    })
+    export class AppModule {}
+    ```
+
+2.  **Make the controller "observable"**: Add the `@ApiControllerObservable()` decorator to the controller class whose events you want to monitor.
+    ```typescript
+    import { ApiController, ApiControllerObservable } from "@elsikora/nestjs-crud-automator";
+
+    @Controller("posts")
+    @ApiController({
+        /* ... */
+    })
+    @ApiControllerObservable() // <--- IMPORTANT
+    export class PostController {
+        /* ... */
+    }
+    ```
+
+3.  **Make the service "observable"**: Similarly, add the `@ApiServiceObservable()` decorator to the service class.
+    ```typescript
+    import { ApiService, ApiServiceBase, ApiServiceObservable } from "@elsikora/nestjs-crud-automator";
+
+    @Injectable()
+    @ApiService({
+        /* ... */
+    })
+    @ApiServiceObservable() // <--- IMPORTANT
+    export class PostService extends ApiServiceBase<Post> {
+        /* ... */
+    }
+    ```
+Without these steps, your subscriber classes will simply not be discovered and called.
+
+#### Two Levels of Interception
+
+There are two types of subscribers that operate at different levels of abstraction:
+
+1.  **`ApiRouteSubscriberBase`** (Controller Level): Intercepts data at the highest level. Ideal for working with the HTTP context: headers, IP address, authenticated user (`request.user`). The hooks of this subscriber are called before and after the main logic of the _controller_.
+2.  **`ApiFunctionSubscriberBase`** (Service Level): Intercepts data immediately before and after calling a repository method (database). Ideal for manipulating data that is to be saved or data that has just been retrieved from the DB.
+
+#### Lifecycle and Execution Order
+
+Understanding the order in which hooks are called is critically important:
+
+1.  **Incoming Request**
+2.  `onBefore...` hooks of **Route** subscribers (executed in `priority` order from highest to lowest).
+3.  Internal controller logic (transformers for `request`, `query`, `body`; validators).
+4.  A service method is called (e.g., `service.create(body)`).
+5.  `onBefore...` hooks of **Function** subscribers (executed in `priority` order).
+6.  The main logic of `@ApiFunction` is executed (e.g., `repository.save(body)`).
+7.  `onAfter...` hooks of **Function** subscribers (executed in **reverse** `priority` order).
+8.  The result is returned to the controller.
+9.  `onAfter...` hooks of **Route** subscribers (executed in **reverse** `priority` order).
+10. **The response is sent to the client.**
+
+In case of an error at any stage, execution is interrupted, and the corresponding `on...Error...` hooks are called.
+
+#### Example 1: Auditing with `ApiRouteSubscriberBase`
+
+**Task**: Log which user created which post.
+
+1.  **Create the subscriber:** `post-audit.subscriber.ts`
+    ```typescript
+    import { Injectable } from "@nestjs/common";
+    import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteExecutionContext } from "@elsikora/nestjs-crud-automator";
+    import { Post } from "./post.entity";
+    import { User } from "../user/user.entity"; // Assuming User is in request.user
+
+    @Injectable()
+    @ApiRouteSubscriber({ entity: Post, priority: 10 }) // Specify entity and priority
+    export class PostAuditSubscriber extends ApiRouteSubscriberBase<Post> {
+        // Hook is called AFTER a post is successfully created in the controller
+        async onAfterCreate(context: IApiSubscriberRouteExecutionContext<Post, Post, { user: User }>): Promise<Post> {
+            const createdPost = context.result; // Result of the controller's operation
+            const currentUser = context.data.user; // Immutable input data, including request.user
+
+            if (createdPost && currentUser) {
+                console.log(`AUDIT: User ${currentUser.id} created Post ${createdPost.id} with title "${createdPost.title}"`);
+            }
+
+            // We don't want to change the result, so we just return it
+            return createdPost;
+        }
+    }
+    ```
+
+2.  **Register the subscriber:** Add `PostAuditSubscriber` to the `providers` of your module.
+
+#### Example 2: Data Enrichment with `ApiFunctionSubscriberBase`
+
+**Task**: When creating a post, automatically generate a `slug` from the `title` before saving it to the database.
+
+1.  **Create the subscriber:** `post-slug.subscriber.ts`
+    ```typescript
+    import { Injectable } from "@nestjs/common";
+    import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, IApiSubscriberFunctionExecutionContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
+    import { Post } from "./post.entity";
+    import slugify from "slugify"; // third-party library
+
+    @Injectable()
+    @ApiFunctionSubscriber({ entity: Post })
+    export class PostSlugSubscriber extends ApiFunctionSubscriberBase<Post> {
+        // Hook is called BEFORE repository.save() is called
+        async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<Post, TApiFunctionCreateProperties<Post>>): Promise<TApiFunctionCreateProperties<Post>> {
+            const postData = context.result; // This is the object that will go into repository.save()
+
+            if (postData.body.title) {
+                // Modify the object, adding the slug
+                postData.body.slug = slugify(postData.body.title, { lower: true, strict: true });
+                console.log(`ENRICHMENT: Generated slug: ${postData.body.slug}`);
+            }
+
+            // Return the modified object, which will be saved
+            return postData;
+        }
+    }
+    ```
+
+2.  **Register the subscriber:** Add `PostSlugSubscriber` to the module's `providers`.
+    ```typescript
+    // ...
+    providers: [
+        UserService,
+        PostService,
+        PostSlugSubscriber, // <-- Register our subscriber as a provider
+    ],
+    // ...
+    ```
+
 ### Swagger Documentation
 
 The library automatically generates Swagger/OpenAPI documentation for all endpoints. To enable it in your NestJS application:
@@ -394,6 +586,7 @@ This query would search for users with "john" in their username and created betw
 | Error handling with standardized responses | ✅ Done |
 | Support for TypeScript decorators | ✅ Done |
 | Support for ESM and CommonJS modules | ✅ Done |
+| Subscriber System | ✅ Done |
 | MongoDB support | 🚧 In Progress |
 | GraphQL integration | 🚧 In Progress |
 | Support for soft deletes | 🚧 In Progress |
