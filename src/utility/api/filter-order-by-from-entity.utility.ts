@@ -51,9 +51,9 @@ export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata
 			for (const metadataColumn of entityMetadata.columns) {
 				const metadata: { properties: Record<EApiRouteType, Record<EApiDtoType, TApiPropertyDescribeDtoQueryGetListProperties>> } | undefined = metadataColumn.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as { properties: Record<EApiRouteType, Record<EApiDtoType, TApiPropertyDescribeDtoQueryGetListProperties>> } | undefined;
 
-				const useAsFilter: boolean | undefined = metadata?.properties?.[method]?.[dtoType]?.useAsOrderByFilter ?? false;
+				const useAsFilter: boolean = metadata?.properties?.[method]?.[dtoType]?.useAsOrderByFilter !== false;
 
-				if (metadataColumn.name == column.propertyName && metadata && (useAsFilter == undefined || useAsFilter)) {
+				if (metadataColumn.name == column.propertyName && metadata && useAsFilter) {
 					const snakeUpperCase: string = column.propertyName
 						// eslint-disable-next-line @elsikora/unicorn/prefer-spread
 						.split("")
