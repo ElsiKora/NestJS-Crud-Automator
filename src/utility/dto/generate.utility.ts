@@ -11,6 +11,7 @@ import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/deco
 import { ApiExtraModels } from "@nestjs/swagger";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
+import { DtoGenerateCacheKey } from "@utility/dto/generate-cache-key.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate-dynamic.utility";
 import { DtoGenerateFilterDecorator } from "@utility/dto/generate-filter-decorator.utility";
 import { DtoGenerateGetListResponse } from "@utility/dto/generate-get-list-response.utility";
@@ -20,6 +21,8 @@ import { DtoIsShouldBeGenerated } from "@utility/dto/is-should-be-generated.util
 import { ErrorException } from "@utility/error-exception.utility";
 import { HasPairedCustomSuffixesFieldsValidator } from "@validator/has-paired-custom-suffixes-fields.validator";
 import { Validate } from "class-validator";
+
+const dtoGenerateCache: Map<string, Type<unknown>> = new Map<string, Type<unknown>>();
 
 /**
  * Core utility for DTO generation that determines which properties should be included in the DTO.
@@ -38,6 +41,20 @@ import { Validate } from "class-validator";
 export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
 		return undefined;
+	}
+
+	const cacheKey: string = DtoGenerateCacheKey({
+		dtoConfig,
+		dtoType,
+		entityName: String(entityMetadata.name),
+		guardName: currentGuard?.name,
+		method,
+	});
+
+	const cached: Type<unknown> | undefined = dtoGenerateCache.get(cacheKey);
+
+	if (cached) {
+		return cached;
 	}
 
 	if (!entityMetadata.primaryKey?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]) {
@@ -189,5 +206,9 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	});
 
 	// @ts-ignore
-	return method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE ? DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`) : GeneratedDTO;
+	const result: Type<unknown> = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE ? DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`) : GeneratedDTO;
+
+	dtoGenerateCache.set(cacheKey, result);
+
+	return result;
 }
