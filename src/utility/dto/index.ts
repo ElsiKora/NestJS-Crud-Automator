@@ -1,5 +1,6 @@
 export { analyzeEntityMetadata } from "./analize.utility";
 export { DtoBuildDecorator } from "./build-decorator.utility";
+export { DtoGenerateCacheKey } from "./generate-cache-key.utility";
 export { DtoGenerateDecorator } from "./generate-decorator.utility";
 export { DtoGenerateDynamic } from "./generate-dynamic.utility";
 export { DtoGenerateException } from "./generate-exception.utility";

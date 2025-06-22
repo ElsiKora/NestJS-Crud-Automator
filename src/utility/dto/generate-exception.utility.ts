@@ -9,6 +9,8 @@ import { EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/
 import { HttpStatus, type Type } from "@nestjs/common";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 
+const exceptionDtoCache: Map<HttpStatus, Type<unknown>> = new Map<HttpStatus, Type<unknown>>();
+
 /**
  * Creates exception DTOs with standardized properties based on HTTP status codes.
  * Generates a class with properties like correlationID, error name, message, status code, and timestamp,
@@ -17,6 +19,12 @@ import { CamelCaseString } from "@utility/camel-case-string.utility";
  * @returns {Type<unknown>} A generated DTO class for the exception
  */
 export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
+	const cached: Type<unknown> | undefined = exceptionDtoCache.get(httpStatus);
+
+	if (cached) {
+		return cached;
+	}
+
 	const errorName: string = HttpStatus[httpStatus];
 
 	class GeneratedErrorDTO {
@@ -71,6 +79,8 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 	}
 
 	Object.defineProperty(GeneratedErrorDTO, "name", { value: `Exception${CamelCaseString(errorName)}DTO` });
+
+	exceptionDtoCache.set(httpStatus, GeneratedErrorDTO);
 
 	return GeneratedErrorDTO;
 }

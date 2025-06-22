@@ -1,7 +1,8 @@
-import type { IApiBaseEntity, IApiControllerProperties } from "../../interface";
-import type { TApiControllerConstructor } from "../../type";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiControllerProperties } from "@interface/decorator/api";
+import type { TApiControllerConstructor } from "@type/decorator/api/controller";
 
-import { ApiControllerFactory } from "../../factory/api/controller.factory";
+import { ApiControllerFactory } from "@factory/api";
 
 export const ApiController =
 	<E extends IApiBaseEntity>(options: IApiControllerProperties<E>) =>
