@@ -21,8 +21,6 @@ export function DtoGenerateFilterDecorator<E>(metadata: TApiPropertyDescribeProp
 		}
 
 		case EApiPropertyDescribeType.DATE: {
-			// @ts-ignore
-
 			return ApiPropertyEnum({ entity, enum: EFilterOperationDate, enumName: "EFilterOperationDate", isRequired: false });
 		}
 
@@ -31,8 +29,6 @@ export function DtoGenerateFilterDecorator<E>(metadata: TApiPropertyDescribeProp
 		}
 
 		case EApiPropertyDescribeType.NUMBER: {
-			// @ts-ignore
-
 			return ApiPropertyEnum({ description: metadata.description, entity, enum: EFilterOperationNumber, enumName: "EFilterOperationNumber", isRequired: false });
 		}
 
