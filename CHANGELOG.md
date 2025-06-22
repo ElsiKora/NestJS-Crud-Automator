@@ -1,3 +1,10 @@
+## [1.10.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.10.1...v1.10.2) (2025-06-22)
+
+
+### Bug Fixes
+
+* **api:** correct metadata key access and filter condition logic ([da1ccd8](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/da1ccd8d8126ee66fe9f129ac07233ad097da26f))
+
 ## [1.10.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.10.0...v1.10.1) (2025-06-21)
 
 # [1.10.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.9.0...v1.10.0) (2025-06-19)
