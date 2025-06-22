@@ -1,7 +1,7 @@
 export default {
 	maxRetries: 3,
 	mode: "auto",
-	model: "claude-3-7-sonnet-20250219",
+	model: "claude-sonnet-4-20250514",
 	provider: "anthropic",
 	validationMaxRetries: 3,
 };
