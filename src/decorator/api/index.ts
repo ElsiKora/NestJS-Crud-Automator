@@ -1,5 +1,4 @@
 export * from "./controller";
-export * from "./controller.decorator";
 export * from "./function";
 export * from "./method.decorator";
 export * from "./property";
