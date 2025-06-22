@@ -38,8 +38,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 			const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>) => column.name == key);
 
 			// @ts-ignore
-			// eslint-disable-next-line @elsikora/typescript/no-unsafe-member-access
-			if (column && column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_PROPERTY_NAME].type === EApiPropertyDescribeType.RELATION) {
+			if (column && column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY].type === EApiPropertyDescribeType.RELATION) {
 				// @ts-ignore
 				filter[key as keyof E] = { id: ApiControllerGetListTransformOperation(operation, value) };
 			} else {
