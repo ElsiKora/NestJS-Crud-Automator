@@ -105,7 +105,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 			throw error;
 		}
 
-		LoggerUtility.getLogger("ApiFunctionCreate").verbose(`Error creating entity ${String(entity.name)}:`, error);
+		LoggerUtility.getLogger("ApiFunctionCreate").verbose(`Error creating entity ${entity.name}:`, error);
 		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR, executionContext, error as Error);
 
 		throw new InternalServerErrorException(

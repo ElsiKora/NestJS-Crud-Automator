@@ -27,19 +27,19 @@ export function ApiPropertyCopy<E>(entity: Type<E>, propertyName: keyof E, metho
 		const entityMetadata: IApiEntity<E> = GenerateEntityInformation(entity);
 
 		if (!entityMetadata?.columns) {
-			throw ErrorException(`Entity metadata for ${String(entity.name)} not found or invalid`);
+			throw ErrorException(`Entity metadata for ${entity.name} not found or invalid`);
 		}
 
 		const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>) => column.name == propertyName);
 
 		if (!column) {
-			throw ErrorException(`Property ${String(propertyName)} not found in entity ${String(entity.name)}`);
+			throw ErrorException(`Property ${String(propertyName)} not found in entity ${entity.name}`);
 		}
 
 		let propertyMetadata: TApiPropertyDescribeProperties = column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties;
 
 		if (!propertyMetadata) {
-			throw ErrorException(`Metadata for property ${String(propertyName)} in entity ${String(entity.name)} not found`);
+			throw ErrorException(`Metadata for property ${String(propertyName)} in entity ${entity.name} not found`);
 		}
 
 		if (metadata) {
@@ -51,7 +51,7 @@ export function ApiPropertyCopy<E>(entity: Type<E>, propertyName: keyof E, metho
 		const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, propertyMetadata, entityMetadata, dtoType, propertyName as string, currentGuard, generatedDTOs);
 
 		if (!decorators || decorators.length === 0) {
-			throw ErrorException(`No decorators generated for property ${String(propertyName)} in entity ${String(entity.name)}`);
+			throw ErrorException(`No decorators generated for property ${String(propertyName)} in entity ${entity.name}`);
 		}
 
 		applyDecorators(...decorators)(target, key);

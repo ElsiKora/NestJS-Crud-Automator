@@ -73,7 +73,7 @@ export async function ApiControllerHandleRequestRelations<E>(controllerMethod: T
 				const entity: E[keyof E & string] = (await service.get(requestProperties)) as E[keyof E & string];
 
 				if (!entity) {
-					throw new BadRequestException(`Invalid ${String(propertyName)} ID`);
+					throw new BadRequestException(`Invalid ${propertyName} ID`);
 				}
 
 				// @ts-expect-error

@@ -76,7 +76,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsEmail, Is
  * }
  * ```
  */
-export function ApiPropertyString(properties: TApiPropertyStringProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+export function ApiPropertyString(properties: TApiPropertyStringProperties): PropertyDecorator {
 	validateOptions(properties);
 
 	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(properties);

@@ -62,7 +62,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsOptional 
  * }
  * ```
  */
-export function ApiPropertyDate(properties: TApiPropertyDateProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+export function ApiPropertyDate(properties: TApiPropertyDateProperties): PropertyDecorator {
 	validateOptions(properties);
 
 	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(properties);

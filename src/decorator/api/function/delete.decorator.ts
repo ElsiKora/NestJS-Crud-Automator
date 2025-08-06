@@ -124,7 +124,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExe
 			throw error;
 		}
 
-		LoggerUtility.getLogger("ApiFunctionDelete").verbose(`Error deleting entity ${String(entity.name)}:`, error);
+		LoggerUtility.getLogger("ApiFunctionDelete").verbose(`Error deleting entity ${entity.name}:`, error);
 		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.DELETE, EApiSubscriberOnType.AFTER_ERROR, executionContext, error as Error);
 
 		throw new InternalServerErrorException(
