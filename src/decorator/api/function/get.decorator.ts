@@ -112,7 +112,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 			throw error;
 		}
 
-		LoggerUtility.getLogger("ApiFunctionGet").verbose(`Error fetching entity ${String(entity.name)}:`, error);
+		LoggerUtility.getLogger("ApiFunctionGet").verbose(`Error fetching entity ${entity.name}:`, error);
 		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.AFTER_ERROR, executionContext, error as Error);
 
 		throw new InternalServerErrorException(

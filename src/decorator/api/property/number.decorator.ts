@@ -75,7 +75,7 @@ import random from "lodash/random";
  * }
  * ```
  */
-export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): PropertyDecorator {
 	properties.exampleValue ??= random(properties.minimum, properties.maximum);
 
 	validateOptions(properties);

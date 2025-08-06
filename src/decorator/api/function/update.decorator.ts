@@ -133,7 +133,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			throw error;
 		}
 
-		LoggerUtility.getLogger("ApiFunctionUpdate").verbose(`Error updating entity ${String(entity.name)}:`, error);
+		LoggerUtility.getLogger("ApiFunctionUpdate").verbose(`Error updating entity ${entity.name}:`, error);
 		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER_ERROR, executionContext, error as Error);
 
 		throw new InternalServerErrorException(
