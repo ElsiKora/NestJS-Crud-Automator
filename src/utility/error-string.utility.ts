@@ -13,6 +13,6 @@ export function ErrorString<T extends IApiBaseEntity>(properties: TErrorStringPr
 	if ("property" in properties) {
 		return `${entityName}_${properties.type.replace("{property}", properties.property.toUpperCase())}`;
 	} else {
-		return String(properties.type).replace("{entity}", entityName);
+		return properties.type.replace("{entity}", entityName);
 	}
 }

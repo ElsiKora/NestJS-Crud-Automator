@@ -50,7 +50,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, IsUUID 
  * }
  * ```
  */
-export function ApiPropertyUUID(properties: TApiPropertyUuidProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+export function ApiPropertyUUID(properties: TApiPropertyUuidProperties): PropertyDecorator {
 	const uuidExample: string = randomUUID();
 
 	validateOptions(properties);

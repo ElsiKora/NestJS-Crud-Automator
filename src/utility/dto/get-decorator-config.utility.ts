@@ -34,7 +34,7 @@ export const DtoGetDecoratorConfig = <M extends EApiRouteType, D extends EApiDto
 
 	const properties: Record<D, TPropertiesType> | undefined = metadata.properties?.[method] as Record<D, TPropertiesType> | undefined;
 
-	if (properties && properties[dtoType]) {
+	if (properties?.[dtoType]) {
 		const customConfig: Record<D, TPropertiesType>[D] = properties[dtoType];
 		DtoValidatePropertyConfig(customConfig, propertyName);
 

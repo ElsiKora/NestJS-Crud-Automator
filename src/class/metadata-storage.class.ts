@@ -44,12 +44,12 @@ export class MetadataStorage {
 		return propertyMetadata[key];
 	}
 
-	public setMetadata<K extends keyof IMetadataEntry>(entityName: string, propertyName: string, key: K, value: IMetadataEntry[K]): void {
+	public setMetadata<K extends keyof IMetadataEntry>(entityName: string, propertyName: string | symbol, key: K, value: IMetadataEntry[K]): void {
 		if (!this.STORAGE.has(entityName)) {
 			this.STORAGE.set(entityName, new Map());
 		}
 		// eslint-disable-next-line @elsikora/typescript/no-non-null-assertion
-		const entityMetadata: Map<string, IMetadataEntry> = this.STORAGE.get(entityName)!;
+		const entityMetadata: Map<string | symbol, IMetadataEntry> = this.STORAGE.get(entityName)!;
 
 		if (!entityMetadata.has(propertyName)) {
 			entityMetadata.set(propertyName, { [PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]: {} });

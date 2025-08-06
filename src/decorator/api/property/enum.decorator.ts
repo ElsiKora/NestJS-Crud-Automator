@@ -80,7 +80,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, IsOptional 
  * }
  * ```
  */
-export function ApiPropertyEnum(properties: TApiPropertyEnumProperties): <Y>(target: object, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {
+export function ApiPropertyEnum(properties: TApiPropertyEnumProperties): PropertyDecorator {
 	validateOptions(properties);
 
 	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(properties);

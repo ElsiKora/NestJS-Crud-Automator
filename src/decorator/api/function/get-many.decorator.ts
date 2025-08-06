@@ -113,7 +113,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 			throw error;
 		}
 
-		LoggerUtility.getLogger("ApiFunctionGetMany").verbose(`Error fetching multiple entity ${String(entity.name)}:`, error);
+		LoggerUtility.getLogger("ApiFunctionGetMany").verbose(`Error fetching multiple entity ${entity.name}:`, error);
 		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.AFTER_ERROR, executionContext, error as Error);
 
 		throw new InternalServerErrorException(
