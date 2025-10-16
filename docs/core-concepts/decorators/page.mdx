@@ -1,0 +1,246 @@
+# Decorators
+
+NestJS CRUD Automator is built on a powerful decorator system that enables declarative API development. Decorators are the primary interface for configuring entity properties, services, controllers, and subscribers.
+
+## Decorator Categories
+
+### Controller Decorators
+
+#### `@ApiController`
+
+The main decorator for automatically generating CRUD controllers. Applied to controller classes to enable automatic endpoint generation.
+
+```typescript filename="post.controller.ts" copy
+import { Controller } from "@nestjs/common";
+import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { PostEntity } from "./post.entity";
+import { PostService } from "./post.service";
+
+@Controller("posts")
+@ApiController<PostEntity>({
+  entity: PostEntity,
+  name: "Posts",
+  routes: {
+    [EApiRouteType.CREATE]: {},
+    [EApiRouteType.GET]: {},
+    [EApiRouteType.GET_LIST]: {},
+    [EApiRouteType.UPDATE]: {},
+    [EApiRouteType.DELETE]: {},
+  },
+})
+export class PostController {
+  constructor(public service: PostService) {}
+}
+```
+
+#### `@ApiControllerObservable`
+
+Marks a controller as observable, enabling the subscriber system to intercept its operations. Required when using route-level subscribers.
+
+```typescript filename="post.controller.ts" copy
+import { Controller } from "@nestjs/common";
+import {
+  ApiController,
+  ApiControllerObservable
+} from "@elsikora/nestjs-crud-automator";
+
+@Controller("posts")
+@ApiController({ /* ... */ })
+@ApiControllerObservable()
+export class PostController {
+  constructor(public service: PostService) {}
+}
+```
+
+### Service Decorators
+
+#### `@ApiService`
+
+Automatically adds CRUD methods to service classes. The service must extend `ApiServiceBase` and provide a repository.
+
+```typescript filename="post.service.ts" copy
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { ApiService, ApiServiceBase } from "@elsikora/nestjs-crud-automator";
+import { PostEntity } from "./post.entity";
+
+@Injectable()
+@ApiService<PostEntity>({
+  entity: PostEntity,
+})
+export class PostService extends ApiServiceBase<PostEntity> {
+  constructor(
+    @InjectRepository(PostEntity)
+    public repository: Repository<PostEntity>,
+  ) {
+    super();
+  }
+}
+```
+
+#### `@ApiServiceObservable`
+
+Marks a service as observable, enabling function-level subscribers to intercept repository operations.
+
+```typescript filename="post.service.ts" copy
+import { Injectable } from "@nestjs/common";
+import {
+  ApiService,
+  ApiServiceBase,
+  ApiServiceObservable
+} from "@elsikora/nestjs-crud-automator";
+
+@Injectable()
+@ApiService({ /* ... */ })
+@ApiServiceObservable()
+export class PostService extends ApiServiceBase<PostEntity> {
+  // ...
+}
+```
+
+### Property Decorators
+
+#### `@ApiPropertyDescribe`
+
+The fundamental decorator for entity properties. Provides metadata used for DTO generation, validation, and Swagger documentation.
+
+```typescript filename="user.entity.ts" copy
+import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import {
+  ApiPropertyDescribe,
+  EApiPropertyDescribeType,
+  EApiPropertyStringType
+} from "@elsikora/nestjs-crud-automator";
+
+@Entity("users")
+export class UserEntity {
+  @PrimaryGeneratedColumn("uuid")
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.UUID,
+    description: "User unique identifier",
+  })
+  id: string;
+
+  @Column()
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.STRING,
+    description: "User name",
+    format: EApiPropertyStringType.STRING,
+    minLength: 3,
+    maxLength: 50,
+    exampleValue: "john_doe",
+  })
+  username: string;
+}
+```
+
+Supported property types:
+- `UUID` - Unique identifiers
+- `STRING` - Text fields with validation rules
+- `NUMBER` - Numeric fields with range validation
+- `BOOLEAN` - Boolean flags
+- `DATE` - Date and timestamp fields
+- `ENUM` - Enumeration types
+- `OBJECT` - Nested objects with discriminator support
+- `RELATION` - Entity relations
+
+### Subscriber Decorators
+
+#### `@ApiRouteSubscriber`
+
+Creates a route-level subscriber that intercepts controller operations. Provides access to HTTP context (headers, IP, authenticated user).
+
+```typescript filename="post-audit.subscriber.ts" copy
+import { Injectable } from "@nestjs/common";
+import {
+  ApiRouteSubscriber,
+  ApiRouteSubscriberBase,
+  IApiSubscriberRouteExecutionContext
+} from "@elsikora/nestjs-crud-automator";
+import { PostEntity } from "./post.entity";
+
+@Injectable()
+@ApiRouteSubscriber({
+  entity: PostEntity,
+  priority: 10
+})
+export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
+  async onAfterCreate(
+    context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
+  ): Promise<PostEntity> {
+    console.log("Post created:", context.result);
+    return context.result;
+  }
+}
+```
+
+#### `@ApiFunctionSubscriber`
+
+Creates a function-level subscriber that intercepts service operations. Operates at the database layer before and after repository methods.
+
+```typescript filename="post-slug.subscriber.ts" copy
+import { Injectable } from "@nestjs/common";
+import {
+  ApiFunctionSubscriber,
+  ApiFunctionSubscriberBase,
+  IApiSubscriberFunctionExecutionContext,
+  TApiFunctionCreateProperties
+} from "@elsikora/nestjs-crud-automator";
+import { PostEntity } from "./post.entity";
+
+@Injectable()
+@ApiFunctionSubscriber({
+  entity: PostEntity
+})
+export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
+  async onBeforeCreate(
+    context: IApiSubscriberFunctionExecutionContext<PostEntity, TApiFunctionCreateProperties<PostEntity>>
+  ): Promise<TApiFunctionCreateProperties<PostEntity>> {
+    // Modify data before saving
+    return context.result;
+  }
+}
+```
+
+## Decorator Composition
+
+Decorators can be combined to create sophisticated configurations:
+
+```typescript filename="product.controller.ts" copy
+@Controller("products")
+@ApiController<ProductEntity>({
+  entity: ProductEntity,
+  name: "Products",
+  routes: {
+    [EApiRouteType.CREATE]: {
+      authentication: {
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+      },
+      autoDto: {
+        [EApiDtoType.BODY]: {
+          validators: [
+            {
+              constraintClass: AllOrNoneOfListedPropertiesValidator,
+              options: ["price", "discountPrice"],
+            },
+          ],
+        },
+      },
+    },
+  },
+})
+@ApiControllerObservable()
+export class ProductController {
+  constructor(public service: ProductService) {}
+}
+```
+
+## Next Steps
+
+- [Entities](/docs/nestjs-crud-automator/core-concepts/entities) - Configure entity properties
+- [Controllers](/docs/nestjs-crud-automator/core-concepts/controllers) - Controller configuration
+- [Services](/docs/nestjs-crud-automator/core-concepts/services) - Service layer setup
+- [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Intercept operations with hooks
+

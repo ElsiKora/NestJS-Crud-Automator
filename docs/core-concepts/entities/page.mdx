@@ -1,0 +1,336 @@
+# Entities
+
+Entities are the foundation of your CRUD operations. By properly configuring entity properties with `@ApiPropertyDescribe`, you enable automatic DTO generation, validation, and Swagger documentation.
+
+## Basic Entity Configuration
+
+Every entity property that should participate in CRUD operations must be decorated with `@ApiPropertyDescribe`:
+
+```typescript filename="product.entity.ts" copy
+import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import {
+  ApiPropertyDescribe,
+  EApiPropertyDescribeType,
+  EApiPropertyStringType,
+  EApiPropertyNumberType
+} from "@elsikora/nestjs-crud-automator";
+
+@Entity("products")
+export class ProductEntity {
+  @PrimaryGeneratedColumn("uuid")
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.UUID,
+    description: "Product unique identifier",
+  })
+  id: string;
+
+  @Column()
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.STRING,
+    description: "Product name",
+    format: EApiPropertyStringType.STRING,
+    minLength: 3,
+    maxLength: 100,
+    exampleValue: "Laptop",
+  })
+  name: string;
+
+  @Column({ type: "decimal", precision: 10, scale: 2 })
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.NUMBER,
+    description: "Product price",
+    format: EApiPropertyNumberType.FLOAT,
+    minimum: 0,
+    exampleValue: 999.99,
+  })
+  price: number;
+}
+```
+
+## Property Types
+
+### UUID Properties
+
+Used for unique identifiers, typically primary keys:
+
+```typescript
+@PrimaryGeneratedColumn("uuid")
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.UUID,
+  description: "Unique identifier",
+})
+id: string;
+```
+
+### String Properties
+
+Text fields with various validation options:
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "User email",
+  format: EApiPropertyStringType.EMAIL,
+  minLength: 5,
+  maxLength: 255,
+  pattern: "/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/",
+  exampleValue: "user@example.com",
+})
+email: string;
+```
+
+Available string formats:
+- `STRING` - Plain text
+- `EMAIL` - Email addresses
+- `URL` - URLs
+- `PASSWORD` - Password fields (hidden in responses)
+
+### Number Properties
+
+Numeric fields with range validation:
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.NUMBER,
+  description: "User age",
+  format: EApiPropertyNumberType.INTEGER,
+  minimum: 18,
+  maximum: 120,
+  exampleValue: 25,
+})
+age: number;
+```
+
+Available number formats:
+- `INTEGER` - Whole numbers
+- `FLOAT` - Decimal numbers
+
+### Boolean Properties
+
+Boolean flags:
+
+```typescript
+@Column({ default: false })
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.BOOLEAN,
+  description: "Is user active",
+  defaultValue: false,
+  exampleValue: true,
+})
+isActive: boolean;
+```
+
+### Date Properties
+
+Date and timestamp fields with automatic identifiers:
+
+```typescript
+@Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.DATE,
+  identifier: EApiPropertyDateIdentifier.CREATED_AT,
+  format: EApiPropertyDateType.DATE_TIME,
+})
+createdAt: Date;
+
+@Column({ 
+  type: "timestamp", 
+  default: () => "CURRENT_TIMESTAMP", 
+  onUpdate: "CURRENT_TIMESTAMP" 
+})
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.DATE,
+  identifier: EApiPropertyDateIdentifier.UPDATED_AT,
+  format: EApiPropertyDateType.DATE_TIME,
+})
+updatedAt: Date;
+```
+
+Available date identifiers:
+- `CREATED_AT` - Creation timestamp
+- `UPDATED_AT` - Last update timestamp
+- `DELETED_AT` - Soft delete timestamp
+
+### Enum Properties
+
+Enumeration types with predefined values:
+
+```typescript
+export enum UserRole {
+  USER = "user",
+  ADMIN = "admin",
+  MODERATOR = "moderator",
+}
+
+@Column({
+  type: "enum",
+  enum: UserRole,
+  default: UserRole.USER
+})
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.ENUM,
+  description: "User role",
+  enum: UserRole,
+  enumName: "UserRole",
+  defaultValue: UserRole.USER,
+  exampleValue: UserRole.USER,
+})
+role: UserRole;
+```
+
+### Object Properties
+
+Complex nested objects with optional discriminator support:
+
+```typescript
+@Column({ type: "jsonb" })
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.OBJECT,
+  description: "User metadata",
+  properties: {
+    theme: { type: "string" },
+    language: { type: "string" },
+  },
+  exampleValue: {
+    theme: "dark",
+    language: "en",
+  },
+})
+metadata: Record<string, unknown>;
+```
+
+For polymorphic objects with discriminator:
+
+```typescript
+@Column({ type: "jsonb" })
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.OBJECT,
+  description: "Payment method",
+  discriminator: {
+    propertyName: "type",
+    mapping: {
+      card: CardPaymentDto,
+      paypal: PayPalPaymentDto,
+    },
+  },
+})
+paymentMethod: CardPayment | PayPalPayment;
+```
+
+### Relation Properties
+
+Entity relationships with automatic loading:
+
+```typescript
+@ManyToOne(() => UserEntity, user => user.posts)
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.RELATION,
+  description: "Post author",
+  relationMetadata: {
+    relationType: "many-to-one",
+    entity: UserEntity,
+    isEager: false,
+  },
+})
+author: UserEntity;
+
+@OneToMany(() => CommentEntity, comment => comment.post)
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.RELATION,
+  description: "Post comments",
+  isArray: true,
+  relationMetadata: {
+    relationType: "one-to-many",
+    entity: CommentEntity,
+    isEager: false,
+  },
+})
+comments: CommentEntity[];
+```
+
+## DTO Generation Control
+
+Control which DTOs include specific properties:
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Internal admin notes",
+  format: EApiPropertyStringType.STRING,
+  dto: {
+    body: {
+      isExposedInCreateDto: false,
+      isExposedInUpdateDto: true,
+    },
+    response: {
+      isExposed: false, // Never return in responses
+    },
+  },
+})
+internalNotes: string;
+```
+
+## Validation Rules
+
+Add custom validation behavior:
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Username",
+  format: EApiPropertyStringType.STRING,
+  minLength: 3,
+  maxLength: 20,
+  pattern: "/^[a-zA-Z0-9_-]+$/",
+  isUnique: true, // Enforce uniqueness
+  isRequired: true, // Required in create operations
+  exampleValue: "john_doe",
+})
+username: string;
+```
+
+## Guard-Based Visibility
+
+Show or hide properties based on user roles:
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Sensitive data",
+  format: EApiPropertyStringType.STRING,
+  dto: {
+    guard: {
+      responseGuards: [AdminGuard], // Only visible to admins
+    },
+  },
+})
+sensitiveData: string;
+```
+
+## Example Values
+
+Provide example values for Swagger documentation:
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Product description",
+  format: EApiPropertyStringType.STRING,
+  exampleValue: "High-quality laptop with 16GB RAM",
+})
+description: string;
+```
+
+## Next Steps
+
+- [Controllers](/docs/nestjs-crud-automator/core-concepts/controllers) - Configure controller endpoints
+- [Services](/docs/nestjs-crud-automator/core-concepts/services) - Service layer setup
+- [DTOs](/docs/nestjs-crud-automator/core-concepts/dtos) - Understand DTO generation
+- [Validation](/docs/nestjs-crud-automator/guides/validation) - Advanced validation patterns
+

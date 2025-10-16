@@ -8,6 +8,12 @@ import { HttpException, HttpStatus, Injectable, InternalServerErrorException } f
 import { ThrottlerException } from "@nestjs/throttler";
 import { catchError } from "rxjs/operators";
 
+/**
+ * Global interceptor that adds correlation IDs and timestamps to all error responses.
+ *
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/interceptors | API Reference - Interceptors}
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/guides/error-handling | Guides - Error Handling}
+ */
 @Injectable()
 export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 	intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {

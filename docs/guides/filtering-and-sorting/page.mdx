@@ -1,0 +1,349 @@
+# Filtering and Sorting
+
+NestJS CRUD Automator provides powerful filtering and sorting capabilities for list operations through query parameters.
+
+## Basic Filtering
+
+Filter results using the GET_LIST endpoint with query parameters:
+
+```
+GET /users?username[operator]=eq&username[value]=john_doe
+```
+
+This filters users where username equals "john_doe".
+
+## Filter Operations
+
+### String Operations
+
+Available operations for string properties:
+
+```typescript
+// Contains (case-sensitive)
+GET /users?username[operator]=cont&username[value]=john
+
+// Contains (case-insensitive)
+GET /users?username[operator]=contl&username[value]=john
+
+// Starts with
+GET /users?username[operator]=starts&username[value]=john
+
+// Starts with (case-insensitive)
+GET /users?username[operator]=startsl&username[value]=john
+
+// Ends with
+GET /users?username[operator]=ends&username[value]=doe
+
+// Ends with (case-insensitive)
+GET /users?username[operator]=endsl&username[value]=doe
+
+// Equals
+GET /users?username[operator]=eq&username[value]=john_doe
+
+// Equals (case-insensitive)
+GET /users?username[operator]=eql&username[value]=john_doe
+
+// Not equals
+GET /users?username[operator]=ne&username[value]=john_doe
+
+// Not equals (case-insensitive)
+GET /users?username[operator]=nel&username[value]=john_doe
+
+// In array
+GET /users?username[operator]=in&username[values]=["john_doe","jane_doe"]
+
+// In array (case-insensitive)
+GET /users?username[operator]=inl&username[values]=["john_doe","jane_doe"]
+
+// Not in array
+GET /users?username[operator]=notin&username[values]=["john_doe","jane_doe"]
+
+// Not in array (case-insensitive)
+GET /users?username[operator]=notinl&username[values]=["john_doe","jane_doe"]
+
+// Is null
+GET /users?middleName[operator]=isnull
+
+// Is not null
+GET /users?middleName[operator]=notnull
+```
+
+### Number Operations
+
+Operations for numeric properties:
+
+```typescript
+// Equals
+GET /users?age[operator]=eq&age[value]=25
+
+// Not equals
+GET /users?age[operator]=ne&age[value]=25
+
+// Greater than
+GET /users?age[operator]=gt&age[value]=18
+
+// Greater than or equal
+GET /users?age[operator]=gte&age[value]=18
+
+// Less than
+GET /users?age[operator]=lt&age[value]=65
+
+// Less than or equal
+GET /users?age[operator]=lte&age[value]=65
+
+// Between (inclusive)
+GET /users?age[operator]=between&age[values]=[18,65]
+
+// In array
+GET /users?age[operator]=in&age[values]=[25,30,35]
+
+// Not in array
+GET /users?age[operator]=notin&age[values]=[25,30,35]
+
+// Is null
+GET /users?age[operator]=isnull
+
+// Is not null
+GET /users?age[operator]=notnull
+```
+
+### Date Operations
+
+Operations for date properties:
+
+```typescript
+// Equals specific date
+GET /posts?createdAt[operator]=eq&createdAt[value]=2024-01-01
+
+// Not equals
+GET /posts?createdAt[operator]=ne&createdAt[value]=2024-01-01
+
+// Greater than (after)
+GET /posts?createdAt[operator]=gt&createdAt[value]=2024-01-01
+
+// Greater than or equal
+GET /posts?createdAt[operator]=gte&createdAt[value]=2024-01-01
+
+// Less than (before)
+GET /posts?createdAt[operator]=lt&createdAt[value]=2024-12-31
+
+// Less than or equal
+GET /posts?createdAt[operator]=lte&createdAt[value]=2024-12-31
+
+// Between dates
+GET /posts?createdAt[operator]=between&createdAt[values]=["2024-01-01","2024-12-31"]
+
+// Is null
+GET /posts?deletedAt[operator]=isnull
+
+// Is not null
+GET /posts?deletedAt[operator]=notnull
+```
+
+### Boolean Operations
+
+Operations for boolean properties:
+
+```typescript
+// Equals
+GET /users?isActive[operator]=eq&isActive[value]=true
+
+// Not equals
+GET /users?isActive[operator]=ne&isActive[value]=false
+
+// In array
+GET /users?isActive[operator]=in&isActive[values]=[true]
+
+// Not in array
+GET /users?isActive[operator]=notin&isActive[values]=[false]
+
+// Is null
+GET /users?isActive[operator]=isnull
+
+// Is not null
+GET /users?isActive[operator]=notnull
+```
+
+### Enum Operations
+
+Operations for enum properties:
+
+```typescript
+// Equals
+GET /users?role[operator]=eq&role[value]=admin
+
+// Not equals
+GET /users?role[operator]=ne&role[value]=user
+
+// In array
+GET /users?role[operator]=in&role[values]=["admin","moderator"]
+
+// Not in array
+GET /users?role[operator]=notin&role[values]=["user"]
+
+// Is null
+GET /users?role[operator]=isnull
+
+// Is not null
+GET /users?role[operator]=notnull
+```
+
+### UUID Operations
+
+Operations for UUID properties:
+
+```typescript
+// Equals
+GET /users?id[operator]=eq&id[value]=550e8400-e29b-41d4-a716-446655440000
+
+// Not equals
+GET /users?id[operator]=ne&id[value]=550e8400-e29b-41d4-a716-446655440000
+
+// Is null
+GET /users?id[operator]=isnull
+
+// Is not null
+GET /users?id[operator]=notnull
+```
+
+## Multiple Filters
+
+Combine multiple filters to narrow results:
+
+```
+GET /users?username[operator]=cont&username[value]=john&age[operator]=gte&age[value]=18&isActive[operator]=eq&isActive[value]=true
+```
+
+This returns active users aged 18 or older with "john" in their username.
+
+## Sorting
+
+### Single Field Sort
+
+Sort by a single field:
+
+```
+GET /users?orderBy=createdAt&orderDirection=DESC
+```
+
+Available directions:
+- `ASC` - Ascending order
+- `DESC` - Descending order
+
+### Multiple Field Sort
+
+Sort by multiple fields (comma-separated):
+
+```
+GET /users?orderBy=role,createdAt&orderDirection=ASC,DESC
+```
+
+This sorts first by role (ascending), then by createdAt (descending).
+
+## Programmatic Usage
+
+Use filters programmatically in services:
+
+```typescript filename="user.service.ts" copy
+import { EFilterOperation } from "@elsikora/nestjs-crud-automator";
+
+const users = await userService.getList(
+  {
+    where: {
+      username: {
+        operator: EFilterOperation.CONT,
+        value: "john",
+      },
+      age: {
+        operator: EFilterOperation.GTE,
+        value: 18,
+      },
+    },
+    order: {
+      createdAt: "DESC",
+    },
+    limit: 10,
+    page: 1,
+  },
+  {}
+);
+```
+
+## Configuring Filters
+
+Control which properties can be filtered in entity configuration:
+
+```typescript filename="user.entity.ts" copy
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Internal admin notes",
+  format: EApiPropertyStringType.STRING,
+  dto: {
+    query: {
+      getList: {
+        isExposedAsFilter: false, // Cannot be used in filters
+      },
+    },
+  },
+})
+internalNotes: string;
+```
+
+## Complex Filter Queries
+
+### AND Logic
+
+Multiple filters on different fields use AND logic by default:
+
+```
+GET /posts?authorId[operator]=eq&authorId[value]=123&status[operator]=eq&status[value]=published
+```
+
+Returns posts where authorId = 123 AND status = published.
+
+### OR Logic with IN
+
+Use IN operator for OR logic on the same field:
+
+```
+GET /posts?status[operator]=in&status[values]=["draft","published"]
+```
+
+Returns posts where status = "draft" OR status = "published".
+
+## Filter Performance
+
+### Index Fields
+
+Ensure frequently filtered fields are indexed:
+
+```typescript
+@Index()
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Username",
+  format: EApiPropertyStringType.STRING,
+})
+username: string;
+```
+
+### Composite Indexes
+
+Create composite indexes for common filter combinations:
+
+```typescript
+@Entity("posts")
+@Index(["authorId", "status"])
+export class PostEntity {
+  // ...
+}
+```
+
+## Next Steps
+
+- [Pagination](/docs/nestjs-crud-automator/guides/pagination) - Paginate filtered results
+- [Relations](/docs/nestjs-crud-automator/guides/relations) - Filter on related entities
+- [API Reference - Enums](/docs/nestjs-crud-automator/api-reference/enums) - All filter operations reference
+

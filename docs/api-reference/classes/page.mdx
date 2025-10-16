@@ -1,0 +1,219 @@
+# Classes
+
+Complete reference for all classes provided by NestJS CRUD Automator.
+
+## Base Classes
+
+### ApiServiceBase
+
+Base class for services providing CRUD operations.
+
+**Location:** `src/class/api/service-base.class.ts`
+
+**Methods:**
+
+#### `create(properties, eventManager?): Promise<E>`
+
+Creates a new entity.
+
+```typescript
+async create(
+  properties: TApiFunctionCreateProperties<E>,
+  eventManager?: EntityManager
+): Promise<E>
+```
+
+#### `get(properties, eventManager?): Promise<E>`
+
+Retrieves a single entity.
+
+```typescript
+async get(
+  properties: TApiFunctionGetProperties<E>,
+  eventManager?: EntityManager
+): Promise<E>
+```
+
+#### `getList(properties, eventManager?): Promise<IApiGetListResponseResult<E>>`
+
+Retrieves a paginated list of entities.
+
+```typescript
+async getList(
+  properties: TApiFunctionGetListProperties<E>,
+  eventManager?: EntityManager
+): Promise<IApiGetListResponseResult<E>>
+```
+
+#### `getMany(properties, eventManager?): Promise<E[]>`
+
+Retrieves multiple entities.
+
+```typescript
+async getMany(
+  properties: TApiFunctionGetManyProperties<E>,
+  eventManager?: EntityManager
+): Promise<E[]>
+```
+
+#### `update(criteria, properties, eventManager?): Promise<E>`
+
+Updates an entity.
+
+```typescript
+async update(
+  criteria: TApiFunctionUpdateCriteria<E>,
+  properties: TApiFunctionUpdateProperties<E>,
+  eventManager?: EntityManager
+): Promise<E>
+```
+
+#### `delete(criteria, eventManager?): Promise<void>`
+
+Deletes an entity.
+
+```typescript
+async delete(
+  criteria: TApiFunctionDeleteCriteria<E>,
+  eventManager?: EntityManager
+): Promise<void>
+```
+
+**Related:**
+- [Core Concepts - Services](/docs/nestjs-crud-automator/core-concepts/services)
+
+## Subscriber Base Classes
+
+### ApiRouteSubscriberBase
+
+Abstract base class for route-level subscribers.
+
+**Location:** `src/class/api/subscriber/route-base.class.ts`
+
+**Hook Methods:**
+- `onBeforeCreate`, `onAfterCreate`, `onBeforeErrorCreate`, `onAfterErrorCreate`
+- `onBeforeUpdate`, `onAfterUpdate`, `onBeforeErrorUpdate`, `onAfterErrorUpdate`
+- `onBeforeGet`, `onAfterGet`, `onBeforeErrorGet`, `onAfterErrorGet`
+- `onBeforeGetList`, `onAfterGetList`, `onBeforeErrorGetList`, `onAfterErrorGetList`
+- `onBeforeGetMany`, `onAfterGetMany`, `onBeforeErrorGetMany`, `onAfterErrorGetMany`
+- `onBeforeDelete`, `onAfterDelete`, `onBeforeErrorDelete`, `onAfterErrorDelete`
+
+**Related:**
+- [Subscriber System - Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)
+
+### ApiFunctionSubscriberBase
+
+Abstract base class for function-level subscribers.
+
+**Location:** `src/class/api/subscriber/function-base.class.ts`
+
+**Hook Methods:**
+- `onBeforeCreate`, `onAfterCreate`, `onBeforeErrorCreate`, `onAfterErrorCreate`
+- `onBeforeUpdate`, `onAfterUpdate`, `onBeforeErrorUpdate`, `onAfterErrorUpdate`
+- `onBeforeGet`, `onAfterGet`, `onBeforeErrorGet`, `onAfterErrorGet`
+- `onBeforeGetList`, `onAfterGetList`, `onBeforeErrorGetList`, `onAfterErrorGetList`
+- `onBeforeGetMany`, `onAfterGetMany`, `onBeforeErrorGetMany`, `onAfterErrorGetMany`
+- `onBeforeDelete`, `onAfterDelete`, `onBeforeErrorDelete`, `onAfterErrorDelete`
+
+**Related:**
+- [Subscriber System - Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers)
+
+### ApiSubscriberBase
+
+Abstract base class for all subscribers.
+
+**Location:** `src/class/api/subscriber/base.class.ts`
+
+## Utility Classes
+
+### MetadataStorage
+
+Singleton class for storing and retrieving entity property metadata.
+
+**Location:** `src/class/metadata-storage.class.ts`
+
+**Methods:**
+
+#### `getInstance(): MetadataStorage`
+
+Returns the singleton instance.
+
+```typescript
+const storage = MetadataStorage.getInstance();
+```
+
+#### `setMetadata(entityName, propertyKey, metadataKey, metadata)`
+
+Stores metadata for a property.
+
+```typescript
+storage.setMetadata("UserEntity", "username", "api-property-describe", { ... });
+```
+
+#### `getMetadata(entityName, propertyKey, metadataKey)`
+
+Retrieves metadata for a property.
+
+```typescript
+const metadata = storage.getMetadata("UserEntity", "username", "api-property-describe");
+```
+
+#### `getAllMetadata(entityName)`
+
+Retrieves all metadata for an entity.
+
+```typescript
+const allMetadata = storage.getAllMetadata("UserEntity");
+```
+
+#### `hasMetadata(entityName, propertyKey, metadataKey): boolean`
+
+Checks if metadata exists.
+
+```typescript
+const exists = storage.hasMetadata("UserEntity", "username", "api-property-describe");
+```
+
+**Related:**
+- [Core Concepts - Metadata Storage](/docs/nestjs-crud-automator/core-concepts/metadata-storage)
+
+### ApiControllerFactory
+
+Factory class for generating controller endpoints.
+
+**Location:** `src/factory/api/controller.factory.ts`
+
+**Internal Use:** This class is used internally by the `@ApiController` decorator and is not typically used directly.
+
+## Subscriber Management Classes
+
+### ApiSubscriberDiscoveryService
+
+Service for discovering and registering subscribers.
+
+**Location:** `src/class/api/subscriber/discovery-service.class.ts`
+
+**Usage:** Automatically used by `ApiSubscriberModule`.
+
+### ApiSubscriberRegistry
+
+Registry for storing subscriber instances.
+
+**Location:** `src/class/api/subscriber/registry.class.ts`
+
+**Internal Use:** Manages subscriber registration and retrieval.
+
+### ApiSubscriberExecutor
+
+Executes subscriber hooks in correct order.
+
+**Location:** `src/class/api/subscriber/executor.class.ts`
+
+**Internal Use:** Handles subscriber execution with priority ordering.
+
+## Next Steps
+
+- [Interfaces](/docs/nestjs-crud-automator/api-reference/interfaces) - Type definitions
+- [Core Concepts - Services](/docs/nestjs-crud-automator/core-concepts/services) - Service usage
+- [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Subscriber usage
+

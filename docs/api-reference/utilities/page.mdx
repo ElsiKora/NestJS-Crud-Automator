@@ -1,0 +1,274 @@
+# Utilities
+
+Utility functions and helpers provided by NestJS CRUD Automator.
+
+## Entity Utilities
+
+### GenerateEntityInformation
+
+Generates entity metadata from entity class.
+
+**Location:** `src/utility/generate-entity-information.utility.ts`
+
+```typescript
+function GenerateEntityInformation<E>(entity: Type<E>): IApiEntity<E>
+```
+
+**Usage:**
+```typescript
+const entityInfo = GenerateEntityInformation(UserEntity);
+// Returns: { name: "UserEntity", primaryKey: "id", columns: [...], relations: [...] }
+```
+
+### getEntityColumns
+
+Gets all column names from an entity.
+
+**Location:** `src/utility/get-entity-columns.utility.ts`
+
+```typescript
+function getEntityColumns<E>(entity: Type<E>): string[]
+```
+
+## DTO Utilities
+
+### analyzeEntityMetadata
+
+Analyzes entity metadata for DTO generation.
+
+**Location:** `src/utility/dto/analize.utility.ts`
+
+```typescript
+function analyzeEntityMetadata<E>(entity: Type<E>): void
+```
+
+**Internal Use:** Called automatically by controller factory.
+
+### DtoGenerate
+
+Generates DTO classes from entity metadata.
+
+**Location:** `src/utility/dto/generate.utility.ts`
+
+```typescript
+function DtoGenerate(/* parameters */): Type<any>
+```
+
+**Internal Use:** Called automatically for DTO generation.
+
+## String Utilities
+
+### camelCaseString
+
+Converts string to camelCase.
+
+**Location:** `src/utility/camel-case-string.utility.ts`
+
+```typescript
+function camelCaseString(input: string): string
+```
+
+**Example:**
+```typescript
+camelCaseString("user_name") // Returns: "userName"
+camelCaseString("UserName") // Returns: "userName"
+```
+
+### capitalizeString
+
+Capitalizes first letter of string.
+
+**Location:** `src/utility/capitalize-string.utility.ts`
+
+```typescript
+function capitalizeString(input: string): string
+```
+
+**Example:**
+```typescript
+capitalizeString("hello") // Returns: "Hello"
+```
+
+## Error Utilities
+
+### ErrorException
+
+Creates formatted error messages.
+
+**Location:** `src/utility/error-exception.utility.ts`
+
+```typescript
+function ErrorException(message: string, context?: any): Error
+```
+
+**Example:**
+```typescript
+throw ErrorException("Invalid entity configuration", {
+  entity: "UserEntity",
+  field: "id"
+});
+```
+
+### errorString
+
+Formats error objects to strings.
+
+**Location:** `src/utility/error-string.utility.ts`
+
+```typescript
+function errorString(error: unknown): string
+```
+
+### isErrorOfType
+
+Checks if error is of specific type.
+
+**Location:** `src/utility/is-error-of-type.utility.ts`
+
+```typescript
+function isErrorOfType<T extends Error>(
+  error: unknown,
+  errorType: Type<T>
+): error is T
+```
+
+**Example:**
+```typescript
+if (isErrorOfType(error, ValidationError)) {
+  // Handle validation error
+}
+```
+
+## Logging Utilities
+
+### LoggerUtility
+
+Logging utility for internal use.
+
+**Location:** `src/utility/logger.utility.ts`
+
+```typescript
+class LoggerUtility {
+  static log(message: string, context?: string): void
+  static error(message: string, trace?: string, context?: string): void
+  static warn(message: string, context?: string): void
+  static debug(message: string, context?: string): void
+}
+```
+
+**Example:**
+```typescript
+LoggerUtility.log("Operation completed", "UserService");
+LoggerUtility.error("Operation failed", error.stack, "UserService");
+```
+
+## Controller Utilities
+
+### ApiControllerApplyDecorators
+
+Applies decorators to controller methods.
+
+**Location:** `src/utility/api/controller/apply-decorators.utility.ts`
+
+**Internal Use:** Used by controller factory.
+
+### ApiControllerApplyMetadata
+
+Applies metadata to controller methods.
+
+**Location:** `src/utility/api/controller/apply-metadata.utility.ts`
+
+**Internal Use:** Used by controller factory.
+
+### ApiControllerGetMethodName
+
+Gets method name for route type.
+
+**Location:** `src/utility/api/controller/get-method-name.utility.ts`
+
+**Internal Use:** Used by controller factory.
+
+### ApiControllerGetPrimaryColumn
+
+Gets primary column from entity.
+
+**Location:** `src/utility/api/controller/get-primary-column.utility.ts`
+
+```typescript
+function ApiControllerGetPrimaryColumn<E>(
+  entity: Type<E>
+): IApiControllerPrimaryColumn
+```
+
+### ApiControllerHandleRequestRelations
+
+Handles relation loading in requests.
+
+**Location:** `src/utility/api/controller/handle-request-relations.utility.ts`
+
+**Internal Use:** Used by controller factory.
+
+### ApiControllerTransformData
+
+Transforms request/response data.
+
+**Location:** `src/utility/api/controller/transform-data.utility.ts`
+
+**Internal Use:** Used by controller factory.
+
+### ApiControllerValidateRequest
+
+Validates incoming requests.
+
+**Location:** `src/utility/api/controller/validate-request.utility.ts`
+
+**Internal Use:** Used by controller factory.
+
+### ApiControllerWriteDtoSwagger
+
+Writes Swagger documentation for DTOs.
+
+**Location:** `src/utility/api/controller/write-dto-swagger.utility.ts`
+
+**Internal Use:** Used by controller factory.
+
+### ApiControllerWriteMethod
+
+Writes controller methods.
+
+**Location:** `src/utility/api/controller/write-method.utility.ts`
+
+**Internal Use:** Used by controller factory.
+
+## Filter Utilities
+
+### ApiControllerGetListTransformFilter
+
+Transforms filter query parameters.
+
+**Location:** `src/utility/api/controller/get-list/transform-filter.utility.ts`
+
+**Internal Use:** Used for query parameter transformation.
+
+### ApiControllerGetListTransformOperation
+
+Transforms filter operations.
+
+**Location:** `src/utility/api/controller/get-list/transform-operation.utility.ts`
+
+**Internal Use:** Used for filter operation mapping.
+
+### filterOrderByFromEntity
+
+Generates order by options from entity.
+
+**Location:** `src/utility/api/filter-order-by-from-entity.utility.ts`
+
+**Internal Use:** Used for sorting configuration.
+
+## Next Steps
+
+- [Validators](/docs/nestjs-crud-automator/api-reference/validators) - Custom validators
+- [Interceptors](/docs/nestjs-crud-automator/api-reference/interceptors) - Interceptors reference
+- [Classes](/docs/nestjs-crud-automator/api-reference/classes) - Base classes
+

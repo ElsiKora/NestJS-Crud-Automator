@@ -1,0 +1,85 @@
+name: Mirror Docs to ElsiKora-Frontend
+
+
+env:
+  CHECKOUT_DEPTH: 0
+  DESTINATION_REPOSITORY_NAME: ElsiKora/ElsiKora-Frontend
+  DESTINATION_BRANCH: dev
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+
+jobs:
+  mirror_docs_to_docviewer:
+    name: Mirror Docs to ElsiKora-Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          path: source
+          fetch-depth: ${{ env.CHECKOUT_DEPTH }}
+
+      - name: Get repo name and date
+        id: vars
+        run: |
+          REPO_NAME=$(basename $GITHUB_REPOSITORY)
+          echo "REPO_NAME=$REPO_NAME" >> $GITHUB_OUTPUT
+
+          KEBAB_CASE_REPO_NAME=$(echo "$REPO_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/_/-/g')
+          echo "KEBAB_CASE_REPO_NAME=$KEBAB_CASE_REPO_NAME" >> $GITHUB_OUTPUT
+
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          echo "TIMESTAMP=$TIMESTAMP" >> $GITHUB_OUTPUT
+
+          echo "DATE=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
+      - name: Checkout destination repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ env.CHECKOUT_DEPTH }}
+          repository: ${{ env.DESTINATION_REPOSITORY_NAME }}
+          path: destination
+          token: ${{ secrets.PAT_TOKEN }}
+          ref: ${{ env.DESTINATION_BRANCH }}
+
+      - name: Create and push to feature branch
+        run: |
+          cd destination
+
+          BASE_BRANCH_NAME="feature/docs-${{ steps.vars.outputs.KEBAB_CASE_REPO_NAME }}-${{ steps.vars.outputs.DATE }}"
+
+          REMOTE_BRANCHES=$(git ls-remote --heads origin "$BASE_BRANCH_NAME")
+
+          if [ -n "$REMOTE_BRANCHES" ]; then
+            echo "Branch $BASE_BRANCH_NAME already exists, adding timestamp for uniqueness"
+            BRANCH_NAME="${BASE_BRANCH_NAME}-${{ steps.vars.outputs.TIMESTAMP }}"
+          else
+            BRANCH_NAME="$BASE_BRANCH_NAME"
+          fi
+
+          echo "Using branch name: $BRANCH_NAME"
+          git checkout -b "$BRANCH_NAME"
+
+          TARGET_DIR="src/app/docs/${{ steps.vars.outputs.KEBAB_CASE_REPO_NAME }}"
+
+          if [ -d "$TARGET_DIR" ]; then
+            echo "Cleaning target directory: $TARGET_DIR"
+            rm -rf "$TARGET_DIR"
+          fi
+
+          mkdir -p "$TARGET_DIR"
+
+          cp -r ../source/docs/* "$TARGET_DIR/"
+
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+
+          git add .
+          git diff --quiet && git diff --staged --quiet || (git commit -m "docs(documentation): sync docs from ${{ steps.vars.outputs.REPO_NAME }} repo on ${{ steps.vars.outputs.DATE }}" && git push --set-upstream origin "$BRANCH_NAME")
+

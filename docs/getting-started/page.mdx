@@ -1,0 +1,236 @@
+import { Tabs } from 'nextra/components'
+
+# Getting Started
+
+This guide will walk you through the basic setup and usage of NestJS CRUD Automator.
+
+## Installation
+
+<Tabs items={['npm', 'yarn', 'pnpm', 'bun']} storageKey="nestjs-crud-automator-install-tabs">
+  <Tabs.Tab>
+    ```bash copy
+    npm install @elsikora/nestjs-crud-automator
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```bash copy
+    yarn add @elsikora/nestjs-crud-automator
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```bash copy
+    pnpm add @elsikora/nestjs-crud-automator
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```bash copy
+    bun install @elsikora/nestjs-crud-automator
+    ```
+  </Tabs.Tab>
+</Tabs>
+
+## Prerequisites
+
+Make sure you have the following dependencies installed in your NestJS project:
+
+- NestJS (>=11.0.5)
+- TypeORM (>=0.3.20)
+- class-validator (>=0.14.1)
+- class-transformer (>=0.5.1)
+- @nestjs/swagger (>=11.0.3)
+
+Install peer dependencies if they are not already in your project:
+
+```bash copy
+npm install @nestjs/common @nestjs/core @nestjs/swagger @nestjs/throttler typeorm class-transformer class-validator reflect-metadata
+```
+
+## Basic Usage
+
+### Step 1: Define Your Entity
+
+Define your entity with `ApiPropertyDescribe` decorators to provide metadata for CRUD generation:
+
+```typescript filename="user.entity.ts" copy
+import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import {
+  ApiPropertyDescribe,
+  EApiPropertyDescribeType,
+  EApiPropertyStringType,
+  EApiPropertyDateIdentifier,
+  EApiPropertyDateType
+} from "@elsikora/nestjs-crud-automator";
+
+@Entity("users")
+export class UserEntity {
+  @PrimaryGeneratedColumn("uuid")
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.UUID,
+    description: "User unique identifier",
+  })
+  id: string;
+
+  @Column()
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.STRING,
+    description: "User name",
+    format: EApiPropertyStringType.STRING,
+    minLength: 3,
+    maxLength: 50,
+    pattern: "/^[a-zA-Z0-9_-]+$/",
+    exampleValue: "john_doe",
+  })
+  username: string;
+
+  @Column()
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.STRING,
+    description: "User email",
+    format: EApiPropertyStringType.EMAIL,
+    minLength: 5,
+    maxLength: 255,
+    exampleValue: "user@example.com",
+  })
+  email: string;
+
+  @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.DATE,
+    identifier: EApiPropertyDateIdentifier.CREATED_AT,
+    format: EApiPropertyDateType.DATE_TIME,
+  })
+  createdAt: Date;
+
+  @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", onUpdate: "CURRENT_TIMESTAMP" })
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.DATE,
+    identifier: EApiPropertyDateIdentifier.UPDATED_AT,
+    format: EApiPropertyDateType.DATE_TIME,
+  })
+  updatedAt: Date;
+}
+```
+
+### Step 2: Create a Service
+
+Create a service with the `ApiService` decorator to add CRUD operations:
+
+```typescript filename="user.service.ts" copy
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { ApiService, ApiServiceBase } from "@elsikora/nestjs-crud-automator";
+import { UserEntity } from "./user.entity";
+
+@Injectable()
+@ApiService<UserEntity>({
+  entity: UserEntity,
+})
+export class UserService extends ApiServiceBase<UserEntity> {
+  constructor(
+    @InjectRepository(UserEntity)
+    public repository: Repository<UserEntity>,
+  ) {
+    super();
+  }
+
+  // Add custom methods beyond basic CRUD
+  async findByEmail(email: string): Promise<UserEntity | undefined> {
+    return this.repository.findOne({ where: { email } });
+  }
+}
+```
+
+### Step 3: Create a Controller
+
+Create a controller with the `ApiController` decorator to generate all CRUD endpoints:
+
+```typescript filename="user.controller.ts" copy
+import { Controller } from "@nestjs/common";
+import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { UserEntity } from "./user.entity";
+import { UserService } from "./user.service";
+
+@Controller("users")
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  name: "Users",
+  routes: {
+    [EApiRouteType.CREATE]: {},
+    [EApiRouteType.UPDATE]: {},
+    [EApiRouteType.DELETE]: {},
+    [EApiRouteType.GET]: {},
+    [EApiRouteType.GET_LIST]: {},
+  },
+})
+export class UserController {
+  constructor(public service: UserService) {}
+}
+```
+
+### Step 4: Register in Module
+
+Register the entity, service, and controller in your module:
+
+```typescript filename="user.module.ts" copy
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { UserEntity } from "./user.entity";
+import { UserService } from "./user.service";
+import { UserController } from "./user.controller";
+
+@Module({
+  imports: [TypeOrmModule.forFeature([UserEntity])],
+  providers: [UserService],
+  controllers: [UserController],
+  exports: [UserService],
+})
+export class UserModule {}
+```
+
+## Generated Endpoints
+
+With the above setup, the following endpoints are automatically generated:
+
+- `POST /users` - Create a new user
+- `GET /users/:id` - Get a single user by ID
+- `GET /users` - Get a paginated list of users with filtering and sorting
+- `PATCH /users/:id` - Update a user
+- `DELETE /users/:id` - Delete a user
+
+## Swagger Documentation
+
+To enable Swagger documentation in your application:
+
+```typescript filename="main.ts" copy
+import { NestFactory } from "@nestjs/core";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import { AppModule } from "./app.module";
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  const config = new DocumentBuilder()
+    .setTitle("Your API")
+    .setDescription("API description")
+    .setVersion("1.0")
+    .addBearerAuth()
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup("api", app, document);
+
+  await app.listen(3000);
+}
+bootstrap();
+```
+
+## Next Steps
+
+Now that you have a basic setup, explore the following sections:
+
+- [Core Concepts](/docs/nestjs-crud-automator/core-concepts) - Understand the library architecture
+- [Guides](/docs/nestjs-crud-automator/guides) - Learn filtering, authentication, validation, and more
+- [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Add hooks to extend CRUD operations
+- [API Reference](/docs/nestjs-crud-automator/api-reference) - Detailed API documentation
+

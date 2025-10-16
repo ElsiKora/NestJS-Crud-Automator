@@ -1,0 +1,240 @@
+# Interceptors
+
+Interceptors provided by NestJS CRUD Automator.
+
+## CorrelationIDResponseBodyInterceptor
+
+Global interceptor that adds correlation IDs and timestamps to all error responses.
+
+**Location:** `src/interceptor/correlation-id-response-body.interceptor.ts`
+
+## Features
+
+- Intercepts all exceptions (HttpException, ThrottlerException, and generic errors)
+- Adds `correlationID` to error responses
+- Adds `timestamp` to error responses
+- Uses `x-correlation-id` header if present, generates UUID if not
+- Handles rate limiting errors (ThrottlerException) specifically
+
+## Setup
+
+Register globally in your application:
+
+```typescript filename="main.ts" copy
+import { NestFactory } from "@nestjs/core";
+import { CorrelationIDResponseBodyInterceptor } from "@elsikora/nestjs-crud-automator";
+import { AppModule } from "./app.module";
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // Register the interceptor globally
+  app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
+
+  await app.listen(3000);
+}
+bootstrap();
+```
+
+## Behavior
+
+### Request with Correlation ID
+
+**Request:**
+```http
+POST /users HTTP/1.1
+Content-Type: application/json
+x-correlation-id: 550e8400-e29b-41d4-a716-446655440000
+
+{
+  "username": "invalid_user"
+}
+```
+
+**Error Response:**
+```json
+{
+  "statusCode": 400,
+  "message": "Username is invalid",
+  "error": "Bad Request",
+  "timestamp": 1704067200000,
+  "correlationID": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+### Request without Correlation ID
+
+**Request:**
+```http
+POST /users HTTP/1.1
+Content-Type: application/json
+
+{
+  "username": "invalid_user"
+}
+```
+
+**Error Response:**
+```json
+{
+  "statusCode": 400,
+  "message": "Username is invalid",
+  "error": "Bad Request",
+  "timestamp": 1704067200000,
+  "correlationID": "a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6"
+}
+```
+
+Note: A new UUID is generated automatically.
+
+## Exception Types Handled
+
+### HttpException
+
+Standard NestJS HTTP exceptions:
+
+```typescript
+throw new BadRequestException("Invalid input");
+// Response includes correlationID and timestamp
+```
+
+### ThrottlerException
+
+Rate limiting exceptions:
+
+```typescript
+// Thrown automatically by ThrottlerGuard
+// Response:
+{
+  "statusCode": 429,
+  "message": "Too Many Requests",
+  "error": "Too Many Requests",
+  "timestamp": 1704067200000,
+  "correlationID": "..."
+}
+```
+
+### Generic Errors
+
+Unexpected errors are caught and wrapped:
+
+```typescript
+throw new Error("Unexpected error");
+// Response:
+{
+  "statusCode": 500,
+  "message": "Internal server error",
+  "error": "Internal server error",
+  "timestamp": 1704067200000,
+  "correlationID": "..."
+}
+```
+
+## Client Usage
+
+Send correlation IDs from clients for request tracing:
+
+```typescript filename="frontend-example.ts" copy
+// Generate a correlation ID
+const correlationId = crypto.randomUUID();
+
+// Send with request
+const response = await fetch("/api/users", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-correlation-id": correlationId,
+  },
+  body: JSON.stringify(userData),
+});
+
+// On error, the same correlationId will be in the response
+if (!response.ok) {
+  const error = await response.json();
+  console.error("Request failed:", {
+    correlationId: error.correlationID,
+    message: error.message,
+  });
+}
+```
+
+## Logging Integration
+
+Use correlation IDs in your logging:
+
+```typescript filename="logger.service.ts" copy
+import { Injectable, LoggerService } from "@nestjs/common";
+
+@Injectable()
+export class CustomLoggerService implements LoggerService {
+  log(message: string, context?: string, correlationId?: string) {
+    console.log(`[${correlationId}] [${context}] ${message}`);
+  }
+
+  error(message: string, trace?: string, context?: string, correlationId?: string) {
+    console.error(`[${correlationId}] [${context}] ${message}`, trace);
+  }
+}
+```
+
+## Subscriber Integration
+
+Access correlation IDs in subscribers:
+
+```typescript filename="audit.subscriber.ts" copy
+@Injectable()
+@ApiRouteSubscriber({ entity: UserEntity, priority: 10 })
+export class AuditSubscriber extends ApiRouteSubscriberBase<UserEntity> {
+  async onAfterCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
+    const correlationId = context.DATA.headers["x-correlation-id"];
+
+    await this.auditService.log({
+      action: "user_created",
+      correlationId,
+      userId: context.result.id,
+      timestamp: Date.now(),
+    });
+
+    return context.result;
+  }
+
+  async onAfterErrorCreate(
+    context: IApiSubscriberRouteErrorExecutionContext,
+    error: Error
+  ): Promise<void> {
+    const correlationId = context.DATA.headers["x-correlation-id"];
+
+    console.error(`[${correlationId}] User creation failed:`, error.message);
+  }
+}
+```
+
+## Response Structure
+
+The interceptor modifies error responses to include:
+
+```typescript
+interface ErrorResponse {
+  statusCode: number;           // HTTP status code
+  message: string | string[];   // Error message(s)
+  error: string;                // Error name
+  timestamp: number;            // Unix timestamp
+  correlationID: string;        // Correlation ID (UUID)
+  [key: string]: any;          // Other error details
+}
+```
+
+## Best Practices
+
+1. **Always send correlation IDs from clients** for easier debugging
+2. **Log correlation IDs** with every operation
+3. **Use the same correlation ID** across microservices for distributed tracing
+4. **Store correlation IDs** in monitoring/analytics systems
+5. **Include correlation IDs** in error reports and support tickets
+
+## Next Steps
+
+- [Guides - Error Handling](/docs/nestjs-crud-automator/guides/error-handling) - Error handling guide
+- [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Access correlation IDs in subscribers
+- [Utilities](/docs/nestjs-crud-automator/api-reference/utilities) - Logging utilities
+

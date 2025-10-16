@@ -1,0 +1,348 @@
+# Execution Context
+
+Execution contexts provide access to data and metadata during subscriber hook execution. Different contexts are available for route and function subscribers, each with specific properties.
+
+## Base Execution Context
+
+All execution contexts extend the base interface:
+
+```typescript
+interface IApiSubscriberExecutionContext<E, Result, Input> {
+  /**
+   * The entity instance the operation is being performed on
+   */
+  readonly ENTITY: E;
+
+  /**
+   * Immutable container for metadata
+   * (e.g., transaction manager, HTTP headers, route info)
+   */
+  readonly DATA: Input;
+
+  /**
+   * Mutable data payload that subscribers can modify
+   */
+  result: Result;
+}
+```
+
+## Route Execution Context
+
+Used in route (controller-level) subscribers:
+
+```typescript
+interface IApiSubscriberRouteExecutionContext<E, Result> {
+  readonly ENTITY: E;
+  readonly DATA: {
+    readonly method: string;
+    readonly methodName: string;
+    readonly properties: IApiControllerProperties<E>;
+    readonly entityMetadata: IApiEntity<E>;
+    readonly authenticationRequest?: IApiAuthenticationRequest;
+    readonly headers: Record<string, string>;
+    readonly ip: string;
+  };
+  readonly ROUTE_TYPE: EApiRouteType;
+  result: Result;
+}
+```
+
+### Accessing Route Context Data
+
+```typescript
+async onBeforeCreate(
+  context: IApiSubscriberRouteExecutionContext<PostEntity, any>
+): Promise<any> {
+  // Entity being operated on
+  const entity = context.ENTITY;
+
+  // Authenticated user
+  const user = context.DATA.authenticationRequest?.user;
+  const userId = user?.id;
+  const userRole = user?.role;
+
+  // Request headers
+  const contentType = context.DATA.headers["content-type"];
+  const userAgent = context.DATA.headers["user-agent"];
+  const correlationId = context.DATA.headers["x-correlation-id"];
+
+  // Client IP
+  const clientIp = context.DATA.ip;
+
+  // Route information
+  const routeType = context.ROUTE_TYPE; // "create", "update", etc.
+  const method = context.DATA.method;
+
+  // Entity metadata
+  const entityName = context.DATA.entityMetadata.name;
+  const primaryKey = context.DATA.entityMetadata.primaryKey;
+
+  // Mutable result
+  const { body } = context.result;
+  body.createdById = userId;
+
+  return context.result;
+}
+```
+
+## Function Execution Context
+
+Used in function (service-level) subscribers:
+
+```typescript
+interface IApiSubscriberFunctionExecutionContext<E, Result> {
+  readonly ENTITY: E;
+  readonly DATA: {
+    readonly method: string;
+    readonly entityMetadata: IApiEntity<E>;
+    readonly transactionManager?: EntityManager;
+  };
+  result: Result;
+}
+```
+
+### Accessing Function Context Data
+
+```typescript
+async onBeforeCreate(
+  context: IApiSubscriberFunctionExecutionContext<
+    PostEntity,
+    TApiFunctionCreateProperties<PostEntity>
+  >
+): Promise<TApiFunctionCreateProperties<PostEntity>> {
+  // Entity being created
+  const entity = context.ENTITY;
+
+  // Entity metadata
+  const entityName = context.DATA.entityMetadata.name;
+  const primaryKey = context.DATA.entityMetadata.primaryKey;
+
+  // Transaction manager (if within transaction)
+  const manager = context.DATA.transactionManager;
+  if (manager) {
+    // Use transactional operations
+    await manager.save(RelatedEntity, { ... });
+  }
+
+  // Mutable result
+  const { body } = context.result;
+  body.slug = this.generateSlug(body.title);
+
+  return context.result;
+}
+```
+
+## Error Execution Contexts
+
+### Route Error Context
+
+```typescript
+interface IApiSubscriberRouteErrorExecutionContext<E> {
+  readonly ENTITY: E;
+  readonly DATA: {
+    readonly method: string;
+    readonly methodName: string;
+    readonly properties: IApiControllerProperties<E>;
+    readonly entityMetadata: IApiEntity<E>;
+    readonly authenticationRequest?: IApiAuthenticationRequest;
+    readonly headers: Record<string, string>;
+    readonly ip: string;
+  };
+  readonly ROUTE_TYPE: EApiRouteType;
+}
+```
+
+### Function Error Context
+
+```typescript
+interface IApiSubscriberFunctionErrorExecutionContext<E> {
+  readonly ENTITY: E;
+  readonly DATA: {
+    readonly method: string;
+    readonly entityMetadata: IApiEntity<E>;
+    readonly transactionManager?: EntityManager;
+  };
+}
+```
+
+### Using Error Contexts
+
+```typescript
+async onAfterErrorCreate(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> {
+  // Log error with context
+  console.error("Post creation failed", {
+    error: error.message,
+    stack: error.stack,
+    entity: context.ENTITY,
+    user: context.DATA.authenticationRequest?.user,
+    ip: context.DATA.ip,
+    headers: context.DATA.headers,
+  });
+
+  // Send error notification
+  await this.notificationService.notifyAdmins({
+    type: "post_creation_error",
+    error: error.message,
+    userId: context.DATA.authenticationRequest?.user?.id,
+  });
+}
+```
+
+## Modifying Results
+
+Subscribers can modify the mutable `result` field:
+
+### Before Hooks
+
+```typescript
+async onBeforeCreate(
+  context: IApiSubscriberRouteExecutionContext<PostEntity, { body: DeepPartial<PostEntity> }>
+): Promise<{ body: DeepPartial<PostEntity> }> {
+  // Modify body before saving
+  context.result.body.slug = this.generateSlug(context.result.body.title);
+  context.result.body.status = "draft";
+
+  return context.result;
+}
+```
+
+### After Hooks
+
+```typescript
+async onAfterGet(
+  context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>
+): Promise<PostEntity> {
+  // Enrich result after fetching
+  context.result.readingTime = this.calculateReadingTime(context.result.content);
+  context.result.isBookmarked = await this.checkIfBookmarked(context.result.id);
+
+  return context.result;
+}
+```
+
+## Type Parameters
+
+Execution contexts are generic and accept type parameters:
+
+```typescript
+// E: Entity type
+// Result: Result type (varies by operation)
+// Input: Input data type (metadata)
+
+IApiSubscriberExecutionContext<E, Result, Input>
+```
+
+### Common Result Types
+
+```typescript
+// Create operation
+TApiFunctionCreateProperties<E> = { body: DeepPartial<E> }
+
+// Update operation
+TApiFunctionUpdateProperties<E> = { body: DeepPartial<E> }
+
+// Get operation
+E // The entity itself
+
+// Get list operation
+E[] // Array of entities
+
+// Delete operation
+E // The entity being deleted
+```
+
+## Practical Examples
+
+### Enriching Data from Context
+
+```typescript
+async onBeforeCreate(
+  context: IApiSubscriberRouteExecutionContext<PostEntity, any>
+): Promise<any> {
+  const { body } = context.result;
+  const user = context.DATA.authenticationRequest?.user;
+
+  // Add user and request data to entity
+  body.authorId = user?.id;
+  body.authorIp = context.DATA.ip;
+  body.createdVia = context.DATA.headers["user-agent"];
+
+  return context.result;
+}
+```
+
+### Conditional Logic Based on Context
+
+```typescript
+async onAfterGet(
+  context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
+): Promise<PostEntity> {
+  const post = context.result;
+  const user = context.DATA.authenticationRequest?.user;
+
+  // Hide sensitive data based on user role
+  if (user?.role !== "admin") {
+    post.internalNotes = null;
+    post.authorEmail = null;
+  }
+
+  return post;
+}
+```
+
+### Using Transaction Manager
+
+```typescript
+async onBeforeCreate(
+  context: IApiSubscriberFunctionExecutionContext<
+    PostEntity,
+    TApiFunctionCreateProperties<PostEntity>
+  >
+): Promise<TApiFunctionCreateProperties<PostEntity>> {
+  const manager = context.DATA.transactionManager;
+
+  if (manager) {
+    // Create related entities within same transaction
+    const tags = await manager.save(TagEntity, [
+      { name: "tech" },
+      { name: "programming" },
+    ]);
+
+    context.result.body.tags = tags;
+  }
+
+  return context.result;
+}
+```
+
+### Error Context with Cleanup
+
+```typescript
+async onAfterErrorCreate(
+  context: IApiSubscriberFunctionErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> {
+  // Clean up temporary resources
+  if (context.ENTITY.tempFileIds) {
+    await this.fileService.deleteTempFiles(context.ENTITY.tempFileIds);
+  }
+
+  // Log with full context
+  this.logger.error("Failed to create post", {
+    error: error.message,
+    entityId: context.ENTITY.id,
+    method: context.DATA.method,
+  });
+}
+```
+
+## Next Steps
+
+- [Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers) - Using route contexts
+- [Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers) - Using function contexts
+- [Lifecycle](/docs/nestjs-crud-automator/subscriber-system/lifecycle) - Execution flow and order
+- [API Reference - Interfaces](/docs/nestjs-crud-automator/api-reference/interfaces) - Full context interfaces
+
