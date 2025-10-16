@@ -1,3 +1,5 @@
+## [1.11.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.11.1...v1.11.2) (2025-10-16)
+
 ## [1.11.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.11.0...v1.11.1) (2025-10-16)
 
 # [1.11.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.10.4...v1.11.0) (2025-10-16)
