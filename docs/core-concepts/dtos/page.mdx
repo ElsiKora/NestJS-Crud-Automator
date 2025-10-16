@@ -1,0 +1,383 @@
+# DTOs
+
+Data Transfer Objects (DTOs) in NestJS CRUD Automator are automatically generated based on entity metadata. The library creates appropriate DTOs for request bodies, query parameters, and responses with built-in validation and transformation.
+
+## Automatic DTO Generation
+
+DTOs are generated automatically from entity properties decorated with `@ApiPropertyDescribe`:
+
+```typescript filename="user.entity.ts" copy
+@Entity("users")
+export class UserEntity {
+  @PrimaryGeneratedColumn("uuid")
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.UUID,
+    description: "User ID",
+  })
+  id: string;
+
+  @Column()
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.STRING,
+    description: "Username",
+    format: EApiPropertyStringType.STRING,
+    minLength: 3,
+    maxLength: 20,
+  })
+  username: string;
+}
+```
+
+This automatically generates:
+- **CreateUserDto** - For POST requests
+- **UpdateUserDto** - For PATCH requests
+- **UserResponseDto** - For responses
+- **GetListQueryDto** - For GET /users query parameters
+
+## DTO Types
+
+### Body DTOs
+
+Used for request bodies in CREATE and UPDATE operations.
+
+**Create DTO** includes:
+- All properties marked as `isExposedInCreateDto: true` (default: true)
+- Validation rules from property configuration
+- Required fields based on `isRequired`
+
+**Update DTO** includes:
+- All properties marked as `isExposedInUpdateDto: true` (default: true)
+- All fields are optional by default
+- Validation rules still apply when provided
+
+### Query DTOs
+
+Used for filtering and pagination in GET_LIST operations:
+
+```typescript
+// Generated GetListQueryDto structure
+interface GetListQueryDto {
+  limit?: number;
+  page?: number;
+  orderBy?: string;
+  orderDirection?: "ASC" | "DESC";
+  [propertyName]?: {
+    operator: EFilterOperation;
+    value?: any;
+    values?: any[];
+  };
+}
+```
+
+Example usage:
+
+```
+GET /users?limit=10&page=1&username[operator]=cont&username[value]=john&orderBy=createdAt&orderDirection=DESC
+```
+
+### Response DTOs
+
+Control which properties are included in responses:
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Password hash",
+  format: EApiPropertyStringType.PASSWORD,
+  dto: {
+    response: {
+      isExposed: false, // Never return in responses
+    },
+  },
+})
+password: string;
+```
+
+## Controlling DTO Generation
+
+### Exclude from DTOs
+
+Prevent a property from appearing in specific DTOs:
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Internal notes",
+  format: EApiPropertyStringType.STRING,
+  dto: {
+    body: {
+      isExposedInCreateDto: false,
+      isExposedInUpdateDto: false,
+    },
+    response: {
+      isExposed: true, // Show in responses only
+    },
+  },
+})
+internalNotes: string;
+```
+
+### Required vs Optional
+
+Control field requirements:
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Email",
+  format: EApiPropertyStringType.EMAIL,
+  isRequired: true, // Required in create
+  dto: {
+    body: {
+      isRequiredInCreateDto: true,
+      isRequiredInUpdateDto: false, // Optional in update
+    },
+  },
+})
+email: string;
+```
+
+### Default Values
+
+Specify default values for DTO properties:
+
+```typescript
+@Column({ default: false })
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.BOOLEAN,
+  description: "Is active",
+  defaultValue: false,
+})
+isActive: boolean;
+```
+
+## Custom DTOs
+
+Replace auto-generated DTOs with custom ones:
+
+```typescript filename="dto/create-user.dto.ts" copy
+import { IsString, IsEmail, MinLength, MaxLength } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
+
+export class CreateUserDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(20)
+  username: string;
+
+  @ApiProperty()
+  @IsEmail()
+  email: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(8)
+  password: string;
+}
+```
+
+Use in controller:
+
+```typescript
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  routes: {
+    [EApiRouteType.CREATE]: {
+      dto: {
+        body: CreateUserDto,
+        response: UserResponseDto,
+      },
+    },
+  },
+})
+```
+
+## DTO Validation
+
+### Built-in Validators
+
+Validation rules are automatically applied based on property configuration:
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Username",
+  format: EApiPropertyStringType.STRING,
+  minLength: 3, // Adds @MinLength(3)
+  maxLength: 20, // Adds @MaxLength(20)
+  pattern: "/^[a-zA-Z0-9_-]+$/", // Adds @Matches(/^[a-zA-Z0-9_-]+$/)
+})
+username: string;
+```
+
+### Custom Validators
+
+Add custom validators to auto-generated DTOs:
+
+```typescript
+import {
+  AllOrNoneOfListedPropertiesValidator
+} from "@elsikora/nestjs-crud-automator";
+
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  routes: {
+    [EApiRouteType.CREATE]: {
+      autoDto: {
+        [EApiDtoType.BODY]: {
+          validators: [
+            {
+              constraintClass: AllOrNoneOfListedPropertiesValidator,
+              options: ["firstName", "lastName"],
+            },
+          ],
+        },
+      },
+    },
+  },
+})
+```
+
+Available built-in validators:
+- `AllOrNoneOfListedPropertiesValidator` - All or none must be provided
+- `OnlyOneOfListedPropertiesValidator` - Exactly one must be provided
+- `HasAtLeastOneOfListedPropertiesValidator` - At least one required
+- `HasAtLeastOneAndOnlyOneOfListedPropertiesValidator` - Only one required
+- `MustMatchOneOfSchemasValidator` - Must match a schema
+- `HasPairedCustomSuffixesFieldsValidator` - Paired fields validation
+
+## Polymorphic DTOs
+
+Support for discriminated unions:
+
+```typescript
+// Base interface
+interface Payment {
+  type: string;
+}
+
+// Specific implementations
+interface CardPayment extends Payment {
+  type: "card";
+  cardNumber: string;
+  cvv: string;
+}
+
+interface PayPalPayment extends Payment {
+  type: "paypal";
+  email: string;
+}
+
+@Column({ type: "jsonb" })
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.OBJECT,
+  description: "Payment method",
+  discriminator: {
+    propertyName: "type",
+    mapping: {
+      card: CardPaymentDto,
+      paypal: PayPalPaymentDto,
+    },
+  },
+})
+paymentMethod: CardPayment | PayPalPayment;
+```
+
+## DTO Transformation
+
+Transform DTO values during processing:
+
+```typescript
+import { Transform } from "class-transformer";
+
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Email",
+  format: EApiPropertyStringType.EMAIL,
+})
+@Transform(({ value }) => value.toLowerCase())
+email: string;
+```
+
+## Guard-Based DTO Properties
+
+Show or hide DTO properties based on guards:
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Admin notes",
+  format: EApiPropertyStringType.STRING,
+  dto: {
+    guard: {
+      responseGuards: [AdminGuard],
+    },
+  },
+})
+adminNotes: string;
+```
+
+Only users passing `AdminGuard` will see this property in responses.
+
+## Relation DTOs
+
+Control how relations appear in DTOs:
+
+```typescript
+@ManyToOne(() => UserEntity)
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.RELATION,
+  description: "Post author",
+  relationMetadata: {
+    relationType: "many-to-one",
+    entity: UserEntity,
+    isEager: false,
+  },
+  dto: {
+    response: {
+      isExposed: true, // Include in responses
+      relations: ["author"], // Load author relation
+    },
+  },
+})
+author: UserEntity;
+```
+
+## Nested DTOs
+
+For complex nested objects:
+
+```typescript
+@Column({ type: "jsonb" })
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.OBJECT,
+  description: "User profile",
+  properties: {
+    bio: { type: "string", maxLength: 500 },
+    avatar: { type: "string", format: "url" },
+    socialLinks: {
+      type: "object",
+      properties: {
+        twitter: { type: "string" },
+        linkedin: { type: "string" },
+      },
+    },
+  },
+})
+profile: UserProfile;
+```
+
+## Next Steps
+
+- [Validation](/docs/nestjs-crud-automator/guides/validation) - Advanced validation patterns
+- [Transformers](/docs/nestjs-crud-automator/guides/transformers) - Request/response transformation
+- [Custom DTOs](/docs/nestjs-crud-automator/guides/custom-dtos) - Working with custom DTOs
+- [API Reference - Validators](/docs/nestjs-crud-automator/api-reference/validators) - All available validators
+

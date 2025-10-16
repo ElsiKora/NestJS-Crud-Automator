@@ -1,0 +1,210 @@
+# Interfaces
+
+Complete reference for key interfaces used in NestJS CRUD Automator.
+
+## Core Interfaces
+
+### IApiBaseEntity
+
+Base interface for all entities.
+
+```typescript
+interface IApiBaseEntity {
+  [key: string]: unknown;
+}
+```
+
+All entities must implement this interface (implicitly through TypeScript's structural typing).
+
+### IApiGetListResponseResult\<E\>
+
+Response structure for paginated list operations.
+
+```typescript
+interface IApiGetListResponseResult<E> {
+  items: E[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+```
+
+**Related:**
+- [Guides - Pagination](/docs/nestjs-crud-automator/guides/pagination)
+
+## Controller Interfaces
+
+### IApiControllerProperties\<E\>
+
+Configuration options for `@ApiController`.
+
+```typescript
+interface IApiControllerProperties<E> {
+  entity: Type<E>;
+  name?: string;
+  path?: string;
+  routes: {
+    [K in EApiRouteType]?: TApiControllerPropertiesRoute<E, K>;
+  };
+}
+```
+
+### IApiControllerAuthentication
+
+Authentication configuration for routes.
+
+```typescript
+interface IApiControllerAuthentication {
+  guard: Type<CanActivate>;
+  bearerStrategies: string[];
+}
+```
+
+## Subscriber Interfaces
+
+### IApiSubscriberRouteExecutionContext\<E, Result\>
+
+Execution context for route subscribers.
+
+```typescript
+interface IApiSubscriberRouteExecutionContext<E, Result> {
+  readonly ENTITY: E;
+  readonly DATA: {
+    readonly method: string;
+    readonly methodName: string;
+    readonly properties: IApiControllerProperties<E>;
+    readonly entityMetadata: IApiEntity<E>;
+    readonly authenticationRequest?: IApiAuthenticationRequest;
+    readonly headers: Record<string, string>;
+    readonly ip: string;
+  };
+  readonly ROUTE_TYPE: EApiRouteType;
+  result: Result;
+}
+```
+
+**Related:**
+- [Subscriber System - Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context)
+
+### IApiSubscriberFunctionExecutionContext\<E, Result\>
+
+Execution context for function subscribers.
+
+```typescript
+interface IApiSubscriberFunctionExecutionContext<E, Result> {
+  readonly ENTITY: E;
+  readonly DATA: {
+    readonly method: string;
+    readonly entityMetadata: IApiEntity<E>;
+    readonly transactionManager?: EntityManager;
+  };
+  result: Result;
+}
+```
+
+**Related:**
+- [Subscriber System - Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context)
+
+### IApiSubscriberRoute\<E\>
+
+Interface for route subscribers.
+
+```typescript
+interface IApiSubscriberRoute<E> {
+  onBeforeCreate?(context: IApiSubscriberRouteExecutionContext<E, any>): Promise<any>;
+  onAfterCreate?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
+  onBeforeErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
+  onAfterErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
+  // ... similar methods for update, get, getList, getMany, delete
+}
+```
+
+### IApiSubscriberFunction\<E\>
+
+Interface for function subscribers.
+
+```typescript
+interface IApiSubscriberFunction<E> {
+  onBeforeCreate?(context: IApiSubscriberFunctionExecutionContext<E, any>): Promise<any>;
+  onAfterCreate?(context: IApiSubscriberFunctionExecutionContext<E, E>): Promise<E | undefined>;
+  onBeforeErrorCreate?(context: IApiSubscriberFunctionErrorExecutionContext<E>, error: Error): Promise<void>;
+  onAfterErrorCreate?(context: IApiSubscriberFunctionErrorExecutionContext<E>, error: Error): Promise<void>;
+  // ... similar methods for update, get, getList, getMany, delete
+}
+```
+
+## Authentication Interface
+
+### IApiAuthenticationRequest
+
+Authentication request data available in subscribers.
+
+```typescript
+interface IApiAuthenticationRequest {
+  user?: {
+    id: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+```
+
+## Entity Metadata Interface
+
+### IApiEntity\<E\>
+
+Entity metadata information.
+
+```typescript
+interface IApiEntity<E> {
+  name: string;
+  primaryKey: string | null;
+  columns: string[];
+  relations: string[];
+  [key: string]: unknown;
+}
+```
+
+## Property Validation Interfaces
+
+### IApiDtoValidator
+
+Custom validator configuration.
+
+```typescript
+interface IApiDtoValidator {
+  constraintClass: Type<ValidatorConstraintInterface>;
+  options?: any[];
+}
+```
+
+**Related:**
+- [Guides - Validation](/docs/nestjs-crud-automator/guides/validation)
+
+## Request Transformer Interfaces
+
+### IApiControllerRequestTransformer
+
+Request transformer configuration.
+
+```typescript
+interface IApiControllerRequestTransformer {
+  key: string;
+  type: EApiControllerRequestTransformerType;
+  value: any;
+  shouldSetValueEvenIfMissing?: boolean;
+}
+```
+
+**Related:**
+- [Guides - Transformers](/docs/nestjs-crud-automator/guides/transformers)
+
+## Next Steps
+
+- [Enums](/docs/nestjs-crud-automator/api-reference/enums) - Enumeration values
+- [Types](/docs/nestjs-crud-automator/api-reference/types) - Type aliases
+- [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Subscriber interfaces usage
+

@@ -1,0 +1,420 @@
+# Route Subscribers
+
+Route subscribers intercept operations at the controller level, providing access to the HTTP request context including headers, IP address, and authenticated user information.
+
+## Creating a Route Subscriber
+
+Extend `ApiRouteSubscriberBase` and decorate with `@ApiRouteSubscriber`:
+
+```typescript filename="post-audit.subscriber.ts" copy
+import { Injectable } from "@nestjs/common";
+import {
+  ApiRouteSubscriber,
+  ApiRouteSubscriberBase,
+  IApiSubscriberRouteExecutionContext
+} from "@elsikora/nestjs-crud-automator";
+import { PostEntity } from "./post.entity";
+
+@Injectable()
+@ApiRouteSubscriber({
+  entity: PostEntity,
+  priority: 10, // Higher priority executes first
+})
+export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
+  // Implement hook methods
+}
+```
+
+## Available Hooks
+
+### Before Hooks
+
+Called before the main operation:
+
+#### `onBeforeCreate`
+
+```typescript
+async onBeforeCreate(
+  context: IApiSubscriberRouteExecutionContext<
+    PostEntity,
+    { body: DeepPartial<PostEntity> }
+  >
+): Promise<{ body: DeepPartial<PostEntity> } | undefined> {
+  const { body } = context.result;
+  const user = context.DATA.authenticationRequest?.user;
+
+  // Validate or modify body
+  if (!user) {
+    throw new UnauthorizedException("User must be authenticated");
+  }
+
+  // Add user ID to body
+  body.authorId = user.id;
+
+  return context.result;
+}
+```
+
+#### `onBeforeUpdate`
+
+```typescript
+async onBeforeUpdate(
+  context: IApiSubscriberRouteExecutionContext<
+    PostEntity,
+    { body: DeepPartial<PostEntity> }
+  >
+): Promise<{ body: DeepPartial<PostEntity> } | undefined> {
+  const { body } = context.result;
+
+  // Track last modified
+  body.lastModifiedAt = new Date();
+  body.lastModifiedBy = context.DATA.authenticationRequest?.user?.id;
+
+  return context.result;
+}
+```
+
+#### `onBeforeGet`, `onBeforeGetList`, `onBeforeGetMany`, `onBeforeDelete`
+
+```typescript
+async onBeforeGet(
+  context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
+): Promise<PostEntity | undefined> {
+  // Log access
+  console.log("User accessing post:", context.ENTITY.id);
+  return context.result;
+}
+
+async onBeforeDelete(
+  context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
+): Promise<PostEntity | undefined> {
+  const user = context.DATA.authenticationRequest?.user;
+  
+  // Check ownership before deletion
+  if (context.ENTITY.authorId !== user?.id && user?.role !== "admin") {
+    throw new ForbiddenException("You can only delete your own posts");
+  }
+
+  return context.result;
+}
+```
+
+### After Hooks
+
+Called after successful operation:
+
+#### `onAfterCreate`
+
+```typescript
+async onAfterCreate(
+  context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
+): Promise<PostEntity | undefined> {
+  const post = context.result;
+  const user = context.DATA.authenticationRequest?.user;
+
+  // Send notification
+  await this.notificationService.send({
+    to: post.authorId,
+    message: `Your post "${post.title}" was created successfully`,
+  });
+
+  // Log audit
+  console.log(`User ${user?.id} created post ${post.id}`);
+
+  return post;
+}
+```
+
+#### `onAfterUpdate`
+
+```typescript
+async onAfterUpdate(
+  context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
+): Promise<PostEntity | undefined> {
+  const post = context.result;
+
+  // Invalidate cache
+  await this.cacheService.del(`post:${post.id}`);
+
+  // Notify followers
+  await this.notifyFollowers(post);
+
+  return post;
+}
+```
+
+#### `onAfterGet`, `onAfterGetList`, `onAfterGetMany`, `onAfterDelete`
+
+```typescript
+async onAfterGetList(
+  context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity[]>
+): Promise<PostEntity[] | undefined> {
+  const posts = context.result;
+
+  // Track analytics
+  await this.analyticsService.trackView("post_list", {
+    count: posts.length,
+    user: context.DATA.authenticationRequest?.user?.id,
+  });
+
+  return posts;
+}
+```
+
+### Error Hooks
+
+Called when an operation fails:
+
+#### `onBeforeErrorCreate`, `onAfterErrorCreate`
+
+```typescript
+async onBeforeErrorCreate(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> {
+  // Log before error propagates
+  console.error("Post creation is about to fail:", {
+    error: error.message,
+    data: context.DATA,
+  });
+}
+
+async onAfterErrorCreate(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> {
+  // Cleanup or notify after error
+  await this.notificationService.notifyAdmins({
+    type: "post_creation_failed",
+    error: error.message,
+    user: context.DATA.authenticationRequest?.user,
+  });
+}
+```
+
+#### Other Error Hooks
+
+```typescript
+async onBeforeErrorUpdate(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> { /* ... */ }
+
+async onAfterErrorUpdate(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> { /* ... */ }
+
+async onBeforeErrorGet(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> { /* ... */ }
+
+async onAfterErrorGet(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> { /* ... */ }
+
+async onBeforeErrorGetList(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> { /* ... */ }
+
+async onAfterErrorGetList(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> { /* ... */ }
+
+async onBeforeErrorGetMany(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> { /* ... */ }
+
+async onAfterErrorGetMany(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> { /* ... */ }
+
+async onBeforeErrorDelete(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> { /* ... */ }
+
+async onAfterErrorDelete(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> { /* ... */ }
+```
+
+## Accessing Request Data
+
+Route subscribers have access to HTTP context:
+
+```typescript
+async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
+  // Authenticated user
+  const user = context.DATA.authenticationRequest?.user;
+
+  // Request headers
+  const contentType = context.DATA.headers["content-type"];
+  const userAgent = context.DATA.headers["user-agent"];
+
+  // Client IP
+  const clientIp = context.DATA.ip;
+
+  // Method metadata
+  const method = context.DATA.method; // "create"
+  const entityMetadata = context.DATA.entityMetadata;
+
+  return context.result;
+}
+```
+
+## Practical Examples
+
+### IP-Based Access Control
+
+```typescript filename="ip-restriction.subscriber.ts" copy
+@Injectable()
+@ApiRouteSubscriber({ entity: SensitiveEntity, priority: 100 })
+export class IpRestrictionSubscriber extends ApiRouteSubscriberBase<SensitiveEntity> {
+  private readonly allowedIps = ["192.168.1.1", "10.0.0.1"];
+
+  async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
+    const clientIp = context.DATA.ip;
+
+    if (!this.allowedIps.includes(clientIp)) {
+      throw new ForbiddenException(`Access denied from IP: ${clientIp}`);
+    }
+
+    return context.result;
+  }
+}
+```
+
+### Rate Limiting Per User
+
+```typescript filename="user-rate-limit.subscriber.ts" copy
+@Injectable()
+@ApiRouteSubscriber({ entity: PostEntity, priority: 90 })
+export class UserRateLimitSubscriber extends ApiRouteSubscriberBase<PostEntity> {
+  private readonly userLimits = new Map<string, { count: number; resetAt: number }>();
+
+  async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
+    const userId = context.DATA.authenticationRequest?.user?.id;
+    if (!userId) return context.result;
+
+    const now = Date.now();
+    const userLimit = this.userLimits.get(userId);
+
+    if (userLimit && userLimit.resetAt > now) {
+      if (userLimit.count >= 10) {
+        throw new TooManyRequestsException("Rate limit exceeded");
+      }
+      userLimit.count++;
+    } else {
+      this.userLimits.set(userId, {
+        count: 1,
+        resetAt: now + 60000, // 1 minute
+      });
+    }
+
+    return context.result;
+  }
+}
+```
+
+### Content Moderation
+
+```typescript filename="content-moderation.subscriber.ts" copy
+@Injectable()
+@ApiRouteSubscriber({ entity: PostEntity, priority: 80 })
+export class ContentModerationSubscriber extends ApiRouteSubscriberBase<PostEntity> {
+  constructor(private readonly moderationService: ModerationService) {
+    super();
+  }
+
+  async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
+    const { body } = context.result;
+
+    const isInappropriate = await this.moderationService.check(body.content);
+
+    if (isInappropriate) {
+      throw new BadRequestException("Content contains inappropriate material");
+    }
+
+    return context.result;
+  }
+}
+```
+
+### Notification System
+
+```typescript filename="post-notification.subscriber.ts" copy
+@Injectable()
+@ApiRouteSubscriber({ entity: PostEntity, priority: 50 })
+export class PostNotificationSubscriber extends ApiRouteSubscriberBase<PostEntity> {
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly followerService: FollowerService
+  ) {
+    super();
+  }
+
+  async onAfterCreate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+    const post = context.result;
+    const author = context.DATA.authenticationRequest?.user;
+
+    // Notify followers
+    const followers = await this.followerService.getFollowers(author.id);
+    
+    for (const follower of followers) {
+      await this.notificationService.send({
+        userId: follower.id,
+        type: "new_post",
+        data: { postId: post.id, authorId: author.id },
+      });
+    }
+
+    return post;
+  }
+
+  async onAfterUpdate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+    const post = context.result;
+
+    // Notify post author of update
+    await this.notificationService.send({
+      userId: post.authorId,
+      type: "post_updated",
+      data: { postId: post.id },
+    });
+
+    return post;
+  }
+}
+```
+
+## Priority Ordering
+
+Control execution order with priority:
+
+```typescript
+// High priority (executes first)
+@ApiRouteSubscriber({ entity: PostEntity, priority: 100 })
+export class SecuritySubscriber extends ApiRouteSubscriberBase<PostEntity> {}
+
+// Medium priority
+@ApiRouteSubscriber({ entity: PostEntity, priority: 50 })
+export class ValidationSubscriber extends ApiRouteSubscriberBase<PostEntity> {}
+
+// Low priority (executes last)
+@ApiRouteSubscriber({ entity: PostEntity, priority: 10 })
+export class LoggingSubscriber extends ApiRouteSubscriberBase<PostEntity> {}
+```
+
+## Next Steps
+
+- [Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers) - Service-level hooks
+- [Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context) - Context interfaces reference
+- [Lifecycle](/docs/nestjs-crud-automator/subscriber-system/lifecycle) - Detailed execution flow
+

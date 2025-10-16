@@ -1,0 +1,311 @@
+# Enums
+
+Complete reference for all enumerations provided by NestJS CRUD Automator.
+
+## Route and Function Types
+
+### EApiRouteType
+
+Available CRUD route types.
+
+```typescript
+enum EApiRouteType {
+  CREATE = "create",
+  DELETE = "delete",
+  GET = "get",
+  GET_LIST = "getList",
+  PARTIAL_UPDATE = "partialUpdate",
+  UPDATE = "update",
+}
+```
+
+**Related:**
+- [Core Concepts - Controllers](/docs/nestjs-crud-automator/core-concepts/controllers)
+
+### EApiFunctionType
+
+Available CRUD function types.
+
+```typescript
+enum EApiFunctionType {
+  CREATE = "create",
+  DELETE = "delete",
+  GET = "get",
+  GET_LIST = "getList",
+  GET_MANY = "getMany",
+  UPDATE = "update",
+}
+```
+
+## Property Types
+
+### EApiPropertyDescribeType
+
+Property types for entity fields.
+
+```typescript
+enum EApiPropertyDescribeType {
+  UUID = "uuid",
+  STRING = "string",
+  NUMBER = "number",
+  BOOLEAN = "boolean",
+  DATE = "date",
+  ENUM = "enum",
+  OBJECT = "object",
+  RELATION = "relation",
+}
+```
+
+**Related:**
+- [Core Concepts - Entities](/docs/nestjs-crud-automator/core-concepts/entities)
+
+### EApiPropertyStringType
+
+String format types.
+
+```typescript
+enum EApiPropertyStringType {
+  STRING = "string",
+  EMAIL = "email",
+  URL = "url",
+  PASSWORD = "password",
+}
+```
+
+### EApiPropertyNumberType
+
+Number format types.
+
+```typescript
+enum EApiPropertyNumberType {
+  INTEGER = "integer",
+  FLOAT = "float",
+}
+```
+
+### EApiPropertyDateType
+
+Date format types.
+
+```typescript
+enum EApiPropertyDateType {
+  DATE = "date",
+  DATE_TIME = "date-time",
+  TIME = "time",
+}
+```
+
+### EApiPropertyDateIdentifier
+
+Date field identifiers.
+
+```typescript
+enum EApiPropertyDateIdentifier {
+  CREATED_AT = "createdAt",
+  UPDATED_AT = "updatedAt",
+  DELETED_AT = "deletedAt",
+}
+```
+
+## Filter Operations
+
+### EFilterOperation
+
+All available filter operations.
+
+```typescript
+enum EFilterOperation {
+  BETWEEN = "between",
+  CONT = "cont",
+  CONTL = "contl",
+  ENDS = "ends",
+  ENDSL = "endsl",
+  EQ = "eq",
+  EQL = "eql",
+  EXCL = "excl",
+  EXCLL = "excll",
+  GT = "gt",
+  GTE = "gte",
+  IN = "in",
+  INL = "inl",
+  ISNULL = "isnull",
+  LT = "lt",
+  LTE = "lte",
+  NE = "ne",
+  NEL = "nel",
+  NOTIN = "notin",
+  NOTINL = "notinl",
+  NOTNULL = "notnull",
+  STARTS = "starts",
+  STARTSL = "startsl",
+}
+```
+
+**Type-Specific Operations:**
+
+#### EFilterOperationString
+```typescript
+enum EFilterOperationString {
+  CONT = "cont",      // Contains
+  CONTL = "contl",    // Contains (case-insensitive)
+  ENDS = "ends",      // Ends with
+  ENDSL = "endsl",    // Ends with (case-insensitive)
+  EQ = "eq",          // Equals
+  EQL = "eql",        // Equals (case-insensitive)
+  IN = "in",          // In array
+  INL = "inl",        // In array (case-insensitive)
+  ISNULL = "isnull",  // Is null
+  NE = "ne",          // Not equals
+  NEL = "nel",        // Not equals (case-insensitive)
+  NOTIN = "notin",    // Not in array
+  NOTINL = "notinl",  // Not in array (case-insensitive)
+  NOTNULL = "notnull", // Is not null
+  STARTS = "starts",   // Starts with
+  STARTSL = "startsl", // Starts with (case-insensitive)
+}
+```
+
+#### EFilterOperationNumber
+```typescript
+enum EFilterOperationNumber {
+  BETWEEN = "between", // Between two values
+  EQ = "eq",          // Equals
+  GT = "gt",          // Greater than
+  GTE = "gte",        // Greater than or equal
+  IN = "in",          // In array
+  ISNULL = "isnull",  // Is null
+  LT = "lt",          // Less than
+  LTE = "lte",        // Less than or equal
+  NE = "ne",          // Not equals
+  NOTIN = "notin",    // Not in array
+  NOTNULL = "notnull", // Is not null
+}
+```
+
+#### EFilterOperationDate
+```typescript
+enum EFilterOperationDate {
+  BETWEEN = "between",
+  EQ = "eq",
+  GT = "gt",
+  GTE = "gte",
+  ISNULL = "isnull",
+  LT = "lt",
+  LTE = "lte",
+  NE = "ne",
+  NOTNULL = "notnull",
+}
+```
+
+#### EFilterOperationBoolean
+```typescript
+enum EFilterOperationBoolean {
+  EQ = "eq",
+  EXCL = "excl",
+  IN = "in",
+  ISNULL = "isnull",
+  NE = "ne",
+  NOTIN = "notin",
+  NOTNULL = "notnull",
+}
+```
+
+#### EFilterOperationEnum
+```typescript
+enum EFilterOperationEnum {
+  EQ = "eq",
+  IN = "in",
+  ISNULL = "isnull",
+  NE = "ne",
+  NOTIN = "notin",
+  NOTNULL = "notnull",
+}
+```
+
+#### EFilterOperationUuid
+```typescript
+enum EFilterOperationUuid {
+  EQ = "eq",
+  ISNULL = "isnull",
+  NE = "ne",
+  NOTNULL = "notnull",
+}
+```
+
+**Related:**
+- [Guides - Filtering and Sorting](/docs/nestjs-crud-automator/guides/filtering-and-sorting)
+
+### EFilterOrderDirection
+
+Sort order directions.
+
+```typescript
+enum EFilterOrderDirection {
+  ASC = "ASC",
+  DESC = "DESC",
+}
+```
+
+## Controller Configuration Enums
+
+### EApiDtoType
+
+DTO types for requests and responses.
+
+```typescript
+enum EApiDtoType {
+  BODY = "body",
+  QUERY = "query",
+  PARAM = "param",
+  RESPONSE = "response",
+}
+```
+
+### EApiControllerRequestTransformerType
+
+Request transformer types.
+
+```typescript
+enum EApiControllerRequestTransformerType {
+  STATIC = "static",
+  DYNAMIC = "dynamic",
+}
+```
+
+**Related:**
+- [Guides - Transformers](/docs/nestjs-crud-automator/guides/transformers)
+
+### EApiControllerLoadRelationsStrategy
+
+Relation loading strategies.
+
+```typescript
+enum EApiControllerLoadRelationsStrategy {
+  AUTO = "auto",
+  MANUAL = "manual",
+}
+```
+
+**Related:**
+- [Guides - Relations](/docs/nestjs-crud-automator/guides/relations)
+
+## Subscriber Enums
+
+### EApiSubscriberOnType
+
+Subscriber hook timing.
+
+```typescript
+enum EApiSubscriberOnType {
+  BEFORE = "before",
+  AFTER = "after",
+  ERROR = "error",
+}
+```
+
+## Next Steps
+
+- [Decorators](/docs/nestjs-crud-automator/api-reference/decorators) - Decorator usage with enums
+- [Guides - Filtering and Sorting](/docs/nestjs-crud-automator/guides/filtering-and-sorting) - Filter operations usage
+- [Guides - Transformers](/docs/nestjs-crud-automator/guides/transformers) - Transformer types usage
+

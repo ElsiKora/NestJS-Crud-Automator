@@ -3,6 +3,12 @@ import type { IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 import type { EntityManager } from "typeorm";
 
+/**
+ * Base class for services providing CRUD operations.
+ *
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/classes#apiservicebase | API Reference - ApiServiceBase}
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/core-concepts/services | Core Concepts - Services}
+ */
 export class ApiServiceBase<E> {
 	create(properties: TApiFunctionCreateProperties<E>, eventManager?: EntityManager): Promise<E> {
 		void properties;

@@ -2,6 +2,12 @@ import type { ValidationArguments, ValidatorConstraintInterface } from "class-va
 
 import { ValidatorConstraint } from "class-validator";
 
+/**
+ * Validator that ensures either all or none of the specified properties are provided.
+ *
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/validators#allornoneoflistedpropertiesvalidator | API Reference - Validators}
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/guides/validation | Guides - Validation}
+ */
 // eslint-disable-next-line @elsikora/typescript/naming-convention
 @ValidatorConstraint({ async: false, name: "all-or-none-of-listed-properties" })
 export class AllOrNoneOfListedPropertiesValidator implements ValidatorConstraintInterface {

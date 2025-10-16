@@ -1,0 +1,427 @@
+# Relations
+
+NestJS CRUD Automator supports automatic loading and management of entity relations. Configure relation loading strategies to control how and when related entities are fetched.
+
+## Defining Relations
+
+Define relations in entities using TypeORM decorators and `@ApiPropertyDescribe`:
+
+```typescript filename="post.entity.ts" copy
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from "typeorm";
+import {
+  ApiPropertyDescribe,
+  EApiPropertyDescribeType
+} from "@elsikora/nestjs-crud-automator";
+import { UserEntity } from "../user/user.entity";
+import { CommentEntity } from "../comment/comment.entity";
+
+@Entity("posts")
+export class PostEntity {
+  @PrimaryGeneratedColumn("uuid")
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.UUID,
+    description: "Post ID",
+  })
+  id: string;
+
+  @Column()
+  title: string;
+
+  @ManyToOne(() => UserEntity, user => user.posts)
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.RELATION,
+    description: "Post author",
+    relationMetadata: {
+      relationType: "many-to-one",
+      entity: UserEntity,
+      isEager: false,
+    },
+  })
+  author: UserEntity;
+
+  @Column()
+  authorId: string;
+
+  @OneToMany(() => CommentEntity, comment => comment.post)
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.RELATION,
+    description: "Post comments",
+    isArray: true,
+    relationMetadata: {
+      relationType: "one-to-many",
+      entity: CommentEntity,
+      isEager: false,
+    },
+  })
+  comments: CommentEntity[];
+}
+```
+
+## Loading Relations
+
+### Automatic Loading
+
+Configure automatic relation loading in controller routes:
+
+```typescript filename="post.controller.ts" copy
+import {
+  ApiController,
+  EApiRouteType,
+  EApiControllerLoadRelationsStrategy
+} from "@elsikora/nestjs-crud-automator";
+
+@Controller("posts")
+@ApiController<PostEntity>({
+  entity: PostEntity,
+  routes: {
+    [EApiRouteType.GET]: {
+      request: {
+        relations: {
+          shouldLoadRelations: true,
+          relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+          servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+          relationsToLoad: ["author", "comments"],
+        },
+      },
+      response: {
+        relations: ["author", "comments"],
+      },
+    },
+    [EApiRouteType.GET_LIST]: {
+      request: {
+        relations: {
+          shouldLoadRelations: true,
+          relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+          relationsToLoad: ["author"],
+        },
+      },
+      response: {
+        relations: ["author"],
+      },
+    },
+  },
+})
+export class PostController {
+  constructor(
+    public service: PostService,
+    public authorService: UserService,
+    public commentsService: CommentService,
+  ) {}
+}
+```
+
+### Manual Loading
+
+Specify exactly which relations to load:
+
+```typescript
+routes: {
+  [EApiRouteType.GET]: {
+    request: {
+      relations: {
+        shouldLoadRelations: true,
+        relationsLoadStrategy: EApiControllerLoadRelationsStrategy.MANUAL,
+        relationsToLoad: ["author"],
+      },
+    },
+  },
+}
+```
+
+### Nested Relations
+
+Load nested relations (relations of relations):
+
+```typescript
+routes: {
+  [EApiRouteType.GET]: {
+    request: {
+      relations: {
+        shouldLoadRelations: true,
+        relationsToLoad: ["author", "author.profile", "comments", "comments.author"],
+      },
+    },
+    response: {
+      relations: ["author", "author.profile", "comments", "comments.author"],
+    },
+  },
+}
+```
+
+## Relation Loading Strategies
+
+### `AUTO` Strategy
+
+Automatically detects and loads configured relations:
+
+```typescript
+relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO
+```
+
+### `MANUAL` Strategy
+
+Only loads explicitly specified relations:
+
+```typescript
+relationsLoadStrategy: EApiControllerLoadRelationsStrategy.MANUAL
+```
+
+## Service Injection for Relations
+
+Inject related services to enable relation loading:
+
+```typescript filename="post.controller.ts" copy
+@Controller("posts")
+@ApiController<PostEntity>({
+  entity: PostEntity,
+  routes: {
+    [EApiRouteType.GET]: {
+      request: {
+        relations: {
+          shouldLoadRelations: true,
+          relationsToLoad: ["author", "comments"],
+        },
+      },
+    },
+  },
+})
+export class PostController {
+  constructor(
+    public service: PostService,
+    // Inject related services
+    public authorService: UserService,
+    public commentsService: CommentService,
+  ) {}
+}
+```
+
+The library uses these injected services to load relations efficiently.
+
+## Eager vs Lazy Loading
+
+### Eager Loading
+
+Relations marked as eager are always loaded:
+
+```typescript
+@ManyToOne(() => UserEntity, { eager: true })
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.RELATION,
+  description: "Post author",
+  relationMetadata: {
+    relationType: "many-to-one",
+    entity: UserEntity,
+    isEager: true,
+  },
+})
+author: UserEntity;
+```
+
+### Lazy Loading
+
+Load relations only when needed:
+
+```typescript
+@ManyToOne(() => UserEntity, { eager: false })
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.RELATION,
+  description: "Post author",
+  relationMetadata: {
+    relationType: "many-to-one",
+    entity: UserEntity,
+    isEager: false,
+  },
+})
+author: UserEntity;
+```
+
+## Filtering by Relations
+
+Filter entities based on relation properties:
+
+```
+GET /posts?author.username[operator]=eq&author.username[value]=john_doe
+```
+
+```typescript
+// Programmatic filtering by relation
+const posts = await postService.getList(
+  {
+    where: {
+      author: {
+        username: {
+          operator: EFilterOperation.EQ,
+          value: "john_doe",
+        },
+      },
+    },
+    limit: 10,
+    page: 1,
+  },
+  { author: true }
+);
+```
+
+## Circular Relations
+
+Handle circular relations carefully to avoid infinite loops:
+
+```typescript filename="user.entity.ts" copy
+@Entity("users")
+export class UserEntity {
+  @OneToMany(() => PostEntity, post => post.author)
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.RELATION,
+    description: "User posts",
+    isArray: true,
+    relationMetadata: {
+      relationType: "one-to-many",
+      entity: PostEntity,
+      isEager: false,
+    },
+    dto: {
+      response: {
+        isExposed: false, // Don't auto-load in user responses
+      },
+    },
+  })
+  posts: PostEntity[];
+}
+```
+
+```typescript filename="post.entity.ts" copy
+@Entity("posts")
+export class PostEntity {
+  @ManyToOne(() => UserEntity, user => user.posts)
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.RELATION,
+    description: "Post author",
+    relationMetadata: {
+      relationType: "many-to-one",
+      entity: UserEntity,
+      isEager: false,
+    },
+  })
+  author: UserEntity;
+}
+```
+
+## Performance Optimization
+
+### N+1 Query Problem
+
+Avoid N+1 queries by loading relations efficiently:
+
+```typescript
+// Bad: Causes N+1 queries
+const posts = await postService.getList({ limit: 100 }, {});
+for (const post of posts.items) {
+  // Each iteration causes a separate query
+  const author = await post.author;
+}
+
+// Good: Load relations upfront
+const posts = await postService.getList(
+  { limit: 100 },
+  { author: true } // Load all authors in one query
+);
+```
+
+### Selective Loading
+
+Only load relations when needed:
+
+```typescript
+routes: {
+  [EApiRouteType.GET_LIST]: {
+    // Don't load relations for list view
+    request: {
+      relations: {
+        shouldLoadRelations: false,
+      },
+    },
+  },
+  [EApiRouteType.GET]: {
+    // Load relations for detail view
+    request: {
+      relations: {
+        shouldLoadRelations: true,
+        relationsToLoad: ["author", "comments"],
+      },
+    },
+  },
+}
+```
+
+### Query Builder for Complex Queries
+
+Use TypeORM query builder for complex relation queries:
+
+```typescript filename="post.service.ts" copy
+async getPostsWithDetails(): Promise<PostEntity[]> {
+  return this.repository
+    .createQueryBuilder("post")
+    .leftJoinAndSelect("post.author", "author")
+    .leftJoinAndSelect("post.comments", "comments")
+    .leftJoinAndSelect("comments.author", "commentAuthor")
+    .where("post.isPublished = :published", { published: true })
+    .orderBy("post.createdAt", "DESC")
+    .getMany();
+}
+```
+
+## Many-to-Many Relations
+
+Handle many-to-many relations:
+
+```typescript filename="post.entity.ts" copy
+@ManyToMany(() => TagEntity, tag => tag.posts)
+@JoinTable()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.RELATION,
+  description: "Post tags",
+  isArray: true,
+  relationMetadata: {
+    relationType: "many-to-many",
+    entity: TagEntity,
+    isEager: false,
+  },
+})
+tags: TagEntity[];
+```
+
+## Creating with Relations
+
+Create entities with relations:
+
+```typescript
+// Create post with existing author
+await postService.create({
+  body: {
+    title: "New Post",
+    content: "Post content",
+    authorId: "existing-user-uuid",
+  },
+});
+
+// Create nested relations
+await userService.create({
+  body: {
+    username: "john_doe",
+    email: "john@example.com",
+    posts: [
+      {
+        title: "First Post",
+        content: "Content",
+      },
+    ],
+  },
+});
+```
+
+## Next Steps
+
+- [Filtering and Sorting](/docs/nestjs-crud-automator/guides/filtering-and-sorting) - Filter by relation properties
+- [Pagination](/docs/nestjs-crud-automator/guides/pagination) - Paginate with relations
+- [Core Concepts - Entities](/docs/nestjs-crud-automator/core-concepts/entities) - Entity relation configuration
+
