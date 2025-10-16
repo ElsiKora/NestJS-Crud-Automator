@@ -1,0 +1,347 @@
+# Controllers
+
+Controllers in NestJS CRUD Automator are automatically generated based on your configuration. The `@ApiController` decorator transforms a simple controller class into a fully functional CRUD API with all necessary endpoints, DTOs, and Swagger documentation.
+
+## Basic Controller Setup
+
+The minimal controller configuration requires only an entity and service:
+
+```typescript filename="user.controller.ts" copy
+import { Controller } from "@nestjs/common";
+import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { UserEntity } from "./user.entity";
+import { UserService } from "./user.service";
+
+@Controller("users")
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  name: "Users",
+  routes: {
+    [EApiRouteType.CREATE]: {},
+    [EApiRouteType.GET]: {},
+    [EApiRouteType.GET_LIST]: {},
+    [EApiRouteType.UPDATE]: {},
+    [EApiRouteType.DELETE]: {},
+  },
+})
+export class UserController {
+  constructor(public service: UserService) {}
+}
+```
+
+This generates the following endpoints:
+- `POST /users` - Create a new user
+- `GET /users/:id` - Get a user by ID
+- `GET /users` - Get a paginated list of users
+- `PATCH /users/:id` - Update a user
+- `DELETE /users/:id` - Delete a user
+
+## Route Configuration
+
+### Enabling and Disabling Routes
+
+Control which routes are available:
+
+```typescript
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  name: "Users",
+  routes: {
+    [EApiRouteType.CREATE]: {},
+    [EApiRouteType.GET]: {},
+    [EApiRouteType.GET_LIST]: {},
+    // UPDATE and DELETE routes are not configured, so they are disabled
+  },
+})
+```
+
+Or explicitly disable a route:
+
+```typescript
+routes: {
+  [EApiRouteType.DELETE]: {
+    isEnabled: false,
+  },
+}
+```
+
+### Custom Path
+
+Override the default controller path:
+
+```typescript
+@Controller("api/v1/users")
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  path: "api/v1/users", // Custom path
+  name: "Users",
+  routes: { /* ... */ },
+})
+```
+
+## Authentication and Authorization
+
+Add authentication guards to specific routes:
+
+```typescript filename="user.controller.ts" copy
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  name: "Users",
+  routes: {
+    [EApiRouteType.CREATE]: {
+      authentication: {
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+      },
+    },
+    [EApiRouteType.UPDATE]: {
+      authentication: {
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+      },
+    },
+    [EApiRouteType.DELETE]: {
+      authentication: {
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+      },
+    },
+    [EApiRouteType.GET]: {}, // Public
+    [EApiRouteType.GET_LIST]: {}, // Public
+  },
+})
+```
+
+## Request Transformers
+
+Automatically transform request data before processing:
+
+```typescript
+import {
+  EApiControllerRequestTransformerType,
+  TRANSFORMER_VALUE_DTO_CONSTANT
+} from "@elsikora/nestjs-crud-automator";
+
+@ApiController<PostEntity>({
+  entity: PostEntity,
+  routes: {
+    [EApiRouteType.CREATE]: {
+      request: {
+        transformers: {
+          [EApiDtoType.BODY]: [
+            {
+              key: "authorId",
+              type: EApiControllerRequestTransformerType.DYNAMIC,
+              value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
+              shouldSetValueEvenIfMissing: true,
+            },
+            {
+              key: "createdAt",
+              type: EApiControllerRequestTransformerType.STATIC,
+              value: () => new Date(),
+            },
+          ],
+        },
+      },
+    },
+  },
+})
+```
+
+Transformer types:
+- `STATIC` - Set a constant value
+- `DYNAMIC` - Extract value from request context (authenticated user, headers, IP)
+
+## Response Transformers
+
+Transform response data before returning to client:
+
+```typescript
+routes: {
+  [EApiRouteType.GET]: {
+    response: {
+      transformers: [
+        {
+          key: "fullName",
+          value: (entity) => `${entity.firstName} ${entity.lastName}`,
+        },
+      ],
+    },
+  },
+}
+```
+
+## Loading Relations
+
+Configure automatic relation loading:
+
+```typescript
+import { EApiControllerLoadRelationsStrategy } from "@elsikora/nestjs-crud-automator";
+
+@ApiController<PostEntity>({
+  entity: PostEntity,
+  routes: {
+    [EApiRouteType.GET]: {
+      request: {
+        relations: {
+          shouldLoadRelations: true,
+          relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+          servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+          relationsToLoad: ["author", "comments"],
+        },
+      },
+      response: {
+        relations: ["author", "comments"],
+      },
+    },
+  },
+})
+export class PostController {
+  constructor(
+    public service: PostService,
+    // Inject related services for loading
+    public authorService: UserService,
+    public commentsService: CommentService,
+  ) {}
+}
+```
+
+Strategies:
+- `AUTO` - Automatically detect and load relations
+- `MANUAL` - Explicitly specify which relations to load
+
+## Custom DTOs
+
+Replace auto-generated DTOs with custom ones:
+
+```typescript
+import { CreateUserDto } from "./dto/create-user.dto";
+import { UpdateUserDto } from "./dto/update-user.dto";
+import { UserResponseDto } from "./dto/user-response.dto";
+
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  routes: {
+    [EApiRouteType.CREATE]: {
+      dto: {
+        body: CreateUserDto,
+        response: UserResponseDto,
+      },
+    },
+    [EApiRouteType.UPDATE]: {
+      dto: {
+        body: UpdateUserDto,
+        response: UserResponseDto,
+      },
+    },
+  },
+})
+```
+
+## Auto DTO Configuration
+
+Customize auto-generated DTOs:
+
+```typescript
+import {
+  AllOrNoneOfListedPropertiesValidator
+} from "@elsikora/nestjs-crud-automator";
+
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  routes: {
+    [EApiRouteType.CREATE]: {
+      autoDto: {
+        [EApiDtoType.BODY]: {
+          validators: [
+            {
+              constraintClass: AllOrNoneOfListedPropertiesValidator,
+              options: ["firstName", "lastName"],
+            },
+          ],
+        },
+      },
+    },
+  },
+})
+```
+
+## Request Validation
+
+Add custom request validators:
+
+```typescript
+routes: {
+  [EApiRouteType.CREATE]: {
+    request: {
+      validators: [
+        {
+          constraintClass: CustomValidator,
+          options: ["field1", "field2"],
+        },
+      ],
+    },
+  },
+}
+```
+
+## Swagger Configuration
+
+Customize Swagger documentation:
+
+```typescript
+routes: {
+  [EApiRouteType.CREATE]: {
+    swagger: {
+      summary: "Create a new user",
+      description: "Creates a new user with the provided data",
+      tags: ["Users", "Admin"],
+    },
+  },
+}
+```
+
+## Custom Decorators
+
+Add additional decorators to routes:
+
+```typescript
+import { UseInterceptors } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+
+routes: {
+  [EApiRouteType.CREATE]: {
+    decorators: [
+      UseInterceptors(FileInterceptor('avatar')),
+    ],
+  },
+}
+```
+
+## Observable Controllers
+
+Enable subscriber hooks by marking the controller as observable:
+
+```typescript
+import {
+  ApiController,
+  ApiControllerObservable
+} from "@elsikora/nestjs-crud-automator";
+
+@Controller("posts")
+@ApiController({ /* ... */ })
+@ApiControllerObservable()
+export class PostController {
+  constructor(public service: PostService) {}
+}
+```
+
+## Next Steps
+
+- [Services](/docs/nestjs-crud-automator/core-concepts/services) - Configure service layer
+- [DTOs](/docs/nestjs-crud-automator/core-concepts/dtos) - Understand DTO generation
+- [Authentication](/docs/nestjs-crud-automator/guides/authentication) - Implement auth guards
+- [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Add hooks to intercept operations
+

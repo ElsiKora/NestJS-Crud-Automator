@@ -1,0 +1,402 @@
+# Transformers
+
+Transformers allow you to modify request and response data during the CRUD operation lifecycle. They are useful for data enrichment, format conversion, and business logic that doesn't belong in entities.
+
+## Request Transformers
+
+Transform incoming request data before processing:
+
+```typescript filename="post.controller.ts" copy
+import {
+  ApiController,
+  EApiRouteType,
+  EApiDtoType,
+  EApiControllerRequestTransformerType,
+  TRANSFORMER_VALUE_DTO_CONSTANT
+} from "@elsikora/nestjs-crud-automator";
+
+@ApiController<PostEntity>({
+  entity: PostEntity,
+  routes: {
+    [EApiRouteType.CREATE]: {
+      request: {
+        transformers: {
+          [EApiDtoType.BODY]: [
+            {
+              key: "authorId",
+              type: EApiControllerRequestTransformerType.DYNAMIC,
+              value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
+              shouldSetValueEvenIfMissing: true,
+            },
+            {
+              key: "createdAt",
+              type: EApiControllerRequestTransformerType.STATIC,
+              value: () => new Date(),
+            },
+          ],
+        },
+      },
+    },
+  },
+})
+```
+
+## Transformer Types
+
+### Static Transformers
+
+Set a fixed value or value from a function:
+
+```typescript
+{
+  key: "status",
+  type: EApiControllerRequestTransformerType.STATIC,
+  value: "draft",
+}
+
+// Or with a function
+{
+  key: "uuid",
+  type: EApiControllerRequestTransformerType.STATIC,
+  value: () => crypto.randomUUID(),
+}
+```
+
+### Dynamic Transformers
+
+Extract values from request context:
+
+```typescript
+// Set from authenticated user
+{
+  key: "createdById",
+  type: EApiControllerRequestTransformerType.DYNAMIC,
+  value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
+  shouldSetValueEvenIfMissing: true,
+}
+
+// Set from request headers
+{
+  key: "clientVersion",
+  type: EApiControllerRequestTransformerType.DYNAMIC,
+  value: (context) => context.headers["x-client-version"],
+}
+
+// Set from request IP
+{
+  key: "ipAddress",
+  type: EApiControllerRequestTransformerType.DYNAMIC,
+  value: (context) => context.ip,
+}
+```
+
+## Available Dynamic Values
+
+Built-in dynamic transformer values:
+
+```typescript
+// Authenticated user entity
+TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY
+
+// Request IP address
+TRANSFORMER_VALUE_DTO_CONSTANT.IP
+
+// Request headers
+TRANSFORMER_VALUE_DTO_CONSTANT.HEADERS
+
+// Full authentication context
+TRANSFORMER_VALUE_DTO_CONSTANT.AUTHENTICATION_REQUEST
+```
+
+## Response Transformers
+
+Transform outgoing response data:
+
+```typescript
+routes: {
+  [EApiRouteType.GET]: {
+    response: {
+      transformers: [
+        {
+          key: "fullName",
+          value: (entity: UserEntity) => 
+            `${entity.firstName} ${entity.lastName}`,
+        },
+        {
+          key: "isAdult",
+          value: (entity: UserEntity) => entity.age >= 18,
+        },
+      ],
+    },
+  },
+}
+```
+
+## Transform Based on User Role
+
+Apply different transformations based on user role:
+
+```typescript
+routes: {
+  [EApiRouteType.GET]: {
+    response: {
+      transformers: [
+        {
+          key: "sensitiveData",
+          value: (entity: UserEntity, context: any) => {
+            const user = context.authenticationRequest?.user;
+            if (user?.role === "admin") {
+              return entity.sensitiveData;
+            }
+            return null; // Hide from non-admins
+          },
+        },
+      ],
+    },
+  },
+}
+```
+
+## Complex Transformations
+
+Perform complex data transformations:
+
+```typescript
+routes: {
+  [EApiRouteType.GET_LIST]: {
+    response: {
+      transformers: [
+        {
+          key: "statistics",
+          value: async (entity: PostEntity) => {
+            return {
+              viewCount: entity.views?.length || 0,
+              likeCount: entity.likes?.length || 0,
+              commentCount: entity.comments?.length || 0,
+              engagement: calculateEngagement(entity),
+            };
+          },
+        },
+      ],
+    },
+  },
+}
+```
+
+## Conditional Transformations
+
+Apply transformations conditionally:
+
+```typescript
+{
+  key: "discountedPrice",
+  value: (entity: ProductEntity) => {
+    if (entity.onSale && entity.discountPercent) {
+      return entity.price * (1 - entity.discountPercent / 100);
+    }
+    return entity.price;
+  },
+}
+```
+
+## Nested Object Transformations
+
+Transform nested objects:
+
+```typescript
+{
+  key: "address",
+  value: (entity: UserEntity) => {
+    if (!entity.address) return null;
+    return {
+      ...entity.address,
+      formatted: `${entity.address.street}, ${entity.address.city}, ${entity.address.country}`,
+    };
+  },
+}
+```
+
+## Array Transformations
+
+Transform array properties:
+
+```typescript
+{
+  key: "tagNames",
+  value: (entity: PostEntity) => {
+    return entity.tags?.map(tag => tag.name) || [];
+  },
+}
+```
+
+## Using class-transformer
+
+Leverage class-transformer for advanced transformations:
+
+```typescript filename="user.entity.ts" copy
+import { Transform, Exclude } from "class-transformer";
+
+@Entity("users")
+export class UserEntity {
+  @Column()
+  @Transform(({ value }) => value.toLowerCase())
+  email: string;
+
+  @Column()
+  @Exclude() // Never include in responses
+  password: string;
+
+  @Column()
+  @Transform(({ value }) => value.trim())
+  username: string;
+
+  @Column({ type: "jsonb" })
+  @Transform(({ value }) => JSON.stringify(value))
+  metadata: Record<string, any>;
+}
+```
+
+## Pre-Processing in Transformers
+
+Pre-process data before validation:
+
+```typescript
+routes: {
+  [EApiRouteType.CREATE]: {
+    request: {
+      transformers: {
+        [EApiDtoType.BODY]: [
+          {
+            key: "email",
+            type: EApiControllerRequestTransformerType.STATIC,
+            value: (body: any) => body.email?.toLowerCase().trim(),
+          },
+          {
+            key: "tags",
+            type: EApiControllerRequestTransformerType.STATIC,
+            value: (body: any) => 
+              body.tags?.map((tag: string) => tag.toLowerCase()) || [],
+          },
+        ],
+      },
+    },
+  },
+}
+```
+
+## Async Transformers
+
+Perform async operations in transformers:
+
+```typescript
+{
+  key: "author",
+  value: async (entity: PostEntity, context: any) => {
+    const userService = context.services.user;
+    return await userService.get({ where: { id: entity.authorId } });
+  },
+}
+```
+
+## Removing Properties
+
+Remove properties from response:
+
+```typescript
+{
+  key: "password",
+  value: () => undefined, // Removes the property
+}
+```
+
+## Global Transformers
+
+Apply transformers to all routes:
+
+```typescript
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  globalTransformers: {
+    request: {
+      [EApiDtoType.BODY]: [
+        {
+          key: "updatedAt",
+          type: EApiControllerRequestTransformerType.STATIC,
+          value: () => new Date(),
+        },
+      ],
+    },
+    response: [
+      {
+        key: "timestamp",
+        value: () => Date.now(),
+      },
+    ],
+  },
+  routes: {
+    // ... route configurations
+  },
+})
+```
+
+## Transformer Order
+
+Transformers execute in the following order:
+
+1. Global request transformers
+2. Route-specific request transformers
+3. Validation
+4. Service method execution
+5. Route-specific response transformers
+6. Global response transformers
+
+## Performance Considerations
+
+### Avoid Heavy Operations
+
+```typescript
+// Bad: Expensive operation in transformer
+{
+  key: "relatedPosts",
+  value: async (entity: UserEntity) => {
+    // This runs for every item in a list
+    return await postService.getMany({
+      where: { authorId: entity.id }
+    });
+  },
+}
+
+// Good: Use relations instead
+request: {
+  relations: {
+    shouldLoadRelations: true,
+    relationsToLoad: ["posts"],
+  },
+}
+```
+
+### Cache Expensive Computations
+
+```typescript
+const cache = new Map();
+
+{
+  key: "expensiveCalculation",
+  value: (entity: ProductEntity) => {
+    const cacheKey = `calc-${entity.id}`;
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey);
+    }
+    const result = performExpensiveCalculation(entity);
+    cache.set(cacheKey, result);
+    return result;
+  },
+}
+```
+
+## Next Steps
+
+- [Validation](/docs/nestjs-crud-automator/guides/validation) - Validate transformed data
+- [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Alternative approach for data transformation
+- [Core Concepts - Controllers](/docs/nestjs-crud-automator/core-concepts/controllers) - Controller transformer configuration
+

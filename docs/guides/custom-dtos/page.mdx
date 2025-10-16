@@ -1,0 +1,417 @@
+# Custom DTOs
+
+While NestJS CRUD Automator automatically generates DTOs, you can override them with custom DTOs when you need more control over the data structure, validation, or transformation.
+
+## When to Use Custom DTOs
+
+Use custom DTOs when you need:
+- Complex validation logic not covered by automatic generation
+- Different property names between API and database
+- Computed or derived properties
+- Specific Swagger documentation
+- Integration with existing DTO classes
+
+## Replacing Auto-Generated DTOs
+
+Replace auto-generated DTOs with custom ones:
+
+```typescript filename="user.controller.ts" copy
+import { CreateUserDto } from "./dto/create-user.dto";
+import { UpdateUserDto } from "./dto/update-user.dto";
+import { UserResponseDto } from "./dto/user-response.dto";
+
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  routes: {
+    [EApiRouteType.CREATE]: {
+      dto: {
+        body: CreateUserDto,
+        response: UserResponseDto,
+      },
+    },
+    [EApiRouteType.UPDATE]: {
+      dto: {
+        body: UpdateUserDto,
+        response: UserResponseDto,
+      },
+    },
+    [EApiRouteType.GET]: {
+      dto: {
+        response: UserResponseDto,
+      },
+    },
+  },
+})
+```
+
+## Creating Custom Request DTOs
+
+### Create DTO
+
+```typescript filename="dto/create-user.dto.ts" copy
+import { ApiProperty } from "@nestjs/swagger";
+import {
+  IsString,
+  IsEmail,
+  MinLength,
+  MaxLength,
+  Matches,
+  IsOptional,
+  IsEnum,
+} from "class-validator";
+
+export enum UserRole {
+  USER = "user",
+  ADMIN = "admin",
+  MODERATOR = "moderator",
+}
+
+export class CreateUserDto {
+  @ApiProperty({
+    description: "Username",
+    example: "john_doe",
+    minLength: 3,
+    maxLength: 20,
+  })
+  @IsString()
+  @MinLength(3)
+  @MaxLength(20)
+  @Matches(/^[a-zA-Z0-9_-]+$/, {
+    message: "Username can only contain letters, numbers, underscores, and hyphens",
+  })
+  username: string;
+
+  @ApiProperty({
+    description: "Email address",
+    example: "john@example.com",
+  })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({
+    description: "Password",
+    example: "SecurePass123!",
+    minLength: 8,
+  })
+  @IsString()
+  @MinLength(8)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
+    message: "Password must contain uppercase, lowercase, number, and special character",
+  })
+  password: string;
+
+  @ApiProperty({
+    description: "User role",
+    enum: UserRole,
+    example: UserRole.USER,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
+}
+```
+
+### Update DTO
+
+```typescript filename="dto/update-user.dto.ts" copy
+import { PartialType, OmitType } from "@nestjs/swagger";
+import { CreateUserDto } from "./create-user.dto";
+
+// Make all fields optional and exclude password
+export class UpdateUserDto extends PartialType(
+  OmitType(CreateUserDto, ["password"] as const)
+) {}
+```
+
+## Creating Custom Response DTOs
+
+```typescript filename="dto/user-response.dto.ts" copy
+import { ApiProperty } from "@nestjs/swagger";
+import { Exclude, Expose, Transform } from "class-transformer";
+
+export class UserResponseDto {
+  @ApiProperty({
+    description: "User ID",
+    example: "550e8400-e29b-41d4-a716-446655440000",
+  })
+  @Expose()
+  id: string;
+
+  @ApiProperty({
+    description: "Username",
+    example: "john_doe",
+  })
+  @Expose()
+  username: string;
+
+  @ApiProperty({
+    description: "Email address",
+    example: "john@example.com",
+  })
+  @Expose()
+  email: string;
+
+  @ApiProperty({
+    description: "User role",
+    example: "user",
+  })
+  @Expose()
+  role: string;
+
+  @ApiProperty({
+    description: "Full name",
+    example: "John Doe",
+  })
+  @Expose()
+  @Transform(({ obj }) => `${obj.firstName} ${obj.lastName}`)
+  fullName: string;
+
+  @ApiProperty({
+    description: "Account creation date",
+    example: "2024-01-01T00:00:00.000Z",
+  })
+  @Expose()
+  createdAt: Date;
+
+  // Exclude sensitive fields
+  @Exclude()
+  password: string;
+
+  @Exclude()
+  deletedAt: Date;
+}
+```
+
+## Nested DTOs
+
+Create DTOs with nested objects:
+
+```typescript filename="dto/create-post.dto.ts" copy
+import { ApiProperty } from "@nestjs/swagger";
+import { IsString, IsArray, ValidateNested, IsOptional } from "class-validator";
+import { Type } from "class-transformer";
+
+export class PostMetadataDto {
+  @ApiProperty({
+    description: "Featured image URL",
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  featuredImage?: string;
+
+  @ApiProperty({
+    description: "SEO keywords",
+    type: [String],
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  keywords?: string[];
+}
+
+export class CreatePostDto {
+  @ApiProperty({
+    description: "Post title",
+    example: "My First Post",
+  })
+  @IsString()
+  title: string;
+
+  @ApiProperty({
+    description: "Post content",
+    example: "This is the content of my post",
+  })
+  @IsString()
+  content: string;
+
+  @ApiProperty({
+    description: "Post metadata",
+    type: PostMetadataDto,
+    required: false,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PostMetadataDto)
+  metadata?: PostMetadataDto;
+}
+```
+
+## Discriminated Union DTOs
+
+Create polymorphic DTOs:
+
+```typescript filename="dto/create-payment.dto.ts" copy
+import { ApiProperty } from "@nestjs/swagger";
+import { IsString, IsNotEmpty, ValidateIf } from "class-validator";
+
+export class CreatePaymentDto {
+  @ApiProperty({
+    description: "Payment type",
+    enum: ["card", "paypal"],
+    example: "card",
+  })
+  @IsString()
+  @IsNotEmpty()
+  type: "card" | "paypal";
+
+  // Card-specific fields
+  @ApiProperty({
+    description: "Card number",
+    example: "4242424242424242",
+    required: false,
+  })
+  @ValidateIf(o => o.type === "card")
+  @IsNotEmpty()
+  cardNumber?: string;
+
+  @ApiProperty({
+    description: "CVV",
+    example: "123",
+    required: false,
+  })
+  @ValidateIf(o => o.type === "card")
+  @IsNotEmpty()
+  cvv?: string;
+
+  // PayPal-specific fields
+  @ApiProperty({
+    description: "PayPal email",
+    example: "user@paypal.com",
+    required: false,
+  })
+  @ValidateIf(o => o.type === "paypal")
+  @IsNotEmpty()
+  paypalEmail?: string;
+}
+```
+
+## Extending Auto-Generated DTOs
+
+Extend auto-generated DTOs with additional logic:
+
+```typescript filename="dto/create-user-extended.dto.ts" copy
+import { CreateUserDto } from "./generated/create-user.dto"; // Auto-generated
+import { IsOptional, IsUrl } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
+
+export class CreateUserExtendedDto extends CreateUserDto {
+  @ApiProperty({
+    description: "Profile picture URL",
+    example: "https://example.com/avatar.jpg",
+    required: false,
+  })
+  @IsOptional()
+  @IsUrl()
+  avatarUrl?: string;
+}
+```
+
+## Partial DTOs
+
+Create partial DTOs for patch updates:
+
+```typescript filename="dto/patch-user.dto.ts" copy
+import { PartialType } from "@nestjs/swagger";
+import { UpdateUserDto } from "./update-user.dto";
+
+export class PatchUserDto extends PartialType(UpdateUserDto) {}
+```
+
+## Pick and Omit
+
+Use utility types to create DTOs from existing ones:
+
+```typescript filename="dto/user-public.dto.ts" copy
+import { PickType } from "@nestjs/swagger";
+import { UserResponseDto } from "./user-response.dto";
+
+// Only include public fields
+export class UserPublicDto extends PickType(UserResponseDto, [
+  "id",
+  "username",
+  "createdAt",
+] as const) {}
+```
+
+```typescript filename="dto/user-safe.dto.ts" copy
+import { OmitType } from "@nestjs/swagger";
+import { UserResponseDto } from "./user-response.dto";
+
+// Exclude sensitive fields
+export class UserSafeDto extends OmitType(UserResponseDto, [
+  "email",
+  "role",
+] as const) {}
+```
+
+## Intersection Types
+
+Combine multiple DTOs:
+
+```typescript filename="dto/create-post-with-author.dto.ts" copy
+import { IntersectionType } from "@nestjs/swagger";
+import { CreatePostDto } from "./create-post.dto";
+import { AuthorInfoDto } from "./author-info.dto";
+
+export class CreatePostWithAuthorDto extends IntersectionType(
+  CreatePostDto,
+  AuthorInfoDto
+) {}
+```
+
+## DTO Transformation
+
+Transform DTO before processing:
+
+```typescript filename="dto/create-user.dto.ts" copy
+import { Transform } from "class-transformer";
+
+export class CreateUserDto {
+  @Transform(({ value }) => value.toLowerCase().trim())
+  email: string;
+
+  @Transform(({ value }) => value.trim())
+  username: string;
+
+  @Transform(({ value }) => value.split(",").map((tag: string) => tag.trim()))
+  tags: string[];
+}
+```
+
+## Validation Groups
+
+Use validation groups for different scenarios:
+
+```typescript filename="dto/update-user.dto.ts" copy
+import { IsNotEmpty, IsEmail } from "class-validator";
+
+export class UpdateUserDto {
+  @IsEmail({}, { groups: ["user", "admin"] })
+  email?: string;
+
+  @IsNotEmpty({ groups: ["admin"] })
+  role?: string;
+}
+```
+
+Use in controller:
+
+```typescript
+import { ValidationPipe } from "@nestjs/common";
+
+app.useGlobalPipes(
+  new ValidationPipe({
+    groups: ["user"], // Apply user validation group
+  })
+);
+```
+
+## Next Steps
+
+- [Validation](/docs/nestjs-crud-automator/guides/validation) - Advanced validation patterns
+- [Transformers](/docs/nestjs-crud-automator/guides/transformers) - Transform DTO data
+- [Core Concepts - DTOs](/docs/nestjs-crud-automator/core-concepts/dtos) - Automatic DTO generation
+

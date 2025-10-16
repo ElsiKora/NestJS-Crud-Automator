@@ -1,0 +1,440 @@
+# Validation
+
+NestJS CRUD Automator provides comprehensive validation capabilities through class-validator integration and custom validators.
+
+## Automatic Validation
+
+Validation rules are automatically applied based on entity property configuration:
+
+```typescript filename="user.entity.ts" copy
+@Entity("users")
+export class UserEntity {
+  @Column()
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.STRING,
+    description: "Username",
+    format: EApiPropertyStringType.STRING,
+    minLength: 3,     // Adds @MinLength(3)
+    maxLength: 20,    // Adds @MaxLength(20)
+    pattern: "/^[a-zA-Z0-9_-]+$/", // Adds @Matches(/^[a-zA-Z0-9_-]+$/)
+    isRequired: true, // Adds @IsNotEmpty()
+  })
+  username: string;
+
+  @Column()
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.STRING,
+    description: "Email",
+    format: EApiPropertyStringType.EMAIL, // Adds @IsEmail()
+    isRequired: true,
+  })
+  email: string;
+
+  @Column()
+  @ApiPropertyDescribe({
+    type: EApiPropertyDescribeType.NUMBER,
+    description: "Age",
+    format: EApiPropertyNumberType.INTEGER, // Adds @IsInt()
+    minimum: 18,      // Adds @Min(18)
+    maximum: 120,     // Adds @Max(120)
+  })
+  age: number;
+}
+```
+
+## Built-in Validators
+
+The library provides several built-in cross-field validators:
+
+### AllOrNoneOfListedPropertiesValidator
+
+Ensures either all or none of the specified properties are provided:
+
+```typescript filename="user.controller.ts" copy
+import {
+  AllOrNoneOfListedPropertiesValidator
+} from "@elsikora/nestjs-crud-automator";
+
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  routes: {
+    [EApiRouteType.CREATE]: {
+      autoDto: {
+        [EApiDtoType.BODY]: {
+          validators: [
+            {
+              constraintClass: AllOrNoneOfListedPropertiesValidator,
+              options: ["firstName", "lastName"],
+            },
+          ],
+        },
+      },
+    },
+  },
+})
+```
+
+### OnlyOneOfListedPropertiesValidator
+
+Ensures exactly one of the specified properties is provided:
+
+```typescript
+import {
+  OnlyOneOfListedPropertiesValidator
+} from "@elsikora/nestjs-crud-automator";
+
+validators: [
+  {
+    constraintClass: OnlyOneOfListedPropertiesValidator,
+    options: ["email", "phone"],
+  },
+]
+```
+
+### HasAtLeastOneOfListedPropertiesValidator
+
+Requires at least one of the specified properties:
+
+```typescript
+import {
+  HasAtLeastOneOfListedPropertiesValidator
+} from "@elsikora/nestjs-crud-automator";
+
+validators: [
+  {
+    constraintClass: HasAtLeastOneOfListedPropertiesValidator,
+    options: ["email", "phone", "username"],
+  },
+]
+```
+
+### HasAtLeastOneAndOnlyOneOfListedPropertiesValidator
+
+Requires exactly one of the specified properties:
+
+```typescript
+import {
+  HasAtLeastOneAndOnlyOneOfListedPropertiesValidator
+} from "@elsikora/nestjs-crud-automator";
+
+validators: [
+  {
+    constraintClass: HasAtLeastOneAndOnlyOneOfListedPropertiesValidator,
+    options: ["cardNumber", "paypalEmail", "bankAccount"],
+  },
+]
+```
+
+### MustMatchOneOfSchemasValidator
+
+Validates against one of multiple possible schemas:
+
+```typescript
+import {
+  MustMatchOneOfSchemasValidator
+} from "@elsikora/nestjs-crud-automator";
+
+validators: [
+  {
+    constraintClass: MustMatchOneOfSchemasValidator,
+    options: [CardPaymentSchema, PayPalPaymentSchema],
+  },
+]
+```
+
+### HasPairedCustomSuffixesFieldsValidator
+
+Validates paired fields with custom suffixes:
+
+```typescript
+import {
+  HasPairedCustomSuffixesFieldsValidator
+} from "@elsikora/nestjs-crud-automator";
+
+validators: [
+  {
+    constraintClass: HasPairedCustomSuffixesFieldsValidator,
+    options: {
+      baseName: "address",
+      suffixes: ["Street", "City", "Country"],
+    },
+  },
+]
+```
+
+## Custom Validators
+
+Create custom validators for specific requirements:
+
+```typescript filename="validators/is-strong-password.validator.ts" copy
+import {
+  registerDecorator,
+  ValidationOptions,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments
+} from "class-validator";
+
+@ValidatorConstraint({ async: false })
+export class IsStrongPasswordConstraint implements ValidatorConstraintInterface {
+  validate(password: string, args: ValidationArguments) {
+    if (!password) return false;
+
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    const isLongEnough = password.length >= 8;
+
+    return hasUpperCase && hasLowerCase && hasNumber && hasSpecialChar && isLongEnough;
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return "Password must contain at least 8 characters, including uppercase, lowercase, number, and special character";
+  }
+}
+
+export function IsStrongPassword(validationOptions?: ValidationOptions) {
+  return function (object: Object, propertyName: string) {
+    registerDecorator({
+      target: object.constructor,
+      propertyName: propertyName,
+      options: validationOptions,
+      constraints: [],
+      validator: IsStrongPasswordConstraint,
+    });
+  };
+}
+```
+
+Use custom validator:
+
+```typescript
+import { IsStrongPassword } from "./validators/is-strong-password.validator";
+
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Password",
+  format: EApiPropertyStringType.PASSWORD,
+})
+@IsStrongPassword()
+password: string;
+```
+
+## Async Validators
+
+Create async validators for database checks:
+
+```typescript filename="validators/is-username-unique.validator.ts" copy
+import { Injectable } from "@nestjs/common";
+import {
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments
+} from "class-validator";
+import { UserService } from "../user/user.service";
+
+@ValidatorConstraint({ async: true })
+@Injectable()
+export class IsUsernameUniqueConstraint implements ValidatorConstraintInterface {
+  constructor(private readonly userService: UserService) {}
+
+  async validate(username: string, args: ValidationArguments): Promise<boolean> {
+    const user = await this.userService.repository.findOne({
+      where: { username }
+    });
+    return !user;
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return "Username already exists";
+  }
+}
+```
+
+## Conditional Validation
+
+Validate fields conditionally:
+
+```typescript filename="dto/create-payment.dto.ts" copy
+import { ValidateIf, IsNotEmpty } from "class-validator";
+
+export class CreatePaymentDto {
+  @IsNotEmpty()
+  type: "card" | "paypal";
+
+  @ValidateIf(o => o.type === "card")
+  @IsNotEmpty()
+  cardNumber?: string;
+
+  @ValidateIf(o => o.type === "card")
+  @IsNotEmpty()
+  cvv?: string;
+
+  @ValidateIf(o => o.type === "paypal")
+  @IsNotEmpty()
+  paypalEmail?: string;
+}
+```
+
+## Nested Object Validation
+
+Validate nested objects:
+
+```typescript
+import { ValidateNested, Type } from "class-transformer";
+
+class AddressDto {
+  @IsNotEmpty()
+  street: string;
+
+  @IsNotEmpty()
+  city: string;
+
+  @IsNotEmpty()
+  country: string;
+}
+
+@Column({ type: "jsonb" })
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.OBJECT,
+  description: "User address",
+})
+@ValidateNested()
+@Type(() => AddressDto)
+address: AddressDto;
+```
+
+## Array Validation
+
+Validate array items:
+
+```typescript
+import { IsArray, ArrayMinSize, ArrayMaxSize, ValidateNested } from "class-validator";
+
+@Column({ type: "jsonb" })
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.OBJECT,
+  description: "User tags",
+  isArray: true,
+})
+@IsArray()
+@ArrayMinSize(1)
+@ArrayMaxSize(10)
+tags: string[];
+
+// Validate nested objects in array
+@OneToMany(() => PhoneEntity, phone => phone.user)
+@ValidateNested({ each: true })
+@Type(() => PhoneEntity)
+phones: PhoneEntity[];
+```
+
+## Validation Groups
+
+Use validation groups for different scenarios:
+
+```typescript filename="dto/update-user.dto.ts" copy
+import { IsNotEmpty } from "class-validator";
+
+export class UpdateUserDto {
+  @IsNotEmpty({ groups: ["admin"] })
+  role?: string;
+
+  @IsNotEmpty({ groups: ["user", "admin"] })
+  email?: string;
+}
+```
+
+## Error Messages
+
+Customize validation error messages:
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.STRING,
+  description: "Username",
+  format: EApiPropertyStringType.STRING,
+  minLength: 3,
+  maxLength: 20,
+})
+@MinLength(3, {
+  message: "Username is too short. Minimum length is 3 characters."
+})
+@MaxLength(20, {
+  message: "Username is too long. Maximum length is 20 characters."
+})
+username: string;
+```
+
+## Validation Pipes
+
+Configure validation behavior globally:
+
+```typescript filename="main.ts" copy
+import { ValidationPipe } from "@nestjs/common";
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // Strip properties not in DTO
+      forbidNonWhitelisted: true, // Throw error on unknown properties
+      transform: true, // Automatically transform payloads
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    })
+  );
+
+  await app.listen(3000);
+}
+bootstrap();
+```
+
+## Validation in Subscribers
+
+Perform custom validation in subscribers:
+
+```typescript filename="user-validation.subscriber.ts" copy
+import { Injectable, BadRequestException } from "@nestjs/common";
+import {
+  ApiRouteSubscriber,
+  ApiRouteSubscriberBase,
+  IApiSubscriberRouteExecutionContext
+} from "@elsikora/nestjs-crud-automator";
+import { UserEntity } from "./user.entity";
+
+@Injectable()
+@ApiRouteSubscriber({
+  entity: UserEntity,
+  priority: 10
+})
+export class UserValidationSubscriber extends ApiRouteSubscriberBase<UserEntity> {
+  async onBeforeCreate(
+    context: IApiSubscriberRouteExecutionContext<UserEntity, any>
+  ): Promise<any> {
+    const { body } = context.result;
+
+    // Custom validation logic
+    if (body.email && body.email.endsWith("@blocked-domain.com")) {
+      throw new BadRequestException("Email domain is not allowed");
+    }
+
+    return context.result;
+  }
+}
+```
+
+## Next Steps
+
+- [Transformers](/docs/nestjs-crud-automator/guides/transformers) - Transform validated data
+- [Error Handling](/docs/nestjs-crud-automator/guides/error-handling) - Handle validation errors
+- [API Reference - Validators](/docs/nestjs-crud-automator/api-reference/validators) - All validators reference
+- [Core Concepts - DTOs](/docs/nestjs-crud-automator/core-concepts/dtos) - DTO validation configuration
+

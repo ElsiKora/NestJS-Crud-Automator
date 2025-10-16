@@ -1,0 +1,315 @@
+# Decorators
+
+Complete reference for all decorators provided by NestJS CRUD Automator.
+
+## Controller Decorators
+
+### @ApiController
+
+Automatically generates CRUD endpoints for an entity.
+
+```typescript
+@ApiController<E>(options: IApiControllerProperties<E>)
+```
+
+**Parameters:**
+- `options.entity` - Entity class
+- `options.name` - API resource name (for Swagger)
+- `options.path` - Custom route path (optional)
+- `options.routes` - Route configurations
+
+**Example:**
+```typescript
+@Controller("users")
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  name: "Users",
+  routes: {
+    [EApiRouteType.CREATE]: {},
+    [EApiRouteType.GET]: {},
+    [EApiRouteType.GET_LIST]: {},
+    [EApiRouteType.UPDATE]: {},
+    [EApiRouteType.DELETE]: {},
+  },
+})
+export class UserController {}
+```
+
+**Related:**
+- [Core Concepts - Controllers](/docs/nestjs-crud-automator/core-concepts/controllers)
+
+### @ApiControllerObservable
+
+Marks a controller as observable, enabling route-level subscribers.
+
+```typescript
+@ApiControllerObservable()
+```
+
+**Example:**
+```typescript
+@Controller("posts")
+@ApiController({ /* ... */ })
+@ApiControllerObservable()
+export class PostController {}
+```
+
+**Related:**
+- [Subscriber System - Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)
+
+## Service Decorators
+
+### @ApiService
+
+Automatically adds CRUD methods to a service class.
+
+```typescript
+@ApiService<E>(properties: TApiServiceProperties<E>)
+```
+
+**Parameters:**
+- `properties.entity` - Entity class
+
+**Example:**
+```typescript
+@Injectable()
+@ApiService<UserEntity>({
+  entity: UserEntity,
+})
+export class UserService extends ApiServiceBase<UserEntity> {
+  constructor(
+    @InjectRepository(UserEntity)
+    public repository: Repository<UserEntity>,
+  ) {
+    super();
+  }
+}
+```
+
+**Related:**
+- [Core Concepts - Services](/docs/nestjs-crud-automator/core-concepts/services)
+
+### @ApiServiceObservable
+
+Marks a service as observable, enabling function-level subscribers.
+
+```typescript
+@ApiServiceObservable()
+```
+
+**Example:**
+```typescript
+@Injectable()
+@ApiService({ /* ... */ })
+@ApiServiceObservable()
+export class PostService extends ApiServiceBase<PostEntity> {}
+```
+
+**Related:**
+- [Subscriber System - Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers)
+
+## Property Decorators
+
+### @ApiPropertyDescribe
+
+Provides metadata for entity properties used in DTO generation, validation, and Swagger documentation.
+
+```typescript
+@ApiPropertyDescribe(properties: TApiPropertyDescribeProperties)
+```
+
+**Common Properties:**
+- `type` - Property type (UUID, STRING, NUMBER, BOOLEAN, DATE, ENUM, OBJECT, RELATION)
+- `description` - Property description
+- `isRequired` - Whether field is required
+- `exampleValue` - Example value for Swagger
+
+**Type-Specific Properties:**
+
+#### UUID Properties
+```typescript
+{
+  type: EApiPropertyDescribeType.UUID,
+  description: "Unique identifier",
+}
+```
+
+#### String Properties
+```typescript
+{
+  type: EApiPropertyDescribeType.STRING,
+  description: "Field description",
+  format: EApiPropertyStringType.STRING, // STRING, EMAIL, URL, PASSWORD
+  minLength: 3,
+  maxLength: 50,
+  pattern: "/^[a-zA-Z0-9]+$/",
+  exampleValue: "example",
+}
+```
+
+#### Number Properties
+```typescript
+{
+  type: EApiPropertyDescribeType.NUMBER,
+  description: "Numeric field",
+  format: EApiPropertyNumberType.INTEGER, // INTEGER, FLOAT
+  minimum: 0,
+  maximum: 100,
+  exampleValue: 42,
+}
+```
+
+#### Boolean Properties
+```typescript
+{
+  type: EApiPropertyDescribeType.BOOLEAN,
+  description: "Boolean field",
+  defaultValue: false,
+  exampleValue: true,
+}
+```
+
+#### Date Properties
+```typescript
+{
+  type: EApiPropertyDescribeType.DATE,
+  identifier: EApiPropertyDateIdentifier.CREATED_AT, // CREATED_AT, UPDATED_AT, DELETED_AT
+  format: EApiPropertyDateType.DATE_TIME, // DATE, DATE_TIME, TIME
+}
+```
+
+#### Enum Properties
+```typescript
+{
+  type: EApiPropertyDescribeType.ENUM,
+  description: "Enum field",
+  enum: UserRole,
+  enumName: "UserRole",
+  defaultValue: UserRole.USER,
+  exampleValue: UserRole.ADMIN,
+}
+```
+
+#### Object Properties
+```typescript
+{
+  type: EApiPropertyDescribeType.OBJECT,
+  description: "Object field",
+  properties: {
+    key1: { type: "string" },
+    key2: { type: "number" },
+  },
+  exampleValue: { key1: "value", key2: 123 },
+}
+```
+
+#### Relation Properties
+```typescript
+{
+  type: EApiPropertyDescribeType.RELATION,
+  description: "Related entity",
+  relationMetadata: {
+    relationType: "many-to-one",
+    entity: RelatedEntity,
+    isEager: false,
+  },
+}
+```
+
+**DTO Control:**
+```typescript
+{
+  type: EApiPropertyDescribeType.STRING,
+  description: "Field",
+  dto: {
+    body: {
+      isExposedInCreateDto: true,
+      isExposedInUpdateDto: true,
+      isRequiredInCreateDto: true,
+      isRequiredInUpdateDto: false,
+    },
+    response: {
+      isExposed: true,
+    },
+    query: {
+      getList: {
+        isExposedAsFilter: true,
+      },
+    },
+    guard: {
+      responseGuards: [AdminGuard],
+    },
+  },
+}
+```
+
+**Related:**
+- [Core Concepts - Entities](/docs/nestjs-crud-automator/core-concepts/entities)
+
+## Subscriber Decorators
+
+### @ApiRouteSubscriber
+
+Creates a route-level subscriber that intercepts controller operations.
+
+```typescript
+@ApiRouteSubscriber(options: IApiRouteSubscriberProperties<E>)
+```
+
+**Parameters:**
+- `options.entity` - Entity class
+- `options.priority` - Execution priority (higher executes first)
+
+**Example:**
+```typescript
+@Injectable()
+@ApiRouteSubscriber({
+  entity: PostEntity,
+  priority: 10,
+})
+export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
+  async onAfterCreate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+    console.log("Post created:", context.result);
+    return context.result;
+  }
+}
+```
+
+**Related:**
+- [Subscriber System - Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)
+
+### @ApiFunctionSubscriber
+
+Creates a function-level subscriber that intercepts service operations.
+
+```typescript
+@ApiFunctionSubscriber(options: IApiFunctionSubscriberProperties<E>)
+```
+
+**Parameters:**
+- `options.entity` - Entity class
+- `options.priority` - Execution priority (higher executes first)
+
+**Example:**
+```typescript
+@Injectable()
+@ApiFunctionSubscriber({
+  entity: PostEntity,
+})
+export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
+  async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, any>): Promise<any> {
+    context.result.body.slug = this.generateSlug(context.result.body.title);
+    return context.result;
+  }
+}
+```
+
+**Related:**
+- [Subscriber System - Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers)
+
+## Next Steps
+
+- [Classes](/docs/nestjs-crud-automator/api-reference/classes) - Base classes reference
+- [Interfaces](/docs/nestjs-crud-automator/api-reference/interfaces) - Type definitions
+- [Enums](/docs/nestjs-crud-automator/api-reference/enums) - Enumeration values
+

@@ -1,0 +1,254 @@
+# Validators
+
+Custom validation classes provided by NestJS CRUD Automator.
+
+## Cross-Field Validators
+
+### AllOrNoneOfListedPropertiesValidator
+
+Ensures either all or none of the specified properties are provided.
+
+**Location:** `src/validator/all-or-none-of-listed-properties.validator.ts`
+
+**Usage:**
+```typescript
+import {
+  AllOrNoneOfListedPropertiesValidator
+} from "@elsikora/nestjs-crud-automator";
+
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  routes: {
+    [EApiRouteType.CREATE]: {
+      autoDto: {
+        [EApiDtoType.BODY]: {
+          validators: [
+            {
+              constraintClass: AllOrNoneOfListedPropertiesValidator,
+              options: ["firstName", "lastName"],
+            },
+          ],
+        },
+      },
+    },
+  },
+})
+```
+
+**Behavior:**
+- If `firstName` is provided, `lastName` must also be provided
+- If `firstName` is not provided, `lastName` must also not be provided
+
+**Related:**
+- [Guides - Validation](/docs/nestjs-crud-automator/guides/validation)
+
+### OnlyOneOfListedPropertiesValidator
+
+Ensures exactly one of the specified properties is provided.
+
+**Location:** `src/validator/only-one-of-listed-properties.validator.ts`
+
+**Usage:**
+```typescript
+validators: [
+  {
+    constraintClass: OnlyOneOfListedPropertiesValidator,
+    options: ["email", "phone", "username"],
+  },
+]
+```
+
+**Behavior:**
+- Exactly one of `email`, `phone`, or `username` must be provided
+- Fails if none are provided or if multiple are provided
+
+### HasAtLeastOneOfListedPropertiesValidator
+
+Ensures at least one of the specified properties is provided.
+
+**Location:** `src/validator/has-at-least-one-of-listed-properties.validator.ts`
+
+**Usage:**
+```typescript
+validators: [
+  {
+    constraintClass: HasAtLeastOneOfListedPropertiesValidator,
+    options: ["email", "phone"],
+  },
+]
+```
+
+**Behavior:**
+- At least one of `email` or `phone` must be provided
+- Both can be provided
+- Fails if none are provided
+
+### HasAtLeastOneAndOnlyOneOfListedPropertiesValidator
+
+Ensures exactly one of the specified properties is provided (alias for OnlyOneOfListedPropertiesValidator).
+
+**Location:** `src/validator/has-at-least-one-and-only-one-of-listed-properties.validator.ts`
+
+**Usage:**
+```typescript
+validators: [
+  {
+    constraintClass: HasAtLeastOneAndOnlyOneOfListedPropertiesValidator,
+    options: ["cardNumber", "paypalEmail"],
+  },
+]
+```
+
+### HasAtLeastOnePropertyValidator
+
+Ensures at least one property is provided in the DTO.
+
+**Location:** `src/validator/has-at-least-one-property.validator.ts`
+
+**Usage:**
+```typescript
+validators: [
+  {
+    constraintClass: HasAtLeastOnePropertyValidator,
+    options: [],
+  },
+]
+```
+
+**Behavior:**
+- DTO must have at least one property with a value
+- Useful for update operations
+
+## Pattern Validators
+
+### IsRegularExpressionValidator
+
+Validates that a string is a valid regular expression.
+
+**Location:** `src/validator/is-regular-expression.validator.ts`
+
+**Usage:**
+```typescript
+import { Validate } from "class-validator";
+import { IsRegularExpressionValidator } from "@elsikora/nestjs-crud-automator";
+
+export class CreateFilterDto {
+  @Validate(IsRegularExpressionValidator)
+  pattern: string;
+}
+```
+
+**Behavior:**
+- Checks if the string can be compiled as a regular expression
+- Fails if the pattern is invalid
+
+## Schema Validators
+
+### MustMatchOneOfSchemasValidator
+
+Validates that the data matches at least one of the provided schemas.
+
+**Location:** `src/validator/must-match-one-of-schemas.validator.ts`
+
+**Usage:**
+```typescript
+validators: [
+  {
+    constraintClass: MustMatchOneOfSchemasValidator,
+    options: [CardPaymentSchema, PayPalPaymentSchema, BankTransferSchema],
+  },
+]
+```
+
+**Behavior:**
+- Data must match at least one of the provided schemas
+- Useful for polymorphic/discriminated union types
+
+## Paired Field Validators
+
+### HasPairedCustomSuffixesFieldsValidator
+
+Validates that fields with custom suffixes are provided together.
+
+**Location:** `src/validator/has-paired-custom-suffixes-fields.validator.ts`
+
+**Usage:**
+```typescript
+validators: [
+  {
+    constraintClass: HasPairedCustomSuffixesFieldsValidator,
+    options: {
+      baseName: "address",
+      suffixes: ["Street", "City", "Country", "ZipCode"],
+    },
+  },
+]
+```
+
+**Behavior:**
+- If any field like `addressStreet`, `addressCity`, `addressCountry`, or `addressZipCode` is provided
+- Then all fields must be provided
+- Useful for ensuring complete address information
+
+## Custom Validator Example
+
+Create your own custom validator:
+
+```typescript filename="custom-validator.ts" copy
+import {
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments
+} from "class-validator";
+
+@ValidatorConstraint({ async: false, name: "isStrongPassword" })
+export class IsStrongPasswordValidator implements ValidatorConstraintInterface {
+  validate(value: string, args: ValidationArguments): boolean {
+    if (!value) return false;
+
+    const hasUpperCase = /[A-Z]/.test(value);
+    const hasLowerCase = /[a-z]/.test(value);
+    const hasNumber = /[0-9]/.test(value);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(value);
+    const isLongEnough = value.length >= 8;
+
+    return hasUpperCase && hasLowerCase && hasNumber && hasSpecialChar && isLongEnough;
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    return "Password must contain at least 8 characters, including uppercase, lowercase, number, and special character";
+  }
+}
+```
+
+Use in controller:
+
+```typescript
+validators: [
+  {
+    constraintClass: IsStrongPasswordValidator,
+    options: [],
+  },
+]
+```
+
+## Validation Error Messages
+
+Validators provide descriptive error messages:
+
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "either all or none of the following properties must be provided: firstName, lastName"
+  ],
+  "error": "Bad Request"
+}
+```
+
+## Next Steps
+
+- [Guides - Validation](/docs/nestjs-crud-automator/guides/validation) - Validation guide
+- [Decorators](/docs/nestjs-crud-automator/api-reference/decorators) - Using validators with decorators
+- [Core Concepts - DTOs](/docs/nestjs-crud-automator/core-concepts/dtos) - DTO validation
+

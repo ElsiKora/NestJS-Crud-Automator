@@ -1,0 +1,422 @@
+# Authentication
+
+NestJS CRUD Automator integrates seamlessly with NestJS authentication guards to protect your CRUD endpoints.
+
+## Basic Authentication Setup
+
+Add authentication to specific routes:
+
+```typescript filename="user.controller.ts" copy
+import { Controller } from "@nestjs/common";
+import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { UserEntity } from "./user.entity";
+import { UserService } from "./user.service";
+
+@Controller("users")
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  name: "Users",
+  routes: {
+    [EApiRouteType.CREATE]: {
+      authentication: {
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+      },
+    },
+    [EApiRouteType.UPDATE]: {
+      authentication: {
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+      },
+    },
+    [EApiRouteType.DELETE]: {
+      authentication: {
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+      },
+    },
+    // GET and GET_LIST are public
+    [EApiRouteType.GET]: {},
+    [EApiRouteType.GET_LIST]: {},
+  },
+})
+export class UserController {
+  constructor(public service: UserService) {}
+}
+```
+
+## JWT Authentication
+
+### Setup JWT Strategy
+
+```typescript filename="auth/jwt.strategy.ts" copy
+import { Injectable } from "@nestjs/common";
+import { PassportStrategy } from "@nestjs/passport";
+import { ExtractJwt, Strategy } from "passport-jwt";
+
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy) {
+  constructor() {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey: process.env.JWT_SECRET,
+    });
+  }
+
+  async validate(payload: any) {
+    return {
+      id: payload.sub,
+      username: payload.username,
+      role: payload.role,
+    };
+  }
+}
+```
+
+### Create JWT Guard
+
+```typescript filename="auth/guards/jwt-auth.guard.ts" copy
+import { Injectable } from "@nestjs/common";
+import { AuthGuard } from "@nestjs/passport";
+
+@Injectable()
+export class JwtAuthGuard extends AuthGuard("jwt") {}
+```
+
+### Register in Module
+
+```typescript filename="auth/auth.module.ts" copy
+import { Module } from "@nestjs/common";
+import { JwtModule } from "@nestjs/jwt";
+import { PassportModule } from "@nestjs/passport";
+import { JwtStrategy } from "./jwt.strategy";
+
+@Module({
+  imports: [
+    PassportModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET,
+      signOptions: { expiresIn: "1h" },
+    }),
+  ],
+  providers: [JwtStrategy],
+  exports: [],
+})
+export class AuthModule {}
+```
+
+## Multiple Authentication Strategies
+
+Support multiple authentication methods:
+
+```typescript
+routes: {
+  [EApiRouteType.CREATE]: {
+    authentication: {
+      guard: JwtAuthGuard,
+      bearerStrategies: ["jwt", "api-key"],
+    },
+  },
+}
+```
+
+## API Key Authentication
+
+### Create API Key Guard
+
+```typescript filename="auth/guards/api-key-auth.guard.ts" copy
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException
+} from "@nestjs/common";
+
+@Injectable()
+export class ApiKeyAuthGuard implements CanActivate {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest();
+    const apiKey = request.headers["x-api-key"];
+
+    if (!apiKey) {
+      throw new UnauthorizedException("API key is required");
+    }
+
+    // Validate API key
+    const isValid = await this.validateApiKey(apiKey);
+    if (!isValid) {
+      throw new UnauthorizedException("Invalid API key");
+    }
+
+    return true;
+  }
+
+  private async validateApiKey(key: string): Promise<boolean> {
+    // Implement your API key validation logic
+    return key === process.env.API_KEY;
+  }
+}
+```
+
+### Use API Key Guard
+
+```typescript
+routes: {
+  [EApiRouteType.CREATE]: {
+    authentication: {
+      guard: ApiKeyAuthGuard,
+      bearerStrategies: ["api-key"],
+    },
+  },
+}
+```
+
+## Role-Based Access Control
+
+### Create Roles Guard
+
+```typescript filename="auth/guards/roles.guard.ts" copy
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+
+@Injectable()
+export class RolesGuard implements CanActivate {
+  constructor(private reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const requiredRoles = this.reflector.get<string[]>(
+      "roles",
+      context.getHandler()
+    );
+
+    if (!requiredRoles) {
+      return true;
+    }
+
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+
+    if (!user || !requiredRoles.includes(user.role)) {
+      throw new ForbiddenException("Insufficient permissions");
+    }
+
+    return true;
+  }
+}
+```
+
+### Apply Roles Guard
+
+```typescript
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { SetMetadata } from "@nestjs/common";
+
+const Roles = (...roles: string[]) => SetMetadata("roles", roles);
+
+@ApiController<UserEntity>({
+  entity: UserEntity,
+  routes: {
+    [EApiRouteType.DELETE]: {
+      authentication: {
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+      },
+      decorators: [
+        Roles("admin"),
+        UseGuards(RolesGuard),
+      ],
+    },
+  },
+})
+```
+
+## Accessing Authenticated User
+
+Access authenticated user in transformers:
+
+```typescript
+import {
+  EApiControllerRequestTransformerType,
+  TRANSFORMER_VALUE_DTO_CONSTANT
+} from "@elsikora/nestjs-crud-automator";
+
+routes: {
+  [EApiRouteType.CREATE]: {
+    authentication: {
+      guard: JwtAuthGuard,
+      bearerStrategies: ["jwt"],
+    },
+    request: {
+      transformers: {
+        [EApiDtoType.BODY]: [
+          {
+            key: "createdById",
+            type: EApiControllerRequestTransformerType.DYNAMIC,
+            value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
+            shouldSetValueEvenIfMissing: true,
+          },
+        ],
+      },
+    },
+  },
+}
+```
+
+## Accessing User in Subscribers
+
+Route subscribers receive the authenticated user:
+
+```typescript filename="post-author.subscriber.ts" copy
+import { Injectable } from "@nestjs/common";
+import {
+  ApiRouteSubscriber,
+  ApiRouteSubscriberBase,
+  IApiSubscriberRouteExecutionContext
+} from "@elsikora/nestjs-crud-automator";
+import { PostEntity } from "./post.entity";
+
+interface AuthenticatedUser {
+  id: string;
+  username: string;
+  role: string;
+}
+
+@Injectable()
+@ApiRouteSubscriber({
+  entity: PostEntity,
+  priority: 10
+})
+export class PostAuthorSubscriber extends ApiRouteSubscriberBase<PostEntity> {
+  async onBeforeCreate(
+    context: IApiSubscriberRouteExecutionContext<
+      PostEntity,
+      { authenticationRequest?: { user: AuthenticatedUser } }
+    >
+  ): Promise<any> {
+    const user = context.result.authenticationRequest?.user;
+    
+    if (user) {
+      // Automatically set author from authenticated user
+      context.result.body.authorId = user.id;
+    }
+
+    return context.result;
+  }
+}
+```
+
+## Custom Guards
+
+Create custom guards for specific requirements:
+
+```typescript filename="auth/guards/owner.guard.ts" copy
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException
+} from "@nestjs/common";
+import { UserService } from "../../user/user.service";
+
+@Injectable()
+export class OwnerGuard implements CanActivate {
+  constructor(private readonly userService: UserService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+    const resourceId = request.params.id;
+
+    if (!user) {
+      throw new ForbiddenException("Authentication required");
+    }
+
+    // Check if user owns the resource
+    const resource = await this.userService.get({
+      where: { id: resourceId }
+    });
+
+    if (resource.ownerId !== user.id && user.role !== "admin") {
+      throw new ForbiddenException("You can only modify your own resources");
+    }
+
+    return true;
+  }
+}
+```
+
+## Swagger Security
+
+Configure Swagger to show authentication requirements:
+
+```typescript filename="main.ts" copy
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+
+const config = new DocumentBuilder()
+  .setTitle("Your API")
+  .setDescription("API description")
+  .setVersion("1.0")
+  .addBearerAuth(
+    {
+      type: "http",
+      scheme: "bearer",
+      bearerFormat: "JWT",
+      name: "JWT",
+      description: "Enter JWT token",
+      in: "header",
+    },
+    "JWT-auth"
+  )
+  .addApiKey(
+    {
+      type: "apiKey",
+      name: "x-api-key",
+      in: "header",
+    },
+    "api-key"
+  )
+  .build();
+```
+
+## Public Endpoints
+
+Make specific routes public while others require auth:
+
+```typescript
+routes: {
+  [EApiRouteType.GET]: {}, // Public
+  [EApiRouteType.GET_LIST]: {}, // Public
+  [EApiRouteType.CREATE]: {
+    authentication: {
+      guard: JwtAuthGuard,
+      bearerStrategies: ["jwt"],
+    },
+  },
+  [EApiRouteType.UPDATE]: {
+    authentication: {
+      guard: JwtAuthGuard,
+      bearerStrategies: ["jwt"],
+    },
+  },
+  [EApiRouteType.DELETE]: {
+    authentication: {
+      guard: JwtAuthGuard,
+      bearerStrategies: ["jwt"],
+    },
+  },
+}
+```
+
+## Next Steps
+
+- [Transformers](/docs/nestjs-crud-automator/guides/transformers) - Transform data based on user
+- [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Access user in subscribers
+- [Core Concepts - Controllers](/docs/nestjs-crud-automator/core-concepts/controllers) - Controller configuration
+

@@ -4,6 +4,12 @@ import type { TApiControllerConstructor } from "@type/decorator/api/controller";
 
 import { ApiControllerFactory } from "@factory/api";
 
+/**
+ * Automatically generates CRUD endpoints for an entity.
+ *
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators#apicontroller | API Reference - ApiController}
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/core-concepts/controllers | Core Concepts - Controllers}
+ */
 export const ApiController =
 	<E extends IApiBaseEntity>(options: IApiControllerProperties<E>) =>
 	<T extends TApiControllerConstructor>(target: T): T => {
