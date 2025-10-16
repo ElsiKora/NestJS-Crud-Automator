@@ -1,4 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function-error-execution-context.interface";
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function-execution-context.interface";
 import type { IApiFunctionProperties, IApiFunctionUpdateExecutorProperties } from "@interface/decorator/api/function";
 import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
@@ -45,7 +46,13 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, executionContext, new Error("Repository is not available in this context"));
+				const errorContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
+					DATA: { criteria, eventManager, repository: this.repository },
+					ENTITY: entityInstance,
+					FUNCTION_TYPE: EApiFunctionType.UPDATE,
+				};
+
+				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, errorContext, new Error("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}
@@ -121,20 +128,20 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 	} catch (error) {
 		const entityInstance: E = new entity();
 
-		const executionContext: IApiSubscriberFunctionExecutionContext<E, never> = {
+		const errorContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
 			DATA: { criteria, eventManager, properties, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.UPDATE,
 		};
 
 		if (error instanceof HttpException) {
-			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER_ERROR, executionContext, error);
+			await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER_ERROR, errorContext, error);
 
 			throw error;
 		}
 
 		LoggerUtility.getLogger("ApiFunctionUpdate").verbose(`Error updating entity ${entity.name}:`, error);
-		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER_ERROR, executionContext, error as Error);
+		await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER_ERROR, errorContext, error as Error);
 
 		throw new InternalServerErrorException(
 			ErrorString({

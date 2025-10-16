@@ -3,7 +3,9 @@ import type { EApiSubscriberOnType } from "@enum/decorator/api/on-type.enum";
 import type { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunction, IApiSubscriberRoute } from "@interface/class/api/subscriber";
+import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function-error-execution-context.interface";
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function-execution-context.interface";
+import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route-error-execution-context.interface";
 import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route-execution-context.interface";
 
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
@@ -16,9 +18,27 @@ import { apiSubscriberRegistry } from "./registry.class";
 const subscriberLogger: LoggerUtility = LoggerUtility.getLogger("ApiSubscriberExecutor");
 
 export class ApiSubscriberExecutor {
-	public static async executeFunctionSubscribers<E extends IApiBaseEntity, TResult, TInput>(constructor: new (...arguments_: Array<unknown>) => unknown, entity: E, functionType: EApiFunctionType, onType: EApiSubscriberOnType, context: IApiSubscriberFunctionExecutionContext<E, TResult, TInput>, error?: Error): Promise<TResult | undefined> {
+	public static async executeFunctionErrorSubscribers<E extends IApiBaseEntity, TInput>(constructor: new (...arguments_: Array<unknown>) => unknown, entity: E, functionType: EApiFunctionType, onType: EApiSubscriberOnType, context: IApiSubscriberFunctionErrorExecutionContext<E, TInput>, error: Error): Promise<void> {
 		if (!Reflect.hasMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, constructor)) {
-			return context.result as TResult;
+			return;
+		}
+
+		const subscribers: Array<IApiSubscriberFunction<IApiBaseEntity>> = apiSubscriberRegistry.getFunctionSubscribers(entity.constructor.name);
+
+		for (const subscriber of subscribers) {
+			const hookName: string = `on${onType}${CapitalizeString(functionType)}`;
+			const hook: unknown = subscriber[hookName as keyof IApiSubscriberFunction<IApiBaseEntity>];
+
+			if (typeof hook === "function") {
+				subscriberLogger.verbose(`Executing function error hook ${hookName} from ${subscriber.constructor.name} for entity ${entity.constructor.name}`);
+				await hook.call(subscriber, context, error);
+			}
+		}
+	}
+
+	public static async executeFunctionSubscribers<E extends IApiBaseEntity, TResult, TInput>(constructor: new (...arguments_: Array<unknown>) => unknown, entity: E, functionType: EApiFunctionType, onType: EApiSubscriberOnType, context: IApiSubscriberFunctionExecutionContext<E, TResult, TInput>): Promise<TResult | undefined> {
+		if (!Reflect.hasMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, constructor)) {
+			return context.result;
 		}
 
 		const subscribers: Array<IApiSubscriberFunction<IApiBaseEntity>> = apiSubscriberRegistry.getFunctionSubscribers(entity.constructor.name);
@@ -30,7 +50,7 @@ export class ApiSubscriberExecutor {
 
 			if (typeof hook === "function") {
 				subscriberLogger.verbose(`Executing function hook ${hookName} from ${subscriber.constructor.name} for entity ${entity.constructor.name}`);
-				const hookResult: TResult | undefined = (await hook.call(subscriber, { ...context, result }, error)) as TResult | undefined;
+				const hookResult: TResult | undefined = (await hook.call(subscriber, { ...context, result })) as TResult | undefined;
 
 				if (hookResult !== undefined) {
 					result = hookResult as TResult;
@@ -41,9 +61,27 @@ export class ApiSubscriberExecutor {
 		return result;
 	}
 
-	public static async executeRouteSubscribers<E extends IApiBaseEntity, TResult, TInput>(constructor: new (...arguments_: Array<unknown>) => unknown, entity: E, routeType: EApiRouteType, onType: EApiSubscriberOnType, context: IApiSubscriberRouteExecutionContext<E, TResult, TInput>, error?: Error): Promise<TResult | undefined> {
+	public static async executeRouteErrorSubscribers<E extends IApiBaseEntity, TInput>(constructor: new (...arguments_: Array<unknown>) => unknown, entity: E, routeType: EApiRouteType, onType: EApiSubscriberOnType, context: IApiSubscriberRouteErrorExecutionContext<E, TInput>, error: Error): Promise<void> {
 		if (!Reflect.hasMetadata(CONTROLLER_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, constructor)) {
-			return context.result as TResult;
+			return;
+		}
+
+		const subscribers: Array<IApiSubscriberRoute<IApiBaseEntity>> = apiSubscriberRegistry.getRouteSubscribers(entity.constructor.name);
+
+		for (const subscriber of subscribers) {
+			const hookName: string = `on${onType}${CapitalizeString(routeType)}`;
+			const hook: unknown = subscriber[hookName as keyof IApiSubscriberRoute<IApiBaseEntity>];
+
+			if (typeof hook === "function") {
+				subscriberLogger.verbose(`Executing route error hook ${hookName} from ${subscriber.constructor.name} for entity ${entity.constructor.name}`);
+				await hook.call(subscriber, context, error);
+			}
+		}
+	}
+
+	public static async executeRouteSubscribers<E extends IApiBaseEntity, TResult, TInput>(constructor: new (...arguments_: Array<unknown>) => unknown, entity: E, routeType: EApiRouteType, onType: EApiSubscriberOnType, context: IApiSubscriberRouteExecutionContext<E, TResult, TInput>): Promise<TResult | undefined> {
+		if (!Reflect.hasMetadata(CONTROLLER_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, constructor)) {
+			return context.result;
 		}
 
 		const subscribers: Array<IApiSubscriberRoute<IApiBaseEntity>> = apiSubscriberRegistry.getRouteSubscribers(entity.constructor.name);
@@ -55,7 +93,7 @@ export class ApiSubscriberExecutor {
 
 			if (typeof hook === "function") {
 				subscriberLogger.verbose(`Executing route hook ${hookName} from ${subscriber.constructor.name} for entity ${entity.constructor.name}`);
-				const hookResult: TResult | undefined = (await hook.call(subscriber, { ...context, result }, error)) as TResult | undefined;
+				const hookResult: TResult | undefined = (await hook.call(subscriber, { ...context, result })) as TResult | undefined;
 
 				if (hookResult !== undefined) {
 					result = hookResult;

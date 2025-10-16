@@ -1,4 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function-error-execution-context.interface";
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function-execution-context.interface";
 import type { IApiFunctionGetListExecutorProperties, IApiFunctionProperties, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiFunctionGetListProperties } from "@type/decorator/api/function";
@@ -42,7 +43,13 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE_ERROR, executionContext, new Error("Repository is not available in this context"));
+				const errorContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
+					DATA: { eventManager, getListProperties, repository: this.repository },
+					ENTITY: entityInstance,
+					FUNCTION_TYPE: EApiFunctionType.GET_LIST,
+				};
+
+				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE_ERROR, errorContext, new Error("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}
@@ -119,20 +126,20 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListEx
 	} catch (error) {
 		const entityInstance: E = new entity();
 
-		const executionContext: IApiSubscriberFunctionExecutionContext<E, never> = {
+		const errorContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
 			DATA: { eventManager, properties, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.GET_LIST,
 		};
 
 		if (error instanceof HttpException) {
-			await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR, executionContext, error);
+			await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR, errorContext, error);
 
 			throw error;
 		}
 
 		LoggerUtility.getLogger("ApiFunctionGetList").verbose(`Error fetching list for entity ${entity.name}:`, error);
-		await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR, executionContext, error as Error);
+		await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR, errorContext, error as Error);
 
 		throw new InternalServerErrorException(
 			ErrorString({
