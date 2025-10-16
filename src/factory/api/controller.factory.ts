@@ -1,6 +1,7 @@
 /* eslint-disable @elsikora/sonar/no-duplicate-string */
 import type { IApiAuthenticationRequest } from "@interface/api-authentication-request.interface";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route-error-execution-context.interface";
 import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route-execution-context.interface";
 import type { IApiControllerProperties, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
@@ -111,7 +112,13 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(body, entityMetadata);
 
 					if (!primaryKey) {
-						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+						const errorContext: IApiSubscriberRouteErrorExecutionContext<E> = {
+							DATA: beforeExecutionContext.DATA,
+							ENTITY: entityInstance,
+							ROUTE_TYPE: EApiRouteType.CREATE,
+						};
+
+						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, errorContext, new Error("Primary key not found in entity columns"));
 
 						throw ErrorException("Primary key not found in entity columns");
 					}
@@ -148,12 +155,12 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 						strategy: "excludeAll",
 					});
 				} catch (error) {
-					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
+					const errorContext: IApiSubscriberRouteErrorExecutionContext<E> = {
 						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, body, headers, ip },
 						ENTITY: entityInstance,
 						ROUTE_TYPE: EApiRouteType.CREATE,
 					};
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+					await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.AFTER_ERROR, errorContext, error as Error);
 
 					throw error;
 				}
@@ -195,7 +202,13 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
 					if (!primaryKey) {
-						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.BEFORE_ERROR, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+						const errorContext: IApiSubscriberRouteErrorExecutionContext<E> = {
+							DATA: beforeExecutionContext.DATA,
+							ENTITY: entityInstance,
+							ROUTE_TYPE: EApiRouteType.DELETE,
+						};
+
+						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.BEFORE_ERROR, errorContext, new Error("Primary key not found in entity columns"));
 
 						throw ErrorException("Primary key not found in entity columns");
 					}
@@ -219,12 +232,12 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 
 					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.AFTER, afterExecutionContext);
 				} catch (error) {
-					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
+					const errorContext: IApiSubscriberRouteErrorExecutionContext<E> = {
 						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, headers, ip, parameters },
 						ENTITY: entityInstance,
 						ROUTE_TYPE: EApiRouteType.DELETE,
 					};
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+					await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.AFTER_ERROR, errorContext, error as Error);
 
 					throw error;
 				}
@@ -266,7 +279,13 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
 					if (!primaryKey) {
-						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.BEFORE_ERROR, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+						const errorContext: IApiSubscriberRouteErrorExecutionContext<E> = {
+							DATA: beforeExecutionContext.DATA,
+							ENTITY: entityInstance,
+							ROUTE_TYPE: EApiRouteType.GET,
+						};
+
+						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.BEFORE_ERROR, errorContext, new Error("Primary key not found in entity columns"));
 
 						throw ErrorException("Primary key not found in entity columns");
 					}
@@ -301,12 +320,12 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 						excludeExtraneousValues: true,
 					});
 				} catch (error) {
-					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
+					const errorContext: IApiSubscriberRouteErrorExecutionContext<E> = {
 						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, headers, ip, parameters },
 						ENTITY: entityInstance,
 						ROUTE_TYPE: EApiRouteType.GET,
 					};
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+					await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.AFTER_ERROR, errorContext, error as Error);
 
 					throw error;
 				}
@@ -383,12 +402,12 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 						excludeExtraneousValues: true,
 					});
 				} catch (error) {
-					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
+					const errorContext: IApiSubscriberRouteErrorExecutionContext<E> = {
 						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, headers, ip, query },
 						ENTITY: entityInstance,
 						ROUTE_TYPE: EApiRouteType.GET_LIST,
 					};
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => object, entityInstance, EApiRouteType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+					await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new () => object, entityInstance, EApiRouteType.GET_LIST, EApiSubscriberOnType.AFTER_ERROR, errorContext, error as Error);
 
 					throw error;
 				}
@@ -432,7 +451,13 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
 					if (!primaryKey) {
-						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.BEFORE_ERROR, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+						const errorContext: IApiSubscriberRouteErrorExecutionContext<E> = {
+							DATA: beforeExecutionContext.DATA,
+							ENTITY: entityInstance,
+							ROUTE_TYPE: EApiRouteType.PARTIAL_UPDATE,
+						};
+
+						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.BEFORE_ERROR, errorContext, new Error("Primary key not found in entity columns"));
 
 						throw ErrorException("Primary key not found in entity columns");
 					}
@@ -466,12 +491,12 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 						excludeExtraneousValues: true,
 					});
 				} catch (error) {
-					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
+					const errorContext: IApiSubscriberRouteErrorExecutionContext<E> = {
 						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, body, headers, ip, parameters },
 						ENTITY: entityInstance,
 						ROUTE_TYPE: EApiRouteType.PARTIAL_UPDATE,
 					};
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+					await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.AFTER_ERROR, errorContext, error as Error);
 
 					throw error;
 				}
@@ -515,7 +540,13 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(parameters, entityMetadata);
 
 					if (!primaryKey) {
-						await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, { ...beforeExecutionContext, result: undefined }, new Error("Primary key not found in entity columns"));
+						const errorContext: IApiSubscriberRouteErrorExecutionContext<E> = {
+							DATA: beforeExecutionContext.DATA,
+							ENTITY: entityInstance,
+							ROUTE_TYPE: EApiRouteType.UPDATE,
+						};
+
+						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, errorContext, new Error("Primary key not found in entity columns"));
 
 						throw ErrorException("Primary key not found in entity columns");
 					}
@@ -549,12 +580,12 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 						excludeExtraneousValues: true,
 					});
 				} catch (error) {
-					const errorExecutionContext: IApiSubscriberRouteExecutionContext<E, never> = {
+					const errorContext: IApiSubscriberRouteErrorExecutionContext<E> = {
 						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, body, headers, ip, parameters },
 						ENTITY: entityInstance,
 						ROUTE_TYPE: EApiRouteType.UPDATE,
 					};
-					await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+					await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.AFTER_ERROR, errorContext, error as Error);
 
 					throw error;
 				}

@@ -11,8 +11,8 @@
 </a> <img src="https://img.shields.io/badge/npm-blue.svg?style=for-the-badge&logo=npm&logoColor=white" alt="npm"> <img src="https://img.shields.io/badge/typescript-blue.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="typescript"> <img src="https://img.shields.io/badge/nestjs-red.svg?style=for-the-badge&logo=nestjs&logoColor=white" alt="nestjs"> <img src="https://img.shields.io/badge/swagger-green.svg?style=for-the-badge&logo=swagger&logoColor=white" alt="swagger"> <img src="https://img.shields.io/badge/license-blue.svg?style=for-the-badge&logo=license&logoColor=white" alt="license"> <img src="https://img.shields.io/badge/version-1.6.2-brightgreen.svg?style=for-the-badge&logo=v&logoColor=white" alt="version-1.6.2">
 </p>
 
-
 ## 📚 Table of Contents
+
 - [Description](#-description)
 - [Features](#-features)
 - [Installation](#-installation)
@@ -25,13 +25,14 @@
 - [FAQ](#-faq)
 - [License](#-license)
 
-
 ## 📖 Description
+
 NestJS-Crud-Automator is a comprehensive library designed to eliminate repetitive code when building RESTful APIs with NestJS. It provides a suite of decorators, utilities, and validation tools that automatically generate controllers, DTOs, and service methods for handling Create, Read, Update, and Delete operations. This library significantly reduces development time by providing a declarative approach to API development. By simply describing your entity properties once, the library auto-generates all the necessary boilerplate code including Swagger documentation, validation rules, and transformation logic. Perfect for developers working on data-heavy applications who want to focus on business logic rather than repetitive CRUD implementation.
 
 The core philosophy of this library is built on four pillars: being **Declarative** (describe your API, don't code it), writing **Minimum Code** (drastically reduce boilerplate), ensuring **Flexibility** (override or extend any automated behavior), and guaranteeing **Type-Safety** (leverage TypeScript to prevent errors). It achieves this through real-time in-memory code generation, a heavy reliance on decorators for configuration, and smart conventions to reduce setup.
 
 ## 🚀 Features
+
 - ✨ **🏗️ Automatic generation of controllers, DTOs, and service methods for CRUD operations**
 - ✨ **📝 Comprehensive Swagger/OpenAPI documentation generation for all endpoints**
 - ✨ **✅ Built-in validation rules with class-validator integration**
@@ -49,6 +50,7 @@ The core philosophy of this library is built on four pillars: being **Declarativ
 - ✨ **Convention over Configuration:** Smart defaults for service and DTO naming to reduce boilerplate.
 
 ## 🛠 Installation
+
 ```bash
 ## Installation
 
@@ -82,6 +84,7 @@ npm install @nestjs/common @nestjs/swagger @nestjs/throttler typeorm class-trans
 ```
 
 ## 💡 Usage
+
 ## Basic Usage
 
 ### 1. Define Your Entity
@@ -89,57 +92,57 @@ npm install @nestjs/common @nestjs/swagger @nestjs/throttler typeorm class-trans
 First, define your entity with the `ApiPropertyDescribe` decorators to provide metadata for CRUD generation:
 
 ```typescript
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
-import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType, EApiPropertyDateIdentifier, EApiPropertyDateType } from '@elsikora/nestjs-crud-automator';
+import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "@elsikora/nestjs-crud-automator";
 
-@Entity('users')
+@Entity("users")
 export class UserEntity {
-  @PrimaryGeneratedColumn('uuid')
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.UUID,
-    description: 'User unique identifier'
-  })
-  id: string;
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.UUID,
+		description: "User unique identifier",
+	})
+	id: string;
 
-  @Column()
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.STRING,
-    description: 'User name',
-    format: EApiPropertyStringType.STRING,
-    minLength: 3,
-    maxLength: 50,
-    pattern: '/^[a-zA-Z0-9_-]+$/',
-    exampleValue: 'john_doe'
-  })
-  username: string;
+	@Column()
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "User name",
+		format: EApiPropertyStringType.STRING,
+		minLength: 3,
+		maxLength: 50,
+		pattern: "/^[a-zA-Z0-9_-]+$/",
+		exampleValue: "john_doe",
+	})
+	username: string;
 
-  @Column()
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.STRING,
-    description: 'User email',
-    format: EApiPropertyStringType.EMAIL,
-    minLength: 5,
-    maxLength: 255,
-    pattern: '/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/',
-    exampleValue: 'user@example.com'
-  })
-  email: string;
+	@Column()
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "User email",
+		format: EApiPropertyStringType.EMAIL,
+		minLength: 5,
+		maxLength: 255,
+		pattern: "/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/",
+		exampleValue: "user@example.com",
+	})
+	email: string;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.DATE,
-    identifier: EApiPropertyDateIdentifier.CREATED_AT,
-    format: EApiPropertyDateType.DATE_TIME
-  })
-  createdAt: Date;
+	@Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.DATE,
+		identifier: EApiPropertyDateIdentifier.CREATED_AT,
+		format: EApiPropertyDateType.DATE_TIME,
+	})
+	createdAt: Date;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.DATE,
-    identifier: EApiPropertyDateIdentifier.UPDATED_AT,
-    format: EApiPropertyDateType.DATE_TIME
-  })
-  updatedAt: Date;
+	@Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", onUpdate: "CURRENT_TIMESTAMP" })
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.DATE,
+		identifier: EApiPropertyDateIdentifier.UPDATED_AT,
+		format: EApiPropertyDateType.DATE_TIME,
+	})
+	updatedAt: Date;
 }
 ```
 
@@ -148,28 +151,28 @@ export class UserEntity {
 Create a service with the `ApiService` decorator to add CRUD operations:
 
 ```typescript
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ApiService, ApiServiceBase } from '@elsikora/nestjs-crud-automator';
-import { UserEntity } from './user.entity';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { ApiService, ApiServiceBase } from "@elsikora/nestjs-crud-automator";
+import { UserEntity } from "./user.entity";
 
 @Injectable()
 @ApiService<UserEntity>({
-  entity: UserEntity
+	entity: UserEntity,
 })
 export class UserService extends ApiServiceBase<UserEntity> {
-  constructor(
-    @InjectRepository(UserEntity)
-    public repository: Repository<UserEntity>
-  ) {
-    super();
-  }
+	constructor(
+		@InjectRepository(UserEntity)
+		public repository: Repository<UserEntity>,
+	) {
+		super();
+	}
 
-  // You can add custom methods here that go beyond basic CRUD
-  async findByEmail(email: string): Promise<UserEntity | undefined> {
-    return this.repository.findOne({ where: { email } });
-  }
+	// You can add custom methods here that go beyond basic CRUD
+	async findByEmail(email: string): Promise<UserEntity | undefined> {
+		return this.repository.findOne({ where: { email } });
+	}
 }
 ```
 
@@ -178,41 +181,41 @@ export class UserService extends ApiServiceBase<UserEntity> {
 Create a controller with the `ApiController` decorator to generate all CRUD endpoints:
 
 ```typescript
-import { Controller, UseGuards } from '@nestjs/common';
-import { ApiController, EApiRouteType } from '@elsikora/nestjs-crud-automator';
-import { UserEntity } from './user.entity';
-import { UserService } from './user.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Controller, UseGuards } from "@nestjs/common";
+import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { UserEntity } from "./user.entity";
+import { UserService } from "./user.service";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 
-@Controller('users')
+@Controller("users")
 @ApiController<UserEntity>({
-  entity: UserEntity,
-  name: 'Users',
-  routes: {
-    [EApiRouteType.CREATE]: {
-      authentication: {
-        guard: JwtAuthGuard,
-        bearerStrategies: ['jwt']
-      }
-    },
-    [EApiRouteType.UPDATE]: {
-      authentication: {
-        guard: JwtAuthGuard,
-        bearerStrategies: ['jwt']
-      }
-    },
-    [EApiRouteType.DELETE]: {
-      authentication: {
-        guard: JwtAuthGuard,
-        bearerStrategies: ['jwt']
-      }
-    },
-    [EApiRouteType.GET]: {},
-    [EApiRouteType.GET_LIST]: {}
-  }
+	entity: UserEntity,
+	name: "Users",
+	routes: {
+		[EApiRouteType.CREATE]: {
+			authentication: {
+				guard: JwtAuthGuard,
+				bearerStrategies: ["jwt"],
+			},
+		},
+		[EApiRouteType.UPDATE]: {
+			authentication: {
+				guard: JwtAuthGuard,
+				bearerStrategies: ["jwt"],
+			},
+		},
+		[EApiRouteType.DELETE]: {
+			authentication: {
+				guard: JwtAuthGuard,
+				bearerStrategies: ["jwt"],
+			},
+		},
+		[EApiRouteType.GET]: {},
+		[EApiRouteType.GET_LIST]: {},
+	},
 })
 export class UserController {
-  constructor(public service: UserService) {}
+	constructor(public service: UserService) {}
 }
 ```
 
@@ -223,28 +226,28 @@ export class UserController {
 Add custom validators to your DTOs:
 
 ```typescript
-import { ApiController, EApiRouteType, EApiDtoType, AllOrNoneOfListedPropertiesValidator } from '@elsikora/nestjs-crud-automator';
+import { ApiController, EApiRouteType, EApiDtoType, AllOrNoneOfListedPropertiesValidator } from "@elsikora/nestjs-crud-automator";
 
 @ApiController<UserEntity>({
-  entity: UserEntity,
-  name: 'Users',
-  routes: {
-    [EApiRouteType.CREATE]: {
-      autoDto: {
-        [EApiDtoType.BODY]: {
-          validators: [
-            {
-              constraintClass: AllOrNoneOfListedPropertiesValidator,
-              options: ['firstName', 'lastName']
-            }
-          ]
-        }
-      }
-    }
-  }
+	entity: UserEntity,
+	name: "Users",
+	routes: {
+		[EApiRouteType.CREATE]: {
+			autoDto: {
+				[EApiDtoType.BODY]: {
+					validators: [
+						{
+							constraintClass: AllOrNoneOfListedPropertiesValidator,
+							options: ["firstName", "lastName"],
+						},
+					],
+				},
+			},
+		},
+	},
 })
 export class UserController {
-  constructor(public service: UserService) {}
+	constructor(public service: UserService) {}
 }
 ```
 
@@ -253,30 +256,30 @@ export class UserController {
 Automatically transform request data:
 
 ```typescript
-import { ApiController, EApiRouteType, EApiDtoType, EApiControllerRequestTransformerType, TRANSFORMER_VALUE_DTO_CONSTANT } from '@elsikora/nestjs-crud-automator';
+import { ApiController, EApiRouteType, EApiDtoType, EApiControllerRequestTransformerType, TRANSFORMER_VALUE_DTO_CONSTANT } from "@elsikora/nestjs-crud-automator";
 
 @ApiController<UserEntity>({
-  entity: UserEntity,
-  name: 'Users',
-  routes: {
-    [EApiRouteType.CREATE]: {
-      request: {
-        transformers: {
-          [EApiDtoType.BODY]: [
-            {
-              key: 'createdBy',
-              type: EApiControllerRequestTransformerType.DYNAMIC,
-              value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
-              shouldSetValueEvenIfMissing: true
-            }
-          ]
-        }
-      }
-    }
-  }
+	entity: UserEntity,
+	name: "Users",
+	routes: {
+		[EApiRouteType.CREATE]: {
+			request: {
+				transformers: {
+					[EApiDtoType.BODY]: [
+						{
+							key: "createdBy",
+							type: EApiControllerRequestTransformerType.DYNAMIC,
+							value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
+							shouldSetValueEvenIfMissing: true,
+						},
+					],
+				},
+			},
+		},
+	},
 })
 export class UserController {
-  constructor(public service: UserService) {}
+	constructor(public service: UserService) {}
 }
 ```
 
@@ -285,34 +288,34 @@ export class UserController {
 Automatically load related entities:
 
 ```typescript
-import { ApiController, EApiRouteType, EApiControllerLoadRelationsStrategy } from '@elsikora/nestjs-crud-automator';
+import { ApiController, EApiRouteType, EApiControllerLoadRelationsStrategy } from "@elsikora/nestjs-crud-automator";
 
 @ApiController<PostEntity>({
-  entity: PostEntity,
-  name: 'Posts',
-  routes: {
-    [EApiRouteType.GET]: {
-      request: {
-        relations: {
-          shouldLoadRelations: true,
-          relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-          servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-          shouldForceAllServicesToBeSpecified: false,
-          relationsToLoad: ['author', 'comments']
-        }
-      },
-      response: {
-        relations: ['author', 'comments']
-      }
-    }
-  }
+	entity: PostEntity,
+	name: "Posts",
+	routes: {
+		[EApiRouteType.GET]: {
+			request: {
+				relations: {
+					shouldLoadRelations: true,
+					relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+					servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+					shouldForceAllServicesToBeSpecified: false,
+					relationsToLoad: ["author", "comments"],
+				},
+			},
+			response: {
+				relations: ["author", "comments"],
+			},
+		},
+	},
 })
 export class PostController {
-  constructor(
-    public service: PostService,
-    public authorService: UserService,
-    public commentsService: CommentService
-  ) {}
+	constructor(
+		public service: PostService,
+		public authorService: UserService,
+		public commentsService: CommentService,
+	) {}
 }
 ```
 
@@ -321,31 +324,31 @@ export class PostController {
 Use custom DTOs instead of auto-generated ones:
 
 ```typescript
-import { ApiController, EApiRouteType } from '@elsikora/nestjs-crud-automator';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UserResponseDto } from './dto/user-response.dto';
+import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { CreateUserDto } from "./dto/create-user.dto";
+import { UpdateUserDto } from "./dto/update-user.dto";
+import { UserResponseDto } from "./dto/user-response.dto";
 
 @ApiController<UserEntity>({
-  entity: UserEntity,
-  name: 'Users',
-  routes: {
-    [EApiRouteType.CREATE]: {
-      dto: {
-        body: CreateUserDto,
-        response: UserResponseDto
-      }
-    },
-    [EApiRouteType.UPDATE]: {
-      dto: {
-        body: UpdateUserDto,
-        response: UserResponseDto
-      }
-    }
-  }
+	entity: UserEntity,
+	name: "Users",
+	routes: {
+		[EApiRouteType.CREATE]: {
+			dto: {
+				body: CreateUserDto,
+				response: UserResponseDto,
+			},
+		},
+		[EApiRouteType.UPDATE]: {
+			dto: {
+				body: UpdateUserDto,
+				response: UserResponseDto,
+			},
+		},
+	},
 })
 export class UserController {
-  constructor(public service: UserService) {}
+	constructor(public service: UserService) {}
 }
 ```
 
@@ -364,15 +367,16 @@ To simplify debugging and request tracing in complex systems, the library provid
 This allows you to link a specific client request with the logs on the server, which is invaluable when investigating incidents.
 
 **Registration:** `main.ts`
+
 ```typescript
-import { CorrelationIDResponseBodyInterceptor } from '@elsikora/nestjs-crud-automator';
+import { CorrelationIDResponseBodyInterceptor } from "@elsikora/nestjs-crud-automator";
 
 async function bootstrap() {
-    const app = await NestFactory.create(AppModule);
-    // ...
-    app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
-    // ...
-    await app.listen(3000);
+	const app = await NestFactory.create(AppModule);
+	// ...
+	app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
+	// ...
+	await app.listen(3000);
 }
 ```
 
@@ -380,59 +384,59 @@ async function bootstrap() {
 
 This is the most powerful feature for extending the default behavior. It allows you to "subscribe" to events in the CRUD request lifecycle and execute your code before, after, or in case of an error in the main operation. This is an ideal solution for tasks such as:
 
--   Auditing.
--   Sending notifications.
--   Complex, context-dependent validation.
--   Data enrichment before saving.
--   Custom error handling.
+- Auditing.
+- Sending notifications.
+- Complex, context-dependent validation.
+- Data enrichment before saving.
+- Custom error handling.
 
 #### Enabling the Subscriber System
 
 To get the subscriber system working, you need to follow **three mandatory steps**:
 
-1.  **Import `ApiSubscriberModule`**: This module provides the `ApiSubscriberDiscoveryService`, which is responsible for discovering your subscribers. You need to import it into the root module of your application.
-    `app.module.ts`
+1.  **Import `ApiSubscriberModule`**: This module provides the `ApiSubscriberDiscoveryService`, which is responsible for discovering your subscribers. You need to import it into the root module of your application. `app.module.ts`
+
     ```typescript
     import { ApiSubscriberModule } from "@elsikora/nestjs-crud-automator";
 
     @Module({
-        imports: [
-            // ... other modules
-            ApiSubscriberModule, // <--- IMPORTANT
-        ],
-        // ...
+    	imports: [
+    		// ... other modules
+    		ApiSubscriberModule, // <--- IMPORTANT
+    	],
+    	// ...
     })
     export class AppModule {}
     ```
 
 2.  **Make the controller "observable"**: Add the `@ApiControllerObservable()` decorator to the controller class whose events you want to monitor.
+
     ```typescript
     import { ApiController, ApiControllerObservable } from "@elsikora/nestjs-crud-automator";
 
     @Controller("posts")
     @ApiController({
-        /* ... */
+    	/* ... */
     })
     @ApiControllerObservable() // <--- IMPORTANT
     export class PostController {
-        /* ... */
+    	/* ... */
     }
     ```
 
-3.  **Make the service "observable"**: Similarly, add the `@ApiServiceObservable()` decorator to the service class.
-    ```typescript
-    import { ApiService, ApiServiceBase, ApiServiceObservable } from "@elsikora/nestjs-crud-automator";
+3.  **Make the service "observable"**: Similarly, add the `@ApiServiceObservable()` decorator to the service class. ```typescript import { ApiService, ApiServiceBase, ApiServiceObservable } from "@elsikora/nestjs-crud-automator";
 
-    @Injectable()
-    @ApiService({
-        /* ... */
-    })
-    @ApiServiceObservable() // <--- IMPORTANT
-    export class PostService extends ApiServiceBase<Post> {
-        /* ... */
-    }
-    ```
-Without these steps, your subscriber classes will simply not be discovered and called.
+        @Injectable()
+        @ApiService({
+            /* ... */
+        })
+        @ApiServiceObservable() // <--- IMPORTANT
+        export class PostService extends ApiServiceBase<Post> {
+            /* ... */
+        }
+        ```
+
+    Without these steps, your subscriber classes will simply not be discovered and called.
 
 #### Two Levels of Interception
 
@@ -463,6 +467,7 @@ In case of an error at any stage, execution is interrupted, and the correspondin
 **Task**: Log which user created which post.
 
 1.  **Create the subscriber:** `post-audit.subscriber.ts`
+
     ```typescript
     import { Injectable } from "@nestjs/common";
     import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteExecutionContext } from "@elsikora/nestjs-crud-automator";
@@ -472,18 +477,18 @@ In case of an error at any stage, execution is interrupted, and the correspondin
     @Injectable()
     @ApiRouteSubscriber({ entity: Post, priority: 10 }) // Specify entity and priority
     export class PostAuditSubscriber extends ApiRouteSubscriberBase<Post> {
-        // Hook is called AFTER a post is successfully created in the controller
-        async onAfterCreate(context: IApiSubscriberRouteExecutionContext<Post, Post, { user: User }>): Promise<Post> {
-            const createdPost = context.result; // Result of the controller's operation
-            const currentUser = context.data.user; // Immutable input data, including request.user
+    	// Hook is called AFTER a post is successfully created in the controller
+    	async onAfterCreate(context: IApiSubscriberRouteExecutionContext<Post, Post, { user: User }>): Promise<Post> {
+    		const createdPost = context.result; // Result of the controller's operation
+    		const currentUser = context.data.user; // Immutable input data, including request.user
 
-            if (createdPost && currentUser) {
-                console.log(`AUDIT: User ${currentUser.id} created Post ${createdPost.id} with title "${createdPost.title}"`);
-            }
+    		if (createdPost && currentUser) {
+    			console.log(`AUDIT: User ${currentUser.id} created Post ${createdPost.id} with title "${createdPost.title}"`);
+    		}
 
-            // We don't want to change the result, so we just return it
-            return createdPost;
-        }
+    		// We don't want to change the result, so we just return it
+    		return createdPost;
+    	}
     }
     ```
 
@@ -494,6 +499,7 @@ In case of an error at any stage, execution is interrupted, and the correspondin
 **Task**: When creating a post, automatically generate a `slug` from the `title` before saving it to the database.
 
 1.  **Create the subscriber:** `post-slug.subscriber.ts`
+
     ```typescript
     import { Injectable } from "@nestjs/common";
     import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, IApiSubscriberFunctionExecutionContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
@@ -503,19 +509,19 @@ In case of an error at any stage, execution is interrupted, and the correspondin
     @Injectable()
     @ApiFunctionSubscriber({ entity: Post })
     export class PostSlugSubscriber extends ApiFunctionSubscriberBase<Post> {
-        // Hook is called BEFORE repository.save() is called
-        async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<Post, TApiFunctionCreateProperties<Post>>): Promise<TApiFunctionCreateProperties<Post>> {
-            const postData = context.result; // This is the object that will go into repository.save()
+    	// Hook is called BEFORE repository.save() is called
+    	async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<Post, TApiFunctionCreateProperties<Post>>): Promise<TApiFunctionCreateProperties<Post>> {
+    		const postData = context.result; // This is the object that will go into repository.save()
 
-            if (postData.body.title) {
-                // Modify the object, adding the slug
-                postData.body.slug = slugify(postData.body.title, { lower: true, strict: true });
-                console.log(`ENRICHMENT: Generated slug: ${postData.body.slug}`);
-            }
+    		if (postData.body.title) {
+    			// Modify the object, adding the slug
+    			postData.body.slug = slugify(postData.body.title, { lower: true, strict: true });
+    			console.log(`ENRICHMENT: Generated slug: ${postData.body.slug}`);
+    		}
 
-            // Return the modified object, which will be saved
-            return postData;
-        }
+    		// Return the modified object, which will be saved
+    		return postData;
+    	}
     }
     ```
 
@@ -535,24 +541,19 @@ In case of an error at any stage, execution is interrupted, and the correspondin
 The library automatically generates Swagger/OpenAPI documentation for all endpoints. To enable it in your NestJS application:
 
 ```typescript
-import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
-  const config = new DocumentBuilder()
-    .setTitle('Your API')
-    .setDescription('API description')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-    
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+	const app = await NestFactory.create(AppModule);
 
-  await app.listen(3000);
+	const config = new DocumentBuilder().setTitle("Your API").setDescription("API description").setVersion("1.0").addBearerAuth().build();
+
+	const document = SwaggerModule.createDocument(app, config);
+	SwaggerModule.setup("api", app, document);
+
+	await app.listen(3000);
 }
 bootstrap();
 ```
@@ -568,37 +569,39 @@ The library provides advanced filtering capabilities for list endpoints:
 This query would search for users with "john" in their username and created between Jan 1 and Dec 31, 2023.
 
 ## 🛣 Roadmap
+
 ## Roadmap
 
-| Task / Feature | Status |
-|---------------|--------|
-| Core CRUD operations | ✅ Done |
-| TypeORM integration | ✅ Done |
-| Swagger/OpenAPI documentation | ✅ Done |
-| Validation with class-validator | ✅ Done |
-| Transformation with class-transformer | ✅ Done |
-| Advanced filtering for GET_LIST operation | ✅ Done |
-| Authentication guard integration | ✅ Done |
-| Request/response transformers | ✅ Done |
-| Relation loading strategies | ✅ Done |
-| Custom validator integration | ✅ Done |
-| Pagination support | ✅ Done |
-| Error handling with standardized responses | ✅ Done |
-| Support for TypeScript decorators | ✅ Done |
-| Support for ESM and CommonJS modules | ✅ Done |
-| Subscriber System | ✅ Done |
-| MongoDB support | 🚧 In Progress |
-| GraphQL integration | 🚧 In Progress |
-| Support for soft deletes | 🚧 In Progress |
-| Role-based access control | 🚧 In Progress |
-| Cache integration | 🚧 In Progress |
-| Audit logging middleware | 🚧 In Progress |
+| Task / Feature                             | Status         |
+| ------------------------------------------ | -------------- |
+| Core CRUD operations                       | ✅ Done        |
+| TypeORM integration                        | ✅ Done        |
+| Swagger/OpenAPI documentation              | ✅ Done        |
+| Validation with class-validator            | ✅ Done        |
+| Transformation with class-transformer      | ✅ Done        |
+| Advanced filtering for GET_LIST operation  | ✅ Done        |
+| Authentication guard integration           | ✅ Done        |
+| Request/response transformers              | ✅ Done        |
+| Relation loading strategies                | ✅ Done        |
+| Custom validator integration               | ✅ Done        |
+| Pagination support                         | ✅ Done        |
+| Error handling with standardized responses | ✅ Done        |
+| Support for TypeScript decorators          | ✅ Done        |
+| Support for ESM and CommonJS modules       | ✅ Done        |
+| Subscriber System                          | ✅ Done        |
+| MongoDB support                            | 🚧 In Progress |
+| GraphQL integration                        | 🚧 In Progress |
+| Support for soft deletes                   | 🚧 In Progress |
+| Role-based access control                  | 🚧 In Progress |
+| Cache integration                          | 🚧 In Progress |
+| Audit logging middleware                   | 🚧 In Progress |
 | Bulk operations (create many, update many) | 🚧 In Progress |
-| Query complexity analyzer | 🚧 In Progress |
-| Rate limiting enhancements | 🚧 In Progress |
-| Custom parameter decorators | 🚧 In Progress |
+| Query complexity analyzer                  | 🚧 In Progress |
+| Rate limiting enhancements                 | 🚧 In Progress |
+| Custom parameter decorators                | 🚧 In Progress |
 
 ## ❓ FAQ
+
 ## Frequently Asked Questions
 
 ### How does NestJS-Crud-Automator compare to @nestjsx/crud?
@@ -608,6 +611,7 @@ While @nestjsx/crud provides similar functionality, NestJS-Crud-Automator offers
 ### Can I customize the generated endpoints?
 
 Yes! The library provides multiple ways to customize your endpoints:
+
 1. You can disable specific routes
 2. Add authentication guards to specific routes
 3. Customize DTO validation and transformation
@@ -635,24 +639,13 @@ The core library doesn't include file upload functionality, but you can easily e
 Yes, as long as your repository follows the TypeORM Repository pattern, it will work with NestJS-Crud-Automator.
 
 ## 🔒 License
-This project is licensed under **MIT License
+
+This project is licensed under \*\*MIT License
 
 Copyright (c) 2025 ElsiKora
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.**.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\*\*.
