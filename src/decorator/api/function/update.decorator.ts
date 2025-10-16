@@ -37,7 +37,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 				result: updateProperties,
 			};
 
-			const result: TApiFunctionUpdateProperties<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE, executionContext);
+			const result: TApiFunctionUpdateProperties<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE, executionContext);
 
 			if (result) {
 				executionContext.result = result;
@@ -52,7 +52,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 					FUNCTION_TYPE: EApiFunctionType.UPDATE,
 				};
 
-				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Repository is not available in this context"));
+				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}
@@ -72,7 +72,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 				}
 			}
 
-			return executor<E>({ constructor: this.constructor as new () => unknown, criteria, entity, eventManager, getFunction, properties: executionContext.result ?? ({} as unknown as TApiFunctionUpdateProperties<E>), repository });
+			return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria, entity, eventManager, getFunction, properties: executionContext.result ?? ({} as unknown as TApiFunctionUpdateProperties<E>), repository });
 		};
 
 		return descriptor;

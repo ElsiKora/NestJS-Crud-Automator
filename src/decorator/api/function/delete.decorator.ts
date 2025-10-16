@@ -38,7 +38,7 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 				result: criteria,
 			};
 
-			const result: TApiFunctionDeleteCriteria<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.DELETE, EApiSubscriberOnType.BEFORE, executionContext);
+			const result: TApiFunctionDeleteCriteria<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.DELETE, EApiSubscriberOnType.BEFORE, executionContext);
 
 			if (result) {
 				executionContext.result = result;
@@ -53,7 +53,7 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 					FUNCTION_TYPE: EApiFunctionType.DELETE,
 				};
 
-				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.DELETE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Repository is not available in this context"));
+				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.DELETE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}
@@ -73,7 +73,7 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 				}
 			}
 
-			return executor<E>({ constructor: this.constructor as new () => unknown, criteria: executionContext.result ?? ({} as unknown as FindOptionsWhere<E>), entity, eventManager, getFunction, repository });
+			return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria: executionContext.result ?? ({} as unknown as FindOptionsWhere<E>), entity, eventManager, getFunction, repository });
 		};
 
 		return descriptor;
@@ -91,7 +91,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExe
 	const { constructor, criteria, entity, eventManager, getFunction, repository }: IApiFunctionDeleteExecutorProperties<E> = options;
 
 	try {
-		const existingEntity: E = await getFunction({ where: criteria });
+		const existingEntity: E = await getFunction({ where: criteria }, eventManager);
 
 		let result: E;
 
