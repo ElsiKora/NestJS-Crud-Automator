@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.10.4...v1.11.0) (2025-10-16)
+
+
+### Features
+
+* **interface:** add api type exports to class interface module ([f9a0c1f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/f9a0c1f71cf97ab4cace2237a28c200fc37b8ba8))
+
 ## [1.10.4](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.10.3...v1.10.4) (2025-08-06)
 
 ## [1.10.3](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.10.2...v1.10.3) (2025-06-22)
