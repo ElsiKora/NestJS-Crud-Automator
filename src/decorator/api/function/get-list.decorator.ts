@@ -34,7 +34,7 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 				result: getListProperties,
 			};
 
-			const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE, executionContext);
+			const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE, executionContext);
 
 			if (result) {
 				executionContext.result = result;
@@ -49,12 +49,12 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 					FUNCTION_TYPE: EApiFunctionType.GET_LIST,
 				};
 
-				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Repository is not available in this context"));
+				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}
 
-			return executor<E>({ constructor: this.constructor as new () => unknown, entity, eventManager, properties: executionContext.result ?? ({} as unknown as TApiFunctionGetListProperties<E>), repository });
+			return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, eventManager, properties: executionContext.result ?? ({} as unknown as TApiFunctionGetListProperties<E>), repository });
 		};
 
 		return descriptor;
