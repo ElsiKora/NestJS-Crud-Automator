@@ -47,13 +47,13 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				const errorContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
+				const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
 					DATA: { eventManager, getProperties, repository: this.repository },
 					ENTITY: entityInstance,
 					FUNCTION_TYPE: EApiFunctionType.GET,
 				};
 
-				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.BEFORE_ERROR, errorContext, new Error("Repository is not available in this context"));
+				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new () => unknown, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}
@@ -107,20 +107,20 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 	} catch (error) {
 		const entityInstance: E = new entity();
 
-		const errorContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
+		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
 			DATA: { eventManager, properties, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.GET,
 		};
 
 		if (error instanceof HttpException) {
-			await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.AFTER_ERROR, errorContext, error);
+			await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error);
 
 			throw error;
 		}
 
 		LoggerUtility.getLogger("ApiFunctionGet").verbose(`Error fetching entity ${entity.name}:`, error);
-		await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.AFTER_ERROR, errorContext, error as Error);
+		await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
 
 		throw new InternalServerErrorException(
 			ErrorString({
