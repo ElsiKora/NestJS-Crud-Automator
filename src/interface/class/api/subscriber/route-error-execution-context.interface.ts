@@ -5,6 +5,8 @@ import type { IApiSubscriberErrorExecutionContext } from "@interface/class/api/s
 /**
  * Error execution context for route subscriber callbacks.
  * Contains route type information but no result field.
+ * @template E - Entity type extending IApiBaseEntity
+ * @template Input - Type of the DATA field (immutable context data). Use IApiSubscriberRouteExecutionContextData<E> or IApiSubscriberRouteExecutionContextDataExtended<E> for typed access.
  */
 export interface IApiSubscriberRouteErrorExecutionContext<E extends IApiBaseEntity, Input = unknown> extends IApiSubscriberErrorExecutionContext<E, Input> {
 	readonly ROUTE_TYPE: EApiRouteType;

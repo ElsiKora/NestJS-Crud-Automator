@@ -8,7 +8,7 @@ Extend `ApiFunctionSubscriberBase` and decorate with `@ApiFunctionSubscriber`:
 
 ```typescript filename="post-slug.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, IApiSubscriberFunctionExecutionContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
+import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, TApiSubscriberFunctionBeforeCreateContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 
 @Injectable()
@@ -17,7 +17,7 @@ import { PostEntity } from "./post.entity";
 	priority: 10, // Higher priority executes first
 })
 export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-	// Implement hook methods
+	// Implement hook methods using helper types
 }
 ```
 
@@ -31,21 +31,20 @@ Called before repository operations:
 
 ```typescript
 async onBeforeCreate(
-  context: IApiSubscriberFunctionExecutionContext<
-    PostEntity,
-    TApiFunctionCreateProperties<PostEntity>
-  >
+  context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>
 ): Promise<TApiFunctionCreateProperties<PostEntity>> {
-  const { body } = context.result;
+  // Fully typed access to DATA
+  const manager = context.DATA.eventManager;
+  const repository = context.DATA.repository;
 
   // Generate slug from title
-  if (body.title && !body.slug) {
-    body.slug = this.generateSlug(body.title);
+  if (context.result.title && !context.result.slug) {
+    context.result.slug = this.generateSlug(context.result.title);
   }
 
   // Set defaults
-  body.status = body.status || "draft";
-  body.viewCount = 0;
+  context.result.status = context.result.status || "draft";
+  context.result.viewCount = 0;
 
   return context.result;
 }
@@ -62,20 +61,15 @@ private generateSlug(title: string): string {
 
 ```typescript
 async onBeforeUpdate(
-  context: IApiSubscriberFunctionExecutionContext<
-    PostEntity,
-    TApiFunctionCreateProperties<PostEntity>
-  >
-): Promise<TApiFunctionCreateProperties<PostEntity>> {
-  const { body } = context.result;
-
+  context: TApiSubscriberFunctionBeforeUpdateContext<PostEntity>
+): Promise<TApiFunctionUpdateProperties<PostEntity>> {
   // Update slug if title changed
-  if (body.title) {
-    body.slug = this.generateSlug(body.title);
+  if (context.result.title) {
+    context.result.slug = this.generateSlug(context.result.title);
   }
 
   // Track modification count
-  body.modificationCount = (context.ENTITY.modificationCount || 0) + 1;
+  context.result.modificationCount = (context.ENTITY.modificationCount || 0) + 1;
 
   return context.result;
 }
@@ -85,10 +79,13 @@ async onBeforeUpdate(
 
 ```typescript
 async onBeforeGet(
-  context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>
-): Promise<PostEntity> {
+  context: TApiSubscriberFunctionBeforeGetContext<PostEntity>
+): Promise<TApiFunctionGetProperties<PostEntity>> {
+  // Fully typed access to repository
+  const repository = context.DATA.repository;
+
   // Increment view counter before fetching
-  await this.repository.increment(
+  await repository.increment(
     { id: context.ENTITY.id },
     "viewCount",
     1
@@ -216,22 +213,21 @@ async onAfterErrorDelete(...) {}
 
 ```typescript filename="slug-generator.subscriber.ts" copy
 import slugify from "slugify";
+import { TApiSubscriberFunctionBeforeCreateContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity })
 export class SlugGeneratorSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-	async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, TApiFunctionCreateProperties<PostEntity>>): Promise<TApiFunctionCreateProperties<PostEntity>> {
-		const { body } = context.result;
-
-		if (body.title && !body.slug) {
-			body.slug = slugify(body.title, {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>): Promise<TApiFunctionCreateProperties<PostEntity>> {
+		if (context.result.title && !context.result.slug) {
+			context.result.slug = slugify(context.result.title, {
 				lower: true,
 				strict: true,
 				trim: true,
 			});
 
 			// Ensure uniqueness
-			body.slug = await this.ensureUniqueSlug(body.slug);
+			context.result.slug = await this.ensureUniqueSlug(context.result.slug);
 		}
 
 		return context.result;
