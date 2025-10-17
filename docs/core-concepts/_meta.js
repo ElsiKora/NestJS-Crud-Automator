@@ -1,9 +1,8 @@
 export default {
-	decorators: "Decorators",
-	entities: "Entities",
 	controllers: "Controllers",
-	services: "Services",
+	decorators: "Decorators",
 	dtos: "DTOs",
+	entities: "Entities",
 	"metadata-storage": "Metadata Storage",
+	services: "Services",
 };
-

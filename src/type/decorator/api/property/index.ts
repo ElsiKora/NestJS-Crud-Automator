@@ -1,5 +1,6 @@
 export type * from "./base";
 export { type TApiPropertyDateProperties } from "./date-properties.type";
+export type * from "./default/string";
 export type * from "./describe";
 export { type TApiPropertyEnumProperties } from "./enum-properties.type";
 export { type TApiPropertyNumberProperties } from "./number-properties.type";

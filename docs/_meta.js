@@ -6,4 +6,3 @@ export default {
 	"subscriber-system": "Subscriber System",
 	"api-reference": "API Reference",
 };
-

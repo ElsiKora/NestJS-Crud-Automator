@@ -5,7 +5,6 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
 
 /**
  * Singleton class for storing and retrieving entity property metadata.
- *
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/classes#metadatastorage | API Reference - MetadataStorage}
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/core-concepts/metadata-storage | Core Concepts - Metadata Storage}
  */

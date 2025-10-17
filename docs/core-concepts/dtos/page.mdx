@@ -9,26 +9,27 @@ DTOs are generated automatically from entity properties decorated with `@ApiProp
 ```typescript filename="user.entity.ts" copy
 @Entity("users")
 export class UserEntity {
-  @PrimaryGeneratedColumn("uuid")
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.UUID,
-    description: "User ID",
-  })
-  id: string;
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.UUID,
+		description: "User ID",
+	})
+	id: string;
 
-  @Column()
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.STRING,
-    description: "Username",
-    format: EApiPropertyStringType.STRING,
-    minLength: 3,
-    maxLength: 20,
-  })
-  username: string;
+	@Column()
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "Username",
+		format: EApiPropertyStringType.STRING,
+		minLength: 3,
+		maxLength: 20,
+	})
+	username: string;
 }
 ```
 
 This automatically generates:
+
 - **CreateUserDto** - For POST requests
 - **UpdateUserDto** - For PATCH requests
 - **UserResponseDto** - For responses
@@ -41,11 +42,13 @@ This automatically generates:
 Used for request bodies in CREATE and UPDATE operations.
 
 **Create DTO** includes:
+
 - All properties marked as `isExposedInCreateDto: true` (default: true)
 - Validation rules from property configuration
 - Required fields based on `isRequired`
 
 **Update DTO** includes:
+
 - All properties marked as `isExposedInUpdateDto: true` (default: true)
 - All fields are optional by default
 - Validation rules still apply when provided
@@ -57,15 +60,15 @@ Used for filtering and pagination in GET_LIST operations:
 ```typescript
 // Generated GetListQueryDto structure
 interface GetListQueryDto {
-  limit?: number;
-  page?: number;
-  orderBy?: string;
-  orderDirection?: "ASC" | "DESC";
-  [propertyName]?: {
-    operator: EFilterOperation;
-    value?: any;
-    values?: any[];
-  };
+	limit?: number;
+	page?: number;
+	orderBy?: string;
+	orderDirection?: "ASC" | "DESC";
+	[propertyName]?: {
+		operator: EFilterOperation;
+		value?: any;
+		values?: any[];
+	};
 }
 ```
 
@@ -163,20 +166,20 @@ import { IsString, IsEmail, MinLength, MaxLength } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
 
 export class CreateUserDto {
-  @ApiProperty()
-  @IsString()
-  @MinLength(3)
-  @MaxLength(20)
-  username: string;
+	@ApiProperty()
+	@IsString()
+	@MinLength(3)
+	@MaxLength(20)
+	username: string;
 
-  @ApiProperty()
-  @IsEmail()
-  email: string;
+	@ApiProperty()
+	@IsEmail()
+	email: string;
 
-  @ApiProperty()
-  @IsString()
-  @MinLength(8)
-  password: string;
+	@ApiProperty()
+	@IsString()
+	@MinLength(8)
+	password: string;
 }
 ```
 
@@ -244,6 +247,7 @@ import {
 ```
 
 Available built-in validators:
+
 - `AllOrNoneOfListedPropertiesValidator` - All or none must be provided
 - `OnlyOneOfListedPropertiesValidator` - Exactly one must be provided
 - `HasAtLeastOneOfListedPropertiesValidator` - At least one required
@@ -380,4 +384,3 @@ profile: UserProfile;
 - [Transformers](/docs/nestjs-crud-automator/guides/transformers) - Request/response transformation
 - [Custom DTOs](/docs/nestjs-crud-automator/guides/custom-dtos) - Working with custom DTOs
 - [API Reference - Validators](/docs/nestjs-crud-automator/api-reference/validators) - All available validators
-

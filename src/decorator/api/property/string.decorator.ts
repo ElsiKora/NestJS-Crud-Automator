@@ -7,7 +7,7 @@ import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { IsRegularExpressionValidator } from "@validator/is-regular-expression.validator";
 import { Exclude, Expose, Type } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsEmail, IsIP, IsLowercase, IsOptional, IsString, IsUppercase, IsUrl, IsUUID, Length, Matches, Validate } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBase64, IsBtcAddress, IsDataURI, IsDate, IsEmail, IsEthereumAddress, IsFQDN, IsHash, IsHexColor, IsHSL, IsIBAN, IsIP, IsISBN, IsISO31661Alpha2, IsISO31661Alpha3, IsISO4217CurrencyCode, IsJWT, IsLocale, IsLowercase, IsMACAddress, IsMimeType, IsMongoId, IsOptional, IsPhoneNumber, IsPostalCode, IsRgbColor, IsSemVer, IsString, IsTimeZone, IsUppercase, IsUrl, IsUUID, Length, Matches, Validate } from "class-validator";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
@@ -155,13 +155,119 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 	const isArray: boolean = properties.isArray ?? false;
 
 	if (properties.isResponse === undefined || !properties.isResponse) {
+		// eslint-disable-next-line @elsikora/sonar/max-switch-cases
 		switch (properties.format) {
+			case EApiPropertyStringType.API_KEY:
+			// falls through
+
+			case EApiPropertyStringType.COORDINATES:
+			// falls through
+
+			case EApiPropertyStringType.CRON:
+			// falls through
+
+			case EApiPropertyStringType.FILE_PATH:
+			// falls through
+
+			case EApiPropertyStringType.GIT_COMMIT_SHA:
+			// falls through
+
+			case EApiPropertyStringType.HSLA_COLOR:
+			// falls through
+
+			case EApiPropertyStringType.LANGUAGE_CODE_ISO639:
+			// falls through
+
+			case EApiPropertyStringType.NANOID:
+			// falls through
+
+			case EApiPropertyStringType.OAUTH2_SCOPE:
+			// falls through
+
+			case EApiPropertyStringType.RGBA_COLOR:
+			// falls through
+
+			case EApiPropertyStringType.SLUG:
+			// falls through
+
+			case EApiPropertyStringType.STRING:
+			// falls through
+
+			case EApiPropertyStringType.ULID:
+			// falls through
+
+			case EApiPropertyStringType.URL_PATH:
+			// falls through
+
+			case EApiPropertyStringType.USERNAME: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsString({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.BASE64: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsBase64({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.BCRYPT: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsHash("bcrypt", { each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.BITCOIN_ADDRESS: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsBtcAddress({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.COUNTRY_CODE_ALPHA2: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsISO31661Alpha2({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.COUNTRY_CODE_ALPHA3: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsISO31661Alpha3({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.CURRENCY_CODE: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsISO4217CurrencyCode({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.DATA_URI: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsDataURI({ each: isArray }));
+
+				break;
+			}
+
 			case EApiPropertyStringType.DATE: {
 				decorators.push(
 					// eslint-disable-next-line @elsikora/typescript/naming-convention
 					IsDate({ each: isArray }),
 					Type(() => Date),
 				);
+
+				break;
+			}
+
+			case EApiPropertyStringType.DOMAIN: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsFQDN({ each: isArray }));
 
 				break;
 			}
@@ -173,9 +279,79 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 				break;
 			}
 
-			case EApiPropertyStringType.IP: {
+			case EApiPropertyStringType.ETHEREUM_ADDRESS: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsEthereumAddress({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.HASH_MD5: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsHash("md5", { each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.HASH_SHA256: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsHash("sha256", { each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.HEX_COLOR: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsHexColor({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.HSL_COLOR: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsHSL({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.IBAN: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsIBAN({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.IPV4: {
 				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsIP(STRING_PROPERTY_API_INTERFACE_CONSTANT.IP_VERSION, { each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.IPV6: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsIP(STRING_PROPERTY_API_INTERFACE_CONSTANT.IP_VERSION_6, { each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.ISBN: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsISBN(undefined, { each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.JWT: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsJWT({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.LOCALE: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsLocale({ each: isArray }));
 
 				break;
 			}
@@ -183,6 +359,41 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 			case EApiPropertyStringType.LOWERCASE_STRING: {
 				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsString({ each: isArray }), IsLowercase({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.MAC_ADDRESS: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsMACAddress({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.MIME_TYPE: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsMimeType({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.MONGODB_OBJECT_ID: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsMongoId({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.PHONE_NUMBER: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsPhoneNumber(undefined, { each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.POSTAL_CODE: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsPostalCode("any", { each: isArray }));
 
 				break;
 			}
@@ -203,9 +414,23 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 				break;
 			}
 
-			case EApiPropertyStringType.STRING: {
+			case EApiPropertyStringType.RGB_COLOR: {
 				// eslint-disable-next-line @elsikora/typescript/naming-convention
-				decorators.push(IsString({ each: isArray }));
+				decorators.push(IsRgbColor(false, { each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.SEMVER: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsSemVer({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.TIMEZONE: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsTimeZone({ each: isArray }));
 
 				break;
 			}

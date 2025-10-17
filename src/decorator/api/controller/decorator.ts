@@ -6,7 +6,24 @@ import { ApiControllerFactory } from "@factory/api";
 
 /**
  * Automatically generates CRUD endpoints for an entity.
- *
+ * @param {IApiControllerProperties<E>} options - The controller properties
+ * @returns {TApiControllerConstructor} The controller constructor
+ * @template E - The entity type
+ * @example
+ * ```typescript
+ * @ApiController<UserEntity>({
+ *   entity: UserEntity,
+ *   name: "Users",
+ *   routes: {
+ *     [EApiRouteType.CREATE]: {},
+ *     [EApiRouteType.GET]: {},
+ *     [EApiRouteType.GET_LIST]: {},
+ *     [EApiRouteType.UPDATE]: {},
+ *     [EApiRouteType.DELETE]: {},
+ *   },
+ * })
+ * export class UserController {}
+ * ```
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators#apicontroller | API Reference - ApiController}
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/core-concepts/controllers | Core Concepts - Controllers}
  */

@@ -80,6 +80,7 @@ async delete(
 ```
 
 **Related:**
+
 - [Core Concepts - Services](/docs/nestjs-crud-automator/core-concepts/services)
 
 ## Subscriber Base Classes
@@ -91,6 +92,7 @@ Abstract base class for route-level subscribers.
 **Location:** `src/class/api/subscriber/route-base.class.ts`
 
 **Hook Methods:**
+
 - `onBeforeCreate`, `onAfterCreate`, `onBeforeErrorCreate`, `onAfterErrorCreate`
 - `onBeforeUpdate`, `onAfterUpdate`, `onBeforeErrorUpdate`, `onAfterErrorUpdate`
 - `onBeforeGet`, `onAfterGet`, `onBeforeErrorGet`, `onAfterErrorGet`
@@ -99,6 +101,7 @@ Abstract base class for route-level subscribers.
 - `onBeforeDelete`, `onAfterDelete`, `onBeforeErrorDelete`, `onAfterErrorDelete`
 
 **Related:**
+
 - [Subscriber System - Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)
 
 ### ApiFunctionSubscriberBase
@@ -108,6 +111,7 @@ Abstract base class for function-level subscribers.
 **Location:** `src/class/api/subscriber/function-base.class.ts`
 
 **Hook Methods:**
+
 - `onBeforeCreate`, `onAfterCreate`, `onBeforeErrorCreate`, `onAfterErrorCreate`
 - `onBeforeUpdate`, `onAfterUpdate`, `onBeforeErrorUpdate`, `onAfterErrorUpdate`
 - `onBeforeGet`, `onAfterGet`, `onBeforeErrorGet`, `onAfterErrorGet`
@@ -116,6 +120,7 @@ Abstract base class for function-level subscribers.
 - `onBeforeDelete`, `onAfterDelete`, `onBeforeErrorDelete`, `onAfterErrorDelete`
 
 **Related:**
+
 - [Subscriber System - Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers)
 
 ### ApiSubscriberBase
@@ -175,6 +180,7 @@ const exists = storage.hasMetadata("UserEntity", "username", "api-property-descr
 ```
 
 **Related:**
+
 - [Core Concepts - Metadata Storage](/docs/nestjs-crud-automator/core-concepts/metadata-storage)
 
 ### ApiControllerFactory
@@ -216,4 +222,3 @@ Executes subscriber hooks in correct order.
 - [Interfaces](/docs/nestjs-crud-automator/api-reference/interfaces) - Type definitions
 - [Core Concepts - Services](/docs/nestjs-crud-automator/core-concepts/services) - Service usage
 - [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Subscriber usage
-
