@@ -68,12 +68,28 @@ const HASH_MD5: TApiPropertyDefaultStringFormatProperties = {
 	pattern: String.raw`/^[a-fA-F0-9]{32}$/`,
 };
 
+const HASH_SHA1: TApiPropertyDefaultStringFormatProperties = {
+	description: "SHA-1 hash",
+	exampleValue: "356a192b7913b04c54574d18c28d46e6395428ab",
+	maxLength: 40,
+	minLength: 40,
+	pattern: String.raw`/^[a-fA-F0-9]{40}$/`,
+};
+
 const HASH_SHA256: TApiPropertyDefaultStringFormatProperties = {
 	description: "SHA-256 hash",
 	exampleValue: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 	maxLength: 64,
 	minLength: 64,
 	pattern: String.raw`/^[a-fA-F0-9]{64}$/`,
+};
+
+const HASH_SHA512: TApiPropertyDefaultStringFormatProperties = {
+	description: "SHA-512 hash",
+	exampleValue: "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+	maxLength: 128,
+	minLength: 128,
+	pattern: String.raw`/^[a-fA-F0-9]{128}$/`,
 };
 
 const HEX_COLOR: TApiPropertyDefaultStringFormatProperties = {
@@ -312,6 +328,15 @@ const OAUTH2_SCOPE: TApiPropertyDefaultStringFormatProperties = {
 	pattern: String.raw`/^[a-zA-Z0-9_:\-]+(?: [a-zA-Z0-9_:\-]+)*$/`,
 };
 
+// eslint-disable-next-line @elsikora/no-secrets/no-pattern-match
+const PASSWORD: TApiPropertyDefaultStringFormatProperties = {
+	description: "password",
+	exampleValue: "StrongP@ssw0rd!",
+	maxLength: 128,
+	minLength: 8,
+	pattern: String.raw`/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/`,
+};
+
 const RGB_COLOR: TApiPropertyDefaultStringFormatProperties = {
 	description: "RGB color",
 	exampleValue: "rgb(255, 128, 0)",
@@ -380,7 +405,9 @@ export const DEFAULT_STRING_FORMAT_PROPERTY_API_INTERFACE_CONSTANT: {
 		[EApiPropertyStringType.FILE_PATH]: FILE_PATH,
 		[EApiPropertyStringType.GIT_COMMIT_SHA]: GIT_COMMIT_SHA,
 		[EApiPropertyStringType.HASH_MD5]: HASH_MD5,
+		[EApiPropertyStringType.HASH_SHA1]: HASH_SHA1,
 		[EApiPropertyStringType.HASH_SHA256]: HASH_SHA256,
+		[EApiPropertyStringType.HASH_SHA512]: HASH_SHA512,
 		[EApiPropertyStringType.HEX_COLOR]: HEX_COLOR,
 		[EApiPropertyStringType.HSL_COLOR]: HSL_COLOR,
 		[EApiPropertyStringType.HSLA_COLOR]: HSLA_COLOR,
@@ -396,6 +423,7 @@ export const DEFAULT_STRING_FORMAT_PROPERTY_API_INTERFACE_CONSTANT: {
 		[EApiPropertyStringType.MONGODB_OBJECT_ID]: MONGODB_OBJECT_ID,
 		[EApiPropertyStringType.NANOID]: NANOID,
 		[EApiPropertyStringType.OAUTH2_SCOPE]: OAUTH2_SCOPE,
+		[EApiPropertyStringType.PASSWORD]: PASSWORD,
 		[EApiPropertyStringType.PHONE_NUMBER]: PHONE_NUMBER,
 		[EApiPropertyStringType.POSTAL_CODE]: POSTAL_CODE,
 		[EApiPropertyStringType.RGB_COLOR]: RGB_COLOR,

@@ -7,7 +7,48 @@ import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { IsRegularExpressionValidator } from "@validator/is-regular-expression.validator";
 import { Exclude, Expose, Type } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBase64, IsBtcAddress, IsDataURI, IsDate, IsEmail, IsEthereumAddress, IsFQDN, IsHash, IsHexColor, IsHSL, IsIBAN, IsIP, IsISBN, IsISO31661Alpha2, IsISO31661Alpha3, IsISO4217CurrencyCode, IsJWT, IsLocale, IsLowercase, IsMACAddress, IsMimeType, IsMongoId, IsOptional, IsPhoneNumber, IsPostalCode, IsRgbColor, IsSemVer, IsString, IsTimeZone, IsUppercase, IsUrl, IsUUID, Length, Matches, Validate } from "class-validator";
+import {
+	ArrayMaxSize,
+	ArrayMinSize,
+	ArrayNotEmpty,
+	IsArray,
+	IsBase64,
+	IsBtcAddress,
+	IsDataURI,
+	IsDate,
+	IsEmail,
+	IsEthereumAddress,
+	IsFQDN,
+	IsHash,
+	IsHexColor,
+	IsHSL,
+	IsIBAN,
+	IsIP,
+	IsISBN,
+	IsISO31661Alpha2,
+	IsISO31661Alpha3,
+	IsISO4217CurrencyCode,
+	IsJWT,
+	IsLocale,
+	IsLowercase,
+	IsMACAddress,
+	IsMimeType,
+	IsMongoId,
+	IsOptional,
+	IsPhoneNumber,
+	IsPostalCode,
+	IsRgbColor,
+	IsSemVer,
+	IsString,
+	IsStrongPassword,
+	IsTimeZone,
+	IsUppercase,
+	IsUrl,
+	IsUUID,
+	Length,
+	Matches,
+	Validate,
+} from "class-validator";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
@@ -160,6 +201,9 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 			case EApiPropertyStringType.API_KEY:
 			// falls through
 
+			case EApiPropertyStringType.BCRYPT:
+			// falls through
+
 			case EApiPropertyStringType.COORDINATES:
 			// falls through
 
@@ -209,13 +253,6 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 			case EApiPropertyStringType.BASE64: {
 				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsBase64({ each: isArray }));
-
-				break;
-			}
-
-			case EApiPropertyStringType.BCRYPT: {
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
-				decorators.push(IsHash("bcrypt", { each: isArray }));
 
 				break;
 			}
@@ -293,9 +330,23 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 				break;
 			}
 
+			case EApiPropertyStringType.HASH_SHA1: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsHash("sha1", { each: isArray }));
+
+				break;
+			}
+
 			case EApiPropertyStringType.HASH_SHA256: {
 				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsHash("sha256", { each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.HASH_SHA512: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsHash("sha512", { each: isArray }));
 
 				break;
 			}
@@ -380,6 +431,15 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 			case EApiPropertyStringType.MONGODB_OBJECT_ID: {
 				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsMongoId({ each: isArray }));
+
+				break;
+			}
+
+			case EApiPropertyStringType.PASSWORD: {
+				decorators.push(
+					// eslint-disable-next-line @elsikora/typescript/naming-convention, @elsikora/typescript/no-magic-numbers
+					IsStrongPassword({ minLength: 8, minLowercase: 1, minNumbers: 1, minSymbols: 1, minUppercase: 1 }, { each: isArray }),
+				);
 
 				break;
 			}

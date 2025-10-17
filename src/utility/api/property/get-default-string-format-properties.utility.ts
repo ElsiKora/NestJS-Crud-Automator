@@ -14,11 +14,11 @@ import cloneDeep from "lodash/cloneDeep";
  * const emailDefaults = GetDefaultStringFormatProperties(TApiPropertyDefaultStringFormat.EMAIL);
  * // Returns:
  * // {
- * //   DESCRIPTION: "email",
- * //   EXAMPLE_VALUE: "user@example.com",
- * //   MAX_LENGTH: 321,
- * //   MIN_LENGTH: 5,
- * //   PATTERN: "/^([a-zA-Z0-9_\\-.+])+@([a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}$/"
+ * //   description: "email",
+ * //   exampleValue: "user@example.com",
+ * //   maxLength: 321,
+ * //   minLength: 5,
+ * //   pattern: "/^([a-zA-Z0-9_\\-.+])+@([a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}$/"
  * // }
  * ```
  */
