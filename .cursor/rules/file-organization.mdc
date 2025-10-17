@@ -1,0 +1,223 @@
+---
+alwaysApply: true
+---
+
+# File Organization and Subscriber Context Types
+
+## Core Principles
+
+1. **File Organization**: Group files by common prefixes infinitely until only one file with unique name remains in each directory
+2. **One File Per Entity**: 1 file = 1 class/interface/type/enum
+3. **Index Exports**: Every directory with 2+ files must have index.ts
+4. **Typed DATA Interfaces**: All execution contexts must have typed DATA interfaces to provide autocomplete and type safety
+5. **Helper Types**: Create helper types that require only the Entity generic parameter
+
+## DATA Interface Structure
+
+### Function Context DATA
+Base interface for function subscriber execution contexts:
+```typescript
+export interface IApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity> {
+  readonly eventManager?: EntityManager;
+  readonly repository: Repository<E>;
+}
+```
+
+### Route Context DATA
+Two interfaces for route subscriber execution contexts:
+- `IApiSubscriberRouteExecutionContextData<E>` - for before hooks (basic metadata)
+- `IApiSubscriberRouteExecutionContextDataExtended<E>` - for after/error hooks (includes headers, ip, authenticationRequest)
+
+## Helper Type Pattern
+
+Create helper types that encapsulate all generic parameters except Entity:
+
+```typescript
+// Instead of requiring 3 generics:
+IApiSubscriberFunctionExecutionContext<User, TApiFunctionCreateProperties<User>, IApiSubscriberFunctionExecutionContextData<User>>
+
+// Provide a helper with just 1 generic:
+export type TApiSubscriberFunctionBeforeCreateContext<E extends IApiBaseEntity> = 
+  IApiSubscriberFunctionExecutionContext<E, TApiFunctionCreateProperties<E>, IApiSubscriberFunctionExecutionContextData<E>>;
+```
+
+## File Organization Rules (Universal)
+
+These rules apply to ALL files in the project, not just subscribers.
+
+### Principle: Infinite Grouping by Common Prefixes
+
+Files with common prefixes MUST be grouped into directories. Continue grouping recursively until each directory contains only files with unique names (after removing the common prefix).
+
+**BAD:**
+```
+before-create-context.type.ts
+before-update-context.type.ts
+before-delete-context.type.ts
+after-create-context.type.ts
+after-update-context.type.ts
+```
+
+**GOOD:**
+```
+before/
+  create-context.type.ts
+  update-context.type.ts
+  delete-context.type.ts
+  index.ts
+after/
+  create-context.type.ts
+  update-context.type.ts
+  delete-context.type.ts
+  index.ts
+```
+
+### Recursive Grouping
+Continue grouping infinitely at every level. This applies to ANY directory in the project:
+
+**BAD:**
+```
+before/
+  get-context.type.ts
+  get-list-context.type.ts
+  get-many-context.type.ts
+  create-context.type.ts
+```
+
+**GOOD:**
+```
+before/
+  get/
+    context.type.ts
+    list-context.type.ts
+    many-context.type.ts
+    index.ts
+  create-context.type.ts
+  index.ts
+```
+
+### Index Files
+Every directory with multiple files MUST have an index.ts that exports all types:
+
+```typescript
+export { type TApiSubscriberFunctionBeforeCreateContext } from "./create-context.type";
+export { type TApiSubscriberFunctionBeforeDeleteContext } from "./delete-context.type";
+export type * from "./get";
+export { type TApiSubscriberFunctionBeforeUpdateContext } from "./update-context.type";
+```
+
+## Naming Conventions
+
+### Helper Types
+- Prefix: `TApiSubscriber`
+- Middle: `Function` or `Route`
+- Timing: `Before` or `After`
+- Operation: `Create`, `Update`, `Delete`, `Get`, `GetList`, `GetMany`
+- Suffix: `Context`
+
+Examples:
+- `TApiSubscriberFunctionBeforeCreateContext`
+- `TApiSubscriberRouteAfterUpdateContext`
+- `TApiSubscriberFunctionBeforeGetListContext`
+
+### File Names
+Remove prefix that is represented by directory structure:
+- `function/before/create-context.type.ts` (not `before-create-context.type.ts`)
+- `function/before/get/list-context.type.ts` (not `get-list-context.type.ts`)
+- `decorator/api/function/get/list.decorator.ts` (not `get-list.decorator.ts`)
+- `interface/api/authentication-request.interface.ts` (not `api-authentication-request.interface.ts`)
+
+### Common Violations to Fix
+
+**Validators:**
+```
+❌ BAD:
+validator/
+  has-at-least-one-property.validator.ts
+  has-at-least-one-of-listed-properties.validator.ts
+  has-paired-custom-suffixes-fields.validator.ts
+
+✅ GOOD:
+validator/
+  has/
+    at-least-one-property.validator.ts
+    at-least-one-of-listed-properties.validator.ts
+    paired-custom-suffixes-fields.validator.ts
+    index.ts
+```
+
+**Utilities:**
+```
+❌ BAD:
+utility/dto/
+  generate-cache-key.utility.ts
+  generate-decorator.utility.ts
+  generate-dynamic.utility.ts
+  generate-exception.utility.ts
+
+✅ GOOD:
+utility/dto/
+  generate/
+    cache-key.utility.ts
+    decorator.utility.ts
+    dynamic.utility.ts
+    exception.utility.ts
+    index.ts
+```
+
+**Function Decorators:**
+```
+❌ BAD:
+decorator/api/function/
+  get.decorator.ts
+  get-list.decorator.ts
+  get-many.decorator.ts
+
+✅ GOOD:
+decorator/api/function/
+  get/
+    decorator.ts
+    list.decorator.ts
+    many.decorator.ts
+    index.ts
+```
+
+## Implementation Checklist
+
+When adding new subscriber context types:
+
+1. Create typed DATA interfaces in `interface/class/api/subscriber/`
+2. Update base execution context interfaces to use typed DATA as default
+3. Create helper types in `type/class/api/subscriber/`
+4. Group helper type files by prefixes (before/after, then by operation)
+5. Create index.ts files for each directory level
+6. Export all types through the chain to main index
+
+## Usage Example
+
+After implementing helper types, usage becomes simple:
+
+```typescript
+import {
+  TApiSubscriberFunctionBeforeCreateContext,
+  TApiFunctionCreateProperties,
+} from "@elsikora/nestjs-crud-automator";
+
+async onBeforeCreate(
+  context: TApiSubscriberFunctionBeforeCreateContext<User>
+): Promise<TApiFunctionCreateProperties<User>> {
+  // Fully typed without manual generic parameters
+  const manager = context.DATA.eventManager;
+  const repository = context.DATA.repository;
+  
+  return context.result;
+}
+```
+
+## Architecture Benefits
+
+1. **Type Safety**: Full autocomplete for DATA, ENTITY, and result fields
+2. **Developer Experience**: Only one generic parameter needed (Entity)
+3. **Maintainability**: Clear structure with proper grouping
+4. **Consistency**: Follows project conventions for file organization
+5. **Discoverability**: IDE autocomplete helps find correct context type

@@ -110,17 +110,20 @@ export class PostService extends ApiServiceBase<PostEntity> {
 
 ```typescript filename="post-audit.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteExecutionContext } from "@elsikora/nestjs-crud-automator";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase, TApiSubscriberRouteAfterCreateContext } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 
 @Injectable()
 @ApiRouteSubscriber({ entity: PostEntity, priority: 10 })
 export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-	async onAfterCreate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+	async onAfterCreate(context: TApiSubscriberRouteAfterCreateContext<PostEntity>): Promise<PostEntity> {
 		const post = context.result;
-		const user = context.DATA.authenticationRequest?.user;
 
-		console.log(`User ${user?.id} created post ${post.id}`);
+		// Fully typed access to authentication and request data
+		const user = context.DATA.authenticationRequest?.user;
+		const clientIp = context.DATA.ip;
+
+		console.log(`User ${user?.id} created post ${post.id} from ${clientIp}`);
 
 		return post;
 	}
@@ -131,24 +134,33 @@ export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 
 ```typescript filename="post-slug.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, IApiSubscriberFunctionExecutionContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
+import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, TApiSubscriberFunctionBeforeCreateContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 import slugify from "slugify";
 
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity })
 export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-	async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, TApiFunctionCreateProperties<PostEntity>>): Promise<TApiFunctionCreateProperties<PostEntity>> {
-		const { body } = context.result;
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>): Promise<TApiFunctionCreateProperties<PostEntity>> {
+		// Fully typed access to repository and transaction manager
+		const manager = context.DATA.eventManager;
+		const repository = context.DATA.repository;
 
-		if (body.title && !body.slug) {
-			body.slug = slugify(body.title, { lower: true, strict: true });
+		if (context.result.title && !context.result.slug) {
+			context.result.slug = slugify(context.result.title, { lower: true, strict: true });
 		}
 
 		return context.result;
 	}
 }
 ```
+
+### Key Benefits of Helper Types
+
+- **Simplified Syntax**: Only one generic parameter needed (Entity)
+- **Full Type Safety**: Automatic type inference for DATA, ENTITY, and result
+- **Better Autocomplete**: IDE provides accurate suggestions
+- **Less Boilerplate**: No need to manually specify Result and Input types
 
 ### Register Subscribers
 
