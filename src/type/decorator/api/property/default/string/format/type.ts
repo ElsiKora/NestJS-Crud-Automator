@@ -17,7 +17,9 @@ export type TApiPropertyDefaultStringFormat =
 	| EApiPropertyStringType.FILE_PATH
 	| EApiPropertyStringType.GIT_COMMIT_SHA
 	| EApiPropertyStringType.HASH_MD5
+	| EApiPropertyStringType.HASH_SHA1
 	| EApiPropertyStringType.HASH_SHA256
+	| EApiPropertyStringType.HASH_SHA512
 	| EApiPropertyStringType.HEX_COLOR
 	| EApiPropertyStringType.HSL_COLOR
 	| EApiPropertyStringType.HSLA_COLOR
@@ -33,6 +35,7 @@ export type TApiPropertyDefaultStringFormat =
 	| EApiPropertyStringType.MONGODB_OBJECT_ID
 	| EApiPropertyStringType.NANOID
 	| EApiPropertyStringType.OAUTH2_SCOPE
+	| EApiPropertyStringType.PASSWORD
 	| EApiPropertyStringType.PHONE_NUMBER
 	| EApiPropertyStringType.POSTAL_CODE
 	| EApiPropertyStringType.RGB_COLOR
