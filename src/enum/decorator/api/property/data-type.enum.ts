@@ -7,6 +7,7 @@ export enum EApiPropertyDataType {
 	COORDINATES = "coordinates",
 	COUNTRY_CODE_ALPHA2 = "country-code-alpha2",
 	COUNTRY_CODE_ALPHA3 = "country-code-alpha3",
+	CREDIT_CARD = "credit-card",
 	CRON = "cron",
 	CURRENCY_CODE = "currency-code",
 	DATA_URI = "data-uri",

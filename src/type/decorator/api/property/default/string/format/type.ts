@@ -8,6 +8,7 @@ export type TApiPropertyDefaultStringFormat =
 	| EApiPropertyStringType.COORDINATES
 	| EApiPropertyStringType.COUNTRY_CODE_ALPHA2
 	| EApiPropertyStringType.COUNTRY_CODE_ALPHA3
+	| EApiPropertyStringType.CREDIT_CARD
 	| EApiPropertyStringType.CRON
 	| EApiPropertyStringType.CURRENCY_CODE
 	| EApiPropertyStringType.DATA_URI
