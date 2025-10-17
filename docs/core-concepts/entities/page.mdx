@@ -8,42 +8,37 @@ Every entity property that should participate in CRUD operations must be decorat
 
 ```typescript filename="product.entity.ts" copy
 import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
-import {
-  ApiPropertyDescribe,
-  EApiPropertyDescribeType,
-  EApiPropertyStringType,
-  EApiPropertyNumberType
-} from "@elsikora/nestjs-crud-automator";
+import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType, EApiPropertyNumberType } from "@elsikora/nestjs-crud-automator";
 
 @Entity("products")
 export class ProductEntity {
-  @PrimaryGeneratedColumn("uuid")
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.UUID,
-    description: "Product unique identifier",
-  })
-  id: string;
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.UUID,
+		description: "Product unique identifier",
+	})
+	id: string;
 
-  @Column()
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.STRING,
-    description: "Product name",
-    format: EApiPropertyStringType.STRING,
-    minLength: 3,
-    maxLength: 100,
-    exampleValue: "Laptop",
-  })
-  name: string;
+	@Column()
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "Product name",
+		format: EApiPropertyStringType.STRING,
+		minLength: 3,
+		maxLength: 100,
+		exampleValue: "Laptop",
+	})
+	name: string;
 
-  @Column({ type: "decimal", precision: 10, scale: 2 })
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.NUMBER,
-    description: "Product price",
-    format: EApiPropertyNumberType.FLOAT,
-    minimum: 0,
-    exampleValue: 999.99,
-  })
-  price: number;
+	@Column({ type: "decimal", precision: 10, scale: 2 })
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.NUMBER,
+		description: "Product price",
+		format: EApiPropertyNumberType.FLOAT,
+		minimum: 0,
+		exampleValue: 999.99,
+	})
+	price: number;
 }
 ```
 
@@ -81,6 +76,7 @@ email: string;
 ```
 
 Available string formats:
+
 - `STRING` - Plain text
 - `EMAIL` - Email addresses
 - `URL` - URLs
@@ -104,6 +100,7 @@ age: number;
 ```
 
 Available number formats:
+
 - `INTEGER` - Whole numbers
 - `FLOAT` - Decimal numbers
 
@@ -135,10 +132,10 @@ Date and timestamp fields with automatic identifiers:
 })
 createdAt: Date;
 
-@Column({ 
-  type: "timestamp", 
-  default: () => "CURRENT_TIMESTAMP", 
-  onUpdate: "CURRENT_TIMESTAMP" 
+@Column({
+  type: "timestamp",
+  default: () => "CURRENT_TIMESTAMP",
+  onUpdate: "CURRENT_TIMESTAMP"
 })
 @ApiPropertyDescribe({
   type: EApiPropertyDescribeType.DATE,
@@ -149,6 +146,7 @@ updatedAt: Date;
 ```
 
 Available date identifiers:
+
 - `CREATED_AT` - Creation timestamp
 - `UPDATED_AT` - Last update timestamp
 - `DELETED_AT` - Soft delete timestamp
@@ -333,4 +331,3 @@ description: string;
 - [Services](/docs/nestjs-crud-automator/core-concepts/services) - Service layer setup
 - [DTOs](/docs/nestjs-crud-automator/core-concepts/dtos) - Understand DTO generation
 - [Validation](/docs/nestjs-crud-automator/guides/validation) - Advanced validation patterns
-

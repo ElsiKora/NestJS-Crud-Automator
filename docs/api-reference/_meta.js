@@ -1,10 +1,9 @@
 export default {
-	decorators: "Decorators",
 	classes: "Classes",
-	interfaces: "Interfaces",
+	decorators: "Decorators",
 	enums: "Enums",
+	interceptors: "Interceptors",
+	interfaces: "Interfaces",
 	utilities: "Utilities",
 	validators: "Validators",
-	interceptors: "Interceptors",
 };
-

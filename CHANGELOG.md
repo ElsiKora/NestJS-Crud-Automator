@@ -17,20 +17,18 @@
 
 ## [1.10.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.10.1...v1.10.2) (2025-06-22)
 
-
 ### Bug Fixes
 
-* **api:** correct metadata key access and filter condition logic ([da1ccd8](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/da1ccd8d8126ee66fe9f129ac07233ad097da26f))
+- **api:** correct metadata key access and filter condition logic ([da1ccd8](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/da1ccd8d8126ee66fe9f129ac07233ad097da26f))
 
 ## [1.10.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.10.0...v1.10.1) (2025-06-21)
 
 # [1.10.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.9.0...v1.10.0) (2025-06-19)
 
-
 ### Features
 
-* **emitter:** new base emitter functionality ([2fbe0a6](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/2fbe0a6955a44312baf0318a60470943f261765b))
-* **emitter:** upgraded emitter ([af6c4e5](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/af6c4e5b6e9140b845247027c6c5b698c308c11d))
+- **emitter:** new base emitter functionality ([2fbe0a6](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/2fbe0a6955a44312baf0318a60470943f261765b))
+- **emitter:** upgraded emitter ([af6c4e5](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/af6c4e5b6e9140b845247027c6c5b698c308c11d))
 
 # [1.9.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.8.0...v1.9.0) (2025-03-27)
 

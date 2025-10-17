@@ -15,34 +15,34 @@ import { UserService } from "./user.service";
 
 @Controller("users")
 @ApiController<UserEntity>({
-  entity: UserEntity,
-  name: "Users",
-  routes: {
-    [EApiRouteType.CREATE]: {
-      authentication: {
-        guard: JwtAuthGuard,
-        bearerStrategies: ["jwt"],
-      },
-    },
-    [EApiRouteType.UPDATE]: {
-      authentication: {
-        guard: JwtAuthGuard,
-        bearerStrategies: ["jwt"],
-      },
-    },
-    [EApiRouteType.DELETE]: {
-      authentication: {
-        guard: JwtAuthGuard,
-        bearerStrategies: ["jwt"],
-      },
-    },
-    // GET and GET_LIST are public
-    [EApiRouteType.GET]: {},
-    [EApiRouteType.GET_LIST]: {},
-  },
+	entity: UserEntity,
+	name: "Users",
+	routes: {
+		[EApiRouteType.CREATE]: {
+			authentication: {
+				guard: JwtAuthGuard,
+				bearerStrategies: ["jwt"],
+			},
+		},
+		[EApiRouteType.UPDATE]: {
+			authentication: {
+				guard: JwtAuthGuard,
+				bearerStrategies: ["jwt"],
+			},
+		},
+		[EApiRouteType.DELETE]: {
+			authentication: {
+				guard: JwtAuthGuard,
+				bearerStrategies: ["jwt"],
+			},
+		},
+		// GET and GET_LIST are public
+		[EApiRouteType.GET]: {},
+		[EApiRouteType.GET_LIST]: {},
+	},
 })
 export class UserController {
-  constructor(public service: UserService) {}
+	constructor(public service: UserService) {}
 }
 ```
 
@@ -57,21 +57,21 @@ import { ExtractJwt, Strategy } from "passport-jwt";
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
-    super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET,
-    });
-  }
+	constructor() {
+		super({
+			jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+			ignoreExpiration: false,
+			secretOrKey: process.env.JWT_SECRET,
+		});
+	}
 
-  async validate(payload: any) {
-    return {
-      id: payload.sub,
-      username: payload.username,
-      role: payload.role,
-    };
-  }
+	async validate(payload: any) {
+		return {
+			id: payload.sub,
+			username: payload.username,
+			role: payload.role,
+		};
+	}
 }
 ```
 
@@ -94,15 +94,15 @@ import { PassportModule } from "@nestjs/passport";
 import { JwtStrategy } from "./jwt.strategy";
 
 @Module({
-  imports: [
-    PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_SECRET,
-      signOptions: { expiresIn: "1h" },
-    }),
-  ],
-  providers: [JwtStrategy],
-  exports: [],
+	imports: [
+		PassportModule,
+		JwtModule.register({
+			secret: process.env.JWT_SECRET,
+			signOptions: { expiresIn: "1h" },
+		}),
+	],
+	providers: [JwtStrategy],
+	exports: [],
 })
 export class AuthModule {}
 ```
@@ -127,36 +127,31 @@ routes: {
 ### Create API Key Guard
 
 ```typescript filename="auth/guards/api-key-auth.guard.ts" copy
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  UnauthorizedException
-} from "@nestjs/common";
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from "@nestjs/common";
 
 @Injectable()
 export class ApiKeyAuthGuard implements CanActivate {
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const apiKey = request.headers["x-api-key"];
+	async canActivate(context: ExecutionContext): Promise<boolean> {
+		const request = context.switchToHttp().getRequest();
+		const apiKey = request.headers["x-api-key"];
 
-    if (!apiKey) {
-      throw new UnauthorizedException("API key is required");
-    }
+		if (!apiKey) {
+			throw new UnauthorizedException("API key is required");
+		}
 
-    // Validate API key
-    const isValid = await this.validateApiKey(apiKey);
-    if (!isValid) {
-      throw new UnauthorizedException("Invalid API key");
-    }
+		// Validate API key
+		const isValid = await this.validateApiKey(apiKey);
+		if (!isValid) {
+			throw new UnauthorizedException("Invalid API key");
+		}
 
-    return true;
-  }
+		return true;
+	}
 
-  private async validateApiKey(key: string): Promise<boolean> {
-    // Implement your API key validation logic
-    return key === process.env.API_KEY;
-  }
+	private async validateApiKey(key: string): Promise<boolean> {
+		// Implement your API key validation logic
+		return key === process.env.API_KEY;
+	}
 }
 ```
 
@@ -178,37 +173,29 @@ routes: {
 ### Create Roles Guard
 
 ```typescript filename="auth/guards/roles.guard.ts" copy
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException
-} from "@nestjs/common";
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+	constructor(private reflector: Reflector) {}
 
-  canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.get<string[]>(
-      "roles",
-      context.getHandler()
-    );
+	canActivate(context: ExecutionContext): boolean {
+		const requiredRoles = this.reflector.get<string[]>("roles", context.getHandler());
 
-    if (!requiredRoles) {
-      return true;
-    }
+		if (!requiredRoles) {
+			return true;
+		}
 
-    const request = context.switchToHttp().getRequest();
-    const user = request.user;
+		const request = context.switchToHttp().getRequest();
+		const user = request.user;
 
-    if (!user || !requiredRoles.includes(user.role)) {
-      throw new ForbiddenException("Insufficient permissions");
-    }
+		if (!user || !requiredRoles.includes(user.role)) {
+			throw new ForbiddenException("Insufficient permissions");
+		}
 
-    return true;
-  }
+		return true;
+	}
 }
 ```
 
@@ -275,40 +262,31 @@ Route subscribers receive the authenticated user:
 
 ```typescript filename="post-author.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import {
-  ApiRouteSubscriber,
-  ApiRouteSubscriberBase,
-  IApiSubscriberRouteExecutionContext
-} from "@elsikora/nestjs-crud-automator";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteExecutionContext } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 
 interface AuthenticatedUser {
-  id: string;
-  username: string;
-  role: string;
+	id: string;
+	username: string;
+	role: string;
 }
 
 @Injectable()
 @ApiRouteSubscriber({
-  entity: PostEntity,
-  priority: 10
+	entity: PostEntity,
+	priority: 10,
 })
 export class PostAuthorSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-  async onBeforeCreate(
-    context: IApiSubscriberRouteExecutionContext<
-      PostEntity,
-      { authenticationRequest?: { user: AuthenticatedUser } }
-    >
-  ): Promise<any> {
-    const user = context.result.authenticationRequest?.user;
-    
-    if (user) {
-      // Automatically set author from authenticated user
-      context.result.body.authorId = user.id;
-    }
+	async onBeforeCreate(context: IApiSubscriberRouteExecutionContext<PostEntity, { authenticationRequest?: { user: AuthenticatedUser } }>): Promise<any> {
+		const user = context.result.authenticationRequest?.user;
 
-    return context.result;
-  }
+		if (user) {
+			// Automatically set author from authenticated user
+			context.result.body.authorId = user.id;
+		}
+
+		return context.result;
+	}
 }
 ```
 
@@ -317,38 +295,33 @@ export class PostAuthorSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 Create custom guards for specific requirements:
 
 ```typescript filename="auth/guards/owner.guard.ts" copy
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException
-} from "@nestjs/common";
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from "@nestjs/common";
 import { UserService } from "../../user/user.service";
 
 @Injectable()
 export class OwnerGuard implements CanActivate {
-  constructor(private readonly userService: UserService) {}
+	constructor(private readonly userService: UserService) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const user = request.user;
-    const resourceId = request.params.id;
+	async canActivate(context: ExecutionContext): Promise<boolean> {
+		const request = context.switchToHttp().getRequest();
+		const user = request.user;
+		const resourceId = request.params.id;
 
-    if (!user) {
-      throw new ForbiddenException("Authentication required");
-    }
+		if (!user) {
+			throw new ForbiddenException("Authentication required");
+		}
 
-    // Check if user owns the resource
-    const resource = await this.userService.get({
-      where: { id: resourceId }
-    });
+		// Check if user owns the resource
+		const resource = await this.userService.get({
+			where: { id: resourceId },
+		});
 
-    if (resource.ownerId !== user.id && user.role !== "admin") {
-      throw new ForbiddenException("You can only modify your own resources");
-    }
+		if (resource.ownerId !== user.id && user.role !== "admin") {
+			throw new ForbiddenException("You can only modify your own resources");
+		}
 
-    return true;
-  }
+		return true;
+	}
 }
 ```
 
@@ -360,29 +333,29 @@ Configure Swagger to show authentication requirements:
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 
 const config = new DocumentBuilder()
-  .setTitle("Your API")
-  .setDescription("API description")
-  .setVersion("1.0")
-  .addBearerAuth(
-    {
-      type: "http",
-      scheme: "bearer",
-      bearerFormat: "JWT",
-      name: "JWT",
-      description: "Enter JWT token",
-      in: "header",
-    },
-    "JWT-auth"
-  )
-  .addApiKey(
-    {
-      type: "apiKey",
-      name: "x-api-key",
-      in: "header",
-    },
-    "api-key"
-  )
-  .build();
+	.setTitle("Your API")
+	.setDescription("API description")
+	.setVersion("1.0")
+	.addBearerAuth(
+		{
+			type: "http",
+			scheme: "bearer",
+			bearerFormat: "JWT",
+			name: "JWT",
+			description: "Enter JWT token",
+			in: "header",
+		},
+		"JWT-auth",
+	)
+	.addApiKey(
+		{
+			type: "apiKey",
+			name: "x-api-key",
+			in: "header",
+		},
+		"api-key",
+	)
+	.build();
 ```
 
 ## Public Endpoints
@@ -419,4 +392,3 @@ routes: {
 - [Transformers](/docs/nestjs-crud-automator/guides/transformers) - Transform data based on user
 - [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Access user in subscribers
 - [Core Concepts - Controllers](/docs/nestjs-crud-automator/core-concepts/controllers) - Controller configuration
-

@@ -14,22 +14,23 @@ import { UserService } from "./user.service";
 
 @Controller("users")
 @ApiController<UserEntity>({
-  entity: UserEntity,
-  name: "Users",
-  routes: {
-    [EApiRouteType.CREATE]: {},
-    [EApiRouteType.GET]: {},
-    [EApiRouteType.GET_LIST]: {},
-    [EApiRouteType.UPDATE]: {},
-    [EApiRouteType.DELETE]: {},
-  },
+	entity: UserEntity,
+	name: "Users",
+	routes: {
+		[EApiRouteType.CREATE]: {},
+		[EApiRouteType.GET]: {},
+		[EApiRouteType.GET_LIST]: {},
+		[EApiRouteType.UPDATE]: {},
+		[EApiRouteType.DELETE]: {},
+	},
 })
 export class UserController {
-  constructor(public service: UserService) {}
+	constructor(public service: UserService) {}
 }
 ```
 
 This generates the following endpoints:
+
 - `POST /users` - Create a new user
 - `GET /users/:id` - Get a user by ID
 - `GET /users` - Get a paginated list of users
@@ -151,6 +152,7 @@ import {
 ```
 
 Transformer types:
+
 - `STATIC` - Set a constant value
 - `DYNAMIC` - Extract value from request context (authenticated user, headers, IP)
 
@@ -181,34 +183,35 @@ Configure automatic relation loading:
 import { EApiControllerLoadRelationsStrategy } from "@elsikora/nestjs-crud-automator";
 
 @ApiController<PostEntity>({
-  entity: PostEntity,
-  routes: {
-    [EApiRouteType.GET]: {
-      request: {
-        relations: {
-          shouldLoadRelations: true,
-          relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-          servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-          relationsToLoad: ["author", "comments"],
-        },
-      },
-      response: {
-        relations: ["author", "comments"],
-      },
-    },
-  },
+	entity: PostEntity,
+	routes: {
+		[EApiRouteType.GET]: {
+			request: {
+				relations: {
+					shouldLoadRelations: true,
+					relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+					servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+					relationsToLoad: ["author", "comments"],
+				},
+			},
+			response: {
+				relations: ["author", "comments"],
+			},
+		},
+	},
 })
 export class PostController {
-  constructor(
-    public service: PostService,
-    // Inject related services for loading
-    public authorService: UserService,
-    public commentsService: CommentService,
-  ) {}
+	constructor(
+		public service: PostService,
+		// Inject related services for loading
+		public authorService: UserService,
+		public commentsService: CommentService,
+	) {}
 }
 ```
 
 Strategies:
+
 - `AUTO` - Automatically detect and load relations
 - `MANUAL` - Explicitly specify which relations to load
 
@@ -325,16 +328,15 @@ routes: {
 Enable subscriber hooks by marking the controller as observable:
 
 ```typescript
-import {
-  ApiController,
-  ApiControllerObservable
-} from "@elsikora/nestjs-crud-automator";
+import { ApiController, ApiControllerObservable } from "@elsikora/nestjs-crud-automator";
 
 @Controller("posts")
-@ApiController({ /* ... */ })
+@ApiController({
+	/* ... */
+})
 @ApiControllerObservable()
 export class PostController {
-  constructor(public service: PostService) {}
+	constructor(public service: PostService) {}
 }
 ```
 
@@ -344,4 +346,3 @@ export class PostController {
 - [DTOs](/docs/nestjs-crud-automator/core-concepts/dtos) - Understand DTO generation
 - [Authentication](/docs/nestjs-crud-automator/guides/authentication) - Implement auth guards
 - [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Add hooks to intercept operations
-

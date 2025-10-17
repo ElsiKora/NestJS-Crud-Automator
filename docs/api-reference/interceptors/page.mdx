@@ -26,12 +26,12 @@ import { CorrelationIDResponseBodyInterceptor } from "@elsikora/nestjs-crud-auto
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+	const app = await NestFactory.create(AppModule);
 
-  // Register the interceptor globally
-  app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
+	// Register the interceptor globally
+	app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
 
-  await app.listen(3000);
+	await app.listen(3000);
 }
 bootstrap();
 ```
@@ -41,6 +41,7 @@ bootstrap();
 ### Request with Correlation ID
 
 **Request:**
+
 ```http
 POST /users HTTP/1.1
 Content-Type: application/json
@@ -52,19 +53,21 @@ x-correlation-id: 550e8400-e29b-41d4-a716-446655440000
 ```
 
 **Error Response:**
+
 ```json
 {
-  "statusCode": 400,
-  "message": "Username is invalid",
-  "error": "Bad Request",
-  "timestamp": 1704067200000,
-  "correlationID": "550e8400-e29b-41d4-a716-446655440000"
+	"statusCode": 400,
+	"message": "Username is invalid",
+	"error": "Bad Request",
+	"timestamp": 1704067200000,
+	"correlationID": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
 ### Request without Correlation ID
 
 **Request:**
+
 ```http
 POST /users HTTP/1.1
 Content-Type: application/json
@@ -75,13 +78,14 @@ Content-Type: application/json
 ```
 
 **Error Response:**
+
 ```json
 {
-  "statusCode": 400,
-  "message": "Username is invalid",
-  "error": "Bad Request",
-  "timestamp": 1704067200000,
-  "correlationID": "a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6"
+	"statusCode": 400,
+	"message": "Username is invalid",
+	"error": "Bad Request",
+	"timestamp": 1704067200000,
+	"correlationID": "a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6"
 }
 ```
 
@@ -140,21 +144,21 @@ const correlationId = crypto.randomUUID();
 
 // Send with request
 const response = await fetch("/api/users", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "x-correlation-id": correlationId,
-  },
-  body: JSON.stringify(userData),
+	method: "POST",
+	headers: {
+		"Content-Type": "application/json",
+		"x-correlation-id": correlationId,
+	},
+	body: JSON.stringify(userData),
 });
 
 // On error, the same correlationId will be in the response
 if (!response.ok) {
-  const error = await response.json();
-  console.error("Request failed:", {
-    correlationId: error.correlationID,
-    message: error.message,
-  });
+	const error = await response.json();
+	console.error("Request failed:", {
+		correlationId: error.correlationID,
+		message: error.message,
+	});
 }
 ```
 
@@ -167,13 +171,13 @@ import { Injectable, LoggerService } from "@nestjs/common";
 
 @Injectable()
 export class CustomLoggerService implements LoggerService {
-  log(message: string, context?: string, correlationId?: string) {
-    console.log(`[${correlationId}] [${context}] ${message}`);
-  }
+	log(message: string, context?: string, correlationId?: string) {
+		console.log(`[${correlationId}] [${context}] ${message}`);
+	}
 
-  error(message: string, trace?: string, context?: string, correlationId?: string) {
-    console.error(`[${correlationId}] [${context}] ${message}`, trace);
-  }
+	error(message: string, trace?: string, context?: string, correlationId?: string) {
+		console.error(`[${correlationId}] [${context}] ${message}`, trace);
+	}
 }
 ```
 
@@ -185,27 +189,24 @@ Access correlation IDs in subscribers:
 @Injectable()
 @ApiRouteSubscriber({ entity: UserEntity, priority: 10 })
 export class AuditSubscriber extends ApiRouteSubscriberBase<UserEntity> {
-  async onAfterCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
-    const correlationId = context.DATA.headers["x-correlation-id"];
+	async onAfterCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
+		const correlationId = context.DATA.headers["x-correlation-id"];
 
-    await this.auditService.log({
-      action: "user_created",
-      correlationId,
-      userId: context.result.id,
-      timestamp: Date.now(),
-    });
+		await this.auditService.log({
+			action: "user_created",
+			correlationId,
+			userId: context.result.id,
+			timestamp: Date.now(),
+		});
 
-    return context.result;
-  }
+		return context.result;
+	}
 
-  async onAfterErrorCreate(
-    context: IApiSubscriberRouteErrorExecutionContext,
-    error: Error
-  ): Promise<void> {
-    const correlationId = context.DATA.headers["x-correlation-id"];
+	async onAfterErrorCreate(context: IApiSubscriberRouteErrorExecutionContext, error: Error): Promise<void> {
+		const correlationId = context.DATA.headers["x-correlation-id"];
 
-    console.error(`[${correlationId}] User creation failed:`, error.message);
-  }
+		console.error(`[${correlationId}] User creation failed:`, error.message);
+	}
 }
 ```
 
@@ -215,12 +216,12 @@ The interceptor modifies error responses to include:
 
 ```typescript
 interface ErrorResponse {
-  statusCode: number;           // HTTP status code
-  message: string | string[];   // Error message(s)
-  error: string;                // Error name
-  timestamp: number;            // Unix timestamp
-  correlationID: string;        // Correlation ID (UUID)
-  [key: string]: any;          // Other error details
+	statusCode: number; // HTTP status code
+	message: string | string[]; // Error message(s)
+	error: string; // Error name
+	timestamp: number; // Unix timestamp
+	correlationID: string; // Correlation ID (UUID)
+	[key: string]: any; // Other error details
 }
 ```
 
@@ -237,4 +238,3 @@ interface ErrorResponse {
 - [Guides - Error Handling](/docs/nestjs-crud-automator/guides/error-handling) - Error handling guide
 - [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Access correlation IDs in subscribers
 - [Utilities](/docs/nestjs-crud-automator/api-reference/utilities) - Logging utilities
-

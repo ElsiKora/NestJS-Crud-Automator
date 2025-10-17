@@ -5,7 +5,6 @@ import type { EntityManager } from "typeorm";
 
 /**
  * Base class for services providing CRUD operations.
- *
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/classes#apiservicebase | API Reference - ApiServiceBase}
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/core-concepts/services | Core Concepts - Services}
  */

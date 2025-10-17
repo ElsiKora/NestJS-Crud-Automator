@@ -1,0 +1,47 @@
+import type { EApiPropertyStringType } from "@enum/decorator/api";
+
+export type TApiPropertyDefaultStringFormat =
+	| EApiPropertyStringType.API_KEY
+	| EApiPropertyStringType.BASE64
+	| EApiPropertyStringType.BCRYPT
+	| EApiPropertyStringType.BITCOIN_ADDRESS
+	| EApiPropertyStringType.COORDINATES
+	| EApiPropertyStringType.COUNTRY_CODE_ALPHA2
+	| EApiPropertyStringType.COUNTRY_CODE_ALPHA3
+	| EApiPropertyStringType.CRON
+	| EApiPropertyStringType.CURRENCY_CODE
+	| EApiPropertyStringType.DATA_URI
+	| EApiPropertyStringType.DOMAIN
+	| EApiPropertyStringType.EMAIL
+	| EApiPropertyStringType.ETHEREUM_ADDRESS
+	| EApiPropertyStringType.FILE_PATH
+	| EApiPropertyStringType.GIT_COMMIT_SHA
+	| EApiPropertyStringType.HASH_MD5
+	| EApiPropertyStringType.HASH_SHA256
+	| EApiPropertyStringType.HEX_COLOR
+	| EApiPropertyStringType.HSL_COLOR
+	| EApiPropertyStringType.HSLA_COLOR
+	| EApiPropertyStringType.IBAN
+	| EApiPropertyStringType.IPV4
+	| EApiPropertyStringType.IPV6
+	| EApiPropertyStringType.ISBN
+	| EApiPropertyStringType.JWT
+	| EApiPropertyStringType.LANGUAGE_CODE_ISO639
+	| EApiPropertyStringType.LOCALE
+	| EApiPropertyStringType.MAC_ADDRESS
+	| EApiPropertyStringType.MIME_TYPE
+	| EApiPropertyStringType.MONGODB_OBJECT_ID
+	| EApiPropertyStringType.NANOID
+	| EApiPropertyStringType.OAUTH2_SCOPE
+	| EApiPropertyStringType.PHONE_NUMBER
+	| EApiPropertyStringType.POSTAL_CODE
+	| EApiPropertyStringType.RGB_COLOR
+	| EApiPropertyStringType.RGBA_COLOR
+	| EApiPropertyStringType.SEMVER
+	| EApiPropertyStringType.SLUG
+	| EApiPropertyStringType.TIMEZONE
+	| EApiPropertyStringType.ULID
+	| EApiPropertyStringType.URL
+	| EApiPropertyStringType.URL_PATH
+	| EApiPropertyStringType.USERNAME
+	| EApiPropertyStringType.UUID;

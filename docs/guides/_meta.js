@@ -1,11 +1,10 @@
 export default {
+	authentication: "Authentication",
+	"custom-dtos": "Custom DTOs",
+	"error-handling": "Error Handling",
 	"filtering-and-sorting": "Filtering and Sorting",
 	pagination: "Pagination",
 	relations: "Relations",
-	authentication: "Authentication",
-	validation: "Validation",
 	transformers: "Transformers",
-	"error-handling": "Error Handling",
-	"custom-dtos": "Custom DTOs",
+	validation: "Validation",
 };
-

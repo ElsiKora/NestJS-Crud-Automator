@@ -9,6 +9,7 @@ The Subscriber System is the most powerful feature of NestJS CRUD Automator for 
 ## Overview
 
 Subscribers act as hooks that execute before, after, or on error during CRUD operations. They provide access to the execution context, allowing you to:
+
 - Audit operations
 - Send notifications
 - Perform complex validation
@@ -21,12 +22,14 @@ Subscribers act as hooks that execute before, after, or on error during CRUD ope
 ### Route Subscribers (Controller Level)
 
 Intercept at the HTTP layer with access to:
+
 - Request headers
 - Client IP address
 - Authenticated user
 - Full HTTP context
 
 Best for:
+
 - Auditing who performed an action
 - IP-based restrictions
 - User-specific logic
@@ -35,12 +38,14 @@ Best for:
 ### Function Subscribers (Service Level)
 
 Intercept at the database layer before and after repository methods:
+
 - Pre-process data before saving
 - Post-process data after retrieval
 - Database-level validations
 - Data enrichment
 
 Best for:
+
 - Data transformation
 - Computed fields
 - Database-level logic
@@ -56,10 +61,10 @@ Three mandatory steps to enable the subscriber system:
 import { ApiSubscriberModule } from "@elsikora/nestjs-crud-automator";
 
 @Module({
-  imports: [
-    // ... other modules
-    ApiSubscriberModule, // Required for subscriber discovery
-  ],
+	imports: [
+		// ... other modules
+		ApiSubscriberModule, // Required for subscriber discovery
+	],
 })
 export class AppModule {}
 ```
@@ -67,38 +72,35 @@ export class AppModule {}
 ### 2. Make Controller Observable
 
 ```typescript filename="post.controller.ts" copy
-import {
-  ApiController,
-  ApiControllerObservable
-} from "@elsikora/nestjs-crud-automator";
+import { ApiController, ApiControllerObservable } from "@elsikora/nestjs-crud-automator";
 
 @Controller("posts")
-@ApiController({ /* ... */ })
+@ApiController({
+	/* ... */
+})
 @ApiControllerObservable() // Required for route subscribers
 export class PostController {
-  constructor(public service: PostService) {}
+	constructor(public service: PostService) {}
 }
 ```
 
 ### 3. Make Service Observable
 
 ```typescript filename="post.service.ts" copy
-import {
-  ApiService,
-  ApiServiceBase,
-  ApiServiceObservable
-} from "@elsikora/nestjs-crud-automator";
+import { ApiService, ApiServiceBase, ApiServiceObservable } from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
-@ApiService({ /* ... */ })
+@ApiService({
+	/* ... */
+})
 @ApiServiceObservable() // Required for function subscribers
 export class PostService extends ApiServiceBase<PostEntity> {
-  constructor(
-    @InjectRepository(PostEntity)
-    public repository: Repository<PostEntity>,
-  ) {
-    super();
-  }
+	constructor(
+		@InjectRepository(PostEntity)
+		public repository: Repository<PostEntity>,
+	) {
+		super();
+	}
 }
 ```
 
@@ -108,26 +110,20 @@ export class PostService extends ApiServiceBase<PostEntity> {
 
 ```typescript filename="post-audit.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import {
-  ApiRouteSubscriber,
-  ApiRouteSubscriberBase,
-  IApiSubscriberRouteExecutionContext
-} from "@elsikora/nestjs-crud-automator";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteExecutionContext } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 
 @Injectable()
 @ApiRouteSubscriber({ entity: PostEntity, priority: 10 })
 export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-  async onAfterCreate(
-    context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
-  ): Promise<PostEntity> {
-    const post = context.result;
-    const user = context.DATA.authenticationRequest?.user;
+	async onAfterCreate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+		const post = context.result;
+		const user = context.DATA.authenticationRequest?.user;
 
-    console.log(`User ${user?.id} created post ${post.id}`);
+		console.log(`User ${user?.id} created post ${post.id}`);
 
-    return post;
-  }
+		return post;
+	}
 }
 ```
 
@@ -135,32 +131,22 @@ export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 
 ```typescript filename="post-slug.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import {
-  ApiFunctionSubscriber,
-  ApiFunctionSubscriberBase,
-  IApiSubscriberFunctionExecutionContext,
-  TApiFunctionCreateProperties
-} from "@elsikora/nestjs-crud-automator";
+import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, IApiSubscriberFunctionExecutionContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 import slugify from "slugify";
 
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity })
 export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-  async onBeforeCreate(
-    context: IApiSubscriberFunctionExecutionContext<
-      PostEntity,
-      TApiFunctionCreateProperties<PostEntity>
-    >
-  ): Promise<TApiFunctionCreateProperties<PostEntity>> {
-    const { body } = context.result;
+	async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, TApiFunctionCreateProperties<PostEntity>>): Promise<TApiFunctionCreateProperties<PostEntity>> {
+		const { body } = context.result;
 
-    if (body.title && !body.slug) {
-      body.slug = slugify(body.title, { lower: true, strict: true });
-    }
+		if (body.title && !body.slug) {
+			body.slug = slugify(body.title, { lower: true, strict: true });
+		}
 
-    return context.result;
-  }
+		return context.result;
+	}
 }
 ```
 
@@ -168,13 +154,9 @@ export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
 
 ```typescript filename="post.module.ts" copy
 @Module({
-  imports: [TypeOrmModule.forFeature([PostEntity])],
-  providers: [
-    PostService,
-    PostAuditSubscriber,
-    PostSlugSubscriber,
-  ],
-  controllers: [PostController],
+	imports: [TypeOrmModule.forFeature([PostEntity])],
+	providers: [PostService, PostAuditSubscriber, PostSlugSubscriber],
+	controllers: [PostController],
 })
 export class PostModule {}
 ```
@@ -202,4 +184,3 @@ If an error occurs, execution stops and error hooks are called.
 - **[Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers)**: Service-level hooks
 - **[Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context)**: Context interfaces
 - **[Lifecycle](/docs/nestjs-crud-automator/subscriber-system/lifecycle)**: Detailed execution flow
-

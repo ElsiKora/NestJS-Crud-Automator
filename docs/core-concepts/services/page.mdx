@@ -15,15 +15,15 @@ import { UserEntity } from "./user.entity";
 
 @Injectable()
 @ApiService<UserEntity>({
-  entity: UserEntity,
+	entity: UserEntity,
 })
 export class UserService extends ApiServiceBase<UserEntity> {
-  constructor(
-    @InjectRepository(UserEntity)
-    public repository: Repository<UserEntity>,
-  ) {
-    super();
-  }
+	constructor(
+		@InjectRepository(UserEntity)
+		public repository: Repository<UserEntity>,
+	) {
+		super();
+	}
 }
 ```
 
@@ -37,10 +37,10 @@ Creates a new entity:
 
 ```typescript
 const user = await userService.create({
-  body: {
-    username: "john_doe",
-    email: "john@example.com",
-  },
+	body: {
+		username: "john_doe",
+		email: "john@example.com",
+	},
 });
 ```
 
@@ -50,7 +50,7 @@ Retrieves a single entity by criteria:
 
 ```typescript
 const user = await userService.get({
-  where: { id: "uuid-here" },
+	where: { id: "uuid-here" },
 });
 ```
 
@@ -60,20 +60,20 @@ Retrieves a paginated list with filtering and sorting:
 
 ```typescript
 const result = await userService.getList(
-  {
-    where: {
-      username: {
-        operator: EFilterOperation.CONT,
-        value: "john",
-      },
-    },
-    order: {
-      createdAt: "DESC",
-    },
-    limit: 10,
-    page: 1,
-  },
-  {}
+	{
+		where: {
+			username: {
+				operator: EFilterOperation.CONT,
+				value: "john",
+			},
+		},
+		order: {
+			createdAt: "DESC",
+		},
+		limit: 10,
+		page: 1,
+	},
+	{},
 );
 
 // Result contains:
@@ -91,9 +91,9 @@ Retrieves multiple entities:
 
 ```typescript
 const users = await userService.getMany({
-  where: {
-    isActive: true,
-  },
+	where: {
+		isActive: true,
+	},
 });
 ```
 
@@ -103,12 +103,12 @@ Updates an existing entity:
 
 ```typescript
 const updatedUser = await userService.update(
-  { id: "uuid-here" },
-  {
-    body: {
-      username: "new_username",
-    },
-  }
+	{ id: "uuid-here" },
+	{
+		body: {
+			username: "new_username",
+		},
+	},
 );
 ```
 
@@ -118,7 +118,7 @@ Deletes an entity:
 
 ```typescript
 await userService.delete({
-  id: "uuid-here",
+	id: "uuid-here",
 });
 ```
 
@@ -129,45 +129,39 @@ Add custom business logic beyond CRUD operations:
 ```typescript filename="user.service.ts" copy
 @Injectable()
 @ApiService<UserEntity>({
-  entity: UserEntity,
+	entity: UserEntity,
 })
 export class UserService extends ApiServiceBase<UserEntity> {
-  constructor(
-    @InjectRepository(UserEntity)
-    public repository: Repository<UserEntity>,
-  ) {
-    super();
-  }
+	constructor(
+		@InjectRepository(UserEntity)
+		public repository: Repository<UserEntity>,
+	) {
+		super();
+	}
 
-  // Custom method
-  async findByEmail(email: string): Promise<UserEntity | null> {
-    return this.repository.findOne({ where: { email } });
-  }
+	// Custom method
+	async findByEmail(email: string): Promise<UserEntity | null> {
+		return this.repository.findOne({ where: { email } });
+	}
 
-  // Custom method with complex logic
-  async activateUser(id: string): Promise<UserEntity> {
-    const user = await this.get({ where: { id } });
-    return this.update(
-      { id },
-      {
-        body: {
-          isActive: true,
-          activatedAt: new Date(),
-        },
-      }
-    );
-  }
+	// Custom method with complex logic
+	async activateUser(id: string): Promise<UserEntity> {
+		const user = await this.get({ where: { id } });
+		return this.update(
+			{ id },
+			{
+				body: {
+					isActive: true,
+					activatedAt: new Date(),
+				},
+			},
+		);
+	}
 
-  // Custom bulk operation
-  async bulkUpdateStatus(
-    userIds: string[],
-    isActive: boolean
-  ): Promise<void> {
-    await this.repository.update(
-      { id: In(userIds) },
-      { isActive }
-    );
-  }
+	// Custom bulk operation
+	async bulkUpdateStatus(userIds: string[], isActive: boolean): Promise<void> {
+		await this.repository.update({ id: In(userIds) }, { isActive });
+	}
 }
 ```
 
@@ -180,36 +174,30 @@ import { DataSource } from "typeorm";
 
 @Injectable()
 export class PostService extends ApiServiceBase<PostEntity> {
-  constructor(
-    @InjectRepository(PostEntity)
-    public repository: Repository<PostEntity>,
-    private dataSource: DataSource,
-  ) {
-    super();
-  }
+	constructor(
+		@InjectRepository(PostEntity)
+		public repository: Repository<PostEntity>,
+		private dataSource: DataSource,
+	) {
+		super();
+	}
 
-  async createPostWithComments(
-    postData: DeepPartial<PostEntity>,
-    commentsData: DeepPartial<CommentEntity>[]
-  ): Promise<PostEntity> {
-    return this.dataSource.transaction(async (manager) => {
-      // Create post within transaction
-      const post = await this.create(
-        { body: postData },
-        manager
-      );
+	async createPostWithComments(postData: DeepPartial<PostEntity>, commentsData: DeepPartial<CommentEntity>[]): Promise<PostEntity> {
+		return this.dataSource.transaction(async (manager) => {
+			// Create post within transaction
+			const post = await this.create({ body: postData }, manager);
 
-      // Create comments within same transaction
-      for (const commentData of commentsData) {
-        await manager.save(CommentEntity, {
-          ...commentData,
-          postId: post.id,
-        });
-      }
+			// Create comments within same transaction
+			for (const commentData of commentsData) {
+				await manager.save(CommentEntity, {
+					...commentData,
+					postId: post.id,
+				});
+			}
 
-      return post;
-    });
-  }
+			return post;
+		});
+	}
 }
 ```
 
@@ -218,24 +206,20 @@ export class PostService extends ApiServiceBase<PostEntity> {
 Enable function-level subscribers by marking the service as observable:
 
 ```typescript filename="post.service.ts" copy
-import {
-  ApiService,
-  ApiServiceBase,
-  ApiServiceObservable
-} from "@elsikora/nestjs-crud-automator";
+import { ApiService, ApiServiceBase, ApiServiceObservable } from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
 @ApiService<PostEntity>({
-  entity: PostEntity,
+	entity: PostEntity,
 })
 @ApiServiceObservable()
 export class PostService extends ApiServiceBase<PostEntity> {
-  constructor(
-    @InjectRepository(PostEntity)
-    public repository: Repository<PostEntity>,
-  ) {
-    super();
-  }
+	constructor(
+		@InjectRepository(PostEntity)
+		public repository: Repository<PostEntity>,
+	) {
+		super();
+	}
 }
 ```
 
@@ -248,43 +232,40 @@ Inject other services for complex operations:
 ```typescript filename="order.service.ts" copy
 @Injectable()
 @ApiService<OrderEntity>({
-  entity: OrderEntity,
+	entity: OrderEntity,
 })
 export class OrderService extends ApiServiceBase<OrderEntity> {
-  constructor(
-    @InjectRepository(OrderEntity)
-    public repository: Repository<OrderEntity>,
-    private readonly productService: ProductService,
-    private readonly userService: UserService,
-    private readonly paymentService: PaymentService,
-  ) {
-    super();
-  }
+	constructor(
+		@InjectRepository(OrderEntity)
+		public repository: Repository<OrderEntity>,
+		private readonly productService: ProductService,
+		private readonly userService: UserService,
+		private readonly paymentService: PaymentService,
+	) {
+		super();
+	}
 
-  async createOrder(
-    userId: string,
-    productIds: string[]
-  ): Promise<OrderEntity> {
-    // Validate user
-    const user = await this.userService.get({ where: { id: userId } });
-    
-    // Validate products
-    const products = await this.productService.getMany({
-      where: { id: In(productIds) },
-    });
-    
-    // Calculate total
-    const total = products.reduce((sum, p) => sum + p.price, 0);
-    
-    // Create order
-    return this.create({
-      body: {
-        userId,
-        total,
-        status: OrderStatus.PENDING,
-      },
-    });
-  }
+	async createOrder(userId: string, productIds: string[]): Promise<OrderEntity> {
+		// Validate user
+		const user = await this.userService.get({ where: { id: userId } });
+
+		// Validate products
+		const products = await this.productService.getMany({
+			where: { id: In(productIds) },
+		});
+
+		// Calculate total
+		const total = products.reduce((sum, p) => sum + p.price, 0);
+
+		// Create order
+		return this.create({
+			body: {
+				userId,
+				total,
+				status: OrderStatus.PENDING,
+			},
+		});
+	}
 }
 ```
 
@@ -295,31 +276,31 @@ Access the underlying TypeORM repository for advanced queries:
 ```typescript
 @Injectable()
 @ApiService<UserEntity>({
-  entity: UserEntity,
+	entity: UserEntity,
 })
 export class UserService extends ApiServiceBase<UserEntity> {
-  constructor(
-    @InjectRepository(UserEntity)
-    public repository: Repository<UserEntity>,
-  ) {
-    super();
-  }
+	constructor(
+		@InjectRepository(UserEntity)
+		public repository: Repository<UserEntity>,
+	) {
+		super();
+	}
 
-  async getUsersWithPostCount(): Promise<Array<{ user: UserEntity; postCount: number }>> {
-    return this.repository
-      .createQueryBuilder("user")
-      .leftJoin("user.posts", "post")
-      .select("user")
-      .addSelect("COUNT(post.id)", "postCount")
-      .groupBy("user.id")
-      .getRawAndEntities()
-      .then(result => 
-        result.entities.map((user, index) => ({
-          user,
-          postCount: parseInt(result.raw[index].postCount || "0", 10),
-        }))
-      );
-  }
+	async getUsersWithPostCount(): Promise<Array<{ user: UserEntity; postCount: number }>> {
+		return this.repository
+			.createQueryBuilder("user")
+			.leftJoin("user.posts", "post")
+			.select("user")
+			.addSelect("COUNT(post.id)", "postCount")
+			.groupBy("user.id")
+			.getRawAndEntities()
+			.then((result) =>
+				result.entities.map((user, index) => ({
+					user,
+					postCount: parseInt(result.raw[index].postCount || "0", 10),
+				})),
+			);
+	}
 }
 ```
 
@@ -332,15 +313,15 @@ import { NotFoundException, BadRequestException } from "@nestjs/common";
 
 async activateUser(id: string): Promise<UserEntity> {
   const user = await this.repository.findOne({ where: { id } });
-  
+
   if (!user) {
     throw new NotFoundException(`User with ID ${id} not found`);
   }
-  
+
   if (user.isActive) {
     throw new BadRequestException("User is already active");
   }
-  
+
   return this.update(
     { id },
     {
@@ -359,4 +340,3 @@ async activateUser(id: string): Promise<UserEntity> {
 - [DTOs](/docs/nestjs-crud-automator/core-concepts/dtos) - Understand DTO generation
 - [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Add hooks at service level
 - [Error Handling](/docs/nestjs-crud-automator/guides/error-handling) - Advanced error patterns
-

@@ -12,12 +12,12 @@ import { CorrelationIDResponseBodyInterceptor } from "@elsikora/nestjs-crud-auto
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+	const app = await NestFactory.create(AppModule);
 
-  // Register globally
-  app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
+	// Register globally
+	app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
 
-  await app.listen(3000);
+	await app.listen(3000);
 }
 bootstrap();
 ```
@@ -25,6 +25,7 @@ bootstrap();
 ## How It Works
 
 The interceptor:
+
 1. Checks for `x-correlation-id` header in incoming requests
 2. Generates a UUID if header is missing
 3. Adds correlation ID to all error responses
@@ -37,11 +38,11 @@ Standard error response structure:
 
 ```json
 {
-  "statusCode": 400,
-  "message": "Validation failed",
-  "error": "Bad Request",
-  "timestamp": 1704067200000,
-  "correlationID": "550e8400-e29b-41d4-a716-446655440000"
+	"statusCode": 400,
+	"message": "Validation failed",
+	"error": "Bad Request",
+	"timestamp": 1704067200000,
+	"correlationID": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
@@ -51,12 +52,12 @@ Send correlation ID from client:
 
 ```typescript filename="frontend-example.ts" copy
 const response = await fetch("/users", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "x-correlation-id": "client-generated-uuid",
-  },
-  body: JSON.stringify(userData),
+	method: "POST",
+	headers: {
+		"Content-Type": "application/json",
+		"x-correlation-id": "client-generated-uuid",
+	},
+	body: JSON.stringify(userData),
 });
 ```
 
@@ -68,14 +69,11 @@ Automatic validation error handling:
 
 ```json
 {
-  "statusCode": 400,
-  "message": [
-    "username must be longer than or equal to 3 characters",
-    "email must be an email"
-  ],
-  "error": "Bad Request",
-  "timestamp": 1704067200000,
-  "correlationID": "550e8400-e29b-41d4-a716-446655440000"
+	"statusCode": 400,
+	"message": ["username must be longer than or equal to 3 characters", "email must be an email"],
+	"error": "Bad Request",
+	"timestamp": 1704067200000,
+	"correlationID": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
@@ -87,12 +85,12 @@ Create custom exceptions for specific errors:
 import { NotFoundException } from "@nestjs/common";
 
 export class UserNotFoundException extends NotFoundException {
-  constructor(userId: string) {
-    super({
-      message: `User with ID ${userId} not found`,
-      code: "USER_NOT_FOUND",
-    });
-  }
+	constructor(userId: string) {
+		super({
+			message: `User with ID ${userId} not found`,
+			code: "USER_NOT_FOUND",
+		});
+	}
 }
 ```
 
@@ -101,11 +99,11 @@ Use in services:
 ```typescript filename="user.service.ts" copy
 async findUserById(id: string): Promise<UserEntity> {
   const user = await this.repository.findOne({ where: { id } });
-  
+
   if (!user) {
     throw new UserNotFoundException(id);
   }
-  
+
   return user;
 }
 ```
@@ -116,51 +114,39 @@ Handle errors in subscriber hooks:
 
 ```typescript filename="post-error.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import {
-  ApiRouteSubscriber,
-  ApiRouteSubscriberBase,
-  IApiSubscriberRouteErrorExecutionContext
-} from "@elsikora/nestjs-crud-automator";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteErrorExecutionContext } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 
 @Injectable()
 @ApiRouteSubscriber({
-  entity: PostEntity,
-  priority: 10
+	entity: PostEntity,
+	priority: 10,
 })
 export class PostErrorSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-  async onAfterErrorCreate(
-    context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
-    error: Error
-  ): Promise<void> {
-    // Log error with context
-    console.error("Post creation failed:", {
-      error: error.message,
-      data: context.DATA,
-      entity: context.ENTITY,
-    });
+	async onAfterErrorCreate(context: IApiSubscriberRouteErrorExecutionContext<PostEntity>, error: Error): Promise<void> {
+		// Log error with context
+		console.error("Post creation failed:", {
+			error: error.message,
+			data: context.DATA,
+			entity: context.ENTITY,
+		});
 
-    // Notify admins, send alerts, etc.
-    await this.notifyAdmins(error);
-  }
+		// Notify admins, send alerts, etc.
+		await this.notifyAdmins(error);
+	}
 
-  async onBeforeErrorCreate(
-    context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
-    error: Error
-  ): Promise<void> {
-    // Perform cleanup before error propagates
-    await this.cleanup(context);
-  }
+	async onBeforeErrorCreate(context: IApiSubscriberRouteErrorExecutionContext<PostEntity>, error: Error): Promise<void> {
+		// Perform cleanup before error propagates
+		await this.cleanup(context);
+	}
 
-  private async notifyAdmins(error: Error): Promise<void> {
-    // Send notification logic
-  }
+	private async notifyAdmins(error: Error): Promise<void> {
+		// Send notification logic
+	}
 
-  private async cleanup(
-    context: IApiSubscriberRouteErrorExecutionContext<PostEntity>
-  ): Promise<void> {
-    // Cleanup logic
-  }
+	private async cleanup(context: IApiSubscriberRouteErrorExecutionContext<PostEntity>): Promise<void> {
+		// Cleanup logic
+	}
 }
 ```
 
@@ -169,43 +155,30 @@ export class PostErrorSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 Create a global exception filter for custom error handling:
 
 ```typescript filename="filters/http-exception.filter.ts" copy
-import {
-  ExceptionFilter,
-  Catch,
-  ArgumentsHost,
-  HttpException,
-  HttpStatus,
-} from "@nestjs/common";
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from "@nestjs/common";
 import { FastifyReply, FastifyRequest } from "fastify";
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
-  catch(exception: unknown, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<FastifyReply>();
-    const request = ctx.getRequest<FastifyRequest>();
+	catch(exception: unknown, host: ArgumentsHost) {
+		const ctx = host.switchToHttp();
+		const response = ctx.getResponse<FastifyReply>();
+		const request = ctx.getRequest<FastifyRequest>();
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+		const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message =
-      exception instanceof HttpException
-        ? exception.message
-        : "Internal server error";
+		const message = exception instanceof HttpException ? exception.message : "Internal server error";
 
-    const correlationId = 
-      request.headers["x-correlation-id"] || crypto.randomUUID();
+		const correlationId = request.headers["x-correlation-id"] || crypto.randomUUID();
 
-    response.status(status).send({
-      statusCode: status,
-      message,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-      correlationID: correlationId,
-    });
-  }
+		response.status(status).send({
+			statusCode: status,
+			message,
+			timestamp: new Date().toISOString(),
+			path: request.url,
+			correlationID: correlationId,
+		});
+	}
 }
 ```
 
@@ -215,11 +188,11 @@ Register globally:
 import { GlobalExceptionFilter } from "./filters/http-exception.filter";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
-  app.useGlobalFilters(new GlobalExceptionFilter());
-  
-  await app.listen(3000);
+	const app = await NestFactory.create(AppModule);
+
+	app.useGlobalFilters(new GlobalExceptionFilter());
+
+	await app.listen(3000);
 }
 ```
 
@@ -232,18 +205,18 @@ import { Injectable, LoggerService } from "@nestjs/common";
 
 @Injectable()
 export class CustomLoggerService implements LoggerService {
-  log(message: string, context?: string) {
-    // Log with correlation ID
-    console.log(`[${context}] ${message}`);
-  }
+	log(message: string, context?: string) {
+		// Log with correlation ID
+		console.log(`[${context}] ${message}`);
+	}
 
-  error(message: string, trace?: string, context?: string) {
-    console.error(`[${context}] ${message}`, trace);
-  }
+	error(message: string, trace?: string, context?: string) {
+		console.error(`[${context}] ${message}`, trace);
+	}
 
-  warn(message: string, context?: string) {
-    console.warn(`[${context}] ${message}`);
-  }
+	warn(message: string, context?: string) {
+		console.warn(`[${context}] ${message}`);
+	}
 }
 ```
 
@@ -272,35 +245,35 @@ Create domain-specific exceptions:
 import { BadRequestException, ForbiddenException } from "@nestjs/common";
 
 export class InsufficientBalanceException extends BadRequestException {
-  constructor(required: number, available: number) {
-    super({
-      message: "Insufficient balance for this operation",
-      code: "INSUFFICIENT_BALANCE",
-      required,
-      available,
-    });
-  }
+	constructor(required: number, available: number) {
+		super({
+			message: "Insufficient balance for this operation",
+			code: "INSUFFICIENT_BALANCE",
+			required,
+			available,
+		});
+	}
 }
 
 export class ResourceLockedException extends ForbiddenException {
-  constructor(resourceId: string) {
-    super({
-      message: "Resource is locked and cannot be modified",
-      code: "RESOURCE_LOCKED",
-      resourceId,
-    });
-  }
+	constructor(resourceId: string) {
+		super({
+			message: "Resource is locked and cannot be modified",
+			code: "RESOURCE_LOCKED",
+			resourceId,
+		});
+	}
 }
 
 export class DuplicateResourceException extends BadRequestException {
-  constructor(field: string, value: string) {
-    super({
-      message: `${field} already exists`,
-      code: "DUPLICATE_RESOURCE",
-      field,
-      value,
-    });
-  }
+	constructor(field: string, value: string) {
+		super({
+			message: `${field} already exists`,
+			code: "DUPLICATE_RESOURCE",
+			field,
+			value,
+		});
+	}
 }
 ```
 
@@ -312,12 +285,12 @@ Handle throttler exceptions:
 import { ThrottlerModule } from "@nestjs/throttler";
 
 @Module({
-  imports: [
-    ThrottlerModule.forRoot({
-      ttl: 60,
-      limit: 10,
-    }),
-  ],
+	imports: [
+		ThrottlerModule.forRoot({
+			ttl: 60,
+			limit: 10,
+		}),
+	],
 })
 export class AppModule {}
 ```
@@ -326,11 +299,11 @@ The CorrelationIDResponseBodyInterceptor automatically handles ThrottlerExceptio
 
 ```json
 {
-  "statusCode": 429,
-  "message": "Too Many Requests",
-  "error": "Too Many Requests",
-  "timestamp": 1704067200000,
-  "correlationID": "550e8400-e29b-41d4-a716-446655440000"
+	"statusCode": 429,
+	"message": "Too Many Requests",
+	"error": "Too Many Requests",
+	"timestamp": 1704067200000,
+	"correlationID": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
@@ -344,23 +317,23 @@ import { QueryFailedError } from "typeorm";
 
 @Injectable()
 export class UserService extends ApiServiceBase<UserEntity> {
-  async create(properties: any): Promise<UserEntity> {
-    try {
-      return await super.create(properties);
-    } catch (error) {
-      if (error instanceof QueryFailedError) {
-        // PostgreSQL unique violation
-        if (error.driverError?.code === "23505") {
-          throw new ConflictException("Username or email already exists");
-        }
-        // PostgreSQL foreign key violation
-        if (error.driverError?.code === "23503") {
-          throw new BadRequestException("Referenced resource does not exist");
-        }
-      }
-      throw error;
-    }
-  }
+	async create(properties: any): Promise<UserEntity> {
+		try {
+			return await super.create(properties);
+		} catch (error) {
+			if (error instanceof QueryFailedError) {
+				// PostgreSQL unique violation
+				if (error.driverError?.code === "23505") {
+					throw new ConflictException("Username or email already exists");
+				}
+				// PostgreSQL foreign key violation
+				if (error.driverError?.code === "23503") {
+					throw new BadRequestException("Referenced resource does not exist");
+				}
+			}
+			throw error;
+		}
+	}
 }
 ```
 
@@ -369,26 +342,22 @@ export class UserService extends ApiServiceBase<UserEntity> {
 Implement retry logic for transient errors:
 
 ```typescript filename="utils/retry.util.ts" copy
-export async function retry<T>(
-  fn: () => Promise<T>,
-  maxAttempts: number = 3,
-  delay: number = 1000
-): Promise<T> {
-  let lastError: Error;
+export async function retry<T>(fn: () => Promise<T>, maxAttempts: number = 3, delay: number = 1000): Promise<T> {
+	let lastError: Error;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error as Error;
-      
-      if (attempt < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, delay * attempt));
-      }
-    }
-  }
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		try {
+			return await fn();
+		} catch (error) {
+			lastError = error as Error;
 
-  throw lastError!;
+			if (attempt < maxAttempts) {
+				await new Promise((resolve) => setTimeout(resolve, delay * attempt));
+			}
+		}
+	}
+
+	throw lastError!;
 }
 ```
 
@@ -411,4 +380,3 @@ async fetchExternalData(id: string): Promise<Data> {
 - [Validation](/docs/nestjs-crud-automator/guides/validation) - Handle validation errors
 - [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Error handling in subscribers
 - [API Reference - Interceptors](/docs/nestjs-crud-automator/api-reference/interceptors) - CorrelationID interceptor reference
-

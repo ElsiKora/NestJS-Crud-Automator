@@ -8,21 +8,21 @@ All execution contexts extend the base interface:
 
 ```typescript
 interface IApiSubscriberExecutionContext<E, Result, Input> {
-  /**
-   * The entity instance the operation is being performed on
-   */
-  readonly ENTITY: E;
+	/**
+	 * The entity instance the operation is being performed on
+	 */
+	readonly ENTITY: E;
 
-  /**
-   * Immutable container for metadata
-   * (e.g., transaction manager, HTTP headers, route info)
-   */
-  readonly DATA: Input;
+	/**
+	 * Immutable container for metadata
+	 * (e.g., transaction manager, HTTP headers, route info)
+	 */
+	readonly DATA: Input;
 
-  /**
-   * Mutable data payload that subscribers can modify
-   */
-  result: Result;
+	/**
+	 * Mutable data payload that subscribers can modify
+	 */
+	result: Result;
 }
 ```
 
@@ -32,18 +32,18 @@ Used in route (controller-level) subscribers:
 
 ```typescript
 interface IApiSubscriberRouteExecutionContext<E, Result> {
-  readonly ENTITY: E;
-  readonly DATA: {
-    readonly method: string;
-    readonly methodName: string;
-    readonly properties: IApiControllerProperties<E>;
-    readonly entityMetadata: IApiEntity<E>;
-    readonly authenticationRequest?: IApiAuthenticationRequest;
-    readonly headers: Record<string, string>;
-    readonly ip: string;
-  };
-  readonly ROUTE_TYPE: EApiRouteType;
-  result: Result;
+	readonly ENTITY: E;
+	readonly DATA: {
+		readonly method: string;
+		readonly methodName: string;
+		readonly properties: IApiControllerProperties<E>;
+		readonly entityMetadata: IApiEntity<E>;
+		readonly authenticationRequest?: IApiAuthenticationRequest;
+		readonly headers: Record<string, string>;
+		readonly ip: string;
+	};
+	readonly ROUTE_TYPE: EApiRouteType;
+	result: Result;
 }
 ```
 
@@ -91,13 +91,13 @@ Used in function (service-level) subscribers:
 
 ```typescript
 interface IApiSubscriberFunctionExecutionContext<E, Result> {
-  readonly ENTITY: E;
-  readonly DATA: {
-    readonly method: string;
-    readonly entityMetadata: IApiEntity<E>;
-    readonly transactionManager?: EntityManager;
-  };
-  result: Result;
+	readonly ENTITY: E;
+	readonly DATA: {
+		readonly method: string;
+		readonly entityMetadata: IApiEntity<E>;
+		readonly transactionManager?: EntityManager;
+	};
+	result: Result;
 }
 ```
 
@@ -138,17 +138,17 @@ async onBeforeCreate(
 
 ```typescript
 interface IApiSubscriberRouteErrorExecutionContext<E> {
-  readonly ENTITY: E;
-  readonly DATA: {
-    readonly method: string;
-    readonly methodName: string;
-    readonly properties: IApiControllerProperties<E>;
-    readonly entityMetadata: IApiEntity<E>;
-    readonly authenticationRequest?: IApiAuthenticationRequest;
-    readonly headers: Record<string, string>;
-    readonly ip: string;
-  };
-  readonly ROUTE_TYPE: EApiRouteType;
+	readonly ENTITY: E;
+	readonly DATA: {
+		readonly method: string;
+		readonly methodName: string;
+		readonly properties: IApiControllerProperties<E>;
+		readonly entityMetadata: IApiEntity<E>;
+		readonly authenticationRequest?: IApiAuthenticationRequest;
+		readonly headers: Record<string, string>;
+		readonly ip: string;
+	};
+	readonly ROUTE_TYPE: EApiRouteType;
 }
 ```
 
@@ -156,12 +156,12 @@ interface IApiSubscriberRouteErrorExecutionContext<E> {
 
 ```typescript
 interface IApiSubscriberFunctionErrorExecutionContext<E> {
-  readonly ENTITY: E;
-  readonly DATA: {
-    readonly method: string;
-    readonly entityMetadata: IApiEntity<E>;
-    readonly transactionManager?: EntityManager;
-  };
+	readonly ENTITY: E;
+	readonly DATA: {
+		readonly method: string;
+		readonly entityMetadata: IApiEntity<E>;
+		readonly transactionManager?: EntityManager;
+	};
 }
 ```
 
@@ -232,7 +232,7 @@ Execution contexts are generic and accept type parameters:
 // Result: Result type (varies by operation)
 // Input: Input data type (metadata)
 
-IApiSubscriberExecutionContext<E, Result, Input>
+IApiSubscriberExecutionContext<E, Result, Input>;
 ```
 
 ### Common Result Types
@@ -345,4 +345,3 @@ async onAfterErrorCreate(
 - [Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers) - Using function contexts
 - [Lifecycle](/docs/nestjs-crud-automator/subscriber-system/lifecycle) - Execution flow and order
 - [API Reference - Interfaces](/docs/nestjs-crud-automator/api-reference/interfaces) - Full context interfaces
-

@@ -4,7 +4,6 @@ import { ValidatorConstraint } from "class-validator";
 
 /**
  * Validator that ensures either all or none of the specified properties are provided.
- *
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/validators#allornoneoflistedpropertiesvalidator | API Reference - Validators}
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/guides/validation | Guides - Validation}
  */
