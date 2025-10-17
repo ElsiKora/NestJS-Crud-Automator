@@ -50,24 +50,24 @@ Example response:
 
 ```json
 {
-  "items": [
-    {
-      "id": "uuid-1",
-      "username": "john_doe",
-      "email": "john@example.com"
-    },
-    {
-      "id": "uuid-2",
-      "username": "jane_doe",
-      "email": "jane@example.com"
-    }
-  ],
-  "total": 50,
-  "page": 1,
-  "limit": 10,
-  "totalPages": 5,
-  "hasNextPage": true,
-  "hasPreviousPage": false
+	"items": [
+		{
+			"id": "uuid-1",
+			"username": "john_doe",
+			"email": "john@example.com"
+		},
+		{
+			"id": "uuid-2",
+			"username": "jane_doe",
+			"email": "jane@example.com"
+		}
+	],
+	"total": 50,
+	"page": 1,
+	"limit": 10,
+	"totalPages": 5,
+	"hasNextPage": true,
+	"hasPreviousPage": false
 }
 ```
 
@@ -93,32 +93,31 @@ import { UserEntity } from "./user.entity";
 
 @Injectable()
 export class UserReportService {
-  constructor(private readonly userService: UserService) {}
+	constructor(private readonly userService: UserService) {}
 
-  async getAllUsers(): Promise<UserEntity[]> {
-    const allUsers: UserEntity[] = [];
-    let page = 1;
-    const limit = 100;
-    let hasMore = true;
+	async getAllUsers(): Promise<UserEntity[]> {
+		const allUsers: UserEntity[] = [];
+		let page = 1;
+		const limit = 100;
+		let hasMore = true;
 
-    while (hasMore) {
-      const result: IApiGetListResponseResult<UserEntity> = 
-        await this.userService.getList(
-          {
-            where: {},
-            limit,
-            page,
-          },
-          {}
-        );
+		while (hasMore) {
+			const result: IApiGetListResponseResult<UserEntity> = await this.userService.getList(
+				{
+					where: {},
+					limit,
+					page,
+				},
+				{},
+			);
 
-      allUsers.push(...result.items);
-      hasMore = result.hasNextPage;
-      page++;
-    }
+			allUsers.push(...result.items);
+			hasMore = result.hasNextPage;
+			page++;
+		}
 
-    return allUsers;
-  }
+		return allUsers;
+	}
 }
 ```
 
@@ -152,31 +151,28 @@ import { MoreThan } from "typeorm";
 
 @Injectable()
 @ApiService<UserEntity>({
-  entity: UserEntity,
+	entity: UserEntity,
 })
 export class UserService extends ApiServiceBase<UserEntity> {
-  // ... constructor
+	// ... constructor
 
-  async getUsersAfter(
-    cursor: string,
-    limit: number = 20
-  ): Promise<{ items: UserEntity[]; nextCursor: string | null }> {
-    const users = await this.repository.find({
-      where: {
-        id: MoreThan(cursor),
-      },
-      order: {
-        id: "ASC",
-      },
-      take: limit + 1, // Fetch one extra to check if more exist
-    });
+	async getUsersAfter(cursor: string, limit: number = 20): Promise<{ items: UserEntity[]; nextCursor: string | null }> {
+		const users = await this.repository.find({
+			where: {
+				id: MoreThan(cursor),
+			},
+			order: {
+				id: "ASC",
+			},
+			take: limit + 1, // Fetch one extra to check if more exist
+		});
 
-    const hasMore = users.length > limit;
-    const items = hasMore ? users.slice(0, limit) : users;
-    const nextCursor = hasMore ? items[items.length - 1].id : null;
+		const hasMore = users.length > limit;
+		const items = hasMore ? users.slice(0, limit) : users;
+		const nextCursor = hasMore ? items[items.length - 1].id : null;
 
-    return { items, nextCursor };
-  }
+		return { items, nextCursor };
+	}
 }
 ```
 
@@ -186,29 +182,27 @@ Implement infinite scroll patterns:
 
 ```typescript filename="frontend-example.ts" copy
 class UserListComponent {
-  users: UserEntity[] = [];
-  page = 1;
-  limit = 20;
-  loading = false;
-  hasMore = true;
+	users: UserEntity[] = [];
+	page = 1;
+	limit = 20;
+	loading = false;
+	hasMore = true;
 
-  async loadMore(): Promise<void> {
-    if (this.loading || !this.hasMore) return;
+	async loadMore(): Promise<void> {
+		if (this.loading || !this.hasMore) return;
 
-    this.loading = true;
-    try {
-      const response = await fetch(
-        `/users?limit=${this.limit}&page=${this.page}`
-      );
-      const data = await response.json();
+		this.loading = true;
+		try {
+			const response = await fetch(`/users?limit=${this.limit}&page=${this.page}`);
+			const data = await response.json();
 
-      this.users.push(...data.items);
-      this.hasMore = data.hasNextPage;
-      this.page++;
-    } finally {
-      this.loading = false;
-    }
-  }
+			this.users.push(...data.items);
+			this.hasMore = data.hasNextPage;
+			this.page++;
+		} finally {
+			this.loading = false;
+		}
+	}
 }
 ```
 
@@ -217,11 +211,13 @@ class UserListComponent {
 ### Offset vs Cursor Pagination
 
 **Offset Pagination (default)**:
+
 - Pros: Simple to implement, supports jumping to any page
 - Cons: Performance degrades with large offsets
 - Best for: Small to medium datasets, when page jumping is needed
 
 **Cursor Pagination**:
+
 - Pros: Consistent performance regardless of position
 - Cons: Cannot jump to arbitrary pages
 - Best for: Large datasets, infinite scroll, real-time data
@@ -231,39 +227,38 @@ class UserListComponent {
 Total counts can be expensive on large tables. Consider:
 
 1. **Caching counts**:
+
 ```typescript
 @Injectable()
 export class UserService extends ApiServiceBase<UserEntity> {
-  private countCache: { value: number; timestamp: number } | null = null;
-  private readonly CACHE_TTL = 60000; // 1 minute
+	private countCache: { value: number; timestamp: number } | null = null;
+	private readonly CACHE_TTL = 60000; // 1 minute
 
-  async getList(properties, relations) {
-    const now = Date.now();
-    if (
-      !this.countCache ||
-      now - this.countCache.timestamp > this.CACHE_TTL
-    ) {
-      const total = await this.repository.count();
-      this.countCache = { value: total, timestamp: now };
-    }
+	async getList(properties, relations) {
+		const now = Date.now();
+		if (!this.countCache || now - this.countCache.timestamp > this.CACHE_TTL) {
+			const total = await this.repository.count();
+			this.countCache = { value: total, timestamp: now };
+		}
 
-    // Use cached count
-    const items = await this.repository.find({
-      skip: (properties.page - 1) * properties.limit,
-      take: properties.limit,
-    });
+		// Use cached count
+		const items = await this.repository.find({
+			skip: (properties.page - 1) * properties.limit,
+			take: properties.limit,
+		});
 
-    return {
-      items,
-      total: this.countCache.value,
-      page: properties.page,
-      limit: properties.limit,
-    };
-  }
+		return {
+			items,
+			total: this.countCache.value,
+			page: properties.page,
+			limit: properties.limit,
+		};
+	}
 }
 ```
 
 2. **Approximate counts** for very large tables:
+
 ```typescript
 // PostgreSQL approximate count
 const result = await this.repository.query(`
@@ -282,11 +277,11 @@ Ensure pagination queries are fast with proper indexes:
 @Entity("users")
 @Index(["createdAt", "id"]) // Composite index for pagination with sorting
 export class UserEntity {
-  @PrimaryGeneratedColumn("uuid")
-  id: string;
+	@PrimaryGeneratedColumn("uuid")
+	id: string;
 
-  @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
-  createdAt: Date;
+	@Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+	createdAt: Date;
 }
 ```
 
@@ -311,4 +306,3 @@ Handle empty result sets gracefully:
 - [Filtering and Sorting](/docs/nestjs-crud-automator/guides/filtering-and-sorting) - Filter paginated results
 - [Relations](/docs/nestjs-crud-automator/guides/relations) - Paginate with related entities
 - [Core Concepts - DTOs](/docs/nestjs-crud-automator/core-concepts/dtos) - Pagination DTO structure
-

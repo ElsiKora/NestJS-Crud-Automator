@@ -9,31 +9,26 @@ When you decorate entity properties with `@ApiPropertyDescribe`, the decorator s
 ```typescript
 @Entity("users")
 export class UserEntity {
-  @Column()
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.STRING,
-    description: "Username",
-    format: EApiPropertyStringType.STRING,
-    minLength: 3,
-    maxLength: 20,
-  })
-  username: string;
+	@Column()
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "Username",
+		format: EApiPropertyStringType.STRING,
+		minLength: 3,
+		maxLength: 20,
+	})
+	username: string;
 }
 ```
 
 Behind the scenes, `@ApiPropertyDescribe` calls:
 
 ```typescript
-MetadataStorage.getInstance().setMetadata(
-  "UserEntity",
-  "username",
-  "api-property-describe",
-  {
-    type: EApiPropertyDescribeType.STRING,
-    description: "Username",
-    // ... other properties
-  }
-);
+MetadataStorage.getInstance().setMetadata("UserEntity", "username", "api-property-describe", {
+	type: EApiPropertyDescribeType.STRING,
+	description: "Username",
+	// ... other properties
+});
 ```
 
 ## Singleton Pattern
@@ -69,11 +64,7 @@ MetadataStorage
 Retrieve metadata for a specific property:
 
 ```typescript
-const metadata = MetadataStorage.getInstance().getMetadata(
-  "UserEntity",
-  "username",
-  "api-property-describe"
-);
+const metadata = MetadataStorage.getInstance().getMetadata("UserEntity", "username", "api-property-describe");
 
 // Returns:
 // {
@@ -90,9 +81,7 @@ const metadata = MetadataStorage.getInstance().getMetadata(
 Retrieve metadata for all properties of an entity:
 
 ```typescript
-const allMetadata = MetadataStorage.getInstance().getAllMetadata(
-  "UserEntity"
-);
+const allMetadata = MetadataStorage.getInstance().getAllMetadata("UserEntity");
 
 // Returns object with all properties and their metadata
 ```
@@ -102,11 +91,7 @@ const allMetadata = MetadataStorage.getInstance().getAllMetadata(
 Verify if metadata exists for a property:
 
 ```typescript
-const exists = MetadataStorage.getInstance().hasMetadata(
-  "UserEntity",
-  "username",
-  "api-property-describe"
-);
+const exists = MetadataStorage.getInstance().hasMetadata("UserEntity", "username", "api-property-describe");
 ```
 
 ## Usage in Library
@@ -116,6 +101,7 @@ The library uses MetadataStorage internally for:
 ### DTO Generation
 
 When generating DTOs, the library retrieves property metadata to determine:
+
 - Which properties to include
 - Validation rules to apply
 - Swagger documentation to generate
@@ -124,19 +110,20 @@ When generating DTOs, the library retrieves property metadata to determine:
 ```typescript
 // Simplified example of DTO generation
 function generateDto(entityName: string) {
-  const metadata = MetadataStorage.getInstance().getAllMetadata(entityName);
-  
-  for (const [propertyName, propertyMetadata] of Object.entries(metadata)) {
-    // Apply validation decorators based on metadata
-    // Generate Swagger documentation
-    // Set default values
-  }
+	const metadata = MetadataStorage.getInstance().getAllMetadata(entityName);
+
+	for (const [propertyName, propertyMetadata] of Object.entries(metadata)) {
+		// Apply validation decorators based on metadata
+		// Generate Swagger documentation
+		// Set default values
+	}
 }
 ```
 
 ### Controller Factory
 
 The ApiControllerFactory uses metadata to:
+
 - Configure route handlers
 - Generate request/response DTOs
 - Set up validation pipelines
@@ -145,6 +132,7 @@ The ApiControllerFactory uses metadata to:
 ### Entity Analysis
 
 The `analyzeEntityMetadata` utility function uses MetadataStorage to:
+
 - Identify primary keys
 - Detect relations
 - Validate property configurations
@@ -160,19 +148,10 @@ import { MetadataStorage } from "@elsikora/nestjs-crud-automator";
 const storage = MetadataStorage.getInstance();
 
 // Store custom metadata
-storage.setMetadata(
-  "CustomEntity",
-  "customProperty",
-  "custom-key",
-  { customData: "value" }
-);
+storage.setMetadata("CustomEntity", "customProperty", "custom-key", { customData: "value" });
 
 // Retrieve custom metadata
-const customMetadata = storage.getMetadata(
-  "CustomEntity",
-  "customProperty",
-  "custom-key"
-);
+const customMetadata = storage.getMetadata("CustomEntity", "customProperty", "custom-key");
 ```
 
 ## Metadata Keys
@@ -189,6 +168,7 @@ MetadataStorage is designed to be thread-safe in Node.js single-threaded environ
 ## Memory Considerations
 
 Metadata is stored in memory for the lifetime of the application. This is typically not a concern as:
+
 - Metadata is defined at compile time
 - The amount of metadata is proportional to entity complexity
 - No dynamic metadata accumulation occurs during runtime
@@ -228,28 +208,15 @@ For advanced use cases, you can extend metadata storage functionality:
 import { MetadataStorage } from "@elsikora/nestjs-crud-automator";
 
 class CustomMetadataManager {
-  private storage = MetadataStorage.getInstance();
+	private storage = MetadataStorage.getInstance();
 
-  storeCustomMetadata(
-    entityName: string,
-    propertyName: string,
-    customData: any
-  ): void {
-    this.storage.setMetadata(
-      entityName,
-      propertyName,
-      "custom-metadata-key",
-      customData
-    );
-  }
+	storeCustomMetadata(entityName: string, propertyName: string, customData: any): void {
+		this.storage.setMetadata(entityName, propertyName, "custom-metadata-key", customData);
+	}
 
-  getCustomMetadata(entityName: string, propertyName: string): any {
-    return this.storage.getMetadata(
-      entityName,
-      propertyName,
-      "custom-metadata-key"
-    );
-  }
+	getCustomMetadata(entityName: string, propertyName: string): any {
+		return this.storage.getMetadata(entityName, propertyName, "custom-metadata-key");
+	}
 }
 ```
 
@@ -258,4 +225,3 @@ class CustomMetadataManager {
 - [Entities](/docs/nestjs-crud-automator/core-concepts/entities) - Configure entity properties
 - [DTOs](/docs/nestjs-crud-automator/core-concepts/dtos) - Understand DTO generation
 - [API Reference - Classes](/docs/nestjs-crud-automator/api-reference/classes) - MetadataStorage API reference
-

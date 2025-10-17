@@ -11,10 +11,11 @@ Generates entity metadata from entity class.
 **Location:** `src/utility/generate-entity-information.utility.ts`
 
 ```typescript
-function GenerateEntityInformation<E>(entity: Type<E>): IApiEntity<E>
+function GenerateEntityInformation<E>(entity: Type<E>): IApiEntity<E>;
 ```
 
 **Usage:**
+
 ```typescript
 const entityInfo = GenerateEntityInformation(UserEntity);
 // Returns: { name: "UserEntity", primaryKey: "id", columns: [...], relations: [...] }
@@ -27,7 +28,7 @@ Gets all column names from an entity.
 **Location:** `src/utility/get-entity-columns.utility.ts`
 
 ```typescript
-function getEntityColumns<E>(entity: Type<E>): string[]
+function getEntityColumns<E>(entity: Type<E>): string[];
 ```
 
 ## DTO Utilities
@@ -39,7 +40,7 @@ Analyzes entity metadata for DTO generation.
 **Location:** `src/utility/dto/analize.utility.ts`
 
 ```typescript
-function analyzeEntityMetadata<E>(entity: Type<E>): void
+function analyzeEntityMetadata<E>(entity: Type<E>): void;
 ```
 
 **Internal Use:** Called automatically by controller factory.
@@ -51,7 +52,7 @@ Generates DTO classes from entity metadata.
 **Location:** `src/utility/dto/generate.utility.ts`
 
 ```typescript
-function DtoGenerate(/* parameters */): Type<any>
+function DtoGenerate(/* parameters */): Type<any>;
 ```
 
 **Internal Use:** Called automatically for DTO generation.
@@ -65,13 +66,14 @@ Converts string to camelCase.
 **Location:** `src/utility/camel-case-string.utility.ts`
 
 ```typescript
-function camelCaseString(input: string): string
+function camelCaseString(input: string): string;
 ```
 
 **Example:**
+
 ```typescript
-camelCaseString("user_name") // Returns: "userName"
-camelCaseString("UserName") // Returns: "userName"
+camelCaseString("user_name"); // Returns: "userName"
+camelCaseString("UserName"); // Returns: "userName"
 ```
 
 ### capitalizeString
@@ -81,12 +83,13 @@ Capitalizes first letter of string.
 **Location:** `src/utility/capitalize-string.utility.ts`
 
 ```typescript
-function capitalizeString(input: string): string
+function capitalizeString(input: string): string;
 ```
 
 **Example:**
+
 ```typescript
-capitalizeString("hello") // Returns: "Hello"
+capitalizeString("hello"); // Returns: "Hello"
 ```
 
 ## Error Utilities
@@ -98,14 +101,15 @@ Creates formatted error messages.
 **Location:** `src/utility/error-exception.utility.ts`
 
 ```typescript
-function ErrorException(message: string, context?: any): Error
+function ErrorException(message: string, context?: any): Error;
 ```
 
 **Example:**
+
 ```typescript
 throw ErrorException("Invalid entity configuration", {
-  entity: "UserEntity",
-  field: "id"
+	entity: "UserEntity",
+	field: "id",
 });
 ```
 
@@ -116,7 +120,7 @@ Formats error objects to strings.
 **Location:** `src/utility/error-string.utility.ts`
 
 ```typescript
-function errorString(error: unknown): string
+function errorString(error: unknown): string;
 ```
 
 ### isErrorOfType
@@ -126,16 +130,14 @@ Checks if error is of specific type.
 **Location:** `src/utility/is-error-of-type.utility.ts`
 
 ```typescript
-function isErrorOfType<T extends Error>(
-  error: unknown,
-  errorType: Type<T>
-): error is T
+function isErrorOfType<T extends Error>(error: unknown, errorType: Type<T>): error is T;
 ```
 
 **Example:**
+
 ```typescript
 if (isErrorOfType(error, ValidationError)) {
-  // Handle validation error
+	// Handle validation error
 }
 ```
 
@@ -149,14 +151,15 @@ Logging utility for internal use.
 
 ```typescript
 class LoggerUtility {
-  static log(message: string, context?: string): void
-  static error(message: string, trace?: string, context?: string): void
-  static warn(message: string, context?: string): void
-  static debug(message: string, context?: string): void
+	static log(message: string, context?: string): void;
+	static error(message: string, trace?: string, context?: string): void;
+	static warn(message: string, context?: string): void;
+	static debug(message: string, context?: string): void;
 }
 ```
 
 **Example:**
+
 ```typescript
 LoggerUtility.log("Operation completed", "UserService");
 LoggerUtility.error("Operation failed", error.stack, "UserService");
@@ -195,9 +198,7 @@ Gets primary column from entity.
 **Location:** `src/utility/api/controller/get-primary-column.utility.ts`
 
 ```typescript
-function ApiControllerGetPrimaryColumn<E>(
-  entity: Type<E>
-): IApiControllerPrimaryColumn
+function ApiControllerGetPrimaryColumn<E>(entity: Type<E>): IApiControllerPrimaryColumn;
 ```
 
 ### ApiControllerHandleRequestRelations
@@ -271,4 +272,3 @@ Generates order by options from entity.
 - [Validators](/docs/nestjs-crud-automator/api-reference/validators) - Custom validators
 - [Interceptors](/docs/nestjs-crud-automator/api-reference/interceptors) - Interceptors reference
 - [Classes](/docs/nestjs-crud-automator/api-reference/classes) - Base classes
-

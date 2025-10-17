@@ -8,20 +8,16 @@ Extend `ApiRouteSubscriberBase` and decorate with `@ApiRouteSubscriber`:
 
 ```typescript filename="post-audit.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import {
-  ApiRouteSubscriber,
-  ApiRouteSubscriberBase,
-  IApiSubscriberRouteExecutionContext
-} from "@elsikora/nestjs-crud-automator";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteExecutionContext } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 
 @Injectable()
 @ApiRouteSubscriber({
-  entity: PostEntity,
-  priority: 10, // Higher priority executes first
+	entity: PostEntity,
+	priority: 10, // Higher priority executes first
 })
 export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-  // Implement hook methods
+	// Implement hook methods
 }
 ```
 
@@ -89,7 +85,7 @@ async onBeforeDelete(
   context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
 ): Promise<PostEntity | undefined> {
   const user = context.DATA.authenticationRequest?.user;
-  
+
   // Check ownership before deletion
   if (context.ENTITY.authorId !== user?.id && user?.role !== "admin") {
     throw new ForbiddenException("You can only delete your own posts");
@@ -278,17 +274,17 @@ async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any>
 @Injectable()
 @ApiRouteSubscriber({ entity: SensitiveEntity, priority: 100 })
 export class IpRestrictionSubscriber extends ApiRouteSubscriberBase<SensitiveEntity> {
-  private readonly allowedIps = ["192.168.1.1", "10.0.0.1"];
+	private readonly allowedIps = ["192.168.1.1", "10.0.0.1"];
 
-  async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
-    const clientIp = context.DATA.ip;
+	async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
+		const clientIp = context.DATA.ip;
 
-    if (!this.allowedIps.includes(clientIp)) {
-      throw new ForbiddenException(`Access denied from IP: ${clientIp}`);
-    }
+		if (!this.allowedIps.includes(clientIp)) {
+			throw new ForbiddenException(`Access denied from IP: ${clientIp}`);
+		}
 
-    return context.result;
-  }
+		return context.result;
+	}
 }
 ```
 
@@ -298,29 +294,29 @@ export class IpRestrictionSubscriber extends ApiRouteSubscriberBase<SensitiveEnt
 @Injectable()
 @ApiRouteSubscriber({ entity: PostEntity, priority: 90 })
 export class UserRateLimitSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-  private readonly userLimits = new Map<string, { count: number; resetAt: number }>();
+	private readonly userLimits = new Map<string, { count: number; resetAt: number }>();
 
-  async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
-    const userId = context.DATA.authenticationRequest?.user?.id;
-    if (!userId) return context.result;
+	async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
+		const userId = context.DATA.authenticationRequest?.user?.id;
+		if (!userId) return context.result;
 
-    const now = Date.now();
-    const userLimit = this.userLimits.get(userId);
+		const now = Date.now();
+		const userLimit = this.userLimits.get(userId);
 
-    if (userLimit && userLimit.resetAt > now) {
-      if (userLimit.count >= 10) {
-        throw new TooManyRequestsException("Rate limit exceeded");
-      }
-      userLimit.count++;
-    } else {
-      this.userLimits.set(userId, {
-        count: 1,
-        resetAt: now + 60000, // 1 minute
-      });
-    }
+		if (userLimit && userLimit.resetAt > now) {
+			if (userLimit.count >= 10) {
+				throw new TooManyRequestsException("Rate limit exceeded");
+			}
+			userLimit.count++;
+		} else {
+			this.userLimits.set(userId, {
+				count: 1,
+				resetAt: now + 60000, // 1 minute
+			});
+		}
 
-    return context.result;
-  }
+		return context.result;
+	}
 }
 ```
 
@@ -330,21 +326,21 @@ export class UserRateLimitSubscriber extends ApiRouteSubscriberBase<PostEntity> 
 @Injectable()
 @ApiRouteSubscriber({ entity: PostEntity, priority: 80 })
 export class ContentModerationSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-  constructor(private readonly moderationService: ModerationService) {
-    super();
-  }
+	constructor(private readonly moderationService: ModerationService) {
+		super();
+	}
 
-  async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
-    const { body } = context.result;
+	async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
+		const { body } = context.result;
 
-    const isInappropriate = await this.moderationService.check(body.content);
+		const isInappropriate = await this.moderationService.check(body.content);
 
-    if (isInappropriate) {
-      throw new BadRequestException("Content contains inappropriate material");
-    }
+		if (isInappropriate) {
+			throw new BadRequestException("Content contains inappropriate material");
+		}
 
-    return context.result;
-  }
+		return context.result;
+	}
 }
 ```
 
@@ -354,43 +350,43 @@ export class ContentModerationSubscriber extends ApiRouteSubscriberBase<PostEnti
 @Injectable()
 @ApiRouteSubscriber({ entity: PostEntity, priority: 50 })
 export class PostNotificationSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-  constructor(
-    private readonly notificationService: NotificationService,
-    private readonly followerService: FollowerService
-  ) {
-    super();
-  }
+	constructor(
+		private readonly notificationService: NotificationService,
+		private readonly followerService: FollowerService,
+	) {
+		super();
+	}
 
-  async onAfterCreate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
-    const post = context.result;
-    const author = context.DATA.authenticationRequest?.user;
+	async onAfterCreate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+		const post = context.result;
+		const author = context.DATA.authenticationRequest?.user;
 
-    // Notify followers
-    const followers = await this.followerService.getFollowers(author.id);
-    
-    for (const follower of followers) {
-      await this.notificationService.send({
-        userId: follower.id,
-        type: "new_post",
-        data: { postId: post.id, authorId: author.id },
-      });
-    }
+		// Notify followers
+		const followers = await this.followerService.getFollowers(author.id);
 
-    return post;
-  }
+		for (const follower of followers) {
+			await this.notificationService.send({
+				userId: follower.id,
+				type: "new_post",
+				data: { postId: post.id, authorId: author.id },
+			});
+		}
 
-  async onAfterUpdate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
-    const post = context.result;
+		return post;
+	}
 
-    // Notify post author of update
-    await this.notificationService.send({
-      userId: post.authorId,
-      type: "post_updated",
-      data: { postId: post.id },
-    });
+	async onAfterUpdate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+		const post = context.result;
 
-    return post;
-  }
+		// Notify post author of update
+		await this.notificationService.send({
+			userId: post.authorId,
+			type: "post_updated",
+			data: { postId: post.id },
+		});
+
+		return post;
+	}
 }
 ```
 
@@ -417,4 +413,3 @@ export class LoggingSubscriber extends ApiRouteSubscriberBase<PostEntity> {}
 - [Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers) - Service-level hooks
 - [Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context) - Context interfaces reference
 - [Lifecycle](/docs/nestjs-crud-automator/subscriber-system/lifecycle) - Detailed execution flow
-

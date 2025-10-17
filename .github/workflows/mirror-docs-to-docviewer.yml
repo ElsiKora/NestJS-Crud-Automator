@@ -1,6 +1,5 @@
 name: Mirror Docs to ElsiKora-Frontend
 
-
 env:
   CHECKOUT_DEPTH: 0
   DESTINATION_REPOSITORY_NAME: ElsiKora/ElsiKora-Frontend
@@ -82,4 +81,3 @@ jobs:
 
           git add .
           git diff --quiet && git diff --staged --quiet || (git commit -m "docs(documentation): sync docs from ${{ steps.vars.outputs.REPO_NAME }} repo on ${{ steps.vars.outputs.DATE }}" && git push --set-upstream origin "$BRANCH_NAME")
-

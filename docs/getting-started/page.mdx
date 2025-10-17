@@ -1,4 +1,4 @@
-import { Tabs } from 'nextra/components'
+import { Tabs } from "nextra/components";
 
 # Getting Started
 
@@ -6,27 +6,11 @@ This guide will walk you through the basic setup and usage of NestJS CRUD Automa
 
 ## Installation
 
-<Tabs items={['npm', 'yarn', 'pnpm', 'bun']} storageKey="nestjs-crud-automator-install-tabs">
-  <Tabs.Tab>
-    ```bash copy
-    npm install @elsikora/nestjs-crud-automator
-    ```
-  </Tabs.Tab>
-  <Tabs.Tab>
-    ```bash copy
-    yarn add @elsikora/nestjs-crud-automator
-    ```
-  </Tabs.Tab>
-  <Tabs.Tab>
-    ```bash copy
-    pnpm add @elsikora/nestjs-crud-automator
-    ```
-  </Tabs.Tab>
-  <Tabs.Tab>
-    ```bash copy
-    bun install @elsikora/nestjs-crud-automator
-    ```
-  </Tabs.Tab>
+<Tabs items={["npm", "yarn", "pnpm", "bun"]} storageKey="nestjs-crud-automator-install-tabs">
+	<Tabs.Tab>```bash copy npm install @elsikora/nestjs-crud-automator ```</Tabs.Tab>
+	<Tabs.Tab>```bash copy yarn add @elsikora/nestjs-crud-automator ```</Tabs.Tab>
+	<Tabs.Tab>```bash copy pnpm add @elsikora/nestjs-crud-automator ```</Tabs.Tab>
+	<Tabs.Tab>```bash copy bun install @elsikora/nestjs-crud-automator ```</Tabs.Tab>
 </Tabs>
 
 ## Prerequisites
@@ -53,61 +37,55 @@ Define your entity with `ApiPropertyDescribe` decorators to provide metadata for
 
 ```typescript filename="user.entity.ts" copy
 import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
-import {
-  ApiPropertyDescribe,
-  EApiPropertyDescribeType,
-  EApiPropertyStringType,
-  EApiPropertyDateIdentifier,
-  EApiPropertyDateType
-} from "@elsikora/nestjs-crud-automator";
+import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "@elsikora/nestjs-crud-automator";
 
 @Entity("users")
 export class UserEntity {
-  @PrimaryGeneratedColumn("uuid")
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.UUID,
-    description: "User unique identifier",
-  })
-  id: string;
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.UUID,
+		description: "User unique identifier",
+	})
+	id: string;
 
-  @Column()
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.STRING,
-    description: "User name",
-    format: EApiPropertyStringType.STRING,
-    minLength: 3,
-    maxLength: 50,
-    pattern: "/^[a-zA-Z0-9_-]+$/",
-    exampleValue: "john_doe",
-  })
-  username: string;
+	@Column()
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "User name",
+		format: EApiPropertyStringType.STRING,
+		minLength: 3,
+		maxLength: 50,
+		pattern: "/^[a-zA-Z0-9_-]+$/",
+		exampleValue: "john_doe",
+	})
+	username: string;
 
-  @Column()
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.STRING,
-    description: "User email",
-    format: EApiPropertyStringType.EMAIL,
-    minLength: 5,
-    maxLength: 255,
-    exampleValue: "user@example.com",
-  })
-  email: string;
+	@Column()
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "User email",
+		format: EApiPropertyStringType.EMAIL,
+		minLength: 5,
+		maxLength: 255,
+		exampleValue: "user@example.com",
+	})
+	email: string;
 
-  @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.DATE,
-    identifier: EApiPropertyDateIdentifier.CREATED_AT,
-    format: EApiPropertyDateType.DATE_TIME,
-  })
-  createdAt: Date;
+	@Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.DATE,
+		identifier: EApiPropertyDateIdentifier.CREATED_AT,
+		format: EApiPropertyDateType.DATE_TIME,
+	})
+	createdAt: Date;
 
-  @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", onUpdate: "CURRENT_TIMESTAMP" })
-  @ApiPropertyDescribe({
-    type: EApiPropertyDescribeType.DATE,
-    identifier: EApiPropertyDateIdentifier.UPDATED_AT,
-    format: EApiPropertyDateType.DATE_TIME,
-  })
-  updatedAt: Date;
+	@Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", onUpdate: "CURRENT_TIMESTAMP" })
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.DATE,
+		identifier: EApiPropertyDateIdentifier.UPDATED_AT,
+		format: EApiPropertyDateType.DATE_TIME,
+	})
+	updatedAt: Date;
 }
 ```
 
@@ -124,20 +102,20 @@ import { UserEntity } from "./user.entity";
 
 @Injectable()
 @ApiService<UserEntity>({
-  entity: UserEntity,
+	entity: UserEntity,
 })
 export class UserService extends ApiServiceBase<UserEntity> {
-  constructor(
-    @InjectRepository(UserEntity)
-    public repository: Repository<UserEntity>,
-  ) {
-    super();
-  }
+	constructor(
+		@InjectRepository(UserEntity)
+		public repository: Repository<UserEntity>,
+	) {
+		super();
+	}
 
-  // Add custom methods beyond basic CRUD
-  async findByEmail(email: string): Promise<UserEntity | undefined> {
-    return this.repository.findOne({ where: { email } });
-  }
+	// Add custom methods beyond basic CRUD
+	async findByEmail(email: string): Promise<UserEntity | undefined> {
+		return this.repository.findOne({ where: { email } });
+	}
 }
 ```
 
@@ -153,18 +131,18 @@ import { UserService } from "./user.service";
 
 @Controller("users")
 @ApiController<UserEntity>({
-  entity: UserEntity,
-  name: "Users",
-  routes: {
-    [EApiRouteType.CREATE]: {},
-    [EApiRouteType.UPDATE]: {},
-    [EApiRouteType.DELETE]: {},
-    [EApiRouteType.GET]: {},
-    [EApiRouteType.GET_LIST]: {},
-  },
+	entity: UserEntity,
+	name: "Users",
+	routes: {
+		[EApiRouteType.CREATE]: {},
+		[EApiRouteType.UPDATE]: {},
+		[EApiRouteType.DELETE]: {},
+		[EApiRouteType.GET]: {},
+		[EApiRouteType.GET_LIST]: {},
+	},
 })
 export class UserController {
-  constructor(public service: UserService) {}
+	constructor(public service: UserService) {}
 }
 ```
 
@@ -180,10 +158,10 @@ import { UserService } from "./user.service";
 import { UserController } from "./user.controller";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([UserEntity])],
-  providers: [UserService],
-  controllers: [UserController],
-  exports: [UserService],
+	imports: [TypeOrmModule.forFeature([UserEntity])],
+	providers: [UserService],
+	controllers: [UserController],
+	exports: [UserService],
 })
 export class UserModule {}
 ```
@@ -208,19 +186,14 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+	const app = await NestFactory.create(AppModule);
 
-  const config = new DocumentBuilder()
-    .setTitle("Your API")
-    .setDescription("API description")
-    .setVersion("1.0")
-    .addBearerAuth()
-    .build();
+	const config = new DocumentBuilder().setTitle("Your API").setDescription("API description").setVersion("1.0").addBearerAuth().build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup("api", app, document);
+	const document = SwaggerModule.createDocument(app, config);
+	SwaggerModule.setup("api", app, document);
 
-  await app.listen(3000);
+	await app.listen(3000);
 }
 bootstrap();
 ```
@@ -233,4 +206,3 @@ Now that you have a basic setup, explore the following sections:
 - [Guides](/docs/nestjs-crud-automator/guides) - Learn filtering, authentication, validation, and more
 - [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Add hooks to extend CRUD operations
 - [API Reference](/docs/nestjs-crud-automator/api-reference) - Detailed API documentation
-

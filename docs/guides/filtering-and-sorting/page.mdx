@@ -227,6 +227,7 @@ GET /users?orderBy=createdAt&orderDirection=DESC
 ```
 
 Available directions:
+
 - `ASC` - Ascending order
 - `DESC` - Descending order
 
@@ -248,24 +249,24 @@ Use filters programmatically in services:
 import { EFilterOperation } from "@elsikora/nestjs-crud-automator";
 
 const users = await userService.getList(
-  {
-    where: {
-      username: {
-        operator: EFilterOperation.CONT,
-        value: "john",
-      },
-      age: {
-        operator: EFilterOperation.GTE,
-        value: 18,
-      },
-    },
-    order: {
-      createdAt: "DESC",
-    },
-    limit: 10,
-    page: 1,
-  },
-  {}
+	{
+		where: {
+			username: {
+				operator: EFilterOperation.CONT,
+				value: "john",
+			},
+			age: {
+				operator: EFilterOperation.GTE,
+				value: 18,
+			},
+		},
+		order: {
+			createdAt: "DESC",
+		},
+		limit: 10,
+		page: 1,
+	},
+	{},
 );
 ```
 
@@ -337,7 +338,7 @@ Create composite indexes for common filter combinations:
 @Entity("posts")
 @Index(["authorId", "status"])
 export class PostEntity {
-  // ...
+	// ...
 }
 ```
 
@@ -346,4 +347,3 @@ export class PostEntity {
 - [Pagination](/docs/nestjs-crud-automator/guides/pagination) - Paginate filtered results
 - [Relations](/docs/nestjs-crud-automator/guides/relations) - Filter on related entities
 - [API Reference - Enums](/docs/nestjs-crud-automator/api-reference/enums) - All filter operations reference
-

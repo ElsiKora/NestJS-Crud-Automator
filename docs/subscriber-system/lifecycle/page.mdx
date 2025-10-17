@@ -112,28 +112,28 @@ Execute in priority order (high to low):
 // Priority 100 executes first
 @ApiRouteSubscriber({ entity: Post, priority: 100 })
 export class SecuritySubscriber {
-  async onBeforeCreate(context) {
-    console.log("1. Security check");
-    return context.result;
-  }
+	async onBeforeCreate(context) {
+		console.log("1. Security check");
+		return context.result;
+	}
 }
 
 // Priority 50 executes second
 @ApiRouteSubscriber({ entity: Post, priority: 50 })
 export class ValidationSubscriber {
-  async onBeforeCreate(context) {
-    console.log("2. Validation");
-    return context.result;
-  }
+	async onBeforeCreate(context) {
+		console.log("2. Validation");
+		return context.result;
+	}
 }
 
 // Priority 10 executes last
 @ApiRouteSubscriber({ entity: Post, priority: 10 })
 export class LoggingSubscriber {
-  async onBeforeCreate(context) {
-    console.log("3. Logging");
-    return context.result;
-  }
+	async onBeforeCreate(context) {
+		console.log("3. Logging");
+		return context.result;
+	}
 }
 ```
 
@@ -145,28 +145,28 @@ Execute in reverse priority order (low to high):
 // Priority 10 executes first
 @ApiRouteSubscriber({ entity: Post, priority: 10 })
 export class LoggingSubscriber {
-  async onAfterCreate(context) {
-    console.log("1. Logging result");
-    return context.result;
-  }
+	async onAfterCreate(context) {
+		console.log("1. Logging result");
+		return context.result;
+	}
 }
 
 // Priority 50 executes second
 @ApiRouteSubscriber({ entity: Post, priority: 50 })
 export class CacheSubscriber {
-  async onAfterCreate(context) {
-    console.log("2. Update cache");
-    return context.result;
-  }
+	async onAfterCreate(context) {
+		console.log("2. Update cache");
+		return context.result;
+	}
 }
 
 // Priority 100 executes last
 @ApiRouteSubscriber({ entity: Post, priority: 100 })
 export class NotificationSubscriber {
-  async onAfterCreate(context) {
-    console.log("3. Send notifications");
-    return context.result;
-  }
+	async onAfterCreate(context) {
+		console.log("3. Send notifications");
+		return context.result;
+	}
 }
 ```
 
@@ -177,30 +177,30 @@ export class NotificationSubscriber {
 @Injectable()
 @ApiRouteSubscriber({ entity: PostEntity, priority: 50 })
 export class PostRouteSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-  async onBeforeCreate(context: any): Promise<any> {
-    console.log("[Route] onBeforeCreate - START");
-    return context.result;
-  }
+	async onBeforeCreate(context: any): Promise<any> {
+		console.log("[Route] onBeforeCreate - START");
+		return context.result;
+	}
 
-  async onAfterCreate(context: any): Promise<PostEntity> {
-    console.log("[Route] onAfterCreate - END");
-    return context.result;
-  }
+	async onAfterCreate(context: any): Promise<PostEntity> {
+		console.log("[Route] onAfterCreate - END");
+		return context.result;
+	}
 }
 
 // Function Subscriber
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity, priority: 50 })
 export class PostFunctionSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-  async onBeforeCreate(context: any): Promise<any> {
-    console.log("[Function] onBeforeCreate - START");
-    return context.result;
-  }
+	async onBeforeCreate(context: any): Promise<any> {
+		console.log("[Function] onBeforeCreate - START");
+		return context.result;
+	}
 
-  async onAfterCreate(context: any): Promise<PostEntity> {
-    console.log("[Function] onAfterCreate - END");
-    return context.result;
-  }
+	async onAfterCreate(context: any): Promise<PostEntity> {
+		console.log("[Function] onAfterCreate - END");
+		return context.result;
+	}
 }
 
 // Service
@@ -208,10 +208,10 @@ export class PostFunctionSubscriber extends ApiFunctionSubscriberBase<PostEntity
 @ApiService({ entity: PostEntity })
 @ApiServiceObservable()
 export class PostService extends ApiServiceBase<PostEntity> {
-  async create(properties: any): Promise<PostEntity> {
-    console.log("[Service] create - Repository operation");
-    return super.create(properties);
-  }
+	async create(properties: any): Promise<PostEntity> {
+		console.log("[Service] create - Repository operation");
+		return super.create(properties);
+	}
 }
 
 // Console output for POST /posts:
@@ -332,22 +332,22 @@ export class NotificationSubscriber {}
 // Good: One responsibility per subscriber
 @ApiFunctionSubscriber({ entity: Post })
 export class SlugGeneratorSubscriber {
-  async onBeforeCreate(context: any) {
-    context.result.body.slug = this.generateSlug(context.result.body.title);
-    return context.result;
-  }
+	async onBeforeCreate(context: any) {
+		context.result.body.slug = this.generateSlug(context.result.body.title);
+		return context.result;
+	}
 }
 
 // Bad: Multiple responsibilities
 @ApiFunctionSubscriber({ entity: Post })
 export class MixedSubscriber {
-  async onBeforeCreate(context: any) {
-    // Don't do this
-    context.result.body.slug = this.generateSlug(context.result.body.title);
-    await this.sendNotification();
-    await this.updateCache();
-    return context.result;
-  }
+	async onBeforeCreate(context: any) {
+		// Don't do this
+		context.result.body.slug = this.generateSlug(context.result.body.title);
+		await this.sendNotification();
+		await this.updateCache();
+		return context.result;
+	}
 }
 ```
 
@@ -373,4 +373,3 @@ async onAfterErrorCreate(
 - [Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers) - Implementing route hooks
 - [Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers) - Implementing function hooks
 - [Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context) - Understanding contexts
-

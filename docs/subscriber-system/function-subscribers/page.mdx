@@ -8,21 +8,16 @@ Extend `ApiFunctionSubscriberBase` and decorate with `@ApiFunctionSubscriber`:
 
 ```typescript filename="post-slug.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import {
-  ApiFunctionSubscriber,
-  ApiFunctionSubscriberBase,
-  IApiSubscriberFunctionExecutionContext,
-  TApiFunctionCreateProperties
-} from "@elsikora/nestjs-crud-automator";
+import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, IApiSubscriberFunctionExecutionContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 
 @Injectable()
 @ApiFunctionSubscriber({
-  entity: PostEntity,
-  priority: 10, // Higher priority executes first
+	entity: PostEntity,
+	priority: 10, // Higher priority executes first
 })
 export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-  // Implement hook methods
+	// Implement hook methods
 }
 ```
 
@@ -225,44 +220,39 @@ import slugify from "slugify";
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity })
 export class SlugGeneratorSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-  async onBeforeCreate(
-    context: IApiSubscriberFunctionExecutionContext<
-      PostEntity,
-      TApiFunctionCreateProperties<PostEntity>
-    >
-  ): Promise<TApiFunctionCreateProperties<PostEntity>> {
-    const { body } = context.result;
+	async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, TApiFunctionCreateProperties<PostEntity>>): Promise<TApiFunctionCreateProperties<PostEntity>> {
+		const { body } = context.result;
 
-    if (body.title && !body.slug) {
-      body.slug = slugify(body.title, {
-        lower: true,
-        strict: true,
-        trim: true,
-      });
+		if (body.title && !body.slug) {
+			body.slug = slugify(body.title, {
+				lower: true,
+				strict: true,
+				trim: true,
+			});
 
-      // Ensure uniqueness
-      body.slug = await this.ensureUniqueSlug(body.slug);
-    }
+			// Ensure uniqueness
+			body.slug = await this.ensureUniqueSlug(body.slug);
+		}
 
-    return context.result;
-  }
+		return context.result;
+	}
 
-  private async ensureUniqueSlug(baseSlug: string): Promise<string> {
-    let slug = baseSlug;
-    let counter = 1;
+	private async ensureUniqueSlug(baseSlug: string): Promise<string> {
+		let slug = baseSlug;
+		let counter = 1;
 
-    while (await this.slugExists(slug)) {
-      slug = `${baseSlug}-${counter}`;
-      counter++;
-    }
+		while (await this.slugExists(slug)) {
+			slug = `${baseSlug}-${counter}`;
+			counter++;
+		}
 
-    return slug;
-  }
+		return slug;
+	}
 
-  private async slugExists(slug: string): Promise<boolean> {
-    const count = await this.repository.count({ where: { slug } });
-    return count > 0;
-  }
+	private async slugExists(slug: string): Promise<boolean> {
+		const count = await this.repository.count({ where: { slug } });
+		return count > 0;
+	}
 }
 ```
 
@@ -272,46 +262,40 @@ export class SlugGeneratorSubscriber extends ApiFunctionSubscriberBase<PostEntit
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity })
 export class SearchIndexSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-  constructor(
-    @InjectRepository(PostEntity)
-    public repository: Repository<PostEntity>,
-    private readonly searchService: SearchService
-  ) {
-    super();
-  }
+	constructor(
+		@InjectRepository(PostEntity)
+		public repository: Repository<PostEntity>,
+		private readonly searchService: SearchService,
+	) {
+		super();
+	}
 
-  async onAfterCreate(
-    context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>
-  ): Promise<PostEntity> {
-    await this.searchService.indexDocument({
-      id: context.result.id,
-      title: context.result.title,
-      content: context.result.content,
-      tags: context.result.tags,
-    });
+	async onAfterCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+		await this.searchService.indexDocument({
+			id: context.result.id,
+			title: context.result.title,
+			content: context.result.content,
+			tags: context.result.tags,
+		});
 
-    return context.result;
-  }
+		return context.result;
+	}
 
-  async onAfterUpdate(
-    context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>
-  ): Promise<PostEntity> {
-    await this.searchService.updateDocument(context.result.id, {
-      title: context.result.title,
-      content: context.result.content,
-      tags: context.result.tags,
-    });
+	async onAfterUpdate(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+		await this.searchService.updateDocument(context.result.id, {
+			title: context.result.title,
+			content: context.result.content,
+			tags: context.result.tags,
+		});
 
-    return context.result;
-  }
+		return context.result;
+	}
 
-  async onAfterDelete(
-    context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>
-  ): Promise<PostEntity> {
-    await this.searchService.deleteDocument(context.result.id);
+	async onAfterDelete(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+		await this.searchService.deleteDocument(context.result.id);
 
-    return context.result;
-  }
+		return context.result;
+	}
 }
 ```
 
@@ -321,40 +305,36 @@ export class SearchIndexSubscriber extends ApiFunctionSubscriberBase<PostEntity>
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity })
 export class ComputedFieldsSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-  async onAfterGet(
-    context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>
-  ): Promise<PostEntity> {
-    const post = context.result;
+	async onAfterGet(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+		const post = context.result;
 
-    // Calculate reading time
-    post.readingTimeMinutes = this.calculateReadingTime(post.content);
+		// Calculate reading time
+		post.readingTimeMinutes = this.calculateReadingTime(post.content);
 
-    // Calculate content summary
-    post.summary = this.generateSummary(post.content, 200);
+		// Calculate content summary
+		post.summary = this.generateSummary(post.content, 200);
 
-    return post;
-  }
+		return post;
+	}
 
-  async onAfterGetList(
-    context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity[]>
-  ): Promise<PostEntity[]> {
-    for (const post of context.result) {
-      post.readingTimeMinutes = this.calculateReadingTime(post.content);
-      post.summary = this.generateSummary(post.content, 150);
-    }
+	async onAfterGetList(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity[]>): Promise<PostEntity[]> {
+		for (const post of context.result) {
+			post.readingTimeMinutes = this.calculateReadingTime(post.content);
+			post.summary = this.generateSummary(post.content, 150);
+		}
 
-    return context.result;
-  }
+		return context.result;
+	}
 
-  private calculateReadingTime(content: string): number {
-    const words = content.split(/\s+/).length;
-    return Math.ceil(words / 200);
-  }
+	private calculateReadingTime(content: string): number {
+		const words = content.split(/\s+/).length;
+		return Math.ceil(words / 200);
+	}
 
-  private generateSummary(content: string, maxLength: number): string {
-    if (content.length <= maxLength) return content;
-    return content.substring(0, maxLength).trim() + "...";
-  }
+	private generateSummary(content: string, maxLength: number): string {
+		if (content.length <= maxLength) return content;
+		return content.substring(0, maxLength).trim() + "...";
+	}
 }
 ```
 
@@ -364,30 +344,28 @@ export class ComputedFieldsSubscriber extends ApiFunctionSubscriberBase<PostEnti
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity })
 export class CascadeOperationsSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-  constructor(
-    @InjectRepository(PostEntity)
-    public repository: Repository<PostEntity>,
-    @InjectRepository(CommentEntity)
-    private commentRepository: Repository<CommentEntity>,
-    @InjectRepository(LikeEntity)
-    private likeRepository: Repository<LikeEntity>
-  ) {
-    super();
-  }
+	constructor(
+		@InjectRepository(PostEntity)
+		public repository: Repository<PostEntity>,
+		@InjectRepository(CommentEntity)
+		private commentRepository: Repository<CommentEntity>,
+		@InjectRepository(LikeEntity)
+		private likeRepository: Repository<LikeEntity>,
+	) {
+		super();
+	}
 
-  async onBeforeDelete(
-    context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>
-  ): Promise<PostEntity> {
-    const postId = context.ENTITY.id;
+	async onBeforeDelete(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+		const postId = context.ENTITY.id;
 
-    // Delete related comments
-    await this.commentRepository.delete({ postId });
+		// Delete related comments
+		await this.commentRepository.delete({ postId });
 
-    // Delete related likes
-    await this.likeRepository.delete({ postId });
+		// Delete related likes
+		await this.likeRepository.delete({ postId });
 
-    return context.result;
-  }
+		return context.result;
+	}
 }
 ```
 
@@ -397,37 +375,32 @@ export class CascadeOperationsSubscriber extends ApiFunctionSubscriberBase<PostE
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity })
 export class VersionHistorySubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-  constructor(
-    @InjectRepository(PostEntity)
-    public repository: Repository<PostEntity>,
-    @InjectRepository(PostHistoryEntity)
-    private historyRepository: Repository<PostHistoryEntity>
-  ) {
-    super();
-  }
+	constructor(
+		@InjectRepository(PostEntity)
+		public repository: Repository<PostEntity>,
+		@InjectRepository(PostHistoryEntity)
+		private historyRepository: Repository<PostHistoryEntity>,
+	) {
+		super();
+	}
 
-  async onAfterUpdate(
-    context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>
-  ): Promise<PostEntity> {
-    const post = context.result;
+	async onAfterUpdate(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+		const post = context.result;
 
-    // Save version to history
-    await this.historyRepository.save({
-      postId: post.id,
-      title: post.title,
-      content: post.content,
-      version: post.version,
-      createdAt: new Date(),
-    });
+		// Save version to history
+		await this.historyRepository.save({
+			postId: post.id,
+			title: post.title,
+			content: post.content,
+			version: post.version,
+			createdAt: new Date(),
+		});
 
-    // Increment version
-    await this.repository.update(
-      { id: post.id },
-      { version: post.version + 1 }
-    );
+		// Increment version
+		await this.repository.update({ id: post.id }, { version: post.version + 1 });
 
-    return post;
-  }
+		return post;
+	}
 }
 ```
 
@@ -437,40 +410,35 @@ export class VersionHistorySubscriber extends ApiFunctionSubscriberBase<PostEnti
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity, priority: 100 })
 export class DataValidationSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-  async onBeforeCreate(
-    context: IApiSubscriberFunctionExecutionContext<
-      PostEntity,
-      TApiFunctionCreateProperties<PostEntity>
-    >
-  ): Promise<TApiFunctionCreateProperties<PostEntity>> {
-    const { body } = context.result;
+	async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, TApiFunctionCreateProperties<PostEntity>>): Promise<TApiFunctionCreateProperties<PostEntity>> {
+		const { body } = context.result;
 
-    // Validate content length
-    if (body.content && body.content.length < 100) {
-      throw new BadRequestException("Post content must be at least 100 characters");
-    }
+		// Validate content length
+		if (body.content && body.content.length < 100) {
+			throw new BadRequestException("Post content must be at least 100 characters");
+		}
 
-    // Validate image URLs
-    if (body.images) {
-      for (const imageUrl of body.images) {
-        if (!await this.isValidImageUrl(imageUrl)) {
-          throw new BadRequestException(`Invalid image URL: ${imageUrl}`);
-        }
-      }
-    }
+		// Validate image URLs
+		if (body.images) {
+			for (const imageUrl of body.images) {
+				if (!(await this.isValidImageUrl(imageUrl))) {
+					throw new BadRequestException(`Invalid image URL: ${imageUrl}`);
+				}
+			}
+		}
 
-    return context.result;
-  }
+		return context.result;
+	}
 
-  private async isValidImageUrl(url: string): Promise<boolean> {
-    try {
-      const response = await fetch(url, { method: "HEAD" });
-      const contentType = response.headers.get("content-type");
-      return contentType?.startsWith("image/") || false;
-    } catch {
-      return false;
-    }
-  }
+	private async isValidImageUrl(url: string): Promise<boolean> {
+		try {
+			const response = await fetch(url, { method: "HEAD" });
+			const contentType = response.headers.get("content-type");
+			return contentType?.startsWith("image/") || false;
+		} catch {
+			return false;
+		}
+	}
 }
 ```
 
@@ -497,4 +465,3 @@ export class LoggingSubscriber {}
 - [Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers) - Controller-level hooks
 - [Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context) - Context interfaces reference
 - [Lifecycle](/docs/nestjs-crud-automator/subscriber-system/lifecycle) - Detailed execution flow
-
