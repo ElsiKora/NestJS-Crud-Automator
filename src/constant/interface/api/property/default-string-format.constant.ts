@@ -31,6 +31,15 @@ const COUNTRY_CODE_ALPHA2: TApiPropertyDefaultStringFormatProperties = {
 	pattern: String.raw`/^[A-Z]{2}$/`,
 };
 
+const CREDIT_CARD: TApiPropertyDefaultStringFormatProperties = {
+	description: "credit card number",
+	exampleValue: "4532015112830366",
+	format: EApiPropertyStringType.CREDIT_CARD as EApiPropertyStringType,
+	maxLength: 19,
+	minLength: 13,
+	pattern: String.raw`/^[0-9]{13,19}$/`,
+};
+
 const COUNTRY_CODE_ALPHA3: TApiPropertyDefaultStringFormatProperties = {
 	description: "ISO 3166-1 alpha-3 country code",
 	exampleValue: "USA",
@@ -443,6 +452,7 @@ export const DEFAULT_STRING_FORMAT_PROPERTY_API_INTERFACE_CONSTANT: {
 		[EApiPropertyStringType.COORDINATES]: COORDINATES,
 		[EApiPropertyStringType.COUNTRY_CODE_ALPHA2]: COUNTRY_CODE_ALPHA2,
 		[EApiPropertyStringType.COUNTRY_CODE_ALPHA3]: COUNTRY_CODE_ALPHA3,
+		[EApiPropertyStringType.CREDIT_CARD]: CREDIT_CARD,
 		[EApiPropertyStringType.CRON]: CRON,
 		[EApiPropertyStringType.CURRENCY_CODE]: CURRENCY_CODE,
 		[EApiPropertyStringType.DATA_URI]: DATA_URI,

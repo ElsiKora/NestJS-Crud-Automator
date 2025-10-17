@@ -14,6 +14,7 @@ import {
 	IsArray,
 	IsBase64,
 	IsBtcAddress,
+	IsCreditCard,
 	IsDataURI,
 	IsDate,
 	IsEmail,
@@ -278,6 +279,13 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 				break;
 			}
 
+			case EApiPropertyStringType.CREDIT_CARD: {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				decorators.push(IsCreditCard({ each: isArray }));
+
+				break;
+			}
+
 			case EApiPropertyStringType.CURRENCY_CODE: {
 				// eslint-disable-next-line @elsikora/typescript/naming-convention
 				decorators.push(IsISO4217CurrencyCode({ each: isArray }));
@@ -465,9 +473,6 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 						each: isArray,
 						message: `${String(properties.description)} must be valid regular expression string`,
 					}),
-
-					// eslint-disable-next-line @elsikora/typescript/naming-convention
-					Matches(new RegExp(properties.pattern.slice(1, -1)), { each: isArray }),
 					Type(() => RegExp),
 				);
 
