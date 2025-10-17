@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.13.0...v1.14.0) (2025-10-17)
+
+
+### Features
+
+* **api:** add format property to default string format constants ([8788f39](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/8788f397aa11b3a793630b52822d80a4cc95e27b))
+
 # [1.13.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.12.0...v1.13.0) (2025-10-17)
 
 
