@@ -470,23 +470,24 @@ In case of an error at any stage, execution is interrupted, and the correspondin
 
     ```typescript
     import { Injectable } from "@nestjs/common";
-    import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteExecutionContext } from "@elsikora/nestjs-crud-automator";
+    import { ApiRouteSubscriber, ApiRouteSubscriberBase, TApiSubscriberRouteAfterCreateContext } from "@elsikora/nestjs-crud-automator";
     import { Post } from "./post.entity";
-    import { User } from "../user/user.entity"; // Assuming User is in request.user
 
     @Injectable()
-    @ApiRouteSubscriber({ entity: Post, priority: 10 }) // Specify entity and priority
+    @ApiRouteSubscriber({ entity: Post, priority: 10 })
     export class PostAuditSubscriber extends ApiRouteSubscriberBase<Post> {
     	// Hook is called AFTER a post is successfully created in the controller
-    	async onAfterCreate(context: IApiSubscriberRouteExecutionContext<Post, Post, { user: User }>): Promise<Post> {
-    		const createdPost = context.result; // Result of the controller's operation
-    		const currentUser = context.data.user; // Immutable input data, including request.user
+    	async onAfterCreate(context: TApiSubscriberRouteAfterCreateContext<Post>): Promise<Post> {
+    		const createdPost = context.result;
+
+    		// Fully typed access to authentication and request data
+    		const currentUser = context.DATA.authenticationRequest?.user;
+    		const clientIp = context.DATA.ip;
 
     		if (createdPost && currentUser) {
-    			console.log(`AUDIT: User ${currentUser.id} created Post ${createdPost.id} with title "${createdPost.title}"`);
+    			console.log(`AUDIT: User ${currentUser.id} created Post ${createdPost.id} ` + `with title "${createdPost.title}" from IP ${clientIp}`);
     		}
 
-    		// We don't want to change the result, so we just return it
     		return createdPost;
     	}
     }
@@ -502,25 +503,30 @@ In case of an error at any stage, execution is interrupted, and the correspondin
 
     ```typescript
     import { Injectable } from "@nestjs/common";
-    import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, IApiSubscriberFunctionExecutionContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
+    import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, TApiSubscriberFunctionBeforeCreateContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
     import { Post } from "./post.entity";
-    import slugify from "slugify"; // third-party library
+    import slugify from "slugify";
 
     @Injectable()
     @ApiFunctionSubscriber({ entity: Post })
     export class PostSlugSubscriber extends ApiFunctionSubscriberBase<Post> {
     	// Hook is called BEFORE repository.save() is called
-    	async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<Post, TApiFunctionCreateProperties<Post>>): Promise<TApiFunctionCreateProperties<Post>> {
-    		const postData = context.result; // This is the object that will go into repository.save()
+    	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<Post>): Promise<TApiFunctionCreateProperties<Post>> {
+    		// Fully typed access to transaction manager and repository
+    		const manager = context.DATA.eventManager;
+    		const repository = context.DATA.repository;
 
-    		if (postData.body.title) {
+    		if (context.result.title) {
     			// Modify the object, adding the slug
-    			postData.body.slug = slugify(postData.body.title, { lower: true, strict: true });
-    			console.log(`ENRICHMENT: Generated slug: ${postData.body.slug}`);
+    			context.result.slug = slugify(context.result.title, {
+    				lower: true,
+    				strict: true,
+    			});
+    			console.log(`ENRICHMENT: Generated slug: ${context.result.slug}`);
     		}
 
     		// Return the modified object, which will be saved
-    		return postData;
+    		return context.result;
     	}
     }
     ```
@@ -535,6 +541,25 @@ In case of an error at any stage, execution is interrupted, and the correspondin
     ],
     // ...
     ```
+
+#### Helper Types for Simplified Usage
+
+The library provides helper types that require only the Entity generic parameter, making subscriber implementation cleaner:
+
+```typescript
+// Instead of this:
+IApiSubscriberFunctionExecutionContext<User, TApiFunctionCreateProperties<User>, IApiSubscriberFunctionExecutionContextData<User>>;
+
+// Use this:
+TApiSubscriberFunctionBeforeCreateContext<User>;
+```
+
+**Available helper types:**
+
+- Function subscribers: `TApiSubscriberFunctionBeforeCreateContext`, `TApiSubscriberFunctionAfterCreateContext`, etc.
+- Route subscribers: `TApiSubscriberRouteBeforeCreateContext`, `TApiSubscriberRouteAfterCreateContext`, etc.
+
+These helpers provide full type safety and autocomplete for `context.DATA`, `context.ENTITY`, and `context.result`.
 
 ### Swagger Documentation
 

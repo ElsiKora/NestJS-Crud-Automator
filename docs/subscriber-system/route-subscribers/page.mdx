@@ -8,7 +8,7 @@ Extend `ApiRouteSubscriberBase` and decorate with `@ApiRouteSubscriber`:
 
 ```typescript filename="post-audit.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteExecutionContext } from "@elsikora/nestjs-crud-automator";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase, TApiSubscriberRouteBeforeCreateContext, TApiSubscriberRouteAfterCreateContext } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 
 @Injectable()
@@ -17,7 +17,7 @@ import { PostEntity } from "./post.entity";
 	priority: 10, // Higher priority executes first
 })
 export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-	// Implement hook methods
+	// Implement hook methods using helper types
 }
 ```
 
@@ -31,21 +31,17 @@ Called before the main operation:
 
 ```typescript
 async onBeforeCreate(
-  context: IApiSubscriberRouteExecutionContext<
-    PostEntity,
-    { body: DeepPartial<PostEntity> }
-  >
+  context: TApiSubscriberRouteBeforeCreateContext<PostEntity>
 ): Promise<{ body: DeepPartial<PostEntity> } | undefined> {
   const { body } = context.result;
-  const user = context.DATA.authenticationRequest?.user;
 
-  // Validate or modify body
-  if (!user) {
-    throw new UnauthorizedException("User must be authenticated");
-  }
+  // Fully typed access to route metadata
+  const method = context.DATA.method;
+  const entityMetadata = context.DATA.entityMetadata;
 
-  // Add user ID to body
-  body.authorId = user.id;
+  // Note: before hooks don't have authenticationRequest in DATA
+  // Use route configuration if needed
+  const routeConfig = context.DATA.properties.routes[method];
 
   return context.result;
 }
@@ -55,16 +51,12 @@ async onBeforeCreate(
 
 ```typescript
 async onBeforeUpdate(
-  context: IApiSubscriberRouteExecutionContext<
-    PostEntity,
-    { body: DeepPartial<PostEntity> }
-  >
+  context: TApiSubscriberRouteBeforeUpdateContext<PostEntity>
 ): Promise<{ body: DeepPartial<PostEntity> } | undefined> {
   const { body } = context.result;
 
   // Track last modified
   body.lastModifiedAt = new Date();
-  body.lastModifiedBy = context.DATA.authenticationRequest?.user?.id;
 
   return context.result;
 }
@@ -74,22 +66,18 @@ async onBeforeUpdate(
 
 ```typescript
 async onBeforeGet(
-  context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
+  context: TApiSubscriberRouteBeforeGetContext<PostEntity>
 ): Promise<PostEntity | undefined> {
-  // Log access
-  console.log("User accessing post:", context.ENTITY.id);
+  // Log access with route metadata
+  console.log("Accessing post via route:", context.DATA.methodName);
   return context.result;
 }
 
 async onBeforeDelete(
-  context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
+  context: TApiSubscriberRouteBeforeDeleteContext<PostEntity>
 ): Promise<PostEntity | undefined> {
-  const user = context.DATA.authenticationRequest?.user;
-
-  // Check ownership before deletion
-  if (context.ENTITY.authorId !== user?.id && user?.role !== "admin") {
-    throw new ForbiddenException("You can only delete your own posts");
-  }
+  // Validation logic before deletion
+  console.log("Attempting to delete post:", context.ENTITY.id);
 
   return context.result;
 }
@@ -97,16 +85,20 @@ async onBeforeDelete(
 
 ### After Hooks
 
-Called after successful operation:
+Called after successful operation. After hooks have access to extended DATA with authentication, headers, and IP:
 
 #### `onAfterCreate`
 
 ```typescript
 async onAfterCreate(
-  context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
+  context: TApiSubscriberRouteAfterCreateContext<PostEntity>
 ): Promise<PostEntity | undefined> {
   const post = context.result;
+
+  // Access authenticated user (available in after hooks)
   const user = context.DATA.authenticationRequest?.user;
+  const clientIp = context.DATA.ip;
+  const userAgent = context.DATA.headers["user-agent"];
 
   // Send notification
   await this.notificationService.send({
@@ -114,8 +106,8 @@ async onAfterCreate(
     message: `Your post "${post.title}" was created successfully`,
   });
 
-  // Log audit
-  console.log(`User ${user?.id} created post ${post.id}`);
+  // Log audit with full context
+  console.log(`User ${user?.id} created post ${post.id} from ${clientIp}`);
 
   return post;
 }
@@ -125,15 +117,16 @@ async onAfterCreate(
 
 ```typescript
 async onAfterUpdate(
-  context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
+  context: TApiSubscriberRouteAfterUpdateContext<PostEntity>
 ): Promise<PostEntity | undefined> {
   const post = context.result;
+  const user = context.DATA.authenticationRequest?.user;
 
   // Invalidate cache
   await this.cacheService.del(`post:${post.id}`);
 
   // Notify followers
-  await this.notifyFollowers(post);
+  await this.notifyFollowers(post, user?.id);
 
   return post;
 }
@@ -143,14 +136,19 @@ async onAfterUpdate(
 
 ```typescript
 async onAfterGetList(
-  context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity[]>
+  context: TApiSubscriberRouteAfterGetListContext<PostEntity>
 ): Promise<PostEntity[] | undefined> {
   const posts = context.result;
+
+  // Fully typed access to extended DATA
+  const user = context.DATA.authenticationRequest?.user;
+  const ip = context.DATA.ip;
 
   // Track analytics
   await this.analyticsService.trackView("post_list", {
     count: posts.length,
-    user: context.DATA.authenticationRequest?.user?.id,
+    userId: user?.id,
+    ip,
   });
 
   return posts;
@@ -244,22 +242,38 @@ async onAfterErrorDelete(
 
 ## Accessing Request Data
 
-Route subscribers have access to HTTP context:
+Route subscribers have different DATA types for before and after hooks:
+
+### Before Hooks DATA
 
 ```typescript
-async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
-  // Authenticated user
-  const user = context.DATA.authenticationRequest?.user;
+async onBeforeCreate(
+  context: TApiSubscriberRouteBeforeCreateContext<PostEntity>
+): Promise<{ body: DeepPartial<PostEntity> } | undefined> {
+  // Base route metadata only
+  const method = context.DATA.method;
+  const methodName = context.DATA.methodName;
+  const entityMetadata = context.DATA.entityMetadata;
+  const properties = context.DATA.properties;
 
-  // Request headers
+  return context.result;
+}
+```
+
+### After Hooks DATA
+
+```typescript
+async onAfterCreate(
+  context: TApiSubscriberRouteAfterCreateContext<PostEntity>
+): Promise<PostEntity | undefined> {
+  // Extended DATA with request context
+  const user = context.DATA.authenticationRequest?.user;
   const contentType = context.DATA.headers["content-type"];
   const userAgent = context.DATA.headers["user-agent"];
-
-  // Client IP
   const clientIp = context.DATA.ip;
 
-  // Method metadata
-  const method = context.DATA.method; // "create"
+  // Plus all base metadata
+  const method = context.DATA.method;
   const entityMetadata = context.DATA.entityMetadata;
 
   return context.result;
@@ -270,18 +284,23 @@ async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any>
 
 ### IP-Based Access Control
 
-```typescript filename="ip-restriction.subscriber.ts" copy
+Note: IP address is only available in after/error hooks with extended DATA.
+
+```typescript filename="ip-audit.subscriber.ts" copy
 @Injectable()
-@ApiRouteSubscriber({ entity: SensitiveEntity, priority: 100 })
-export class IpRestrictionSubscriber extends ApiRouteSubscriberBase<SensitiveEntity> {
-	private readonly allowedIps = ["192.168.1.1", "10.0.0.1"];
-
-	async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
+@ApiRouteSubscriber({ entity: PostEntity, priority: 100 })
+export class IpAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
+	async onAfterCreate(context: TApiSubscriberRouteAfterCreateContext<PostEntity>): Promise<PostEntity | undefined> {
 		const clientIp = context.DATA.ip;
+		const user = context.DATA.authenticationRequest?.user;
 
-		if (!this.allowedIps.includes(clientIp)) {
-			throw new ForbiddenException(`Access denied from IP: ${clientIp}`);
-		}
+		// Log access with IP
+		await this.auditService.log({
+			action: "create",
+			entityId: context.result.id,
+			userId: user?.id,
+			ip: clientIp,
+		});
 
 		return context.result;
 	}

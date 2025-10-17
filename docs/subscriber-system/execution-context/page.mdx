@@ -2,6 +2,61 @@
 
 Execution contexts provide access to data and metadata during subscriber hook execution. Different contexts are available for route and function subscribers, each with specific properties.
 
+## Helper Types (Recommended)
+
+For simplified usage, helper types are provided that require only the Entity generic parameter:
+
+```typescript
+import {
+  TApiSubscriberFunctionBeforeCreateContext,
+  TApiSubscriberFunctionAfterCreateContext,
+  TApiFunctionCreateProperties,
+} from "@elsikora/nestjs-crud-automator";
+
+// Simple - only one generic parameter needed
+async onBeforeCreate(
+  context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>
+): Promise<TApiFunctionCreateProperties<PostEntity>> {
+  // Full type safety and autocomplete for DATA
+  const manager = context.DATA.eventManager;
+  const repository = context.DATA.repository;
+
+  return context.result;
+}
+```
+
+### Available Helper Types
+
+**Function Subscribers:**
+
+- `TApiSubscriberFunctionBeforeCreateContext<E>`
+- `TApiSubscriberFunctionAfterCreateContext<E>`
+- `TApiSubscriberFunctionBeforeUpdateContext<E>`
+- `TApiSubscriberFunctionAfterUpdateContext<E>`
+- `TApiSubscriberFunctionBeforeGetContext<E>`
+- `TApiSubscriberFunctionAfterGetContext<E>`
+- `TApiSubscriberFunctionBeforeGetListContext<E>`
+- `TApiSubscriberFunctionAfterGetListContext<E>`
+- `TApiSubscriberFunctionBeforeGetManyContext<E>`
+- `TApiSubscriberFunctionAfterGetManyContext<E>`
+- `TApiSubscriberFunctionBeforeDeleteContext<E>`
+- `TApiSubscriberFunctionAfterDeleteContext<E>`
+
+**Route Subscribers:**
+
+- `TApiSubscriberRouteBeforeCreateContext<E>`
+- `TApiSubscriberRouteAfterCreateContext<E>`
+- `TApiSubscriberRouteBeforeUpdateContext<E>`
+- `TApiSubscriberRouteAfterUpdateContext<E>`
+- `TApiSubscriberRouteBeforeGetContext<E>`
+- `TApiSubscriberRouteAfterGetContext<E>`
+- `TApiSubscriberRouteBeforeGetListContext<E>`
+- `TApiSubscriberRouteAfterGetListContext<E>`
+- `TApiSubscriberRouteBeforeGetManyContext<E>`
+- `TApiSubscriberRouteAfterGetManyContext<E>`
+- `TApiSubscriberRouteBeforeDeleteContext<E>`
+- `TApiSubscriberRouteAfterDeleteContext<E>`
+
 ## Base Execution Context
 
 All execution contexts extend the base interface:
@@ -31,35 +86,78 @@ interface IApiSubscriberExecutionContext<E, Result, Input> {
 Used in route (controller-level) subscribers:
 
 ```typescript
-interface IApiSubscriberRouteExecutionContext<E, Result> {
+interface IApiSubscriberRouteExecutionContext<E, Result, Input> {
 	readonly ENTITY: E;
-	readonly DATA: {
-		readonly method: string;
-		readonly methodName: string;
-		readonly properties: IApiControllerProperties<E>;
-		readonly entityMetadata: IApiEntity<E>;
-		readonly authenticationRequest?: IApiAuthenticationRequest;
-		readonly headers: Record<string, string>;
-		readonly ip: string;
-	};
+	readonly DATA: Input; // Use IApiSubscriberRouteExecutionContextData<E> or IApiSubscriberRouteExecutionContextDataExtended<E>
 	readonly ROUTE_TYPE: EApiRouteType;
 	result: Result;
 }
 ```
 
-### Accessing Route Context Data
+### Route Context DATA Interfaces
+
+**Base DATA (for before hooks):**
 
 ```typescript
+interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity> {
+	readonly entityMetadata: IApiEntity<E>;
+	readonly method: EApiRouteType;
+	readonly methodName: string;
+	readonly properties: IApiControllerProperties<E>;
+}
+```
+
+**Extended DATA (for after/error hooks):**
+
+```typescript
+interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity> extends IApiSubscriberRouteExecutionContextData<E> {
+	readonly authenticationRequest?: IApiAuthenticationRequest;
+	readonly headers: Record<string, string>;
+	readonly ip: string;
+}
+```
+
+### Accessing Route Context Data
+
+**Recommended approach with helper type:**
+
+```typescript
+import { TApiSubscriberRouteBeforeCreateContext } from "@elsikora/nestjs-crud-automator";
+
 async onBeforeCreate(
-  context: IApiSubscriberRouteExecutionContext<PostEntity, any>
-): Promise<any> {
+  context: TApiSubscriberRouteBeforeCreateContext<PostEntity>
+): Promise<{ body: DeepPartial<PostEntity> }> {
   // Entity being operated on
   const entity = context.ENTITY;
 
+  // Route information (fully typed)
+  const routeType = context.ROUTE_TYPE;
+  const method = context.DATA.method;
+  const methodName = context.DATA.methodName;
+
+  // Entity metadata
+  const entityMetadata = context.DATA.entityMetadata;
+  const primaryKey = entityMetadata.primaryKey;
+
+  // Mutable result
+  const { body } = context.result;
+  body.slug = this.generateSlug(body.title);
+
+  return context.result;
+}
+```
+
+**For after hooks with extended DATA:**
+
+```typescript
+import { TApiSubscriberRouteAfterCreateContext } from "@elsikora/nestjs-crud-automator";
+
+async onAfterCreate(
+  context: TApiSubscriberRouteAfterCreateContext<PostEntity>
+): Promise<PostEntity> {
   // Authenticated user
   const user = context.DATA.authenticationRequest?.user;
   const userId = user?.id;
-  const userRole = user?.role;
 
   // Request headers
   const contentType = context.DATA.headers["content-type"];
@@ -68,18 +166,6 @@ async onBeforeCreate(
 
   // Client IP
   const clientIp = context.DATA.ip;
-
-  // Route information
-  const routeType = context.ROUTE_TYPE; // "create", "update", etc.
-  const method = context.DATA.method;
-
-  // Entity metadata
-  const entityName = context.DATA.entityMetadata.name;
-  const primaryKey = context.DATA.entityMetadata.primaryKey;
-
-  // Mutable result
-  const { body } = context.result;
-  body.createdById = userId;
 
   return context.result;
 }
@@ -90,45 +176,66 @@ async onBeforeCreate(
 Used in function (service-level) subscribers:
 
 ```typescript
-interface IApiSubscriberFunctionExecutionContext<E, Result> {
+interface IApiSubscriberFunctionExecutionContext<E, Result, Input> {
 	readonly ENTITY: E;
-	readonly DATA: {
-		readonly method: string;
-		readonly entityMetadata: IApiEntity<E>;
-		readonly transactionManager?: EntityManager;
-	};
+	readonly DATA: Input; // Use IApiSubscriberFunctionExecutionContextData<E> for typed access
+	readonly FUNCTION_TYPE: EApiFunctionType;
 	result: Result;
+}
+```
+
+### Function Context DATA Interface
+
+```typescript
+interface IApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity> {
+	readonly eventManager?: EntityManager;
+	readonly repository: Repository<E>;
 }
 ```
 
 ### Accessing Function Context Data
 
+**Recommended approach with helper type:**
+
 ```typescript
+import { TApiSubscriberFunctionBeforeCreateContext } from "@elsikora/nestjs-crud-automator";
+
 async onBeforeCreate(
-  context: IApiSubscriberFunctionExecutionContext<
-    PostEntity,
-    TApiFunctionCreateProperties<PostEntity>
-  >
+  context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>
 ): Promise<TApiFunctionCreateProperties<PostEntity>> {
   // Entity being created
   const entity = context.ENTITY;
 
-  // Entity metadata
-  const entityName = context.DATA.entityMetadata.name;
-  const primaryKey = context.DATA.entityMetadata.primaryKey;
+  // Fully typed DATA access
+  const manager = context.DATA.eventManager;
+  const repository = context.DATA.repository;
 
-  // Transaction manager (if within transaction)
-  const manager = context.DATA.transactionManager;
   if (manager) {
     // Use transactional operations
     await manager.save(RelatedEntity, { ... });
   }
 
   // Mutable result
-  const { body } = context.result;
-  body.slug = this.generateSlug(body.title);
+  context.result.slug = this.generateSlug(context.result.title);
 
   return context.result;
+}
+```
+
+**Alternative approach with explicit generic:**
+
+```typescript
+import { IApiSubscriberFunctionExecutionContextData } from "@elsikora/nestjs-crud-automator";
+
+async onBeforeCreate(
+  context: IApiSubscriberFunctionExecutionContext<
+    PostEntity,
+    TApiFunctionCreateProperties<PostEntity>,
+    IApiSubscriberFunctionExecutionContextData<PostEntity>
+  >
+): Promise<TApiFunctionCreateProperties<PostEntity>> {
+  const manager = context.DATA.eventManager;
+  // ...
 }
 ```
 
