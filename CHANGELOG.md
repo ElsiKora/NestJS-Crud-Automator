@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.14.0...v1.15.0) (2025-10-17)
+
+
+### Features
+
+* **api:** add credit card validation support for string properties ([d75cb2a](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/d75cb2a7d2b7040d97ed38fa01957af1db6ebe9f))
+
 # [1.14.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.13.0...v1.14.0) (2025-10-17)
 
 
