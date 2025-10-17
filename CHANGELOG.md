@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.15.0...v1.16.0) (2025-10-17)
+
+
+### Features
+
+* **api:** add comprehensive subscriber system with execution contexts ([f3880a9](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/f3880a9089a1b10ab56b5142531e5c558c274d91))
+
 # [1.15.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.14.0...v1.15.0) (2025-10-17)
 
 
