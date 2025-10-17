@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.12.0...v1.13.0) (2025-10-17)
+
+
+### Features
+
+* **api:** add sha1, sha512, and password string format types ([3ebc769](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/3ebc76900f39cc18d7bcb35947fa0ace3ed75383))
+
 # [1.12.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.11.3...v1.12.0) (2025-10-17)
 
 
