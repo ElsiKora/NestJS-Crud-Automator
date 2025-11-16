@@ -1,0 +1,103 @@
+# Authorization
+
+NestJS CRUD Automator now ships with a subscriber-style RBAC system. Policies are declared once, discovered automatically, and applied to every generated route without manual guard wiring or controller configuration.
+
+## Enable the Authorization Module
+
+Import `ApiAuthorizationModule` in your root module to boot the discovery service, registry, guard, and engine:
+
+```typescript filename="app.module.ts" copy
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { ApiAuthorizationModule } from "@elsikora/nestjs-crud-automator";
+
+@Module({
+	imports: [
+		TypeOrmModule.forRoot(/* ... */),
+		ApiAuthorizationModule, // 👈 enables discovery + guard
+	],
+})
+export class AppModule {}
+```
+
+> The authorization guard is attached to every generated controller method automatically. No `@UseGuards(ApiAuthorizationGuard)` calls are required.
+
+## Create a Policy
+
+Policies mirror the subscriber system: decorate a class and extend `ApiAuthorizationPolicyBase`. The decorator only needs the entity; policy IDs and priorities default to predictable values.
+
+```typescript filename="policies/user-access.policy.ts" copy
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { UserEntity } from "../user.entity";
+
+@ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
+export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
+	onBeforeGet() {
+		return this.allow({
+			scope: ({ subject }) => ({ where: { id: subject.id } }),
+		});
+	}
+
+	onBeforeDelete() {
+		return this.deny({
+			description: "Only administrators can delete users",
+			condition: ({ subject }) => !subject.roles.includes("admin"),
+		});
+	}
+
+	getCustomActionRule(action: string) {
+		if (action === "promote") {
+			return this.allowForRoles(["admin"]);
+		}
+
+		return undefined;
+	}
+}
+```
+
+### Hook Summary
+
+Hook names align with `EApiRouteType`:
+
+- `onBeforeCreate`, `onBeforeGet`, `onBeforeGetList`, `onBeforeUpdate`, `onBeforePartialUpdate`, `onBeforeDelete`
+- `getCustomActionRule(action)` handles non-standard methods such as `solve`, `promote`, etc.
+
+Every hook can return:
+
+- `this.allow()` / `this.deny()` helpers
+- arrays of rules (priority is `policyPriority + rulePriority`)
+- `undefined` to skip authorization for that action
+
+## Context, Scope, and Result Transform
+
+Each rule can define:
+
+- `condition(context)` → async boolean
+- `scope(context)` → returns `FindOptionsWhere` fragments (merged with existing filters)
+- `resultTransform(result, context)` → sequential transformations for masking or enrichment
+
+The engine evaluates rules in priority order. The first matching `DENY` short-circuits; otherwise all matching `ALLOW` rules contribute scope and transforms. Scopes are applied to controller queries (`GET`, `GET_LIST`, `UPDATE`, `DELETE`, etc.) before hitting your service.
+
+## No Controller Configuration
+
+Controller metadata no longer needs any `authorization` flags. The guard:
+
+1. Resolves the entity from controller metadata
+2. Infers the action from the handler name
+3. Builds/loads the aggregated policy from the registry
+4. Resolves the subject from `request.user` with smart fallbacks (`id`, `uuid`, `email`, roles, permissions)
+5. Applies scope + transforms to the generated methods
+
+Decisions are stored on the request and injected into subscriber contexts, so you can inspect `context.DATA.authorizationDecision` inside existing hooks.
+
+## Migration Tips
+
+Existing manual guards can be phased out gradually:
+
+1. Import `ApiAuthorizationModule`.
+2. Implement policies using helper methods (`allowForRoles`, `scopeToOwner`, etc.).
+3. Remove legacy controller configuration (no `authorization` blocks required).
+
+See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the complete contract and helper methods exposed by `ApiAuthorizationPolicyBase`.
+
+

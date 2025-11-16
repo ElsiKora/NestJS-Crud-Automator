@@ -166,6 +166,39 @@ import { UserController } from "./user.controller";
 export class UserModule {}
 ```
 
+### Step 5: Enable Declarative Authorization (Optional)
+
+Import `ApiAuthorizationModule` once in your root module and declare policies when you need RBAC. Policies are just injectable classes with a decorator:
+
+```typescript filename="app.module.ts" copy
+import { Module } from "@nestjs/common";
+import { ApiAuthorizationModule } from "@elsikora/nestjs-crud-automator";
+
+@Module({
+	imports: [
+		/* other modules */
+		ApiAuthorizationModule,
+	],
+})
+export class AppModule {}
+```
+
+```typescript filename="policies/user-access.policy.ts" copy
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
+import { UserEntity } from "../user.entity";
+
+@ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity })
+export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
+	onBeforeGet() {
+		return this.allow({
+			scope: ({ subject }) => ({ where: { id: subject.id } }),
+		});
+	}
+}
+```
+
+Once the module is imported, the guard is wired automatically and scopes/result transforms are applied to every generated route.
+
 ## Generated Endpoints
 
 With the above setup, the following endpoints are automatically generated:

@@ -1,6 +1,7 @@
 import type { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import type { IApiAuthenticationRequest } from "@interface/api-authentication-request.interface";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiAuthorizationDecision } from "@interface/authorization";
 import type { IApiControllerProperties } from "@interface/decorator/api/controller/properties.interface";
 import type { IApiEntity } from "@interface/entity";
 
@@ -56,6 +57,11 @@ export interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiB
 	 * Authentication request information
 	 */
 	authenticationRequest?: IApiAuthenticationRequest;
+
+	/**
+	 * Authorization decision
+	 */
+	authorizationDecision?: IApiAuthorizationDecision<E>;
 
 	/**
 	 * HTTP request headers

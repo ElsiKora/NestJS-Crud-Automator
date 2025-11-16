@@ -1,6 +1,8 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiMethodProperties } from "@interface/decorator/api";
+import type { CanActivate, Type } from "@nestjs/common";
 
+import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { pluralizer } from "@elsikora/pluralizer";
 import { EApiAction } from "@enum/decorator/api";
 import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, UseGuards } from "@nestjs/common";
@@ -481,6 +483,8 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 		}
 	}
 
+	const guards: Array<CanActivate | Type<CanActivate>> = [];
+
 	if (options.authentication) {
 		if (options.authentication?.bearerStrategies?.length) {
 			for (const strategy of options.authentication?.bearerStrategies ?? []) {
@@ -494,8 +498,14 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 			}
 		}
 
-		decorators.push(UseGuards(options.authentication.guard));
+		if (options.authentication.guard) {
+			guards.push(options.authentication.guard);
+		}
 	}
+
+	guards.push(ApiAuthorizationGuard);
+
+	decorators.push(UseGuards(...guards));
 
 	return applyDecorators(...decorators);
 }

@@ -1,1 +1,1 @@
-export * from "./api-subscriber.module";
+export * from "./api";
