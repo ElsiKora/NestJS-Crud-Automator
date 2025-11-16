@@ -8,7 +8,6 @@ import type { IApiControllerProperties, IApiGetListResponseResult } from "@inter
 import type { IApiEntity } from "@interface/entity";
 import type { IApiControllerPrimaryColumn } from "@interface/utility";
 import type { Type } from "@nestjs/common";
-import type { TApiAuthorizationRuleTransformPayload } from "@type/authorization/rule/transform-payload.type";
 import type { TApiAuthorizationScopeWhere } from "@type/authorization/scope-where.type";
 import type { TApiControllerMethod } from "@type/class";
 import type { TApiControllerGetListQuery, TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
@@ -18,13 +17,13 @@ import type { ClassConstructor } from "class-transformer";
 import type { DeepPartial, FindOptionsOrder, FindOptionsWhere } from "typeorm";
 
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
-import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/authorization/metadata/decision.constant";
 import { CONTROLLER_API_DECORATOR_CONSTANT, FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { Controller } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerApplyDecorators, ApiControllerApplyMetadata, ApiControllerGetListTransformFilter, ApiControllerGetPrimaryColumn, ApiControllerHandleRequestRelations, ApiControllerTransformData, ApiControllerValidateRequest, ApiControllerWriteDtoSwagger, ApiControllerWriteMethod } from "@utility/api";
 import { AuthorizationDecisionApplyResult } from "@utility/authorization/decision/apply-result.utility";
+import { AuthorizationDecisionResolveFromRequest } from "@utility/authorization/decision/resolve-from-request.utility";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope/merge/where.utility";
 import { analyzeEntityMetadata, DtoGenerate } from "@utility/dto";
 import { ErrorException } from "@utility/error-exception.utility";
@@ -92,7 +91,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const entityInstance: E = new (properties.entity as new () => E)();
-				let authorizationDecision: IApiAuthorizationDecision<E> | undefined = resolveAuthorizationDecisionFromRequest<E>(authenticationRequest);
+				let authorizationDecision: IApiAuthorizationDecision<E> | undefined = AuthorizationDecisionResolveFromRequest<E>(authenticationRequest);
 
 				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; body: DeepPartial<E>; headers: Record<string, string>; ip: string }> = {
 					DATA: { authorizationDecision, entityMetadata, method, methodName, properties },
@@ -115,7 +114,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					headers = beforeResult.headers;
 					ip = beforeResult.ip;
 					authenticationRequest = beforeResult.authenticationRequest;
-					authorizationDecision = resolveAuthorizationDecisionFromRequest<E>(authenticationRequest);
+					authorizationDecision = AuthorizationDecisionResolveFromRequest<E>(authenticationRequest);
 				}
 
 				try {
@@ -142,9 +141,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 
 					const requestProperties: TApiFunctionGetProperties<E> = {
 						relations: properties.routes[method]?.response?.relations,
-						where: { [primaryKey.key]: createResponse[primaryKey.key] } as FindOptionsWhere<E>,
+						where: AuthorizationScopeMergeWhere({ [primaryKey.key]: createResponse[primaryKey.key] } as FindOptionsWhere<E>, authorizationDecision?.scope?.where),
 					};
-					requestProperties.where = applyAuthorizationScopeToWhere<E>(requestProperties.where, authorizationDecision) as FindOptionsWhere<E>;
 
 					const response: E = await this.service.get(requestProperties);
 					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
@@ -159,7 +157,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const afterResult: E | undefined = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, response, EApiRouteType.CREATE, EApiSubscriberOnType.AFTER, afterExecutionContext);
 
 					const finalResponse: E = afterResult ?? response;
-					const transformedResponse: E = await applyAuthorizationTransforms(authorizationDecision, finalResponse);
+					const transformedResponse: E = (await AuthorizationDecisionApplyResult<E>(authorizationDecision, finalResponse)) as E;
 
 					return plainToInstance(dto as ClassConstructor<E>, transformedResponse, {
 						/* eslint-disable-next-line @elsikora/typescript/naming-convention */
@@ -186,7 +184,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<void> {
 				const entityInstance: E = new (properties.entity as new () => E)();
-				let authorizationDecision: IApiAuthorizationDecision<E> | undefined = resolveAuthorizationDecisionFromRequest<E>(authenticationRequest);
+				let authorizationDecision: IApiAuthorizationDecision<E> | undefined = AuthorizationDecisionResolveFromRequest<E>(authenticationRequest);
 
 				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; headers: Record<string, string>; ip: string; parameters: Partial<E> }> = {
 					DATA: { authorizationDecision, entityMetadata, method, methodName, properties },
@@ -209,7 +207,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					headers = beforeResult.headers;
 					ip = beforeResult.ip;
 					authenticationRequest = beforeResult.authenticationRequest;
-					authorizationDecision = resolveAuthorizationDecisionFromRequest<E>(authenticationRequest);
+					authorizationDecision = AuthorizationDecisionResolveFromRequest<E>(authenticationRequest);
 				}
 
 				try {
@@ -235,7 +233,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 						[primaryKey.key]: primaryKey.value,
 					} as TApiFunctionDeleteCriteria<E>;
 
-					const scopedCriteria: Array<TApiFunctionDeleteCriteria<E>> | TApiFunctionDeleteCriteria<E> | undefined = applyAuthorizationScopeToWhere<E>(requestCriteria, authorizationDecision) as Array<TApiFunctionDeleteCriteria<E>> | TApiFunctionDeleteCriteria<E> | undefined;
+					const scopedCriteria: Array<TApiFunctionDeleteCriteria<E>> | TApiFunctionDeleteCriteria<E> | undefined = AuthorizationScopeMergeWhere(requestCriteria, authorizationDecision?.scope?.where);
 
 					await this.service.delete(scopedCriteria ?? requestCriteria);
 
@@ -267,7 +265,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const entityInstance: E = new (properties.entity as new () => E)();
-				let authorizationDecision: IApiAuthorizationDecision<E> | undefined = resolveAuthorizationDecisionFromRequest<E>(authenticationRequest);
+				let authorizationDecision: IApiAuthorizationDecision<E> | undefined = AuthorizationDecisionResolveFromRequest<E>(authenticationRequest);
 
 				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; headers: Record<string, string>; ip: string; parameters: Partial<E> }> = {
 					DATA: { authorizationDecision, entityMetadata, method, methodName, properties },
@@ -290,7 +288,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					headers = beforeResult.headers;
 					ip = beforeResult.ip;
 					authenticationRequest = beforeResult.authenticationRequest;
-					authorizationDecision = resolveAuthorizationDecisionFromRequest<E>(authenticationRequest);
+					authorizationDecision = AuthorizationDecisionResolveFromRequest<E>(authenticationRequest);
 				}
 
 				try {
@@ -316,7 +314,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 						relations: properties.routes[method]?.response?.relations,
 						where: { [primaryKey.key]: primaryKey.value } as FindOptionsWhere<E>,
 					};
-					requestProperties.where = applyAuthorizationScopeToWhere<E>(requestProperties.where, authorizationDecision) as FindOptionsWhere<E>;
+					requestProperties.where = AuthorizationScopeMergeWhere(requestProperties.where, authorizationDecision?.scope?.where);
 
 					const response: E = await this.service.get(requestProperties);
 
@@ -332,7 +330,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const afterResult: E | undefined = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, response, EApiRouteType.GET, EApiSubscriberOnType.AFTER, afterExecutionContext);
 
 					const finalResponse: E = afterResult ?? response;
-					const transformedResponse: E = await applyAuthorizationTransforms(authorizationDecision, finalResponse);
+					const transformedResponse: E = (await AuthorizationDecisionApplyResult<E>(authorizationDecision, finalResponse)) as E;
 					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
 					return plainToInstance(dto as ClassConstructor<E>, transformedResponse, {
@@ -359,7 +357,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, query: TApiControllerGetListQuery<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<IApiGetListResponseResult<E>> {
 				const entityInstance: E = new (properties.entity as new () => E)();
-				let authorizationDecision: IApiAuthorizationDecision<E> | undefined = resolveAuthorizationDecisionFromRequest<E>(authenticationRequest);
+				let authorizationDecision: IApiAuthorizationDecision<E> | undefined = AuthorizationDecisionResolveFromRequest<E>(authenticationRequest);
 
 				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; headers: Record<string, string>; ip: string; query: TApiControllerGetListQuery<E> }> = {
 					DATA: { authorizationDecision, entityMetadata, method, methodName, properties },
@@ -382,7 +380,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					headers = beforeResult.headers;
 					ip = beforeResult.ip;
 					authenticationRequest = beforeResult.authenticationRequest;
-					authorizationDecision = resolveAuthorizationDecisionFromRequest<E>(authenticationRequest);
+					authorizationDecision = AuthorizationDecisionResolveFromRequest<E>(authenticationRequest);
 				}
 
 				try {
@@ -393,7 +391,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
 					const filter: TApiFunctionGetListPropertiesWhere<E> = ApiControllerGetListTransformFilter<E>(getListQuery, entityMetadata);
 
-					const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = applyAuthorizationScopeToWhere<E>(filter, authorizationDecision) as Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined;
+					const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(filter, authorizationDecision?.scope?.where);
 
 					const requestProperties: TApiFunctionGetListProperties<E> = {
 						relations: properties.routes[method]?.response?.relations,
@@ -419,7 +417,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const afterResult: IApiGetListResponseResult<E> | undefined = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiRouteType.GET_LIST, EApiSubscriberOnType.AFTER, afterExecutionContext);
 
 					const finalResponse: IApiGetListResponseResult<E> = afterResult ?? response;
-					const transformedResponse: IApiGetListResponseResult<E> = await applyAuthorizationTransforms(authorizationDecision, finalResponse);
+					const transformedResponse: IApiGetListResponseResult<E> = (await AuthorizationDecisionApplyResult<E>(authorizationDecision, finalResponse)) as IApiGetListResponseResult<E>;
 					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
 					return plainToInstance(dto as ClassConstructor<IApiGetListResponseResult<E>>, transformedResponse, {
@@ -446,7 +444,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const entityInstance: E = new (properties.entity as new () => E)();
-				let authorizationDecision: IApiAuthorizationDecision<E> | undefined = resolveAuthorizationDecisionFromRequest<E>(authenticationRequest);
+				let authorizationDecision: IApiAuthorizationDecision<E> | undefined = AuthorizationDecisionResolveFromRequest<E>(authenticationRequest);
 
 				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; body: DeepPartial<E>; headers: Record<string, string>; ip: string; parameters: Partial<E> }> = {
 					DATA: { authorizationDecision, entityMetadata, method, methodName, properties },
@@ -471,7 +469,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					headers = beforeResult.headers;
 					ip = beforeResult.ip;
 					authenticationRequest = beforeResult.authenticationRequest;
-					authorizationDecision = resolveAuthorizationDecisionFromRequest<E>(authenticationRequest);
+					authorizationDecision = AuthorizationDecisionResolveFromRequest<E>(authenticationRequest);
 				}
 
 				try {
@@ -497,7 +495,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 						[primaryKey.key]: primaryKey.value,
 					} as TApiFunctionUpdateCriteria<E>;
 
-					const scopedCriteria: TApiAuthorizationScopeWhere<E> = applyAuthorizationScopeToWhere<E>(requestCriteria, authorizationDecision);
+					const scopedCriteria: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(requestCriteria, authorizationDecision?.scope?.where);
 
 					const response: E = await this.service.update(scopedCriteria ?? requestCriteria, body);
 
@@ -513,7 +511,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const afterResult: E | undefined = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, response, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.AFTER, afterExecutionContext);
 
 					const finalResponse: E = afterResult ?? response;
-					const transformedResponse: E = await applyAuthorizationTransforms(authorizationDecision, finalResponse);
+					const transformedResponse: E = (await AuthorizationDecisionApplyResult<E>(authorizationDecision, finalResponse)) as E;
 					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
 					return plainToInstance(dto as ClassConstructor<E>, transformedResponse, {
@@ -540,7 +538,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const entityInstance: E = new (properties.entity as new () => E)();
-				let authorizationDecision: IApiAuthorizationDecision<E> | undefined = resolveAuthorizationDecisionFromRequest<E>(authenticationRequest);
+				let authorizationDecision: IApiAuthorizationDecision<E> | undefined = AuthorizationDecisionResolveFromRequest<E>(authenticationRequest);
 
 				const beforeExecutionContext: IApiSubscriberRouteExecutionContext<E, { authenticationRequest?: IApiAuthenticationRequest; body: DeepPartial<E>; headers: Record<string, string>; ip: string; parameters: Partial<E> }> = {
 					DATA: { authorizationDecision, entityMetadata, method, methodName, properties },
@@ -565,7 +563,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					headers = beforeResult.headers;
 					ip = beforeResult.ip;
 					authenticationRequest = beforeResult.authenticationRequest;
-					authorizationDecision = resolveAuthorizationDecisionFromRequest<E>(authenticationRequest);
+					authorizationDecision = AuthorizationDecisionResolveFromRequest<E>(authenticationRequest);
 				}
 
 				try {
@@ -591,7 +589,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 						[primaryKey.key]: primaryKey.value,
 					} as TApiFunctionUpdateCriteria<E>;
 
-					const scopedCriteria: TApiAuthorizationScopeWhere<E> = applyAuthorizationScopeToWhere<E>(requestCriteria, authorizationDecision);
+					const scopedCriteria: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(requestCriteria, authorizationDecision?.scope?.where);
 
 					const response: E = await this.service.update(scopedCriteria ?? requestCriteria, body);
 
@@ -607,7 +605,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const afterResult: E | undefined = await ApiSubscriberExecutor.executeRouteSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, response, EApiRouteType.UPDATE, EApiSubscriberOnType.AFTER, afterExecutionContext);
 
 					const finalResponse: E = afterResult ?? response;
-					const transformedResponse: E = await applyAuthorizationTransforms(authorizationDecision, finalResponse);
+					const transformedResponse: E = (await AuthorizationDecisionApplyResult<E>(authorizationDecision, finalResponse)) as E;
 					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
 
 					return plainToInstance(dto as ClassConstructor<E>, transformedResponse, {
@@ -629,44 +627,4 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 			{ value: methodName },
 		);
 	}
-}
-
-/**
- * Applies authorization scope where clauses from a decision to an existing WHERE filter.
- * @template E - Entity type
- * @param {TApiAuthorizationScopeWhere<E>} where - Request WHERE filter (may be undefined).
- * @param {IApiAuthorizationDecision<E>} [authorizationDecision] - Evaluated decision containing scope information.
- * @returns {TApiAuthorizationScopeWhere<E>} Scoped WHERE filter.
- */
-function applyAuthorizationScopeToWhere<E extends IApiBaseEntity>(where: TApiAuthorizationScopeWhere<E>, authorizationDecision?: IApiAuthorizationDecision<E>): TApiAuthorizationScopeWhere<E> {
-	return AuthorizationScopeMergeWhere(where, authorizationDecision?.scope?.where);
-}
-
-/**
- * Applies sequential authorization decision transforms to a result payload.
- * @template E - Entity type
- * @template R extends TAuthorizationRuleTransformPayload<E> - Result type
- * @param {IApiAuthorizationDecision<E>} [authorizationDecision] - Evaluated decision with transforms.
- * @param {R} result - Result to transform.
- * @returns {Promise<R>} Transformed result.
- */
-async function applyAuthorizationTransforms<E extends IApiBaseEntity, R extends TApiAuthorizationRuleTransformPayload<E>>(authorizationDecision: IApiAuthorizationDecision<E> | undefined, result: R): Promise<R> {
-	return (await AuthorizationDecisionApplyResult(authorizationDecision, result)) as R;
-}
-
-/**
- * Extracts an authorization decision from the authentication request metadata stored on the HTTP request.
- * @template E - Entity type
- * @param {IApiAuthenticationRequest} [authenticationRequest] - Request object bound to the route handler.
- * @returns {IApiAuthorizationDecision<E> | undefined} Authorization decision if present.
- */
-function resolveAuthorizationDecisionFromRequest<E extends IApiBaseEntity>(authenticationRequest?: IApiAuthenticationRequest): IApiAuthorizationDecision<E> | undefined {
-	if (!authenticationRequest) {
-		return undefined;
-	}
-
-	const requestRecord: Record<string, unknown> = authenticationRequest as unknown as Record<string, unknown>;
-	const decision: unknown = requestRecord[AUTHORIZATION_DECISION_METADATA_CONSTANT.REQUEST_KEY] ?? requestRecord.authorizationDecision;
-
-	return decision as IApiAuthorizationDecision<E> | undefined;
 }
