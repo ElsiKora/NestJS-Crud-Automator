@@ -1,8 +1,8 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscriberContext, IApiAuthorizationPolicySubscriberRule } from "@interface/authorization/policy/subscriber";
 import type { IApiAuthorizationRuleContext } from "@interface/authorization/rule/context.interface";
-import type { TApiAuthorizationPolicyHook, TApiAuthorizationPolicyHookName } from "@type/authorization/policy/hook";
-import type { TApiAuthorizationPolicySubscriberRuleResult } from "@type/authorization/policy/policy-subscriber-rule-result.type";
+import type { TApiAuthorizationPolicyHook, TApiAuthorizationPolicyHookName, TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
+import type { TApiAuthorizationPolicySubscriberRuleResult } from "@type/class/api/authorization/policy/policy-subscriber-rule-result.type";
 import type { FindOptionsWhere } from "typeorm";
 
 import { ApiSubscriberBase } from "@class/api/subscriber/base.class";
@@ -28,13 +28,14 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	 * Resolves and executes the correct hook for an action, normalizing results to an array of rules.
 	 * @param {string} action - Action resolved from the controller method.
 	 * @param {IApiAuthorizationPolicySubscriberContext<E>} context - Execution context passed to hooks.
-	 * @returns {Promise<Array<IApiAuthorizationPolicySubscriberRule<E>>>} Normalized rules to be evaluated.
+	 * @template TAction - Action type.
+	 * @returns {Promise<Array<IApiAuthorizationPolicySubscriberRule<E, TApiAuthorizationPolicyHookResult<TAction, E>>>>} Normalized rules to be evaluated.
 	 */
-	public async getRulesForAction(action: string, context: IApiAuthorizationPolicySubscriberContext<E>): Promise<Array<IApiAuthorizationPolicySubscriberRule<E>>> {
-		const { handler, isStandardAction }: { handler?: TApiAuthorizationPolicyHook<E>; isStandardAction: boolean } = this.resolveHook(action);
+	public async getRulesForAction<TAction extends string>(action: TAction, context: IApiAuthorizationPolicySubscriberContext<E>): Promise<Array<IApiAuthorizationPolicySubscriberRule<E, TApiAuthorizationPolicyHookResult<TAction, E>>>> {
+		const { handler, isStandardAction }: { handler?: TApiAuthorizationPolicyHook<E, TAction>; isStandardAction: boolean } = this.resolveHook<TAction>(action);
 
 		if (handler) {
-			const standardResult: Promise<TApiAuthorizationPolicySubscriberRuleResult<E>> | TApiAuthorizationPolicySubscriberRuleResult<E> = handler(context);
+			const standardResult: Promise<TApiAuthorizationPolicySubscriberRuleResult<E, TApiAuthorizationPolicyHookResult<TAction, E>>> | TApiAuthorizationPolicySubscriberRuleResult<E, TApiAuthorizationPolicyHookResult<TAction, E>> = handler(context);
 
 			return this.normalizeRuleResult(await standardResult);
 		}
@@ -43,13 +44,13 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 			return [];
 		}
 
-		const customActionHook: ((action: string, customContext: IApiAuthorizationPolicySubscriberContext<E>) => Promise<TApiAuthorizationPolicySubscriberRuleResult<E>> | TApiAuthorizationPolicySubscriberRuleResult<E>) | undefined = (this as IApiAuthorizationPolicySubscriber<E>).getCustomActionRule;
+		const customActionHook: ((action: string, customContext: IApiAuthorizationPolicySubscriberContext<E>) => Promise<TApiAuthorizationPolicySubscriberRuleResult<E, TApiAuthorizationPolicyHookResult<string, E>>> | TApiAuthorizationPolicySubscriberRuleResult<E, TApiAuthorizationPolicyHookResult<string, E>>) | undefined = (this as IApiAuthorizationPolicySubscriber<E>).getCustomActionRule;
 
 		if (typeof customActionHook !== "function") {
 			return [];
 		}
 
-		const customResult: Promise<TApiAuthorizationPolicySubscriberRuleResult<E>> | TApiAuthorizationPolicySubscriberRuleResult<E> = customActionHook.call(this, action, context);
+		const customResult: Promise<TApiAuthorizationPolicySubscriberRuleResult<E, TApiAuthorizationPolicyHookResult<TAction, E>>> | TApiAuthorizationPolicySubscriberRuleResult<E, TApiAuthorizationPolicyHookResult<TAction, E>> = customActionHook.call(this, action, context) as Promise<TApiAuthorizationPolicySubscriberRuleResult<E, TApiAuthorizationPolicyHookResult<TAction, E>>> | TApiAuthorizationPolicySubscriberRuleResult<E, TApiAuthorizationPolicyHookResult<TAction, E>>;
 
 		return this.normalizeRuleResult(await customResult);
 	}
@@ -59,7 +60,7 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Rule fields to merge.
 	 * @returns {IApiAuthorizationPolicySubscriberRule<E>} Allow rule.
 	 */
-	protected allow(rule: Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect"> = {}): IApiAuthorizationPolicySubscriberRule<E> {
+	protected allow<R>(rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">): IApiAuthorizationPolicySubscriberRule<E, R> {
 		return {
 			effect: EAuthorizationEffect.ALLOW,
 			...rule,
@@ -72,7 +73,7 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Optional overrides.
 	 * @returns {IApiAuthorizationPolicySubscriberRule<E>} Allow rule targeting the given roles.
 	 */
-	protected allowForRoles(roles: Array<string>, rule: Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect"> = {}): IApiAuthorizationPolicySubscriberRule<E> {
+	protected allowForRoles<R>(roles: Array<string>, rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">): IApiAuthorizationPolicySubscriberRule<E, R> {
 		return this.allow({
 			condition: ({ subject }: IApiAuthorizationRuleContext<E>) => roles.some((role: string) => subject.roles.includes(role)),
 			...rule,
@@ -84,7 +85,7 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Rule fields to merge.
 	 * @returns {IApiAuthorizationPolicySubscriberRule<E>} Deny rule.
 	 */
-	protected deny(rule: Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect"> = {}): IApiAuthorizationPolicySubscriberRule<E> {
+	protected deny<R>(rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">): IApiAuthorizationPolicySubscriberRule<E, R> {
 		return {
 			effect: EAuthorizationEffect.DENY,
 			...rule,
@@ -98,7 +99,7 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Optional overrides.
 	 * @returns {IApiAuthorizationPolicySubscriberRule<E>} Allow rule with owner scope.
 	 */
-	protected scopeToOwner(ownerField: keyof E = "ownerId" as keyof E, rule: Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect"> = {}): IApiAuthorizationPolicySubscriberRule<E> {
+	protected scopeToOwner<R>(ownerField: keyof E = "ownerId" as keyof E, rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">): IApiAuthorizationPolicySubscriberRule<E, R> {
 		return this.allow({
 			scope: ({ subject }: IApiAuthorizationRuleContext<E>) => {
 				return {
@@ -111,24 +112,24 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 		});
 	}
 
-	private normalizeRuleResult(result: TApiAuthorizationPolicySubscriberRuleResult<E>): Array<IApiAuthorizationPolicySubscriberRule<E>> {
+	private normalizeRuleResult<R>(result: TApiAuthorizationPolicySubscriberRuleResult<E, R>): Array<IApiAuthorizationPolicySubscriberRule<E, R>> {
 		if (Array.isArray(result)) {
-			const normalizedResult: Array<IApiAuthorizationPolicySubscriberRule<E> | null | undefined> = result as Array<IApiAuthorizationPolicySubscriberRule<E> | null | undefined>;
+			const normalizedResult: Array<IApiAuthorizationPolicySubscriberRule<E, R> | null | undefined> = result as Array<IApiAuthorizationPolicySubscriberRule<E, R> | null | undefined>;
 
-			return normalizedResult.filter((rule: IApiAuthorizationPolicySubscriberRule<E> | null | undefined): rule is IApiAuthorizationPolicySubscriberRule<E> => rule != null);
+			return normalizedResult.filter((rule: IApiAuthorizationPolicySubscriberRule<E, R> | null | undefined): rule is IApiAuthorizationPolicySubscriberRule<E, R> => rule != null);
 		}
 
 		return result ? [result] : [];
 	}
 
-	private resolveHook(action: string): { handler?: TApiAuthorizationPolicyHook<E>; isStandardAction: boolean } {
+	private resolveHook<TAction extends string>(action: TAction): { handler?: TApiAuthorizationPolicyHook<E, TAction>; isStandardAction: boolean } {
 		const standardHookName: TApiAuthorizationPolicyHookName | undefined = ApiAuthorizationPolicyBase.STANDARD_ACTION_METHOD_MAP[action as EApiRouteType];
 
 		if (!standardHookName) {
 			return { handler: undefined, isStandardAction: false };
 		}
 
-		const policyMethod: TApiAuthorizationPolicyHook<E> | undefined = (this as IApiAuthorizationPolicySubscriber<E>)[standardHookName as keyof IApiAuthorizationPolicySubscriber<E>] as TApiAuthorizationPolicyHook<E> | undefined;
+		const policyMethod: TApiAuthorizationPolicyHook<E, TAction> | undefined = (this as IApiAuthorizationPolicySubscriber<E>)[standardHookName as keyof IApiAuthorizationPolicySubscriber<E>] as TApiAuthorizationPolicyHook<E, TAction> | undefined;
 
 		return {
 			handler: policyMethod ? policyMethod.bind(this) : undefined,

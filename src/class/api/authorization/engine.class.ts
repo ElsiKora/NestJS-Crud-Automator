@@ -10,15 +10,15 @@ import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope/merge
 
 @Injectable()
 export class ApiAuthorizationEngine implements IApiAuthorizationEngine<IApiBaseEntity> {
-	public async evaluate<E extends IApiBaseEntity>(options: IApiAuthorizationEngineEvaluateOptions<E>): Promise<IApiAuthorizationDecision<E>> {
+	public async evaluate<E extends IApiBaseEntity, R>(options: IApiAuthorizationEngineEvaluateOptions<E, R>): Promise<IApiAuthorizationDecision<E, R>> {
 		const context: IApiAuthorizationRuleContext<E> = {
 			resource: options.resource,
 			subject: options.subject,
 		};
 
-		const matchedRules: Array<IApiAuthorizationRule<E>> = [];
+		const matchedRules: Array<IApiAuthorizationRule<E, R>> = [];
 		let scope: IApiAuthorizationScope<E> | undefined;
-		const transforms: Array<NonNullable<IApiAuthorizationRule<E>["resultTransform"]>> = [];
+		const transforms: Array<NonNullable<IApiAuthorizationRule<E, R>["resultTransform"]>> = [];
 
 		for (const rule of options.policy.rules) {
 			const isConditionPassed: boolean = await this.evaluateCondition(rule, context);
@@ -61,15 +61,15 @@ export class ApiAuthorizationEngine implements IApiAuthorizationEngine<IApiBaseE
 		});
 	}
 
-	private buildDecision<E extends IApiBaseEntity>(
-		options: IApiAuthorizationEngineEvaluateOptions<E>,
+	private buildDecision<E extends IApiBaseEntity, R>(
+		options: IApiAuthorizationEngineEvaluateOptions<E, R>,
 		payload: {
-			appliedRules: Array<IApiAuthorizationRule<E>>;
+			appliedRules: Array<IApiAuthorizationRule<E, R>>;
 			effect: EAuthorizationEffect;
 			scope: IApiAuthorizationScope<E> | undefined;
-			transforms: Array<NonNullable<IApiAuthorizationRule<E>["resultTransform"]>>;
+			transforms: Array<NonNullable<IApiAuthorizationRule<E, R>["resultTransform"]>>;
 		},
-	): IApiAuthorizationDecision<E> {
+	): IApiAuthorizationDecision<E, R> {
 		return {
 			action: options.action,
 			appliedRules: payload.appliedRules,
@@ -83,7 +83,7 @@ export class ApiAuthorizationEngine implements IApiAuthorizationEngine<IApiBaseE
 		};
 	}
 
-	private async evaluateCondition<E extends IApiBaseEntity>(rule: IApiAuthorizationRule<E>, context: IApiAuthorizationRuleContext<E>): Promise<boolean> {
+	private async evaluateCondition<E extends IApiBaseEntity, R>(rule: IApiAuthorizationRule<E, R>, context: IApiAuthorizationRuleContext<E>): Promise<boolean> {
 		if (!rule.condition) {
 			return true;
 		}
@@ -93,7 +93,7 @@ export class ApiAuthorizationEngine implements IApiAuthorizationEngine<IApiBaseE
 		return result === true;
 	}
 
-	private async mergeScope<E extends IApiBaseEntity>(currentScope: IApiAuthorizationScope<E> | undefined, rule: IApiAuthorizationRule<E>, context: IApiAuthorizationRuleContext<E>): Promise<IApiAuthorizationScope<E> | undefined> {
+	private async mergeScope<E extends IApiBaseEntity, R>(currentScope: IApiAuthorizationScope<E> | undefined, rule: IApiAuthorizationRule<E, R>, context: IApiAuthorizationRuleContext<E>): Promise<IApiAuthorizationScope<E> | undefined> {
 		if (!rule.scope) {
 			return currentScope;
 		}

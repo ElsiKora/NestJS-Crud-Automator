@@ -10,7 +10,8 @@ import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/contr
 import { EAuthorizationEffect } from "@enum/authorization/effect.enum";
 import { IApiAuthorizationDecision } from "@interface/authorization";
 import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable } from "@nestjs/common";
-import { TApiAuthorizationGuardRequest } from "@type/authorization";
+import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
+import { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 import { AuthorizationResolveDefaultSubject } from "@utility/authorization/subject/resolve-default-subject.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
@@ -41,7 +42,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 		const action: string = this.resolveAction(context);
 		authorizationGuardLogger.verbose(`Evaluating authorization for entity "${entityConstructor.name}" action "${action}"`);
 
-		const policy: IApiAuthorizationPolicy<IApiBaseEntity> | undefined = await this.policyRegistry.buildAggregatedPolicy(entityConstructor, action);
+		const policy: IApiAuthorizationPolicy<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>> | undefined = await this.policyRegistry.buildAggregatedPolicy(entityConstructor, action);
 
 		if (!policy) {
 			authorizationGuardLogger.debug(`No policy found for entity "${entityConstructor.name}" action "${action}", allowing access`);
@@ -54,7 +55,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 		const request: TApiAuthorizationGuardRequest = context.switchToHttp().getRequest<TApiAuthorizationGuardRequest>();
 		const subject: IApiAuthorizationSubject = AuthorizationResolveDefaultSubject(request.user);
 
-		const decision: IApiAuthorizationDecision<IApiBaseEntity> = await this.authorizationEngine.evaluate({
+		const decision: IApiAuthorizationDecision<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>> = await this.authorizationEngine.evaluate({
 			action,
 			policy,
 			resource: undefined,
@@ -74,7 +75,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 		return true;
 	}
 
-	private attachDecisionToRequest(request: TApiAuthorizationGuardRequest, decision: IApiAuthorizationDecision<IApiBaseEntity>): void {
+	private attachDecisionToRequest(request: TApiAuthorizationGuardRequest, decision: IApiAuthorizationDecision<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>>): void {
 		request.authorizationDecision = decision;
 		request[AUTHORIZATION_DECISION_METADATA_CONSTANT.REQUEST_KEY] = decision;
 	}

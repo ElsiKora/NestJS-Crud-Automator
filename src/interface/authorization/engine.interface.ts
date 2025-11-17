@@ -4,5 +4,5 @@ import type { IApiAuthorizationDecision } from "@interface/authorization/decisio
 import type { IApiAuthorizationEngineEvaluateOptions } from "./evaluate-options.interface";
 
 export interface IApiAuthorizationEngine<E extends IApiBaseEntity> {
-	evaluate(options: IApiAuthorizationEngineEvaluateOptions<E>): Promise<IApiAuthorizationDecision<E>>;
+	evaluate<R>(options: IApiAuthorizationEngineEvaluateOptions<E, R>): Promise<IApiAuthorizationDecision<E, R>>;
 }

@@ -4,6 +4,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationDecision } from "@interface/authorization";
 import type { IApiControllerProperties } from "@interface/decorator/api/controller/properties.interface";
 import type { IApiEntity } from "@interface/entity";
+import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
 /**
  * Base data container for route subscriber execution context.
@@ -52,7 +53,7 @@ export interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntit
  * Extended data container for route subscriber execution context.
  * Includes request context (headers, IP, authentication) in addition to base route data.
  */
-export interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity> extends IApiSubscriberRouteExecutionContextData<E> {
+export interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R = TApiAuthorizationRuleTransformPayload<E>> extends IApiSubscriberRouteExecutionContextData<E> {
 	/**
 	 * Authentication request information
 	 */
@@ -61,7 +62,7 @@ export interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiB
 	/**
 	 * Authorization decision
 	 */
-	authorizationDecision?: IApiAuthorizationDecision<E>;
+	authorizationDecision?: IApiAuthorizationDecision<E, R>;
 
 	/**
 	 * HTTP request headers

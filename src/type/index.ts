@@ -1,6 +1,6 @@
 export { type TApiRequestTransformer } from "./api-request-transformer.type";
-export type * from "./authorization";
 export type * from "./class";
+export type * from "./class/api/authorization";
 export type * from "./decorator/api/controller";
 export type * from "./decorator/api/filter";
 export type * from "./decorator/api/function";

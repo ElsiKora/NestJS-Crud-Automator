@@ -3,16 +3,16 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationRule } from "@interface/authorization/rule/interface";
 import type { IApiAuthorizationScope } from "@interface/authorization/scope.interface";
 import type { IApiAuthorizationSubject } from "@interface/authorization/subject.interface";
-import type { TApiAuthorizationRuleResultTransform } from "@type/authorization/rule/result-transform.type";
+import type { TApiAuthorizationRuleResultTransform } from "@type/class/api/authorization/rule/result-transform.type";
 
-export interface IApiAuthorizationDecision<E extends IApiBaseEntity> {
+export interface IApiAuthorizationDecision<E extends IApiBaseEntity, R> {
 	action: string;
-	appliedRules: Array<IApiAuthorizationRule<E>>;
+	appliedRules: Array<IApiAuthorizationRule<E, R>>;
 	effect: EAuthorizationEffect;
 	policyId: string;
 	resource?: E;
 	resourceType: string;
 	scope?: IApiAuthorizationScope<E>;
 	subject: IApiAuthorizationSubject;
-	transforms: Array<TApiAuthorizationRuleResultTransform<E>>;
+	transforms: Array<TApiAuthorizationRuleResultTransform<E, R>>;
 }

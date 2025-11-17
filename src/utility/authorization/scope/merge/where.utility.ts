@@ -1,5 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { TApiAuthorizationScopeWhere } from "@type/authorization/scope-where.type";
+import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { FindOptionsWhere } from "typeorm";
 
 /**

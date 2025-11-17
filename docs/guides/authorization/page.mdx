@@ -68,6 +68,37 @@ Every hook can return:
 - arrays of rules (priority is `policyPriority + rulePriority`)
 - `undefined` to skip authorization for that action
 
+## Subject Resolution
+
+`ApiAuthorizationGuard` нормализует `request.user` через `AuthorizationResolveDefaultSubject`, поэтому каждая политика получает одинаково оформленный `IApiAuthorizationSubject`:
+
+- `id` — первая непустая строка из `id`, `uuid` или `email`;
+- `roles` — значения из `roles` (массив) или `role` (одна строка);
+- `permissions` — массив из `permissions` или отдельной строки `permission`;
+- `attributes` — весь исходный объект `request.user`, чтобы можно было считывать дополнительные поля (tenant, organization и т.д.).
+
+Достаточно убедиться, что авторизация/аутентификация прокидывает роли и permissions в `request.user`:
+
+```typescript filename="auth.strategy.ts" copy
+const client = await this.clientsService.resolveFromToken(token);
+
+return {
+	id: client.id,
+	roles: client.roles ?? ["client"],
+	permissions: client.permissions ?? ["challenge:read"],,
+	tenantId: client.tenantId,
+};
+```
+
+Если требуется другой формат, можно заменить дефолтный резолвер — главное, чтобы на выходе оставался объект `IApiAuthorizationSubject`.
+
+## Decision Resource Lifecycle
+
+1. Guard отрабатывает до контроллера, поэтому в движок летит `resource: undefined`.
+2. Метод контроллера валидирует вход, выполняет `service.get / update / create` и только после успешного запроса вызывает `AuthorizationDecisionAttachResource`, чтобы поместить сущность в `authorizationDecision.resource`.
+3. BEFORE-подписчики видят метаданные решения, AFTER/AFTER_ERROR и `AuthorizationDecisionApplyResult` получают тот же экземпляр сущности, что вернул сервис.
+4. Это избавляет guard от дублирования бизнес-логики и гарантирует, что трансформы/подписчики всегда работают с фактическими данными.
+
 ## Context, Scope, and Result Transform
 
 Each rule can define:
@@ -77,6 +108,71 @@ Each rule can define:
 - `resultTransform(result, context)` → sequential transformations for masking or enrichment
 
 The engine evaluates rules in priority order. The first matching `DENY` short-circuits; otherwise all matching `ALLOW` rules contribute scope and transforms. Scopes are applied to controller queries (`GET`, `GET_LIST`, `UPDATE`, `DELETE`, etc.) before hitting your service.
+
+### Result Transform Example
+
+`resultTransform(result, context)` — удобное место, чтобы замаскировать поля или изменить ответ в зависимости от `subject` и (на AFTER-стадиях) `resource`:
+
+```typescript filename="policies/challenge.policy.ts" copy
+onBeforeGet() {
+	return this.allow({
+		resultTransform: (result, { subject }) => {
+			if (result && !subject.roles.includes("admin")) {
+				delete (result as Challenge).secretKey;
+			}
+
+			return result;
+		},
+	});
+}
+
+onBeforeGetList() {
+	return this.allow({
+		resultTransform: (result) => {
+			if (Array.isArray(result)) {
+				for (const item of result) {
+					delete (item as Challenge).secretKey;
+				}
+			}
+
+			return result;
+		},
+	});
+}
+```
+
+- Можно вернуть несколько правил с `resultTransform` — движок добавит их в `decision.transforms` и выполнит последовательно.
+- Трансформы работают с тем же контекстом, что и условия/скоупы, поэтому можно учитывать роли, permissions и загруженный ресурс.
+
+### Typed Result Payloads
+
+Каждый стандартный хук теперь знает точный тип результата, поэтому `resultTransform` и `context.DATA.authorizationDecision` получают строгую типизацию без `as`/`satisfies`:
+
+Route | Result type `R` | Примечания
+:--|:--|:--
+`onBeforeCreate` / `onBeforeGet` / `onBeforePartialUpdate` / `onBeforeUpdate` | `E`
+`onBeforeDelete` | `void`
+`onBeforeGetList` | `IApiGetListResponseResult<E>`
+Custom actions | `TApiAuthorizationRuleTransformPayload<E>` (fallback)
+
+```typescript filename="policies/challenge.policy.ts" copy
+onBeforeGet() {
+	return this.allow({
+		resultTransform: (challenge, { context, subject }) => {
+			// challenge: Challenge
+			// context.DATA.authorizationDecision: IApiAuthorizationDecision<Challenge, Challenge>
+			if (!subject.roles.includes("admin")) {
+				challenge.secretKey = undefined;
+			}
+
+			return challenge;
+		},
+	});
+}
+```
+
+- DELETE возвращает `void`, поэтому трансформы работают только с побочными эффектами.
+- Для нестандартных действий сохраняется универсальный union — при необходимости можно уточнить тип вручную, указав `this.allow<TCustomResult>({ ... })`.
 
 ## No Controller Configuration
 

@@ -1,10 +1,11 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationPolicy } from "@interface/authorization/policy/interface";
 import type { IApiAuthorizationPolicySubscriberRegistration } from "@interface/authorization/policy/subscriber/registration.interface";
+import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
 
 export interface IApiAuthorizationPolicyRegistry {
-	buildAggregatedPolicy<E extends IApiBaseEntity>(entity: new () => E, action: string): Promise<IApiAuthorizationPolicy<E> | undefined>;
+	buildAggregatedPolicy<E extends IApiBaseEntity, TAction extends string>(entity: new () => E, action: TAction): Promise<IApiAuthorizationPolicy<E, TApiAuthorizationPolicyHookResult<TAction, E>> | undefined>;
 	clear(): void;
-	registerPolicy<E extends IApiBaseEntity>(policy: IApiAuthorizationPolicy<E>): void;
+	registerPolicy<E extends IApiBaseEntity, R>(policy: IApiAuthorizationPolicy<E, R>): void;
 	registerSubscriber<E extends IApiBaseEntity>(registration: IApiAuthorizationPolicySubscriberRegistration<E>): void;
 }
