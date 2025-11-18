@@ -1,7 +1,7 @@
 /* eslint-disable @elsikora/sonar/no-duplicate-string */
 import type { IApiAuthenticationRequest } from "@interface/api-authentication-request.interface";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationDecision } from "@interface/authorization";
+import type { IApiAuthorizationDecision } from "@interface/class/api/authorization";
 import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route-error-execution-context.interface";
 import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route-execution-context.interface";
 import type { IApiControllerProperties, IApiGetListResponseResult } from "@interface/decorator/api";

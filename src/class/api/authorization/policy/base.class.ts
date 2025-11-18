@@ -1,10 +1,10 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationPolicySubscriberRule } from "@interface/authorization/policy/subscriber";
-import type { IApiAuthorizationRuleContext } from "@interface/authorization/rule/context.interface";
+import type { IApiAuthorizationPolicySubscriberRule } from "@interface/class/api/authorization/policy/subscriber";
+import type { IApiAuthorizationRuleContext } from "@interface/class/api/authorization/rule/context.interface";
 import type { FindOptionsWhere } from "typeorm";
 
 import { ApiSubscriberBase } from "@class/api/subscriber/base.class";
-import { EAuthorizationEffect } from "@enum/authorization/effect.enum";
+import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
 
 /**
  * Base class for all authorization policies. It mirrors ApiFunctionSubscriberBase

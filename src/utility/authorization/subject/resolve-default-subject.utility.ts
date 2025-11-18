@@ -1,4 +1,4 @@
-import type { IApiAuthorizationSubject } from "@interface/authorization/subject.interface";
+import type { IApiAuthorizationSubject } from "@interface/class/api/authorization/subject.interface";
 
 /**
  * Resolves a subject from request.user with smart fallbacks.

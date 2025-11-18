@@ -1,7 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscriberProperties } from "@interface/authorization/policy/subscriber";
+import type { IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscriberProperties } from "@interface/class/api/authorization/policy/subscriber";
 
-import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/authorization/policy/decorator.constant";
+import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization/policy/decorator.constant";
 import { Injectable, OnModuleInit } from "@nestjs/common";
 import { DiscoveryService } from "@nestjs/core";
 import { InstanceWrapper } from "@nestjs/core/injector/instance-wrapper";
