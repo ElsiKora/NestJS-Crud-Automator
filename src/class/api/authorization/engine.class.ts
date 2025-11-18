@@ -1,10 +1,10 @@
-import type { IApiAuthorizationRuleContext } from "@interface/authorization/rule/context.interface";
-import type { IApiAuthorizationRule } from "@interface/authorization/rule/interface";
-import type { IApiAuthorizationScope } from "@interface/authorization/scope.interface";
+import type { IApiAuthorizationRuleContext } from "@interface/class/api/authorization/rule/context.interface";
+import type { IApiAuthorizationRule } from "@interface/class/api/authorization/rule/interface";
+import type { IApiAuthorizationScope } from "@interface/class/api/authorization/scope.interface";
 
-import { EAuthorizationEffect } from "@enum/authorization/effect.enum";
+import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
 import { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import { IApiAuthorizationDecision, IApiAuthorizationEngine, IApiAuthorizationEngineEvaluateOptions } from "@interface/authorization";
+import { IApiAuthorizationDecision, IApiAuthorizationEngine, IApiAuthorizationEngineEvaluateOptions } from "@interface/class/api/authorization";
 import { Injectable } from "@nestjs/common";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope/merge/where.utility";
 

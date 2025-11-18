@@ -91,7 +91,7 @@ const client = await this.clientsService.resolveFromToken(token);
 return {
 	id: client.id,
 	roles: client.roles ?? ["client"],
-	permissions: client.permissions ?? ["challenge:read"],,
+	permissions: client.permissions ?? ["challenge:read"],
 	tenantId: client.tenantId,
 };
 ```

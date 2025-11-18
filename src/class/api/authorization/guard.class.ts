@@ -1,14 +1,14 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationPolicy } from "@interface/authorization/policy/interface";
-import type { IApiAuthorizationPolicyRegistry } from "@interface/authorization/policy/registry.interface";
-import type { IApiAuthorizationSubject } from "@interface/authorization/subject.interface";
+import type { IApiAuthorizationPolicy } from "@interface/class/api/authorization/policy/interface";
+import type { IApiAuthorizationPolicyRegistry } from "@interface/class/api/authorization/policy/registry.interface";
+import type { IApiAuthorizationSubject } from "@interface/class/api/authorization/subject.interface";
 
 import { ApiAuthorizationEngine } from "@class/api/authorization/engine.class";
-import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/authorization/metadata/decision.constant";
-import { AUTHORIZATION_POLICY_REGISTRY_TOKEN } from "@constant/authorization/token/registry.constant";
+import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/authorization/metadata/decision.constant";
+import { AUTHORIZATION_POLICY_REGISTRY_TOKEN } from "@constant/class/authorization/token/registry.constant";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
-import { EAuthorizationEffect } from "@enum/authorization/effect.enum";
-import { IApiAuthorizationDecision } from "@interface/authorization";
+import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
+import { IApiAuthorizationDecision } from "@interface/class/api/authorization";
 import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable } from "@nestjs/common";
 import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
 import { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";

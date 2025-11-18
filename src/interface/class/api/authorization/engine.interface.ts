@@ -1,5 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationDecision } from "@interface/authorization/decision.interface";
+import type { IApiAuthorizationDecision } from "@interface/class/api/authorization/decision.interface";
 
 import type { IApiAuthorizationEngineEvaluateOptions } from "./evaluate-options.interface";
 
