@@ -58,11 +58,9 @@ export function ApiControllerApplyMetadata<E>(target: object, targetPrototype: o
 	parameterTypes.push(Object);
 	parameterIndex++;
 
-	if (routeConfig.authentication) {
-		routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.REQUEST, parameterIndex);
-		parameterTypes.push(Object);
-		parameterIndex++;
-	}
+	routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.REQUEST, parameterIndex);
+	parameterTypes.push(Object);
+	parameterIndex++;
 
 	Reflect.defineMetadata(ROUTE_ARGS_METADATA, routeArgumentsMetadata, target, methodName);
 	Reflect.defineMetadata(PARAMTYPES_METADATA, parameterTypes, targetPrototype, methodName);

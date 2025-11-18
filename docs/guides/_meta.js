@@ -1,5 +1,6 @@
 export default {
 	authentication: "Authentication",
+	authorization: "Authorization",
 	"custom-dtos": "Custom DTOs",
 	"error-handling": "Error Handling",
 	"filtering-and-sorting": "Filtering and Sorting",
