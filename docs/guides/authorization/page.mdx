@@ -55,6 +55,12 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 }
 ```
 
+Inside any policy hook, the `context` argument exposes:
+
+- `action` — a string action name (for example `get`, `create`, `promote`);
+- `routeType` — an `EApiRouteType` value for standard CRUD hooks;
+- `entity` and `entityMetadata` — the model constructor and its metadata (columns, primary key, table name).
+
 ### Hook Summary
 
 Hook names align with `EApiRouteType`:
@@ -70,14 +76,14 @@ Every hook can return:
 
 ## Subject Resolution
 
-`ApiAuthorizationGuard` нормализует `request.user` через `AuthorizationResolveDefaultSubject`, поэтому каждая политика получает одинаково оформленный `IApiAuthorizationSubject`:
+`ApiAuthorizationGuard` normalizes `request.user` through `AuthorizationResolveDefaultSubject`, so every policy receives the same `IApiAuthorizationSubject` shape:
 
-- `id` — первая непустая строка из `id`, `uuid` или `email`;
-- `roles` — значения из `roles` (массив) или `role` (одна строка);
-- `permissions` — массив из `permissions` или отдельной строки `permission`;
-- `attributes` — весь исходный объект `request.user`, чтобы можно было считывать дополнительные поля (tenant, organization и т.д.).
+- `id` — the first non-empty string among `id`, `uuid`, or `email`;
+- `roles` — the values coming from `roles` (array) or `role` (single string);
+- `permissions` — either an array from `permissions` or a single `permission` string;
+- `attributes` — the original `request.user` object (helpful for tenant/organization data, etc.).
 
-Достаточно убедиться, что авторизация/аутентификация прокидывает роли и permissions в `request.user`:
+Just make sure your auth layer injects roles and permissions into `request.user`:
 
 ```typescript filename="auth.strategy.ts" copy
 const client = await this.clientsService.resolveFromToken(token);
@@ -90,14 +96,14 @@ return {
 };
 ```
 
-Если требуется другой формат, можно заменить дефолтный резолвер — главное, чтобы на выходе оставался объект `IApiAuthorizationSubject`.
+If you need a different structure, override the resolver — the only requirement is to return a valid `IApiAuthorizationSubject`.
 
 ## Decision Resource Lifecycle
 
-1. Guard отрабатывает до контроллера, поэтому в движок летит `resource: undefined`.
-2. Метод контроллера валидирует вход, выполняет `service.get / update / create` и только после успешного запроса вызывает `AuthorizationDecisionAttachResource`, чтобы поместить сущность в `authorizationDecision.resource`.
-3. BEFORE-подписчики видят метаданные решения, AFTER/AFTER_ERROR и `AuthorizationDecisionApplyResult` получают тот же экземпляр сущности, что вернул сервис.
-4. Это избавляет guard от дублирования бизнес-логики и гарантирует, что трансформы/подписчики всегда работают с фактическими данными.
+1. The guard runs before the controller, so the engine initially gets `resource: undefined`.
+2. The controller method validates input, performs `service.get / update / create`, and only after success calls `AuthorizationDecisionAttachResource` to store the resource in `authorizationDecision.resource`.
+3. BEFORE-subscribers see decision metadata; AFTER/AFTER_ERROR hooks and `AuthorizationDecisionApplyResult` receive the same entity instance returned by the service.
+4. This keeps the guard free from business logic duplication and ensures transforms/subscribers operate on the real data.
 
 ## Context, Scope, and Result Transform
 
@@ -111,7 +117,7 @@ The engine evaluates rules in priority order. The first matching `DENY` short-ci
 
 ### Result Transform Example
 
-`resultTransform(result, context)` — удобное место, чтобы замаскировать поля или изменить ответ в зависимости от `subject` и (на AFTER-стадиях) `resource`:
+`resultTransform(result, ruleContext)` is the right place to mask fields or adjust the response based on `ruleContext.subject` and (on AFTER stages) `ruleContext.resource`:
 
 ```typescript filename="policies/challenge.policy.ts" copy
 onBeforeGet() {
@@ -141,38 +147,22 @@ onBeforeGetList() {
 }
 ```
 
-- Можно вернуть несколько правил с `resultTransform` — движок добавит их в `decision.transforms` и выполнит последовательно.
-- Трансформы работают с тем же контекстом, что и условия/скоупы, поэтому можно учитывать роли, permissions и загруженный ресурс.
+- You may return several rules with `resultTransform` — the engine appends them to `decision.transforms` and executes sequentially.
+- Transforms receive the same context as conditions/scopes, so you can rely on roles, permissions, and the loaded resource.
 
 ### Typed Result Payloads
 
-Каждый стандартный хук теперь знает точный тип результата, поэтому `resultTransform` и `context.DATA.authorizationDecision` получают строгую типизацию без `as`/`satisfies`:
+Every standard hook now knows the precise result type, so `resultTransform` receives a strongly typed `result` without extra casts:
 
-Route | Result type `R` | Примечания
+Route | Result type `R` | Notes
 :--|:--|:--
 `onBeforeCreate` / `onBeforeGet` / `onBeforePartialUpdate` / `onBeforeUpdate` | `E`
 `onBeforeDelete` | `void`
 `onBeforeGetList` | `IApiGetListResponseResult<E>`
 Custom actions | `TApiAuthorizationRuleTransformPayload<E>` (fallback)
 
-```typescript filename="policies/challenge.policy.ts" copy
-onBeforeGet() {
-	return this.allow({
-		resultTransform: (challenge, { context, subject }) => {
-			// challenge: Challenge
-			// context.DATA.authorizationDecision: IApiAuthorizationDecision<Challenge, Challenge>
-			if (!subject.roles.includes("admin")) {
-				challenge.secretKey = undefined;
-			}
-
-			return challenge;
-		},
-	});
-}
-```
-
-- DELETE возвращает `void`, поэтому трансформы работают только с побочными эффектами.
-- Для нестандартных действий сохраняется универсальный union — при необходимости можно уточнить тип вручную, указав `this.allow<TCustomResult>({ ... })`.
+- DELETE returns `void`, so transforms there can only trigger side effects.
+- Custom actions fall back to the union type; specify `this.allow<TCustomResult>({ ... })` if you need to narrow it.
 
 ## No Controller Configuration
 

@@ -221,7 +221,7 @@ Executes subscriber hooks in correct order.
 
 ### ApiAuthorizationPolicyBase
 
-Base class for RBAC policies. Provides the helper methods (`allow`, `deny`, `allowForRoles`, `scopeToOwner`) and the `getRulesForAction` dispatcher that normalizes hook output.
+Base class for RBAC policies. Provides helper methods (`allow`, `deny`, `allowForRoles`, `scopeToOwner`) for constructing rules that are executed by the policy executor.
 
 **Location:** `src/class/authorization/policy/base.class.ts`
 

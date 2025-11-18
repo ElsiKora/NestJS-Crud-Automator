@@ -1,5 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationPolicySubscriberProperties } from "@interface/authorization/policy/subscriber/properties.interface";
+import type { IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscriberProperties } from "@interface/authorization/policy/subscriber";
 
 import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/authorization/policy/decorator.constant";
 import { Injectable, OnModuleInit } from "@nestjs/common";
@@ -43,7 +43,7 @@ export class ApiAuthorizationPolicyDiscoveryService implements OnModuleInit {
 				entity: properties.entity,
 				policyId,
 				priority: properties.priority ?? 0,
-				subscriber: wrapper.instance as ApiAuthorizationPolicyBase<IApiBaseEntity>,
+				subscriber: wrapper.instance as IApiAuthorizationPolicySubscriber<IApiBaseEntity>,
 			});
 
 			policyDiscoveryLogger.verbose(`Registered authorization policy ${wrapper.name ?? properties.entity.name ?? "UnknownPolicy"} for entity ${properties.entity.name ?? "UnknownEntity"} with priority ${properties.priority ?? 0}`);

@@ -4,8 +4,11 @@ import type { IApiEntity } from "@interface/entity/interface";
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
 
 import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/authorization/policy/decorator.constant";
+import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { LoggerUtility } from "@utility/logger.utility";
+
+import { ApiAuthorizationPolicyExecutor } from "./executor.class";
 
 const policyRegistryLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationPolicyRegistry");
 
@@ -59,12 +62,18 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		}
 
 		const entityMetadata: IApiEntity<E> = GenerateEntityInformation<E>(entity);
+		const routeType: EApiRouteType | undefined = this.resolveRouteType(action);
 		const aggregatedRules: Array<IApiAuthorizationRule<E, TApiAuthorizationPolicyHookResult<TAction, E>>> = [];
 
 		for (const registration of registrations) {
-			const context: IApiAuthorizationPolicySubscriberContext<E> = { entity, entityMetadata };
+			const context: IApiAuthorizationPolicySubscriberContext<E> = {
+				action,
+				entity,
+				entityMetadata,
+				routeType,
+			};
 
-			const rules: Array<IApiAuthorizationPolicySubscriberRule<E, TApiAuthorizationPolicyHookResult<TAction, E>>> = await (registration.subscriber as unknown as IApiAuthorizationPolicySubscriber<E>).getRulesForAction(action, context);
+			const rules: Array<IApiAuthorizationPolicySubscriberRule<E, TApiAuthorizationPolicyHookResult<TAction, E>>> = await ApiAuthorizationPolicyExecutor.execute(registration.subscriber as unknown as IApiAuthorizationPolicySubscriber<E>, action, context);
 
 			if (rules.length === 0) {
 				continue;
@@ -171,6 +180,12 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 
 	private resolvePolicyId<E extends IApiBaseEntity>(entity: TEntityConstructor<E>): string {
 		return `${this.getEntityName(entity)}${AUTHORIZATION_POLICY_DECORATOR_CONSTANT.DEFAULT_POLICY_ID_SUFFIX}`;
+	}
+
+	private resolveRouteType(action: string): EApiRouteType | undefined {
+		const routeTypes: Array<string> = Object.values(EApiRouteType) as Array<string>;
+
+		return routeTypes.find((routeType: string) => routeType === action) as EApiRouteType | undefined;
 	}
 
 	private setLegacyPolicy<E extends IApiBaseEntity, R>(cacheKey: string, policy: IApiAuthorizationPolicy<E, R>): void {
