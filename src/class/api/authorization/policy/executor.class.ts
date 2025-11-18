@@ -1,9 +1,9 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscriberContext, IApiAuthorizationPolicySubscriberRule } from "@interface/authorization/policy/subscriber";
+import type { IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscriberContext, IApiAuthorizationPolicySubscriberRule } from "@interface/class/api/authorization/policy/subscriber";
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
 import type { TApiAuthorizationPolicySubscriberRuleResult } from "@type/class/api/authorization/policy/policy-subscriber-rule-result.type";
 
-import { EApiAuthorizationPolicyOnType } from "@enum/authorization/policy";
+import { EApiAuthorizationPolicyOnType } from "@enum/class/authorization/policy";
 import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import { CapitalizeString } from "@utility/capitalize-string.utility";
 import { LoggerUtility } from "@utility/logger.utility";

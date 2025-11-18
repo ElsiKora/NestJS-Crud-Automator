@@ -1,4 +1,4 @@
-import type { EAuthorizationEffect } from "@enum/authorization/effect.enum";
+import type { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { TApiAuthorizationRuleCondition } from "@type/class/api/authorization/rule/condition.type";
 import type { TApiAuthorizationRuleResultTransform } from "@type/class/api/authorization/rule/result-transform.type";

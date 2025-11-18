@@ -1,6 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationDecision } from "@interface/authorization";
-import type { IApiAuthorizationRuleContext } from "@interface/authorization/rule/context.interface";
+import type { IApiAuthorizationDecision } from "@interface/class/api/authorization/decision.interface";
+import type { IApiAuthorizationRuleContext } from "@interface/class/api/authorization/rule/context.interface";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
 /**

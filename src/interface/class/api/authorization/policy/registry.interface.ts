@@ -1,6 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationPolicy } from "@interface/authorization/policy/interface";
-import type { IApiAuthorizationPolicySubscriberRegistration } from "@interface/authorization/policy/subscriber/registration.interface";
+import type { IApiAuthorizationPolicy } from "@interface/class/api/authorization/policy/interface";
+import type { IApiAuthorizationPolicySubscriberRegistration } from "@interface/class/api/authorization/policy/subscriber/registration.interface";
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
 
 export interface IApiAuthorizationPolicyRegistry {

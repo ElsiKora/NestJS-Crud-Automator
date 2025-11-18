@@ -1,7 +1,7 @@
 import type { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import type { IApiAuthenticationRequest } from "@interface/api-authentication-request.interface";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationDecision } from "@interface/authorization";
+import type { IApiAuthorizationDecision } from "@interface/class/api/authorization";
 import type { IApiControllerProperties } from "@interface/decorator/api/controller/properties.interface";
 import type { IApiEntity } from "@interface/entity";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";

@@ -1,7 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationPolicySubscriberProperties } from "@interface/authorization/policy/subscriber/properties.interface";
+import type { IApiAuthorizationPolicySubscriberProperties } from "@interface/class/api/authorization/policy/subscriber/properties.interface";
 
-import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/authorization/policy/decorator.constant";
+import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization/policy/decorator.constant";
 
 /**
  * Decorator that registers a class as an authorization policy for a specific entity.
