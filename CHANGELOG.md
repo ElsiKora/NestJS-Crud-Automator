@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.16.0...v1.17.0) (2025-11-18)
+
+
+### Features
+
+* **api:** add comprehensive authorization system with policies and guards ([594e02e](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/594e02e3347f73b7bb694f820dce217f16df85b0))
+
 # [1.16.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.15.0...v1.16.0) (2025-10-17)
 
 
