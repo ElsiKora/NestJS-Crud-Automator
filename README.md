@@ -657,10 +657,10 @@ This query would search for users with "john" in their username and created betw
 | Support for TypeScript decorators          | ✅ Done        |
 | Support for ESM and CommonJS modules       | ✅ Done        |
 | Subscriber System                          | ✅ Done        |
+| Role-based access control                  | ✅ Done        |
 | MongoDB support                            | 🚧 In Progress |
 | GraphQL integration                        | 🚧 In Progress |
 | Support for soft deletes                   | 🚧 In Progress |
-| Role-based access control                  | 🚧 In Progress |
 | Cache integration                          | 🚧 In Progress |
 | Audit logging middleware                   | 🚧 In Progress |
 | Bulk operations (create many, update many) | 🚧 In Progress |
