@@ -1,3 +1,4 @@
+export * from "./authorization";
 export * from "./decorator/api";
 export { EException } from "./exception.enum";
 export { EFilterOperation, EFilterOperationArray, EFilterOperationBoolean, EFilterOperationDate, EFilterOperationEnum, EFilterOperationNumber, EFilterOperationObject, EFilterOperationRelation, EFilterOperationString, EFilterOperationUuid } from "./filter-operation.enum";

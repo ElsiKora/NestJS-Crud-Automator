@@ -46,6 +46,7 @@ The core philosophy of this library is built on four pillars: being **Declarativ
 - ✨ **Hooks and Subscriber System:** Intercept and extend business logic at both the controller and service level.
 - ✨ **Dynamic and Polymorphic DTOs:** Generate DTOs on-the-fly based on discriminator fields.
 - ✨ **Field-Level RBAC:** Show/hide fields in responses based on user roles using guards.
+- ✨ **🔐 Declarative Authorization Policies:** Subscriber-style policies with automatic guard wiring, scopes, and response transforms.
 - ✨ **Request Tracing:** Built-in `CorrelationIDResponseBodyInterceptor` to correlate requests and logs.
 - ✨ **Convention over Configuration:** Smart defaults for service and DTO naming to reduce boilerplate.
 
@@ -351,6 +352,48 @@ export class UserController {
 	constructor(public service: UserService) {}
 }
 ```
+
+### Declarative Authorization Policies
+
+Import `ApiAuthorizationModule` once and describe access rules as policies. The guard is attached to every generated route automatically—no controller configuration required.
+
+```typescript
+// app.module.ts
+import { Module } from "@nestjs/common";
+import { ApiAuthorizationModule } from "@elsikora/nestjs-crud-automator";
+
+@Module({
+	imports: [
+		/* ... */
+		ApiAuthorizationModule,
+	],
+})
+export class AppModule {}
+```
+
+```typescript
+// policies/user-access.policy.ts
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
+import { UserEntity } from "../user.entity";
+
+@ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
+export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
+	onBeforeGet() {
+		return this.allow({
+			scope: ({ subject }) => ({ where: { id: subject.id } }),
+		});
+	}
+
+	onBeforeDelete() {
+		return this.deny({
+			description: "Only admins can delete users",
+			condition: ({ subject }) => !subject.roles.includes("admin"),
+		});
+	}
+}
+```
+
+Policies can return allow/deny rules, merge scope conditions into generated queries, and transform responses before they are sent back to the client.
 
 ### `CorrelationIDResponseBodyInterceptor`: Request Tracing
 

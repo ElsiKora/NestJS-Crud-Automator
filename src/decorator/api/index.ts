@@ -1,3 +1,4 @@
+export * from "./authorization";
 export * from "./controller";
 export * from "./function";
 export * from "./method.decorator";

@@ -217,6 +217,22 @@ Executes subscriber hooks in correct order.
 
 **Internal Use:** Handles subscriber execution with priority ordering.
 
+## Authorization Classes
+
+### ApiAuthorizationPolicyBase
+
+Base class for RBAC policies. Provides helper methods (`allow`, `deny`, `allowForRoles`, `scopeToOwner`) for constructing rules that are executed by the policy executor.
+
+**Location:** `src/class/authorization/policy/base.class.ts`
+
+### ApiAuthorizationModule
+
+Module that wires the authorization registry, discovery service, guard, and engine. Import it once to enable automatic policy discovery.
+
+**Location:** `src/module/authorization/api-authorization.module.ts`
+
+**Exports:** `ApiAuthorizationPolicyDiscoveryService`, `AUTHORIZATION_POLICY_REGISTRY_TOKEN`
+
 ## Next Steps
 
 - [Interfaces](/docs/nestjs-crud-automator/api-reference/interfaces) - Type definitions

@@ -1,0 +1,189 @@
+# Authorization
+
+NestJS CRUD Automator now ships with a subscriber-style RBAC system. Policies are declared once, discovered automatically, and applied to every generated route without manual guard wiring or controller configuration.
+
+## Enable the Authorization Module
+
+Import `ApiAuthorizationModule` in your root module to boot the discovery service, registry, guard, and engine:
+
+```typescript filename="app.module.ts" copy
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { ApiAuthorizationModule } from "@elsikora/nestjs-crud-automator";
+
+@Module({
+	imports: [
+		TypeOrmModule.forRoot(/* ... */),
+		ApiAuthorizationModule, // 👈 enables discovery + guard
+	],
+})
+export class AppModule {}
+```
+
+> The authorization guard is attached to every generated controller method automatically. No `@UseGuards(ApiAuthorizationGuard)` calls are required.
+
+## Create a Policy
+
+Policies mirror the subscriber system: decorate a class and extend `ApiAuthorizationPolicyBase`. The decorator only needs the entity; policy IDs and priorities default to predictable values.
+
+```typescript filename="policies/user-access.policy.ts" copy
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { UserEntity } from "../user.entity";
+
+@ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
+export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
+	onBeforeGet() {
+		return this.allow({
+			scope: ({ subject }) => ({ where: { id: subject.id } }),
+		});
+	}
+
+	onBeforeDelete() {
+		return this.deny({
+			description: "Only administrators can delete users",
+			condition: ({ subject }) => !subject.roles.includes("admin"),
+		});
+	}
+
+	getCustomActionRule(action: string) {
+		if (action === "promote") {
+			return this.allowForRoles(["admin"]);
+		}
+
+		return undefined;
+	}
+}
+```
+
+Inside any policy hook, the `context` argument exposes:
+
+- `action` — a string action name (for example `get`, `create`, `promote`);
+- `routeType` — an `EApiRouteType` value for standard CRUD hooks;
+- `entity` and `entityMetadata` — the model constructor and its metadata (columns, primary key, table name).
+
+### Hook Summary
+
+Hook names align with `EApiRouteType`:
+
+- `onBeforeCreate`, `onBeforeGet`, `onBeforeGetList`, `onBeforeUpdate`, `onBeforePartialUpdate`, `onBeforeDelete`
+- `getCustomActionRule(action)` handles non-standard methods such as `solve`, `promote`, etc.
+
+Every hook can return:
+
+- `this.allow()` / `this.deny()` helpers
+- arrays of rules (priority is `policyPriority + rulePriority`)
+- `undefined` to skip authorization for that action
+
+## Subject Resolution
+
+`ApiAuthorizationGuard` normalizes `request.user` through `AuthorizationResolveDefaultSubject`, so every policy receives the same `IApiAuthorizationSubject` shape:
+
+- `id` — the first non-empty string among `id`, `uuid`, or `email`;
+- `roles` — the values coming from `roles` (array) or `role` (single string);
+- `permissions` — either an array from `permissions` or a single `permission` string;
+- `attributes` — the original `request.user` object (helpful for tenant/organization data, etc.).
+
+Just make sure your auth layer injects roles and permissions into `request.user`:
+
+```typescript filename="auth.strategy.ts" copy
+const client = await this.clientsService.resolveFromToken(token);
+
+return {
+	id: client.id,
+	roles: client.roles ?? ["client"],
+	permissions: client.permissions ?? ["challenge:read"],,
+	tenantId: client.tenantId,
+};
+```
+
+If you need a different structure, override the resolver — the only requirement is to return a valid `IApiAuthorizationSubject`.
+
+## Decision Resource Lifecycle
+
+1. The guard runs before the controller, so the engine initially gets `resource: undefined`.
+2. The controller method validates input, performs `service.get / update / create`, and only after success calls `AuthorizationDecisionAttachResource` to store the resource in `authorizationDecision.resource`.
+3. BEFORE-subscribers see decision metadata; AFTER/AFTER_ERROR hooks and `AuthorizationDecisionApplyResult` receive the same entity instance returned by the service.
+4. This keeps the guard free from business logic duplication and ensures transforms/subscribers operate on the real data.
+
+## Context, Scope, and Result Transform
+
+Each rule can define:
+
+- `condition(context)` → async boolean
+- `scope(context)` → returns `FindOptionsWhere` fragments (merged with existing filters)
+- `resultTransform(result, context)` → sequential transformations for masking or enrichment
+
+The engine evaluates rules in priority order. The first matching `DENY` short-circuits; otherwise all matching `ALLOW` rules contribute scope and transforms. Scopes are applied to controller queries (`GET`, `GET_LIST`, `UPDATE`, `DELETE`, etc.) before hitting your service.
+
+### Result Transform Example
+
+`resultTransform(result, ruleContext)` is the right place to mask fields or adjust the response based on `ruleContext.subject` and (on AFTER stages) `ruleContext.resource`:
+
+```typescript filename="policies/challenge.policy.ts" copy
+onBeforeGet() {
+	return this.allow({
+		resultTransform: (result, { subject }) => {
+			if (result && !subject.roles.includes("admin")) {
+				delete (result as Challenge).secretKey;
+			}
+
+			return result;
+		},
+	});
+}
+
+onBeforeGetList() {
+	return this.allow({
+		resultTransform: (result) => {
+			if (Array.isArray(result)) {
+				for (const item of result) {
+					delete (item as Challenge).secretKey;
+				}
+			}
+
+			return result;
+		},
+	});
+}
+```
+
+- You may return several rules with `resultTransform` — the engine appends them to `decision.transforms` and executes sequentially.
+- Transforms receive the same context as conditions/scopes, so you can rely on roles, permissions, and the loaded resource.
+
+### Typed Result Payloads
+
+Every standard hook now knows the precise result type, so `resultTransform` receives a strongly typed `result` without extra casts:
+
+Route | Result type `R` | Notes
+:--|:--|:--
+`onBeforeCreate` / `onBeforeGet` / `onBeforePartialUpdate` / `onBeforeUpdate` | `E`
+`onBeforeDelete` | `void`
+`onBeforeGetList` | `IApiGetListResponseResult<E>`
+Custom actions | `TApiAuthorizationRuleTransformPayload<E>` (fallback)
+
+- DELETE returns `void`, so transforms there can only trigger side effects.
+- Custom actions fall back to the union type; specify `this.allow<TCustomResult>({ ... })` if you need to narrow it.
+
+## No Controller Configuration
+
+Controller metadata no longer needs any `authorization` flags. The guard:
+
+1. Resolves the entity from controller metadata
+2. Infers the action from the handler name
+3. Builds/loads the aggregated policy from the registry
+4. Resolves the subject from `request.user` with smart fallbacks (`id`, `uuid`, `email`, roles, permissions)
+5. Applies scope + transforms to the generated methods
+
+Decisions are stored on the request and injected into subscriber contexts, so you can inspect `context.DATA.authorizationDecision` inside existing hooks.
+
+## Migration Tips
+
+Existing manual guards can be phased out gradually:
+
+1. Import `ApiAuthorizationModule`.
+2. Implement policies using helper methods (`allowForRoles`, `scopeToOwner`, etc.).
+3. Remove legacy controller configuration (no `authorization` blocks required).
+
+See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the complete contract and helper methods exposed by `ApiAuthorizationPolicyBase`.
+
+

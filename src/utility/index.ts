@@ -1,4 +1,5 @@
 export * from "./api";
+export * from "./authorization";
 export { CamelCaseString } from "./camel-case-string.utility";
 export { CapitalizeString } from "./capitalize-string.utility";
 export * from "./dto";

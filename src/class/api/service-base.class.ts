@@ -16,7 +16,7 @@ export class ApiServiceBase<E> {
 		return Promise.resolve({} as E);
 	}
 
-	delete(criteria: TApiFunctionDeleteCriteria<E>, eventManager?: EntityManager): Promise<void> {
+	delete(criteria: Array<TApiFunctionDeleteCriteria<E>> | TApiFunctionDeleteCriteria<E>, eventManager?: EntityManager): Promise<void> {
 		void criteria;
 		void eventManager;
 
@@ -45,7 +45,7 @@ export class ApiServiceBase<E> {
 		return Promise.resolve([]);
 	}
 
-	update(criteria: TApiFunctionUpdateCriteria<E>, properties: TApiFunctionUpdateProperties<E>, eventManager?: EntityManager): Promise<E> {
+	update(criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: TApiFunctionUpdateProperties<E>, eventManager?: EntityManager): Promise<E> {
 		void criteria;
 		void properties;
 		void eventManager;
