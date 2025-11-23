@@ -141,6 +141,8 @@ export class PostService extends ApiServiceBase<PostEntity> {}
 
 ## Property Decorators
 
+All property-level decorators accept the `entity` option as either a direct class reference or a factory `() => Entity`. The factory form is useful when DTOs and entities live in different modules that would otherwise create circular imports. If the factory cannot resolve the entity immediately, the decorator re-attempts resolution on the next microtask so the metadata still uses the correct entity name once the module finishes loading.
+
 ### @ApiPropertyDescribe
 
 Provides metadata for entity properties used in DTO generation, validation, and Swagger documentation.
@@ -287,6 +289,41 @@ Provides metadata for entity properties used in DTO generation, validation, and 
 **Related:**
 
 - [Core Concepts - Entities](/docs/nestjs-crud-automator/core-concepts/entities)
+
+### @ApiPropertyCopy
+
+Copies all generated decorators (validation, Swagger, transformers) from an entity property to a DTO property.
+
+```typescript
+ApiPropertyCopy<E>(
+  entityOrFactory: Type<E> | (() => Type<E> | undefined),
+  propertyName: keyof E,
+  method: EApiRouteType,
+  dtoType: EApiDtoType,
+  metadata?: Partial<TApiPropertyDescribeProperties>,
+  guard?: Type<IAuthGuard>
+)
+```
+
+**Usage:**
+
+```typescript
+class DepositResponseDto {
+  @ApiPropertyCopy(DepositEntity, "amount", EApiRouteType.GET, EApiDtoType.RESPONSE)
+  amount!: number;
+}
+```
+
+When circular imports delay entity initialization (for example, when DTOs live in another module), wrap the entity reference in a factory so it can be resolved later:
+
+```typescript
+class DepositCallbackRequestBodyDto {
+  @ApiPropertyCopy(() => DepositEntity, "status", EApiRouteType.GET, EApiDtoType.RESPONSE)
+  status!: EDepositStatus;
+}
+```
+
+If the factory still returns `undefined`, the decorator throws a descriptive error explaining how to provide the entity lazily.
 
 ## Subscriber Decorators
 

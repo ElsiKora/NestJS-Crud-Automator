@@ -1,9 +1,12 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { Type as NestType } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiPropertyObjectProperties } from "@type/decorator/api/property";
 import type { ClassConstructor } from "class-transformer";
 
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
+import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { MustMatchOneOfSchemasValidator } from "@validator/must-match-one-of-schemas.validator";
 import { Exclude, Expose, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, ValidateNested } from "class-validator";
@@ -35,12 +38,18 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, Validat
  * ```
  */
 export function ApiPropertyObject(options: TApiPropertyObjectProperties): PropertyDecorator {
-	validateOptions(options);
+	return (target: object, propertyKey: string | symbol): void => {
+		WithResolvedPropertyEntity(options.entity, "ApiPropertyObject", (resolvedEntity: IApiBaseEntity | NestType<IApiBaseEntity>) => {
+			const normalizedOptions: TApiPropertyObjectProperties = { ...options, entity: resolvedEntity };
 
-	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(options);
-	const decorators: Array<PropertyDecorator> = buildDecorators(options, apiPropertyOptions);
+			validateOptions(normalizedOptions);
 
-	return applyDecorators(...decorators);
+			const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(normalizedOptions);
+			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedOptions, apiPropertyOptions);
+
+			applyDecorators(...decorators)(target, propertyKey);
+		});
+	};
 }
 
 /**
