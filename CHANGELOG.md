@@ -1,3 +1,10 @@
+# [1.18.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.17.1...v1.18.0) (2025-11-24)
+
+
+### Features
+
+* **property-decorators:** add entity factory support and property copying functionality ([75a581c](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/75a581cbfa6ef0616e802397754fe1d29a2e3def))
+
 ## [1.17.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.17.0...v1.17.1) (2025-11-18)
 
 # [1.17.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.16.0...v1.17.0) (2025-11-18)
