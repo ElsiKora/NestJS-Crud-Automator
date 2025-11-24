@@ -1,0 +1,36 @@
+# `@ApiControllerSecurable`
+
+Enables the authorization guard chain produced by `@ApiController`. When omitted, the guard short-circuits and policies are not evaluated. Use this decorator on every controller that must enforce authorization policies or custom guards.
+
+## Signature
+
+```typescript
+@ApiControllerSecurable()
+```
+
+## Behavior
+
+- Sets `CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY` to `true`.
+- `ApiAuthorizationGuard` inspects this flag to decide whether to resolve policies, guards, and security schemes for the controller.
+- Works in tandem with `@ApiController` route configuration and `@ApiAuthorizationPolicy` classes.
+
+## Example
+
+```typescript
+@Controller("users")
+@ApiControllerSecurable()
+@ApiController<UserEntity>({
+	entity: UserEntity,
+	routes: {
+		[EApiRouteType.GET_LIST]: { authentication: { bearerStrategies: ["access-token"] } },
+	},
+})
+export class UserController {}
+```
+
+## Related resources
+
+- [Controller Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-controller)
+- [Authorization Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-authorization)
+- [Guides – Authorization](/docs/nestjs-crud-automator/guides/authorization)
+

@@ -1,0 +1,52 @@
+# `@ApiAuthorizationPolicy`
+
+Registers a class as an authorization policy for a specific entity. Policies execute before every secured CRUD route and can allow/deny requests based on custom logic.
+
+## Signature
+
+```typescript
+@ApiAuthorizationPolicy<E extends IApiBaseEntity>({
+	entity,
+	priority?,
+	policyId?,
+	description?,
+}: IApiAuthorizationPolicySubscriberProperties<E>)
+```
+
+## Options
+
+| Option | Description |
+| --- | --- |
+| `entity` | Entity this policy protects. Required. |
+| `priority` | Higher priorities execute earlier. Defaults to `0`. |
+| `policyId` | Optional custom identifier. Defaults to `<entityName>Policy`. Useful when multiple policies protect the same entity. |
+| `description` | Short summary displayed in tooling or logs. |
+
+## Usage steps
+
+1. Extend `ApiAuthorizationPolicyBase<E>` and implement lifecycle hooks (`onBeforeCreate`, `onBeforeGetList`, etc.).
+2. Decorate the class with `@ApiAuthorizationPolicy`.
+3. Import `ApiAuthorizationModule` so policies are discovered.
+4. Add `@ApiControllerSecurable()` (and optionally `@ApiController`) to controllers that should enforce policies.
+
+## Example
+
+```typescript
+@Injectable()
+@ApiAuthorizationPolicy<UserEntity>({
+	entity: UserEntity,
+	priority: 150,
+	description: "Allow admins and support staff to manage users",
+})
+export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
+	onBeforeGetList() {
+		return this.allowForRoles(["admin", "support"]);
+	}
+}
+```
+
+## Related resources
+
+- [Authorization Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-authorization)
+- [Guides – Authorization](/docs/nestjs-crud-automator/guides/authorization)
+

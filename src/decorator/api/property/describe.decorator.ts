@@ -83,7 +83,7 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
  * })
  * posts: Post[];
  * ```
- * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators#apipropertydescribe | API Reference - ApiPropertyDescribe}
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe | API Reference - ApiPropertyDescribe}
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/core-concepts/entities | Core Concepts - Entities}
  */
 export function ApiPropertyDescribe(properties: TApiPropertyDescribeProperties): PropertyDecorator {

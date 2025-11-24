@@ -25,6 +25,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, Validat
  * - Transformation rules
  * @param {TApiPropertyObjectProperties} options - Configuration options for the object property
  * @returns {Function} A decorator function that can be applied to a class property
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object | API Reference - ApiPropertyObject}
  * @example
  * ```typescript
  * class UserDto {

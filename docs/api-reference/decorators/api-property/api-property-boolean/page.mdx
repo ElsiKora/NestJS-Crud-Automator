@@ -1,0 +1,55 @@
+# `@ApiPropertyBoolean`
+
+Applies Swagger metadata, validation decorators, and serialization logic for boolean DTO properties. Supports single values, arrays, nullable flags, and automatic coercion from strings or numbers.
+
+## Signature
+
+```typescript
+@ApiPropertyBoolean(properties: TApiPropertyBaseProperties)
+```
+
+## Notable options
+
+| Option | Description |
+| --- | --- |
+| `entity` | Entity or factory returning the entity. Required so descriptions embed the entity name. |
+| `description` | Field description appended to Swagger docs. |
+| `isRequired` | Adds/omits `IsOptional`. |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables `boolean[]` with array validation. |
+| `isNullable` | Sets Swagger nullable flag. |
+| `isResponse`, `isExpose` | Controls whether `ApiResponseProperty`, `Expose`, or `Exclude` are emitted for response DTOs. |
+
+## Behavior
+
+- Adds `@ApiProperty` metadata with boolean schema details.
+- Applies `IsBoolean` (with `{ each: true }` for arrays) and optional `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, `ArrayNotEmpty`.
+- Uses `class-transformer` `Transform` to coerce `"true"/"false"`, `"1"/"0"`, numeric values, and arrays of those representations into actual booleans.
+- Handles `isResponse` differently by adding `ApiResponseProperty` and skipping request validators.
+
+## Example
+
+```typescript
+class UserFilterDto {
+	@ApiPropertyBoolean({
+		entity: () => UserEntity,
+		description: "Active flag",
+		isRequired: false,
+	})
+	isActive?: boolean;
+
+	@ApiPropertyBoolean({
+		entity: () => UserEntity,
+		description: "Permission flags",
+		isArray: true,
+		minItems: 1,
+		maxItems: 5,
+	})
+	flags!: boolean[];
+}
+```
+
+## Related resources
+
+- [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
+- [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
+

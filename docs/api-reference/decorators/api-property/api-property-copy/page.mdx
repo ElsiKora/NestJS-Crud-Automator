@@ -1,0 +1,62 @@
+# `@ApiPropertyCopy`
+
+Copies all generated decorators (Swagger metadata, class-validator rules, transformers, DTO hooks) from an entity property onto a manual DTO field. Eliminates duplication when custom DTOs should mirror entity metadata.
+
+## Signature
+
+```typescript
+ApiPropertyCopy<E>({
+	entity,
+	propertyName,
+	method?,
+	dtoType?,
+	metadata?,
+	guard?,
+	shouldAutoResolveContext?,
+}: TApiPropertyCopyProperties<E>): PropertyDecorator
+```
+
+## Options
+
+| Option | Description |
+| --- | --- |
+| `entity` | Entity class or factory. Factories allow lazy resolution to avoid circular imports. |
+| `propertyName` | Property name on the entity to mirror. |
+| `method` / `dtoType` | Specify which CRUD route + DTO (e.g., GET + RESPONSE) to pull decorators from. Required unless `shouldAutoResolveContext` is true. |
+| `metadata` | Partial overrides merged with the original `@ApiPropertyDescribe` metadata before decorator generation. Useful for tweaking descriptions or DTO exposure. |
+| `guard` | Guard class used when generating DTO-specific decorators (mirrors the guard registered during auto DTO generation). |
+| `shouldAutoResolveContext` | When true, defers execution until the auto DTO pipeline attaches method/dto metadata (e.g., inside generated controller DTOs). Retries through the auto-context queue. |
+
+## Behavior
+
+- Resolves the entity (sync or async) and ensures `propertyName` metadata exists, throwing descriptive errors if not.
+- Determines the correct DTO context either from `method`/`dtoType` or the auto context queue.
+- Calls the DTO generator to produce the same decorators originally attached to the entity property and re-applies them to the DTO field.
+- Supports guard-aware decorator generation so field-level guards remain in sync.
+
+## Example
+
+```typescript
+class DepositResponseDto {
+	@ApiPropertyCopy({
+		entity: () => DepositEntity,
+		propertyName: "amount",
+		method: EApiRouteType.GET,
+		dtoType: EApiDtoType.RESPONSE,
+	})
+	amount!: number;
+
+	@ApiPropertyCopy({
+		entity: () => DepositEntity,
+		propertyName: "status",
+		shouldAutoResolveContext: true,
+	})
+	status!: EDepositStatus;
+}
+```
+
+## Related resources
+
+- [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
+- [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
+

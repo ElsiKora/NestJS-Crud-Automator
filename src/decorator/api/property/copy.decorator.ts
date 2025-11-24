@@ -47,6 +47,7 @@ import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-enti
  * @template E
  * @param {TApiPropertyCopyProperties<E>} properties - Configuration describing which entity property to mirror.
  * @returns {PropertyDecorator} Property decorator that applies copied metadata.
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-copy | API Reference - ApiPropertyCopy}
  */
 export function ApiPropertyCopy<E>(properties: TApiPropertyCopyProperties<E>): PropertyDecorator {
 	const { dtoType, entity, guard, metadata, method, propertyName, shouldAutoResolveContext }: TApiPropertyCopyProperties<E> = properties;

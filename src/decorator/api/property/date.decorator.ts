@@ -26,6 +26,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsOptional 
  * and handles string-to-Date transformation for request DTOs.
  * @param {TApiPropertyDateProperties} properties - Configuration options for the date property
  * @returns {Function} A decorator function that can be applied to a class property
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-date | API Reference - ApiPropertyDate}
  * @example
  * ```typescript
  * // Simple date property (YYYY-MM-DD)

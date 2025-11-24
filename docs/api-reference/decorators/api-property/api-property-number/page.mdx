@@ -1,0 +1,50 @@
+# `@ApiPropertyNumber`
+
+Adds Swagger metadata, validation, and serialization for numeric DTO properties. Supports integers, doubles, arrays, range limits, and multiple-of constraints with automatic example generation.
+
+## Signature
+
+```typescript
+@ApiPropertyNumber(properties: TApiPropertyNumberProperties)
+```
+
+## Notable options
+
+| Option | Description |
+| --- | --- |
+| `format` | `EApiPropertyNumberType.INTEGER` or `DOUBLE`. Controls Swagger `type`/`format` and which validator (`IsInt` vs `IsNumber`) runs. |
+| `minimum` / `maximum` | Value bounds enforced with `Min`/`Max`. Required to derive example defaults. |
+| `multipleOf` | Validates divisibility (useful for currency increments). |
+| `exampleValue` | Optional; falls back to a random value within the provided range. Accepts single value or array when `isArray` is `true`. |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables numeric arrays with full validation. |
+| `isNullable`, `isRequired`, `isResponse`, `isExpose` | Control request validation, Swagger metadata, and serialization. |
+
+## Behavior
+
+- Registers `@ApiProperty` with the appropriate `type`, `format`, `minimum`, `maximum`, and `multipleOf`.
+- Adds `Type(() => Number)` and `Transform` so incoming strings/numbers are coerced into numeric types.
+- Applies `IsInt`/`IsNumber`, `IsDivisibleBy`, `IsOptional`, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
+- Adds `ApiResponseProperty` plus `Expose`/`Exclude` when `isResponse` is enabled.
+
+## Example
+
+```typescript
+class PriceDto {
+	@ApiPropertyNumber({
+		entity: () => ProductEntity,
+		description: "Price amount",
+		format: EApiPropertyNumberType.DOUBLE,
+		minimum: 0.01,
+		maximum: 999999.99,
+		multipleOf: 0.01,
+		isRequired: true,
+	})
+	price!: number;
+}
+```
+
+## Related resources
+
+- [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
+- [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
+

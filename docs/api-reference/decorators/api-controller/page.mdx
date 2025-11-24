@@ -1,0 +1,24 @@
+# Controller Decorators
+
+Controller decorators configure generated CRUD controllers, observability, and authorization guard support. Combine them to expose endpoints, emit subscriber hooks, and enable RBAC for each controller.
+
+## Available decorators
+
+| Decorator | Purpose | Reference |
+| --- | --- | --- |
+| `@ApiController` | Generates CRUD endpoints, DTOs, and Swagger metadata for an entity. | [/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller) |
+| `@ApiControllerObservable` | Marks the controller so route subscribers receive lifecycle events. | [/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-observable](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-observable) |
+| `@ApiControllerSecurable` | Enables authorization guard evaluation for all auto-generated routes. | [/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) |
+
+## Typical workflow
+
+1. Annotate a controller with `@ApiController` and pass the entity, resource name, and per-route configuration.
+2. Add `@ApiControllerObservable` when route subscribers should intercept the lifecycle.
+3. Add `@ApiControllerSecurable` if authorization policies or custom guards must be enforced before CRUD actions.
+
+## Related resources
+
+- [Core Concepts – Controllers](/docs/nestjs-crud-automator/core-concepts/controllers)
+- [Subscriber System – Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)
+- [Guides – Authorization](/docs/nestjs-crud-automator/guides/authorization)
+

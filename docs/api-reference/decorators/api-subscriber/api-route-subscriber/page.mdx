@@ -1,0 +1,44 @@
+# `@ApiRouteSubscriber`
+
+Registers a class as a route-level subscriber for a specific entity. Subscribers intercept controller lifecycles (`before`, `after`, `error`) whenever an observable controller executes CRUD routes.
+
+## Signature
+
+```typescript
+@ApiRouteSubscriber<E extends IApiBaseEntity>({
+	entity,
+	priority?,
+}: IApiRouteSubscriberProperties<E>)
+```
+
+## Options
+
+| Option | Description |
+| --- | --- |
+| `entity` | Entity that the subscriber observes. |
+| `priority` | Execution order (higher runs first). Defaults to `0`. |
+
+## Usage steps
+
+1. Add `@ApiControllerObservable()` to the controller that should emit events.
+2. Extend `ApiRouteSubscriberBase<E>` and implement lifecycle hooks such as `onBeforeCreate`, `onAfterGetList`, or `onAfterDeleteError`.
+3. Decorate the subscriber class with `@ApiRouteSubscriber`.
+
+## Example
+
+```typescript
+@Injectable()
+@ApiRouteSubscriber<PostEntity>({ entity: PostEntity, priority: 10 })
+export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
+	async onAfterCreate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>) {
+		this.logger.log("Post created", context.result);
+		return context.result;
+	}
+}
+```
+
+## Related resources
+
+- [Subscriber Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-subscriber)
+- [Subscriber System – Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)
+

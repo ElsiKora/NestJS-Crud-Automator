@@ -1,0 +1,46 @@
+# `@ApiPropertyUUID`
+
+Describes UUID-based DTO fields and enforces RFC 4122 validation. Supports single identifiers or arrays with uniqueness constraints.
+
+## Signature
+
+```typescript
+@ApiPropertyUUID(properties: TApiPropertyUuidProperties)
+```
+
+## Options
+
+| Option | Description |
+| --- | --- |
+| `description` | Defaults to `"identifier"` if omitted; appended to the entity name. |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables arrays of UUIDs with full validation. |
+| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Standard property flags. |
+
+## Behavior
+
+- Generates a random UUID example for Swagger and sets the appropriate regex pattern/length.
+- Adds `IsUUID`, `IsOptional`, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
+- Marks the Swagger schema with `format: uuid` and sets `example` or `[example]` for arrays.
+- Adds `ApiResponseProperty`, `Expose`, or `Exclude` for response DTOs.
+
+## Example
+
+```typescript
+class BulkDeleteDto {
+	@ApiPropertyUUID({
+		entity: () => UserEntity,
+		description: "IDs to remove",
+		isArray: true,
+		minItems: 1,
+		maxItems: 50,
+		isUniqueItems: true,
+	})
+	ids!: Array<string>;
+}
+```
+
+## Related resources
+
+- [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
+- [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
+

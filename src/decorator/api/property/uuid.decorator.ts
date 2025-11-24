@@ -27,6 +27,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, IsUUID 
  * applies appropriate validation rules based on the configuration.
  * @param {TApiPropertyUuidProperties} properties - Configuration options for the UUID property
  * @returns {Function} A decorator function that can be applied to a class property
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-uuid | API Reference - ApiPropertyUUID}
  * @example
  * ```typescript
  * // Single UUID property

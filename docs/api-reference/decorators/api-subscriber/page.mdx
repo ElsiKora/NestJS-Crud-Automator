@@ -1,0 +1,23 @@
+# Subscriber Decorators
+
+Subscriber decorators register injectable classes that intercept controller or service lifecycles. They coordinate with `@ApiControllerObservable` and `@ApiServiceObservable` to emit before/after/error hooks.
+
+## Available decorators
+
+| Decorator | Purpose | Reference |
+| --- | --- | --- |
+| `@ApiFunctionSubscriber` | Subscribes to service-level events (create, update, delete, get*, etc.) and can mutate DTOs or results. | [/docs/nestjs-crud-automator/api-reference/decorators/api-subscriber/api-function-subscriber](/docs/nestjs-crud-automator/api-reference/decorators/api-subscriber/api-function-subscriber) |
+| `@ApiRouteSubscriber` | Subscribes to controller route lifecycle events (before/after/error for CRUD endpoints). | [/docs/nestjs-crud-automator/api-reference/decorators/api-subscriber/api-route-subscriber](/docs/nestjs-crud-automator/api-reference/decorators/api-subscriber/api-route-subscriber) |
+
+## Usage checklist
+
+1. Mark the corresponding controller or service as observable.
+2. Extend the appropriate subscriber base class and implement lifecycle handlers.
+3. Decorate the subscriber with the relevant decorator and optionally assign a priority to control execution order.
+
+## Related resources
+
+- [Subscriber System – Overview](/docs/nestjs-crud-automator/subscriber-system)
+- [Subscriber System – Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers)
+- [Subscriber System – Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)
+

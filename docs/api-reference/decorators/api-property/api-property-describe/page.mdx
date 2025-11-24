@@ -1,0 +1,54 @@
+# `@ApiPropertyDescribe`
+
+Central metadata decorator for entity properties. The metadata drives auto-generated DTOs, validation rules, Swagger schemas, filters, and guards.
+
+## Signature
+
+```typescript
+@ApiPropertyDescribe(properties: TApiPropertyDescribeProperties)
+```
+
+## Key configuration
+
+| Option | Description |
+| --- | --- |
+| `type` | Required `EApiPropertyDescribeType` (STRING, NUMBER, BOOLEAN, DATE, ENUM, OBJECT, UUID, RELATION). Governs downstream validators and Swagger schema. |
+| `description` | Human-readable field description appended to DTOs and Swagger docs. |
+| `exampleValue` | Example displayed in Swagger and used when validating `pattern` alignment. |
+| `dto` | Fine-grained control over exposure in create/update/query/response DTOs, plus guard configuration for response properties. |
+| `relationMetadata` | Relation-specific settings: `relationType`, related entity, `isEager`, cascade flags, etc. |
+| Type-specific fields | Each type exposes additional options (e.g., `minLength`, `format`, `enum`, `identifier`, `minimum`, `maximum`). |
+
+The decorator stores values in `MetadataStorage`, allowing factory pipelines to retrieve them even when DTOs are generated lazily.
+
+## Example
+
+```typescript
+@Column()
+@ApiPropertyDescribe({
+	type: EApiPropertyDescribeType.STRING,
+	description: "Display name",
+	format: EApiPropertyStringType.STRING,
+	minLength: 3,
+	maxLength: 64,
+	pattern: "/^[a-zA-Z0-9 _-]+$/",
+	dto: {
+		body: { isExposedInCreateDto: true, isRequiredInCreateDto: true },
+		response: { isExposed: true },
+		query: { getList: { isExposedAsFilter: true } },
+	},
+})
+name!: string;
+```
+
+## Best practices
+
+- Apply `@ApiPropertyDescribe` to every persistent column so DTOs remain in sync with the entity model.
+- Pair it with the property-level decorators (`@ApiPropertyString`, `@ApiPropertyNumber`, etc.) for manual DTOs or overrides.
+- Keep `exampleValue` in sync with `pattern`/range rules to avoid validation errors during bootstrapping.
+
+## Related resources
+
+- [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
+- [Core Concepts – Entities](/docs/nestjs-crud-automator/core-concepts/entities)
+

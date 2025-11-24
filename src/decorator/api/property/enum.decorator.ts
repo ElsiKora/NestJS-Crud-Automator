@@ -26,6 +26,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, IsOptional 
  * that only valid options are accepted in requests and properly documented in the API.
  * @param {TApiPropertyEnumProperties} properties - Configuration options for the enum property
  * @returns {Function} A decorator function that can be applied to a class property
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-enum | API Reference - ApiPropertyEnum}
  * @example
  * ```typescript
  * // String enum example

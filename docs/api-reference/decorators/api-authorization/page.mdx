@@ -1,0 +1,21 @@
+# Authorization Decorators
+
+Authorization decorators register policy classes that run before any auto-generated route executes. Policies allow entity-specific RBAC, multi-tenant filters, and custom assertions without touching controllers.
+
+## Available decorators
+
+| Decorator | Purpose | Reference |
+| --- | --- | --- |
+| `@ApiAuthorizationPolicy` | Registers a policy class with optional priority, ID, and description metadata. | [/docs/nestjs-crud-automator/api-reference/decorators/api-authorization/api-authorization-policy](/docs/nestjs-crud-automator/api-reference/decorators/api-authorization/api-authorization-policy) |
+
+## Typical workflow
+
+1. Implement a policy by extending `ApiAuthorizationPolicyBase`.
+2. Decorate the class with `@ApiAuthorizationPolicy`, providing the entity and optional metadata.
+3. Import `ApiAuthorizationModule` so the policy registry discovers and executes policies for each secured controller.
+
+## Related resources
+
+- [Guides – Authorization](/docs/nestjs-crud-automator/guides/authorization)
+- [Core Concepts – Controllers](/docs/nestjs-crud-automator/core-concepts/controllers)
+

@@ -1,0 +1,60 @@
+# `@ApiPropertyString`
+
+Provides comprehensive Swagger, validation, and transformation support for string DTO fields. Handles dozens of formats (email, URL, UUID, password, timezone, slug, etc.), arrays, regex patterns, and response serialization.
+
+## Signature
+
+```typescript
+@ApiPropertyString(properties: TApiPropertyStringProperties)
+```
+
+## Key options
+
+| Option | Description |
+| --- | --- |
+| `format` | Required `EApiPropertyStringType` value (STRING, EMAIL, URL, PASSWORD, UUID, REGEXP, PHONE_NUMBER, etc.). Determines validators such as `IsEmail`, `IsUrl`, `IsUUID`. |
+| `pattern` | Stringified RegExp (`"/^[a-z]+$/"`). Used by `Matches` and validated against `exampleValue`. |
+| `minLength` / `maxLength` | Enforced with `Length`. |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enable string arrays with `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, `ArrayNotEmpty`. |
+| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Control optionality, Swagger metadata, and serialization. |
+| `exampleValue` | Single value or array; validated against the regex/length constraints. |
+
+## Behavior
+
+- Emits `@ApiProperty` with the correct format, pattern, and example. Arrays automatically wrap the schema in `items`.
+- Adds format-specific validators pulled from `class-validator` (e.g., `IsEmail`, `IsPhoneNumber`, `IsStrongPassword`, `IsJWT`, `IsHexColor`).
+- Registers request validators (`Matches`, `Length`, `IsOptional`, array validators) unless `isResponse` is `true`.
+- Applies `ApiResponseProperty`, `Expose`, or `Exclude` on response DTOs.
+
+## Example
+
+```typescript
+class UserDto {
+	@ApiPropertyString({
+		entity: () => UserEntity,
+		description: "Email address",
+		format: EApiPropertyStringType.EMAIL,
+		minLength: 5,
+		maxLength: 255,
+		pattern: "/^[\\w.-]+@([\\w-]+\\.)+[\\w-]{2,}$/",
+		isRequired: true,
+	})
+	email!: string;
+
+	@ApiPropertyString({
+		entity: () => UserEntity,
+		description: "Tags",
+		format: EApiPropertyStringType.SLUG,
+		isArray: true,
+		minItems: 1,
+		maxItems: 5,
+	})
+	tags!: Array<string>;
+}
+```
+
+## Related resources
+
+- [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
+- [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
+

@@ -1,0 +1,40 @@
+# `@ApiFunctionGet`
+
+Decorates a service method so it fetches a single entity using repository or transactional manager APIs while running subscriber hooks before and after the read. It centralizes “not found” errors so controllers can rely on consistent HTTP semantics.
+
+## Signature
+
+```typescript
+@ApiFunctionGet<E extends IApiBaseEntity>(
+	properties: IApiFunctionProperties<E>
+)
+```
+
+Decorated methods gain the shape `get(properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager): Promise<E>`.
+
+## Behavior
+
+- Executes `onBeforeGet` subscribers with the incoming `FindOneOptions`. Returning options overrides the query before execution.
+- Queries via `repository.findOne` or `eventManager.getRepository(entity).findOne`.
+- Throws `NotFoundException` with a generated error message if no entity is found.
+- Runs `onAfterGet` subscribers and allows them to swap the returned entity.
+- Emits `onAfterGetError` hooks for HTTP or unexpected errors.
+
+## Example
+
+```typescript
+export class PostService {
+	constructor(public repository: Repository<PostEntity>) {}
+
+	@ApiFunctionGet<PostEntity>({ entity: PostEntity })
+	async getById(properties: TApiFunctionGetProperties<PostEntity>) {
+		return {} as PostEntity;
+	}
+}
+```
+
+## Related resources
+
+- [Function Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
+- [`@ApiFunctionDelete`](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-delete)
+

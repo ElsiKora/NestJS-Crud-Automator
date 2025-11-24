@@ -70,6 +70,7 @@ import {
  * The decorator applies appropriate validation rules based on the format and configuration.
  * @param {TApiPropertyStringProperties} properties - Configuration options for the string property
  * @returns {Function} A decorator function that can be applied to a class property
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-string | API Reference - ApiPropertyString}
  * @example
  * ```typescript
  * // Simple string property

@@ -18,6 +18,7 @@ import { ApiFunctionUpdate } from "./update.decorator";
  * @param {TApiFunctionProperties<E>} properties - Configuration properties for the API function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that applies the appropriate function decorator
  * @template E - The entity type for the API function
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function | API Reference - ApiFunction}
  */
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
 export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {

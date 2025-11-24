@@ -26,6 +26,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, IsOption
  * form data and query parameters.
  * @param {TApiPropertyBaseProperties} properties - Configuration options for the boolean property
  * @returns {Function} A decorator function that can be applied to a class property
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-boolean | API Reference - ApiPropertyBoolean}
  * @example
  * ```typescript
  * // Simple boolean property

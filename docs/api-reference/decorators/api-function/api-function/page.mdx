@@ -1,0 +1,45 @@
+# `@ApiFunction`
+
+Factory decorator that selects the appropriate CRUD decorator (`create`, `update`, `delete`, `get`, `getList`, `getMany`) based on `type`. Use it when you want to wrap a repository-facing method without manually importing each specialized decorator.
+
+## Signature
+
+```typescript
+@ApiFunction<E extends IApiBaseEntity, R>(options: TApiFunctionProperties<E>)
+```
+
+## Options
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `entity` | `new () => E` | Entity constructor used to instantiate temporary instances for metadata generation. |
+| `type` | `EApiFunctionType` | Target CRUD operation (`CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, `GET_MANY`). |
+| `relations` | `FindOptionsRelations<E>` | Optional relation map forwarded to the `GET_LIST` executor for eager loading. |
+
+## Behavior
+
+- Wraps the original method, replacing it with the result of the specialized decorator.
+- Provides the service instance (`this`) to the generated descriptor so repository access and subscribers behave consistently.
+- Throws a descriptive error if the `type` is not supported.
+
+## Example
+
+```typescript
+export class PostService {
+	constructor(public repository: Repository<PostEntity>) {}
+
+	@ApiFunction<PostEntity>({
+		entity: PostEntity,
+		type: EApiFunctionType.UPDATE,
+	})
+	async updatePost(criteria: TApiFunctionUpdateCriteria<PostEntity>, dto: TApiFunctionUpdateProperties<PostEntity>) {
+		// Implementation replaced by the decorator
+	}
+}
+```
+
+## Related resources
+
+- [Function Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
+- [`@ApiFunctionCreate`](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-create)
+

@@ -29,6 +29,7 @@ import random from "lodash/random";
  * if one is not provided, and applies appropriate validation rules based on the configuration.
  * @param {TApiPropertyNumberProperties} properties - Configuration options for the number property
  * @returns {Function} A decorator function that can be applied to a class property
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-number | API Reference - ApiPropertyNumber}
  * @example
  * ```typescript
  * // Simple integer property

@@ -18,6 +18,7 @@ import { LoggerUtility } from "@utility/logger.utility";
  * @template E The entity type
  * @param {IApiFunctionProperties<E>} properties - Configuration properties for the get function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle single entity retrieval
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get | API Reference - ApiFunctionGet}
  */
 export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
