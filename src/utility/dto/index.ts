@@ -1,4 +1,5 @@
-export { analyzeEntityMetadata } from "./analize.utility";
+export { DtoAutoContextPop } from "./auto-context-pop.utility";
+export { DtoAutoContextPush } from "./auto-context-push.utility";
 export { DtoBuildDecorator } from "./build-decorator.utility";
 export { DtoGenerateCacheKey } from "./generate-cache-key.utility";
 export { DtoGenerateDecorator } from "./generate-decorator.utility";

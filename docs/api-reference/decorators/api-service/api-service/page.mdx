@@ -1,0 +1,48 @@
+# `@ApiService`
+
+Extends a provider with CRUD-ready methods (`create`, `update`, `delete`, `get`, `getList`, `getMany`) that mirror the DTO contracts exposed by the generated controllers. Each method routes through `@ApiFunction` so subscribers and validators behave consistently across the stack.
+
+## Signature
+
+```typescript
+@ApiService<E extends IApiBaseEntity>({ entity }: TApiServiceProperties<E>)
+```
+
+## Requirements
+
+- The decorated class must expose a `repository: Repository<E>` property (the decorator does not inject it automatically).
+- Each generated method accepts the DTO created by the controller factory and an optional `EntityManager` to support transactional flows.
+- Methods are defined only if the class does not already provide an implementation, allowing selective overrides.
+
+## Generated methods
+
+| Method | Parameters | Description |
+| --- | --- | --- |
+| `create` | `(dto, eventManager?)` | Persists a new entity and triggers subscriber hooks. |
+| `update` | `(criteria, dto, eventManager?)` | Applies updates with full DTO validation and subscriber lifecycle. |
+| `delete` | `(criteria, eventManager?)` | Removes records and notifies subscribers. |
+| `get` | `(criteria, eventManager?)` | Loads a single entity, throwing typed HTTP errors on failure. |
+| `getMany` | `(criteria, eventManager?)` | Loads multiple records by identifiers. |
+| `getList` | `(properties, relations, eventManager?)` | Returns paginated collections with relations populated as requested. |
+
+## Example
+
+```typescript
+@Injectable()
+@ApiService<UserEntity>({ entity: UserEntity })
+export class UserService extends ApiServiceBase<UserEntity> {
+	constructor(
+		@InjectRepository(UserEntity)
+		public repository: Repository<UserEntity>,
+	) {
+		super();
+	}
+}
+```
+
+## Related resources
+
+- [Service Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-service)
+- [Function Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
+- [Core Concepts – Services](/docs/nestjs-crud-automator/core-concepts/services)
+

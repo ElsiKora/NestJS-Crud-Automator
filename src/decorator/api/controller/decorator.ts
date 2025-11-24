@@ -24,7 +24,7 @@ import { ApiControllerFactory } from "@factory/api";
  * })
  * export class UserController {}
  * ```
- * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators#apicontroller | API Reference - ApiController}
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller | API Reference - ApiController}
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/core-concepts/controllers | Core Concepts - Controllers}
  */
 export const ApiController =

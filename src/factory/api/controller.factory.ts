@@ -24,7 +24,7 @@ import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerApplyDecorators, ApiControllerApplyMetadata, ApiControllerGetListTransformFilter, ApiControllerGetPrimaryColumn, ApiControllerHandleRequestRelations, ApiControllerTransformData, ApiControllerValidateRequest, ApiControllerWriteDtoSwagger, ApiControllerWriteMethod } from "@utility/api";
 import { AuthorizationDecisionApplyResult, AuthorizationDecisionAttachResource, AuthorizationDecisionResolveFromRequest } from "@utility/authorization/decision";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope/merge/where.utility";
-import { analyzeEntityMetadata, DtoGenerate } from "@utility/dto";
+import { DtoGenerate } from "@utility/dto";
 import { ErrorException } from "@utility/error-exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { plainToInstance } from "class-transformer";
@@ -41,7 +41,6 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		private readonly properties: IApiControllerProperties<E>,
 	) {
 		this.ENTITY = GenerateEntityInformation<E>(properties.entity);
-		analyzeEntityMetadata(this.properties.entity);
 
 		if (!this.ENTITY.primaryKey) {
 			throw ErrorException(`Primary key for entity ${this.properties.entity.name ?? "UnknownResource"} not found`);

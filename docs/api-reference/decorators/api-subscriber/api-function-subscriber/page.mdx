@@ -1,0 +1,44 @@
+# `@ApiFunctionSubscriber`
+
+Registers a class as a function-level subscriber for a specific entity. Subscribers receive hooks whenever observable services execute CRUD functions (`before`, `after`, `error` for create/update/delete/get/getList/getMany).
+
+## Signature
+
+```typescript
+@ApiFunctionSubscriber<E extends IApiBaseEntity>({
+	entity,
+	priority?,
+}: IApiFunctionSubscriberProperties<E>)
+```
+
+## Options
+
+| Option | Description |
+| --- | --- |
+| `entity` | Entity the subscriber listens to. The subscriber is ignored for other entities. |
+| `priority` | Higher numbers execute first. Defaults to `0`. Use this to enforce deterministic ordering between multiple subscribers. |
+
+## Usage steps
+
+1. Mark the target service with `@ApiServiceObservable()` so hooks are emitted.
+2. Extend `ApiFunctionSubscriberBase<E>` and override desired lifecycle methods (`onBeforeCreate`, `onAfterUpdate`, `onAfterDeleteError`, etc.).
+3. Decorate the subscriber class with `@ApiFunctionSubscriber`.
+
+## Example
+
+```typescript
+@Injectable()
+@ApiFunctionSubscriber<PostEntity>({ entity: PostEntity, priority: 50 })
+export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
+	async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, TApiFunctionCreateProperties<PostEntity>>) {
+		context.result.body.slug = this.slugify(context.result.body.title);
+		return context.result;
+	}
+}
+```
+
+## Related resources
+
+- [Subscriber Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-subscriber)
+- [Subscriber System – Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers)
+

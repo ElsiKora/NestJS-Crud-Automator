@@ -26,6 +26,7 @@ import { SUBSCRIBER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/subsc
  * @param {E} properties.entity - The entity that the subscriber will listen to.
  * @param {number} [properties.priority] - The priority of the subscriber. The lower the number, the higher the priority.
  * @returns {ClassDecorator} - A decorator that creates a new subscriber.
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-subscriber/api-function-subscriber | API Reference - ApiFunctionSubscriber}
  */
 export function ApiFunctionSubscriber<E extends IApiBaseEntity>(properties: IApiFunctionSubscriberProperties<E>): ClassDecorator {
 	return (target: object) => {

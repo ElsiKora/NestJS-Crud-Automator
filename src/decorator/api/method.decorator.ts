@@ -15,6 +15,7 @@ import { DtoGenerateException } from "@utility/dto/generate-exception.utility";
  * @param {IApiMethodProperties<T>} options - Configuration options for the API method
  * @returns {Function} A decorator function that applies multiple decorators to a controller method
  * @template T - The entity type for the API method
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-method/api-method | API Reference - ApiMethod}
  */
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters,@elsikora/typescript/no-unsafe-function-type
 export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodProperties<T>): <TFunction extends Function, Y>(target: object | TFunction, propertyKey?: string | symbol, descriptor?: TypedPropertyDescriptor<Y>) => void {

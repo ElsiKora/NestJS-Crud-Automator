@@ -20,6 +20,7 @@ import { ApiFunctionGet } from "./get.decorator";
  * @template E The entity type
  * @param {IApiFunctionProperties<E>} properties - Configuration properties for the update function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle entity updates
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-update | API Reference - ApiFunctionUpdate}
  */
 export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;

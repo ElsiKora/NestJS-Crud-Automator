@@ -26,6 +26,7 @@ import { SUBSCRIBER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/subsc
  * @param {E} properties.entity - The entity that the subscriber will listen to.
  * @param {number} [properties.priority] - The priority of the subscriber. The lower the number, the higher the priority.
  * @returns {ClassDecorator} - A decorator that creates a new subscriber.
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-subscriber/api-route-subscriber | API Reference - ApiRouteSubscriber}
  */
 export function ApiRouteSubscriber<E extends IApiBaseEntity>(properties: IApiRouteSubscriberProperties<E>): ClassDecorator {
 	return (target: object) => {

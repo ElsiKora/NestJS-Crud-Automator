@@ -22,6 +22,9 @@ import { ErrorException } from "@utility/error-exception.utility";
 import { HasPairedCustomSuffixesFieldsValidator } from "@validator/has-paired-custom-suffixes-fields.validator";
 import { Validate } from "class-validator";
 
+import { DtoAutoContextPop } from "./auto-context-pop.utility";
+import { DtoAutoContextPush } from "./auto-context-push.utility";
+
 const dtoGenerateCache: Map<string, Type<unknown>> = new Map<string, Type<unknown>>();
 
 /**
@@ -131,46 +134,52 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		}
 	}
 
-	for (const property of markedProperties) {
-		const generatedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard);
+	DtoAutoContextPush(GeneratedDTO.prototype, method, dtoType);
 
-		const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard, generatedDTOs);
+	try {
+		for (const property of markedProperties) {
+			const generatedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard);
 
-		if (decorators) {
-			for (const [, decorator] of decorators.entries()) {
-				if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
-					decorator(GeneratedDTO.prototype, `${property.name as string}[value]`);
+			const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard, generatedDTOs);
 
-					DtoGenerateFilterDecorator(property.metadata, entityMetadata)(GeneratedDTO.prototype, `${property.name as string}[operator]`);
-				} else {
-					decorator(GeneratedDTO.prototype, property.name as string);
+			if (decorators) {
+				for (const [, decorator] of decorators.entries()) {
+					if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
+						decorator(GeneratedDTO.prototype, `${property.name as string}[value]`);
+
+						DtoGenerateFilterDecorator(property.metadata, entityMetadata)(GeneratedDTO.prototype, `${property.name as string}[operator]`);
+					} else {
+						decorator(GeneratedDTO.prototype, property.name as string);
+					}
+				}
+			}
+
+			if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
+				// @ts-ignore
+				const metadataArray: TApiPropertyDescribeProperties = { ...property.metadata, isArray: true, isUniqueItems: false, maxItems: DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES, minItems: DTO_GENERATE_CONSTANT.MINIMUM_FILTER_PROPERTIES };
+
+				const decoratorsArray: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, metadataArray, entityMetadata, dtoType, property.name as string, currentGuard);
+
+				if (decoratorsArray) {
+					for (const [, decorator] of decoratorsArray.entries()) {
+						decorator(GeneratedDTO.prototype, `${property.name as string}[values]`);
+					}
+				}
+			}
+
+			if (property.metadata.type === EApiPropertyDescribeType.OBJECT && Array.isArray(property.metadata.dataType)) {
+				// @ts-ignore
+				extraModels.push(...property.metadata.dataType);
+			}
+
+			if (generatedDTOs) {
+				for (const [, value] of Object.entries(generatedDTOs)) {
+					extraModels.push(value);
 				}
 			}
 		}
-
-		if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
-			// @ts-ignore
-			const metadataArray: TApiPropertyDescribeProperties = { ...property.metadata, isArray: true, isUniqueItems: false, maxItems: DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES, minItems: DTO_GENERATE_CONSTANT.MINIMUM_FILTER_PROPERTIES };
-
-			const decoratorsArray: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, metadataArray, entityMetadata, dtoType, property.name as string, currentGuard);
-
-			if (decoratorsArray) {
-				for (const [, decorator] of decoratorsArray.entries()) {
-					decorator(GeneratedDTO.prototype, `${property.name as string}[values]`);
-				}
-			}
-		}
-
-		if (property.metadata.type === EApiPropertyDescribeType.OBJECT && Array.isArray(property.metadata.dataType)) {
-			// @ts-ignore
-			extraModels.push(...property.metadata.dataType);
-		}
-
-		if (generatedDTOs) {
-			for (const [, value] of Object.entries(generatedDTOs)) {
-				extraModels.push(value);
-			}
-		}
+	} finally {
+		DtoAutoContextPop(GeneratedDTO.prototype);
 	}
 
 	if (dtoConfig?.validators) {

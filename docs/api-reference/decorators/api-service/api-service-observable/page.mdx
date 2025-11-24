@@ -1,0 +1,30 @@
+# `@ApiServiceObservable`
+
+Marks a service as observable so function subscribers are executed before/after each CRUD method and whenever an error occurs. Without this decorator, `ApiFunctionSubscriber` classes are ignored for the service.
+
+## Signature
+
+```typescript
+@ApiServiceObservable()
+```
+
+## Behavior
+
+- Adds the `SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY` flag to the service constructor.
+- `ApiFunctionSubscriber` registries inspect this metadata before invoking subscribers, preventing accidental fan-out on services that are not opt-in.
+- Works with both `@ApiService`-generated methods and custom methods that manually execute `ApiSubscriberExecutor`.
+
+## Example
+
+```typescript
+@Injectable()
+@ApiService({ entity: PostEntity })
+@ApiServiceObservable()
+export class PostService extends ApiServiceBase<PostEntity> {}
+```
+
+## Related resources
+
+- [Service Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-service)
+- [Subscriber System – Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers)
+

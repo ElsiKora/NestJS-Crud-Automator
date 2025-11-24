@@ -1,9 +1,12 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { Type } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiPropertyDateProperties } from "@type/decorator/api/property";
 
 import { EApiPropertyDataType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsOptional } from "class-validator";
 
@@ -23,6 +26,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsOptional 
  * and handles string-to-Date transformation for request DTOs.
  * @param {TApiPropertyDateProperties} properties - Configuration options for the date property
  * @returns {Function} A decorator function that can be applied to a class property
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-date | API Reference - ApiPropertyDate}
  * @example
  * ```typescript
  * // Simple date property (YYYY-MM-DD)
@@ -63,12 +67,18 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsOptional 
  * ```
  */
 export function ApiPropertyDate(properties: TApiPropertyDateProperties): PropertyDecorator {
-	validateOptions(properties);
+	return (target: object, propertyKey: string | symbol): void => {
+		WithResolvedPropertyEntity(properties.entity, "ApiPropertyDate", (resolvedEntity: IApiBaseEntity | Type<IApiBaseEntity>) => {
+			const normalizedProperties: TApiPropertyDateProperties = { ...properties, entity: resolvedEntity };
 
-	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(properties);
-	const decorators: Array<PropertyDecorator> = buildDecorators(properties, apiPropertyOptions);
+			validateOptions(normalizedProperties);
 
-	return applyDecorators(...decorators);
+			const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(normalizedProperties);
+			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);
+
+			applyDecorators(...decorators)(target, propertyKey);
+		});
+	};
 }
 
 /**

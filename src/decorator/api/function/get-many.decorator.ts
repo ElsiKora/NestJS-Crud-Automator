@@ -19,6 +19,7 @@ import { LoggerUtility } from "@utility/logger.utility";
  * @template E The entity type
  * @param {IApiFunctionProperties<E>} properties - Configuration properties for the get-many function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle retrieving multiple entities
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-many | API Reference - ApiFunctionGetMany}
  */
 export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;

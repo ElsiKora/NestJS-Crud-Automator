@@ -1,0 +1,40 @@
+# `@ApiFunctionGetMany`
+
+Retrieves multiple entities at once (typically by IDs or composite criteria) and enforces the same error handling and subscriber hooks as other CRUD functions.
+
+## Signature
+
+```typescript
+@ApiFunctionGetMany<E extends IApiBaseEntity>(
+	properties: IApiFunctionProperties<E>
+)
+```
+
+Decorated methods gain the shape `getMany(dto: TApiFunctionGetManyProperties<E>, eventManager?: EntityManager): Promise<Array<E>>`.
+
+## Behavior
+
+- Invokes `onBeforeGetMany` subscribers that can override the `FindManyOptions`.
+- Calls `repository.find` or the transactional equivalent to load the records.
+- Throws `NotFoundException` if the result set is empty so controllers surface deterministic HTTP 404 responses.
+- Runs `onAfterGetMany` subscribers; they may adjust the returned list.
+- Emits `onAfterGetManyError` subscriber events for error observability.
+
+## Example
+
+```typescript
+export class PostService {
+	constructor(public repository: Repository<PostEntity>) {}
+
+	@ApiFunctionGetMany<PostEntity>({ entity: PostEntity })
+	async getMany(properties: TApiFunctionGetManyProperties<PostEntity>) {
+		return [];
+	}
+}
+```
+
+## Related resources
+
+- [Function Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
+- [`TApiFunctionGetManyProperties`](/docs/nestjs-crud-automator/api-reference/interfaces)
+

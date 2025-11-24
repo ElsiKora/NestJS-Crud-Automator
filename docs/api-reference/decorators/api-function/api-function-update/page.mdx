@@ -1,0 +1,43 @@
+# `@ApiFunctionUpdate`
+
+Adds update semantics to a service method, including DTO validation, repository writes, and before/after subscriber hooks. The decorator also ensures the entity exists before mutation by reusing `@ApiFunctionGet`.
+
+## Signature
+
+```typescript
+@ApiFunctionUpdate<E extends IApiBaseEntity>(
+	properties: IApiFunctionProperties<E>
+)
+```
+
+Decorated methods gain the shape `update(criteria: TApiFunctionUpdateCriteria<E>, dto: TApiFunctionUpdateProperties<E>, eventManager?: EntityManager): Promise<E>`.
+
+## Behavior
+
+- Runs `onBeforeUpdate` subscribers with the incoming DTO; returning a DTO overrides the update payload.
+- Lazily decorates a helper `get` method (via `@ApiFunctionGet`) to fetch the entity and raise 404 errors if missing.
+- Merges the existing entity with provided properties and saves via the repository or transaction manager.
+- Executes `onAfterUpdate` subscribers; their return value can replace the final response.
+- Fires `onBeforeUpdateError` and `onAfterUpdateError` subscribers when repositories or validation fail.
+
+## Example
+
+```typescript
+export class PostService {
+	constructor(public repository: Repository<PostEntity>) {}
+
+	@ApiFunctionUpdate<PostEntity>({ entity: PostEntity })
+	async updatePost(
+		criteria: TApiFunctionUpdateCriteria<PostEntity>,
+		dto: TApiFunctionUpdateProperties<PostEntity>,
+	) {
+		return {} as PostEntity;
+	}
+}
+```
+
+## Related resources
+
+- [`@ApiFunctionGet`](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get)
+- [Function Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
+
