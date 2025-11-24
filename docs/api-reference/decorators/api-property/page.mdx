@@ -1,0 +1,29 @@
+# Property Decorators
+
+Property decorators describe DTO fields, attach Swagger metadata, and generate class-validator/class-transformer rules consistent with the entity definition.
+
+## Available decorators
+
+| Decorator | Purpose | Reference |
+| --- | --- | --- |
+| `@ApiPropertyDescribe` | Central metadata source used by auto DTO generation. | [/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe) |
+| `@ApiPropertyBoolean` | Applies boolean validation/serialization rules. | [/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-boolean](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-boolean) |
+| `@ApiPropertyNumber` | Handles numeric formats, ranges, and array validation. | [/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-number](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-number) |
+| `@ApiPropertyString` | Covers dozens of string formats, pattern enforcement, and serialization hints. | [/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-string](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-string) |
+| `@ApiPropertyDate` | Controls timestamp identifiers, serialization, and timezone handling. | [/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-date](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-date) |
+| `@ApiPropertyEnum` | Maps enum values to Swagger and validation metadata. | [/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-enum](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-enum) |
+| `@ApiPropertyObject` | Describes nested object payloads with typed sub-properties. | [/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object) |
+| `@ApiPropertyUUID` | Adds UUID validation for identifiers and relation fields. | [/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-uuid](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-uuid) |
+| `@ApiPropertyCopy` | Reuses metadata from entity properties to avoid manual duplication in DTOs. | [/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-copy](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-copy) |
+
+## Recommended workflow
+
+1. Start with `@ApiPropertyDescribe` on entities so DTO generation stays centralized.
+2. Apply the property-specific decorators to manual DTOs when fine-grained control is needed.
+3. Use `@ApiPropertyCopy` to mirror existing metadata onto custom DTOs or nested payloads while preserving auto-context behavior.
+
+## Related resources
+
+- [Core Concepts – Entities](/docs/nestjs-crud-automator/core-concepts/entities)
+- [Guides – Custom DTOs](/docs/nestjs-crud-automator/guides/custom-dtos)
+

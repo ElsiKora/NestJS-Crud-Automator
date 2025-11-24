@@ -1,0 +1,41 @@
+# `@ApiFunctionDelete`
+
+Decorates a service method so it loads an entity, runs subscriber hooks, and removes the record through the repository or transaction manager. It reuses `@ApiFunctionGet` internally to guarantee consistent “not found” errors and guard-friendly behavior.
+
+## Signature
+
+```typescript
+@ApiFunctionDelete<E extends IApiBaseEntity>(
+	properties: IApiFunctionProperties<E>
+)
+```
+
+Decorated methods gain the shape `delete(criteria: TApiFunctionDeleteCriteria<E>, eventManager?: EntityManager): Promise<E>`.
+
+## Behavior
+
+- Executes `onBeforeDelete` subscribers with the provided criteria. Returning criteria replaces the original input.
+- Ensures the service has a repository; otherwise throws and notifies error subscribers.
+- Lazily decorates a helper `get` method using `@ApiFunctionGet` to fetch the entity before deletion, preserving consistent error handling.
+- Removes the entity via `repository.remove` or `eventManager.getRepository(entity).remove`.
+- Runs `onAfterDelete` subscribers, allowing them to return a different entity snapshot.
+- On exceptions, executes `onAfterDeleteError` subscribers and rethrows `HttpException` instances, wrapping other errors.
+
+## Example
+
+```typescript
+export class PostService {
+	constructor(public repository: Repository<PostEntity>) {}
+
+	@ApiFunctionDelete<PostEntity>({ entity: PostEntity })
+	async remove(criteria: TApiFunctionDeleteCriteria<PostEntity>) {
+		return {} as PostEntity;
+	}
+}
+```
+
+## Related resources
+
+- [`@ApiFunctionGet`](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get)
+- [Function Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
+

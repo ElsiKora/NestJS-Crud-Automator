@@ -1,8 +1,11 @@
+import type { Type } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiPropertyEnumProperties } from "@type/decorator/api/property/enum-properties.type";
+import type { IApiBaseEntity } from "index";
 
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, IsOptional } from "class-validator";
 
@@ -23,6 +26,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, IsOptional 
  * that only valid options are accepted in requests and properly documented in the API.
  * @param {TApiPropertyEnumProperties} properties - Configuration options for the enum property
  * @returns {Function} A decorator function that can be applied to a class property
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-enum | API Reference - ApiPropertyEnum}
  * @example
  * ```typescript
  * // String enum example
@@ -81,12 +85,18 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, IsOptional 
  * ```
  */
 export function ApiPropertyEnum(properties: TApiPropertyEnumProperties): PropertyDecorator {
-	validateOptions(properties);
+	return (target: object, propertyKey: string | symbol): void => {
+		WithResolvedPropertyEntity(properties.entity, "ApiPropertyEnum", (resolvedEntity: IApiBaseEntity | Type<IApiBaseEntity>) => {
+			const normalizedProperties: TApiPropertyEnumProperties = { ...properties, entity: resolvedEntity };
 
-	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(properties);
-	const decorators: Array<PropertyDecorator> = buildDecorators(properties, apiPropertyOptions);
+			validateOptions(normalizedProperties);
 
-	return applyDecorators(...decorators);
+			const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(normalizedProperties);
+			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);
+
+			applyDecorators(...decorators)(target, propertyKey);
+		});
+	};
 }
 
 /**

@@ -1,0 +1,40 @@
+# `@ApiFunctionGetList`
+
+Provides paginated list retrieval with filtering, sorting, and relation loading using the DTO emitted by the controller. Automatically computes pagination metadata and runs subscriber hooks.
+
+## Signature
+
+```typescript
+@ApiFunctionGetList<E extends IApiBaseEntity>(
+	properties: IApiFunctionProperties<E>
+)
+```
+
+Decorated methods gain the shape `getList(dto: TApiFunctionGetListProperties<E>, eventManager?: EntityManager): Promise<IApiGetListResponseResult<E>>`.
+
+## Behavior
+
+- Runs `onBeforeGetList` subscribers so they can modify the `FindManyOptions` (filters, joins, pagination).
+- Uses `repository.findAndCount` (or the transactional repository) to retrieve data and the total count.
+- Computes `count`, `totalCount`, `totalPages`, and `currentPage` for the response DTO.
+- Executes `onAfterGetList` subscribers, allowing them to reshape items or pagination metadata.
+- Captures and rethrows HTTP exceptions while notifying `onAfterGetListError` subscribers.
+
+## Example
+
+```typescript
+export class PostService {
+	constructor(public repository: Repository<PostEntity>) {}
+
+	@ApiFunctionGetList<PostEntity>({ entity: PostEntity })
+	async getList(properties: TApiFunctionGetListProperties<PostEntity>) {
+		return { items: [], count: 0, totalCount: 0, totalPages: 0, currentPage: 0 };
+	}
+}
+```
+
+## Related resources
+
+- [Function Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
+- [`TApiFunctionGetListProperties`](/docs/nestjs-crud-automator/api-reference/interfaces) (DTO definition)
+

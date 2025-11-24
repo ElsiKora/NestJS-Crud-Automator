@@ -1,3 +1,5 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { Type } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiPropertyUuidProperties } from "@type/decorator/api/property";
 
@@ -6,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { EApiPropertyDataType, EApiPropertyStringType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, IsUUID } from "class-validator";
 
@@ -24,6 +27,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, IsUUID 
  * applies appropriate validation rules based on the configuration.
  * @param {TApiPropertyUuidProperties} properties - Configuration options for the UUID property
  * @returns {Function} A decorator function that can be applied to a class property
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-uuid | API Reference - ApiPropertyUUID}
  * @example
  * ```typescript
  * // Single UUID property
@@ -51,14 +55,19 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, IsUUID 
  * ```
  */
 export function ApiPropertyUUID(properties: TApiPropertyUuidProperties): PropertyDecorator {
-	const uuidExample: string = randomUUID();
+	return (target: object, propertyKey: string | symbol): void => {
+		WithResolvedPropertyEntity(properties.entity, "ApiPropertyUUID", (resolvedEntity: IApiBaseEntity | Type<IApiBaseEntity>) => {
+			const normalizedProperties: TApiPropertyUuidProperties = { ...properties, entity: resolvedEntity };
+			const uuidExample: string = randomUUID();
 
-	validateOptions(properties);
+			validateOptions(normalizedProperties);
 
-	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(uuidExample, properties);
-	const decorators: Array<PropertyDecorator> = buildDecorators(properties, apiPropertyOptions);
+			const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(uuidExample, normalizedProperties);
+			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);
 
-	return applyDecorators(...decorators);
+			applyDecorators(...decorators)(target, propertyKey);
+		});
+	};
 }
 
 /**

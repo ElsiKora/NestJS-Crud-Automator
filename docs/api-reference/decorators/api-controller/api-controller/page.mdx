@@ -1,0 +1,64 @@
+# `@ApiController`
+
+Generates CRUD endpoints, DTOs, Swagger metadata, guards, and request/response pipelines for a given entity. The decorator delegates all heavy lifting to `ApiControllerFactory`, so the controller remains a thin shell that receives prebuilt methods and DTO schemas.
+
+## Signature
+
+```typescript
+@ApiController<E extends IApiBaseEntity>(options: IApiControllerProperties<E>)
+```
+
+## Options
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `entity` | `Type<E>` | Entity class used to inspect columns, relations, and repository metadata. |
+| `name` | `string` | Optional human-friendly resource label surfaced in Swagger summaries. Defaults to the entity name. |
+| `path` | `string` | Overrides the route prefix if the controller path differs from the entity plural name. |
+| `routes` | `Partial<Record<EApiRouteType, TApiControllerPropertiesRoute<E, R>>>` | Per-route configuration covering authentication, DTO sources, request/response metadata, and enablement flags. |
+
+## Route configuration
+
+Each route entry can be described in two ways:
+
+- **Auto DTO mode (`autoDto`)** – Provide declarative overrides for generated DTOs (e.g., toggle response exposure, guards, validators). This keeps DTO definitions colocated with the controller.
+- **Manual DTO mode (`dto`)** – Supply custom DTO classes when manual control is preferred. The decorator still wires up Swagger and validation.
+
+Routes also accept:
+
+- `authentication` – bearer/security schemes and custom guards.
+- `request` / `response` – pipe and serializer overrides for each CRUD action.
+- `decorators` – additional method or property decorators applied after the factory finishes.
+- `shouldWriteToController` – disable route generation while keeping DTOs available for manual use.
+
+## Example
+
+```typescript
+@Controller("users")
+@ApiController<UserEntity>({
+	entity: UserEntity,
+	name: "Users",
+	routes: {
+		[EApiRouteType.CREATE]: {
+			authentication: { guard: JwtAuthGuard },
+		},
+		[EApiRouteType.GET_LIST]: {
+			autoDto: { [EApiDtoType.RESPONSE]: { isExposed: true } },
+		},
+	},
+})
+export class UserController {}
+```
+
+## Integration tips
+
+- Combine with `@ApiControllerObservable` to emit route subscriber hooks.
+- Add `@ApiControllerSecurable` when authorization policies should execute before each route.
+- Align `routes` with the DTO metadata defined on the entity (`@ApiPropertyDescribe`) for consistent validation.
+
+## Related resources
+
+- [Controller Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-controller)
+- [Core Concepts – Controllers](/docs/nestjs-crud-automator/core-concepts/controllers)
+- [Subscriber System – Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)
+

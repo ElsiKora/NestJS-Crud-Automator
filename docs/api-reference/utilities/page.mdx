@@ -31,18 +31,6 @@ Gets all column names from an entity.
 function getEntityColumns<E>(entity: Type<E>): string[];
 ```
 
-## DTO Utilities
-
-### analyzeEntityMetadata
-
-Analyzes entity metadata for DTO generation.
-
-**Location:** `src/utility/dto/analize.utility.ts`
-
-```typescript
-function analyzeEntityMetadata<E>(entity: Type<E>): void;
-```
-
 **Internal Use:** Called automatically by controller factory.
 
 ### DtoGenerate

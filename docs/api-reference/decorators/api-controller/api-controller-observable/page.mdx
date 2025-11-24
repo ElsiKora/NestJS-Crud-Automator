@@ -1,0 +1,35 @@
+# `@ApiControllerObservable`
+
+Marks a controller as observable so its CRUD lifecycle emits events to route subscribers. Without this decorator the subscriber registry ignores the controller even if subscribers are registered.
+
+## Signature
+
+```typescript
+@ApiControllerObservable()
+```
+
+## Behavior
+
+- Sets the `CONTROLLER_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY` metadata flag on the controller class.
+- `ApiRouteSubscriber` instances targeting the same entity receive `before`, `after`, and `error` hooks for each generated route once the flag is present.
+- Has no runtime cost unless subscribers exist. Unmarked controllers skip the observable pipeline entirely.
+
+## Usage example
+
+```typescript
+@Controller("posts")
+@ApiController({ entity: PostEntity, routes: { /* ... */ } })
+@ApiControllerObservable()
+export class PostController {}
+```
+
+## When to use
+
+- You rely on audit logging, derived DTO changes, or dynamic guard behavior implemented inside `ApiRouteSubscriber` classes.
+- You need deterministic ordering between multiple subscribers via priorities.
+
+## Related resources
+
+- [Controller Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-controller)
+- [Subscriber System – Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)
+

@@ -1,0 +1,53 @@
+# `@ApiPropertyDate`
+
+Formats, validates, and serializes date/time fields. Supports ISO date-time strings, date-only values, time-only values, and semantic identifiers (`CREATED_AT`, `UPDATED_AT`, etc.) used by auto DTOs.
+
+## Signature
+
+```typescript
+@ApiPropertyDate(properties: TApiPropertyDateProperties)
+```
+
+## Key options
+
+| Option | Description |
+| --- | --- |
+| `identifier` | `EApiPropertyDateIdentifier` describing semantic meaning (createdAt, updatedAt, expiresIn, date filters, etc.). Drives default description text. |
+| `format` | `EApiPropertyDateType.DATE`, `DATE_TIME`, or `TIME`. Controls regex pattern, example value, and expected serializer format. |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables arrays of date values with full validation. |
+| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Same semantics as other property decorators. |
+
+## Behavior
+
+- Emits `@ApiProperty` with the correct ISO example, pattern, and min/max lengths.
+- Adds `IsDate`, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` validators for request DTOs.
+- Leverages `Transform` to convert ISO strings into `Date` instances (both single values and arrays).
+- Adds `ApiResponseProperty` and exposure decorators on response DTOs.
+
+## Example
+
+```typescript
+class AuditDto {
+	@ApiPropertyDate({
+		entity: () => UserEntity,
+		identifier: EApiPropertyDateIdentifier.CREATED_AT,
+		format: EApiPropertyDateType.DATE_TIME,
+		isResponse: true,
+	})
+	createdAt!: Date;
+
+	@ApiPropertyDate({
+		entity: () => UserEntity,
+		identifier: EApiPropertyDateIdentifier.UPDATED_AT_FROM,
+		format: EApiPropertyDateType.DATE,
+		isRequired: false,
+	})
+	updatedAtFrom?: Date;
+}
+```
+
+## Related resources
+
+- [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
+- [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
+

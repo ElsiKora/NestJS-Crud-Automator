@@ -10,6 +10,7 @@ import { DtoGenerateDecorator } from "@utility/dto/generate-decorator.utility";
 import { DtoGetDecoratorConfig } from "@utility/dto/get-decorator-config.utility";
 import { DtoHandleDateProperty } from "@utility/dto/handle-date-property.utility";
 import { DtoIsPropertyExposedForGuard } from "@utility/dto/is-property-exposed-for-guard.utility";
+import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
 
 /**
  * Creates property decorators for DTOs based on property metadata, entity information, and context.
@@ -63,5 +64,15 @@ export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoT
 
 	const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, propertyMetadata, dtoType, propertyName);
 
-	return [DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName, generatedDTOs)];
+	const decorators: Array<PropertyDecorator> = [];
+
+	if (propertyMetadata.type === EApiPropertyDescribeType.OBJECT && propertyMetadata.dataType) {
+		decorators.push((target: object): void => {
+			RegisterAutoDtoChild(target, propertyMetadata.dataType);
+		});
+	}
+
+	decorators.push(DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName, generatedDTOs));
+
+	return decorators;
 }

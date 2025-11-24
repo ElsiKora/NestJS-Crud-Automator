@@ -1,3 +1,5 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { Type as NestType } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiPropertyStringProperties } from "@type/decorator/api/property";
 
@@ -5,6 +7,7 @@ import { STRING_PROPERTY_API_INTERFACE_CONSTANT } from "@constant/interface/api"
 import { EApiPropertyDataType, EApiPropertyStringType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { IsRegularExpressionValidator } from "@validator/is-regular-expression.validator";
 import { Exclude, Expose, Type } from "class-transformer";
 import {
@@ -67,6 +70,7 @@ import {
  * The decorator applies appropriate validation rules based on the format and configuration.
  * @param {TApiPropertyStringProperties} properties - Configuration options for the string property
  * @returns {Function} A decorator function that can be applied to a class property
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-string | API Reference - ApiPropertyString}
  * @example
  * ```typescript
  * // Simple string property
@@ -119,12 +123,21 @@ import {
  * ```
  */
 export function ApiPropertyString(properties: TApiPropertyStringProperties): PropertyDecorator {
-	validateOptions(properties);
+	return (target: object, propertyKey: string | symbol): void => {
+		WithResolvedPropertyEntity(properties.entity, "ApiPropertyString", (resolvedEntity: IApiBaseEntity | NestType<IApiBaseEntity>) => {
+			const normalizedProperties: TApiPropertyStringProperties = {
+				...properties,
+				entity: resolvedEntity,
+			};
 
-	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(properties);
-	const decorators: Array<PropertyDecorator> = buildDecorators(properties, apiPropertyOptions);
+			validateOptions(normalizedProperties);
 
-	return applyDecorators(...decorators);
+			const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(normalizedProperties);
+			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);
+
+			applyDecorators(...decorators)(target, propertyKey);
+		});
+	};
 }
 
 /**
@@ -645,7 +658,7 @@ function validateOptions(properties: TApiPropertyStringProperties): void {
 					}
 				}
 			} else if (!regex.test(properties.exampleValue)) {
-				errors.push("RegExp 'pattern' does not match 'example' string: " + properties.exampleValue);
+				errors.push("RegExp 'pattern' does not match 'exampleValue' string: " + properties.exampleValue);
 			}
 		} else {
 			errors.push("Invalid RegExp 'pattern' format: " + properties.pattern);

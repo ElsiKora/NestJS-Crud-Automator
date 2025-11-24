@@ -1,3 +1,5 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { Type as NestType } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiPropertyNumberProperties } from "@type/decorator/api/property";
 
@@ -5,6 +7,7 @@ import { NUMBER_CONSTANT } from "@constant/number.constant";
 import { EApiPropertyDataType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDivisibleBy, IsInt, isInt, IsNumber, IsOptional, Max, Min } from "class-validator";
 import random from "lodash/random";
@@ -26,6 +29,7 @@ import random from "lodash/random";
  * if one is not provided, and applies appropriate validation rules based on the configuration.
  * @param {TApiPropertyNumberProperties} properties - Configuration options for the number property
  * @returns {Function} A decorator function that can be applied to a class property
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-number | API Reference - ApiPropertyNumber}
  * @example
  * ```typescript
  * // Simple integer property
@@ -76,14 +80,23 @@ import random from "lodash/random";
  * ```
  */
 export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): PropertyDecorator {
-	properties.exampleValue ??= random(properties.minimum, properties.maximum);
+	return (target: object, propertyKey: string | symbol): void => {
+		WithResolvedPropertyEntity(properties.entity, "ApiPropertyNumber", (resolvedEntity: IApiBaseEntity | NestType<IApiBaseEntity>) => {
+			const normalizedProperties: TApiPropertyNumberProperties = {
+				...properties,
+				entity: resolvedEntity,
+			};
 
-	validateOptions(properties);
+			normalizedProperties.exampleValue ??= random(normalizedProperties.minimum, normalizedProperties.maximum);
 
-	const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(properties);
-	const decorators: Array<PropertyDecorator> = buildDecorators(properties, apiPropertyOptions);
+			validateOptions(normalizedProperties);
 
-	return applyDecorators(...decorators);
+			const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(normalizedProperties);
+			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);
+
+			applyDecorators(...decorators)(target, propertyKey);
+		});
+	};
 }
 
 /**

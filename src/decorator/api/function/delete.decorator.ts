@@ -21,6 +21,7 @@ import { ApiFunctionGet } from "./get.decorator";
  * @template E The entity type
  * @param {IApiFunctionProperties<E>} properties - Configuration properties for the delete function
  * @returns {(target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor} A decorator function that modifies the target method to handle entity deletion
+ * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-delete | API Reference - ApiFunctionDelete}
  */
 export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;

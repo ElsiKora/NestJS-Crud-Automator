@@ -1,0 +1,41 @@
+# `@ApiFunctionCreate`
+
+Decorates a service method so it creates a new entity instance, executes before/after function subscribers, and propagates typed HTTP errors. It uses the repository on `this` or an optional `EntityManager` for transactional work.
+
+## Signature
+
+```typescript
+@ApiFunctionCreate<E extends IApiBaseEntity>(
+	properties: IApiFunctionProperties<E>
+): (target, propertyKey, descriptor) => PropertyDescriptor
+```
+
+Decorated methods receive the shape `create(dto: TApiFunctionCreateProperties<E>, eventManager?: EntityManager): Promise<E>`.
+
+## Behavior
+
+- Instantiates the entity to collect metadata and subscriber context.
+- Executes `onBeforeCreate` subscribers; if a handler returns a DTO, it replaces the incoming body.
+- Persists the entity using `repository.save` or `eventManager.getRepository(entity).save`.
+- Executes `onAfterCreate` subscribers with the persisted entity.
+- On errors, runs `onBeforeCreateError` or `onAfterCreateError` subscribers and rethrows `HttpException` instances or wraps unknown errors in `InternalServerErrorException`.
+
+## Example
+
+```typescript
+export class PostService {
+	constructor(public repository: Repository<PostEntity>) {}
+
+	@ApiFunctionCreate<PostEntity>({ entity: PostEntity })
+	async createPost(properties: TApiFunctionCreateProperties<PostEntity>) {
+		// Implementation replaced by decorator
+		return {} as PostEntity;
+	}
+}
+```
+
+## Related resources
+
+- [`@ApiFunction`](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function)
+- [Subscriber System – Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers)
+
