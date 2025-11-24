@@ -41,8 +41,7 @@
 		"lint:types": "tsc --noEmit",
 		"lint:types:fix": "tsc --noEmit --skipLibCheck",
 		"prepare": "husky",
-		"release": "semantic-release",
-		"test": "tsx test/index.test.ts"
+		"release": "semantic-release"
 	},
 	"config": {
 		"commitizen": {
@@ -90,7 +89,6 @@
 		"rollup-plugin-generate-package-json": "^3.2.0",
 		"semantic-release": "^24.2.7",
 		"tslib": "^2.8.1",
-		"tsx": "^4.19.1",
 		"typeorm": "^0.3.25",
 		"typescript": "^5.9.2"
 	},

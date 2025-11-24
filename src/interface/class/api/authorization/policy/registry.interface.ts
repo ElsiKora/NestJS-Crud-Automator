@@ -6,6 +6,5 @@ import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authoriz
 export interface IApiAuthorizationPolicyRegistry {
 	buildAggregatedPolicy<E extends IApiBaseEntity, TAction extends string>(entity: new () => E, action: TAction): Promise<IApiAuthorizationPolicy<E, TApiAuthorizationPolicyHookResult<TAction, E>> | undefined>;
 	clear(): void;
-	registerPolicy<E extends IApiBaseEntity, R>(policy: IApiAuthorizationPolicy<E, R>): void;
 	registerSubscriber<E extends IApiBaseEntity>(registration: IApiAuthorizationPolicySubscriberRegistration<E>): void;
 }

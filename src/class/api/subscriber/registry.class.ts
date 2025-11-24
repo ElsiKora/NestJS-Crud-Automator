@@ -5,6 +5,9 @@ import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.
 import type { IApiFunctionSubscriberProperties, IApiRouteSubscriberProperties } from "@interface/decorator/api/subscriber";
 
 import { createRegistry } from "@elsikora/cladi";
+import { LoggerUtility } from "@utility/logger.utility";
+
+const subscriberRegistryLogger: LoggerUtility = LoggerUtility.getLogger("ApiSubscriberRegistry");
 
 class ApiSubscriberRegistry {
 	private readonly FUNCTION_SUBSCRIBERS: IRegistry<SubscriberWrapper<IApiSubscriberFunction<IApiBaseEntity>>>;
@@ -34,6 +37,13 @@ class ApiSubscriberRegistry {
 		}
 
 		wrapper.addSubscriber(subscriber, properties.priority);
+
+		subscriberRegistryLogger.debug(`Total function subscribers for "${entityName}": ${wrapper.getSubscriberCount()}`);
+		subscriberRegistryLogger.debug(
+			`Registered function subscriber entities: [${this.FUNCTION_SUBSCRIBERS.getAll()
+				.map((registeredWrapper: SubscriberWrapper<IApiSubscriberFunction<IApiBaseEntity>>) => registeredWrapper.getName())
+				.join(", ")}]`,
+		);
 	}
 
 	public registerRouteSubscriber<E extends IApiBaseEntity>(properties: IApiRouteSubscriberProperties<E>, subscriber: IApiSubscriberRoute<E>): void {
@@ -46,6 +56,13 @@ class ApiSubscriberRegistry {
 		}
 
 		wrapper.addSubscriber(subscriber, properties.priority);
+
+		subscriberRegistryLogger.debug(`Total route subscribers for "${entityName}": ${wrapper.getSubscriberCount()}`);
+		subscriberRegistryLogger.debug(
+			`Registered route subscriber entities: [${this.ROUTE_SUBSCRIBERS.getAll()
+				.map((registeredWrapper: SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity>>) => registeredWrapper.getName())
+				.join(", ")}]`,
+		);
 	}
 }
 
@@ -62,6 +79,10 @@ class SubscriberWrapper<T> {
 
 	getName(): string {
 		return this.name;
+	}
+
+	getSubscriberCount(): number {
+		return this.subscribers.length;
 	}
 }
 
