@@ -1,6 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { Type } from "@nestjs/common";
-import type { TApiPropertyEntity } from "@type/decorator/api/property/base/properties.type";
+import type { TApiPropertyEntity } from "@type/index";
 
 import { ErrorException } from "@utility/error-exception.utility";
 import { IsEntityConstructor } from "@utility/is-entity-constructor.utility";
@@ -11,10 +11,10 @@ import { IsEntityLiteral } from "@utility/is-entity-literal.utility";
  * Resolves property decorator entity references immediately or throws if unavailable.
  * @param {TApiPropertyEntity} entity - Entity reference or resolver.
  * @param {string} decoratorName - Decorator name for error context.
- * @returns {IApiBaseEntity | Type<IApiBaseEntity> | undefined} Normalized entity reference.
+ * @returns {IApiBaseEntity | Type<IApiBaseEntity>} Normalized entity reference.
  */
-// eslint-disable-next-line @elsikora/sonar/use-type-alias
-export function ResolvePropertyEntity(entity: TApiPropertyEntity, decoratorName: string): IApiBaseEntity | Type<IApiBaseEntity> | undefined {
+export function ResolvePropertyEntity(entity: TApiPropertyEntity, decoratorName: string): IApiBaseEntity | Type<IApiBaseEntity> {
+	// eslint-disable-next-line @elsikora/sonar/use-type-alias
 	const resolved: IApiBaseEntity | Type<IApiBaseEntity> | undefined = TryResolvePropertyEntity(entity);
 
 	if (!resolved) {

@@ -1,5 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { Type as NestType } from "@nestjs/common";
+import type { Type } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiPropertyUuidProperties } from "@type/decorator/api/property";
 
@@ -55,7 +55,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, IsUUID 
  */
 export function ApiPropertyUUID(properties: TApiPropertyUuidProperties): PropertyDecorator {
 	return (target: object, propertyKey: string | symbol): void => {
-		WithResolvedPropertyEntity(properties.entity, "ApiPropertyUUID", (resolvedEntity: IApiBaseEntity | NestType<IApiBaseEntity>) => {
+		WithResolvedPropertyEntity(properties.entity, "ApiPropertyUUID", (resolvedEntity: IApiBaseEntity | Type<IApiBaseEntity>) => {
 			const normalizedProperties: TApiPropertyUuidProperties = { ...properties, entity: resolvedEntity };
 			const uuidExample: string = randomUUID();
 

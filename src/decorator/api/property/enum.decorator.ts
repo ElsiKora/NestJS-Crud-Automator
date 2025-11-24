@@ -1,7 +1,7 @@
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { Type } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiPropertyEnumProperties } from "@type/decorator/api/property/enum-properties.type";
+import type { IApiBaseEntity } from "index";
 
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";

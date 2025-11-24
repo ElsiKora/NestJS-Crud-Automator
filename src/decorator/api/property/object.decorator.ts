@@ -6,6 +6,7 @@ import type { ClassConstructor } from "class-transformer";
 
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
+import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { MustMatchOneOfSchemasValidator } from "@validator/must-match-one-of-schemas.validator";
 import { Exclude, Expose, Type } from "class-transformer";
@@ -39,6 +40,8 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, Validat
  */
 export function ApiPropertyObject(options: TApiPropertyObjectProperties): PropertyDecorator {
 	return (target: object, propertyKey: string | symbol): void => {
+		RegisterAutoDtoChild(target, options.type);
+
 		WithResolvedPropertyEntity(options.entity, "ApiPropertyObject", (resolvedEntity: IApiBaseEntity | NestType<IApiBaseEntity>) => {
 			const normalizedOptions: TApiPropertyObjectProperties = { ...options, entity: resolvedEntity };
 

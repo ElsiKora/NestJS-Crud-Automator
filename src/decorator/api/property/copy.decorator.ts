@@ -1,36 +1,80 @@
 import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
-import type { IAuthGuard } from "@nestjs/passport";
-import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
-import type { TApiPropertyEntity } from "@type/decorator/api/property/base/properties.type";
+import type { TApiPropertyDescribeProperties, TApiPropertyEntity } from "@type/decorator/api/property";
+import type { TApiPropertyCopyProperties } from "@type/decorator/api/property/copy-properties.type";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { applyDecorators } from "@nestjs/common";
-import { DeferPropertyDecoratorExecution } from "@utility/defer-property-decorator-execution.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate-dynamic.utility";
 import { ErrorException } from "@utility/error-exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
-import { IsEntityConstructor } from "@utility/is-entity-constructor.utility";
-import { ResolvePropertyEntity } from "@utility/resolve-property-entity.utility";
+import { QueueAutoContextRetry } from "@utility/queue-auto-context-retry.utility";
+import { ResolveDecoratorContext } from "@utility/resolve";
+import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 
 /**
- * Decorator that copies decorators from an automatically generated DTO property.
- * @param {Type<E> | (() => Type<E>)} entity - The entity or factory that resolves the entity to copy decorators from
- * @param {string} propertyName - The name of the property to copy decorators from
- * @param {EApiRouteType} method - The API route method type (GET, CREATE, UPDATE, etc.)
- * @param {EApiDtoType} dtoType - The DTO type (BODY, QUERY, RESPONSE, etc.)
- * @param {Partial<TApiPropertyDescribeProperties>} metadata - Optional metadata to apply to the copied decorators
- *  @param {Type<IAuthGuard>}  currentGuard - Optional auth guard to use for security filtering
- * @returns {PropertyDecorator} PropertyDecorator - A decorator that applies all decorators from the generated DTO
- * @template E - The entity type
+ * Copies every generated decorator (Swagger metadata, validators, transformers, DTO hooks) from an entity property
+ * onto a manual DTO property.
+ *
+ * Supports:
+ * - Direct entity references or lazy factories to break circular imports
+ * - Overriding the source route/method (`method` + `dtoType`)
+ * - Guard-aware decorator copies (pass the guard used during auto DTO generation)
+ * - Metadata extension (supply `metadata` to merge additional describe fields)
+ * - Auto context resolution for nested DTOs generated through the CRUD automator pipeline
+ * @example
+ * ```ts
+ * class DepositCallbackRequestBodyDto {
+ *   @ApiPropertyCopy({
+ *     entity: () => Deposit,
+ *     propertyName: "status",
+ *     method: EApiRouteType.GET,
+ *     dtoType: EApiDtoType.RESPONSE,
+ *   })
+ *   status!: EDepositStatus;
+ *
+ *   @ApiPropertyCopy({
+ *     entity: () => Deposit,
+ *     propertyName: "amount",
+ *     shouldAutoResolveContext: true,
+ *   })
+ *   amount!: number;
+ * }
+ * ```
+ * @template E
+ * @param {TApiPropertyCopyProperties<E>} properties - Configuration describing which entity property to mirror.
+ * @returns {PropertyDecorator} Property decorator that applies copied metadata.
  */
-export function ApiPropertyCopy<E>(entity: (() => Type<E> | undefined) | Type<E>, propertyName: keyof E, method: EApiRouteType, dtoType: EApiDtoType, metadata?: Partial<TApiPropertyDescribeProperties>, currentGuard?: Type<IAuthGuard>): PropertyDecorator {
-	return function (target: object, key: string | symbol): void {
-		const execute = (): void => {
-			const resolvedEntity: Type<E> = ResolvePropertyEntity(entity as TApiPropertyEntity, "ApiPropertyCopy") as Type<E>;
+export function ApiPropertyCopy<E>(properties: TApiPropertyCopyProperties<E>): PropertyDecorator {
+	const { dtoType, entity, guard, metadata, method, propertyName, shouldAutoResolveContext }: TApiPropertyCopyProperties<E> = properties;
 
+	return function (target: object, key: string | symbol): void {
+		const executeWithEntity = (decoratorTarget: object): void => {
+			WithResolvedPropertyEntity(entity as TApiPropertyEntity, "ApiPropertyCopy", (resolvedEntity: IApiBaseEntity | Type<IApiBaseEntity>) => {
+				executeWithContext(decoratorTarget, resolvedEntity as Type<E>);
+			});
+		};
+
+		const executeWithContext = (decoratorTarget: object, resolvedEntity: Type<E>): void => {
+			const shouldUseAutoContext: boolean = shouldAutoResolveContext ?? false;
+			const resolvedContext: { dtoType: EApiDtoType; method: EApiRouteType } | undefined = ResolveDecoratorContext(decoratorTarget, method, dtoType, shouldUseAutoContext);
+
+			if (!resolvedContext) {
+				if (shouldUseAutoContext) {
+					QueueAutoContextRetry(decoratorTarget, () => {
+						executeWithEntity(decoratorTarget);
+					});
+
+					return;
+				}
+
+				throw ErrorException("ApiPropertyCopy requires method and dtoType or a valid autoResolveContext.");
+			}
+
+			const { dtoType: resolvedDtoType, method: resolvedMethod }: { dtoType: EApiDtoType; method: EApiRouteType } = resolvedContext;
 			const entityMetadata: IApiEntity<E> = GenerateEntityInformation(resolvedEntity);
 
 			if (!entityMetadata?.columns) {
@@ -53,9 +97,9 @@ export function ApiPropertyCopy<E>(entity: (() => Type<E> | undefined) | Type<E>
 				propertyMetadata = { ...propertyMetadata, ...(metadata as TApiPropertyDescribeProperties) } as TApiPropertyDescribeProperties;
 			}
 
-			const generatedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(method, propertyMetadata, entityMetadata, dtoType, propertyName as string, currentGuard);
+			const generatedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(resolvedMethod, propertyMetadata, entityMetadata, resolvedDtoType, propertyName as string, guard);
 
-			const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, propertyMetadata, entityMetadata, dtoType, propertyName as string, currentGuard, generatedDTOs);
+			const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(resolvedMethod, propertyMetadata, entityMetadata, resolvedDtoType, propertyName as string, guard, generatedDTOs);
 
 			if (!decorators || decorators.length === 0) {
 				throw ErrorException(`No decorators generated for property ${String(propertyName)} in entity ${resolvedEntity.name}`);
@@ -64,12 +108,14 @@ export function ApiPropertyCopy<E>(entity: (() => Type<E> | undefined) | Type<E>
 			applyDecorators(...decorators)(target, key);
 		};
 
-		if (IsEntityConstructor(entity)) {
-			execute();
+		if (shouldAutoResolveContext) {
+			QueueAutoContextRetry(target, () => {
+				executeWithEntity(target);
+			});
 
 			return;
 		}
 
-		DeferPropertyDecoratorExecution(execute);
+		executeWithEntity(target);
 	};
 }

@@ -4,9 +4,7 @@ import type { TApiPropertyBaseArrayOptionalProperties, TApiPropertyBaseArrayRequ
 
 export type TApiPropertyBaseProperties = {
 	description?: string;
-	entity: TApiPropertyEntity;
+	entity: IApiBaseEntity | Type<IApiBaseEntity>;
 	isNullable?: boolean;
 } & (TApiPropertyBaseArrayOptionalProperties | TApiPropertyBaseArrayRequiredProperties) &
 	(TApiPropertyBaseRequestProperties | TApiPropertyBaseResponseProperties);
-
-export type TApiPropertyEntity<E extends IApiBaseEntity = IApiBaseEntity> = (() => IApiBaseEntity | Type<E> | undefined) | IApiBaseEntity | Type<E>;

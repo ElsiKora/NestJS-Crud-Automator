@@ -12,6 +12,8 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
 import { ApiPropertyCopy } from "@decorator/api/property/copy.decorator";
 import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
+import { PopAutoDtoContext, PushAutoDtoContext } from "@utility/set-auto-dto-context.utility";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 interface IDeferredDeposit {
@@ -40,7 +42,12 @@ describe("ApiPropertyCopy", () => {
 	it("copies metadata when entity factory resolves after class definition", async () => {
 		DeferredDepositReference = undefined;
 
-		const decorator = ApiPropertyCopy(() => DeferredDepositReference as DeferredDepositConstructor, "amount", EApiRouteType.GET, EApiDtoType.RESPONSE);
+		const decorator = ApiPropertyCopy({
+			entity: () => DeferredDepositReference as DeferredDepositConstructor,
+			propertyName: "amount",
+			method: EApiRouteType.GET,
+			dtoType: EApiDtoType.RESPONSE,
+		});
 		decorator(DeferredDepositCallbackDto.prototype, "amount");
 
 		DeferredDepositReference = DeferredDepositEntity;
@@ -58,7 +65,12 @@ describe("ApiPropertyCopy", () => {
 	it("throws descriptive error when factory never resolves an entity", async () => {
 		DeferredDepositReference = undefined;
 
-		const decorator = ApiPropertyCopy(() => DeferredDepositReference as DeferredDepositConstructor, "amount", EApiRouteType.GET, EApiDtoType.RESPONSE);
+		const decorator = ApiPropertyCopy({
+			entity: () => DeferredDepositReference as DeferredDepositConstructor,
+			propertyName: "amount",
+			method: EApiRouteType.GET,
+			dtoType: EApiDtoType.RESPONSE,
+		});
 
 		const error: Error = await captureDeferredExecutionError(() => {
 			class BrokenDepositCallbackDto {
@@ -75,12 +87,22 @@ describe("ApiPropertyCopy", () => {
 		DeferredDepositReference = undefined;
 
 		class ThirdLevelDto {
-			@ApiPropertyCopy(() => DeferredDepositReference as DeferredDepositConstructor, "status", EApiRouteType.GET, EApiDtoType.RESPONSE)
+			@ApiPropertyCopy({
+				entity: () => DeferredDepositReference as DeferredDepositConstructor,
+				propertyName: "status",
+				method: EApiRouteType.GET,
+				dtoType: EApiDtoType.RESPONSE,
+			})
 			status!: string;
 		}
 
 		class SecondLevelDto {
-			@ApiPropertyCopy(() => DeferredDepositReference as DeferredDepositConstructor, "amount", EApiRouteType.GET, EApiDtoType.RESPONSE)
+			@ApiPropertyCopy({
+				entity: () => DeferredDepositReference as DeferredDepositConstructor,
+				propertyName: "amount",
+				method: EApiRouteType.GET,
+				dtoType: EApiDtoType.RESPONSE,
+			})
 			amount!: number;
 
 			@ApiPropertyObject({
@@ -114,6 +136,105 @@ describe("ApiPropertyCopy", () => {
 
 		const statusMetadata: Record<string, unknown> | undefined = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, ThirdLevelDto.prototype, "status");
 		assert.equal(statusMetadata?.description, "DeferredDepositEntity status");
+	});
+
+	it("auto resolves method and dtoType when context flag is enabled", () => {
+		class AutoContextDto {
+			amount!: number;
+		}
+
+		PushAutoDtoContext(AutoContextDto.prototype, EApiRouteType.GET, EApiDtoType.RESPONSE);
+
+		try {
+			const decorator = ApiPropertyCopy({
+				entity: DeferredDepositEntity,
+				propertyName: "amount",
+				shouldAutoResolveContext: true,
+			});
+
+			decorator(AutoContextDto.prototype, "amount");
+
+			const swaggerMetadata: Record<string, unknown> | undefined = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, AutoContextDto.prototype, "amount");
+			assert.equal(swaggerMetadata?.description, "DeferredDepositEntity transaction amount");
+		} finally {
+			PopAutoDtoContext(AutoContextDto.prototype);
+		}
+	});
+
+	it("propagates auto context to nested DTOs registered after the parent context", () => {
+		class ParentDto {
+			payload!: unknown;
+		}
+
+		class NestedDto {
+			amount!: number;
+		}
+
+		PushAutoDtoContext(ParentDto.prototype, EApiRouteType.GET, EApiDtoType.RESPONSE);
+
+		try {
+			RegisterAutoDtoChild(ParentDto.prototype, NestedDto);
+
+			const decorator = ApiPropertyCopy({
+				entity: DeferredDepositEntity,
+				propertyName: "amount",
+				shouldAutoResolveContext: true,
+			});
+
+			decorator(NestedDto.prototype, "amount");
+
+			const swaggerMetadata: Record<string, unknown> | undefined = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, NestedDto.prototype, "amount");
+			assert.equal(swaggerMetadata?.description, "DeferredDepositEntity transaction amount");
+		} finally {
+			PopAutoDtoContext(ParentDto.prototype);
+		}
+	});
+
+	it("does not decorate when auto context flag is enabled outside auto DTO generation", async () => {
+		class NoContextDto {
+			amount!: number;
+		}
+
+		const decorator = ApiPropertyCopy({
+			entity: DeferredDepositEntity,
+			propertyName: "amount",
+			shouldAutoResolveContext: true,
+		});
+
+		decorator(NoContextDto.prototype, "amount");
+
+		await flushDeferredTasks();
+
+		const swaggerMetadata: Record<string, unknown> | undefined = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, NoContextDto.prototype, "amount");
+		assert.equal(swaggerMetadata, undefined);
+	});
+
+	it("decorates before auto context is popped in the same tick", async () => {
+		class ParentDto {
+			payload!: unknown;
+		}
+
+		class ImmediatePopChildDto {
+			@ApiPropertyCopy({
+				entity: DeferredDepositEntity,
+				propertyName: "amount",
+				shouldAutoResolveContext: true,
+			})
+			amount!: number;
+		}
+
+		PushAutoDtoContext(ParentDto.prototype, EApiRouteType.CREATE, EApiDtoType.RESPONSE);
+
+		try {
+			RegisterAutoDtoChild(ParentDto.prototype, ImmediatePopChildDto);
+		} finally {
+			PopAutoDtoContext(ParentDto.prototype);
+		}
+
+		await flushDeferredTasks();
+
+		const swaggerMetadata: Record<string, unknown> | undefined = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, ImmediatePopChildDto.prototype, "amount");
+		assert.equal(swaggerMetadata?.description, "DeferredDepositEntity transaction amount");
 	});
 });
 

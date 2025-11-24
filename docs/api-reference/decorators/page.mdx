@@ -295,21 +295,27 @@ Provides metadata for entity properties used in DTO generation, validation, and 
 Copies all generated decorators (validation, Swagger, transformers) from an entity property to a DTO property.
 
 ```typescript
-ApiPropertyCopy<E>(
-  entityOrFactory: Type<E> | (() => Type<E> | undefined),
+ApiPropertyCopy<E>({
+  entity: Type<E> | (() => Type<E> | undefined),
   propertyName: keyof E,
-  method: EApiRouteType,
-  dtoType: EApiDtoType,
-  metadata?: Partial<TApiPropertyDescribeProperties>,
-  guard?: Type<IAuthGuard>
-)
+  method?: EApiRouteType;
+  dtoType?: EApiDtoType;
+  metadata?: Partial<TApiPropertyDescribeProperties>;
+  guard?: Type<IAuthGuard>;
+  shouldAutoResolveContext?: boolean;
+})
 ```
 
 **Usage:**
 
 ```typescript
 class DepositResponseDto {
-  @ApiPropertyCopy(DepositEntity, "amount", EApiRouteType.GET, EApiDtoType.RESPONSE)
+  @ApiPropertyCopy({
+    entity: DepositEntity,
+    propertyName: "amount",
+    method: EApiRouteType.GET,
+    dtoType: EApiDtoType.RESPONSE
+  })
   amount!: number;
 }
 ```
@@ -318,12 +324,19 @@ When circular imports delay entity initialization (for example, when DTOs live i
 
 ```typescript
 class DepositCallbackRequestBodyDto {
-  @ApiPropertyCopy(() => DepositEntity, "status", EApiRouteType.GET, EApiDtoType.RESPONSE)
+  @ApiPropertyCopy({
+    entity: () => DepositEntity,
+    propertyName: "status",
+    method: EApiRouteType.GET,
+    dtoType: EApiDtoType.RESPONSE
+  })
   status!: EDepositStatus;
 }
 ```
 
 If the factory still returns `undefined`, the decorator throws a descriptive error explaining how to provide the entity lazily.
+
+When `shouldAutoResolveContext` is set to `true`, the decorator waits until the surrounding auto-generated DTO receives its route/dto metadata (e.g. via `@ApiController`) and then applies the copied decorators. If the DTO never receives auto-context, the decorator is ignored—custom DTOs should therefore continue to pass `method`/`dtoType` explicitly unless they are guaranteed to participate in the auto DTO pipeline.
 
 ## Subscriber Decorators
 

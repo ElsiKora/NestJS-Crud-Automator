@@ -11,6 +11,9 @@ import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoIsPropertyExposedForGuard } from "@utility/dto/is-property-exposed-for-guard.utility";
 
+import { DtoAutoContextPop } from "./auto-context-pop.utility";
+import { DtoAutoContextPush } from "./auto-context-push.utility";
+
 /**
  * Generates dynamic DTOs for object-type properties based on property metadata.
  * Creates classes on the fly with appropriate decorators for each property and sets up
@@ -100,29 +103,35 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 				}
 			}
 
-			for (const propertyName of Object.keys(data)) {
-				if (data[propertyName]) {
-					const propertyGeneratedDTOs: Record<string, Type<unknown>> = nestedDTOs[propertyName] ?? {};
+			DtoAutoContextPush(GeneratedDTO.prototype, method, dtoType);
 
-					const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, data[propertyName], entity, dtoType, propertyName, currentGuard, propertyGeneratedDTOs);
+			try {
+				for (const propertyName of Object.keys(data)) {
+					if (data[propertyName]) {
+						const propertyGeneratedDTOs: Record<string, Type<unknown>> = nestedDTOs[propertyName] ?? {};
 
-					if (decorators) {
-						for (const [, decorator] of decorators.entries()) {
-							decorator(GeneratedDTO.prototype, propertyName);
+						const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, data[propertyName], entity, dtoType, propertyName, currentGuard, propertyGeneratedDTOs);
+
+						if (decorators) {
+							for (const [, decorator] of decorators.entries()) {
+								decorator(GeneratedDTO.prototype, propertyName);
+							}
 						}
 					}
 				}
+
+				Object.defineProperty(GeneratedDTO, "name", {
+					value: `${entity.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}${CamelCaseString(_propertyName)}${CamelCaseString(name)}DTO`,
+				});
+
+				if (allNestedTypes.length > 0) {
+					ApiExtraModels(...allNestedTypes)(GeneratedDTO);
+				}
+
+				generatedDTOs[name] = GeneratedDTO;
+			} finally {
+				DtoAutoContextPop(GeneratedDTO.prototype);
 			}
-
-			Object.defineProperty(GeneratedDTO, "name", {
-				value: `${entity.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}${CamelCaseString(_propertyName)}${CamelCaseString(name)}DTO`,
-			});
-
-			if (allNestedTypes.length > 0) {
-				ApiExtraModels(...allNestedTypes)(GeneratedDTO);
-			}
-
-			generatedDTOs[name] = GeneratedDTO;
 		}
 	}
 

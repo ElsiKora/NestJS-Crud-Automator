@@ -1,10 +1,10 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { Type } from "@nestjs/common";
-import type { TApiPropertyEntity } from "@type/decorator/api/property/base/properties.type";
+import type { TApiPropertyEntity } from "@type/decorator/api/property/entity.type";
 
 import { DeferPropertyDecoratorExecution } from "./defer-property-decorator-execution.utility";
 import { ErrorException } from "./error-exception.utility";
-import { TryResolvePropertyEntity } from "./resolve-property-entity.utility";
+import { TryResolvePropertyEntity } from "./resolve/property-entity.utility";
 
 /**
  * Executes the provided callback once the entity reference resolves.
