@@ -27,10 +27,7 @@ export class PostService {
 	constructor(public repository: Repository<PostEntity>) {}
 
 	@ApiFunctionUpdate<PostEntity>({ entity: PostEntity })
-	async updatePost(
-		criteria: TApiFunctionUpdateCriteria<PostEntity>,
-		dto: TApiFunctionUpdateProperties<PostEntity>,
-	) {
+	async updatePost(criteria: TApiFunctionUpdateCriteria<PostEntity>, dto: TApiFunctionUpdateProperties<PostEntity>) {
 		return {} as PostEntity;
 	}
 }
@@ -40,4 +37,3 @@ export class PostService {
 
 - [`@ApiFunctionGet`](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get)
 - [Function Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
-

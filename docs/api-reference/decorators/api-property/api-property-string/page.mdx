@@ -10,14 +10,14 @@ Provides comprehensive Swagger, validation, and transformation support for strin
 
 ## Key options
 
-| Option | Description |
-| --- | --- |
-| `format` | Required `EApiPropertyStringType` value (STRING, EMAIL, URL, PASSWORD, UUID, REGEXP, PHONE_NUMBER, etc.). Determines validators such as `IsEmail`, `IsUrl`, `IsUUID`. |
-| `pattern` | Stringified RegExp (`"/^[a-z]+$/"`). Used by `Matches` and validated against `exampleValue`. |
-| `minLength` / `maxLength` | Enforced with `Length`. |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enable string arrays with `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, `ArrayNotEmpty`. |
-| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Control optionality, Swagger metadata, and serialization. |
-| `exampleValue` | Single value or array; validated against the regex/length constraints. |
+| Option                                               | Description                                                                                                                                                           |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`                                             | Required `EApiPropertyStringType` value (STRING, EMAIL, URL, PASSWORD, UUID, REGEXP, PHONE_NUMBER, etc.). Determines validators such as `IsEmail`, `IsUrl`, `IsUUID`. |
+| `pattern`                                            | Stringified RegExp (`"/^[a-z]+$/"`). Used by `Matches` and validated against `exampleValue`.                                                                          |
+| `minLength` / `maxLength`                            | Enforced with `Length`.                                                                                                                                               |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enable string arrays with `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, `ArrayNotEmpty`.                                                                                 |
+| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Control optionality, Swagger metadata, and serialization.                                                                                                             |
+| `exampleValue`                                       | Single value or array; validated against the regex/length constraints.                                                                                                |
 
 ## Behavior
 
@@ -57,4 +57,3 @@ class UserDto {
 
 - [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
 - [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
-

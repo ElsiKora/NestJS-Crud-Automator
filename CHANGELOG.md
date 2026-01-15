@@ -1,53 +1,46 @@
 # [1.18.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.17.1...v1.18.0) (2025-11-24)
 
-
 ### Features
 
-* **property-decorators:** add entity factory support and property copying functionality ([75a581c](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/75a581cbfa6ef0616e802397754fe1d29a2e3def))
+- **property-decorators:** add entity factory support and property copying functionality ([75a581c](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/75a581cbfa6ef0616e802397754fe1d29a2e3def))
 
 ## [1.17.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.17.0...v1.17.1) (2025-11-18)
 
 # [1.17.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.16.0...v1.17.0) (2025-11-18)
 
-
 ### Features
 
-* **api:** add comprehensive authorization system with policies and guards ([594e02e](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/594e02e3347f73b7bb694f820dce217f16df85b0))
+- **api:** add comprehensive authorization system with policies and guards ([594e02e](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/594e02e3347f73b7bb694f820dce217f16df85b0))
 
 # [1.16.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.15.0...v1.16.0) (2025-10-17)
 
-
 ### Features
 
-* **api:** add comprehensive subscriber system with execution contexts ([f3880a9](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/f3880a9089a1b10ab56b5142531e5c558c274d91))
+- **api:** add comprehensive subscriber system with execution contexts ([f3880a9](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/f3880a9089a1b10ab56b5142531e5c558c274d91))
 
 # [1.15.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.14.0...v1.15.0) (2025-10-17)
 
-
 ### Features
 
-* **api:** add credit card validation support for string properties ([d75cb2a](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/d75cb2a7d2b7040d97ed38fa01957af1db6ebe9f))
+- **api:** add credit card validation support for string properties ([d75cb2a](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/d75cb2a7d2b7040d97ed38fa01957af1db6ebe9f))
 
 # [1.14.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.13.0...v1.14.0) (2025-10-17)
 
-
 ### Features
 
-* **api:** add format property to default string format constants ([8788f39](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/8788f397aa11b3a793630b52822d80a4cc95e27b))
+- **api:** add format property to default string format constants ([8788f39](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/8788f397aa11b3a793630b52822d80a4cc95e27b))
 
 # [1.13.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.12.0...v1.13.0) (2025-10-17)
 
-
 ### Features
 
-* **api:** add sha1, sha512, and password string format types ([3ebc769](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/3ebc76900f39cc18d7bcb35947fa0ace3ed75383))
+- **api:** add sha1, sha512, and password string format types ([3ebc769](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/3ebc76900f39cc18d7bcb35947fa0ace3ed75383))
 
 # [1.12.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.11.3...v1.12.0) (2025-10-17)
 
-
 ### Features
 
-* **api:** add default string format properties and update documentation structure ([e5e09df](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/e5e09df77772e71e3ee53e09673bbe18636bbbe8))
+- **api:** add default string format properties and update documentation structure ([e5e09df](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/e5e09df77772e71e3ee53e09673bbe18636bbbe8))
 
 ## [1.11.3](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.11.2...v1.11.3) (2025-10-16)
 
@@ -57,10 +50,9 @@
 
 # [1.11.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.10.4...v1.11.0) (2025-10-16)
 
-
 ### Features
 
-* **interface:** add api type exports to class interface module ([f9a0c1f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/f9a0c1f71cf97ab4cace2237a28c200fc37b8ba8))
+- **interface:** add api type exports to class interface module ([f9a0c1f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/f9a0c1f71cf97ab4cace2237a28c200fc37b8ba8))
 
 ## [1.10.4](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.10.3...v1.10.4) (2025-08-06)
 

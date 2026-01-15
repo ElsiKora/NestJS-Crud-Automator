@@ -16,13 +16,13 @@ Extends a provider with CRUD-ready methods (`create`, `update`, `delete`, `get`,
 
 ## Generated methods
 
-| Method | Parameters | Description |
-| --- | --- | --- |
-| `create` | `(dto, eventManager?)` | Persists a new entity and triggers subscriber hooks. |
-| `update` | `(criteria, dto, eventManager?)` | Applies updates with full DTO validation and subscriber lifecycle. |
-| `delete` | `(criteria, eventManager?)` | Removes records and notifies subscribers. |
-| `get` | `(criteria, eventManager?)` | Loads a single entity, throwing typed HTTP errors on failure. |
-| `getMany` | `(criteria, eventManager?)` | Loads multiple records by identifiers. |
+| Method    | Parameters                               | Description                                                          |
+| --------- | ---------------------------------------- | -------------------------------------------------------------------- |
+| `create`  | `(dto, eventManager?)`                   | Persists a new entity and triggers subscriber hooks.                 |
+| `update`  | `(criteria, dto, eventManager?)`         | Applies updates with full DTO validation and subscriber lifecycle.   |
+| `delete`  | `(criteria, eventManager?)`              | Removes records and notifies subscribers.                            |
+| `get`     | `(criteria, eventManager?)`              | Loads a single entity, throwing typed HTTP errors on failure.        |
+| `getMany` | `(criteria, eventManager?)`              | Loads multiple records by identifiers.                               |
 | `getList` | `(properties, relations, eventManager?)` | Returns paginated collections with relations populated as requested. |
 
 ## Example
@@ -45,4 +45,3 @@ export class UserService extends ApiServiceBase<UserEntity> {
 - [Service Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-service)
 - [Function Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
 - [Core Concepts – Services](/docs/nestjs-crud-automator/core-concepts/services)
-

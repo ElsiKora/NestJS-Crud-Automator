@@ -18,13 +18,13 @@ ApiPropertyCopy<E>({
 
 ## Options
 
-| Option | Description |
-| --- | --- |
-| `entity` | Entity class or factory. Factories allow lazy resolution to avoid circular imports. |
-| `propertyName` | Property name on the entity to mirror. |
-| `method` / `dtoType` | Specify which CRUD route + DTO (e.g., GET + RESPONSE) to pull decorators from. Required unless `shouldAutoResolveContext` is true. |
-| `metadata` | Partial overrides merged with the original `@ApiPropertyDescribe` metadata before decorator generation. Useful for tweaking descriptions or DTO exposure. |
-| `guard` | Guard class used when generating DTO-specific decorators (mirrors the guard registered during auto DTO generation). |
+| Option                     | Description                                                                                                                                                            |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entity`                   | Entity class or factory. Factories allow lazy resolution to avoid circular imports.                                                                                    |
+| `propertyName`             | Property name on the entity to mirror.                                                                                                                                 |
+| `method` / `dtoType`       | Specify which CRUD route + DTO (e.g., GET + RESPONSE) to pull decorators from. Required unless `shouldAutoResolveContext` is true.                                     |
+| `metadata`                 | Partial overrides merged with the original `@ApiPropertyDescribe` metadata before decorator generation. Useful for tweaking descriptions or DTO exposure.              |
+| `guard`                    | Guard class used when generating DTO-specific decorators (mirrors the guard registered during auto DTO generation).                                                    |
 | `shouldAutoResolveContext` | When true, defers execution until the auto DTO pipeline attaches method/dto metadata (e.g., inside generated controller DTOs). Retries through the auto-context queue. |
 
 ## Behavior
@@ -59,4 +59,3 @@ class DepositResponseDto {
 
 - [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
 - [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
-

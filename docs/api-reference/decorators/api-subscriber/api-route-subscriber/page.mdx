@@ -13,9 +13,9 @@ Registers a class as a route-level subscriber for a specific entity. Subscribers
 
 ## Options
 
-| Option | Description |
-| --- | --- |
-| `entity` | Entity that the subscriber observes. |
+| Option     | Description                                           |
+| ---------- | ----------------------------------------------------- |
+| `entity`   | Entity that the subscriber observes.                  |
 | `priority` | Execution order (higher runs first). Defaults to `0`. |
 
 ## Usage steps
@@ -41,4 +41,3 @@ export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 
 - [Subscriber Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-subscriber)
 - [Subscriber System – Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)
-
