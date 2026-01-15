@@ -309,10 +309,24 @@ The CorrelationIDResponseBodyInterceptor automatically handles ThrottlerExceptio
 
 ## Database Errors
 
-Handle database constraint violations:
+Unique constraint violations (for example, when `login` is `UNIQUE`) are automatically returned as `409 Conflict` when using the built-in CRUD decorators.
+
+Example response:
+
+```json
+{
+	"statusCode": 409,
+	"message": "USER_DUPLICATE_KEY",
+	"error": "Conflict",
+	"timestamp": 1704067200000,
+	"correlationID": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+For other database constraint violations (for example, foreign keys), you can still map `QueryFailedError` to a cleaner HTTP exception in your service:
 
 ```typescript filename="services/user.service.ts" copy
-import { Injectable, ConflictException } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { QueryFailedError } from "typeorm";
 
 @Injectable()
@@ -322,10 +336,6 @@ export class UserService extends ApiServiceBase<UserEntity> {
 			return await super.create(properties);
 		} catch (error) {
 			if (error instanceof QueryFailedError) {
-				// PostgreSQL unique violation
-				if (error.driverError?.code === "23505") {
-					throw new ConflictException("Username or email already exists");
-				}
 				// PostgreSQL foreign key violation
 				if (error.driverError?.code === "23503") {
 					throw new BadRequestException("Referenced resource does not exist");

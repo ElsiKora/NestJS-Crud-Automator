@@ -10,6 +10,8 @@ import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
+import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
 import { ErrorException } from "@utility/error-exception.utility";
 import { ErrorString } from "@utility/error-string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -106,7 +108,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 		}
 
 		return items;
-	} catch (error) {
+	} catch (caughtError) {
 		const entityInstance: E = new entity();
 
 		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
@@ -114,6 +116,16 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.GET_MANY,
 		};
+
+		let error: unknown = caughtError;
+
+		if (DatabaseTypeOrmIsEntityNotFound(caughtError)) {
+			error = new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }), { cause: caughtError });
+		}
+
+		if (DatabaseTypeOrmIsEntityMetadataNotFound(caughtError)) {
+			error = new InternalServerErrorException(ErrorString({ entity, type: EErrorStringAction.DATABASE_ERROR }), { cause: caughtError });
+		}
 
 		if (error instanceof HttpException) {
 			await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error);
@@ -129,6 +141,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 				entity,
 				type: EErrorStringAction.FETCHING_ERROR,
 			}),
+			{ cause: caughtError },
 		);
 	}
 }

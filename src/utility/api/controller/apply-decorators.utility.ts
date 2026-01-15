@@ -30,7 +30,7 @@ export function ApiControllerApplyDecorators<E>(targetMethod: TApiControllerMeth
 
 	switch (method) {
 		case EApiRouteType.CREATE: {
-			customDecorators.push(ApiMethod({ action: EApiAction.CREATE, authentication: routeConfig.authentication, entity: properties.entity, httpCode: HttpStatus.CREATED, method: RequestMethod.POST, path: "", responses: { hasInternalServerError: true, hasUnauthorized: true }, responseType: responseDto }));
+			customDecorators.push(ApiMethod({ action: EApiAction.CREATE, authentication: routeConfig.authentication, entity: properties.entity, httpCode: HttpStatus.CREATED, method: RequestMethod.POST, path: "", responses: { hasConflict: true, hasInternalServerError: true, hasUnauthorized: true }, responseType: responseDto }));
 
 			break;
 		}
@@ -76,13 +76,13 @@ export function ApiControllerApplyDecorators<E>(targetMethod: TApiControllerMeth
 		}
 
 		case EApiRouteType.PARTIAL_UPDATE: {
-			customDecorators.push(ApiMethod({ action: EApiAction.UPDATE, authentication: routeConfig.authentication, entity: properties.entity, httpCode: HttpStatus.OK, method: RequestMethod.PATCH, path: `:${String(entity.primaryKey?.name)}`, responses: { hasBadRequest: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, responseType: responseDto }));
+			customDecorators.push(ApiMethod({ action: EApiAction.UPDATE, authentication: routeConfig.authentication, entity: properties.entity, httpCode: HttpStatus.OK, method: RequestMethod.PATCH, path: `:${String(entity.primaryKey?.name)}`, responses: { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, responseType: responseDto }));
 
 			break;
 		}
 
 		case EApiRouteType.UPDATE: {
-			customDecorators.push(ApiMethod({ action: EApiAction.UPDATE, authentication: routeConfig.authentication, entity: properties.entity, httpCode: HttpStatus.OK, method: RequestMethod.PUT, path: `:${String(entity.primaryKey?.name)}`, responses: { hasBadRequest: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, responseType: responseDto }));
+			customDecorators.push(ApiMethod({ action: EApiAction.UPDATE, authentication: routeConfig.authentication, entity: properties.entity, httpCode: HttpStatus.OK, method: RequestMethod.PUT, path: `:${String(entity.primaryKey?.name)}`, responses: { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, responseType: responseDto }));
 
 			break;
 		}

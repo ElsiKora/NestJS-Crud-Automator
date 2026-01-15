@@ -45,7 +45,7 @@ export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata
 	for (const column of columns) {
 		const columnType: string | Type = (column.options?.type as string | Type) || (Reflect.getMetadata("design:type", entity.prototype as object, column.propertyName) as string | Type);
 
-		const isAllowedType: boolean = (typeof columnType === "function" && (columnType === String || columnType === Number || columnType === Date)) || (FILTER_API_INTERFACE_CONSTANT.ALLOWED_ENTITY_TO_FILTER_COLUMNS.includes(columnType as string) && (fieldSelector === undefined || fieldSelector[column.propertyName as keyof typeof entity] !== false));
+		const isAllowedType: boolean = (typeof columnType === "function" && (columnType === String || columnType === Number || columnType === Date)) || (FILTER_API_INTERFACE_CONSTANT.ALLOWED_ENTITY_TO_FILTER_COLUMNS.includes(columnType as string) && fieldSelector?.[column.propertyName as keyof typeof entity] !== false);
 
 		if (isAllowedType) {
 			for (const metadataColumn of entityMetadata.columns) {
