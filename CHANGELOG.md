@@ -1,3 +1,10 @@
+# [1.19.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.18.0...v1.19.0) (2026-01-15)
+
+
+### Features
+
+* **database:** add automatic handling for database constraint violations ([bd853ab](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/bd853abc994d508d66b6a173231320978ab151a2))
+
 # [1.18.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.17.1...v1.18.0) (2025-11-24)
 
 ### Features
