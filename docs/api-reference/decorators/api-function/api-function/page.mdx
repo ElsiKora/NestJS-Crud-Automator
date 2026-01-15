@@ -10,11 +10,11 @@ Factory decorator that selects the appropriate CRUD decorator (`create`, `update
 
 ## Options
 
-| Option | Type | Description |
-| --- | --- | --- |
-| `entity` | `new () => E` | Entity constructor used to instantiate temporary instances for metadata generation. |
-| `type` | `EApiFunctionType` | Target CRUD operation (`CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, `GET_MANY`). |
-| `relations` | `FindOptionsRelations<E>` | Optional relation map forwarded to the `GET_LIST` executor for eager loading. |
+| Option      | Type                      | Description                                                                          |
+| ----------- | ------------------------- | ------------------------------------------------------------------------------------ |
+| `entity`    | `new () => E`             | Entity constructor used to instantiate temporary instances for metadata generation.  |
+| `type`      | `EApiFunctionType`        | Target CRUD operation (`CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, `GET_MANY`). |
+| `relations` | `FindOptionsRelations<E>` | Optional relation map forwarded to the `GET_LIST` executor for eager loading.        |
 
 ## Behavior
 
@@ -42,4 +42,3 @@ export class PostService {
 
 - [Function Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
 - [`@ApiFunctionCreate`](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-create)
-

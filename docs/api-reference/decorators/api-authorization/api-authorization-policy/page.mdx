@@ -15,12 +15,12 @@ Registers a class as an authorization policy for a specific entity. Policies exe
 
 ## Options
 
-| Option | Description |
-| --- | --- |
-| `entity` | Entity this policy protects. Required. |
-| `priority` | Higher priorities execute earlier. Defaults to `0`. |
-| `policyId` | Optional custom identifier. Defaults to `<entityName>Policy`. Useful when multiple policies protect the same entity. |
-| `description` | Short summary displayed in tooling or logs. |
+| Option        | Description                                                                                                          |
+| ------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `entity`      | Entity this policy protects. Required.                                                                               |
+| `priority`    | Higher priorities execute earlier. Defaults to `0`.                                                                  |
+| `policyId`    | Optional custom identifier. Defaults to `<entityName>Policy`. Useful when multiple policies protect the same entity. |
+| `description` | Short summary displayed in tooling or logs.                                                                          |
 
 ## Usage steps
 
@@ -49,4 +49,3 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 
 - [Authorization Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-authorization)
 - [Guides – Authorization](/docs/nestjs-crud-automator/guides/authorization)
-

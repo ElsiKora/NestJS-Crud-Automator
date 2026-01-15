@@ -1,5 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function-error-execution-context.interface";
+import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function-execution-context-data.interface";
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function-execution-context.interface";
 import type { IApiFunctionCreateExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
 import type { TApiFunctionCreateProperties } from "@type/decorator/api/function";
@@ -9,7 +10,14 @@ import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionType } from "@enum/decorator/api/function/type.enum";
 import { EApiSubscriberOnType } from "@enum/decorator/api/on-type.enum";
 import { EErrorStringAction } from "@enum/utility";
-import { HttpException, InternalServerErrorException } from "@nestjs/common";
+import { EApiExceptionDetailsType } from "@enum/utility/exception-details";
+import { BadRequestException, ConflictException, HttpException, HttpStatus, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { DatabaseTypeOrmGetForeignKeyViolationDetails } from "@utility/database/typeorm/get/foreign-key-violation-details.utility";
+import { DatabaseTypeOrmGetUniqueViolationDetails } from "@utility/database/typeorm/get/unique-violation-details.utility";
+import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
+import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
+import { DatabaseTypeOrmIsForeignKeyViolation } from "@utility/database/typeorm/is/foreign-key-violation.utility";
+import { DatabaseTypeOrmIsUniqueViolation } from "@utility/database/typeorm/is/unique-violation.utility";
 import { ErrorException } from "@utility/error-exception.utility";
 import { ErrorString } from "@utility/error-string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -28,7 +36,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 		descriptor.value = async function (this: { repository: Repository<E> }, createProperties: TApiFunctionCreateProperties<E>, eventManager?: EntityManager): Promise<IApiBaseEntity> {
 			const entityInstance: E = new entity();
 
-			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionCreateProperties<E>, Record<string, unknown>> = {
+			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionCreateProperties<E>, IApiSubscriberFunctionExecutionContextData<E>> = {
 				DATA: { eventManager, repository: this.repository },
 				ENTITY: entityInstance,
 				FUNCTION_TYPE: EApiFunctionType.CREATE,
@@ -44,7 +52,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
+				const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
 					DATA: { eventManager, repository: this.repository },
 					ENTITY: entityInstance,
 					FUNCTION_TYPE: EApiFunctionType.CREATE,
@@ -84,21 +92,21 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 
 		const entityInstance: E = new entity();
 
-		const executionContext: IApiSubscriberFunctionExecutionContext<E, E, Record<string, unknown>> = {
+		const executionContext: IApiSubscriberFunctionExecutionContext<E, E, IApiSubscriberFunctionExecutionContextData<E>> = {
 			DATA: { eventManager, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.CREATE,
 			result: result,
 		};
 
-		const afterResult: E | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers<E, E, Record<string, unknown>>(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER, executionContext);
+		const afterResult: E | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers<E, E, IApiSubscriberFunctionExecutionContextData<E>>(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER, executionContext);
 
 		if (afterResult) {
 			return afterResult;
 		}
 
 		return result;
-	} catch (error) {
+	} catch (caughtError) {
 		const entityInstance: E = new entity();
 
 		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
@@ -106,6 +114,30 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.CREATE,
 		};
+
+		let error: unknown = caughtError;
+
+		if (DatabaseTypeOrmIsEntityNotFound(caughtError)) {
+			error = new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }), { cause: caughtError });
+		}
+
+		if (DatabaseTypeOrmIsEntityMetadataNotFound(caughtError)) {
+			error = new InternalServerErrorException(ErrorString({ entity, type: EErrorStringAction.DATABASE_ERROR }), { cause: caughtError });
+		}
+
+		if (DatabaseTypeOrmIsForeignKeyViolation(caughtError)) {
+			const message: string = ErrorString({ entity, type: EErrorStringAction.DATABASE_CONSTRAINT_VIOLATION });
+			const detailsBase: ReturnType<typeof DatabaseTypeOrmGetForeignKeyViolationDetails> = DatabaseTypeOrmGetForeignKeyViolationDetails(caughtError);
+			const details: object = detailsBase ? { ...detailsBase, type: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION } : { type: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION };
+			error = new BadRequestException({ details, error: "Bad Request", message, statusCode: HttpStatus.BAD_REQUEST }, { cause: caughtError });
+		}
+
+		if (DatabaseTypeOrmIsUniqueViolation(caughtError)) {
+			const message: string = ErrorString({ entity, type: EErrorStringAction.DUPLICATE_KEY });
+			const detailsBase: ReturnType<typeof DatabaseTypeOrmGetUniqueViolationDetails> = DatabaseTypeOrmGetUniqueViolationDetails(caughtError);
+			const details: object = detailsBase ? { ...detailsBase, type: EApiExceptionDetailsType.UNIQUE_VIOLATION } : { type: EApiExceptionDetailsType.UNIQUE_VIOLATION };
+			error = new ConflictException({ details, error: "Conflict", message, statusCode: HttpStatus.CONFLICT }, { cause: caughtError });
+		}
 
 		if (error instanceof HttpException) {
 			await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error);
@@ -121,6 +153,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 				entity: entity,
 				type: EErrorStringAction.CREATING_ERROR,
 			}),
+			{ cause: caughtError },
 		);
 	}
 }

@@ -1,12 +1,16 @@
+import { ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsUniqueViolationDTO } from "@class/utility/dto/exception/details";
 import { DATE_CONSTANT } from "@constant/date.constant";
 import { EXCEPTION_DTO_CONSTANT } from "@constant/dto";
 import { NUMBER_CONSTANT } from "@constant/number.constant";
 import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
+import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
 import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
 import { EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
+import { EApiExceptionDetailsType } from "@enum/utility/exception-details";
 import { HttpStatus, type Type } from "@nestjs/common";
+import { ApiExtraModels } from "@nestjs/swagger";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 
 const exceptionDtoCache: Map<HttpStatus, Type<unknown>> = new Map<HttpStatus, Type<unknown>>();
@@ -31,7 +35,7 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 		@ApiPropertyUUID({ entity: { name: "Correlation" }, isResponse: true })
 		correlationID!: string;
 
-		@ApiPropertyString({
+		/* @ApiPropertyString({
 			description: "name",
 			entity: { name: "Error" },
 			exampleValue: CamelCaseString(errorName),
@@ -41,7 +45,24 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 			minLength: EXCEPTION_DTO_CONSTANT.MINIMUM_ERROR_LENGTH,
 			pattern: "/^[a-zA-Z_ ]{3,64}$/",
 		})
-		error: string = CamelCaseString(errorName);
+		error: string = CamelCaseString(errorName); */
+
+		@ApiPropertyObject({
+			description: "details",
+			discriminator: {
+				mapping: {
+					[EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION]: ExceptionDetailsForeignKeyViolationDTO,
+					[EApiExceptionDetailsType.UNIQUE_VIOLATION]: ExceptionDetailsUniqueViolationDTO,
+				},
+				propertyName: "type",
+				shouldKeepDiscriminatorProperty: true,
+			},
+			entity: { name: "Error" },
+			isRequired: false,
+			isResponse: true,
+			type: [ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsUniqueViolationDTO],
+		})
+		details?: Record<string, unknown>;
 
 		@ApiPropertyString({
 			description: "message",
@@ -77,6 +98,9 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 		})
 		timestamp!: number;
 	}
+
+	// Register discriminator DTOs so Swagger includes their schemas in components.schemas
+	ApiExtraModels(ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsUniqueViolationDTO)(GeneratedErrorDTO);
 
 	Object.defineProperty(GeneratedErrorDTO, "name", { value: `Exception${CamelCaseString(errorName)}DTO` });
 

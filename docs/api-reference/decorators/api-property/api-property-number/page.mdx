@@ -10,14 +10,14 @@ Adds Swagger metadata, validation, and serialization for numeric DTO properties.
 
 ## Notable options
 
-| Option | Description |
-| --- | --- |
-| `format` | `EApiPropertyNumberType.INTEGER` or `DOUBLE`. Controls Swagger `type`/`format` and which validator (`IsInt` vs `IsNumber`) runs. |
-| `minimum` / `maximum` | Value bounds enforced with `Min`/`Max`. Required to derive example defaults. |
-| `multipleOf` | Validates divisibility (useful for currency increments). |
-| `exampleValue` | Optional; falls back to a random value within the provided range. Accepts single value or array when `isArray` is `true`. |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables numeric arrays with full validation. |
-| `isNullable`, `isRequired`, `isResponse`, `isExpose` | Control request validation, Swagger metadata, and serialization. |
+| Option                                               | Description                                                                                                                      |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `format`                                             | `EApiPropertyNumberType.INTEGER` or `DOUBLE`. Controls Swagger `type`/`format` and which validator (`IsInt` vs `IsNumber`) runs. |
+| `minimum` / `maximum`                                | Value bounds enforced with `Min`/`Max`. Required to derive example defaults.                                                     |
+| `multipleOf`                                         | Validates divisibility (useful for currency increments).                                                                         |
+| `exampleValue`                                       | Optional; falls back to a random value within the provided range. Accepts single value or array when `isArray` is `true`.        |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enables numeric arrays with full validation.                                                                                     |
+| `isNullable`, `isRequired`, `isResponse`, `isExpose` | Control request validation, Swagger metadata, and serialization.                                                                 |
 
 ## Behavior
 
@@ -47,4 +47,3 @@ class PriceDto {
 
 - [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
 - [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
-

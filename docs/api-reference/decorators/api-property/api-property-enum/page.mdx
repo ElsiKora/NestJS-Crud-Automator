@@ -10,13 +10,13 @@ Documents and validates DTO fields that map to TypeScript enums. Supports string
 
 ## Required configuration
 
-| Option | Description |
-| --- | --- |
-| `enum` | The enum object (e.g., `UserRole`). Used for Swagger `enum` values and validation. |
-| `enumName` | Optional explicit name shown in Swagger schema when using barrel exports. |
-| `description`, `entity`, `isRequired`, `isNullable` | Same semantics as other property decorators. |
-| `exampleValue` | Optional; defaults to the first enum value (or an array if `isArray` is `true`). |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enable enum arrays with array validation. |
+| Option                                              | Description                                                                        |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `enum`                                              | The enum object (e.g., `UserRole`). Used for Swagger `enum` values and validation. |
+| `enumName`                                          | Optional explicit name shown in Swagger schema when using barrel exports.          |
+| `description`, `entity`, `isRequired`, `isNullable` | Same semantics as other property decorators.                                       |
+| `exampleValue`                                      | Optional; defaults to the first enum value (or an array if `isArray` is `true`).   |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems`  | Enable enum arrays with array validation.                                          |
 
 ## Behavior
 
@@ -48,4 +48,3 @@ class UserDto {
 
 - [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
 - [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
-

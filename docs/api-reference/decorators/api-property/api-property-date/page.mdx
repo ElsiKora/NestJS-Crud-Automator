@@ -10,12 +10,12 @@ Formats, validates, and serializes date/time fields. Supports ISO date-time stri
 
 ## Key options
 
-| Option | Description |
-| --- | --- |
-| `identifier` | `EApiPropertyDateIdentifier` describing semantic meaning (createdAt, updatedAt, expiresIn, date filters, etc.). Drives default description text. |
-| `format` | `EApiPropertyDateType.DATE`, `DATE_TIME`, or `TIME`. Controls regex pattern, example value, and expected serializer format. |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables arrays of date values with full validation. |
-| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Same semantics as other property decorators. |
+| Option                                               | Description                                                                                                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `identifier`                                         | `EApiPropertyDateIdentifier` describing semantic meaning (createdAt, updatedAt, expiresIn, date filters, etc.). Drives default description text. |
+| `format`                                             | `EApiPropertyDateType.DATE`, `DATE_TIME`, or `TIME`. Controls regex pattern, example value, and expected serializer format.                      |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enables arrays of date values with full validation.                                                                                              |
+| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Same semantics as other property decorators.                                                                                                     |
 
 ## Behavior
 
@@ -50,4 +50,3 @@ class AuditDto {
 
 - [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
 - [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
-

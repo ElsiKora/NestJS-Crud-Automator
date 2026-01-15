@@ -13,9 +13,9 @@ Registers a class as a function-level subscriber for a specific entity. Subscrib
 
 ## Options
 
-| Option | Description |
-| --- | --- |
-| `entity` | Entity the subscriber listens to. The subscriber is ignored for other entities. |
+| Option     | Description                                                                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `entity`   | Entity the subscriber listens to. The subscriber is ignored for other entities.                                         |
 | `priority` | Higher numbers execute first. Defaults to `0`. Use this to enforce deterministic ordering between multiple subscribers. |
 
 ## Usage steps
@@ -41,4 +41,3 @@ export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
 
 - [Subscriber Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-subscriber)
 - [Subscriber System – Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers)
-

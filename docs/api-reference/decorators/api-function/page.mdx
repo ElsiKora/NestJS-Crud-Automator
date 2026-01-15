@@ -4,15 +4,15 @@ Function decorators wrap repository operations inside services, applying DTO val
 
 ## Available decorators
 
-| Decorator | Purpose | Reference |
-| --- | --- | --- |
-| `@ApiFunction` | Entry point that selects the correct CRUD decorator based on `type`. | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function) |
-| `@ApiFunctionCreate` | Persists new records with subscriber before/after hooks and error propagation. | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-create](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-create) |
-| `@ApiFunctionDelete` | Deletes records using criteria DTOs, handling transactional repositories when provided. | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-delete](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-delete) |
-| `@ApiFunctionGet` | Fetches a single entity instance with guard-friendly errors. | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get) |
-| `@ApiFunctionGetList` | Retrieves paginated collections with filtering, sorting, and projection metadata. | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-list](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-list) |
-| `@ApiFunctionGetMany` | Optimized multi-id fetch with guard-aware error handling. | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-many](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-many) |
-| `@ApiFunctionUpdate` | Updates entities with DTO validation, transactional repository support, and subscribers. | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-update](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-update) |
+| Decorator             | Purpose                                                                                  | Reference                                                                                                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@ApiFunction`        | Entry point that selects the correct CRUD decorator based on `type`.                     | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function)                   |
+| `@ApiFunctionCreate`  | Persists new records with subscriber before/after hooks and error propagation.           | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-create](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-create)     |
+| `@ApiFunctionDelete`  | Deletes records using criteria DTOs, handling transactional repositories when provided.  | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-delete](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-delete)     |
+| `@ApiFunctionGet`     | Fetches a single entity instance with guard-friendly errors.                             | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get)           |
+| `@ApiFunctionGetList` | Retrieves paginated collections with filtering, sorting, and projection metadata.        | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-list](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-list) |
+| `@ApiFunctionGetMany` | Optimized multi-id fetch with guard-aware error handling.                                | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-many](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-many) |
+| `@ApiFunctionUpdate`  | Updates entities with DTO validation, transactional repository support, and subscribers. | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-update](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-update)     |
 
 ## Usage guidelines
 
@@ -24,4 +24,3 @@ Function decorators wrap repository operations inside services, applying DTO val
 
 - [Core Concepts – Services](/docs/nestjs-crud-automator/core-concepts/services)
 - [Subscriber System – Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers)
-
