@@ -33,7 +33,7 @@ export class LoggerUtility extends ConsoleLogger {
 	 * @private
 	 */
 	private static getLogLevelsFromEnv(): Array<LogLevel> {
-		const logLevel: string = process.env[this.ENV_LOG_LEVEL_KEY] ?? "none";
+		const logLevel: string | undefined = process.env[this.ENV_LOG_LEVEL_KEY];
 
 		if (!logLevel) {
 			// Default log levels if not specified in env

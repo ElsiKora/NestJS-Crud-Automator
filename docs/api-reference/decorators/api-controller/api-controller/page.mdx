@@ -10,11 +10,11 @@ Generates CRUD endpoints, DTOs, Swagger metadata, guards, and request/response p
 
 ## Options
 
-| Option | Type | Description |
-| --- | --- | --- |
-| `entity` | `Type<E>` | Entity class used to inspect columns, relations, and repository metadata. |
-| `name` | `string` | Optional human-friendly resource label surfaced in Swagger summaries. Defaults to the entity name. |
-| `path` | `string` | Overrides the route prefix if the controller path differs from the entity plural name. |
+| Option   | Type                                                                  | Description                                                                                                    |
+| -------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `entity` | `Type<E>`                                                             | Entity class used to inspect columns, relations, and repository metadata.                                      |
+| `name`   | `string`                                                              | Optional human-friendly resource label surfaced in Swagger summaries. Defaults to the entity name.             |
+| `path`   | `string`                                                              | Overrides the route prefix if the controller path differs from the entity plural name.                         |
 | `routes` | `Partial<Record<EApiRouteType, TApiControllerPropertiesRoute<E, R>>>` | Per-route configuration covering authentication, DTO sources, request/response metadata, and enablement flags. |
 
 ## Route configuration
@@ -61,4 +61,3 @@ export class UserController {}
 - [Controller Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-controller)
 - [Core Concepts – Controllers](/docs/nestjs-crud-automator/core-concepts/controllers)
 - [Subscriber System – Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)
-

@@ -9,7 +9,12 @@ import type { FindOptionsWhere } from "typeorm/index";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
-import { HttpException, InternalServerErrorException } from "@nestjs/common";
+import { EApiExceptionDetailsType } from "@enum/utility/exception-details";
+import { BadRequestException, HttpException, HttpStatus, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { DatabaseTypeOrmGetForeignKeyViolationDetails } from "@utility/database/typeorm/get/foreign-key-violation-details.utility";
+import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
+import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
+import { DatabaseTypeOrmIsForeignKeyViolation } from "@utility/database/typeorm/is/foreign-key-violation.utility";
 import { ErrorException } from "@utility/error-exception.utility";
 import { ErrorString } from "@utility/error-string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -117,7 +122,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExe
 		}
 
 		return result;
-	} catch (error) {
+	} catch (caughtError) {
 		const entityInstance: E = new entity();
 
 		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
@@ -125,6 +130,23 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExe
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.DELETE,
 		};
+
+		let error: unknown = caughtError;
+
+		if (DatabaseTypeOrmIsEntityNotFound(caughtError)) {
+			error = new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }), { cause: caughtError });
+		}
+
+		if (DatabaseTypeOrmIsEntityMetadataNotFound(caughtError)) {
+			error = new InternalServerErrorException(ErrorString({ entity, type: EErrorStringAction.DATABASE_ERROR }), { cause: caughtError });
+		}
+
+		if (DatabaseTypeOrmIsForeignKeyViolation(caughtError)) {
+			const message: string = ErrorString({ entity, type: EErrorStringAction.DATABASE_CONSTRAINT_VIOLATION });
+			const detailsBase: ReturnType<typeof DatabaseTypeOrmGetForeignKeyViolationDetails> = DatabaseTypeOrmGetForeignKeyViolationDetails(caughtError);
+			const details: object = detailsBase ? { ...detailsBase, type: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION } : { type: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION };
+			error = new BadRequestException({ details, error: "Bad Request", message, statusCode: HttpStatus.BAD_REQUEST }, { cause: caughtError });
+		}
 
 		if (error instanceof HttpException) {
 			await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.DELETE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error);
@@ -140,6 +162,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExe
 				entity: entity,
 				type: EErrorStringAction.DELETING_ERROR,
 			}),
+			{ cause: caughtError },
 		);
 	}
 }

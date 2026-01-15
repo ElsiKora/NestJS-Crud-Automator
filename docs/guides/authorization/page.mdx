@@ -154,12 +154,12 @@ onBeforeGetList() {
 
 Every standard hook now knows the precise result type, so `resultTransform` receives a strongly typed `result` without extra casts:
 
-Route | Result type `R` | Notes
-:--|:--|:--
-`onBeforeCreate` / `onBeforeGet` / `onBeforePartialUpdate` / `onBeforeUpdate` | `E`
-`onBeforeDelete` | `void`
-`onBeforeGetList` | `IApiGetListResponseResult<E>`
-Custom actions | `TApiAuthorizationRuleTransformPayload<E>` (fallback)
+| Route                                                                         | Result type `R`                                       | Notes |
+| :---------------------------------------------------------------------------- | :---------------------------------------------------- | :---- |
+| `onBeforeCreate` / `onBeforeGet` / `onBeforePartialUpdate` / `onBeforeUpdate` | `E`                                                   |
+| `onBeforeDelete`                                                              | `void`                                                |
+| `onBeforeGetList`                                                             | `IApiGetListResponseResult<E>`                        |
+| Custom actions                                                                | `TApiAuthorizationRuleTransformPayload<E>` (fallback) |
 
 - DELETE returns `void`, so transforms there can only trigger side effects.
 - Custom actions fall back to the union type; specify `this.allow<TCustomResult>({ ... })` if you need to narrow it.
@@ -185,5 +185,3 @@ Existing manual guards can be phased out gradually:
 3. Remove legacy controller configuration (no `authorization` blocks required).
 
 See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the complete contract and helper methods exposed by `ApiAuthorizationPolicyBase`.
-
-

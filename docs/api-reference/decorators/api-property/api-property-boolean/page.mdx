@@ -10,14 +10,14 @@ Applies Swagger metadata, validation decorators, and serialization logic for boo
 
 ## Notable options
 
-| Option | Description |
-| --- | --- |
-| `entity` | Entity or factory returning the entity. Required so descriptions embed the entity name. |
-| `description` | Field description appended to Swagger docs. |
-| `isRequired` | Adds/omits `IsOptional`. |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables `boolean[]` with array validation. |
-| `isNullable` | Sets Swagger nullable flag. |
-| `isResponse`, `isExpose` | Controls whether `ApiResponseProperty`, `Expose`, or `Exclude` are emitted for response DTOs. |
+| Option                                             | Description                                                                                   |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `entity`                                           | Entity or factory returning the entity. Required so descriptions embed the entity name.       |
+| `description`                                      | Field description appended to Swagger docs.                                                   |
+| `isRequired`                                       | Adds/omits `IsOptional`.                                                                      |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables `boolean[]` with array validation.                                                    |
+| `isNullable`                                       | Sets Swagger nullable flag.                                                                   |
+| `isResponse`, `isExpose`                           | Controls whether `ApiResponseProperty`, `Expose`, or `Exclude` are emitted for response DTOs. |
 
 ## Behavior
 
@@ -52,4 +52,3 @@ class UserFilterDto {
 
 - [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
 - [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
-

@@ -10,14 +10,14 @@ Central metadata decorator for entity properties. The metadata drives auto-gener
 
 ## Key configuration
 
-| Option | Description |
-| --- | --- |
-| `type` | Required `EApiPropertyDescribeType` (STRING, NUMBER, BOOLEAN, DATE, ENUM, OBJECT, UUID, RELATION). Governs downstream validators and Swagger schema. |
-| `description` | Human-readable field description appended to DTOs and Swagger docs. |
-| `exampleValue` | Example displayed in Swagger and used when validating `pattern` alignment. |
-| `dto` | Fine-grained control over exposure in create/update/query/response DTOs, plus guard configuration for response properties. |
-| `relationMetadata` | Relation-specific settings: `relationType`, related entity, `isEager`, cascade flags, etc. |
-| Type-specific fields | Each type exposes additional options (e.g., `minLength`, `format`, `enum`, `identifier`, `minimum`, `maximum`). |
+| Option               | Description                                                                                                                                          |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`               | Required `EApiPropertyDescribeType` (STRING, NUMBER, BOOLEAN, DATE, ENUM, OBJECT, UUID, RELATION). Governs downstream validators and Swagger schema. |
+| `description`        | Human-readable field description appended to DTOs and Swagger docs.                                                                                  |
+| `exampleValue`       | Example displayed in Swagger and used when validating `pattern` alignment.                                                                           |
+| `dto`                | Fine-grained control over exposure in create/update/query/response DTOs, plus guard configuration for response properties.                           |
+| `relationMetadata`   | Relation-specific settings: `relationType`, related entity, `isEager`, cascade flags, etc.                                                           |
+| Type-specific fields | Each type exposes additional options (e.g., `minLength`, `format`, `enum`, `identifier`, `minimum`, `maximum`).                                      |
 
 The decorator stores values in `MetadataStorage`, allowing factory pipelines to retrieve them even when DTOs are generated lazily.
 
@@ -51,4 +51,3 @@ name!: string;
 
 - [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
 - [Core Concepts – Entities](/docs/nestjs-crud-automator/core-concepts/entities)
-

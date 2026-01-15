@@ -10,11 +10,11 @@ Describes UUID-based DTO fields and enforces RFC 4122 validation. Supports singl
 
 ## Options
 
-| Option | Description |
-| --- | --- |
-| `description` | Defaults to `"identifier"` if omitted; appended to the entity name. |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables arrays of UUIDs with full validation. |
-| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Standard property flags. |
+| Option                                               | Description                                                         |
+| ---------------------------------------------------- | ------------------------------------------------------------------- |
+| `description`                                        | Defaults to `"identifier"` if omitted; appended to the entity name. |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enables arrays of UUIDs with full validation.                       |
+| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Standard property flags.                                            |
 
 ## Behavior
 
@@ -43,4 +43,3 @@ class BulkDeleteDto {
 
 - [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
 - [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
-

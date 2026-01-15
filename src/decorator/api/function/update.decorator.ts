@@ -8,7 +8,14 @@ import type { DeepPartial, EntityManager, Repository } from "typeorm";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
-import { HttpException, InternalServerErrorException } from "@nestjs/common";
+import { EApiExceptionDetailsType } from "@enum/utility/exception-details";
+import { BadRequestException, ConflictException, HttpException, HttpStatus, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { DatabaseTypeOrmGetForeignKeyViolationDetails } from "@utility/database/typeorm/get/foreign-key-violation-details.utility";
+import { DatabaseTypeOrmGetUniqueViolationDetails } from "@utility/database/typeorm/get/unique-violation-details.utility";
+import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
+import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
+import { DatabaseTypeOrmIsForeignKeyViolation } from "@utility/database/typeorm/is/foreign-key-violation.utility";
+import { DatabaseTypeOrmIsUniqueViolation } from "@utility/database/typeorm/is/unique-violation.utility";
 import { ErrorException } from "@utility/error-exception.utility";
 import { ErrorString } from "@utility/error-string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -126,7 +133,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 		}
 
 		return result;
-	} catch (error) {
+	} catch (caughtError) {
 		const entityInstance: E = new entity();
 
 		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
@@ -134,6 +141,30 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.UPDATE,
 		};
+
+		let error: unknown = caughtError;
+
+		if (DatabaseTypeOrmIsEntityNotFound(caughtError)) {
+			error = new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }), { cause: caughtError });
+		}
+
+		if (DatabaseTypeOrmIsEntityMetadataNotFound(caughtError)) {
+			error = new InternalServerErrorException(ErrorString({ entity, type: EErrorStringAction.DATABASE_ERROR }), { cause: caughtError });
+		}
+
+		if (DatabaseTypeOrmIsForeignKeyViolation(caughtError)) {
+			const message: string = ErrorString({ entity, type: EErrorStringAction.DATABASE_CONSTRAINT_VIOLATION });
+			const detailsBase: ReturnType<typeof DatabaseTypeOrmGetForeignKeyViolationDetails> = DatabaseTypeOrmGetForeignKeyViolationDetails(caughtError);
+			const details: object = detailsBase ? { ...detailsBase, type: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION } : { type: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION };
+			error = new BadRequestException({ details, error: "Bad Request", message, statusCode: HttpStatus.BAD_REQUEST }, { cause: caughtError });
+		}
+
+		if (DatabaseTypeOrmIsUniqueViolation(caughtError)) {
+			const message: string = ErrorString({ entity, type: EErrorStringAction.DUPLICATE_KEY });
+			const detailsBase: ReturnType<typeof DatabaseTypeOrmGetUniqueViolationDetails> = DatabaseTypeOrmGetUniqueViolationDetails(caughtError);
+			const details: object = detailsBase ? { ...detailsBase, type: EApiExceptionDetailsType.UNIQUE_VIOLATION } : { type: EApiExceptionDetailsType.UNIQUE_VIOLATION };
+			error = new ConflictException({ details, error: "Conflict", message, statusCode: HttpStatus.CONFLICT }, { cause: caughtError });
+		}
 
 		if (error instanceof HttpException) {
 			await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error);
@@ -149,6 +180,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 				entity: entity,
 				type: EErrorStringAction.UPDATING_ERROR,
 			}),
+			{ cause: caughtError },
 		);
 	}
 }

@@ -18,7 +18,12 @@ Marks a controller as observable so its CRUD lifecycle emits events to route sub
 
 ```typescript
 @Controller("posts")
-@ApiController({ entity: PostEntity, routes: { /* ... */ } })
+@ApiController({
+	entity: PostEntity,
+	routes: {
+		/* ... */
+	},
+})
 @ApiControllerObservable()
 export class PostController {}
 ```
@@ -32,4 +37,3 @@ export class PostController {}
 
 - [Controller Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-controller)
 - [Subscriber System – Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)
-

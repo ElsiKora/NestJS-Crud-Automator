@@ -10,13 +10,13 @@ Describes nested object fields in DTOs. Works with single DTO types, arrays, pol
 
 ## Key options
 
-| Option | Description |
-| --- | --- |
-| `type` | Either a single DTO class, an array of DTOs (for polymorphic `oneOf`), or a dynamically generated DTO registry. |
-| `discriminator` | Optional `{ propertyName, mapping, shouldKeepDiscriminatorProperty }` enabling OpenAPI discriminators and runtime validation. Required when supplying multiple types. |
-| `shouldValidateNested` | Adds `ValidateNested` and `Type` decorators so nested objects are validated/serialized. Mandatory for request-side arrays. |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables arrays with validation. |
-| `additionalProperties` | Pass-through for arbitrary JSON object schemas. |
+| Option                                             | Description                                                                                                                                                           |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`                                             | Either a single DTO class, an array of DTOs (for polymorphic `oneOf`), or a dynamically generated DTO registry.                                                       |
+| `discriminator`                                    | Optional `{ propertyName, mapping, shouldKeepDiscriminatorProperty }` enabling OpenAPI discriminators and runtime validation. Required when supplying multiple types. |
+| `shouldValidateNested`                             | Adds `ValidateNested` and `Type` decorators so nested objects are validated/serialized. Mandatory for request-side arrays.                                            |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables arrays with validation.                                                                                                                                       |
+| `additionalProperties`                             | Pass-through for arbitrary JSON object schemas.                                                                                                                       |
 
 ## Behavior
 
@@ -29,9 +29,15 @@ Describes nested object fields in DTOs. Works with single DTO types, arrays, pol
 ## Example
 
 ```typescript
-class AddressDto { /* ... */ }
-class BillingAddressDto extends AddressDto { /* ... */ }
-class ShippingAddressDto extends AddressDto { /* ... */ }
+class AddressDto {
+	/* ... */
+}
+class BillingAddressDto extends AddressDto {
+	/* ... */
+}
+class ShippingAddressDto extends AddressDto {
+	/* ... */
+}
 
 class OrderDto {
 	@ApiPropertyObject({
@@ -56,4 +62,3 @@ class OrderDto {
 
 - [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)
 - [`@ApiPropertyDescribe`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe)
-
