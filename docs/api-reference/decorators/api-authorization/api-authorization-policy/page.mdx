@@ -17,6 +17,7 @@ Registers a class as an authorization policy for a specific entity. Policies exe
 
 | Option        | Description                                                                                                          |
 | ------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `cache`       | Optional cache override for this policy (`isEnabled`, `ttlMs`).                                                      |
 | `entity`      | Entity this policy protects. Required.                                                                               |
 | `priority`    | Higher priorities execute earlier. Defaults to `0`.                                                                  |
 | `policyId`    | Optional custom identifier. Defaults to `<entityName>Policy`. Useful when multiple policies protect the same entity. |
@@ -39,10 +40,32 @@ Registers a class as an authorization policy for a specific entity. Policies exe
 	description: "Allow admins and support staff to manage users",
 })
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	onBeforeGetList() {
+	onBeforeGetList(context) {
+		const { subject } = context.DATA;
+
+		if (!subject.roles.includes("admin")) {
+			return this.deny({ description: "Admins only" });
+		}
+
 		return this.allowForRoles(["admin", "support"]);
 	}
 }
+```
+
+### Hook context
+
+`context.DATA` contains typed metadata for the request, including the resolved `subject` and optional `authenticationRequest`.
+
+### Policy cache override
+
+Use the `cache` option when you want to cache only specific policies:
+
+```typescript
+@ApiAuthorizationPolicy<UserEntity>({
+	entity: UserEntity,
+	cache: { isEnabled: true, ttlMs: 60_000 },
+})
+export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {}
 ```
 
 ## Related resources

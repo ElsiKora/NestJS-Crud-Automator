@@ -1,4 +1,4 @@
-export { type IApiAuthorizationPolicySubscriberContext } from "./context.interface";
+export type * from "./context";
 export { type IApiAuthorizationPolicySubscriber } from "./interface";
 export { type IApiAuthorizationPolicySubscriberProperties } from "./properties.interface";
 export { type IApiAuthorizationPolicySubscriberRegistration } from "./registration.interface";

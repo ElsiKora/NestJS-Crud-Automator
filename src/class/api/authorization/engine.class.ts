@@ -75,6 +75,7 @@ export class ApiAuthorizationEngine implements IApiAuthorizationEngine<IApiBaseE
 			appliedRules: payload.appliedRules,
 			effect: payload.effect,
 			policyId: options.policy.policyId,
+			policyIds: options.policy.policyIds,
 			resource: options.resource,
 			resourceType: options.policy.entity.name ?? "UnknownResource",
 			scope: payload.scope,

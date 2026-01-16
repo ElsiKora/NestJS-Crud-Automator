@@ -378,9 +378,11 @@ import { UserEntity } from "../user.entity";
 
 @ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	onBeforeGet() {
+	onBeforeGet(context) {
+		const { subject } = context.DATA;
+
 		return this.allow({
-			scope: ({ subject }) => ({ where: { id: subject.id } }),
+			scope: () => ({ where: { id: subject.id } }),
 		});
 	}
 
@@ -393,7 +395,7 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 }
 ```
 
-Policies can return allow/deny rules, merge scope conditions into generated queries, and transform responses before they are sent back to the client.
+Policies can return allow/deny rules, merge scope conditions into generated queries, and transform responses before they are sent back to the client. `authorizationDecision.policyIds` lists all policy IDs contributing rules for the request. You can optionally enable policy caching globally via `ApiAuthorizationPolicyRegistry.configureCache()` or per policy via the `cache` option when policies are static.
 
 ### `CorrelationIDResponseBodyInterceptor`: Request Tracing
 

@@ -1,3 +1,4 @@
+import type { IApiAuthenticationRequest } from "@interface/api-authentication-request.interface";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationPolicy } from "@interface/class/api/authorization/policy/interface";
 import type { IApiAuthorizationPolicyRegistry } from "@interface/class/api/authorization/policy/registry.interface";
@@ -42,7 +43,14 @@ export class ApiAuthorizationGuard implements CanActivate {
 		const action: string = this.resolveAction(context);
 		authorizationGuardLogger.verbose(`Evaluating authorization for entity "${entityConstructor.name}" action "${action}"`);
 
-		const policy: IApiAuthorizationPolicy<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>> | undefined = await this.policyRegistry.buildAggregatedPolicy(entityConstructor, action);
+		const request: TApiAuthorizationGuardRequest = context.switchToHttp().getRequest<TApiAuthorizationGuardRequest>();
+		const subject: IApiAuthorizationSubject = AuthorizationResolveDefaultSubject(request.user);
+		const authenticationRequest: IApiAuthenticationRequest = request as unknown as IApiAuthenticationRequest;
+
+		const policy: IApiAuthorizationPolicy<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>> | undefined = await this.policyRegistry.buildAggregatedPolicy(entityConstructor, action, {
+			authenticationRequest,
+			subject,
+		});
 
 		if (!policy) {
 			authorizationGuardLogger.debug(`No policy found for entity "${entityConstructor.name}" action "${action}", allowing access`);
@@ -51,9 +59,6 @@ export class ApiAuthorizationGuard implements CanActivate {
 		}
 
 		authorizationGuardLogger.verbose(`Found policy "${policy.policyId}" with ${policy.rules.length} rules for entity "${entityConstructor.name}" action "${action}"`);
-
-		const request: TApiAuthorizationGuardRequest = context.switchToHttp().getRequest<TApiAuthorizationGuardRequest>();
-		const subject: IApiAuthorizationSubject = AuthorizationResolveDefaultSubject(request.user);
 
 		const decision: IApiAuthorizationDecision<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>> = await this.authorizationEngine.evaluate({
 			action,
