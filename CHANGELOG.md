@@ -1,3 +1,10 @@
+# [1.20.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.19.0...v1.20.0) (2026-01-16)
+
+
+### Features
+
+* **authorization:** unify policy context and caching ([ff8a64d](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/ff8a64d349be00983c2e3f0632a93970559d90b6))
+
 # [1.19.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.18.0...v1.19.0) (2026-01-15)
 
 
