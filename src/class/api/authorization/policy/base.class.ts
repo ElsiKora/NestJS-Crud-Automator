@@ -1,5 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationPolicySubscriberRule } from "@interface/class/api/authorization/policy/subscriber";
+import type { IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscriberRule } from "@interface/class/api/authorization/policy/subscriber";
 import type { IApiAuthorizationRuleContext } from "@interface/class/api/authorization/rule/context.interface";
 import type { FindOptionsWhere } from "typeorm";
 
@@ -11,7 +11,21 @@ import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
  * and provides helper methods to create allow/deny rules that are later executed by the policy executor.
  * @template E - Entity type extending IApiBaseEntity
  */
-export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> extends ApiSubscriberBase {
+export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> extends ApiSubscriberBase implements IApiAuthorizationPolicySubscriber<E> {
+	declare getCustomActionRule?: IApiAuthorizationPolicySubscriber<E>["getCustomActionRule"];
+
+	declare onBeforeCreate?: IApiAuthorizationPolicySubscriber<E>["onBeforeCreate"];
+
+	declare onBeforeDelete?: IApiAuthorizationPolicySubscriber<E>["onBeforeDelete"];
+
+	declare onBeforeGet?: IApiAuthorizationPolicySubscriber<E>["onBeforeGet"];
+
+	declare onBeforeGetList?: IApiAuthorizationPolicySubscriber<E>["onBeforeGetList"];
+
+	declare onBeforePartialUpdate?: IApiAuthorizationPolicySubscriber<E>["onBeforePartialUpdate"];
+
+	declare onBeforeUpdate?: IApiAuthorizationPolicySubscriber<E>["onBeforeUpdate"];
+
 	/**
 	 * Creates an ALLOW rule with optional overrides.
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Rule fields to merge.
@@ -51,17 +65,24 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 
 	/**
 	 * Helper that scopes data access to the owner identified by a field.
-	 * Automatically handles relations by using nested id structure.
+	 * Automatically resolves relation vs scalar fields by default.
 	 * @param {keyof E} [ownerField] - Entity field used to match the subject id, defaults to ownerId.
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Optional overrides.
+	 * @param {{ isRelation?: boolean }} [options] - Override relation handling; defaults to auto.
+	 * @param {boolean} [options.isRelation] - Whether the field is a relation (defaults to auto).
 	 * @returns {IApiAuthorizationPolicySubscriberRule<E>} Allow rule with owner scope.
 	 */
-	protected scopeToOwner<R>(ownerField: keyof E = "ownerId" as keyof E, rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">): IApiAuthorizationPolicySubscriberRule<E, R> {
+	protected scopeToOwner<R>(ownerField: keyof E = "ownerId" as keyof E, rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">, options: { isRelation?: boolean } = {}): IApiAuthorizationPolicySubscriberRule<E, R> {
+		const ownerFieldName: string = String(ownerField);
+		const isRelation: boolean = options.isRelation ?? !ownerFieldName.endsWith("Id");
+
 		return this.allow({
 			scope: ({ subject }: IApiAuthorizationRuleContext<E>) => {
+				const ownerCondition: unknown = isRelation ? { id: subject.id } : subject.id;
+
 				return {
 					where: {
-						[ownerField as string]: { id: subject.id },
+						[ownerFieldName]: ownerCondition,
 					} as FindOptionsWhere<E>,
 				};
 			},

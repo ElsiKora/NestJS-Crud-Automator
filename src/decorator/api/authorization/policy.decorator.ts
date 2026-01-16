@@ -14,6 +14,7 @@ export function ApiAuthorizationPolicy<E extends IApiBaseEntity>(properties: IAp
 	const normalizedPolicyId: string = properties.policyId ?? `${properties.entity.name?.toLowerCase() ?? "unknown"}${AUTHORIZATION_POLICY_DECORATOR_CONSTANT.DEFAULT_POLICY_ID_SUFFIX}`;
 
 	const metadata: IApiAuthorizationPolicySubscriberProperties<E> = {
+		cache: properties.cache,
 		description: properties.description,
 		entity: properties.entity,
 		policyId: normalizedPolicyId,
