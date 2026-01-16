@@ -27,25 +27,26 @@ export class AppModule {}
 Policies mirror the subscriber system: decorate a class and extend `ApiAuthorizationPolicyBase`. The decorator only needs the entity; policy IDs and priorities default to predictable values.
 
 ```typescript filename="policies/user-access.policy.ts" copy
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
+import type { TApiAuthorizationPolicyBeforeDeleteResult, TApiAuthorizationPolicyBeforeGetResult, TApiAuthorizationPolicyCustomActionResult } from "@elsikora/nestjs-crud-automator";
 import { UserEntity } from "../user.entity";
 
 @ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	onBeforeGet() {
+	onBeforeGet(): TApiAuthorizationPolicyBeforeGetResult<UserEntity> {
 		return this.allow({
 			scope: ({ subject }) => ({ where: { id: subject.id } }),
 		});
 	}
 
-	onBeforeDelete() {
+	onBeforeDelete(): TApiAuthorizationPolicyBeforeDeleteResult<UserEntity> {
 		return this.deny({
 			description: "Only administrators can delete users",
 			condition: ({ subject }) => !subject.roles.includes("admin"),
 		});
 	}
 
-	getCustomActionRule(action: string) {
+	getCustomActionRule(action: "promote"): TApiAuthorizationPolicyCustomActionResult<UserEntity, "promote"> {
 		if (action === "promote") {
 			return this.allowForRoles(["admin"]);
 		}
@@ -74,6 +75,8 @@ Every hook can return:
 - `this.allow()` / `this.deny()` helpers
 - arrays of rules (priority is `policyPriority + rulePriority`)
 - `undefined` to skip authorization for that action
+
+To make return types explicit, use `TApiAuthorizationPolicyBefore*Result` and `TApiAuthorizationPolicyCustomActionResult`.
 
 ## Subject Resolution
 

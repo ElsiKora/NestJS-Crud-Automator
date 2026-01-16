@@ -374,11 +374,12 @@ export class AppModule {}
 ```typescript
 // policies/user-access.policy.ts
 import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
+import type { TApiAuthorizationPolicyBeforeGetResult } from "@elsikora/nestjs-crud-automator";
 import { UserEntity } from "../user.entity";
 
 @ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	onBeforeGet(context) {
+	onBeforeGet(context): TApiAuthorizationPolicyBeforeGetResult<UserEntity> {
 		const { subject } = context.DATA;
 
 		return this.allow({

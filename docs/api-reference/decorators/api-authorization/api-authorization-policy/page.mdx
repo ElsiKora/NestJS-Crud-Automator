@@ -33,6 +33,9 @@ Registers a class as an authorization policy for a specific entity. Policies exe
 ## Example
 
 ```typescript
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
+import type { TApiAuthorizationPolicyBeforeGetListResult } from "@elsikora/nestjs-crud-automator";
+
 @Injectable()
 @ApiAuthorizationPolicy<UserEntity>({
 	entity: UserEntity,
@@ -40,7 +43,7 @@ Registers a class as an authorization policy for a specific entity. Policies exe
 	description: "Allow admins and support staff to manage users",
 })
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	onBeforeGetList(context) {
+	onBeforeGetList(context): TApiAuthorizationPolicyBeforeGetListResult<UserEntity> {
 		const { subject } = context.DATA;
 
 		if (!subject.roles.includes("admin")) {
@@ -55,6 +58,10 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 ### Hook context
 
 `context.DATA` contains typed metadata for the request, including the resolved `subject` and optional `authenticationRequest`.
+
+### Return type helpers
+
+Use `TApiAuthorizationPolicyBefore*Result` and `TApiAuthorizationPolicyCustomActionResult` to make hook return types explicit.
 
 ### Policy cache override
 

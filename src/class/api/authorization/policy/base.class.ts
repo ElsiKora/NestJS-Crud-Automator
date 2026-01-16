@@ -1,5 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscriberRule } from "@interface/class/api/authorization/policy/subscriber";
+import type { IApiAuthorizationPolicySubscriberRule } from "@interface/class/api/authorization/policy/subscriber";
 import type { IApiAuthorizationRuleContext } from "@interface/class/api/authorization/rule/context.interface";
 import type { FindOptionsWhere } from "typeorm";
 
@@ -11,21 +11,7 @@ import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
  * and provides helper methods to create allow/deny rules that are later executed by the policy executor.
  * @template E - Entity type extending IApiBaseEntity
  */
-export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> extends ApiSubscriberBase implements IApiAuthorizationPolicySubscriber<E> {
-	declare getCustomActionRule?: IApiAuthorizationPolicySubscriber<E>["getCustomActionRule"];
-
-	declare onBeforeCreate?: IApiAuthorizationPolicySubscriber<E>["onBeforeCreate"];
-
-	declare onBeforeDelete?: IApiAuthorizationPolicySubscriber<E>["onBeforeDelete"];
-
-	declare onBeforeGet?: IApiAuthorizationPolicySubscriber<E>["onBeforeGet"];
-
-	declare onBeforeGetList?: IApiAuthorizationPolicySubscriber<E>["onBeforeGetList"];
-
-	declare onBeforePartialUpdate?: IApiAuthorizationPolicySubscriber<E>["onBeforePartialUpdate"];
-
-	declare onBeforeUpdate?: IApiAuthorizationPolicySubscriber<E>["onBeforeUpdate"];
-
+export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> extends ApiSubscriberBase {
 	/**
 	 * Creates an ALLOW rule with optional overrides.
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Rule fields to merge.
