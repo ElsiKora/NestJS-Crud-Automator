@@ -6,5 +6,6 @@ export interface IApiAuthorizationPolicy<E extends IApiBaseEntity, R> {
 	description?: string;
 	entity: new () => E;
 	policyId: string;
+	policyIds: Array<string>;
 	rules: Array<IApiAuthorizationRule<E, R>>;
 }

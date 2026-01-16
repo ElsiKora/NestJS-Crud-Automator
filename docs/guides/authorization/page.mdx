@@ -57,6 +57,7 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 
 Inside any policy hook, the `context` argument exposes:
 
+- `DATA` — typed container (includes `subject` and optional `authenticationRequest`);
 - `action` — a string action name (for example `get`, `create`, `promote`);
 - `routeType` — an `EApiRouteType` value for standard CRUD hooks;
 - `entity` and `entityMetadata` — the model constructor and its metadata (columns, primary key, table name).
@@ -98,12 +99,45 @@ return {
 
 If you need a different structure, override the resolver — the only requirement is to return a valid `IApiAuthorizationSubject`.
 
+## Policy Caching (Optional)
+
+Policies are built per request by default. If your policies are static and do not depend on the subject or request, you can enable caching:
+
+```typescript filename="app.module.ts" copy
+import { ApiAuthorizationPolicyRegistry } from "@elsikora/nestjs-crud-automator";
+import { Injectable, OnModuleInit } from "@nestjs/common";
+
+@Injectable()
+export class AppModule implements OnModuleInit {
+	constructor(private readonly policyRegistry: ApiAuthorizationPolicyRegistry) {}
+
+	onModuleInit() {
+		this.policyRegistry.configureCache({ isEnabled: true, ttlMs: 60_000 });
+	}
+}
+```
+
+Leave caching disabled if policies read dynamic data or depend on the current subject. Policy-level cache options override the registry defaults. Omit `ttlMs` to cache indefinitely.
+
+You can also configure caching per policy:
+
+```typescript filename="policies/user-access.policy.ts" copy
+@ApiAuthorizationPolicy<UserEntity>({
+	entity: UserEntity,
+	cache: { isEnabled: true, ttlMs: 30_000 },
+})
+export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
+	// ...
+}
+```
+
 ## Decision Resource Lifecycle
 
 1. The guard runs before the controller, so the engine initially gets `resource: undefined`.
 2. The controller method validates input, performs `service.get / update / create`, and only after success calls `AuthorizationDecisionAttachResource` to store the resource in `authorizationDecision.resource`.
 3. BEFORE-subscribers see decision metadata; AFTER/AFTER_ERROR hooks and `AuthorizationDecisionApplyResult` receive the same entity instance returned by the service.
 4. This keeps the guard free from business logic duplication and ensures transforms/subscribers operate on the real data.
+5. `authorizationDecision.policyIds` contains all policy IDs that contributed rules to the aggregated policy.
 
 ## Context, Scope, and Result Transform
 

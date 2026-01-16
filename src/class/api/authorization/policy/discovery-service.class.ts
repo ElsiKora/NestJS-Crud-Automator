@@ -39,6 +39,7 @@ export class ApiAuthorizationPolicyDiscoveryService implements OnModuleInit {
 			const policyId: string = properties.policyId ?? `${properties.entity.name?.toLowerCase() ?? "unknown"}${AUTHORIZATION_POLICY_DECORATOR_CONSTANT.DEFAULT_POLICY_ID_SUFFIX}`;
 
 			this.registry.registerSubscriber({
+				cache: properties.cache,
 				description: properties.description,
 				entity: properties.entity,
 				policyId,

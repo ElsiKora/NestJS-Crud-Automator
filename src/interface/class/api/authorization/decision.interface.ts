@@ -10,6 +10,7 @@ export interface IApiAuthorizationDecision<E extends IApiBaseEntity, R> {
 	appliedRules: Array<IApiAuthorizationRule<E, R>>;
 	effect: EAuthorizationEffect;
 	policyId: string;
+	policyIds: Array<string>;
 	resource?: E;
 	resourceType: string;
 	scope?: IApiAuthorizationScope<E>;
