@@ -1,3 +1,10 @@
+# [1.21.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.20.0...v1.21.0) (2026-01-21)
+
+
+### Features
+
+* **authorization:** add return type definitions for policy lifecycle methods ([dcc3700](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/dcc3700136ae4d8c10f3c569495193f796f50111))
+
 # [1.20.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.19.0...v1.20.0) (2026-01-16)
 
 
