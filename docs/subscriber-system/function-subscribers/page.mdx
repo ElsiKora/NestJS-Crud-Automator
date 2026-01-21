@@ -95,10 +95,10 @@ async onBeforeGet(
 }
 
 async onBeforeDelete(
-  context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>
-): Promise<PostEntity> {
-  // Archive before deletion
-  await this.archiveService.archive(context.ENTITY);
+  context: TApiSubscriberFunctionBeforeDeleteContext<PostEntity>
+): Promise<TApiFunctionDeleteCriteria<PostEntity>> {
+  // Archive before deletion using delete criteria
+  await this.archiveService.archive(context.result);
 
   return context.result;
 }
@@ -112,7 +112,7 @@ Called after repository operations:
 
 ```typescript
 async onAfterCreate(
-  context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>
+  context: TApiSubscriberFunctionAfterCreateContext<PostEntity>
 ): Promise<PostEntity> {
   const post = context.result;
 
@@ -132,7 +132,7 @@ async onAfterCreate(
 
 ```typescript
 async onAfterUpdate(
-  context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>
+  context: TApiSubscriberFunctionAfterUpdateContext<PostEntity>
 ): Promise<PostEntity> {
   const post = context.result;
 
@@ -150,16 +150,16 @@ async onAfterUpdate(
 
 ```typescript
 async onAfterGetList(
-  context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity[]>
-): Promise<PostEntity[]> {
-  const posts = context.result;
+  context: TApiSubscriberFunctionAfterGetListContext<PostEntity>
+): Promise<IApiGetListResponseResult<PostEntity>> {
+  const response = context.result;
 
   // Enrich with computed data
-  for (const post of posts) {
+  for (const post of response.items) {
     post.readingTime = this.calculateReadingTime(post.content);
   }
 
-  return posts;
+  return response;
 }
 
 private calculateReadingTime(content: string): number {
@@ -266,7 +266,7 @@ export class SearchIndexSubscriber extends ApiFunctionSubscriberBase<PostEntity>
 		super();
 	}
 
-	async onAfterCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+	async onAfterCreate(context: TApiSubscriberFunctionAfterCreateContext<PostEntity>): Promise<PostEntity> {
 		await this.searchService.indexDocument({
 			id: context.result.id,
 			title: context.result.title,
@@ -277,7 +277,7 @@ export class SearchIndexSubscriber extends ApiFunctionSubscriberBase<PostEntity>
 		return context.result;
 	}
 
-	async onAfterUpdate(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+	async onAfterUpdate(context: TApiSubscriberFunctionAfterUpdateContext<PostEntity>): Promise<PostEntity> {
 		await this.searchService.updateDocument(context.result.id, {
 			title: context.result.title,
 			content: context.result.content,
@@ -287,7 +287,7 @@ export class SearchIndexSubscriber extends ApiFunctionSubscriberBase<PostEntity>
 		return context.result;
 	}
 
-	async onAfterDelete(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+	async onAfterDelete(context: TApiSubscriberFunctionAfterDeleteContext<PostEntity>): Promise<PostEntity> {
 		await this.searchService.deleteDocument(context.result.id);
 
 		return context.result;
@@ -301,7 +301,7 @@ export class SearchIndexSubscriber extends ApiFunctionSubscriberBase<PostEntity>
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity })
 export class ComputedFieldsSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-	async onAfterGet(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+	async onAfterGet(context: TApiSubscriberFunctionAfterGetContext<PostEntity>): Promise<PostEntity> {
 		const post = context.result;
 
 		// Calculate reading time
@@ -313,8 +313,8 @@ export class ComputedFieldsSubscriber extends ApiFunctionSubscriberBase<PostEnti
 		return post;
 	}
 
-	async onAfterGetList(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity[]>): Promise<PostEntity[]> {
-		for (const post of context.result) {
+	async onAfterGetList(context: TApiSubscriberFunctionAfterGetListContext<PostEntity>): Promise<IApiGetListResponseResult<PostEntity>> {
+		for (const post of context.result.items) {
 			post.readingTimeMinutes = this.calculateReadingTime(post.content);
 			post.summary = this.generateSummary(post.content, 150);
 		}
@@ -351,14 +351,14 @@ export class CascadeOperationsSubscriber extends ApiFunctionSubscriberBase<PostE
 		super();
 	}
 
-	async onBeforeDelete(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
-		const postId = context.ENTITY.id;
+	async onBeforeDelete(context: TApiSubscriberFunctionBeforeDeleteContext<PostEntity>): Promise<TApiFunctionDeleteCriteria<PostEntity>> {
+		const criteria = context.result;
 
 		// Delete related comments
-		await this.commentRepository.delete({ postId });
+		await this.commentRepository.delete(criteria);
 
 		// Delete related likes
-		await this.likeRepository.delete({ postId });
+		await this.likeRepository.delete(criteria);
 
 		return context.result;
 	}
@@ -380,7 +380,7 @@ export class VersionHistorySubscriber extends ApiFunctionSubscriberBase<PostEnti
 		super();
 	}
 
-	async onAfterUpdate(context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+	async onAfterUpdate(context: TApiSubscriberFunctionAfterUpdateContext<PostEntity>): Promise<PostEntity> {
 		const post = context.result;
 
 		// Save version to history
@@ -406,7 +406,7 @@ export class VersionHistorySubscriber extends ApiFunctionSubscriberBase<PostEnti
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity, priority: 100 })
 export class DataValidationSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-	async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, TApiFunctionCreateProperties<PostEntity>>): Promise<TApiFunctionCreateProperties<PostEntity>> {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>): Promise<TApiFunctionCreateProperties<PostEntity>> {
 		const { body } = context.result;
 
 		// Validate content length
@@ -440,7 +440,7 @@ export class DataValidationSubscriber extends ApiFunctionSubscriberBase<PostEnti
 
 ## Priority Ordering
 
-Function subscribers execute in priority order (high to low for before hooks, low to high for after hooks):
+Function subscribers execute in priority order (high to low for both before and after hooks):
 
 ```typescript
 // Validation (highest priority - executes first)

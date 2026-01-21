@@ -133,15 +133,15 @@ import {
         transformers: {
           [EApiDtoType.BODY]: [
             {
-              key: "authorId",
+              key: "author",
               type: EApiControllerRequestTransformerType.DYNAMIC,
               value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
               shouldSetValueEvenIfMissing: true,
             },
             {
               key: "createdAt",
-              type: EApiControllerRequestTransformerType.STATIC,
-              value: () => new Date(),
+              type: EApiControllerRequestTransformerType.DYNAMIC,
+              value: TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_TIMESTAMP,
             },
           ],
         },
@@ -166,8 +166,10 @@ routes: {
     response: {
       transformers: [
         {
-          key: "fullName",
-          value: (entity) => `${entity.firstName} ${entity.lastName}`,
+          key: "responseSource",
+          type: EApiControllerRequestTransformerType.STATIC,
+          value: "api",
+          shouldSetValueEvenIfMissing: true,
         },
       ],
     },
@@ -276,15 +278,21 @@ import {
 Add custom request validators:
 
 ```typescript
+import { BadRequestException } from "@nestjs/common";
+import { EErrorStringAction, type IApiRequestValidator } from "@elsikora/nestjs-crud-automator";
+
+const createValidators: Array<IApiRequestValidator<UserEntity>> = [
+  {
+    errorType: EErrorStringAction.BAD_REQUEST,
+    exception: BadRequestException,
+    validationFunction: (payload: Partial<UserEntity>) => Boolean(payload.email),
+  },
+];
+
 routes: {
   [EApiRouteType.CREATE]: {
     request: {
-      validators: [
-        {
-          constraintClass: CustomValidator,
-          options: ["field1", "field2"],
-        },
-      ],
+      validators: createValidators,
     },
   },
 }

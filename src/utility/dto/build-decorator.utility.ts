@@ -6,10 +6,10 @@ import type { TApiPropertyDescribeDateProperties, TApiPropertyDescribeDtoPropert
 import type { TDtoGenerateIsAllowedCombination } from "@type/utility";
 
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
-import { DtoGenerateDecorator } from "@utility/dto/generate-decorator.utility";
-import { DtoGetDecoratorConfig } from "@utility/dto/get-decorator-config.utility";
+import { DtoGenerateDecorator } from "@utility/dto/generate/decorator.utility";
+import { DtoGetDecoratorConfig } from "@utility/dto/get/decorator-config.utility";
 import { DtoHandleDateProperty } from "@utility/dto/handle-date-property.utility";
-import { DtoIsPropertyExposedForGuard } from "@utility/dto/is-property-exposed-for-guard.utility";
+import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed-for-guard.utility";
 import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
 
 /**

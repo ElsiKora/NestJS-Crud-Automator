@@ -8,8 +8,8 @@ import type { DeepPartial, FindOptionsWhere } from "typeorm";
 import { ApiServiceBase } from "@class/api";
 import { EApiControllerLoadRelationsStrategy } from "@enum/decorator/api";
 import { BadRequestException } from "@nestjs/common";
-import { ErrorException } from "@utility/error-exception.utility";
-import { GetEntityColumns } from "@utility/get-entity-columns.utility";
+import { ErrorException } from "@utility/error/exception.utility";
+import { GetEntityColumns } from "@utility/get/entity-columns.utility";
 
 /**
  * Manages loading related entities when processing API requests.

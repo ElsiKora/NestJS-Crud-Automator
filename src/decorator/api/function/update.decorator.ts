@@ -1,6 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function-error-execution-context.interface";
-import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function-execution-context.interface";
+import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function/error-execution-context.interface";
+import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context-data.interface";
+import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context.interface";
 import type { IApiFunctionProperties, IApiFunctionUpdateExecutorProperties } from "@interface/decorator/api/function";
 import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 import type { DeepPartial, EntityManager, Repository } from "typeorm";
@@ -8,7 +9,7 @@ import type { DeepPartial, EntityManager, Repository } from "typeorm";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
-import { EApiExceptionDetailsType } from "@enum/utility/exception-details";
+import { EApiExceptionDetailsType } from "@enum/utility/exception-details-type.enum";
 import { BadRequestException, ConflictException, HttpException, HttpStatus, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { DatabaseTypeOrmGetForeignKeyViolationDetails } from "@utility/database/typeorm/get/foreign-key-violation-details.utility";
 import { DatabaseTypeOrmGetUniqueViolationDetails } from "@utility/database/typeorm/get/unique-violation-details.utility";
@@ -16,11 +17,11 @@ import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeo
 import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
 import { DatabaseTypeOrmIsForeignKeyViolation } from "@utility/database/typeorm/is/foreign-key-violation.utility";
 import { DatabaseTypeOrmIsUniqueViolation } from "@utility/database/typeorm/is/unique-violation.utility";
-import { ErrorException } from "@utility/error-exception.utility";
-import { ErrorString } from "@utility/error-string.utility";
+import { ErrorException } from "@utility/error/exception.utility";
+import { ErrorString } from "@utility/error/string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
-import { ApiFunctionGet } from "./get.decorator";
+import { ApiFunctionGet } from "./get/decorator";
 
 /**
  * Creates a decorator that adds entity update functionality to a service method
@@ -54,7 +55,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
+				const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
 					DATA: { criteria, eventManager, repository: this.repository },
 					ENTITY: entityInstance,
 					FUNCTION_TYPE: EApiFunctionType.UPDATE,
@@ -136,7 +137,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 	} catch (caughtError) {
 		const entityInstance: E = new entity();
 
-		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
+		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
 			DATA: { criteria, eventManager, properties, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.UPDATE,

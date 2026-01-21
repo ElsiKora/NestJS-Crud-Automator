@@ -18,7 +18,7 @@ Decorated methods gain the shape `getList(dto: TApiFunctionGetListProperties<E>,
 - Uses `repository.findAndCount` (or the transactional repository) to retrieve data and the total count.
 - Computes `count`, `totalCount`, `totalPages`, and `currentPage` for the response DTO.
 - Executes `onAfterGetList` subscribers, allowing them to reshape items or pagination metadata.
-- Captures and rethrows HTTP exceptions while notifying `onAfterGetListError` subscribers.
+- Captures and rethrows HTTP exceptions while notifying `onBeforeErrorGetList` or `onAfterErrorGetList` subscribers.
 
 ## Example
 

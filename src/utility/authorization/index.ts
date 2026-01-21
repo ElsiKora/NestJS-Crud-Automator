@@ -1,3 +1,3 @@
 export * from "./decision";
-export * from "./scope";
-export * from "./subject";
+export { AuthorizationResolveDefaultSubject } from "./resolve-default-subject.utility";
+export { AuthorizationScopeMergeWhere } from "./scope-merge-where.utility";

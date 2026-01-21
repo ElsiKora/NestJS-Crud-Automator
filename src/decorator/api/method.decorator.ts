@@ -8,7 +8,7 @@ import { EApiAction } from "@enum/decorator/api";
 import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, UseGuards } from "@nestjs/common";
 import { ApiBadRequestResponse, ApiBearerAuth, ApiConflictResponse, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
-import { DtoGenerateException } from "@utility/dto/generate-exception.utility";
+import { DtoGenerateException } from "@utility/dto/generate/exception.utility";
 
 /**
  * Creates a decorator for controller methods that combines NestJS route decorators with Swagger documentation

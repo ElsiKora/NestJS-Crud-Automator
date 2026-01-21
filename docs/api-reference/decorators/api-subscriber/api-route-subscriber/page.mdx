@@ -21,7 +21,7 @@ Registers a class as a route-level subscriber for a specific entity. Subscribers
 ## Usage steps
 
 1. Add `@ApiControllerObservable()` to the controller that should emit events.
-2. Extend `ApiRouteSubscriberBase<E>` and implement lifecycle hooks such as `onBeforeCreate`, `onAfterGetList`, or `onAfterDeleteError`.
+2. Extend `ApiRouteSubscriberBase<E>` and implement lifecycle hooks such as `onBeforeCreate`, `onBeforePartialUpdate`, `onAfterGetList`, or `onAfterErrorDelete`.
 3. Decorate the subscriber class with `@ApiRouteSubscriber`.
 
 ## Example
@@ -30,7 +30,7 @@ Registers a class as a route-level subscriber for a specific entity. Subscribers
 @Injectable()
 @ApiRouteSubscriber<PostEntity>({ entity: PostEntity, priority: 10 })
 export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-	async onAfterCreate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>) {
+	async onAfterCreate(context: TApiSubscriberRouteAfterCreateContext<PostEntity>) {
 		this.logger.log("Post created", context.result);
 		return context.result;
 	}

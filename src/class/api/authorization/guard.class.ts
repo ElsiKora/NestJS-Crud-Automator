@@ -1,19 +1,19 @@
-import type { IApiAuthenticationRequest } from "@interface/api-authentication-request.interface";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationPolicy } from "@interface/class/api/authorization/policy/interface";
 import type { IApiAuthorizationPolicyRegistry } from "@interface/class/api/authorization/policy/registry.interface";
 import type { IApiAuthorizationSubject } from "@interface/class/api/authorization/subject.interface";
 
 import { ApiAuthorizationEngine } from "@class/api/authorization/engine.class";
-import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/authorization/metadata/decision.constant";
-import { AUTHORIZATION_POLICY_REGISTRY_TOKEN } from "@constant/class/authorization/token/registry.constant";
+import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/authorization/metadata-decision.constant";
+import { AUTHORIZATION_POLICY_REGISTRY_TOKEN } from "@constant/class/authorization/token-registry.constant";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
 import { IApiAuthorizationDecision } from "@interface/class/api/authorization";
 import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable } from "@nestjs/common";
 import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
 import { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
-import { AuthorizationResolveDefaultSubject } from "@utility/authorization/subject/resolve-default-subject.utility";
+import { AuthorizationResolveDefaultSubject } from "@utility/authorization/resolve-default-subject.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
 const authorizationGuardLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationGuard");
@@ -72,7 +72,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 		if (decision.effect === EAuthorizationEffect.DENY) {
 			authorizationGuardLogger.warn(`Access denied for entity "${entityConstructor.name}" action "${action}" subject "${subject.id}"`);
 
-			throw new ForbiddenException("Access denied");
+			throw new ForbiddenException();
 		}
 
 		authorizationGuardLogger.verbose(`Access granted for entity "${entityConstructor.name}" action "${action}" subject "${subject.id}"`);

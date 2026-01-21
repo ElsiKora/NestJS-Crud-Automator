@@ -1,4 +1,4 @@
-import type { IApiAuthenticationRequest } from "@interface/api-authentication-request.interface";
+import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationSubject } from "@interface/class/api/authorization/subject.interface";
 
 /**

@@ -7,7 +7,7 @@ import type { RelationMetadataArgs } from "typeorm/metadata-args/RelationMetadat
 import type { TableMetadataArgs } from "typeorm/metadata-args/TableMetadataArgs";
 
 import { MetadataStorage } from "@class/metadata-storage.class";
-import { ErrorException } from "@utility/error-exception.utility";
+import { ErrorException } from "@utility/error/exception.utility";
 import { DefaultNamingStrategy, getMetadataArgsStorage } from "typeorm";
 
 /**

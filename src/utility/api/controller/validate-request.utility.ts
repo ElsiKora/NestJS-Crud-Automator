@@ -1,8 +1,8 @@
-import type { IApiRequestValidator } from "@interface/api-request-validator.interface";
+import type { IApiRequestValidator } from "@interface/api/request-validator.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 
-import { ErrorString } from "@utility/error-string.utility";
+import { ErrorString } from "@utility/error/string.utility";
 
 /**
  * Validates incoming request parameters against defined validators.

@@ -147,7 +147,7 @@ Creates a route-level subscriber that intercepts controller operations. Provides
 
 ```typescript filename="post-audit.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteExecutionContext } from "@elsikora/nestjs-crud-automator";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase, TApiSubscriberRouteAfterCreateContext } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 
 @Injectable()
@@ -156,7 +156,7 @@ import { PostEntity } from "./post.entity";
 	priority: 10,
 })
 export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-	async onAfterCreate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+	async onAfterCreate(context: TApiSubscriberRouteAfterCreateContext<PostEntity>): Promise<PostEntity> {
 		console.log("Post created:", context.result);
 		return context.result;
 	}
@@ -169,7 +169,7 @@ Creates a function-level subscriber that intercepts service operations. Operates
 
 ```typescript filename="post-slug.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, IApiSubscriberFunctionExecutionContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
+import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, TApiSubscriberFunctionBeforeCreateContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 
 @Injectable()
@@ -177,7 +177,7 @@ import { PostEntity } from "./post.entity";
 	entity: PostEntity,
 })
 export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-	async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, TApiFunctionCreateProperties<PostEntity>>): Promise<TApiFunctionCreateProperties<PostEntity>> {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>): Promise<TApiFunctionCreateProperties<PostEntity>> {
 		// Modify data before saving
 		return context.result;
 	}

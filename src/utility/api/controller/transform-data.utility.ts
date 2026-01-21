@@ -9,7 +9,7 @@ import { TRANSFORMER_VALUE_DTO_CONSTANT } from "@constant/dto";
 import { EApiControllerRequestTransformerType, EApiDtoType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { InternalServerErrorException } from "@nestjs/common";
-import { ErrorString } from "@utility/error-string.utility";
+import { ErrorString } from "@utility/error/string.utility";
 
 /**
  * Transforms data between request/response objects and entity objects.
