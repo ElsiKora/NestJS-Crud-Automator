@@ -21,7 +21,7 @@ Registers a class as a function-level subscriber for a specific entity. Subscrib
 ## Usage steps
 
 1. Mark the target service with `@ApiServiceObservable()` so hooks are emitted.
-2. Extend `ApiFunctionSubscriberBase<E>` and override desired lifecycle methods (`onBeforeCreate`, `onAfterUpdate`, `onAfterDeleteError`, etc.).
+2. Extend `ApiFunctionSubscriberBase<E>` and override desired lifecycle methods (`onBeforeCreate`, `onAfterUpdate`, `onAfterErrorDelete`, etc.).
 3. Decorate the subscriber class with `@ApiFunctionSubscriber`.
 
 ## Example
@@ -30,7 +30,7 @@ Registers a class as a function-level subscriber for a specific entity. Subscrib
 @Injectable()
 @ApiFunctionSubscriber<PostEntity>({ entity: PostEntity, priority: 50 })
 export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-	async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, TApiFunctionCreateProperties<PostEntity>>) {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>) {
 		context.result.body.slug = this.slugify(context.result.body.title);
 		return context.result;
 	}

@@ -3,7 +3,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";
 import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { EApiPropertyStringType } from "@enum/decorator/api";
-import { EApiExceptionDetailsType } from "@enum/utility/exception-details";
+import { EApiExceptionDetailsType } from "@enum/utility/exception-details-type.enum";
 
 const DETAILS_ENTITY: IApiBaseEntity = { name: "ErrorDetails" };
 

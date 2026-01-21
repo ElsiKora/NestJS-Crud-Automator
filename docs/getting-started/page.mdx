@@ -168,7 +168,7 @@ export class UserModule {}
 
 ### Step 5: Enable Declarative Authorization (Optional)
 
-Import `ApiAuthorizationModule` once in your root module and declare policies when you need RBAC. Policies are just injectable classes with a decorator:
+Import `ApiAuthorizationModule` once in your root module and declare policies when you need RBAC. Policies are just injectable classes with a decorator. Mark controllers with `@ApiControllerSecurable()` to enable policy evaluation:
 
 ```typescript filename="app.module.ts" copy
 import { Module } from "@nestjs/common";
@@ -184,20 +184,26 @@ export class AppModule {}
 ```
 
 ```typescript filename="policies/user-access.policy.ts" copy
+import type { IApiAuthorizationRuleContext, IApiAuthorizationScope, TApiAuthorizationPolicyBeforeGetResult } from "@elsikora/nestjs-crud-automator";
+
 import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
 import { UserEntity } from "../user.entity";
 
 @ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity })
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	onBeforeGet() {
+	public onBeforeGet(): TApiAuthorizationPolicyBeforeGetResult<UserEntity> {
 		return this.allow({
-			scope: ({ subject }) => ({ where: { id: subject.id } }),
+			scope: (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => ({
+				where: { id: context.subject.id },
+			}),
 		});
 	}
 }
 ```
 
-Once the module is imported, the guard is wired automatically and scopes/result transforms are applied to every generated route.
+Policy hooks return arrays of rules. Use an empty array (`[]`) when no rules apply.
+
+Once the module is imported, the guard is wired automatically and scopes/result transforms are applied to every securable generated route.
 
 ## Generated Endpoints
 

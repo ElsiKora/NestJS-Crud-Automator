@@ -8,10 +8,10 @@ import type { IApiAuthorizationSubject } from "@interface/class/api/authorizatio
 import type { IApiEntity } from "@interface/entity/interface";
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
 
-import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization/policy/decorator.constant";
+import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization/policy-decorator.constant";
 import { createRegistry } from "@elsikora/cladi";
 import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
-import { AuthorizationResolveDefaultSubject } from "@utility/authorization/subject/resolve-default-subject.utility";
+import { AuthorizationResolveDefaultSubject } from "@utility/authorization/resolve-default-subject.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 

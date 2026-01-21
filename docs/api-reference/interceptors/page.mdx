@@ -189,7 +189,7 @@ Access correlation IDs in subscribers:
 @Injectable()
 @ApiRouteSubscriber({ entity: UserEntity, priority: 10 })
 export class AuditSubscriber extends ApiRouteSubscriberBase<UserEntity> {
-	async onAfterCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
+	async onAfterCreate(context: TApiSubscriberRouteAfterCreateContext<UserEntity>): Promise<UserEntity | undefined> {
 		const correlationId = context.DATA.headers["x-correlation-id"];
 
 		await this.auditService.log({
@@ -202,7 +202,7 @@ export class AuditSubscriber extends ApiRouteSubscriberBase<UserEntity> {
 		return context.result;
 	}
 
-	async onAfterErrorCreate(context: IApiSubscriberRouteErrorExecutionContext, error: Error): Promise<void> {
+	async onAfterErrorCreate(context: IApiSubscriberRouteErrorExecutionContext<UserEntity, IApiSubscriberRouteExecutionContextDataExtended<UserEntity, UserEntity>>, error: Error): Promise<void> {
 		const correlationId = context.DATA.headers["x-correlation-id"];
 
 		console.error(`[${correlationId}] User creation failed:`, error.message);

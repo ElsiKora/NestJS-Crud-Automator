@@ -2,7 +2,7 @@ export * from "./class";
 export * from "./constant";
 export * from "./decorator/api";
 export * from "./enum";
-export * from "./factory/api";
+export * from "./factory";
 export * from "./interceptor";
 export type * from "./interface";
 export * from "./module";

@@ -2,10 +2,10 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { Type } from "@nestjs/common";
 import type { TApiPropertyEntity } from "@type/index";
 
-import { ErrorException } from "@utility/error-exception.utility";
-import { IsEntityConstructor } from "@utility/is-entity-constructor.utility";
-import { IsEntityFactory } from "@utility/is-entity-factory.utility";
-import { IsEntityLiteral } from "@utility/is-entity-literal.utility";
+import { ErrorException } from "@utility/error/exception.utility";
+import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
+import { IsEntityFactory } from "@utility/is/entity/factory.utility";
+import { IsEntityLiteral } from "@utility/is/entity/literal.utility";
 
 /**
  * Resolves property decorator entity references immediately or throws if unavailable.

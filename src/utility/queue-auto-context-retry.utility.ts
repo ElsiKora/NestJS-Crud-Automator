@@ -1,7 +1,8 @@
 import type { EApiDtoType, EApiRouteType } from "@enum/index";
 
+import { GetAutoDtoContext } from "@utility/get/auto-dto-context.utility";
+
 import { QueueAutoDtoContextExecution } from "./auto-dto-context-queue.utility";
-import { GetAutoDtoContext } from "./get-auto-dto-context.utility";
 
 /**
  * Queues execution until auto DTO context becomes available on the provided prototype.

@@ -66,24 +66,37 @@ interface IApiControllerAuthentication {
 
 ## Subscriber Interfaces
 
-### IApiSubscriberRouteExecutionContext\<E, Result\>
+### IApiSubscriberRouteExecutionContext\<E, Result, Input\>
 
 Execution context for route subscribers.
 
 ```typescript
-interface IApiSubscriberRouteExecutionContext<E, Result> {
+interface IApiSubscriberRouteExecutionContext<E, Result, Input = unknown> {
 	readonly ENTITY: E;
-	readonly DATA: {
-		readonly method: string;
-		readonly methodName: string;
-		readonly properties: IApiControllerProperties<E>;
-		readonly entityMetadata: IApiEntity<E>;
-		readonly authenticationRequest?: IApiAuthenticationRequest;
-		readonly headers: Record<string, string>;
-		readonly ip: string;
-	};
+	readonly DATA: Input;
 	readonly ROUTE_TYPE: EApiRouteType;
 	result: Result;
+}
+```
+
+Use `IApiSubscriberRouteExecutionContextData<E, R>` for before hooks (route metadata + optional `authorizationDecision`) and `IApiSubscriberRouteExecutionContextDataExtended<E, R>` for after/error hooks when you need authentication, headers, IP, or request payload fields:
+
+```typescript
+interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity, R> {
+	entityMetadata: IApiEntity<E>;
+	method: EApiRouteType;
+	methodName: string;
+	properties: IApiControllerProperties<E>;
+	authorizationDecision?: IApiAuthorizationDecision<E, R>;
+}
+
+interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R> extends IApiSubscriberRouteExecutionContextData<E, R> {
+	authenticationRequest?: IApiAuthenticationRequest;
+	headers: Record<string, string>;
+	ip: string;
+	body?: DeepPartial<E>;
+	parameters?: Partial<E>;
+	query?: TApiControllerGetListQuery<E>;
 }
 ```
 
@@ -91,19 +104,30 @@ interface IApiSubscriberRouteExecutionContext<E, Result> {
 
 - [Subscriber System - Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context)
 
-### IApiSubscriberFunctionExecutionContext\<E, Result\>
+### IApiSubscriberFunctionExecutionContext\<E, Result, Input\>
 
 Execution context for function subscribers.
 
 ```typescript
-interface IApiSubscriberFunctionExecutionContext<E, Result> {
+interface IApiSubscriberFunctionExecutionContext<E, Result, Input = unknown> {
 	readonly ENTITY: E;
-	readonly DATA: {
-		readonly method: string;
-		readonly entityMetadata: IApiEntity<E>;
-		readonly transactionManager?: EntityManager;
-	};
+	readonly DATA: Input;
+	readonly FUNCTION_TYPE: EApiFunctionType;
 	result: Result;
+}
+```
+
+Use `IApiSubscriberFunctionExecutionContextData<E>` to access `eventManager`, `repository`, and operation metadata:
+
+```typescript
+interface IApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity> {
+	eventManager?: EntityManager;
+	repository: Repository<E>;
+	criteria?: TApiFunctionDeleteCriteria<E> | TApiFunctionUpdateCriteria<E>;
+	properties?: TApiFunctionCreateProperties<E> | TApiFunctionGetProperties<E> | TApiFunctionGetListProperties<E> | TApiFunctionGetManyProperties<E>;
+	getProperties?: TApiFunctionGetProperties<E>;
+	getListProperties?: TApiFunctionGetListProperties<E>;
+	getManyProperties?: TApiFunctionGetManyProperties<E>;
 }
 ```
 
@@ -117,11 +141,17 @@ Interface for route subscribers.
 
 ```typescript
 interface IApiSubscriberRoute<E> {
-	onBeforeCreate?(context: IApiSubscriberRouteExecutionContext<E, any>): Promise<any>;
-	onAfterCreate?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
-	onBeforeErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	onAfterErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	// ... similar methods for update, get, getList, getMany, delete
+	onBeforeCreate?(context: TApiSubscriberRouteBeforeCreateContext<E>): Promise<TApiSubscriberRouteBeforeCreateContext<E>["result"] | undefined>;
+	onAfterCreate?(context: TApiSubscriberRouteAfterCreateContext<E>): Promise<E | undefined>;
+	onBeforeGetList?(context: TApiSubscriberRouteBeforeGetListContext<E>): Promise<TApiSubscriberRouteBeforeGetListContext<E>["result"] | undefined>;
+	onAfterGetList?(context: TApiSubscriberRouteAfterGetListContext<E>): Promise<IApiGetListResponseResult<E> | undefined>;
+	onBeforeUpdate?(context: TApiSubscriberRouteBeforeUpdateContext<E>): Promise<TApiSubscriberRouteBeforeUpdateContext<E>["result"] | undefined>;
+	onAfterUpdate?(context: TApiSubscriberRouteAfterUpdateContext<E>): Promise<E | undefined>;
+	onBeforePartialUpdate?(context: TApiSubscriberRouteBeforePartialUpdateContext<E>): Promise<TApiSubscriberRouteBeforePartialUpdateContext<E>["result"] | undefined>;
+	onAfterPartialUpdate?(context: TApiSubscriberRouteAfterPartialUpdateContext<E>): Promise<E | undefined>;
+	onBeforeDelete?(context: TApiSubscriberRouteBeforeDeleteContext<E>): Promise<TApiSubscriberRouteBeforeDeleteContext<E>["result"] | undefined>;
+	onAfterDelete?(context: TApiSubscriberRouteAfterDeleteContext<E>): Promise<Partial<E> | undefined>;
+	// ... error hooks follow the same operation names (onBeforeErrorCreate, onAfterErrorUpdate, etc.)
 }
 ```
 
@@ -131,11 +161,13 @@ Interface for function subscribers.
 
 ```typescript
 interface IApiSubscriberFunction<E> {
-	onBeforeCreate?(context: IApiSubscriberFunctionExecutionContext<E, any>): Promise<any>;
-	onAfterCreate?(context: IApiSubscriberFunctionExecutionContext<E, E>): Promise<E | undefined>;
-	onBeforeErrorCreate?(context: IApiSubscriberFunctionErrorExecutionContext<E>, error: Error): Promise<void>;
-	onAfterErrorCreate?(context: IApiSubscriberFunctionErrorExecutionContext<E>, error: Error): Promise<void>;
-	// ... similar methods for update, get, getList, getMany, delete
+	onBeforeCreate?(context: TApiSubscriberFunctionBeforeCreateContext<E>): Promise<TApiFunctionCreateProperties<E> | undefined>;
+	onAfterCreate?(context: TApiSubscriberFunctionAfterCreateContext<E>): Promise<E | undefined>;
+	onBeforeGetList?(context: TApiSubscriberFunctionBeforeGetListContext<E>): Promise<TApiFunctionGetListProperties<E> | undefined>;
+	onAfterGetList?(context: TApiSubscriberFunctionAfterGetListContext<E>): Promise<IApiGetListResponseResult<E> | undefined>;
+	onBeforeDelete?(context: TApiSubscriberFunctionBeforeDeleteContext<E>): Promise<TApiFunctionDeleteCriteria<E> | undefined>;
+	onAfterDelete?(context: TApiSubscriberFunctionAfterDeleteContext<E>): Promise<E | undefined>;
+	// ... error hooks follow the same operation names (onBeforeErrorCreate, onAfterErrorUpdate, etc.)
 }
 ```
 
@@ -175,12 +207,24 @@ interface IApiEntity<E> {
 
 ### IApiDtoValidator
 
-Custom validator configuration.
+Custom class-validator configuration for auto-generated DTOs.
 
 ```typescript
 interface IApiDtoValidator {
-	constraintClass: Type<ValidatorConstraintInterface>;
-	options?: any[];
+	constraintClass: Function;
+	options?: Array<unknown>;
+}
+```
+
+### IApiRequestValidator
+
+Runtime request validator for controller routes.
+
+```typescript
+interface IApiRequestValidator<E> {
+	errorType: EErrorStringAction;
+	exception: TApiException;
+	validationFunction: (entity: Partial<E> | TApiControllerGetListQuery<E>) => boolean | Promise<boolean>;
 }
 ```
 
@@ -188,19 +232,26 @@ interface IApiDtoValidator {
 
 - [Guides - Validation](/docs/nestjs-crud-automator/guides/validation)
 
-## Request Transformer Interfaces
+## Request Transformer Types
 
-### IApiControllerRequestTransformer
+### TApiRequestTransformer
 
-Request transformer configuration.
+Request/response transformer configuration.
 
 ```typescript
-interface IApiControllerRequestTransformer {
-	key: string;
-	type: EApiControllerRequestTransformerType;
-	value: any;
+type TApiRequestTransformer<E> = {
+	key: keyof Partial<E> | keyof IApiGetListResponseResult<E> | "limit" | "page";
 	shouldSetValueEvenIfMissing?: boolean;
-}
+} & (
+	| {
+			type: EApiControllerRequestTransformerType.DYNAMIC;
+			value: (typeof TRANSFORMER_VALUE_DTO_CONSTANT)[keyof typeof TRANSFORMER_VALUE_DTO_CONSTANT];
+	  }
+	| {
+			type: EApiControllerRequestTransformerType.STATIC;
+			value: string;
+	  }
+);
 ```
 
 **Related:**

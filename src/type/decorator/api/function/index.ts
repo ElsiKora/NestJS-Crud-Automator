@@ -1,9 +1,5 @@
 export { type TApiFunctionCreateProperties } from "./create-properties.type";
 export { type TApiFunctionDeleteCriteria } from "./delete-criteria.type";
-export { type TApiFunctionGetListPropertiesWhere } from "./get-list-properties-where.type";
-export { type TApiFunctionGetListProperties } from "./get-list-properties.type";
-export { type TApiFunctionGetManyProperties } from "./get-many.properties";
-export { type TApiFunctionGetProperties } from "./get-properties.type";
+export type * from "./get";
 export { type TApiFunctionProperties } from "./properties.type";
-export { type TApiFunctionUpdateCriteria } from "./update-criteria.type";
-export { type TApiFunctionUpdateProperties } from "./update-properties.type";
+export type * from "./update";

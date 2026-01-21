@@ -18,7 +18,7 @@ Decorated methods gain the shape `get(properties: TApiFunctionGetProperties<E>, 
 - Queries via `repository.findOne` or `eventManager.getRepository(entity).findOne`.
 - Throws `NotFoundException` with a generated error message if no entity is found.
 - Runs `onAfterGet` subscribers and allows them to swap the returned entity.
-- Emits `onAfterGetError` hooks for HTTP or unexpected errors.
+- Emits `onBeforeErrorGet` and `onAfterErrorGet` hooks for HTTP or unexpected errors.
 
 ## Example
 

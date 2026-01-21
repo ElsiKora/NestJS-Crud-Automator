@@ -183,9 +183,9 @@ Understanding the execution order is critical:
 4. Service method called
 5. Function subscribers `onBefore...` (priority high → low)
 6. Repository operation
-7. Function subscribers `onAfter...` (priority low → high)
+7. Function subscribers `onAfter...` (priority high → low)
 8. Result returned to controller
-9. Route subscribers `onAfter...` (priority low → high)
+9. Route subscribers `onAfter...` (priority high → low)
 10. **Response sent to client**
 
 If an error occurs, execution stops and error hooks are called.

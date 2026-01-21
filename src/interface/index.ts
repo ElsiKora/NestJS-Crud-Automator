@@ -1,7 +1,5 @@
-export { type IApiAuthenticationRequest } from "./api-authentication-request.interface";
+export type * from "./api";
 export { type IApiBaseEntity } from "./api-base-entity.interface";
-export { type IApiDtoValidator } from "./api-dto-validator.interface";
-export { type IApiRequestValidator } from "./api-request-validator.interface";
 export type * from "./class";
 export type * from "./decorator/api";
 export { type IDtoGenerateFactory } from "./dto-generate-factory.interface";

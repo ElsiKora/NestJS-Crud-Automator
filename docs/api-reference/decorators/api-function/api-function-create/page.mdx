@@ -18,7 +18,7 @@ Decorated methods receive the shape `create(dto: TApiFunctionCreateProperties<E>
 - Executes `onBeforeCreate` subscribers; if a handler returns a DTO, it replaces the incoming body.
 - Persists the entity using `repository.save` or `eventManager.getRepository(entity).save`.
 - Executes `onAfterCreate` subscribers with the persisted entity.
-- On errors, runs `onBeforeCreateError` or `onAfterCreateError` subscribers and rethrows `HttpException` instances or wraps unknown errors in `InternalServerErrorException`.
+- On errors, runs `onBeforeErrorCreate` or `onAfterErrorCreate` subscribers and rethrows `HttpException` instances or wraps unknown errors in `InternalServerErrorException`.
 
 ## Example
 

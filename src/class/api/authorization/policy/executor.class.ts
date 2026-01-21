@@ -3,7 +3,7 @@ import type { IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscrib
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
 import type { TApiAuthorizationPolicySubscriberRuleResult } from "@type/class/api/authorization/policy/policy-subscriber-rule-result.type";
 
-import { EApiAuthorizationPolicyOnType } from "@enum/class/authorization/policy";
+import { EApiAuthorizationPolicyOnType } from "@enum/class/authorization/policy-on-type.enum";
 import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import { CapitalizeString } from "@utility/capitalize-string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -43,11 +43,7 @@ export class ApiAuthorizationPolicyExecutor {
 	}
 
 	private static normalizeRuleResult<E extends IApiBaseEntity, R>(result: TApiAuthorizationPolicySubscriberRuleResult<E, R>): Array<IApiAuthorizationPolicySubscriberRule<E, R>> {
-		if (Array.isArray(result)) {
-			return result.filter((rule: IApiAuthorizationPolicySubscriberRule<E, R> | null | undefined): rule is IApiAuthorizationPolicySubscriberRule<E, R> => rule != null);
-		}
-
-		return result ? [result] : [];
+		return result.filter((rule: IApiAuthorizationPolicySubscriberRule<E, R> | null | undefined): rule is IApiAuthorizationPolicySubscriberRule<E, R> => rule != null);
 	}
 
 	private static resolveRouteType(action: string): EApiRouteType | undefined {
