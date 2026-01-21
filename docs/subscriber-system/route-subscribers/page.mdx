@@ -39,7 +39,7 @@ async onBeforeCreate(
   const method = context.DATA.method;
   const entityMetadata = context.DATA.entityMetadata;
 
-  // Before hooks have only route metadata in DATA
+  // Before hooks have route metadata and optional authorizationDecision in DATA
   // Request payload lives in context.result (body/parameters/query)
 
   return context.result;
@@ -88,7 +88,7 @@ async onBeforeDelete(
 
 ### After Hooks
 
-Called after successful operation. After hooks have access to extended DATA with authentication, `authorizationDecision`, headers, and IP:
+Called after successful operation. After hooks have access to extended DATA with authentication, `authorizationDecision`, headers, IP, and the last request payload (body/parameters/query):
 
 #### `onAfterCreate`
 
@@ -257,7 +257,7 @@ Route subscribers have different DATA types for before and after hooks:
 async onBeforeCreate(
   context: TApiSubscriberRouteBeforeCreateContext<PostEntity>
 ): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"] | undefined> {
-  // Base route metadata only
+  // Base route metadata (+ optional authorizationDecision)
   const method = context.DATA.method;
   const methodName = context.DATA.methodName;
   const entityMetadata = context.DATA.entityMetadata;

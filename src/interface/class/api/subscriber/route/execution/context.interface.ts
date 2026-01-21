@@ -7,7 +7,7 @@ import type { IApiSubscriberExecutionContext } from "@interface/class/api/subscr
  * Extends base execution context with route type information.
  * @template E - Entity type extending IApiBaseEntity
  * @template Result - Type of the result field (mutable data payload)
- * @template Input - Type of the DATA field (immutable context data). Use IApiSubscriberRouteExecutionContextData<E> or IApiSubscriberRouteExecutionContextDataExtended<E> for typed access.
+ * @template Input - Type of the DATA field (immutable context data). Use IApiSubscriberRouteExecutionContextData<E, R> or IApiSubscriberRouteExecutionContextDataExtended<E, R> for typed access.
  * @example
  * ```typescript
  * import type { IApiSubscriberRouteExecutionContextData } from '@elsikora/nestjs-crud-automator';
@@ -16,7 +16,7 @@ import type { IApiSubscriberExecutionContext } from "@interface/class/api/subscr
  *   context: IApiSubscriberRouteExecutionContext<
  *     User,
  *     { body: DeepPartial<User> },
- *     IApiSubscriberRouteExecutionContextData<User>
+ *     IApiSubscriberRouteExecutionContextData<User, User>
  *   >
  * ): Promise<{ body: DeepPartial<User> }> {
  *   const entityMetadata = context.DATA.entityMetadata;

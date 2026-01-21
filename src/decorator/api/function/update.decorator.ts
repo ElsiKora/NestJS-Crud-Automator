@@ -1,5 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function/error-execution-context.interface";
+import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context-data.interface";
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context.interface";
 import type { IApiFunctionProperties, IApiFunctionUpdateExecutorProperties } from "@interface/decorator/api/function";
 import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
@@ -54,7 +55,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
+				const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
 					DATA: { criteria, eventManager, repository: this.repository },
 					ENTITY: entityInstance,
 					FUNCTION_TYPE: EApiFunctionType.UPDATE,
@@ -136,7 +137,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 	} catch (caughtError) {
 		const entityInstance: E = new entity();
 
-		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
+		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
 			DATA: { criteria, eventManager, properties, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.UPDATE,

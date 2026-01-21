@@ -10,22 +10,18 @@ import type { DeepPartial } from "typeorm";
 
 export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubscriber {
 	onAfterCreate?(context: IApiSubscriberRouteExecutionContext<E, E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>): Promise<E | undefined>;
-	onAfterDelete?(context: IApiSubscriberRouteExecutionContext<E, Partial<E>, IApiSubscriberRouteExecutionContextDataExtended<E, Partial<E>>>): Promise<Partial<E> | undefined>;
+	onAfterDelete?(context: IApiSubscriberRouteExecutionContext<E, Partial<E>, IApiSubscriberRouteExecutionContextDataExtended<E, undefined>>): Promise<Partial<E> | undefined>;
 
 	onAfterErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>, error: Error): Promise<void>;
-	onAfterErrorDelete?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, Partial<E>>>, error: Error): Promise<void>;
+	onAfterErrorDelete?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, undefined>>, error: Error): Promise<void>;
 
 	onAfterErrorGet?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>, error: Error): Promise<void>;
 	onAfterErrorGetList?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, IApiGetListResponseResult<E>>>, error: Error): Promise<void>;
-
-	onAfterErrorGetMany?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, Array<E>>>, error: Error): Promise<void>;
 	onAfterErrorPartialUpdate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>, error: Error): Promise<void>;
 	onAfterErrorUpdate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>, error: Error): Promise<void>;
 
 	onAfterGet?(context: IApiSubscriberRouteExecutionContext<E, E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>): Promise<E | undefined>;
 	onAfterGetList?(context: IApiSubscriberRouteExecutionContext<E, IApiGetListResponseResult<E>, IApiSubscriberRouteExecutionContextDataExtended<E, IApiGetListResponseResult<E>>>): Promise<IApiGetListResponseResult<E> | undefined>;
-
-	onAfterGetMany?(context: IApiSubscriberRouteExecutionContext<E, Array<E>, IApiSubscriberRouteExecutionContextDataExtended<E, Array<E>>>): Promise<Array<E> | undefined>;
 	onAfterPartialUpdate?(context: IApiSubscriberRouteExecutionContext<E, E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>): Promise<E | undefined>;
 	onAfterUpdate?(context: IApiSubscriberRouteExecutionContext<E, E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>): Promise<E | undefined>;
 
@@ -38,7 +34,7 @@ export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubsc
 				headers: Record<string, string>;
 				ip: string;
 			},
-			IApiSubscriberRouteExecutionContextData<E>
+			IApiSubscriberRouteExecutionContextData<E, E>
 		>,
 	): Promise<
 		| {
@@ -58,7 +54,7 @@ export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubsc
 				ip: string;
 				parameters: Partial<E>;
 			},
-			IApiSubscriberRouteExecutionContextData<E>
+			IApiSubscriberRouteExecutionContextData<E, undefined>
 		>,
 	): Promise<
 		| {
@@ -69,13 +65,12 @@ export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubsc
 		  }
 		| undefined
 	>;
-	onBeforeErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
-	onBeforeErrorDelete?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
-	onBeforeErrorGet?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
-	onBeforeErrorGetList?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
-	onBeforeErrorGetMany?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
-	onBeforeErrorPartialUpdate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
-	onBeforeErrorUpdate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
+	onBeforeErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E, E>>, error: Error): Promise<void>;
+	onBeforeErrorDelete?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E, undefined>>, error: Error): Promise<void>;
+	onBeforeErrorGet?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E, E>>, error: Error): Promise<void>;
+	onBeforeErrorGetList?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E, IApiGetListResponseResult<E>>>, error: Error): Promise<void>;
+	onBeforeErrorPartialUpdate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E, E>>, error: Error): Promise<void>;
+	onBeforeErrorUpdate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E, E>>, error: Error): Promise<void>;
 	onBeforeGet?(
 		context: IApiSubscriberRouteExecutionContext<
 			E,
@@ -85,7 +80,7 @@ export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubsc
 				ip: string;
 				parameters: Partial<E>;
 			},
-			IApiSubscriberRouteExecutionContextData<E>
+			IApiSubscriberRouteExecutionContextData<E, E>
 		>,
 	): Promise<
 		| {
@@ -105,7 +100,7 @@ export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubsc
 				ip: string;
 				query: TApiControllerGetListQuery<E>;
 			},
-			IApiSubscriberRouteExecutionContextData<E>
+			IApiSubscriberRouteExecutionContextData<E, IApiGetListResponseResult<E>>
 		>,
 	): Promise<
 		| {
@@ -113,26 +108,6 @@ export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubsc
 				headers: Record<string, string>;
 				ip: string;
 				query: TApiControllerGetListQuery<E>;
-		  }
-		| undefined
-	>;
-	onBeforeGetMany?(
-		context: IApiSubscriberRouteExecutionContext<
-			E,
-			{
-				authenticationRequest?: IApiAuthenticationRequest;
-				headers: Record<string, string>;
-				ip: string;
-				parameters: Partial<E>;
-			},
-			IApiSubscriberRouteExecutionContextData<E>
-		>,
-	): Promise<
-		| {
-				authenticationRequest?: IApiAuthenticationRequest;
-				headers: Record<string, string>;
-				ip: string;
-				parameters: Partial<E>;
 		  }
 		| undefined
 	>;
@@ -146,7 +121,7 @@ export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubsc
 				ip: string;
 				parameters: Partial<E>;
 			},
-			IApiSubscriberRouteExecutionContextData<E>
+			IApiSubscriberRouteExecutionContextData<E, E>
 		>,
 	): Promise<
 		| {
@@ -168,7 +143,7 @@ export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubsc
 				ip: string;
 				parameters: Partial<E>;
 			},
-			IApiSubscriberRouteExecutionContextData<E>
+			IApiSubscriberRouteExecutionContextData<E, E>
 		>,
 	): Promise<
 		| {

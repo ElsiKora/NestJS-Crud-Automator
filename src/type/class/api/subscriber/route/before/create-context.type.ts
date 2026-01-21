@@ -12,5 +12,5 @@ export type TApiSubscriberRouteBeforeCreateContext<E extends IApiBaseEntity> = I
 		headers: Record<string, string>;
 		ip: string;
 	},
-	IApiSubscriberRouteExecutionContextData<E>
+	IApiSubscriberRouteExecutionContextData<E, E>
 >;

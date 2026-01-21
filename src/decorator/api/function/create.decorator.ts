@@ -109,7 +109,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 	} catch (caughtError) {
 		const entityInstance: E = new entity();
 
-		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
+		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
 			DATA: { eventManager, properties, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.CREATE,

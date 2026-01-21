@@ -20,11 +20,11 @@ class ApiSubscriberRegistry {
 	}
 
 	public getFunctionSubscribers<E extends IApiBaseEntity>(entityName: string): Array<IApiSubscriberFunction<E>> {
-		return (this.FUNCTION_SUBSCRIBERS.get(entityName)?.subscribers ?? []).map((s: { priority: number; subscriber: IApiSubscriberFunction<IApiBaseEntity> }) => s.subscriber) as Array<IApiSubscriberFunction<E>>;
+		return (this.FUNCTION_SUBSCRIBERS.get(entityName)?.subscribers ?? []).map((s: { priority: number; subscriber: IApiSubscriberFunction<IApiBaseEntity> }) => s.subscriber) as unknown as Array<IApiSubscriberFunction<E>>;
 	}
 
 	public getRouteSubscribers<E extends IApiBaseEntity>(entityName: string): Array<IApiSubscriberRoute<E>> {
-		return (this.ROUTE_SUBSCRIBERS.get(entityName)?.subscribers ?? []).map((s: { priority: number; subscriber: IApiSubscriberRoute<IApiBaseEntity> }) => s.subscriber) as Array<IApiSubscriberRoute<E>>;
+		return (this.ROUTE_SUBSCRIBERS.get(entityName)?.subscribers ?? []).map((s: { priority: number; subscriber: IApiSubscriberRoute<IApiBaseEntity> }) => s.subscriber) as unknown as Array<IApiSubscriberRoute<E>>;
 	}
 
 	public registerFunctionSubscriber<E extends IApiBaseEntity>(properties: IApiFunctionSubscriberProperties<E>, subscriber: IApiSubscriberFunction<E>): void {
@@ -36,7 +36,7 @@ class ApiSubscriberRegistry {
 			this.FUNCTION_SUBSCRIBERS.register(wrapper);
 		}
 
-		wrapper.addSubscriber(subscriber, properties.priority);
+		wrapper.addSubscriber(subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>, properties.priority);
 
 		subscriberRegistryLogger.debug(`Total function subscribers for "${entityName}": ${wrapper.getSubscriberCount()}`);
 		subscriberRegistryLogger.debug(
@@ -55,7 +55,7 @@ class ApiSubscriberRegistry {
 			this.ROUTE_SUBSCRIBERS.register(wrapper);
 		}
 
-		wrapper.addSubscriber(subscriber, properties.priority);
+		wrapper.addSubscriber(subscriber as unknown as IApiSubscriberRoute<IApiBaseEntity>, properties.priority);
 
 		subscriberRegistryLogger.debug(`Total route subscribers for "${entityName}": ${wrapper.getSubscriberCount()}`);
 		subscriberRegistryLogger.debug(

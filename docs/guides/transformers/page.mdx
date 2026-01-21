@@ -23,15 +23,15 @@ import {
         transformers: {
           [EApiDtoType.BODY]: [
             {
-              key: "authorId",
+              key: "author",
               type: EApiControllerRequestTransformerType.DYNAMIC,
               value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
               shouldSetValueEvenIfMissing: true,
             },
             {
-              key: "createdAt",
+              key: "status",
               type: EApiControllerRequestTransformerType.STATIC,
-              value: () => new Date(),
+              value: "draft",
             },
           ],
         },
@@ -45,7 +45,7 @@ import {
 
 ### Static Transformers
 
-Set a fixed value or value from a function:
+Set a fixed string value:
 
 ```typescript
 {
@@ -54,12 +54,6 @@ Set a fixed value or value from a function:
   value: "draft",
 }
 
-// Or with a function
-{
-  key: "uuid",
-  type: EApiControllerRequestTransformerType.STATIC,
-  value: () => crypto.randomUUID(),
-}
 ```
 
 ### Dynamic Transformers
@@ -67,9 +61,9 @@ Set a fixed value or value from a function:
 Extract values from request context:
 
 ```typescript
-// Set from authenticated user
+// Set from authenticated user (user object)
 {
-  key: "createdById",
+  key: "createdBy",
   type: EApiControllerRequestTransformerType.DYNAMIC,
   value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
   shouldSetValueEvenIfMissing: true,
@@ -77,16 +71,23 @@ Extract values from request context:
 
 // Set from request headers
 {
-  key: "clientVersion",
+  key: "requestSignature",
   type: EApiControllerRequestTransformerType.DYNAMIC,
-  value: (context) => context.headers["x-client-version"],
+  value: TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_SIGNATURE,
 }
 
 // Set from request IP
 {
   key: "ipAddress",
   type: EApiControllerRequestTransformerType.DYNAMIC,
-  value: (context) => context.ip,
+  value: TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_IP,
+}
+
+// Set from request user-agent
+{
+  key: "userAgent",
+  type: EApiControllerRequestTransformerType.DYNAMIC,
+  value: TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_USER_AGENT,
 }
 ```
 
@@ -97,15 +98,19 @@ Built-in dynamic transformer values:
 ```typescript
 // Authenticated user entity
 TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY;
+// Returns the full user object, not just an id
 
 // Request IP address
-TRANSFORMER_VALUE_DTO_CONSTANT.IP;
+TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_IP;
 
-// Request headers
-TRANSFORMER_VALUE_DTO_CONSTANT.HEADERS;
+// Request signature header
+TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_SIGNATURE;
 
-// Full authentication context
-TRANSFORMER_VALUE_DTO_CONSTANT.AUTHENTICATION_REQUEST;
+// Request timestamp header
+TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_TIMESTAMP;
+
+// Request user-agent header
+TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_USER_AGENT;
 ```
 
 ## Response Transformers
@@ -118,13 +123,16 @@ routes: {
     response: {
       transformers: [
         {
-          key: "fullName",
-          value: (entity: UserEntity) =>
-            `${entity.firstName} ${entity.lastName}`,
+          key: "viewer",
+          type: EApiControllerRequestTransformerType.DYNAMIC,
+          value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
+          shouldSetValueEvenIfMissing: true,
         },
         {
-          key: "isAdult",
-          value: (entity: UserEntity) => entity.age >= 18,
+          key: "responseSource",
+          type: EApiControllerRequestTransformerType.STATIC,
+          value: "api",
+          shouldSetValueEvenIfMissing: true,
         },
       ],
     },
@@ -134,100 +142,27 @@ routes: {
 
 ## Transform Based on User Role
 
-Apply different transformations based on user role:
+For role-based masking or computed fields, use subscribers instead of request transformers:
 
 ```typescript
-routes: {
-  [EApiRouteType.GET]: {
-    response: {
-      transformers: [
-        {
-          key: "sensitiveData",
-          value: (entity: UserEntity, context: any) => {
-            const user = context.authenticationRequest?.user;
-            if (user?.role === "admin") {
-              return entity.sensitiveData;
-            }
-            return null; // Hide from non-admins
-          },
-        },
-      ],
-    },
-  },
+@Injectable()
+@ApiRouteSubscriber({ entity: UserEntity })
+export class UserMaskSubscriber extends ApiRouteSubscriberBase<UserEntity> {
+	async onAfterGet(context: TApiSubscriberRouteAfterGetContext<UserEntity>): Promise<UserEntity | undefined> {
+		const user = context.DATA.authenticationRequest?.user;
+
+		if (user?.role !== "admin") {
+			context.result.sensitiveData = null;
+		}
+
+		return context.result;
+	}
 }
 ```
 
 ## Complex Transformations
 
-Perform complex data transformations:
-
-```typescript
-routes: {
-  [EApiRouteType.GET_LIST]: {
-    response: {
-      transformers: [
-        {
-          key: "statistics",
-          value: async (entity: PostEntity) => {
-            return {
-              viewCount: entity.views?.length || 0,
-              likeCount: entity.likes?.length || 0,
-              commentCount: entity.comments?.length || 0,
-              engagement: calculateEngagement(entity),
-            };
-          },
-        },
-      ],
-    },
-  },
-}
-```
-
-## Conditional Transformations
-
-Apply transformations conditionally:
-
-```typescript
-{
-  key: "discountedPrice",
-  value: (entity: ProductEntity) => {
-    if (entity.onSale && entity.discountPercent) {
-      return entity.price * (1 - entity.discountPercent / 100);
-    }
-    return entity.price;
-  },
-}
-```
-
-## Nested Object Transformations
-
-Transform nested objects:
-
-```typescript
-{
-  key: "address",
-  value: (entity: UserEntity) => {
-    if (!entity.address) return null;
-    return {
-      ...entity.address,
-      formatted: `${entity.address.street}, ${entity.address.city}, ${entity.address.country}`,
-    };
-  },
-}
-```
-
-## Array Transformations
-
-Transform array properties:
-
-```typescript
-{
-  key: "tagNames",
-  value: (entity: PostEntity) => {
-    return entity.tags?.map(tag => tag.name) || [];
-  },
-}
-```
+Request transformers are intentionally limited to static strings and built-in dynamic values (authorized user, IP, signature, timestamp, user-agent). For computed fields, conditional logic, nested/array mapping, or async lookups, use subscribers or class-transformer DTOs (see below).
 
 ## Using class-transformer
 
@@ -256,58 +191,37 @@ export class UserEntity {
 }
 ```
 
-## Pre-Processing in Transformers
+## Pre-Processing Before Validation
 
-Pre-process data before validation:
+Use function subscribers to normalize incoming data:
 
 ```typescript
-routes: {
-  [EApiRouteType.CREATE]: {
-    request: {
-      transformers: {
-        [EApiDtoType.BODY]: [
-          {
-            key: "email",
-            type: EApiControllerRequestTransformerType.STATIC,
-            value: (body: any) => body.email?.toLowerCase().trim(),
-          },
-          {
-            key: "tags",
-            type: EApiControllerRequestTransformerType.STATIC,
-            value: (body: any) =>
-              body.tags?.map((tag: string) => tag.toLowerCase()) || [],
-          },
-        ],
-      },
-    },
-  },
+@Injectable()
+@ApiFunctionSubscriber({ entity: UserEntity })
+export class UserNormalizeSubscriber extends ApiFunctionSubscriberBase<UserEntity> {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<UserEntity>): Promise<TApiFunctionCreateProperties<UserEntity>> {
+		const { body } = context.result;
+
+		if (body.email) {
+			body.email = body.email.toLowerCase().trim();
+		}
+
+		if (Array.isArray(body.tags)) {
+			body.tags = body.tags.map((tag) => tag.toLowerCase());
+		}
+
+		return context.result;
+	}
 }
 ```
 
 ## Async Transformers
 
-Perform async operations in transformers:
-
-```typescript
-{
-  key: "author",
-  value: async (entity: PostEntity, context: any) => {
-    const userService = context.services.user;
-    return await userService.get({ where: { id: entity.authorId } });
-  },
-}
-```
+Async operations should be handled in subscribers instead of request transformers.
 
 ## Removing Properties
 
-Remove properties from response:
-
-```typescript
-{
-  key: "password",
-  value: () => undefined, // Removes the property
-}
-```
+Remove properties from response using class-transformer (`@Exclude`) or subscriber hooks.
 
 ## Global Transformers
 
@@ -320,16 +234,18 @@ Apply transformers to all routes:
     request: {
       [EApiDtoType.BODY]: [
         {
-          key: "updatedAt",
+          key: "source",
           type: EApiControllerRequestTransformerType.STATIC,
-          value: () => new Date(),
+          value: "api",
         },
       ],
     },
     response: [
       {
-        key: "timestamp",
-        value: () => Date.now(),
+        key: "responseSource",
+        type: EApiControllerRequestTransformerType.STATIC,
+        value: "api",
+        shouldSetValueEvenIfMissing: true,
       },
     ],
   },
@@ -355,18 +271,7 @@ Transformers execute in the following order:
 ### Avoid Heavy Operations
 
 ```typescript
-// Bad: Expensive operation in transformer
-{
-  key: "relatedPosts",
-  value: async (entity: UserEntity) => {
-    // This runs for every item in a list
-    return await postService.getMany({
-      where: { authorId: entity.id }
-    });
-  },
-}
-
-// Good: Use relations instead
+// Prefer relations or subscribers for heavy work
 request: {
   relations: {
     shouldLoadRelations: true,
@@ -377,22 +282,7 @@ request: {
 
 ### Cache Expensive Computations
 
-```typescript
-const cache = new Map();
-
-{
-  key: "expensiveCalculation",
-  value: (entity: ProductEntity) => {
-    const cacheKey = `calc-${entity.id}`;
-    if (cache.has(cacheKey)) {
-      return cache.get(cacheKey);
-    }
-    const result = performExpensiveCalculation(entity);
-    cache.set(cacheKey, result);
-    return result;
-  },
-}
-```
+Use subscribers with caching if you need expensive computed fields.
 
 ## Next Steps
 

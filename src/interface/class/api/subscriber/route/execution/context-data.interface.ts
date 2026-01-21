@@ -5,10 +5,12 @@ import type { IApiAuthorizationDecision } from "@interface/class/api/authorizati
 import type { IApiControllerProperties } from "@interface/decorator/api/controller/properties.interface";
 import type { IApiEntity } from "@interface/entity";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
+import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
+import type { DeepPartial } from "typeorm";
 
 /**
  * Base data container for route subscriber execution context.
- * Contains route metadata and configuration.
+ * Contains route metadata, configuration, and the current authorization decision (when available).
  * This interface provides typed access to the DATA field in route execution contexts.
  * @example
  * ```typescript
@@ -16,7 +18,7 @@ import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/auth
  *   context: IApiSubscriberRouteExecutionContext<
  *     User,
  *     { body: DeepPartial<User> },
- *     IApiSubscriberRouteExecutionContextData<User>
+ *     IApiSubscriberRouteExecutionContextData<User, User>
  *   >
  * ): Promise<{ body: DeepPartial<User> }> {
  *   const entityMetadata = context.DATA.entityMetadata;
@@ -27,7 +29,12 @@ import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/auth
  * }
  * ```
  */
-export interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity> {
+export interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity, R = TApiAuthorizationRuleTransformPayload<E>> {
+	/**
+	 * Authorization decision attached to the request (if present).
+	 */
+	authorizationDecision?: IApiAuthorizationDecision<E, R>;
+
 	/**
 	 * Entity metadata containing information about entity columns, relations, and configuration.
 	 */
@@ -53,16 +60,16 @@ export interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntit
  * Extended data container for route subscriber execution context.
  * Includes request context (headers, IP, authentication) in addition to base route data.
  */
-export interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R = TApiAuthorizationRuleTransformPayload<E>> extends IApiSubscriberRouteExecutionContextData<E> {
+export interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R = TApiAuthorizationRuleTransformPayload<E>> extends IApiSubscriberRouteExecutionContextData<E, R> {
 	/**
 	 * Authentication request information
 	 */
 	authenticationRequest?: IApiAuthenticationRequest;
 
 	/**
-	 * Authorization decision
+	 * Request body payload (for create/update routes)
 	 */
-	authorizationDecision?: IApiAuthorizationDecision<E, R>;
+	body?: DeepPartial<E>;
 
 	/**
 	 * HTTP request headers
@@ -73,4 +80,14 @@ export interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiB
 	 * Client IP address
 	 */
 	ip: string;
+
+	/**
+	 * Route parameters (for get/delete/update routes)
+	 */
+	parameters?: Partial<E>;
+
+	/**
+	 * Query payload (for get list routes)
+	 */
+	query?: TApiControllerGetListQuery<E>;
 }

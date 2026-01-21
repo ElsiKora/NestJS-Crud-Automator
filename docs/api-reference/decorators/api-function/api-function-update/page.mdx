@@ -18,7 +18,7 @@ Decorated methods gain the shape `update(criteria: TApiFunctionUpdateCriteria<E>
 - Lazily decorates a helper `get` method (via `@ApiFunctionGet`) to fetch the entity and raise 404 errors if missing.
 - Merges the existing entity with provided properties and saves via the repository or transaction manager.
 - Executes `onAfterUpdate` subscribers; their return value can replace the final response.
-- Fires `onBeforeUpdateError` and `onAfterUpdateError` subscribers when repositories or validation fail.
+- Fires `onBeforeErrorUpdate` and `onAfterErrorUpdate` subscribers when repositories or validation fail.
 
 ## Example
 

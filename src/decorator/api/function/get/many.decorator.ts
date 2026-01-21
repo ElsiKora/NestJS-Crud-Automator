@@ -1,5 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function/error-execution-context.interface";
+import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context-data.interface";
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context.interface";
 import type { IApiFunctionGetManyExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
 import type { TApiFunctionGetManyProperties } from "@type/decorator/api/function";
@@ -51,7 +52,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 			const repository: Repository<E> = this.repository;
 
 			if (!repository) {
-				const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
+				const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
 					DATA: { eventManager, getManyProperties, repository: this.repository },
 					ENTITY: entityInstance,
 					FUNCTION_TYPE: EApiFunctionType.GET_MANY,
@@ -111,7 +112,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 	} catch (caughtError) {
 		const entityInstance: E = new entity();
 
-		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, Record<string, unknown>> = {
+		const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
 			DATA: { eventManager, properties, repository },
 			ENTITY: entityInstance,
 			FUNCTION_TYPE: EApiFunctionType.GET_MANY,

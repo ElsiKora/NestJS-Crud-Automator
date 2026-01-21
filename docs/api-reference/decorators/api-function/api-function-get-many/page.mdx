@@ -18,7 +18,7 @@ Decorated methods gain the shape `getMany(dto: TApiFunctionGetManyProperties<E>,
 - Calls `repository.find` or the transactional equivalent to load the records.
 - Throws `NotFoundException` if the result set is empty so controllers surface deterministic HTTP 404 responses.
 - Runs `onAfterGetMany` subscribers; they may adjust the returned list.
-- Emits `onAfterGetManyError` subscriber events for error observability.
+- Emits `onBeforeErrorGetMany` and `onAfterErrorGetMany` subscriber events for error observability.
 
 ## Example
 

@@ -88,7 +88,7 @@ Used in route (controller-level) subscribers:
 ```typescript
 interface IApiSubscriberRouteExecutionContext<E, Result, Input> {
 	readonly ENTITY: E;
-	readonly DATA: Input; // Use IApiSubscriberRouteExecutionContextData<E> or IApiSubscriberRouteExecutionContextDataExtended<E>
+	readonly DATA: Input; // Use IApiSubscriberRouteExecutionContextData<E, R> or IApiSubscriberRouteExecutionContextDataExtended<E, R>
 	readonly ROUTE_TYPE: EApiRouteType;
 	result: Result;
 }
@@ -99,22 +99,25 @@ interface IApiSubscriberRouteExecutionContext<E, Result, Input> {
 **Base DATA (for before hooks):**
 
 ```typescript
-interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity> {
+interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity, R> {
 	readonly entityMetadata: IApiEntity<E>;
 	readonly method: EApiRouteType;
 	readonly methodName: string;
 	readonly properties: IApiControllerProperties<E>;
+	readonly authorizationDecision?: IApiAuthorizationDecision<E, R>;
 }
 ```
 
 **Extended DATA (for after/error hooks):**
 
 ```typescript
-interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R> extends IApiSubscriberRouteExecutionContextData<E> {
+interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R> extends IApiSubscriberRouteExecutionContextData<E, R> {
 	readonly authenticationRequest?: IApiAuthenticationRequest;
-	readonly authorizationDecision?: IApiAuthorizationDecision<E, R>;
 	readonly headers: Record<string, string>;
 	readonly ip: string;
+	readonly body?: DeepPartial<E>;
+	readonly parameters?: Partial<E>;
+	readonly query?: TApiControllerGetListQuery<E>;
 }
 ```
 
@@ -127,7 +130,7 @@ import { TApiSubscriberRouteBeforeCreateContext } from "@elsikora/nestjs-crud-au
 
 async onBeforeCreate(
   context: TApiSubscriberRouteBeforeCreateContext<PostEntity>
-): Promise<{ body: DeepPartial<PostEntity> }> {
+): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"]> {
   // Entity being operated on
   const entity = context.ENTITY;
 
@@ -191,6 +194,11 @@ interface IApiSubscriberFunctionExecutionContext<E, Result, Input> {
 interface IApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity> {
 	readonly eventManager?: EntityManager;
 	readonly repository: Repository<E>;
+	readonly criteria?: TApiFunctionDeleteCriteria<E> | TApiFunctionUpdateCriteria<E>;
+	readonly properties?: TApiFunctionCreateProperties<E> | TApiFunctionGetProperties<E> | TApiFunctionGetListProperties<E> | TApiFunctionGetManyProperties<E>;
+	readonly getProperties?: TApiFunctionGetProperties<E>;
+	readonly getListProperties?: TApiFunctionGetListProperties<E>;
+	readonly getManyProperties?: TApiFunctionGetManyProperties<E>;
 }
 ```
 
@@ -252,7 +260,7 @@ interface IApiSubscriberRouteErrorExecutionContext<E extends IApiBaseEntity, Inp
 }
 ```
 
-Use `IApiSubscriberRouteExecutionContextData<E>` for before-error hooks and `IApiSubscriberRouteExecutionContextDataExtended<E, R>` for after-error hooks when you need typed access to authentication data or `authorizationDecision`.
+Use `IApiSubscriberRouteExecutionContextData<E, R>` for before-error hooks (route metadata + optional `authorizationDecision`) and `IApiSubscriberRouteExecutionContextDataExtended<E, R>` for after-error hooks when you need authentication data or request context.
 
 ### Function Error Context
 
@@ -361,7 +369,7 @@ Array<E>;
 E; // The deleted entity
 ```
 
-Route before hooks receive request payloads (`body`, `parameters`, `query`) rather than entities, so their `result` shape is based on the incoming DTO.
+Route before hooks receive request payloads (`body`, `parameters`, `query`) rather than entities, so their `result` shape is based on the incoming DTO. After/error hooks also receive the last request payload on `context.DATA` (when available).
 
 ## Practical Examples
 

@@ -13,5 +13,5 @@ export type TApiSubscriberRouteBeforeUpdateContext<E extends IApiBaseEntity> = I
 		ip: string;
 		parameters: Partial<E>;
 	},
-	IApiSubscriberRouteExecutionContextData<E>
+	IApiSubscriberRouteExecutionContextData<E, E>
 >;

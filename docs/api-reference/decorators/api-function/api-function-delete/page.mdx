@@ -19,7 +19,7 @@ Decorated methods gain the shape `delete(criteria: TApiFunctionDeleteCriteria<E>
 - Lazily decorates a helper `get` method using `@ApiFunctionGet` to fetch the entity before deletion, preserving consistent error handling.
 - Removes the entity via `repository.remove` or `eventManager.getRepository(entity).remove`.
 - Runs `onAfterDelete` subscribers, allowing them to return a different entity snapshot.
-- On exceptions, executes `onAfterDeleteError` subscribers and rethrows `HttpException` instances, wrapping other errors.
+- On exceptions, executes `onBeforeErrorDelete` or `onAfterErrorDelete` subscribers and rethrows `HttpException` instances, wrapping other errors.
 
 ## Example
 

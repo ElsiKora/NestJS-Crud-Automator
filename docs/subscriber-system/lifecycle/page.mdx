@@ -177,12 +177,12 @@ export class LoggingSubscriber {
 @Injectable()
 @ApiRouteSubscriber({ entity: PostEntity, priority: 50 })
 export class PostRouteSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-	async onBeforeCreate(context: any): Promise<any> {
+	async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PostEntity>): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"] | undefined> {
 		console.log("[Route] onBeforeCreate - START");
 		return context.result;
 	}
 
-	async onAfterCreate(context: any): Promise<PostEntity> {
+	async onAfterCreate(context: TApiSubscriberRouteAfterCreateContext<PostEntity>): Promise<PostEntity> {
 		console.log("[Route] onAfterCreate - END");
 		return context.result;
 	}
@@ -192,12 +192,12 @@ export class PostRouteSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 @Injectable()
 @ApiFunctionSubscriber({ entity: PostEntity, priority: 50 })
 export class PostFunctionSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-	async onBeforeCreate(context: any): Promise<any> {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>): Promise<TApiFunctionCreateProperties<PostEntity>> {
 		console.log("[Function] onBeforeCreate - START");
 		return context.result;
 	}
 
-	async onAfterCreate(context: any): Promise<PostEntity> {
+	async onAfterCreate(context: TApiSubscriberFunctionAfterCreateContext<PostEntity>): Promise<PostEntity> {
 		console.log("[Function] onAfterCreate - END");
 		return context.result;
 	}
@@ -208,7 +208,7 @@ export class PostFunctionSubscriber extends ApiFunctionSubscriberBase<PostEntity
 @ApiService({ entity: PostEntity })
 @ApiServiceObservable()
 export class PostService extends ApiServiceBase<PostEntity> {
-	async create(properties: any): Promise<PostEntity> {
+	async create(properties: TApiFunctionCreateProperties<PostEntity>): Promise<PostEntity> {
 		console.log("[Service] create - Repository operation");
 		return super.create(properties);
 	}
@@ -264,20 +264,20 @@ Each subscriber can modify the result:
 
 ```typescript
 // Subscriber 1 (Priority 100)
-async onBeforeCreate(context: any): Promise<any> {
+async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PostEntity>): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"] | undefined> {
   context.result.body.field1 = "value1";
   return context.result; // Passes to next subscriber
 }
 
 // Subscriber 2 (Priority 50)
-async onBeforeCreate(context: any): Promise<any> {
+async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PostEntity>): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"] | undefined> {
   // Receives modified context from Subscriber 1
   context.result.body.field2 = "value2";
   return context.result; // Passes to next subscriber
 }
 
 // Subscriber 3 (Priority 10)
-async onBeforeCreate(context: any): Promise<any> {
+async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PostEntity>): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"] | undefined> {
   // Receives context with field1 and field2
   context.result.body.field3 = "value3";
   return context.result; // Final result
@@ -332,7 +332,7 @@ export class NotificationSubscriber {}
 // Good: One responsibility per subscriber
 @ApiFunctionSubscriber({ entity: Post })
 export class SlugGeneratorSubscriber {
-	async onBeforeCreate(context: any) {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<Post>): Promise<TApiFunctionCreateProperties<Post>> {
 		context.result.body.slug = this.generateSlug(context.result.body.title);
 		return context.result;
 	}
@@ -341,7 +341,7 @@ export class SlugGeneratorSubscriber {
 // Bad: Multiple responsibilities
 @ApiFunctionSubscriber({ entity: Post })
 export class MixedSubscriber {
-	async onBeforeCreate(context: any) {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<Post>): Promise<TApiFunctionCreateProperties<Post>> {
 		// Don't do this
 		context.result.body.slug = this.generateSlug(context.result.body.title);
 		await this.sendNotification();

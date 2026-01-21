@@ -326,12 +326,14 @@ Example response:
 For other database constraint violations (for example, foreign keys), you can still map `QueryFailedError` to a cleaner HTTP exception in your service:
 
 ```typescript filename="services/user.service.ts" copy
+import type { TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
+
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { QueryFailedError } from "typeorm";
 
 @Injectable()
 export class UserService extends ApiServiceBase<UserEntity> {
-	async create(properties: any): Promise<UserEntity> {
+	async create(properties: TApiFunctionCreateProperties<UserEntity>): Promise<UserEntity> {
 		try {
 			return await super.create(properties);
 		} catch (error) {
