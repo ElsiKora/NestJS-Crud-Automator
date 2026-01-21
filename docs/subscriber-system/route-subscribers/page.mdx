@@ -32,16 +32,15 @@ Called before the main operation:
 ```typescript
 async onBeforeCreate(
   context: TApiSubscriberRouteBeforeCreateContext<PostEntity>
-): Promise<{ body: DeepPartial<PostEntity> } | undefined> {
+): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"] | undefined> {
   const { body } = context.result;
 
   // Fully typed access to route metadata
   const method = context.DATA.method;
   const entityMetadata = context.DATA.entityMetadata;
 
-  // Note: before hooks don't have authenticationRequest in DATA
-  // Use route configuration if needed
-  const routeConfig = context.DATA.properties.routes[method];
+  // Before hooks have only route metadata in DATA
+  // Request payload lives in context.result (body/parameters/query)
 
   return context.result;
 }
@@ -52,7 +51,7 @@ async onBeforeCreate(
 ```typescript
 async onBeforeUpdate(
   context: TApiSubscriberRouteBeforeUpdateContext<PostEntity>
-): Promise<{ body: DeepPartial<PostEntity> } | undefined> {
+): Promise<TApiSubscriberRouteBeforeUpdateContext<PostEntity>["result"] | undefined> {
   const { body } = context.result;
 
   // Track last modified
@@ -62,22 +61,26 @@ async onBeforeUpdate(
 }
 ```
 
-#### `onBeforeGet`, `onBeforeGetList`, `onBeforeGetMany`, `onBeforeDelete`
+#### `onBeforePartialUpdate`
+
+Same payload as `onBeforeUpdate` (parameters + partial body). Use it to intercept `PATCH` routes.
+
+#### `onBeforeGet`, `onBeforeGetList`, `onBeforeDelete`
 
 ```typescript
 async onBeforeGet(
   context: TApiSubscriberRouteBeforeGetContext<PostEntity>
-): Promise<PostEntity | undefined> {
+): Promise<TApiSubscriberRouteBeforeGetContext<PostEntity>["result"] | undefined> {
   // Log access with route metadata
-  console.log("Accessing post via route:", context.DATA.methodName);
+  console.log("Accessing post via route:", context.DATA.methodName, context.result.parameters);
   return context.result;
 }
 
 async onBeforeDelete(
   context: TApiSubscriberRouteBeforeDeleteContext<PostEntity>
-): Promise<PostEntity | undefined> {
+): Promise<TApiSubscriberRouteBeforeDeleteContext<PostEntity>["result"] | undefined> {
   // Validation logic before deletion
-  console.log("Attempting to delete post:", context.ENTITY.id);
+  console.log("Attempting to delete post:", context.result.parameters);
 
   return context.result;
 }
@@ -85,7 +88,7 @@ async onBeforeDelete(
 
 ### After Hooks
 
-Called after successful operation. After hooks have access to extended DATA with authentication, headers, and IP:
+Called after successful operation. After hooks have access to extended DATA with authentication, `authorizationDecision`, headers, and IP:
 
 #### `onAfterCreate`
 
@@ -132,13 +135,17 @@ async onAfterUpdate(
 }
 ```
 
-#### `onAfterGet`, `onAfterGetList`, `onAfterGetMany`, `onAfterDelete`
+#### `onAfterPartialUpdate`
+
+Same payload as `onAfterUpdate`, but runs for `PATCH` routes.
+
+#### `onAfterGet`, `onAfterGetList`, `onAfterDelete`
 
 ```typescript
 async onAfterGetList(
   context: TApiSubscriberRouteAfterGetListContext<PostEntity>
-): Promise<PostEntity[] | undefined> {
-  const posts = context.result;
+): Promise<IApiGetListResponseResult<PostEntity> | undefined> {
+  const response = context.result;
 
   // Fully typed access to extended DATA
   const user = context.DATA.authenticationRequest?.user;
@@ -146,12 +153,12 @@ async onAfterGetList(
 
   // Track analytics
   await this.analyticsService.trackView("post_list", {
-    count: posts.length,
+    count: response.items.length,
     userId: user?.id,
     ip,
   });
 
-  return posts;
+  return response;
 }
 ```
 
@@ -163,7 +170,7 @@ Called when an operation fails:
 
 ```typescript
 async onBeforeErrorCreate(
-  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity, IApiSubscriberRouteExecutionContextData<PostEntity>>,
   error: Error
 ): Promise<void> {
   // Log before error propagates
@@ -174,7 +181,7 @@ async onBeforeErrorCreate(
 }
 
 async onAfterErrorCreate(
-  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity, IApiSubscriberRouteExecutionContextDataExtended<PostEntity, PostEntity>>,
   error: Error
 ): Promise<void> {
   // Cleanup or notify after error
@@ -199,6 +206,16 @@ async onAfterErrorUpdate(
   error: Error
 ): Promise<void> { /* ... */ }
 
+async onBeforeErrorPartialUpdate(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> { /* ... */ }
+
+async onAfterErrorPartialUpdate(
+  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  error: Error
+): Promise<void> { /* ... */ }
+
 async onBeforeErrorGet(
   context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
   error: Error
@@ -215,16 +232,6 @@ async onBeforeErrorGetList(
 ): Promise<void> { /* ... */ }
 
 async onAfterErrorGetList(
-  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
-  error: Error
-): Promise<void> { /* ... */ }
-
-async onBeforeErrorGetMany(
-  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
-  error: Error
-): Promise<void> { /* ... */ }
-
-async onAfterErrorGetMany(
   context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
   error: Error
 ): Promise<void> { /* ... */ }
@@ -249,7 +256,7 @@ Route subscribers have different DATA types for before and after hooks:
 ```typescript
 async onBeforeCreate(
   context: TApiSubscriberRouteBeforeCreateContext<PostEntity>
-): Promise<{ body: DeepPartial<PostEntity> } | undefined> {
+): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"] | undefined> {
   // Base route metadata only
   const method = context.DATA.method;
   const methodName = context.DATA.methodName;
@@ -284,7 +291,7 @@ async onAfterCreate(
 
 ### IP-Based Access Control
 
-Note: IP address is only available in after/error hooks with extended DATA.
+Note: IP address is available in extended DATA for after/error hooks. For before hooks, read it from the request payload (`context.result`) if you type it explicitly.
 
 ```typescript filename="ip-audit.subscriber.ts" copy
 @Injectable()
@@ -315,8 +322,8 @@ export class IpAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 export class UserRateLimitSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 	private readonly userLimits = new Map<string, { count: number; resetAt: number }>();
 
-	async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
-		const userId = context.DATA.authenticationRequest?.user?.id;
+	async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PostEntity>): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"] | undefined> {
+		const userId = context.result.authenticationRequest?.user?.id;
 		if (!userId) return context.result;
 
 		const now = Date.now();
@@ -349,7 +356,7 @@ export class ContentModerationSubscriber extends ApiRouteSubscriberBase<PostEnti
 		super();
 	}
 
-	async onBeforeCreate(context: IApiSubscriberRouteExecutionContext): Promise<any> {
+	async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PostEntity>): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"] | undefined> {
 		const { body } = context.result;
 
 		const isInappropriate = await this.moderationService.check(body.content);
@@ -376,7 +383,7 @@ export class PostNotificationSubscriber extends ApiRouteSubscriberBase<PostEntit
 		super();
 	}
 
-	async onAfterCreate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+	async onAfterCreate(context: TApiSubscriberRouteAfterCreateContext<PostEntity>): Promise<PostEntity> {
 		const post = context.result;
 		const author = context.DATA.authenticationRequest?.user;
 
@@ -394,7 +401,7 @@ export class PostNotificationSubscriber extends ApiRouteSubscriberBase<PostEntit
 		return post;
 	}
 
-	async onAfterUpdate(context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>): Promise<PostEntity> {
+	async onAfterUpdate(context: TApiSubscriberRouteAfterUpdateContext<PostEntity>): Promise<PostEntity> {
 		const post = context.result;
 
 		// Notify post author of update

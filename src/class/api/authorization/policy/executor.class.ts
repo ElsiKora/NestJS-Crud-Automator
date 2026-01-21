@@ -3,7 +3,7 @@ import type { IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscrib
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
 import type { TApiAuthorizationPolicySubscriberRuleResult } from "@type/class/api/authorization/policy/policy-subscriber-rule-result.type";
 
-import { EApiAuthorizationPolicyOnType } from "@enum/class/authorization/policy";
+import { EApiAuthorizationPolicyOnType } from "@enum/class/authorization/policy-on-type.enum";
 import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import { CapitalizeString } from "@utility/capitalize-string.utility";
 import { LoggerUtility } from "@utility/logger.utility";

@@ -1,4 +1,4 @@
-import type { EFilterOrderDirection } from "@enum/filter-order-direction.enum";
+import type { EFilterOrderDirection } from "@enum/filter";
 import type { TFilterKeys } from "@type/utility";
 
 export type TApiControllerGetListQuery<E> = {

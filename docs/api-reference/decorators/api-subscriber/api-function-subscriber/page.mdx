@@ -30,7 +30,7 @@ Registers a class as a function-level subscriber for a specific entity. Subscrib
 @Injectable()
 @ApiFunctionSubscriber<PostEntity>({ entity: PostEntity, priority: 50 })
 export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
-	async onBeforeCreate(context: IApiSubscriberFunctionExecutionContext<PostEntity, TApiFunctionCreateProperties<PostEntity>>) {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>) {
 		context.result.body.slug = this.slugify(context.result.body.title);
 		return context.result;
 	}

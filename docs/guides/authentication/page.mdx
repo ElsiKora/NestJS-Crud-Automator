@@ -262,7 +262,7 @@ Route subscribers receive the authenticated user:
 
 ```typescript filename="post-author.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteExecutionContext } from "@elsikora/nestjs-crud-automator";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase, TApiSubscriberRouteBeforeCreateContext } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 
 interface AuthenticatedUser {
@@ -277,8 +277,8 @@ interface AuthenticatedUser {
 	priority: 10,
 })
 export class PostAuthorSubscriber extends ApiRouteSubscriberBase<PostEntity> {
-	async onBeforeCreate(context: IApiSubscriberRouteExecutionContext<PostEntity, { authenticationRequest?: { user: AuthenticatedUser } }>): Promise<any> {
-		const user = context.result.authenticationRequest?.user;
+	async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PostEntity>): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"] | undefined> {
+		const user = context.result.authenticationRequest?.user as AuthenticatedUser | undefined;
 
 		if (user) {
 			// Automatically set author from authenticated user

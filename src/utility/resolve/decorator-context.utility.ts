@@ -1,6 +1,6 @@
 import type { EApiDtoType, EApiRouteType } from "@enum/index";
 
-import { GetAutoDtoContext } from "@utility/get-auto-dto-context.utility";
+import { GetAutoDtoContext } from "@utility/get/auto-dto-context.utility";
 
 /**
  * Resolves decorator context using explicit config or auto-propagated DTO metadata.

@@ -48,12 +48,12 @@ async onBeforeCreate(
 - `TApiSubscriberRouteAfterCreateContext<E>`
 - `TApiSubscriberRouteBeforeUpdateContext<E>`
 - `TApiSubscriberRouteAfterUpdateContext<E>`
+- `TApiSubscriberRouteBeforePartialUpdateContext<E>`
+- `TApiSubscriberRouteAfterPartialUpdateContext<E>`
 - `TApiSubscriberRouteBeforeGetContext<E>`
 - `TApiSubscriberRouteAfterGetContext<E>`
 - `TApiSubscriberRouteBeforeGetListContext<E>`
 - `TApiSubscriberRouteAfterGetListContext<E>`
-- `TApiSubscriberRouteBeforeGetManyContext<E>`
-- `TApiSubscriberRouteAfterGetManyContext<E>`
 - `TApiSubscriberRouteBeforeDeleteContext<E>`
 - `TApiSubscriberRouteAfterDeleteContext<E>`
 
@@ -110,8 +110,9 @@ interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity> {
 **Extended DATA (for after/error hooks):**
 
 ```typescript
-interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity> extends IApiSubscriberRouteExecutionContextData<E> {
+interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R> extends IApiSubscriberRouteExecutionContextData<E> {
 	readonly authenticationRequest?: IApiAuthenticationRequest;
+	readonly authorizationDecision?: IApiAuthorizationDecision<E, R>;
 	readonly headers: Record<string, string>;
 	readonly ip: string;
 }
@@ -244,39 +245,35 @@ async onBeforeCreate(
 ### Route Error Context
 
 ```typescript
-interface IApiSubscriberRouteErrorExecutionContext<E> {
+interface IApiSubscriberRouteErrorExecutionContext<E extends IApiBaseEntity, Input = unknown> {
+	readonly DATA: Input;
 	readonly ENTITY: E;
-	readonly DATA: {
-		readonly method: string;
-		readonly methodName: string;
-		readonly properties: IApiControllerProperties<E>;
-		readonly entityMetadata: IApiEntity<E>;
-		readonly authenticationRequest?: IApiAuthenticationRequest;
-		readonly headers: Record<string, string>;
-		readonly ip: string;
-	};
 	readonly ROUTE_TYPE: EApiRouteType;
 }
 ```
 
+Use `IApiSubscriberRouteExecutionContextData<E>` for before-error hooks and `IApiSubscriberRouteExecutionContextDataExtended<E, R>` for after-error hooks when you need typed access to authentication data or `authorizationDecision`.
+
 ### Function Error Context
 
 ```typescript
-interface IApiSubscriberFunctionErrorExecutionContext<E> {
+interface IApiSubscriberFunctionErrorExecutionContext<E extends IApiBaseEntity, Input = unknown> {
+	readonly DATA: Input;
 	readonly ENTITY: E;
-	readonly DATA: {
-		readonly method: string;
-		readonly entityMetadata: IApiEntity<E>;
-		readonly transactionManager?: EntityManager;
-	};
+	readonly FUNCTION_TYPE: EApiFunctionType;
 }
 ```
+
+Use `IApiSubscriberFunctionExecutionContextData<E>` to access `eventManager` and `repository`.
 
 ### Using Error Contexts
 
 ```typescript
 async onAfterErrorCreate(
-  context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
+  context: IApiSubscriberRouteErrorExecutionContext<
+    PostEntity,
+    IApiSubscriberRouteExecutionContextDataExtended<PostEntity, unknown>
+  >,
   error: Error
 ): Promise<void> {
   // Log error with context
@@ -306,8 +303,8 @@ Subscribers can modify the mutable `result` field:
 
 ```typescript
 async onBeforeCreate(
-  context: IApiSubscriberRouteExecutionContext<PostEntity, { body: DeepPartial<PostEntity> }>
-): Promise<{ body: DeepPartial<PostEntity> }> {
+  context: TApiSubscriberRouteBeforeCreateContext<PostEntity>
+): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"]> {
   // Modify body before saving
   context.result.body.slug = this.generateSlug(context.result.body.title);
   context.result.body.status = "draft";
@@ -320,7 +317,7 @@ async onBeforeCreate(
 
 ```typescript
 async onAfterGet(
-  context: IApiSubscriberFunctionExecutionContext<PostEntity, PostEntity>
+  context: TApiSubscriberFunctionAfterGetContext<PostEntity>
 ): Promise<PostEntity> {
   // Enrich result after fetching
   context.result.readingTime = this.calculateReadingTime(context.result.content);
@@ -345,39 +342,44 @@ IApiSubscriberExecutionContext<E, Result, Input>;
 ### Common Result Types
 
 ```typescript
-// Create operation
-TApiFunctionCreateProperties<E> = { body: DeepPartial<E> }
+// Create operation (function + route before)
+TApiFunctionCreateProperties<E> = { body: DeepPartial<E> };
 
-// Update operation
-TApiFunctionUpdateProperties<E> = { body: DeepPartial<E> }
+// Update operation (function + route before)
+TApiFunctionUpdateProperties<E> = { body: DeepPartial<E> };
 
-// Get operation
-E // The entity itself
+// Get operation (function + route after)
+E; // The entity itself
 
-// Get list operation
-E[] // Array of entities
+// Get list operation (function + route after)
+IApiGetListResponseResult<E>;
 
-// Delete operation
-E // The entity being deleted
+// Get many operation (function + route after)
+Array<E>;
+
+// Delete operation (function)
+E; // The deleted entity
 ```
+
+Route before hooks receive request payloads (`body`, `parameters`, `query`) rather than entities, so their `result` shape is based on the incoming DTO.
 
 ## Practical Examples
 
-### Enriching Data from Context
+### Enriching Response from Context
 
 ```typescript
-async onBeforeCreate(
-  context: IApiSubscriberRouteExecutionContext<PostEntity, any>
-): Promise<any> {
-  const { body } = context.result;
+async onAfterCreate(
+  context: TApiSubscriberRouteAfterCreateContext<PostEntity>
+): Promise<PostEntity> {
+  const post = context.result;
   const user = context.DATA.authenticationRequest?.user;
 
-  // Add user and request data to entity
-  body.authorId = user?.id;
-  body.authorIp = context.DATA.ip;
-  body.createdVia = context.DATA.headers["user-agent"];
+  // Add request metadata to the response
+  post.authorId = user?.id;
+  post.authorIp = context.DATA.ip;
+  post.createdVia = context.DATA.headers["user-agent"];
 
-  return context.result;
+  return post;
 }
 ```
 
@@ -385,7 +387,7 @@ async onBeforeCreate(
 
 ```typescript
 async onAfterGet(
-  context: IApiSubscriberRouteExecutionContext<PostEntity, PostEntity>
+  context: TApiSubscriberRouteAfterGetContext<PostEntity>
 ): Promise<PostEntity> {
   const post = context.result;
   const user = context.DATA.authenticationRequest?.user;
@@ -400,16 +402,13 @@ async onAfterGet(
 }
 ```
 
-### Using Transaction Manager
+### Using Event Manager (Transactions)
 
 ```typescript
 async onBeforeCreate(
-  context: IApiSubscriberFunctionExecutionContext<
-    PostEntity,
-    TApiFunctionCreateProperties<PostEntity>
-  >
+  context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>
 ): Promise<TApiFunctionCreateProperties<PostEntity>> {
-  const manager = context.DATA.transactionManager;
+  const manager = context.DATA.eventManager;
 
   if (manager) {
     // Create related entities within same transaction
@@ -429,7 +428,10 @@ async onBeforeCreate(
 
 ```typescript
 async onAfterErrorCreate(
-  context: IApiSubscriberFunctionErrorExecutionContext<PostEntity>,
+  context: IApiSubscriberFunctionErrorExecutionContext<
+    PostEntity,
+    IApiSubscriberFunctionExecutionContextData<PostEntity>
+  >,
   error: Error
 ): Promise<void> {
   // Clean up temporary resources
@@ -441,7 +443,7 @@ async onAfterErrorCreate(
   this.logger.error("Failed to create post", {
     error: error.message,
     entityId: context.ENTITY.id,
-    method: context.DATA.method,
+    hasTransaction: Boolean(context.DATA.eventManager),
   });
 }
 ```

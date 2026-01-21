@@ -33,8 +33,9 @@ Registers a class as an authorization policy for a specific entity. Policies exe
 ## Example
 
 ```typescript
+import type { IApiAuthorizationRuleContext, IApiAuthorizationScope, TApiAuthorizationPolicyBeforeGetListResult, TApiAuthorizationRuleScopeResolver } from "@elsikora/nestjs-crud-automator";
+
 import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
-import type { TApiAuthorizationPolicyBeforeGetListResult } from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
 @ApiAuthorizationPolicy<UserEntity>({
@@ -43,14 +44,15 @@ import type { TApiAuthorizationPolicyBeforeGetListResult } from "@elsikora/nestj
 	description: "Allow admins and support staff to manage users",
 })
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	onBeforeGetList(context): TApiAuthorizationPolicyBeforeGetListResult<UserEntity> {
-		const { subject } = context.DATA;
+	public onBeforeGetList(): TApiAuthorizationPolicyBeforeGetListResult<UserEntity> {
+		const scope: TApiAuthorizationRuleScopeResolver<UserEntity> = (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => ({
+			where: { ownerId: context.subject.id },
+		});
 
-		if (!subject.roles.includes("admin")) {
-			return this.deny({ description: "Admins only" });
-		}
-
-		return this.allowForRoles(["admin", "support"]);
+		return this.allowForRoles(["admin", "support"], {
+			description: "Admins and support can list users",
+			scope,
+		});
 	}
 }
 ```

@@ -2,7 +2,7 @@ import { ApiAuthorizationEngine } from "@class/api/authorization/engine.class";
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { ApiAuthorizationPolicyDiscoveryService } from "@class/api/authorization/policy/discovery-service.class";
 import { ApiAuthorizationPolicyRegistry, apiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
-import { AUTHORIZATION_POLICY_REGISTRY_TOKEN } from "@constant/class/authorization/token/registry.constant";
+import { AUTHORIZATION_POLICY_REGISTRY_TOKEN } from "@constant/class/authorization/token-registry.constant";
 import { Global, Module } from "@nestjs/common";
 import { DiscoveryModule } from "@nestjs/core";
 

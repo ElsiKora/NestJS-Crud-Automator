@@ -1,4 +1,4 @@
-import { EFilterOrderDirection } from "@enum/filter-order-direction.enum";
+import { EFilterOrderDirection } from "@enum/filter";
 
 const DEFAULT_FILTER_ORDER_BY_DIRECTION: EFilterOrderDirection = EFilterOrderDirection.ASC;
 

@@ -6,7 +6,7 @@ import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
 import { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import { IApiAuthorizationDecision, IApiAuthorizationEngine, IApiAuthorizationEngineEvaluateOptions } from "@interface/class/api/authorization";
 import { Injectable } from "@nestjs/common";
-import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope/merge/where.utility";
+import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
 
 @Injectable()
 export class ApiAuthorizationEngine implements IApiAuthorizationEngine<IApiBaseEntity> {

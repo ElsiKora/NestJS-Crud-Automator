@@ -1,38 +1,183 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiSubscriber } from "@interface/class/api/subscriber/interface";
-import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route-error-execution-context.interface";
-import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route-execution-context.interface";
+import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route/error-execution-context.interface";
+import type { IApiSubscriberRouteExecutionContextData, IApiSubscriberRouteExecutionContextDataExtended } from "@interface/class/api/subscriber/route/execution/context-data.interface";
+import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route/execution/context.interface";
+import type { IApiGetListResponseResult } from "@interface/decorator/api";
+import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import type { DeepPartial } from "typeorm";
 
 export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubscriber {
-	onAfterCreate?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
-	onAfterDelete?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
+	onAfterCreate?(context: IApiSubscriberRouteExecutionContext<E, E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>): Promise<E | undefined>;
+	onAfterDelete?(context: IApiSubscriberRouteExecutionContext<E, Partial<E>, IApiSubscriberRouteExecutionContextDataExtended<E, Partial<E>>>): Promise<Partial<E> | undefined>;
 
-	onAfterErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	onAfterErrorDelete?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
+	onAfterErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>, error: Error): Promise<void>;
+	onAfterErrorDelete?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, Partial<E>>>, error: Error): Promise<void>;
 
-	onAfterErrorGet?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	onAfterErrorGetList?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
+	onAfterErrorGet?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>, error: Error): Promise<void>;
+	onAfterErrorGetList?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, IApiGetListResponseResult<E>>>, error: Error): Promise<void>;
 
-	onAfterErrorGetMany?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	onAfterErrorUpdate?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
+	onAfterErrorGetMany?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, Array<E>>>, error: Error): Promise<void>;
+	onAfterErrorPartialUpdate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>, error: Error): Promise<void>;
+	onAfterErrorUpdate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>, error: Error): Promise<void>;
 
-	onAfterGet?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
-	onAfterGetList?(context: IApiSubscriberRouteExecutionContext<E, Array<E>>): Promise<Array<E> | undefined>;
+	onAfterGet?(context: IApiSubscriberRouteExecutionContext<E, E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>): Promise<E | undefined>;
+	onAfterGetList?(context: IApiSubscriberRouteExecutionContext<E, IApiGetListResponseResult<E>, IApiSubscriberRouteExecutionContextDataExtended<E, IApiGetListResponseResult<E>>>): Promise<IApiGetListResponseResult<E> | undefined>;
 
-	onAfterGetMany?(context: IApiSubscriberRouteExecutionContext<E, Array<E>>): Promise<Array<E> | undefined>;
-	onAfterUpdate?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
+	onAfterGetMany?(context: IApiSubscriberRouteExecutionContext<E, Array<E>, IApiSubscriberRouteExecutionContextDataExtended<E, Array<E>>>): Promise<Array<E> | undefined>;
+	onAfterPartialUpdate?(context: IApiSubscriberRouteExecutionContext<E, E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>): Promise<E | undefined>;
+	onAfterUpdate?(context: IApiSubscriberRouteExecutionContext<E, E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>): Promise<E | undefined>;
 
-	onBeforeCreate?(context: IApiSubscriberRouteExecutionContext<E, { body: DeepPartial<E> }>): Promise<{ body: DeepPartial<E> } | undefined>;
-	onBeforeDelete?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
-	onBeforeErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	onBeforeErrorDelete?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	onBeforeErrorGet?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	onBeforeErrorGetList?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	onBeforeErrorGetMany?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	onBeforeErrorUpdate?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	onBeforeGet?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
-	onBeforeGetList?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
-	onBeforeGetMany?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
-	onBeforeUpdate?(context: IApiSubscriberRouteExecutionContext<E, { body: DeepPartial<E> }>): Promise<{ body: DeepPartial<E> } | undefined>;
+	onBeforeCreate?(
+		context: IApiSubscriberRouteExecutionContext<
+			E,
+			{
+				authenticationRequest?: IApiAuthenticationRequest;
+				body: DeepPartial<E>;
+				headers: Record<string, string>;
+				ip: string;
+			},
+			IApiSubscriberRouteExecutionContextData<E>
+		>,
+	): Promise<
+		| {
+				authenticationRequest?: IApiAuthenticationRequest;
+				body: DeepPartial<E>;
+				headers: Record<string, string>;
+				ip: string;
+		  }
+		| undefined
+	>;
+	onBeforeDelete?(
+		context: IApiSubscriberRouteExecutionContext<
+			E,
+			{
+				authenticationRequest?: IApiAuthenticationRequest;
+				headers: Record<string, string>;
+				ip: string;
+				parameters: Partial<E>;
+			},
+			IApiSubscriberRouteExecutionContextData<E>
+		>,
+	): Promise<
+		| {
+				authenticationRequest?: IApiAuthenticationRequest;
+				headers: Record<string, string>;
+				ip: string;
+				parameters: Partial<E>;
+		  }
+		| undefined
+	>;
+	onBeforeErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
+	onBeforeErrorDelete?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
+	onBeforeErrorGet?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
+	onBeforeErrorGetList?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
+	onBeforeErrorGetMany?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
+	onBeforeErrorPartialUpdate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
+	onBeforeErrorUpdate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E>>, error: Error): Promise<void>;
+	onBeforeGet?(
+		context: IApiSubscriberRouteExecutionContext<
+			E,
+			{
+				authenticationRequest?: IApiAuthenticationRequest;
+				headers: Record<string, string>;
+				ip: string;
+				parameters: Partial<E>;
+			},
+			IApiSubscriberRouteExecutionContextData<E>
+		>,
+	): Promise<
+		| {
+				authenticationRequest?: IApiAuthenticationRequest;
+				headers: Record<string, string>;
+				ip: string;
+				parameters: Partial<E>;
+		  }
+		| undefined
+	>;
+	onBeforeGetList?(
+		context: IApiSubscriberRouteExecutionContext<
+			E,
+			{
+				authenticationRequest?: IApiAuthenticationRequest;
+				headers: Record<string, string>;
+				ip: string;
+				query: TApiControllerGetListQuery<E>;
+			},
+			IApiSubscriberRouteExecutionContextData<E>
+		>,
+	): Promise<
+		| {
+				authenticationRequest?: IApiAuthenticationRequest;
+				headers: Record<string, string>;
+				ip: string;
+				query: TApiControllerGetListQuery<E>;
+		  }
+		| undefined
+	>;
+	onBeforeGetMany?(
+		context: IApiSubscriberRouteExecutionContext<
+			E,
+			{
+				authenticationRequest?: IApiAuthenticationRequest;
+				headers: Record<string, string>;
+				ip: string;
+				parameters: Partial<E>;
+			},
+			IApiSubscriberRouteExecutionContextData<E>
+		>,
+	): Promise<
+		| {
+				authenticationRequest?: IApiAuthenticationRequest;
+				headers: Record<string, string>;
+				ip: string;
+				parameters: Partial<E>;
+		  }
+		| undefined
+	>;
+	onBeforePartialUpdate?(
+		context: IApiSubscriberRouteExecutionContext<
+			E,
+			{
+				authenticationRequest?: IApiAuthenticationRequest;
+				body: DeepPartial<E>;
+				headers: Record<string, string>;
+				ip: string;
+				parameters: Partial<E>;
+			},
+			IApiSubscriberRouteExecutionContextData<E>
+		>,
+	): Promise<
+		| {
+				authenticationRequest?: IApiAuthenticationRequest;
+				body: DeepPartial<E>;
+				headers: Record<string, string>;
+				ip: string;
+				parameters: Partial<E>;
+		  }
+		| undefined
+	>;
+	onBeforeUpdate?(
+		context: IApiSubscriberRouteExecutionContext<
+			E,
+			{
+				authenticationRequest?: IApiAuthenticationRequest;
+				body: DeepPartial<E>;
+				headers: Record<string, string>;
+				ip: string;
+				parameters: Partial<E>;
+			},
+			IApiSubscriberRouteExecutionContextData<E>
+		>,
+	): Promise<
+		| {
+				authenticationRequest?: IApiAuthenticationRequest;
+				body: DeepPartial<E>;
+				headers: Record<string, string>;
+				ip: string;
+				parameters: Partial<E>;
+		  }
+		| undefined
+	>;
 }

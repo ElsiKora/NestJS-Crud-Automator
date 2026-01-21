@@ -1,7 +1,6 @@
 import type { ApiServiceBase } from "@class/api";
 import type { EApiRouteType } from "@enum/decorator/api";
-import type { TApiControllerMethodMap } from "@type/factory/api/controller/method-map.type";
-import type { TApiControllerMethodName } from "@type/factory/api/controller/method-name.type";
+import type { TApiControllerMethodMap, TApiControllerMethodName } from "@type/factory/api/controller/method";
 
 // eslint-disable-next-line @elsikora/typescript/no-explicit-any
 export type TApiControllerTargetMethod<E> = new (...arguments_: Array<any>) => {

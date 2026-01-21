@@ -6,7 +6,7 @@ import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeUuidPropert
 import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
 import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
 import { EApiDtoType } from "@enum/decorator/api";
-import { DtoGenerateRelationResponse } from "@utility/dto/generate-relation-response.utility";
+import { DtoGenerateRelationResponse } from "@utility/dto/generate/relation-response.utility";
 
 export class DtoPropertyFactoryRelation<E> implements IDtoGenerateFactory<E> {
 	create(metadata: TApiPropertyDescribeUuidProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string): PropertyDecorator {

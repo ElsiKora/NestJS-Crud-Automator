@@ -355,7 +355,7 @@ export class UserController {
 
 ### Declarative Authorization Policies
 
-Import `ApiAuthorizationModule` once and describe access rules as policies. The guard is attached to every generated route automatically—no controller configuration required.
+Import `ApiAuthorizationModule` once and describe access rules as policies. The guard is attached automatically—mark controllers with `@ApiControllerSecurable()` to enable policy evaluation.
 
 ```typescript
 // app.module.ts
@@ -371,23 +371,26 @@ import { ApiAuthorizationModule } from "@elsikora/nestjs-crud-automator";
 export class AppModule {}
 ```
 
+Mark controllers with `@ApiControllerSecurable()` to enable policy evaluation.
+
 ```typescript
 // policies/user-access.policy.ts
+import type { IApiAuthorizationRuleContext, IApiAuthorizationScope, TApiAuthorizationPolicyBeforeDeleteResult, TApiAuthorizationPolicyBeforeGetResult } from "@elsikora/nestjs-crud-automator";
+
 import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
-import type { TApiAuthorizationPolicyBeforeGetResult } from "@elsikora/nestjs-crud-automator";
 import { UserEntity } from "../user.entity";
 
 @ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	onBeforeGet(context): TApiAuthorizationPolicyBeforeGetResult<UserEntity> {
-		const { subject } = context.DATA;
-
+	public onBeforeGet(): TApiAuthorizationPolicyBeforeGetResult<UserEntity> {
 		return this.allow({
-			scope: () => ({ where: { id: subject.id } }),
+			scope: (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => ({
+				where: { id: context.subject.id },
+			}),
 		});
 	}
 
-	onBeforeDelete() {
+	public onBeforeDelete(): TApiAuthorizationPolicyBeforeDeleteResult<UserEntity> {
 		return this.deny({
 			description: "Only admins can delete users",
 			condition: ({ subject }) => !subject.roles.includes("admin"),
@@ -501,9 +504,9 @@ Understanding the order in which hooks are called is critically important:
 4.  A service method is called (e.g., `service.create(body)`).
 5.  `onBefore...` hooks of **Function** subscribers (executed in `priority` order).
 6.  The main logic of `@ApiFunction` is executed (e.g., `repository.save(body)`).
-7.  `onAfter...` hooks of **Function** subscribers (executed in **reverse** `priority` order).
+7.  `onAfter...` hooks of **Function** subscribers (executed in `priority` order).
 8.  The result is returned to the controller.
-9.  `onAfter...` hooks of **Route** subscribers (executed in **reverse** `priority` order).
+9.  `onAfter...` hooks of **Route** subscribers (executed in `priority` order).
 10. **The response is sent to the client.**
 
 In case of an error at any stage, execution is interrupted, and the corresponding `on...Error...` hooks are called.

@@ -383,7 +383,7 @@ Perform custom validation in subscribers:
 
 ```typescript filename="user-validation.subscriber.ts" copy
 import { Injectable, BadRequestException } from "@nestjs/common";
-import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteExecutionContext } from "@elsikora/nestjs-crud-automator";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase, TApiSubscriberRouteBeforeCreateContext } from "@elsikora/nestjs-crud-automator";
 import { UserEntity } from "./user.entity";
 
 @Injectable()
@@ -392,7 +392,7 @@ import { UserEntity } from "./user.entity";
 	priority: 10,
 })
 export class UserValidationSubscriber extends ApiRouteSubscriberBase<UserEntity> {
-	async onBeforeCreate(context: IApiSubscriberRouteExecutionContext<UserEntity, any>): Promise<any> {
+	async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<UserEntity>): Promise<TApiSubscriberRouteBeforeCreateContext<UserEntity>["result"] | undefined> {
 		const { body } = context.result;
 
 		// Custom validation logic

@@ -3,13 +3,13 @@ import type { TApiFunctionProperties } from "@type/decorator/api/function";
 import type { Repository } from "typeorm";
 
 import { EApiFunctionType } from "@enum/decorator/api";
-import { ErrorException } from "@utility/error-exception.utility";
+import { ErrorException } from "@utility/error/exception.utility";
 
 import { ApiFunctionCreate } from "./create.decorator";
 import { ApiFunctionDelete } from "./delete.decorator";
-import { ApiFunctionGetList } from "./get-list.decorator";
-import { ApiFunctionGetMany } from "./get-many.decorator";
-import { ApiFunctionGet } from "./get.decorator";
+import { ApiFunctionGet } from "./get/decorator";
+import { ApiFunctionGetList } from "./get/list.decorator";
+import { ApiFunctionGetMany } from "./get/many.decorator";
 import { ApiFunctionUpdate } from "./update.decorator";
 
 /**

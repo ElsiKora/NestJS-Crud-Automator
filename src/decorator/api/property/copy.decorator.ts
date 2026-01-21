@@ -8,8 +8,8 @@ import type { TApiPropertyCopyProperties } from "@type/decorator/api/property/co
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
-import { DtoGenerateDynamic } from "@utility/dto/generate-dynamic.utility";
-import { ErrorException } from "@utility/error-exception.utility";
+import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
+import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { QueueAutoContextRetry } from "@utility/queue-auto-context-retry.utility";
 import { ResolveDecoratorContext } from "@utility/resolve";

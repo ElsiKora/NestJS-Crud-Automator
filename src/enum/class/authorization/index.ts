@@ -1,2 +1,2 @@
 export { EAuthorizationEffect } from "./effect.enum";
-export * from "./policy";
+export { EApiAuthorizationPolicyOnType } from "./policy-on-type.enum";

@@ -1,6 +1,6 @@
 # Authorization
 
-NestJS CRUD Automator now ships with a subscriber-style RBAC system. Policies are declared once, discovered automatically, and applied to every generated route without manual guard wiring or controller configuration.
+NestJS CRUD Automator now ships with a subscriber-style RBAC system. Policies are declared once, discovered automatically, and applied to securable controllers without manual guard wiring.
 
 ## Enable the Authorization Module
 
@@ -20,35 +20,53 @@ import { ApiAuthorizationModule } from "@elsikora/nestjs-crud-automator";
 export class AppModule {}
 ```
 
-> The authorization guard is attached to every generated controller method automatically. No `@UseGuards(ApiAuthorizationGuard)` calls are required.
+> The authorization guard is attached automatically. Mark controllers with `@ApiControllerSecurable()` to enable policy evaluation; no `@UseGuards(ApiAuthorizationGuard)` calls are required.
 
 ## Create a Policy
 
 Policies mirror the subscriber system: decorate a class and extend `ApiAuthorizationPolicyBase`. The decorator only needs the entity; policy IDs and priorities default to predictable values.
 
 ```typescript filename="policies/user-access.policy.ts" copy
+import type { IApiAuthorizationRuleContext, IApiAuthorizationScope, TApiAuthorizationPolicyBeforeGetListResult, TApiAuthorizationPolicyBeforeGetResult, TApiAuthorizationPolicyCustomActionResult, TApiAuthorizationRuleResultTransform, TApiAuthorizationRuleScopeResolver } from "@elsikora/nestjs-crud-automator";
+
 import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
-import type { TApiAuthorizationPolicyBeforeDeleteResult, TApiAuthorizationPolicyBeforeGetResult, TApiAuthorizationPolicyCustomActionResult } from "@elsikora/nestjs-crud-automator";
+import { EUserRole } from "../user-role.enum";
 import { UserEntity } from "../user.entity";
 
 @ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	onBeforeGet(): TApiAuthorizationPolicyBeforeGetResult<UserEntity> {
-		return this.allow({
-			scope: ({ subject }) => ({ where: { id: subject.id } }),
+	public onBeforeGet(): TApiAuthorizationPolicyBeforeGetResult<UserEntity> {
+		const resultTransform: TApiAuthorizationRuleResultTransform<UserEntity, UserEntity> = (result: UserEntity, context: IApiAuthorizationRuleContext<UserEntity>): UserEntity => {
+			if (!context.subject.roles.includes(EUserRole.ADMIN)) {
+				result.email = "***";
+			}
+
+			return result;
+		};
+
+		return this.allowForRoles([EUserRole.ADMIN], {
+			description: "Admins can fetch users by id",
+			scope: (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => ({
+				where: { id: context.subject.id },
+			}),
+			resultTransform,
 		});
 	}
 
-	onBeforeDelete(): TApiAuthorizationPolicyBeforeDeleteResult<UserEntity> {
-		return this.deny({
-			description: "Only administrators can delete users",
-			condition: ({ subject }) => !subject.roles.includes("admin"),
+	public onBeforeGetList(): TApiAuthorizationPolicyBeforeGetListResult<UserEntity> {
+		const scope: TApiAuthorizationRuleScopeResolver<UserEntity> = (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => ({
+			where: { ownerId: context.subject.id },
+		});
+
+		return this.allowForRoles([EUserRole.ADMIN], {
+			description: "Admins can list users in their tenant",
+			scope,
 		});
 	}
 
-	getCustomActionRule(action: "promote"): TApiAuthorizationPolicyCustomActionResult<UserEntity, "promote"> {
+	public getCustomActionRule(action: "promote"): TApiAuthorizationPolicyCustomActionResult<UserEntity, "promote"> {
 		if (action === "promote") {
-			return this.allowForRoles(["admin"]);
+			return this.allowForRoles([EUserRole.ADMIN]);
 		}
 
 		return undefined;
@@ -201,9 +219,9 @@ Every standard hook now knows the precise result type, so `resultTransform` rece
 - DELETE returns `void`, so transforms there can only trigger side effects.
 - Custom actions fall back to the union type; specify `this.allow<TCustomResult>({ ... })` if you need to narrow it.
 
-## No Controller Configuration
+## Controller Opt-In
 
-Controller metadata no longer needs any `authorization` flags. The guard:
+Mark controllers once with `@ApiControllerSecurable()` to enable policy evaluation. The guard:
 
 1. Resolves the entity from controller metadata
 2. Infers the action from the handler name

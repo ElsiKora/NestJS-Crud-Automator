@@ -14,10 +14,10 @@ Understanding the execution order of subscribers and operations is crucial for i
 5. Service method: create() called
 6. Function subscribers: onBeforeCreate (priority: high → low)
 7. Repository: save() executed
-8. Function subscribers: onAfterCreate (priority: low → high)
+8. Function subscribers: onAfterCreate (priority: high → low)
 9. Service returns result
 10. Controller transformers (response)
-11. Route subscribers: onAfterCreate (priority: low → high)
+11. Route subscribers: onAfterCreate (priority: high → low)
 12. HTTP Response sent to client
 ```
 
@@ -32,10 +32,10 @@ Understanding the execution order of subscribers and operations is crucial for i
 6. Function subscribers: onBeforeUpdate (priority: high → low)
 7. Repository: findOne() to get existing entity
 8. Repository: save() executed with updates
-9. Function subscribers: onAfterUpdate (priority: low → high)
+9. Function subscribers: onAfterUpdate (priority: high → low)
 10. Service returns result
 11. Controller transformers (response)
-12. Route subscribers: onAfterUpdate (priority: low → high)
+12. Route subscribers: onAfterUpdate (priority: high → low)
 13. HTTP Response sent to client
 ```
 
@@ -47,10 +47,10 @@ Understanding the execution order of subscribers and operations is crucial for i
 3. Service method: get() called
 4. Function subscribers: onBeforeGet (priority: high → low)
 5. Repository: findOne() executed
-6. Function subscribers: onAfterGet (priority: low → high)
+6. Function subscribers: onAfterGet (priority: high → low)
 7. Service returns result
 8. Controller transformers (response)
-9. Route subscribers: onAfterGet (priority: low → high)
+9. Route subscribers: onAfterGet (priority: high → low)
 10. HTTP Response sent to client
 ```
 
@@ -63,10 +63,10 @@ Understanding the execution order of subscribers and operations is crucial for i
 4. Service method: getList() called
 5. Function subscribers: onBeforeGetList (priority: high → low)
 6. Repository: find() and count() executed
-7. Function subscribers: onAfterGetList (priority: low → high)
+7. Function subscribers: onAfterGetList (priority: high → low)
 8. Service returns result with pagination metadata
 9. Controller transformers (response)
-10. Route subscribers: onAfterGetList (priority: low → high)
+10. Route subscribers: onAfterGetList (priority: high → low)
 11. HTTP Response sent to client
 ```
 
@@ -79,9 +79,9 @@ Understanding the execution order of subscribers and operations is crucial for i
 4. Function subscribers: onBeforeDelete (priority: high → low)
 5. Repository: findOne() to verify existence
 6. Repository: delete() or softDelete() executed
-7. Function subscribers: onAfterDelete (priority: low → high)
+7. Function subscribers: onAfterDelete (priority: high → low)
 8. Service returns result
-9. Route subscribers: onAfterDelete (priority: low → high)
+9. Route subscribers: onAfterDelete (priority: high → low)
 10. HTTP Response sent to client
 ```
 
@@ -139,14 +139,14 @@ export class LoggingSubscriber {
 
 ### After Hooks
 
-Execute in reverse priority order (low to high):
+Execute in priority order (high to low):
 
 ```typescript
-// Priority 10 executes first
-@ApiRouteSubscriber({ entity: Post, priority: 10 })
-export class LoggingSubscriber {
+// Priority 100 executes first
+@ApiRouteSubscriber({ entity: Post, priority: 100 })
+export class NotificationSubscriber {
 	async onAfterCreate(context) {
-		console.log("1. Logging result");
+		console.log("1. Send notifications");
 		return context.result;
 	}
 }
@@ -160,11 +160,11 @@ export class CacheSubscriber {
 	}
 }
 
-// Priority 100 executes last
-@ApiRouteSubscriber({ entity: Post, priority: 100 })
-export class NotificationSubscriber {
+// Priority 10 executes last
+@ApiRouteSubscriber({ entity: Post, priority: 10 })
+export class LoggingSubscriber {
 	async onAfterCreate(context) {
-		console.log("3. Send notifications");
+		console.log("3. Logging result");
 		return context.result;
 	}
 }
@@ -227,12 +227,12 @@ export class PostService extends ApiServiceBase<PostEntity> {
 All subscriber hooks are async and execute sequentially:
 
 ```typescript
-async onBeforeCreate(context: any): Promise<any> {
+async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PostEntity>): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"] | undefined> {
   // Operation 1 completes first
   await this.validateData(context.result.body);
 
   // Operation 2 completes second
-  await this.checkPermissions(context.DATA.authenticationRequest?.user);
+  await this.checkPermissions(context.result.authenticationRequest?.user);
 
   // Operation 3 completes third
   await this.enrichData(context.result.body);
@@ -246,8 +246,8 @@ async onBeforeCreate(context: any): Promise<any> {
 Throw an error to stop execution:
 
 ```typescript
-async onBeforeCreate(context: any): Promise<any> {
-  const user = context.DATA.authenticationRequest?.user;
+async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PostEntity>): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity>["result"] | undefined> {
+  const user = context.result.authenticationRequest?.user;
 
   if (!user || user.role !== "admin") {
     // Stops here, error hooks are called
@@ -286,13 +286,13 @@ async onBeforeCreate(context: any): Promise<any> {
 
 ## Transaction Boundaries
 
-Function subscribers operate within database transactions:
+Function subscribers can participate in transactions when an `eventManager` is provided:
 
 ```typescript
 async onBeforeCreate(
-  context: IApiSubscriberFunctionExecutionContext<PostEntity, any>
-): Promise<any> {
-  const manager = context.DATA.transactionManager;
+  context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>
+): Promise<TApiFunctionCreateProperties<PostEntity>> {
+  const manager = context.DATA.eventManager;
 
   if (manager) {
     // All operations within same transaction
@@ -304,7 +304,7 @@ async onBeforeCreate(
   }
 
   return context.result;
-  // If any operation fails, entire transaction rolls back
+  // If any operation fails, the transaction rolls back
 }
 ```
 

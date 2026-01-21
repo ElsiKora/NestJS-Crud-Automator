@@ -66,24 +66,34 @@ interface IApiControllerAuthentication {
 
 ## Subscriber Interfaces
 
-### IApiSubscriberRouteExecutionContext\<E, Result\>
+### IApiSubscriberRouteExecutionContext\<E, Result, Input\>
 
 Execution context for route subscribers.
 
 ```typescript
-interface IApiSubscriberRouteExecutionContext<E, Result> {
+interface IApiSubscriberRouteExecutionContext<E, Result, Input = unknown> {
 	readonly ENTITY: E;
-	readonly DATA: {
-		readonly method: string;
-		readonly methodName: string;
-		readonly properties: IApiControllerProperties<E>;
-		readonly entityMetadata: IApiEntity<E>;
-		readonly authenticationRequest?: IApiAuthenticationRequest;
-		readonly headers: Record<string, string>;
-		readonly ip: string;
-	};
+	readonly DATA: Input;
 	readonly ROUTE_TYPE: EApiRouteType;
 	result: Result;
+}
+```
+
+Use `IApiSubscriberRouteExecutionContextData<E>` for before hooks and `IApiSubscriberRouteExecutionContextDataExtended<E, R>` for after/error hooks when you need typed access to authentication, headers, IP, or `authorizationDecision`:
+
+```typescript
+interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity> {
+	entityMetadata: IApiEntity<E>;
+	method: EApiRouteType;
+	methodName: string;
+	properties: IApiControllerProperties<E>;
+}
+
+interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R> extends IApiSubscriberRouteExecutionContextData<E> {
+	authenticationRequest?: IApiAuthenticationRequest;
+	authorizationDecision?: IApiAuthorizationDecision<E, R>;
+	headers: Record<string, string>;
+	ip: string;
 }
 ```
 
@@ -91,19 +101,25 @@ interface IApiSubscriberRouteExecutionContext<E, Result> {
 
 - [Subscriber System - Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context)
 
-### IApiSubscriberFunctionExecutionContext\<E, Result\>
+### IApiSubscriberFunctionExecutionContext\<E, Result, Input\>
 
 Execution context for function subscribers.
 
 ```typescript
-interface IApiSubscriberFunctionExecutionContext<E, Result> {
+interface IApiSubscriberFunctionExecutionContext<E, Result, Input = unknown> {
 	readonly ENTITY: E;
-	readonly DATA: {
-		readonly method: string;
-		readonly entityMetadata: IApiEntity<E>;
-		readonly transactionManager?: EntityManager;
-	};
+	readonly DATA: Input;
+	readonly FUNCTION_TYPE: EApiFunctionType;
 	result: Result;
+}
+```
+
+Use `IApiSubscriberFunctionExecutionContextData<E>` to access `eventManager` and `repository`:
+
+```typescript
+interface IApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity> {
+	eventManager?: EntityManager;
+	repository: Repository<E>;
 }
 ```
 
@@ -117,11 +133,17 @@ Interface for route subscribers.
 
 ```typescript
 interface IApiSubscriberRoute<E> {
-	onBeforeCreate?(context: IApiSubscriberRouteExecutionContext<E, any>): Promise<any>;
-	onAfterCreate?(context: IApiSubscriberRouteExecutionContext<E, E>): Promise<E | undefined>;
-	onBeforeErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	onAfterErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E>, error: Error): Promise<void>;
-	// ... similar methods for update, get, getList, getMany, delete
+	onBeforeCreate?(context: TApiSubscriberRouteBeforeCreateContext<E>): Promise<TApiSubscriberRouteBeforeCreateContext<E>["result"] | undefined>;
+	onAfterCreate?(context: TApiSubscriberRouteAfterCreateContext<E>): Promise<E | undefined>;
+	onBeforeGetList?(context: TApiSubscriberRouteBeforeGetListContext<E>): Promise<TApiSubscriberRouteBeforeGetListContext<E>["result"] | undefined>;
+	onAfterGetList?(context: TApiSubscriberRouteAfterGetListContext<E>): Promise<IApiGetListResponseResult<E> | undefined>;
+	onBeforeUpdate?(context: TApiSubscriberRouteBeforeUpdateContext<E>): Promise<TApiSubscriberRouteBeforeUpdateContext<E>["result"] | undefined>;
+	onAfterUpdate?(context: TApiSubscriberRouteAfterUpdateContext<E>): Promise<E | undefined>;
+	onBeforePartialUpdate?(context: TApiSubscriberRouteBeforePartialUpdateContext<E>): Promise<TApiSubscriberRouteBeforePartialUpdateContext<E>["result"] | undefined>;
+	onAfterPartialUpdate?(context: TApiSubscriberRouteAfterPartialUpdateContext<E>): Promise<E | undefined>;
+	onBeforeDelete?(context: TApiSubscriberRouteBeforeDeleteContext<E>): Promise<TApiSubscriberRouteBeforeDeleteContext<E>["result"] | undefined>;
+	onAfterDelete?(context: TApiSubscriberRouteAfterDeleteContext<E>): Promise<Partial<E> | undefined>;
+	// ... error hooks follow the same operation names (onBeforeErrorCreate, onAfterErrorUpdate, etc.)
 }
 ```
 
@@ -131,11 +153,13 @@ Interface for function subscribers.
 
 ```typescript
 interface IApiSubscriberFunction<E> {
-	onBeforeCreate?(context: IApiSubscriberFunctionExecutionContext<E, any>): Promise<any>;
-	onAfterCreate?(context: IApiSubscriberFunctionExecutionContext<E, E>): Promise<E | undefined>;
-	onBeforeErrorCreate?(context: IApiSubscriberFunctionErrorExecutionContext<E>, error: Error): Promise<void>;
-	onAfterErrorCreate?(context: IApiSubscriberFunctionErrorExecutionContext<E>, error: Error): Promise<void>;
-	// ... similar methods for update, get, getList, getMany, delete
+	onBeforeCreate?(context: TApiSubscriberFunctionBeforeCreateContext<E>): Promise<TApiFunctionCreateProperties<E> | undefined>;
+	onAfterCreate?(context: TApiSubscriberFunctionAfterCreateContext<E>): Promise<E | undefined>;
+	onBeforeGetList?(context: TApiSubscriberFunctionBeforeGetListContext<E>): Promise<TApiFunctionGetListProperties<E> | undefined>;
+	onAfterGetList?(context: TApiSubscriberFunctionAfterGetListContext<E>): Promise<IApiGetListResponseResult<E> | undefined>;
+	onBeforeDelete?(context: TApiSubscriberFunctionBeforeDeleteContext<E>): Promise<TApiFunctionDeleteCriteria<E> | undefined>;
+	onAfterDelete?(context: TApiSubscriberFunctionAfterDeleteContext<E>): Promise<E | undefined>;
+	// ... error hooks follow the same operation names (onBeforeErrorCreate, onAfterErrorUpdate, etc.)
 }
 ```
 

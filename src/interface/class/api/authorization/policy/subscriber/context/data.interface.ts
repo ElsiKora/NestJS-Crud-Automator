@@ -1,6 +1,6 @@
 import type { EApiRouteType } from "@enum/decorator/api/route-type.enum";
-import type { IApiAuthenticationRequest } from "@interface/api-authentication-request.interface";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationSubject } from "@interface/class/api/authorization/subject.interface";
 import type { IApiEntity } from "@interface/entity/interface";
 

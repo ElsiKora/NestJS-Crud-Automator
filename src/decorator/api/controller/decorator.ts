@@ -2,7 +2,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { TApiControllerConstructor } from "@type/decorator/api/controller";
 
-import { ApiControllerFactory } from "@factory/api";
+import { ApiControllerFactory } from "@factory/api-controller.factory";
 
 /**
  * Automatically generates CRUD endpoints for an entity.
