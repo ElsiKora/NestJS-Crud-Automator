@@ -201,6 +201,8 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 }
 ```
 
+Policy hooks return arrays of rules. Use an empty array (`[]`) when no rules apply.
+
 Once the module is imported, the guard is wired automatically and scopes/result transforms are applied to every securable generated route.
 
 ## Generated Endpoints

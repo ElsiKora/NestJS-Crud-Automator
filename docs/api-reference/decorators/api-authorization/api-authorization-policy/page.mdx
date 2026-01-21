@@ -63,7 +63,7 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 
 ### Return type helpers
 
-Use `TApiAuthorizationPolicyBefore*Result` and `TApiAuthorizationPolicyCustomActionResult` to make hook return types explicit.
+Use `TApiAuthorizationPolicyBefore*Result` and `TApiAuthorizationPolicyCustomActionResult` to make hook return types explicit. Hooks always return arrays of rules; use an empty array (`[]`) when no rules apply.
 
 ### Policy cache override
 

@@ -15,22 +15,24 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	/**
 	 * Creates an ALLOW rule with optional overrides.
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Rule fields to merge.
-	 * @returns {IApiAuthorizationPolicySubscriberRule<E>} Allow rule.
+	 * @returns {Array<IApiAuthorizationPolicySubscriberRule<E>>} Allow rule array.
 	 */
-	protected allow<R>(rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">): IApiAuthorizationPolicySubscriberRule<E, R> {
-		return {
-			effect: EAuthorizationEffect.ALLOW,
-			...rule,
-		};
+	protected allow<R>(rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">): Array<IApiAuthorizationPolicySubscriberRule<E, R>> {
+		return [
+			{
+				effect: EAuthorizationEffect.ALLOW,
+				...rule,
+			},
+		];
 	}
 
 	/**
 	 * Helper that creates an allow rule conditioned on the subject having at least one of the provided roles.
 	 * @param {Array<string>} roles - Roles that grant access.
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Optional overrides.
-	 * @returns {IApiAuthorizationPolicySubscriberRule<E>} Allow rule targeting the given roles.
+	 * @returns {Array<IApiAuthorizationPolicySubscriberRule<E>>} Allow rule array targeting the given roles.
 	 */
-	protected allowForRoles<R>(roles: Array<string>, rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">): IApiAuthorizationPolicySubscriberRule<E, R> {
+	protected allowForRoles<R>(roles: Array<string>, rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">): Array<IApiAuthorizationPolicySubscriberRule<E, R>> {
 		return this.allow({
 			condition: ({ subject }: IApiAuthorizationRuleContext<E>) => roles.some((role: string) => subject.roles.includes(role)),
 			...rule,
@@ -40,13 +42,15 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	/**
 	 * Creates a DENY rule with optional overrides.
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Rule fields to merge.
-	 * @returns {IApiAuthorizationPolicySubscriberRule<E>} Deny rule.
+	 * @returns {Array<IApiAuthorizationPolicySubscriberRule<E>>} Deny rule array.
 	 */
-	protected deny<R>(rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">): IApiAuthorizationPolicySubscriberRule<E, R> {
-		return {
-			effect: EAuthorizationEffect.DENY,
-			...rule,
-		};
+	protected deny<R>(rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">): Array<IApiAuthorizationPolicySubscriberRule<E, R>> {
+		return [
+			{
+				effect: EAuthorizationEffect.DENY,
+				...rule,
+			},
+		];
 	}
 
 	/**
@@ -56,9 +60,9 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Optional overrides.
 	 * @param {{ isRelation?: boolean }} [options] - Override relation handling; defaults to auto.
 	 * @param {boolean} [options.isRelation] - Whether the field is a relation (defaults to auto).
-	 * @returns {IApiAuthorizationPolicySubscriberRule<E>} Allow rule with owner scope.
+	 * @returns {Array<IApiAuthorizationPolicySubscriberRule<E>>} Allow rule array with owner scope.
 	 */
-	protected scopeToOwner<R>(ownerField: keyof E = "ownerId" as keyof E, rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">, options: { isRelation?: boolean } = {}): IApiAuthorizationPolicySubscriberRule<E, R> {
+	protected scopeToOwner<R>(ownerField: keyof E = "ownerId" as keyof E, rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> = {} as Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">, options: { isRelation?: boolean } = {}): Array<IApiAuthorizationPolicySubscriberRule<E, R>> {
 		const ownerFieldName: string = String(ownerField);
 		const isRelation: boolean = options.isRelation ?? !ownerFieldName.endsWith("Id");
 

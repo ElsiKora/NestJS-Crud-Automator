@@ -69,7 +69,7 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 			return this.allowForRoles([EUserRole.ADMIN]);
 		}
 
-		return undefined;
+		return [];
 	}
 }
 ```
@@ -86,13 +86,13 @@ Inside any policy hook, the `context` argument exposes:
 Hook names align with `EApiRouteType`:
 
 - `onBeforeCreate`, `onBeforeGet`, `onBeforeGetList`, `onBeforeUpdate`, `onBeforePartialUpdate`, `onBeforeDelete`
-- `getCustomActionRule(action)` handles non-standard methods such as `solve`, `promote`, etc.
+- `getCustomActionRule(action)` handles non-standard methods such as `solve`, `promote`, etc. Return an empty array when no rules apply.
 
 Every hook can return:
 
 - `this.allow()` / `this.deny()` helpers
 - arrays of rules (priority is `policyPriority + rulePriority`)
-- `undefined` to skip authorization for that action
+- an empty array (`[]`) when no rules apply
 
 To make return types explicit, use `TApiAuthorizationPolicyBefore*Result` and `TApiAuthorizationPolicyCustomActionResult`.
 

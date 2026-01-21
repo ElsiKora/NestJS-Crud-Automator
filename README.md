@@ -393,13 +393,13 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 	public onBeforeDelete(): TApiAuthorizationPolicyBeforeDeleteResult<UserEntity> {
 		return this.deny({
 			description: "Only admins can delete users",
-			condition: ({ subject }) => !subject.roles.includes("admin"),
+			condition: (context: IApiAuthorizationRuleContext<UserEntity>): boolean => !context.subject.roles.includes("admin"),
 		});
 	}
 }
 ```
 
-Policies can return allow/deny rules, merge scope conditions into generated queries, and transform responses before they are sent back to the client. `authorizationDecision.policyIds` lists all policy IDs contributing rules for the request. You can optionally enable policy caching globally via `ApiAuthorizationPolicyRegistry.configureCache()` or per policy via the `cache` option when policies are static.
+Policies return arrays of allow/deny rules, merge scope conditions into generated queries, and transform responses before they are sent back to the client. Return an empty array (`[]`) when no rules apply. `authorizationDecision.policyIds` lists all policy IDs contributing rules for the request. You can optionally enable policy caching globally via `ApiAuthorizationPolicyRegistry.configureCache()` or per policy via the `cache` option when policies are static.
 
 ### `CorrelationIDResponseBodyInterceptor`: Request Tracing
 
