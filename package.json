@@ -29,6 +29,7 @@
 		"dist"
 	],
 	"scripts": {
+		"branch": "npx @elsikora/git-branch-lint -b",
 		"prebuild": "rimraf dist",
 		"build": "npm run prebuild && rollup -c",
 		"commit": "cz",
@@ -64,6 +65,7 @@
 		"@elsikora/commitizen-plugin-commitlint-ai": "^2.1.1",
 		"@elsikora/eslint-config": "^3.10.0",
 		"@elsikora/eslint-plugin-nestjs-typed": "^3.0.1",
+		"@elsikora/git-branch-lint": "^1.1.2",
 		"@nestjs/common": "^11.1.12",
 		"@nestjs/core": "^11.1.12",
 		"@nestjs/passport": "^11.0.5",
