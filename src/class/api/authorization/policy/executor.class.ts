@@ -5,7 +5,7 @@ import type { TApiAuthorizationPolicySubscriberRuleResult } from "@type/class/ap
 
 import { EApiAuthorizationPolicyOnType } from "@enum/class/authorization/policy-on-type.enum";
 import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
-import { CapitalizeString } from "@utility/capitalize-string.utility";
+import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
 const policyExecutorLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationPolicyExecutor");
@@ -17,7 +17,7 @@ export class ApiAuthorizationPolicyExecutor {
 		const routeType: EApiRouteType | undefined = context.routeType ?? this.resolveRouteType(action);
 
 		if (routeType) {
-			const hookName: string = `on${EApiAuthorizationPolicyOnType.BEFORE}${CapitalizeString(routeType)}`;
+			const hookName: string = `on${EApiAuthorizationPolicyOnType.BEFORE}${CamelCaseString(routeType)}`;
 			const hook: unknown = subscriber[hookName as keyof IApiAuthorizationPolicySubscriber<E>];
 
 			if (typeof hook === "function") {

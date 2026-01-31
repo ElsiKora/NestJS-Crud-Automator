@@ -398,7 +398,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					}
 
 					const response: IApiGetListResponseResult<E> = await this.service.getList(requestProperties);
-					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.request?.transformers, properties, { response }, { authenticationRequest, headers, ip });
+					ApiControllerTransformData<E, typeof method>(properties.routes[method]?.response?.transformers, properties, { response }, { authenticationRequest, headers, ip });
 
 					const afterExecutionContext: IApiSubscriberRouteExecutionContext<E, IApiGetListResponseResult<E>> = {
 						DATA: { ...(beforeExecutionContext.DATA as object), authenticationRequest, authorizationDecision, headers, ip, query },
