@@ -85,6 +85,186 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 		expect(context.subject.id).toBe("user-42");
 	});
 
+	it("passes request metadata through to policy hook context", async () => {
+		const registry = new ApiAuthorizationPolicyRegistry();
+		const allowRule: IApiAuthorizationPolicySubscriberRule<PolicyEntity, PolicyEntity> = {
+			effect: EAuthorizationEffect.ALLOW,
+		};
+		const onBeforeCreate = vi.fn().mockResolvedValue([allowRule]);
+		const onBeforeGet = vi.fn().mockResolvedValue([allowRule]);
+		const onBeforeGetList = vi.fn().mockResolvedValue([allowRule]);
+		const onBeforePartialUpdate = vi.fn().mockResolvedValue([allowRule]);
+		const subscriber = {
+			onBeforeCreate,
+			onBeforeGet,
+			onBeforeGetList,
+			onBeforePartialUpdate,
+		} as IApiAuthorizationPolicySubscriber<PolicyEntity>;
+
+		registry.registerSubscriber({
+			entity: PolicyEntity,
+			policyId: "policy-metadata",
+			priority: 0,
+			subscriber,
+		});
+
+		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.CREATE, {
+			authenticationRequest: {
+				user: {
+					id: "user-42",
+				},
+			},
+			requestMetadata: {
+				body: { name: "Created via policy" },
+				headers: { "x-trace-id": "trace-create" },
+				ip: "127.0.0.1",
+			},
+		});
+
+		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, {
+			authenticationRequest: {
+				user: {
+					id: "user-42",
+				},
+			},
+			requestMetadata: {
+				headers: { "x-trace-id": "trace-get" },
+				ip: "127.0.0.2",
+				parameters: { id: "entity-1" },
+			},
+		});
+
+		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET_LIST, {
+			authenticationRequest: {
+				user: {
+					id: "user-42",
+				},
+			},
+			requestMetadata: {
+				headers: { "x-trace-id": "trace-list" },
+				ip: "127.0.0.3",
+				query: { limit: 10, page: 1 },
+			},
+		});
+
+		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.PARTIAL_UPDATE, {
+			authenticationRequest: {
+				user: {
+					id: "user-42",
+				},
+			},
+			requestMetadata: {
+				body: { name: "Updated via policy" },
+				headers: { "x-trace-id": "trace-update" },
+				ip: "127.0.0.4",
+				parameters: { id: "entity-2" },
+			},
+		});
+
+		expect(onBeforeCreate).toHaveBeenCalledTimes(1);
+		expect(onBeforeGet).toHaveBeenCalledTimes(1);
+		expect(onBeforeGetList).toHaveBeenCalledTimes(1);
+		expect(onBeforePartialUpdate).toHaveBeenCalledTimes(1);
+
+		expect(onBeforeCreate.mock.calls[0]?.[0]).toMatchObject({
+			body: { name: "Created via policy" },
+			headers: { "x-trace-id": "trace-create" },
+			ip: "127.0.0.1",
+		});
+		expect(onBeforeCreate.mock.calls[0]?.[0]?.DATA).toMatchObject({
+			body: { name: "Created via policy" },
+			headers: { "x-trace-id": "trace-create" },
+			ip: "127.0.0.1",
+		});
+
+		expect(onBeforeGet.mock.calls[0]?.[0]).toMatchObject({
+			headers: { "x-trace-id": "trace-get" },
+			ip: "127.0.0.2",
+			parameters: { id: "entity-1" },
+		});
+		expect(onBeforeGet.mock.calls[0]?.[0]?.DATA).toMatchObject({
+			headers: { "x-trace-id": "trace-get" },
+			ip: "127.0.0.2",
+			parameters: { id: "entity-1" },
+		});
+
+		expect(onBeforeGetList.mock.calls[0]?.[0]).toMatchObject({
+			headers: { "x-trace-id": "trace-list" },
+			ip: "127.0.0.3",
+			query: { limit: 10, page: 1 },
+		});
+		expect(onBeforeGetList.mock.calls[0]?.[0]?.DATA).toMatchObject({
+			headers: { "x-trace-id": "trace-list" },
+			ip: "127.0.0.3",
+			query: { limit: 10, page: 1 },
+		});
+
+		expect(onBeforePartialUpdate.mock.calls[0]?.[0]).toMatchObject({
+			body: { name: "Updated via policy" },
+			headers: { "x-trace-id": "trace-update" },
+			ip: "127.0.0.4",
+			parameters: { id: "entity-2" },
+		});
+		expect(onBeforePartialUpdate.mock.calls[0]?.[0]?.DATA).toMatchObject({
+			body: { name: "Updated via policy" },
+			headers: { "x-trace-id": "trace-update" },
+			ip: "127.0.0.4",
+			parameters: { id: "entity-2" },
+		});
+	});
+
+	it("uses a custom subject resolver when build options provide one", async () => {
+		const registry = new ApiAuthorizationPolicyRegistry();
+		const onBeforeGet = vi.fn().mockResolvedValue([
+			{
+				effect: EAuthorizationEffect.ALLOW,
+			},
+		]);
+		const subjectResolver = {
+			resolve: vi.fn().mockResolvedValue({
+				attributes: { operatorId: "operator-1" },
+				id: "custom-user",
+				permissions: ["admin.item.read"],
+				roles: ["operator-admin"],
+			}),
+		};
+
+		registry.registerSubscriber({
+			entity: PolicyEntity,
+			policyId: "policy-custom-resolver",
+			priority: 0,
+			subscriber: {
+				onBeforeGet,
+			} as IApiAuthorizationPolicySubscriber<PolicyEntity>,
+		});
+
+		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, {
+			authenticationRequest: {
+				user: {
+					id: "ignored-user",
+				},
+			},
+			subjectResolver,
+		});
+
+		expect(subjectResolver.resolve).toHaveBeenCalledWith(
+			{
+				id: "ignored-user",
+			},
+			{
+				user: {
+					id: "ignored-user",
+				},
+			},
+		);
+		expect(onBeforeGet.mock.calls[0]?.[0]?.subject).toMatchObject({
+			attributes: { operatorId: "operator-1" },
+			id: "custom-user",
+			permissions: ["admin.item.read"],
+			roles: ["operator-admin"],
+		});
+	});
+
 	it("caches rules when cache is enabled", async () => {
 		const registry = new ApiAuthorizationPolicyRegistry();
 		registry.configureCache({ isEnabled: true, ttlMs: 60_000 });

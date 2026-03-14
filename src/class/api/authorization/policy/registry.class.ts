@@ -4,6 +4,7 @@ import type { IApiAuthorizationPolicy, IApiAuthorizationPolicyRegistry, IApiAuth
 import type { IApiAuthorizationPolicyBuildOptions } from "@interface/class/api/authorization/policy/build-options.interface";
 import type { IApiAuthorizationPolicyCacheOptions } from "@interface/class/api/authorization/policy/cache-options.interface";
 import type { IApiAuthorizationPolicySubscriberContextData } from "@interface/class/api/authorization/policy/subscriber/context";
+import type { IApiAuthorizationSubjectResolver } from "@interface/class/api/authorization/resolver.interface";
 import type { IApiAuthorizationSubject } from "@interface/class/api/authorization/subject.interface";
 import type { IApiEntity } from "@interface/entity/interface";
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
@@ -34,7 +35,7 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		this.cacheOptions = { isEnabled: false };
 	}
 
-	public async buildAggregatedPolicy<E extends IApiBaseEntity, TAction extends string>(entity: TEntityConstructor<E>, action: TAction, options: IApiAuthorizationPolicyBuildOptions = {}): Promise<IApiAuthorizationPolicy<E, TApiAuthorizationPolicyHookResult<TAction, E>> | undefined> {
+	public async buildAggregatedPolicy<E extends IApiBaseEntity, TAction extends string>(entity: TEntityConstructor<E>, action: TAction, options: IApiAuthorizationPolicyBuildOptions<E> = {}): Promise<IApiAuthorizationPolicy<E, TApiAuthorizationPolicyHookResult<TAction, E>> | undefined> {
 		const entityName: string = this.getEntityName(entity);
 		policyRegistryLogger.debug(`Building aggregated policy for entity "${entityName}" action "${action}"`);
 
@@ -54,12 +55,13 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 
 		const entityMetadata: IApiEntity<E> = GenerateEntityInformation<E>(entity);
 		const routeType: EApiRouteType | undefined = this.resolveRouteType(action);
-		const { authenticationRequest, subject: subjectOverride }: IApiAuthorizationPolicyBuildOptions = options;
-		const subject: IApiAuthorizationSubject = subjectOverride ?? AuthorizationResolveDefaultSubject(authenticationRequest?.user);
+		const { authenticationRequest, requestMetadata, subject: subjectOverride, subjectResolver }: IApiAuthorizationPolicyBuildOptions<E> = options;
+		const subject: IApiAuthorizationSubject = await this.resolveSubject(authenticationRequest, subjectOverride, subjectResolver);
 
 		const contextData: IApiAuthorizationPolicySubscriberContextData<E> = {
 			action,
 			authenticationRequest,
+			...requestMetadata,
 			entity,
 			entityMetadata,
 			routeType,
@@ -251,6 +253,18 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		const routeTypes: Array<string> = Object.values(EApiRouteType) as Array<string>;
 
 		return routeTypes.find((routeType: string) => routeType === action) as EApiRouteType | undefined;
+	}
+
+	private async resolveSubject<E extends IApiBaseEntity>(authenticationRequest: IApiAuthorizationPolicyBuildOptions<E>["authenticationRequest"], subjectOverride: IApiAuthorizationSubject | undefined, subjectResolver: IApiAuthorizationSubjectResolver | undefined): Promise<IApiAuthorizationSubject> {
+		if (subjectOverride) {
+			return subjectOverride;
+		}
+
+		if (subjectResolver) {
+			return await subjectResolver.resolve(authenticationRequest?.user, authenticationRequest);
+		}
+
+		return AuthorizationResolveDefaultSubject(authenticationRequest?.user);
 	}
 }
 

@@ -15,6 +15,7 @@ import { E2eOwnerController, E2eOwnerEntity, E2eOwnerService } from "./owner";
 import { E2ePolicySubscriber } from "./policy";
 import { E2eService } from "./service";
 import { E2eFunctionPrioritySubscriber, E2eFunctionSubscriber, E2eRouteOrderSubscriber, E2eRouteSubscriber } from "./subscribers";
+import { e2eAuthorizationSubjectResolver } from "./subject-resolver";
 import { E2eTransformerErrorController } from "./transformer-error";
 import { E2eValidationPipe } from "./validation-pipe";
 
@@ -30,7 +31,9 @@ import { E2eValidationPipe } from "./validation-pipe";
 			type: "sqlite",
 		}),
 		TypeOrmModule.forFeature([E2eEntity, E2eOwnerEntity]),
-		ApiAuthorizationModule,
+		ApiAuthorizationModule.forRoot({
+			subjectResolver: e2eAuthorizationSubjectResolver,
+		}),
 		ApiSubscriberModule,
 	],
 	providers: [

@@ -23,6 +23,21 @@ describe("CRUD routes (E2E)", () => {
 		"x-timestamp": "1700000000",
 		"x-user-id": E2E_OWNER_ID,
 	};
+	const wildcardPermissionHeaders = (overrides: Record<string, string> = {}) => ({
+		"user-agent": "e2e-agent",
+		"x-user-id": E2E_OWNER_ID,
+		"x-user-permissions": "admin.item.*",
+		...overrides,
+	});
+	const customSubjectHeaders = (permissions: string, overrides: Record<string, string> = {}) => ({
+		"user-agent": "e2e-agent",
+		"x-auth-shape": "custom",
+		"x-policy-transform": "true",
+		"x-user-id": "custom-user",
+		"x-user-operator-id": E2E_OWNER_ID,
+		"x-user-permissions": permissions,
+		...overrides,
+	});
 	const withSignature = (signature: string) => ({ ...adminHeaders, "x-signature": signature });
 	const createItem = async (payload: Record<string, unknown>, headers: Record<string, string> = adminHeaders) =>
 		fastify.inject({
@@ -297,6 +312,136 @@ describe("CRUD routes (E2E)", () => {
 		const uuidBody = uuidResponse.json();
 		expect(uuidBody.policySubjectId).toBe("uuid-123");
 		expect(uuidBody.policyPermissions).toEqual(["perm-a", "perm-b"]);
+	});
+
+	it("allows wildcard permission-based access without admin role", async () => {
+		await createItem({ id: "item-permission", name: "PermissionBased", count: 1 });
+
+		const getResponse = await fastify.inject({
+			headers: wildcardPermissionHeaders({
+				"x-policy-transform": "true",
+				"x-signature": "item-permission",
+			}),
+			method: "GET",
+			url: "/items/item-permission",
+		});
+
+		expect(getResponse.statusCode).toBe(200);
+		expect(getResponse.json().policyPermissions).toEqual(["admin.item.*"]);
+
+		const listResponse = await fastify.inject({
+			headers: wildcardPermissionHeaders(),
+			method: "GET",
+			url: "/items?limit=10&page=1",
+		});
+
+		expect(listResponse.statusCode).toBe(200);
+		expect(listResponse.json().items).toHaveLength(1);
+	});
+
+	it("uses the configured custom subject resolver during HTTP authorization", async () => {
+		await createItem({ id: "item-custom-subject", name: "CustomSubject", count: 1 });
+
+		const getResponse = await fastify.inject({
+			headers: customSubjectHeaders("admin.item.read", {
+				"x-signature": "item-custom-subject",
+			}),
+			method: "GET",
+			url: "/items/item-custom-subject",
+		});
+
+		expect(getResponse.statusCode).toBe(200);
+		expect(getResponse.json().policyPermissions).toEqual(["admin.item.read"]);
+		expect(getResponse.json().policySubjectId).toBe("custom-user");
+	});
+
+	it("uses request body metadata in create authorization policies", async () => {
+		const deniedResponse = await createItem(
+			{
+				count: 1,
+				id: "item-create-owner-mismatch",
+				name: "payload-aware-denied-create",
+				ownerId: E2E_OWNER_ID_OTHER,
+			},
+			adminHeaders,
+		);
+
+		expect(deniedResponse.statusCode).toBe(403);
+	});
+
+	it("uses route parameters in get authorization policies", async () => {
+		await createItem({ id: "payload-denied-get", name: "DeniedGet", count: 1 });
+
+		const getResponse = await fastify.inject({
+			headers: withSignature("payload-denied-get"),
+			method: "GET",
+			url: "/items/payload-denied-get",
+		});
+
+		expect(getResponse.statusCode).toBe(403);
+	});
+
+	it("uses query metadata in get-list authorization policies", async () => {
+		await createItem({ id: "payload-query-item", name: "QueryDenied", count: 1 });
+
+		const listResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/items?forcePolicyDeny=true&limit=10&page=1",
+		});
+
+		expect(listResponse.statusCode).toBe(403);
+	});
+
+	it("uses body and route parameters in partial-update authorization policies", async () => {
+		await createItem({ id: "payload-aware-denied", name: "BeforePatch", count: 1 });
+
+		const patchResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "PATCH",
+			payload: { name: "PayloadDenied" },
+			url: "/items/payload-aware-denied",
+		});
+
+		expect(patchResponse.statusCode).toBe(403);
+	});
+
+	it("applies explicit permission denies before matching allows", async () => {
+		await createItem({ id: "item-blocked-update", name: "BlockedUpdate", count: 1 });
+
+		const deniedResponse = await fastify.inject({
+			headers: {
+				...adminHeaders,
+				"x-policy-block-update": "true",
+				"x-user-permission": "admin.item.update",
+			},
+			method: "PUT",
+			payload: { name: "ShouldNotPersist" },
+			url: "/items/item-blocked-update",
+		});
+
+		expect(deniedResponse.statusCode).toBe(403);
+	});
+
+	it("applies explicit payload-aware denies before matching allows", async () => {
+		await createItem({ id: "item-platform-admin-denied", name: "RoleAssignment", count: 1 });
+
+		const deniedResponse = await fastify.inject({
+			headers: {
+				...adminHeaders,
+				"x-user-permission": "admin.item.update",
+			},
+			method: "PUT",
+			payload: {
+				authorizedEntity: {
+					role: "platform-admin",
+				},
+				name: "ShouldNotPersist",
+			},
+			url: "/items/item-platform-admin-denied",
+		});
+
+		expect(deniedResponse.statusCode).toBe(403);
 	});
 
 	it("loads response relations for get and list", async () => {

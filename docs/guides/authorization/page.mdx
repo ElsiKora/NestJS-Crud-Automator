@@ -1,6 +1,6 @@
 # Authorization
 
-NestJS CRUD Automator now ships with a subscriber-style RBAC system. Policies are declared once, discovered automatically, and applied to securable controllers without manual guard wiring.
+NestJS CRUD Automator now ships with a subscriber-style authorization system. Policies are declared once, discovered automatically, and applied to securable controllers without manual guard wiring for both role-based and permission-based access rules.
 
 ## Enable the Authorization Module
 
@@ -21,63 +21,133 @@ export class AppModule {}
 ```
 
 > The authorization guard is attached automatically. Mark controllers with `@ApiControllerSecurable()` to enable policy evaluation; no `@UseGuards(ApiAuthorizationGuard)` calls are required.
+>
+> If the default `request.user -> subject` mapping is not enough, use `ApiAuthorizationModule.forRoot({ subjectResolver })` later in this guide to register a custom resolver.
 
 ## Create a Policy
 
 Policies mirror the subscriber system: decorate a class and extend `ApiAuthorizationPolicyBase`. The decorator only needs the entity; policy IDs and priorities default to predictable values.
 
 ```typescript filename="policies/user-access.policy.ts" copy
-import type { IApiAuthorizationRuleContext, IApiAuthorizationScope, TApiAuthorizationPolicyBeforeGetListResult, TApiAuthorizationPolicyBeforeGetResult, TApiAuthorizationPolicyCustomActionResult, TApiAuthorizationRuleResultTransform, TApiAuthorizationRuleScopeResolver } from "@elsikora/nestjs-crud-automator";
+import type {
+	IApiAuthorizationRuleContext,
+	IApiAuthorizationScope,
+	TApiAuthorizationPolicyBeforeCreateContext,
+	TApiAuthorizationPolicyBeforeGetContext,
+	TApiAuthorizationPolicyBeforeGetListContext,
+	TApiAuthorizationPolicyBeforeUpdateContext,
+} from "@elsikora/nestjs-crud-automator";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
-import { EUserRole } from "../user-role.enum";
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, EAuthorizationPermissionMatch } from "@elsikora/nestjs-crud-automator";
 import { UserEntity } from "../user.entity";
 
 @ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	public onBeforeGet(): TApiAuthorizationPolicyBeforeGetResult<UserEntity> {
-		const resultTransform: TApiAuthorizationRuleResultTransform<UserEntity, UserEntity> = (result: UserEntity, context: IApiAuthorizationRuleContext<UserEntity>): UserEntity => {
-			if (!context.subject.roles.includes(EUserRole.ADMIN)) {
-				result.email = "***";
-			}
+	private getOperatorId(subject: IApiAuthorizationRuleContext<UserEntity>["subject"]): string | undefined {
+		return subject.attributes?.operatorId as string | undefined;
+	}
 
-			return result;
+	private scopeToOperator(context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> {
+		return {
+			where: {
+				operatorId: this.getOperatorId(context.subject),
+			},
 		};
-
-		return this.allowForRoles([EUserRole.ADMIN], {
-			description: "Admins can fetch users by id",
-			scope: (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => ({
-				where: { id: context.subject.id },
-			}),
-			resultTransform,
-		});
 	}
 
-	public onBeforeGetList(): TApiAuthorizationPolicyBeforeGetListResult<UserEntity> {
-		const scope: TApiAuthorizationRuleScopeResolver<UserEntity> = (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => ({
-			where: { ownerId: context.subject.id },
-		});
+	public onBeforeCreate(context: TApiAuthorizationPolicyBeforeCreateContext<UserEntity>) {
+		const requestedOperatorId = context.body.operatorId;
+		const operatorId = this.getOperatorId(context.subject);
 
-		return this.allowForRoles([EUserRole.ADMIN], {
-			description: "Admins can list users in their tenant",
-			scope,
-		});
-	}
-
-	public getCustomActionRule(action: "promote"): TApiAuthorizationPolicyCustomActionResult<UserEntity, "promote"> {
-		if (action === "promote") {
-			return this.allowForRoles([EUserRole.ADMIN]);
+		if (requestedOperatorId !== undefined && requestedOperatorId !== operatorId) {
+			return [];
 		}
 
-		return [];
+		return [
+			...this.allowForRoles(["platform-admin"], {
+				description: "Platform admins can create users anywhere",
+			}),
+			...this.allowForPermissions(["admin.user.create"], {
+				description: "Operator admins can create users only inside their operator",
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>) => this.scopeToOperator(ruleContext),
+			}),
+		];
+	}
+
+	public onBeforeGet(context: TApiAuthorizationPolicyBeforeGetContext<UserEntity>) {
+		const isSelfRequest = context.parameters.id === context.subject.id;
+
+		return [
+			...this.allowForRoles(["platform-admin"], {
+				description: "Platform admins can read any user",
+			}),
+			...this.allowForPermissions(["admin.user.read"], {
+				description: "Operator admins can read users in their operator",
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>) => this.scopeToOperator(ruleContext),
+			}),
+			...(isSelfRequest
+				? this.allowForPermissions(["operator.user.read.self"], {
+						description: "Operator users can read only their own profile",
+						scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>) => ({
+							where: {
+								id: ruleContext.subject.id,
+								operatorId: this.getOperatorId(ruleContext.subject),
+							},
+						}),
+					})
+				: []),
+		];
+	}
+
+	public onBeforeGetList(context: TApiAuthorizationPolicyBeforeGetListContext<UserEntity>) {
+		const requestedOperatorId = context.query.filters?.operatorId;
+		const operatorId = this.getOperatorId(context.subject);
+
+		if (requestedOperatorId !== undefined && requestedOperatorId !== operatorId) {
+			return [];
+		}
+
+		return [
+			...this.allowForRoles(["platform-admin"], {
+				description: "Platform admins can list users globally",
+			}),
+			...this.allowForPermissions(["admin.user.read", "admin.user.list"], {
+				description: "Operator admins need both read and list permissions",
+				match: EAuthorizationPermissionMatch.ALL,
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>) => this.scopeToOperator(ruleContext),
+			}),
+		];
+	}
+
+	public onBeforeUpdate(context: TApiAuthorizationPolicyBeforeUpdateContext<UserEntity>) {
+		const wantsPlatformAdmin = context.body.role === "platform-admin";
+
+		return [
+			...(wantsPlatformAdmin
+				? this.deny({
+						description: "Operator admins may never assign the platform-admin role through update payloads",
+						priority: 1500,
+					})
+				: []),
+			...this.allowForPermissions(["admin.user.update"], {
+				description: "Operator admins can update users in their operator",
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>) => this.scopeToOperator(ruleContext),
+			}),
+			...this.denyForPermissions(["admin.user.update"], {
+				condition: ({ subject }: IApiAuthorizationRuleContext<UserEntity>) => Boolean((subject.attributes as { isOperatorLocked?: boolean } | undefined)?.isOperatorLocked),
+				description: "Locked operator admins cannot update users",
+				priority: 1000,
+			}),
+		];
 	}
 }
 ```
 
 Inside any policy hook, the `context` argument exposes:
 
-- `DATA` — typed container (includes `subject` and optional `authenticationRequest`);
+- `DATA` — typed container (includes `subject`, optional `authenticationRequest`, and mirrored request metadata);
 - `action` — a string action name (for example `get`, `create`, `promote`);
+- `body`, `parameters`, `query`, `headers`, and `ip` — optional request metadata populated by the authorization guard before the controller method executes;
 - `routeType` — an `EApiRouteType` value for standard CRUD hooks;
 - `entity` and `entityMetadata` — the model constructor and its metadata (columns, primary key, table name).
 
@@ -90,19 +160,132 @@ Hook names align with `EApiRouteType`:
 
 Every hook can return:
 
-- `this.allow()` / `this.deny()` helpers
+- `this.allow()`, `this.deny()`, `this.allowForRoles()`, `this.allowForPermissions()`, `this.denyForPermissions()`, and `this.scopeToOwner()` helpers
 - arrays of rules (priority is `policyPriority + rulePriority`)
 - an empty array (`[]`) when no rules apply
 
 To make return types explicit, use `TApiAuthorizationPolicyBefore*Result` and `TApiAuthorizationPolicyCustomActionResult`.
 
+### Payload-Aware Context
+
+Request metadata is available on both `context` and `context.DATA`. The fields stay optional on the base policy context for backward compatibility, so narrow them in the hook that actually owns them.
+
+For stronger route-aware typing, the package also exports helper context types:
+
+- `TApiAuthorizationPolicyBeforeCreateContext<E>`
+- `TApiAuthorizationPolicyBeforeGetContext<E>`
+- `TApiAuthorizationPolicyBeforeGetListContext<E>`
+- `TApiAuthorizationPolicyBeforeUpdateContext<E>`
+- `TApiAuthorizationPolicyBeforePartialUpdateContext<E>`
+
+These helpers make the relevant request metadata required for that route:
+
+- create: `body`, `headers`, `ip`
+- get: `parameters`, `headers`, `ip`
+- get-list: `query`, `headers`, `ip`
+- update / partial-update: `body`, `parameters`, `headers`, `ip`
+
+Use request metadata for authorization decisions, not as a replacement for DTO validation or business validation deeper in the stack.
+
+### Common Policy Patterns
+
+#### Role-Based Example
+
+```typescript filename="policies/user-role.policy.ts" copy
+onBeforeGet() {
+	return this.allowForRoles(["platform-admin"], {
+		description: "Platform admins can read any user",
+	});
+}
+```
+
+#### Permission-Based Example
+
+```typescript filename="policies/user-permissions.policy.ts" copy
+onBeforeGet() {
+	return this.allowForPermissions(["admin.user.read"], {
+		description: "Operator admins can read users in their operator",
+		scope: ({ subject }) => ({
+			where: {
+				operatorId: subject.attributes?.operatorId,
+			},
+		}),
+	});
+}
+```
+
+#### Mixed Role + Permission Example
+
+```typescript filename="policies/user-mixed.policy.ts" copy
+onBeforeGet() {
+	return [
+		...this.allowForRoles(["platform-admin"]),
+		...this.allowForPermissions(["admin.user.read"], {
+			scope: ({ subject }) => ({
+				where: {
+					operatorId: subject.attributes?.operatorId,
+				},
+			}),
+		}),
+	];
+}
+```
+
+#### Explicit Deny Example
+
+```typescript filename="policies/user-deny.policy.ts" copy
+onBeforeUpdate() {
+	return [
+		...this.allowForPermissions(["admin.user.update"], {
+			scope: ({ subject }) => ({
+				where: {
+					operatorId: subject.attributes?.operatorId,
+				},
+			}),
+		}),
+		...this.denyForPermissions(["admin.user.update"], {
+			condition: ({ subject }) => Boolean(subject.attributes?.isOperatorLocked),
+			priority: 1000,
+		}),
+	];
+}
+```
+
+#### Payload-Aware Example
+
+```typescript filename="policies/user-payload-aware.policy.ts" copy
+onBeforePartialUpdate(context: TApiAuthorizationPolicyBeforePartialUpdateContext<UserEntity>) {
+	const wantsPlatformAdmin = context.body.role === "platform-admin";
+	const requestedOperatorId = context.body.operatorId;
+
+	if (wantsPlatformAdmin) {
+		return this.deny({
+			description: "Operator admins cannot assign platform-admin through partial updates",
+			priority: 1500,
+		});
+	}
+
+	if (requestedOperatorId !== undefined && requestedOperatorId !== context.subject.attributes?.operatorId) {
+		return [];
+	}
+
+	return this.allowForPermissions(["admin.user.update"], {
+		scope: ({ subject }) => ({
+			where: {
+				operatorId: subject.attributes?.operatorId,
+			},
+		}),
+	});
+}
+```
+
 ## Subject Resolution
 
-`ApiAuthorizationGuard` normalizes `request.user` through `AuthorizationResolveDefaultSubject`, so every policy receives the same `IApiAuthorizationSubject` shape:
+`ApiAuthorizationGuard` normalizes `request.user` through `AuthorizationResolveDefaultSubject`, so every policy receives the same `IApiAuthorizationSubject` shape by default:
 
 - `id` — the first non-empty string among `id`, `uuid`, or `email`;
 - `roles` — the values coming from `roles` (array) or `role` (single string);
-- `permissions` — either an array from `permissions` or a single `permission` string;
+- `permissions` — either an array from `permissions` or a single `permission` string. These are the granted permissions used by `allowForPermissions()` / `denyForPermissions()`, and they may contain wildcards such as `admin.user.*` or `*`;
 - `attributes` — the original `request.user` object (helpful for tenant/organization data, etc.).
 
 Just make sure your auth layer injects roles and permissions into `request.user`:
@@ -118,7 +301,78 @@ return {
 };
 ```
 
-If you need a different structure, override the resolver — the only requirement is to return a valid `IApiAuthorizationSubject`.
+If you need a different structure, register a custom resolver:
+
+```typescript filename="app.module.ts" copy
+import { Module } from "@nestjs/common";
+import { ApiAuthorizationModule, AuthorizationResolveDefaultSubject } from "@elsikora/nestjs-crud-automator";
+
+@Module({
+	imports: [
+		ApiAuthorizationModule.forRoot({
+			subjectResolver: {
+				resolve(user) {
+					if (!user || typeof user !== "object" || !("access" in user)) {
+						return AuthorizationResolveDefaultSubject(user);
+					}
+
+					const payload = user as {
+						account: { id: string; operatorId: string };
+						access: { permissions: Array<string>; roles: Array<string> };
+					};
+
+					return {
+						attributes: {
+							operatorId: payload.account.operatorId,
+						},
+						id: payload.account.id,
+						permissions: payload.access.permissions,
+						roles: payload.access.roles,
+					};
+				},
+			},
+		}),
+	],
+})
+export class AppModule {}
+```
+
+For advanced Nest wiring, the package also exports `IApiAuthorizationSubjectResolver` and `AUTHORIZATION_SUBJECT_RESOLVER_TOKEN`.
+
+## Permission Matching
+
+Permission helpers treat the rule input as the required permission set and `subject.permissions` as the granted permissions:
+
+- `EAuthorizationPermissionMatch.ANY` is the default. At least one required permission must match.
+- `EAuthorizationPermissionMatch.ALL` requires every required permission to be satisfied.
+- Exact grants match exact required permissions only.
+- Wildcards are evaluated only on granted permissions, not on required permissions.
+
+Examples:
+
+- granted `admin.user.read` matches required `admin.user.read`
+- granted `admin.user.*` matches required `admin.user.read`
+- granted `admin.*` matches required `admin.brand.update`
+- granted `*` matches any required permission
+- granted `admin.user.read` does not match required `admin.user.update`
+
+```typescript filename="policies/user-list.policy.ts" copy
+onBeforeGetList() {
+	return this.allowForPermissions(["admin.user.read", "admin.user.list"], {
+		match: EAuthorizationPermissionMatch.ALL,
+		scope: ({ subject }) => ({
+			where: {
+				operatorId: subject.attributes?.operatorId,
+			},
+		}),
+	});
+}
+```
+
+If you need custom checks outside `ApiAuthorizationPolicyBase`, the package also exports:
+
+- `AuthorizationPermissionMatches(grantedPermission, requiredPermission)`
+- `AuthorizationPermissionSetMatches(grantedPermissions, requiredPermissions, { match })`
 
 ## Policy Caching (Optional)
 

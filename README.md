@@ -375,31 +375,131 @@ Mark controllers with `@ApiControllerSecurable()` to enable policy evaluation.
 
 ```typescript
 // policies/user-access.policy.ts
-import type { IApiAuthorizationRuleContext, IApiAuthorizationScope, TApiAuthorizationPolicyBeforeDeleteResult, TApiAuthorizationPolicyBeforeGetResult } from "@elsikora/nestjs-crud-automator";
+import type {
+	IApiAuthorizationRuleContext,
+	IApiAuthorizationScope,
+	TApiAuthorizationPolicyBeforeCreateContext,
+	TApiAuthorizationPolicyBeforeGetContext,
+	TApiAuthorizationPolicyBeforeGetListContext,
+	TApiAuthorizationPolicyBeforeUpdateContext,
+} from "@elsikora/nestjs-crud-automator";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, EAuthorizationPermissionMatch } from "@elsikora/nestjs-crud-automator";
 import { UserEntity } from "../user.entity";
 
 @ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	public onBeforeGet(): TApiAuthorizationPolicyBeforeGetResult<UserEntity> {
-		return this.allow({
-			scope: (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => ({
-				where: { id: context.subject.id },
-			}),
-		});
+	private scopeToOperator(context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> {
+		return {
+			where: {
+				operatorId: context.subject.attributes?.operatorId,
+			},
+		};
 	}
 
-	public onBeforeDelete(): TApiAuthorizationPolicyBeforeDeleteResult<UserEntity> {
-		return this.deny({
-			description: "Only admins can delete users",
-			condition: (context: IApiAuthorizationRuleContext<UserEntity>): boolean => !context.subject.roles.includes("admin"),
-		});
+	public onBeforeCreate(context: TApiAuthorizationPolicyBeforeCreateContext<UserEntity>) {
+		if (context.body.operatorId !== undefined && context.body.operatorId !== context.subject.attributes?.operatorId) {
+			return [];
+		}
+
+		return [
+			...this.allowForRoles(["platform-admin"]),
+			...this.allowForPermissions(["admin.user.create"], {
+				scope: (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => this.scopeToOperator(context),
+			}),
+		];
+	}
+
+	public onBeforeGet(context: TApiAuthorizationPolicyBeforeGetContext<UserEntity>) {
+		return [
+			...this.allowForRoles(["platform-admin"]),
+			...this.allowForPermissions(["admin.user.read"], {
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => this.scopeToOperator(ruleContext),
+			}),
+			...(context.parameters.id === context.subject.id
+				? this.allowForPermissions(["operator.user.read.self"], {
+						scope: () => ({
+							where: { id: context.subject.id, operatorId: context.subject.attributes?.operatorId },
+						}),
+					})
+				: []),
+		];
+	}
+
+	public onBeforeGetList(context: TApiAuthorizationPolicyBeforeGetListContext<UserEntity>) {
+		if (context.query.filters?.operatorId && context.query.filters.operatorId !== context.subject.attributes?.operatorId) {
+			return [];
+		}
+
+		return [
+			...this.allowForRoles(["platform-admin"]),
+			...this.allowForPermissions(["admin.user.read", "admin.user.list"], {
+				match: EAuthorizationPermissionMatch.ALL,
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => this.scopeToOperator(ruleContext),
+			}),
+		];
+	}
+
+	public onBeforeUpdate(context: TApiAuthorizationPolicyBeforeUpdateContext<UserEntity>) {
+		return [
+			...(context.body.role === "platform-admin"
+				? this.deny({
+						description: "Operator admins cannot assign platform-admin through update payloads",
+						priority: 1500,
+					})
+				: []),
+			...this.allowForPermissions(["admin.user.update"], {
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => this.scopeToOperator(ruleContext),
+			}),
+			...this.denyForPermissions(["admin.user.update"], {
+				condition: ({ subject }: IApiAuthorizationRuleContext<UserEntity>): boolean => Boolean(subject.attributes?.isOperatorLocked),
+				priority: 1000,
+			}),
+		];
 	}
 }
 ```
 
 Policies return arrays of allow/deny rules, merge scope conditions into generated queries, and transform responses before they are sent back to the client. Return an empty array (`[]`) when no rules apply. `authorizationDecision.policyIds` lists all policy IDs contributing rules for the request. You can optionally enable policy caching globally via `ApiAuthorizationPolicyRegistry.configureCache()` or per policy via the `cache` option when policies are static.
+
+Policy hook context now includes first-class request metadata: `body`, `parameters`, `query`, `headers`, and `ip`. For stronger typing, use `TApiAuthorizationPolicyBeforeCreateContext`, `TApiAuthorizationPolicyBeforeGetContext`, `TApiAuthorizationPolicyBeforeGetListContext`, `TApiAuthorizationPolicyBeforeUpdateContext`, and `TApiAuthorizationPolicyBeforePartialUpdateContext`.
+
+Permission helpers use the permissions granted in `subject.permissions`. Exact grants match exact required permissions, while granted wildcards such as `admin.user.*`, `admin.*`, and `*` expand deterministically. `EAuthorizationPermissionMatch.ANY` is the default; use `EAuthorizationPermissionMatch.ALL` when every listed permission is required.
+
+For custom logic outside a policy class, the package also exports `AuthorizationPermissionMatches()` and `AuthorizationPermissionSetMatches()`.
+
+When your auth payload does not already match the default `request.user` heuristics, register a custom subject resolver:
+
+```typescript
+import { ApiAuthorizationModule, AuthorizationResolveDefaultSubject } from "@elsikora/nestjs-crud-automator";
+
+@Module({
+	imports: [
+		ApiAuthorizationModule.forRoot({
+			subjectResolver: {
+				resolve(user) {
+					if (!user || typeof user !== "object" || !("account" in user)) {
+						return AuthorizationResolveDefaultSubject(user);
+					}
+
+					const payload = user as {
+						account: { id: string; operatorId: string };
+						access: { permissions: Array<string>; roles: Array<string> };
+					};
+
+					return {
+						attributes: { operatorId: payload.account.operatorId },
+						id: payload.account.id,
+						permissions: payload.access.permissions,
+						roles: payload.access.roles,
+					};
+				},
+			},
+		}),
+	],
+})
+export class AppModule {}
+```
 
 ### `CorrelationIDResponseBodyInterceptor`: Request Tracing
 
