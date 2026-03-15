@@ -1,4 +1,5 @@
 import type { EApiRouteType } from "@enum/decorator/api";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
@@ -8,7 +9,7 @@ import { EApiDtoType } from "@enum/decorator/api";
 import { assignMetadata } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
-import { DtoGenerate } from "@utility/dto";
+import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 
 /**
  * Applies metadata for NestJS controller methods to enable proper dependency injection.
@@ -23,14 +24,14 @@ import { DtoGenerate } from "@utility/dto";
  * @returns {void}
  * @template E - The entity type
  */
-export function ApiControllerApplyMetadata<E>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>): void {
+export function ApiControllerApplyMetadata<E extends IApiBaseEntity>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>): void {
 	let parameterIndex: number = 0;
 	let routeArgumentsMetadata: unknown = {};
 	const parameterTypes: Array<unknown> = [];
 
-	const requestDto: Type<unknown> | undefined = routeConfig.dto?.request ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.REQUEST, routeConfig.autoDto?.[EApiDtoType.REQUEST], routeConfig.authentication?.guard);
-	const queryDto: Type<unknown> | undefined = routeConfig.dto?.query ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.QUERY, routeConfig.autoDto?.[EApiDtoType.QUERY], routeConfig.authentication?.guard);
-	const bodyDto: Type<unknown> | undefined = routeConfig.dto?.body ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.BODY, routeConfig.autoDto?.[EApiDtoType.BODY], routeConfig.authentication?.guard);
+	const requestDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.REQUEST, routeConfig);
+	const queryDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.QUERY, routeConfig);
+	const bodyDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.BODY, routeConfig);
 
 	if (requestDto) {
 		routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.PARAM, parameterIndex);

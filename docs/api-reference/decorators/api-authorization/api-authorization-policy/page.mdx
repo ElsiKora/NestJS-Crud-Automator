@@ -1,6 +1,6 @@
 # `@ApiAuthorizationPolicy`
 
-Registers a class as an authorization policy for a specific entity. Policies execute before every secured CRUD route and can allow/deny requests based on custom logic.
+Registers a hooks-mode authorization policy for a specific entity. Policies are auto-discovered by entity and executed when a securable controller selects `EApiAuthorizationMode.HOOKS`.
 
 ## Signature
 
@@ -15,20 +15,22 @@ Registers a class as an authorization policy for a specific entity. Policies exe
 
 ## Options
 
-| Option        | Description                                                                                                          |
-| ------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `cache`       | Optional cache override for this policy (`isEnabled`, `ttlMs`).                                                      |
-| `entity`      | Entity this policy protects. Required.                                                                               |
-| `priority`    | Higher priorities execute earlier. Defaults to `0`.                                                                  |
+| Option        | Description                                                                                                           |
+| ------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `cache`       | Optional cache override for this policy (`isEnabled`, `ttlMs`).                                                       |
+| `entity`      | Entity this policy protects. Required.                                                                                |
+| `priority`    | Higher priorities execute earlier. Defaults to `0`.                                                                   |
 | `policyId`    | Optional custom identifier. Defaults to `<entityName>Policy`. Useful when multiple policies protect the same entity. |
-| `description` | Short summary displayed in tooling or logs.                                                                          |
+| `description` | Short summary displayed in tooling or logs.                                                                           |
 
 ## Usage steps
 
-1. Extend `ApiAuthorizationPolicyBase<E>` and implement lifecycle hooks (`onBeforeCreate`, `onBeforeGetList`, etc.).
-2. Decorate the class with `@ApiAuthorizationPolicy`.
-3. Import `ApiAuthorizationModule` so policies are discovered. Use `ApiAuthorizationModule.forRoot({ subjectResolver })` when you need a custom subject resolver.
-4. Add `@ApiControllerSecurable()` (and optionally `@ApiController`) to controllers that should enforce policies.
+1. Extend `ApiAuthorizationPolicyBase<E>` and implement lifecycle hooks such as `onBeforeGetList`.
+2. Decorate the class with `@ApiAuthorizationPolicy({ entity })`.
+3. Import `ApiAuthorizationModule` and register `hookPermissionSources` and `principalResolver` when needed, using `forRoot(...)` for plain values or `forRootAsync(...)` for DI-backed providers.
+4. Mark controllers with `@ApiControllerSecurable()` and choose `defaultMode: EApiAuthorizationMode.HOOKS` in `@ApiController({ authorization })`.
+
+This decorator has no effect in IAM mode.
 
 ## Example
 
@@ -36,12 +38,15 @@ Registers a class as an authorization policy for a specific entity. Policies exe
 import type {
 	IApiAuthorizationRuleContext,
 	IApiAuthorizationScope,
-	TApiAuthorizationPolicyBeforeCreateContext,
 	TApiAuthorizationPolicyBeforeGetListContext,
 	TApiAuthorizationPolicyBeforeUpdateContext,
 } from "@elsikora/nestjs-crud-automator";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, EAuthorizationPermissionMatch } from "@elsikora/nestjs-crud-automator";
+import {
+	EApiAuthorizationPermissionMatch,
+	ApiAuthorizationPolicy,
+	ApiAuthorizationPolicyBase,
+} from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
 @ApiAuthorizationPolicy<UserEntity>({
@@ -50,32 +55,20 @@ import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, EAuthorizationPermi
 	description: "Allow platform admins and operator admins to manage users",
 })
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
+	private getOperatorId(principal: IApiAuthorizationRuleContext<UserEntity>["principal"]): string | undefined {
+		return principal.attributes.operatorId as string | undefined;
+	}
+
 	private scopeToOperator(context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> {
 		return {
 			where: {
-				operatorId: context.subject.attributes?.operatorId,
+				operatorId: this.getOperatorId(context.principal),
 			},
 		};
 	}
 
-	public onBeforeCreate(context: TApiAuthorizationPolicyBeforeCreateContext<UserEntity>) {
-		if (context.body.operatorId !== undefined && context.body.operatorId !== context.subject.attributes?.operatorId) {
-			return [];
-		}
-
-		return [
-			...this.allowForRoles(["platform-admin"], {
-				description: "Platform admins can create users anywhere",
-			}),
-			...this.allowForPermissions(["admin.user.create"], {
-				description: "Operator admins can create users only in their operator",
-				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>) => this.scopeToOperator(ruleContext),
-			}),
-		];
-	}
-
 	public onBeforeGetList(context: TApiAuthorizationPolicyBeforeGetListContext<UserEntity>) {
-		if (context.query.filters?.operatorId && context.query.filters.operatorId !== context.subject.attributes?.operatorId) {
+		if (context.query.filters?.operatorId && context.query.filters.operatorId !== this.getOperatorId(context.principal)) {
 			return [];
 		}
 
@@ -85,28 +78,20 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 			}),
 			...this.allowForPermissions(["admin.user.read", "admin.user.list"], {
 				description: "Operator admins need both read and list permissions",
-				match: EAuthorizationPermissionMatch.ALL,
-				scope: (context: IApiAuthorizationRuleContext<UserEntity>) => this.scopeToOperator(context),
+				match: EApiAuthorizationPermissionMatch.ALL,
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>) => this.scopeToOperator(ruleContext),
 			}),
 		];
 	}
 
-	public onBeforeUpdate(context: TApiAuthorizationPolicyBeforeUpdateContext<UserEntity>) {
-		const wantsPlatformAdmin = context.body.role === "platform-admin";
-
+	public onBeforeUpdate(_context: TApiAuthorizationPolicyBeforeUpdateContext<UserEntity>) {
 		return [
-			...(wantsPlatformAdmin
-				? this.deny({
-						description: "Operator admins may never assign platform-admin through update payloads",
-						priority: 1500,
-					})
-				: []),
 			...this.allowForPermissions(["admin.user.update"], {
 				description: "Operator admins can update users inside their operator",
-				scope: (context: IApiAuthorizationRuleContext<UserEntity>) => this.scopeToOperator(context),
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>) => this.scopeToOperator(ruleContext),
 			}),
 			...this.denyForPermissions(["admin.user.update"], {
-				condition: ({ subject }: IApiAuthorizationRuleContext<UserEntity>) => Boolean(subject.attributes?.isOperatorLocked),
+				condition: ({ principal }: IApiAuthorizationRuleContext<UserEntity>) => Boolean(principal.attributes.isOperatorLocked),
 				description: "Locked operator admins are denied even if an allow also matches",
 				priority: 1000,
 			}),
@@ -115,7 +100,7 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 }
 ```
 
-### Helper methods
+## Helper methods
 
 `ApiAuthorizationPolicyBase` exposes helpers for the most common rule shapes:
 
@@ -125,13 +110,20 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 - `denyForPermissions()` for explicit permission-based denies
 - `scopeToOwner()` for owner scoping
 
-### Hook context
+Hooks always return arrays of rules. Use an empty array (`[]`) when no rules apply.
+
+## Hook context
 
 Policy hooks receive:
 
-- `subject`, `authenticationRequest`, `entity`, `entityMetadata`, `action`, and `routeType`
+- `principal` and resolved `permissions`
 - request metadata via `body`, `parameters`, `query`, `headers`, and `ip`
-- the same values again under `context.DATA` for parity with the rest of the subscriber system
+- `action`, `routeType`, `entity`, and `entityMetadata`
+- the same values again under `context.DATA`
+
+`action` is always the runtime authorization action string. `routeType` is only populated for auto-generated CRUD routes.
+
+Custom `@ApiMethod(...)` routes do not dispatch to `onBeforeCreate`, `onBeforeUpdate`, and similar CRUD hooks. Handle them in `getCustomActionRule(action, context)` and branch on the same string you declared in `@ApiMethod({ authorization: { action: "..." } })`.
 
 For stronger route-aware typing, use:
 
@@ -141,52 +133,39 @@ For stronger route-aware typing, use:
 - `TApiAuthorizationPolicyBeforeUpdateContext<E>`
 - `TApiAuthorizationPolicyBeforePartialUpdateContext<E>`
 
-### Permission matching
+Use `TApiAuthorizationPolicyBefore*Result` and `TApiAuthorizationPolicyCustomActionResult` to make hook return types explicit.
 
-Permission helpers read granted permissions from `subject.permissions` and compare them to the required permission list passed into the helper:
+## Permission matching
 
-- `match: EAuthorizationPermissionMatch.ANY` is the default
-- `match: EAuthorizationPermissionMatch.ALL` requires every listed permission
+Permission helpers read granted permissions from `context.permissions`, which are resolved by your configured hook permission sources:
+
+- `match: EApiAuthorizationPermissionMatch.ANY` is the default
+- `match: EApiAuthorizationPermissionMatch.ALL` requires every listed permission
 - granted permissions may use wildcards such as `admin.user.*`, `admin.*`, or `*`
 - required permissions should stay concrete, for example `admin.user.read`
 
-### Custom subject resolvers
+Outside `ApiAuthorizationPolicyBase`, use:
 
-When `request.user` does not already match the default resolver heuristics, register a custom resolver with `ApiAuthorizationModule.forRoot({ subjectResolver })`.
+- `AuthorizationPermissionMatches(grantedPermission, requiredPermission)`
+- `AuthorizationPermissionSetMatches(grantedPermissions, requiredPermissions, { match })`
+
+## Principal resolution
+
+When `request.user` does not already match the built-in resolver heuristics, register a custom resolver with `ApiAuthorizationModule.forRoot({ principalResolver })`.
+
+If the resolver or hook permission sources depend on Nest providers such as `Repository`, `DataSource`, or other services, use `ApiAuthorizationModule.forRootAsync(...)` instead. The public API exports `IApiAuthorizationModuleAsyncOptions` and `IApiAuthorizationModuleOptionsFactory` for that Nest-style wiring.
 
 The package also exports:
 
-- `AuthorizationResolveDefaultSubject()` to reuse the built-in fallback
-- `IApiAuthorizationSubjectResolver` for typing custom resolvers
-- `AUTHORIZATION_SUBJECT_RESOLVER_TOKEN` for advanced Nest provider wiring
+- `AuthorizationResolveDefaultPrincipal()` to reuse the built-in fallback
+- `IApiAuthorizationPrincipalResolver` for typing custom resolvers
+- `AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN` for advanced Nest provider wiring
+- `IApiHookPermissionSource` and `AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN` for permission sourcing
+- `IApiAuthorizationModuleAsyncOptions` and `IApiAuthorizationModuleOptionsFactory` for async module registration
 
-### Mixed role + permission example
+## Policy cache override
 
-```typescript
-public onBeforeGetList(): TApiAuthorizationPolicyBeforeGetListResult<UserEntity> {
-	return [
-		...this.allowForRoles(["platform-admin"]),
-		...this.allowForPermissions(["admin.user.read", "admin.user.list"], {
-			match: EAuthorizationPermissionMatch.ALL,
-			scope: ({ subject }) => ({
-				where: { operatorId: subject.attributes?.operatorId },
-			}),
-		});
-	];
-}
-```
-
-### Hook context
-
-`context.DATA` contains typed metadata for the request, including the resolved `subject`, optional `authenticationRequest`, and any request metadata captured by the guard.
-
-### Return type helpers
-
-Use `TApiAuthorizationPolicyBefore*Result` and `TApiAuthorizationPolicyCustomActionResult` to make hook return types explicit. Hooks always return arrays of rules; use an empty array (`[]`) when no rules apply.
-
-### Policy cache override
-
-Use the `cache` option when you want to cache only specific policies:
+Use the `cache` option when you want to cache only specific hooks-mode policies:
 
 ```typescript
 @ApiAuthorizationPolicy<UserEntity>({

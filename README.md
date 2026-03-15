@@ -353,133 +353,135 @@ export class UserController {
 }
 ```
 
-### Declarative Authorization Policies
+### Authorization
 
-Import `ApiAuthorizationModule` once and describe access rules as policies. The guard is attached automatically—mark controllers with `@ApiControllerSecurable()` to enable policy evaluation.
+Authorization now has two first-class modes:
+
+- `hooks`: auto-discovered `@ApiAuthorizationPolicy({ entity })` classes
+- `iam`: attachment/document-based IAM evaluation with optional boundaries
+
+`@ApiControllerSecurable()` is marker-only. It turns on the authorization pipeline, but mode selection and all authorization configuration live in `@ApiController({ authorization: ... })`. Each route uses exactly one mode, and route config can override the controller default with `routes[routeType].authorization.mode`.
+
+#### Runtime authorization actions
+
+`@ApiMethod(...)` uses two different action concepts:
+
+- `action` is a documentation hint for Swagger summaries and descriptions
+- `authorization.action` is the runtime authorization action string used by hooks and IAM
+
+Auto-generated CRUD routes receive built-in runtime actions automatically:
+
+- `create`
+- `delete`
+- `get`
+- `getList`
+- `partialUpdate`
+- `update`
+
+Custom secured routes should declare their own domain-specific action strings:
 
 ```typescript
-// app.module.ts
-import { Module } from "@nestjs/common";
-import { ApiAuthorizationModule } from "@elsikora/nestjs-crud-automator";
-
-@Module({
-	imports: [
-		/* ... */
-		ApiAuthorizationModule,
-	],
+@ApiMethod<UserEntity>({
+	action: EApiAction.UPDATE,
+	authorization: {
+		action: "update.promote",
+	},
+	entity: UserEntity,
+	httpCode: HttpStatus.OK,
+	method: RequestMethod.POST,
+	path: ":id/promote",
+	responseType: UserResponseDto,
 })
-export class AppModule {}
-```
-
-Mark controllers with `@ApiControllerSecurable()` to enable policy evaluation.
-
-```typescript
-// policies/user-access.policy.ts
-import type {
-	IApiAuthorizationRuleContext,
-	IApiAuthorizationScope,
-	TApiAuthorizationPolicyBeforeCreateContext,
-	TApiAuthorizationPolicyBeforeGetContext,
-	TApiAuthorizationPolicyBeforeGetListContext,
-	TApiAuthorizationPolicyBeforeUpdateContext,
-} from "@elsikora/nestjs-crud-automator";
-
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, EAuthorizationPermissionMatch } from "@elsikora/nestjs-crud-automator";
-import { UserEntity } from "../user.entity";
-
-@ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
-export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	private scopeToOperator(context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> {
-		return {
-			where: {
-				operatorId: context.subject.attributes?.operatorId,
-			},
-		};
-	}
-
-	public onBeforeCreate(context: TApiAuthorizationPolicyBeforeCreateContext<UserEntity>) {
-		if (context.body.operatorId !== undefined && context.body.operatorId !== context.subject.attributes?.operatorId) {
-			return [];
-		}
-
-		return [
-			...this.allowForRoles(["platform-admin"]),
-			...this.allowForPermissions(["admin.user.create"], {
-				scope: (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => this.scopeToOperator(context),
-			}),
-		];
-	}
-
-	public onBeforeGet(context: TApiAuthorizationPolicyBeforeGetContext<UserEntity>) {
-		return [
-			...this.allowForRoles(["platform-admin"]),
-			...this.allowForPermissions(["admin.user.read"], {
-				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => this.scopeToOperator(ruleContext),
-			}),
-			...(context.parameters.id === context.subject.id
-				? this.allowForPermissions(["operator.user.read.self"], {
-						scope: () => ({
-							where: { id: context.subject.id, operatorId: context.subject.attributes?.operatorId },
-						}),
-					})
-				: []),
-		];
-	}
-
-	public onBeforeGetList(context: TApiAuthorizationPolicyBeforeGetListContext<UserEntity>) {
-		if (context.query.filters?.operatorId && context.query.filters.operatorId !== context.subject.attributes?.operatorId) {
-			return [];
-		}
-
-		return [
-			...this.allowForRoles(["platform-admin"]),
-			...this.allowForPermissions(["admin.user.read", "admin.user.list"], {
-				match: EAuthorizationPermissionMatch.ALL,
-				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => this.scopeToOperator(ruleContext),
-			}),
-		];
-	}
-
-	public onBeforeUpdate(context: TApiAuthorizationPolicyBeforeUpdateContext<UserEntity>) {
-		return [
-			...(context.body.role === "platform-admin"
-				? this.deny({
-						description: "Operator admins cannot assign platform-admin through update payloads",
-						priority: 1500,
-					})
-				: []),
-			...this.allowForPermissions(["admin.user.update"], {
-				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => this.scopeToOperator(ruleContext),
-			}),
-			...this.denyForPermissions(["admin.user.update"], {
-				condition: ({ subject }: IApiAuthorizationRuleContext<UserEntity>): boolean => Boolean(subject.attributes?.isOperatorLocked),
-				priority: 1000,
-			}),
-		];
-	}
+public promote(@Param("id") id: string) {
+	return this.service.promote(id);
 }
 ```
 
-Policies return arrays of allow/deny rules, merge scope conditions into generated queries, and transform responses before they are sent back to the client. Return an empty array (`[]`) when no rules apply. `authorizationDecision.policyIds` lists all policy IDs contributing rules for the request. You can optionally enable policy caching globally via `ApiAuthorizationPolicyRegistry.configureCache()` or per policy via the `cache` option when policies are static.
-
-Policy hook context now includes first-class request metadata: `body`, `parameters`, `query`, `headers`, and `ip`. For stronger typing, use `TApiAuthorizationPolicyBeforeCreateContext`, `TApiAuthorizationPolicyBeforeGetContext`, `TApiAuthorizationPolicyBeforeGetListContext`, `TApiAuthorizationPolicyBeforeUpdateContext`, and `TApiAuthorizationPolicyBeforePartialUpdateContext`.
-
-Permission helpers use the permissions granted in `subject.permissions`. Exact grants match exact required permissions, while granted wildcards such as `admin.user.*`, `admin.*`, and `*` expand deterministically. `EAuthorizationPermissionMatch.ANY` is the default; use `EAuthorizationPermissionMatch.ALL` when every listed permission is required.
-
-For custom logic outside a policy class, the package also exports `AuthorizationPermissionMatches()` and `AuthorizationPermissionSetMatches()`.
-
-When your auth payload does not already match the default `request.user` heuristics, register a custom subject resolver:
+The same `authorization.action` value is what hooks receive as `context.action` and what IAM turns into a namespaced action such as `admin:user:update.promote`.
 
 ```typescript
-import { ApiAuthorizationModule, AuthorizationResolveDefaultSubject } from "@elsikora/nestjs-crud-automator";
+// app.module.ts
+import type {
+	IApiAuthorizationPrincipal,
+	IApiHookPermissionSource,
+	IApiPolicyAttachmentSource,
+	IApiPolicyDocumentSource,
+	IApiResolvedPolicyAttachments,
+} from "@elsikora/nestjs-crud-automator";
+
+import { Module } from "@nestjs/common";
+
+import {
+	ApiAuthorizationModule,
+	EApiAuthorizationPrincipalType,
+	EApiPolicySourceType,
+	AuthorizationResolveDefaultPrincipal,
+} from "@elsikora/nestjs-crud-automator";
+
+const hookPermissionSource: IApiHookPermissionSource = {
+	async getPermissions(principal: IApiAuthorizationPrincipal): Promise<ReadonlyArray<string>> {
+		const permissions = principal.claims?.permissions;
+
+		return Array.isArray(permissions)
+			? permissions.filter((value): value is string => typeof value === "string")
+			: [];
+	},
+};
+
+const iamAttachmentSource: IApiPolicyAttachmentSource = {
+	async getAttachments(principal): Promise<IApiResolvedPolicyAttachments> {
+		return {
+			attachments: [
+				{
+					policyId: "user-items",
+					principalId: principal.id,
+					principalType: principal.type,
+				},
+			],
+			boundaries: [],
+		};
+	},
+};
+
+const iamDocumentSource: IApiPolicyDocumentSource = {
+	async getDocumentsByIds(ids) {
+		return ids.map((id) => ({
+			document: {
+				Statement: [
+					{
+						Action: ["admin:item:list", "admin:item:read"],
+						Condition: {
+							StringEquals: {
+								"resource.operatorId": "operator-1",
+							},
+						},
+						Effect: "Allow",
+						Resource: ["gameport:admin:item/{id}"],
+						Sid: "AllowOperatorItems",
+					},
+				],
+				Version: "2012-10-17",
+			},
+			id,
+			namespace: "admin:item",
+			sourceType: EApiPolicySourceType.MANAGED,
+			version: "2026-03-14",
+		}));
+	},
+};
 
 @Module({
 	imports: [
 		ApiAuthorizationModule.forRoot({
-			subjectResolver: {
+			hookPermissionSources: [hookPermissionSource],
+			iam: {
+				attachmentSources: [iamAttachmentSource],
+				documentSources: [iamDocumentSource],
+			},
+			principalResolver: {
 				resolve(user) {
 					if (!user || typeof user !== "object" || !("account" in user)) {
-						return AuthorizationResolveDefaultSubject(user);
+						return AuthorizationResolveDefaultPrincipal(user);
 					}
 
 					const payload = user as {
@@ -489,9 +491,10 @@ import { ApiAuthorizationModule, AuthorizationResolveDefaultSubject } from "@els
 
 					return {
 						attributes: { operatorId: payload.account.operatorId },
+						claims: { permissions: payload.access.permissions },
 						id: payload.account.id,
-						permissions: payload.access.permissions,
 						roles: payload.access.roles,
+						type: EApiAuthorizationPrincipalType.USER,
 					};
 				},
 			},
@@ -500,6 +503,208 @@ import { ApiAuthorizationModule, AuthorizationResolveDefaultSubject } from "@els
 })
 export class AppModule {}
 ```
+
+Use `ApiAuthorizationModule.forRootAsync(...)` when the resolver or IAM sources must be real Nest providers with `Repository`, `DataSource`, or service dependencies. The module supports `imports`, `inject`, `useFactory`, `useClass`, and `useExisting`.
+
+```typescript
+// authorization.module.ts
+import { Injectable, Module } from "@nestjs/common";
+
+import {
+	ApiAuthorizationModule,
+	AuthorizationResolveDefaultPrincipal,
+} from "@elsikora/nestjs-crud-automator";
+
+@Injectable()
+class DbPrincipalResolver {
+	resolve(user: unknown) {
+		return AuthorizationResolveDefaultPrincipal(user);
+	}
+}
+
+@Injectable()
+class DbAttachmentSource {
+	// Inject Repository / DataSource / services here
+}
+
+@Injectable()
+class DbDocumentSource {
+	// Inject Repository / DataSource / services here
+}
+
+@Module({
+	exports: [DbAttachmentSource, DbDocumentSource, DbPrincipalResolver],
+	providers: [DbAttachmentSource, DbDocumentSource, DbPrincipalResolver],
+})
+class AuthorizationSourcesModule {}
+
+@Module({
+	imports: [
+		AuthorizationSourcesModule,
+		ApiAuthorizationModule.forRootAsync({
+			imports: [AuthorizationSourcesModule],
+			inject: [DbAttachmentSource, DbDocumentSource, DbPrincipalResolver],
+			useFactory: (attachmentSource, documentSource, principalResolver) => ({
+				iam: {
+					attachmentSources: [attachmentSource],
+					documentSources: [documentSource],
+				},
+				principalResolver,
+			}),
+		}),
+	],
+})
+export class AppModule {}
+```
+
+Use the controller `authorization` block to pick the mode:
+
+```typescript
+// user.controller.ts
+import {
+	EApiAuthorizationMode,
+	ApiController,
+	ApiControllerSecurable,
+} from "@elsikora/nestjs-crud-automator";
+
+@ApiControllerSecurable()
+@ApiController<UserEntity>({
+	authorization: {
+		defaultMode: EApiAuthorizationMode.HOOKS,
+	},
+	entity: UserEntity,
+	path: "users",
+})
+export class UserController {
+	constructor(public service: UserService) {}
+}
+```
+
+Hooks mode keeps entity-based policy autodiscovery:
+
+```typescript
+// policies/user-hooks.policy.ts
+import type {
+	IApiAuthorizationRuleContext,
+	IApiAuthorizationScope,
+	TApiAuthorizationPolicyBeforeGetListContext,
+	TApiAuthorizationPolicyBeforeUpdateContext,
+} from "@elsikora/nestjs-crud-automator";
+
+import {
+	EApiAuthorizationPermissionMatch,
+	ApiAuthorizationPolicy,
+	ApiAuthorizationPolicyBase,
+} from "@elsikora/nestjs-crud-automator";
+
+@ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
+export class UserHooksPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
+	private getOperatorId(principal: IApiAuthorizationRuleContext<UserEntity>["principal"]): string | undefined {
+		return principal.attributes.operatorId as string | undefined;
+	}
+
+	private scopeToOperator(context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> {
+		return {
+			where: {
+				operatorId: this.getOperatorId(context.principal),
+			},
+		};
+	}
+
+	public onBeforeGetList(context: TApiAuthorizationPolicyBeforeGetListContext<UserEntity>) {
+		if (context.query.filters?.operatorId && context.query.filters.operatorId !== this.getOperatorId(context.principal)) {
+			return [];
+		}
+
+		return [
+			...this.allowForRoles(["platform-admin"]),
+			...this.allowForPermissions(["admin.user.read", "admin.user.list"], {
+				match: EApiAuthorizationPermissionMatch.ALL,
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => this.scopeToOperator(ruleContext),
+			}),
+		];
+	}
+
+	public onBeforeUpdate(_context: TApiAuthorizationPolicyBeforeUpdateContext<UserEntity>) {
+		return [
+			...this.allowForPermissions(["admin.user.update"], {
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => this.scopeToOperator(ruleContext),
+			}),
+			...this.denyForPermissions(["admin.user.update"], {
+				condition: ({ principal }: IApiAuthorizationRuleContext<UserEntity>): boolean => Boolean(principal.attributes.isOperatorLocked),
+				priority: 1000,
+			}),
+		];
+	}
+}
+```
+
+Generated CRUD routes dispatch to CRUD hooks such as `onBeforeGetList` or `onBeforeUpdate` using the internal `routeType`. Custom `@ApiMethod(...)` routes do not use CRUD hook names; handle them in `getCustomActionRule(action, context)` instead:
+
+```typescript
+public getCustomActionRule(action: string) {
+	if (action === "update.promote") {
+		return this.allowForPermissions(["admin.user.promote"]);
+	}
+
+	return [];
+}
+```
+
+IAM mode stays storage-agnostic. Attachments and documents come from your configured sources, while the controller defines the resource model used for action/resource matching and safe query planning:
+
+```typescript
+@ApiControllerSecurable()
+@ApiController<ItemEntity>({
+	authorization: {
+		defaultMode: EApiAuthorizationMode.IAM,
+		policyNamespace: "admin:item",
+		resourceDefinition: {
+			entity: ItemEntity,
+			fields: [
+				{
+					isFilterable: true,
+					path: "resource.id",
+					queryPath: "id",
+				},
+				{
+					isFilterable: true,
+					path: "resource.operatorId",
+					queryPath: "operator.id",
+				},
+			],
+			namespace: "admin:item",
+			resourcePath: "gameport:admin:item/{id}",
+			resourceType: "gameport:admin:item",
+		},
+	},
+	entity: ItemEntity,
+	path: "items",
+})
+export class ItemController {
+	constructor(public service: ItemService) {}
+}
+```
+
+Generated CRUD actions are normalized to IAM-friendly names inside the configured namespace:
+
+- `get` -> `<policyNamespace>:read`
+- `getList` -> `<policyNamespace>:list`
+- `create` -> `<policyNamespace>:create`
+- `update` / `partialUpdate` -> `<policyNamespace>:update`
+- `delete` -> `<policyNamespace>:delete`
+
+Custom `@ApiMethod(...)` actions pass through unchanged after the namespace. For example, `authorization.action: "update.promote"` becomes `admin:item:update.promote` when `policyNamespace` is `admin:item`.
+
+The runtime resolves a `principal`, dispatches to the selected mode, and stores a unified `authorizationDecision` on the request. Hooks mode traces matched rules and resolved permissions; IAM mode traces attachments, documents, statements, boundaries, and final decision type. For out-of-band checks, inject `ApiAuthorizationSimulator` and call `evaluate(...)` with the same controller authorization metadata you use at runtime.
+
+Important IAM details from the current implementation:
+
+- `resource.id` and `resource.operatorId` are safe planner-friendly paths for `GET` and `GET_LIST` when declared in `resourceDefinition.fields`
+- `queryPath` may be nested, for example `operator.id`, when your repository where-shape uses relations
+- route filters and authorization scopes are merged with logical `AND`, not overwrite semantics
+- impossible conflicts collapse to a match-nothing branch instead of rewriting the requested filter
+- relation payloads can be raw UUID strings, so create/update conditions like `request.body.operator = "${principal.attributes.operatorId}"` work without hooks fallback
 
 ### `CorrelationIDResponseBodyInterceptor`: Request Tracing
 
@@ -746,33 +951,35 @@ This query would search for users with "john" in their username and created betw
 
 ## Roadmap
 
-| Task / Feature                             | Status         |
-| ------------------------------------------ | -------------- |
-| Core CRUD operations                       | ✅ Done        |
-| TypeORM integration                        | ✅ Done        |
-| Swagger/OpenAPI documentation              | ✅ Done        |
-| Validation with class-validator            | ✅ Done        |
-| Transformation with class-transformer      | ✅ Done        |
-| Advanced filtering for GET_LIST operation  | ✅ Done        |
-| Authentication guard integration           | ✅ Done        |
-| Request/response transformers              | ✅ Done        |
-| Relation loading strategies                | ✅ Done        |
-| Custom validator integration               | ✅ Done        |
-| Pagination support                         | ✅ Done        |
-| Error handling with standardized responses | ✅ Done        |
-| Support for TypeScript decorators          | ✅ Done        |
-| Support for ESM and CommonJS modules       | ✅ Done        |
-| Subscriber System                          | ✅ Done        |
-| Role-based access control                  | ✅ Done        |
-| MongoDB support                            | 🚧 In Progress |
-| GraphQL integration                        | 🚧 In Progress |
-| Support for soft deletes                   | 🚧 In Progress |
-| Cache integration                          | 🚧 In Progress |
-| Audit logging middleware                   | 🚧 In Progress |
-| Bulk operations (create many, update many) | 🚧 In Progress |
-| Query complexity analyzer                  | 🚧 In Progress |
-| Rate limiting enhancements                 | 🚧 In Progress |
-| Custom parameter decorators                | 🚧 In Progress |
+| Task / Feature                              | Status         |
+| ------------------------------------------- | -------------- |
+| Core CRUD operations                        | ✅ Done        |
+| TypeORM integration                         | ✅ Done        |
+| Swagger/OpenAPI documentation               | ✅ Done        |
+| Validation with class-validator             | ✅ Done        |
+| Transformation with class-transformer       | ✅ Done        |
+| Advanced filtering for GET_LIST operation   | ✅ Done        |
+| Authentication guard integration            | ✅ Done        |
+| Request/response transformers               | ✅ Done        |
+| Relation loading strategies                 | ✅ Done        |
+| Custom validator integration                | ✅ Done        |
+| Pagination support                          | ✅ Done        |
+| Error handling with standardized responses  | ✅ Done        |
+| Support for TypeScript decorators           | ✅ Done        |
+| Support for ESM and CommonJS modules        | ✅ Done        |
+| Subscriber System                           | ✅ Done        |
+| Hooks and IAM authorization pipeline        | ✅ Done        |
+| DI-backed authorization bootstrap           | ✅ Done        |
+| Scope-safe authorization filtering          | ✅ Done        |
+| MongoDB support                             | 🚧 In Progress |
+| GraphQL integration                         | 🚧 In Progress |
+| Support for soft deletes                    | 🚧 In Progress |
+| Cache integration                           | 🚧 In Progress |
+| Audit logging middleware                    | 🚧 In Progress |
+| Bulk operations (create many, update many)  | 🚧 In Progress |
+| Query complexity analyzer                   | 🚧 In Progress |
+| Rate limiting enhancements                  | 🚧 In Progress |
+| Custom parameter decorators                 | 🚧 In Progress |
 
 ## ❓ FAQ
 

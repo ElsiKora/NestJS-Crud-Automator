@@ -5,8 +5,7 @@ import type { TApiAuthorizationPolicySubscriberPermissionRuleOptionsWithoutTrans
 import type { FindOptionsWhere } from "typeorm";
 
 import { ApiSubscriberBase } from "@class/api/subscriber/base.class";
-import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
-import { EAuthorizationPermissionMatch } from "@enum/class/authorization/permission-match.enum";
+import { EApiAuthorizationPermissionMatch, EApiPolicyEffect } from "@enum/class/authorization";
 import { AuthorizationPermissionSetMatches } from "@utility/authorization";
 
 /**
@@ -25,14 +24,14 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	protected allow<R>(rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> | TApiAuthorizationPolicySubscriberRuleWithoutEffectWithoutTransform<E> = {}): Array<IApiAuthorizationPolicySubscriberRule<E, R> | TApiAuthorizationPolicySubscriberRuleWithoutTransform<E>> {
 		return [
 			{
-				effect: EAuthorizationEffect.ALLOW,
+				effect: EApiPolicyEffect.ALLOW,
 				...rule,
 			},
 		];
 	}
 
 	/**
-	 * Helper that creates an allow rule conditioned on the subject having the required permissions.
+	 * Helper that creates an allow rule conditioned on the principal having the required permissions.
 	 * Granted permissions may use `*` or `<prefix>.*` wildcards.
 	 * @template R - Rule result type.
 	 * @param {Array<string>} requiredPermissions - Permissions that grant access.
@@ -43,12 +42,12 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	protected allowForPermissions<R>(requiredPermissions: Array<string>, options: IApiAuthorizationPolicySubscriberPermissionRuleOptions<E, R>): Array<IApiAuthorizationPolicySubscriberRule<E, R>>;
 	protected allowForPermissions<R>(requiredPermissions: Array<string>, options: IApiAuthorizationPolicySubscriberPermissionRuleOptions<E, R> | TApiAuthorizationPolicySubscriberPermissionRuleOptionsWithoutTransform<E> = {}): Array<IApiAuthorizationPolicySubscriberRule<E, R> | TApiAuthorizationPolicySubscriberRuleWithoutTransform<E>> {
 		const permissionOptions: IApiAuthorizationPolicySubscriberPermissionRuleOptions<E, R> | TApiAuthorizationPolicySubscriberPermissionRuleOptionsWithoutTransform<E> = options;
-		const matchMode: EAuthorizationPermissionMatch = permissionOptions.match ?? EAuthorizationPermissionMatch.ANY;
+		const matchMode: EApiAuthorizationPermissionMatch = permissionOptions.match ?? EApiAuthorizationPermissionMatch.ANY;
 
 		return [
 			{
 				condition: async (context: IApiAuthorizationRuleContext<E>): Promise<boolean> => {
-					if (!AuthorizationPermissionSetMatches(context.subject.permissions, requiredPermissions, { match: matchMode })) {
+					if (!AuthorizationPermissionSetMatches(context.permissions, requiredPermissions, { match: matchMode })) {
 						return false;
 					}
 
@@ -61,7 +60,7 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 					return result === true;
 				},
 				description: permissionOptions.description,
-				effect: EAuthorizationEffect.ALLOW,
+				effect: EApiPolicyEffect.ALLOW,
 				priority: permissionOptions.priority,
 				resultTransform: permissionOptions.resultTransform,
 				scope: permissionOptions.scope,
@@ -70,7 +69,7 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	}
 
 	/**
-	 * Helper that creates an allow rule conditioned on the subject having at least one of the provided roles.
+	 * Helper that creates an allow rule conditioned on the principal having at least one of the provided roles.
 	 * @param {Array<string>} roles - Roles that grant access.
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Optional overrides.
 	 * @returns {Array<IApiAuthorizationPolicySubscriberRule<E>>} Allow rule array targeting the given roles.
@@ -80,8 +79,8 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	protected allowForRoles<R>(roles: Array<string>, rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> | TApiAuthorizationPolicySubscriberRuleWithoutEffectWithoutTransform<E> = {}): Array<IApiAuthorizationPolicySubscriberRule<E, R> | TApiAuthorizationPolicySubscriberRuleWithoutTransform<E>> {
 		return [
 			{
-				condition: ({ subject }: IApiAuthorizationRuleContext<E>) => roles.some((role: string) => subject.roles.includes(role)),
-				effect: EAuthorizationEffect.ALLOW,
+				condition: ({ principal }: IApiAuthorizationRuleContext<E>) => roles.some((role: string) => principal.roles.includes(role)),
+				effect: EApiPolicyEffect.ALLOW,
 				...rule,
 			},
 		];
@@ -97,14 +96,14 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	protected deny<R>(rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> | TApiAuthorizationPolicySubscriberRuleWithoutEffectWithoutTransform<E> = {}): Array<IApiAuthorizationPolicySubscriberRule<E, R> | TApiAuthorizationPolicySubscriberRuleWithoutTransform<E>> {
 		return [
 			{
-				effect: EAuthorizationEffect.DENY,
+				effect: EApiPolicyEffect.DENY,
 				...rule,
 			},
 		];
 	}
 
 	/**
-	 * Helper that creates a deny rule conditioned on the subject having the required permissions.
+	 * Helper that creates a deny rule conditioned on the principal having the required permissions.
 	 * Granted permissions may use `*` or `<prefix>.*` wildcards.
 	 * @template R - Rule result type.
 	 * @param {Array<string>} requiredPermissions - Permissions that trigger access denial.
@@ -115,12 +114,12 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	protected denyForPermissions<R>(requiredPermissions: Array<string>, options: IApiAuthorizationPolicySubscriberPermissionRuleOptions<E, R>): Array<IApiAuthorizationPolicySubscriberRule<E, R>>;
 	protected denyForPermissions<R>(requiredPermissions: Array<string>, options: IApiAuthorizationPolicySubscriberPermissionRuleOptions<E, R> | TApiAuthorizationPolicySubscriberPermissionRuleOptionsWithoutTransform<E> = {}): Array<IApiAuthorizationPolicySubscriberRule<E, R> | TApiAuthorizationPolicySubscriberRuleWithoutTransform<E>> {
 		const permissionOptions: IApiAuthorizationPolicySubscriberPermissionRuleOptions<E, R> | TApiAuthorizationPolicySubscriberPermissionRuleOptionsWithoutTransform<E> = options;
-		const matchMode: EAuthorizationPermissionMatch = permissionOptions.match ?? EAuthorizationPermissionMatch.ANY;
+		const matchMode: EApiAuthorizationPermissionMatch = permissionOptions.match ?? EApiAuthorizationPermissionMatch.ANY;
 
 		return [
 			{
 				condition: async (context: IApiAuthorizationRuleContext<E>): Promise<boolean> => {
-					if (!AuthorizationPermissionSetMatches(context.subject.permissions, requiredPermissions, { match: matchMode })) {
+					if (!AuthorizationPermissionSetMatches(context.permissions, requiredPermissions, { match: matchMode })) {
 						return false;
 					}
 
@@ -133,7 +132,7 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 					return result === true;
 				},
 				description: permissionOptions.description,
-				effect: EAuthorizationEffect.DENY,
+				effect: EApiPolicyEffect.DENY,
 				priority: permissionOptions.priority,
 				resultTransform: permissionOptions.resultTransform,
 				scope: permissionOptions.scope,
@@ -144,7 +143,7 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	/**
 	 * Helper that scopes data access to the owner identified by a field.
 	 * Automatically resolves relation vs scalar fields by default.
-	 * @param {keyof E} [ownerField] - Entity field used to match the subject id, defaults to ownerId.
+	 * @param {keyof E} [ownerField] - Entity field used to match the principal id, defaults to ownerId.
 	 * @param {Omit<IApiAuthorizationPolicySubscriberRule<E>, "effect">} [rule] - Optional overrides.
 	 * @param {{ isRelation?: boolean }} [options] - Override relation handling; defaults to auto.
 	 * @param {boolean} [options.isRelation] - Whether the field is a relation (defaults to auto).
@@ -158,9 +157,9 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 
 		return [
 			{
-				effect: EAuthorizationEffect.ALLOW,
-				scope: ({ subject }: IApiAuthorizationRuleContext<E>): { where: FindOptionsWhere<E> } => {
-					const ownerCondition: unknown = isRelation ? { id: subject.id } : subject.id;
+				effect: EApiPolicyEffect.ALLOW,
+				scope: ({ principal }: IApiAuthorizationRuleContext<E>): { where: FindOptionsWhere<E> } => {
+					const ownerCondition: unknown = isRelation ? { id: principal.id } : principal.id;
 
 					return {
 						where: {

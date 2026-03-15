@@ -2,7 +2,7 @@
  * Checks whether a granted permission satisfies a required permission.
  * Supported wildcard forms are `*`, `<prefix>.*`, and exact matches.
  * Wildcards are evaluated only on granted permissions.
- * @param {string} grantedPermission - Permission granted to the subject.
+ * @param {string} grantedPermission - Permission granted to the principal.
  * @param {string} requiredPermission - Concrete permission required by the rule.
  * @returns {boolean} True when the granted permission satisfies the requirement.
  */

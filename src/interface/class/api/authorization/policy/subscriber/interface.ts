@@ -3,7 +3,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationPolicySubscriberContext } from "@interface/class/api/authorization/policy/subscriber/context";
 import type { IApiSubscriber } from "@interface/class/api/subscriber/interface";
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
-import type { TApiAuthorizationPolicySubscriberRuleResult } from "@type/class/api/authorization/policy/policy-subscriber-rule-result.type";
+import type { TApiAuthorizationPolicySubscriberRuleResult } from "@type/class/api/authorization/policy/subscriber";
 
 export interface IApiAuthorizationPolicySubscriber<E extends IApiBaseEntity> extends IApiSubscriber {
 	getCustomActionRule?<TAction extends string>(action: TAction, context: IApiAuthorizationPolicySubscriberContext<E>): Promise<TApiAuthorizationPolicySubscriberRuleResult<E, TApiAuthorizationPolicyHookResult<TAction, E>>> | TApiAuthorizationPolicySubscriberRuleResult<E, TApiAuthorizationPolicyHookResult<TAction, E>>;

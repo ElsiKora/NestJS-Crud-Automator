@@ -1,10 +1,13 @@
-export { type IApiAuthorizationDecision } from "./decision.interface";
+export { type IApiAuthorizationAuditSink } from "./audit-sink.interface";
+export type * from "./decision";
 export { type IApiAuthorizationEngine } from "./engine.interface";
 export { type IApiAuthorizationEngineEvaluateOptions } from "./evaluate-options.interface";
-export { type IApiAuthorizationModuleOptions } from "./module-options.interface";
+export { type IApiHookPermissionSource } from "./hook-permission-source.interface";
+export { type IApiAuthorizationIamModuleOptions } from "./iam-module-options.interface";
+export type * from "./module-options";
 export type * from "./policy";
+export type * from "./principal";
 export { type IApiAuthorizationRequestMetadata } from "./request-metadata.interface";
-export { type IApiAuthorizationSubjectResolver } from "./resolver.interface";
+export type * from "./resource";
 export type * from "./rule";
 export { type IApiAuthorizationScope } from "./scope.interface";
-export { type IApiAuthorizationSubject } from "./subject.interface";

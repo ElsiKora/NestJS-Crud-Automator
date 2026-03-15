@@ -29,7 +29,7 @@ describe("CRUD routes (E2E)", () => {
 		"x-user-permissions": "admin.item.*",
 		...overrides,
 	});
-	const customSubjectHeaders = (permissions: string, overrides: Record<string, string> = {}) => ({
+	const customPrincipalHeaders = (permissions: string, overrides: Record<string, string> = {}) => ({
 		"user-agent": "e2e-agent",
 		"x-auth-shape": "custom",
 		"x-policy-transform": "true",
@@ -45,6 +45,13 @@ describe("CRUD routes (E2E)", () => {
 			method: "POST",
 			payload,
 			url: "/items",
+		});
+	const createCustomResponseItem = async (payload: Record<string, unknown>, headers: Record<string, string> = adminHeaders) =>
+		fastify.inject({
+			headers,
+			method: "POST",
+			payload,
+			url: "/custom-response-items",
 		});
 	const seedFilterItems = async () => {
 		await createItem({
@@ -183,6 +190,109 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:create", "function:after:create", "function:before:get", "function:after:get", "function:before:getList", "function:after:getList", "function:before:update", "function:after:update", "function:before:delete", "function:after:delete"]));
 	});
 
+	it("uses custom response DTO for create runtime serialization", async () => {
+		const createResponse = await createCustomResponseItem({
+			count: 1,
+			id: "custom-create-1",
+			name: "CustomCreate",
+			ownerId: E2E_OWNER_ID,
+		});
+
+		expect(createResponse.statusCode).toBe(201);
+		expect(createResponse.json()).toEqual({
+			displayName: "route-fn-CustomCreate",
+			owner: E2E_OWNER_ID,
+			resourceId: "custom-create-1",
+		});
+	});
+
+	it("uses custom response DTO for get runtime serialization", async () => {
+		await service.repository.save({
+			count: 1,
+			id: "custom-get-1",
+			name: "CustomGet",
+			ownerId: E2E_OWNER_ID,
+		});
+
+		const getResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/custom-response-items/custom-get-1",
+		});
+
+		expect(getResponse.statusCode).toBe(200);
+		expect(getResponse.json()).toEqual({
+			displayName: "route-CustomGet",
+			owner: E2E_OWNER_ID,
+			resourceId: "custom-get-1",
+		});
+	});
+
+	it("uses custom response DTO for partial-update runtime serialization", async () => {
+		await service.repository.save({
+			count: 1,
+			id: "custom-patch-1",
+			name: "BeforePatch",
+			ownerId: E2E_OWNER_ID,
+		});
+
+		const patchResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "PATCH",
+			payload: { name: "AfterPatch" },
+			url: "/custom-response-items/custom-patch-1",
+		});
+
+		expect(patchResponse.statusCode).toBe(200);
+		expect(patchResponse.json()).toEqual({
+			displayName: "route-fn-AfterPatch",
+			resourceId: "custom-patch-1",
+		});
+	});
+
+	it("uses custom wrapper response DTO for get-list runtime serialization", async () => {
+		await service.repository.save([
+			{
+				count: 1,
+				id: "custom-list-1",
+				name: "CustomListOne",
+				ownerId: E2E_OWNER_ID,
+			},
+			{
+				count: 2,
+				id: "custom-list-2",
+				name: "CustomListTwo",
+				ownerId: E2E_OWNER_ID,
+			},
+		]);
+
+		const listResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/custom-response-items?limit=10&page=1&orderBy=id&orderDirection=ASC",
+		});
+
+		expect(listResponse.statusCode).toBe(200);
+		expect(listResponse.json()).toEqual({
+			entries: [
+				{
+					displayName: "CustomListOne",
+					owner: E2E_OWNER_ID,
+					resourceId: "custom-list-1",
+				},
+				{
+					displayName: "CustomListTwo",
+					owner: E2E_OWNER_ID,
+					resourceId: "custom-list-2",
+				},
+			],
+			page: 1,
+			pageCount: 1,
+			totalItems: 2,
+			visibleCount: 2,
+		});
+	});
+
 	it("executes subscribers in priority order", async () => {
 		const createResponse = await createItem({ id: "item-priority", name: "Priority", count: 1 });
 
@@ -240,28 +350,39 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eFunctionSubscriber.events).toContain("function:before:create:transaction");
 	});
 
-	it("applies custom policy rules for promote action", async () => {
+	it("uses declared ApiMethod actions for custom securable routes", async () => {
 		await createItem({ id: "item-promote", name: "Promote", count: 1 });
 
 		const promoteResponse = await fastify.inject({
-			headers: adminHeaders,
+			headers: {
+				"x-user-id": E2E_OWNER_ID,
+				"x-user-permission": "admin.item.update",
+			},
 			method: "POST",
 			url: "/items/promote/item-promote",
 		});
 
 		expect(promoteResponse.statusCode).toBe(200);
-		expect(E2ePolicySubscriber.events).toContain("policy:before:promote");
+		expect(E2ePolicySubscriber.events).toContain("policy:before:update.promote");
+		expect(E2ePolicySubscriber.events).not.toContain("policy:before:update");
+
+		E2ePolicySubscriber.reset();
 
 		const deniedResponse = await fastify.inject({
-			headers: { "x-user-id": E2E_OWNER_ID },
+			headers: {
+				"x-user-id": E2E_OWNER_ID,
+				"x-user-permission": "admin.item.promote",
+			},
 			method: "POST",
 			url: "/items/promote/item-promote",
 		});
 
 		expect(deniedResponse.statusCode).toBe(403);
+		expect(E2ePolicySubscriber.events).toContain("policy:before:update.promote");
+		expect(E2ePolicySubscriber.events).not.toContain("policy:before:update");
 	});
 
-	it("resolves subject fields and applies policy transforms", async () => {
+	it("resolves principal fields and applies policy transforms", async () => {
 		await ownerService.repository.save({ id: "subject@example.com", name: "Email Owner" });
 		await ownerService.repository.save({ id: "uuid-123", name: "Uuid Owner" });
 		await service.repository.save({
@@ -292,7 +413,7 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(emailResponse.statusCode).toBe(200);
 		const emailBody = emailResponse.json();
-		expect(emailBody.policySubjectId).toBe("subject@example.com");
+		expect(emailBody.policyPrincipalId).toBe("subject@example.com");
 		expect(emailBody.policyPermissions).toEqual(["perm-one"]);
 
 		const uuidResponse = await fastify.inject({
@@ -310,7 +431,7 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(uuidResponse.statusCode).toBe(200);
 		const uuidBody = uuidResponse.json();
-		expect(uuidBody.policySubjectId).toBe("uuid-123");
+		expect(uuidBody.policyPrincipalId).toBe("uuid-123");
 		expect(uuidBody.policyPermissions).toEqual(["perm-a", "perm-b"]);
 	});
 
@@ -339,11 +460,11 @@ describe("CRUD routes (E2E)", () => {
 		expect(listResponse.json().items).toHaveLength(1);
 	});
 
-	it("uses the configured custom subject resolver during HTTP authorization", async () => {
+	it("uses the configured custom principal resolver during HTTP authorization", async () => {
 		await createItem({ id: "item-custom-subject", name: "CustomSubject", count: 1 });
 
 		const getResponse = await fastify.inject({
-			headers: customSubjectHeaders("admin.item.read", {
+			headers: customPrincipalHeaders("admin.item.read", {
 				"x-signature": "item-custom-subject",
 			}),
 			method: "GET",
@@ -352,7 +473,7 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(getResponse.statusCode).toBe(200);
 		expect(getResponse.json().policyPermissions).toEqual(["admin.item.read"]);
-		expect(getResponse.json().policySubjectId).toBe("custom-user");
+		expect(getResponse.json().policyPrincipalId).toBe("custom-user");
 	});
 
 	it("uses request body metadata in create authorization policies", async () => {
@@ -828,15 +949,17 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:getMany", "function:after:getMany"]));
 	});
 
-	it("fires getMany function error hook when nothing found", async () => {
+	it("returns an empty array when getMany finds nothing", async () => {
 		const manyResponse = await fastify.inject({
 			headers: adminHeaders,
 			method: "GET",
 			url: "/function/many?ids=missing",
 		});
 
-		expect(manyResponse.statusCode).toBe(404);
-		expect(E2eFunctionSubscriber.events).toContain("function:after_error:getMany");
+		expect(manyResponse.statusCode).toBe(200);
+		expect(manyResponse.json()).toEqual([]);
+		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:getMany", "function:after:getMany"]));
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:getMany");
 	});
 
 	it("fails validation when count is not positive", async () => {

@@ -3,12 +3,14 @@ import type { IApiMethodProperties } from "@interface/decorator/api";
 import type { CanActivate, Type } from "@nestjs/common";
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
+import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { pluralizer } from "@elsikora/pluralizer";
 import { EApiAction } from "@enum/decorator/api";
-import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, UseGuards } from "@nestjs/common";
+import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, SetMetadata, UseGuards } from "@nestjs/common";
 import { ApiBadRequestResponse, ApiBearerAuth, ApiConflictResponse, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { DtoGenerateException } from "@utility/dto/generate/exception.utility";
+import { ErrorException } from "@utility/error/exception.utility";
 
 /**
  * Creates a decorator for controller methods that combines NestJS route decorators with Swagger documentation
@@ -387,6 +389,14 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 		HttpCode(options.httpCode),
 	];
 
+	if (options.action) {
+		decorators.push(SetMetadata(METHOD_API_DECORATOR_CONSTANT.ACTION_METADATA_KEY, options.action));
+	}
+
+	if (options.authorization) {
+		decorators.push(SetMetadata(METHOD_API_DECORATOR_CONSTANT.AUTHORIZATION_METADATA_KEY, options.authorization));
+	}
+
 	if (options.throttler) {
 		decorators.push(Throttle({ default: options.throttler }));
 	}
@@ -489,7 +499,7 @@ export function ApiMethod<T extends IApiBaseEntity>(options: IApiMethodPropertie
 		}
 
 		default: {
-			throw new Error(`ApiMethod error: Method ${String(options.method)} is not supported`);
+			throw ErrorException(`ApiMethod error: Method ${String(options.method)} is not supported`);
 		}
 	}
 

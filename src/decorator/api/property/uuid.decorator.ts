@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { EApiPropertyDataType, EApiPropertyStringType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, IsUUID } from "class-validator";
@@ -226,6 +227,6 @@ function validateOptions(properties: TApiPropertyUuidProperties): void {
 	}
 
 	if (errors.length > 0) {
-		throw new Error(`ApiPropertyUUID error: ${errors.join("\n")}`);
+		throw ErrorException(`ApiPropertyUUID error: ${errors.join("\n")}`);
 	}
 }

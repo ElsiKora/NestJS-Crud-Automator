@@ -1,12 +1,13 @@
 import "reflect-metadata";
 
 import type {
+	IApiAuthorizationPrincipal,
+	IApiAuthorizationPrincipalResolver,
 	IApiAuthorizationModuleOptions,
 	IApiAuthorizationRequestMetadata,
 	IApiAuthorizationRuleContext,
 	IApiAuthorizationScope,
-	IApiAuthorizationSubject,
-	IApiAuthorizationSubjectResolver,
+	IApiHookPermissionSource,
 	TApiAuthorizationPolicyBeforeCreateContext,
 	TApiAuthorizationPolicyBeforeCreateResult,
 	TApiAuthorizationPolicyBeforeGetContext,
@@ -17,7 +18,7 @@ import type {
 	TApiAuthorizationPolicyBeforePartialUpdateResult,
 } from "../../dist/esm/index";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, AUTHORIZATION_SUBJECT_RESOLVER_TOKEN } from "../../dist/esm/index";
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, EApiAuthorizationMode, EApiAuthorizationPrincipalType } from "../../dist/esm/index";
 import { describe, expect, it } from "vitest";
 
 class PublicApiUser {
@@ -28,20 +29,31 @@ class PublicApiUser {
 	public role?: string;
 }
 
-class PublicApiSubjectResolver implements IApiAuthorizationSubjectResolver {
-	public resolve(user: unknown): IApiAuthorizationSubject {
+class PublicApiPrincipalResolver implements IApiAuthorizationPrincipalResolver {
+	public resolve(user: unknown): IApiAuthorizationPrincipal {
 		const record: { id?: string; operatorId?: string } = typeof user === "object" && user !== null ? (user as { id?: string; operatorId?: string }) : {};
 
 		return {
 			attributes: {
 				operatorId: record.operatorId,
 			},
+			claims: {
+				permissions: ["admin.user.create", "admin.user.list", "admin.user.read", "admin.user.update"],
+			},
 			id: record.id ?? "anonymous",
-			permissions: ["admin.user.create", "admin.user.list", "admin.user.read", "admin.user.update"],
 			roles: ["platform-admin"],
+			type: EApiAuthorizationPrincipalType.USER,
 		};
 	}
 }
+
+const publicApiHookPermissionSource: IApiHookPermissionSource = {
+	async getPermissions(principal: IApiAuthorizationPrincipal): Promise<ReadonlyArray<string>> {
+		const permissions = principal.claims?.permissions;
+
+		return Array.isArray(permissions) ? permissions.filter((permission: unknown): permission is string => typeof permission === "string") : [];
+	},
+};
 
 @ApiAuthorizationPolicy<PublicApiUser>({ entity: PublicApiUser })
 class PublicApiPolicy extends ApiAuthorizationPolicyBase<PublicApiUser> {
@@ -80,7 +92,7 @@ class PublicApiPolicy extends ApiAuthorizationPolicyBase<PublicApiUser> {
 	}
 
 	private scopeToOperator(ruleContext: IApiAuthorizationRuleContext<PublicApiUser>): IApiAuthorizationScope<PublicApiUser> {
-		const operatorId: unknown = ruleContext.subject.attributes?.operatorId;
+		const operatorId: unknown = ruleContext.principal.attributes?.operatorId;
 
 		if (typeof operatorId !== "string" || operatorId.length === 0) {
 			throw new TypeError("operatorId is required");
@@ -98,9 +110,10 @@ class PublicApiPolicy extends ApiAuthorizationPolicyBase<PublicApiUser> {
 
 describe("public authorization API (E2E)", () => {
 	it("keeps payload-aware authorization types available from built dist", async () => {
-		const subjectResolver: IApiAuthorizationSubjectResolver = new PublicApiSubjectResolver();
+		const principalResolver: IApiAuthorizationPrincipalResolver = new PublicApiPrincipalResolver();
 		const moduleOptions: IApiAuthorizationModuleOptions = {
-			subjectResolver,
+			hookPermissionSources: [publicApiHookPermissionSource],
+			principalResolver,
 		};
 		const requestMetadata: IApiAuthorizationRequestMetadata<PublicApiUser> = {
 			body: {
@@ -114,16 +127,18 @@ describe("public authorization API (E2E)", () => {
 				id: "user-1",
 			},
 		};
-		const resolvedSubject: IApiAuthorizationSubject = await Promise.resolve(subjectResolver.resolve({
+		const resolvedPrincipal: IApiAuthorizationPrincipal = await Promise.resolve(principalResolver.resolve({
 			id: "user-1",
 			operatorId: "operator-1",
 		}));
 
-		expect(moduleOptions.subjectResolver).toBe(subjectResolver);
+		expect(moduleOptions.principalResolver).toBe(principalResolver);
+		expect(moduleOptions.hookPermissionSources).toEqual([publicApiHookPermissionSource]);
 		expect(requestMetadata.body).toEqual({ role: "operator-user" });
 		expect(requestMetadata.parameters).toEqual({ id: "user-1" });
-		expect(AUTHORIZATION_SUBJECT_RESOLVER_TOKEN).toBe("API_AUTHORIZATION_SUBJECT_RESOLVER");
-		expect(resolvedSubject.id).toBe("user-1");
+		expect(AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN).toBe("API_AUTHORIZATION_PRINCIPAL_RESOLVER");
+		expect(resolvedPrincipal.id).toBe("user-1");
+		expect(EApiAuthorizationMode.HOOKS).toBe("hooks");
 		expect(new PublicApiPolicy()).toBeInstanceOf(ApiAuthorizationPolicyBase);
 	});
 });

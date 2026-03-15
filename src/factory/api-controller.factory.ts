@@ -22,9 +22,9 @@ import { EApiDtoType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorato
 import { Controller } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerApplyDecorators, ApiControllerApplyMetadata, ApiControllerGetListTransformFilter, ApiControllerGetPrimaryColumn, ApiControllerHandleRequestRelations, ApiControllerTransformData, ApiControllerValidateRequest, ApiControllerWriteDtoSwagger, ApiControllerWriteMethod } from "@utility/api";
+import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { AuthorizationDecisionApplyResult, AuthorizationDecisionAttachResource, AuthorizationDecisionResolveFromRequest } from "@utility/authorization/decision";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
-import { DtoGenerate } from "@utility/dto";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { plainToInstance } from "class-transformer";
@@ -50,6 +50,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		ApiTags(this.properties.name ?? this.properties.entity.name ?? "UnknownResource")(this.target);
 
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.ENTITY_METADATA_KEY, this.properties.entity, this.target);
+		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, this.properties, this.target);
 	}
 
 	createMethod(method: EApiRouteType): void {
@@ -77,6 +78,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 	}
 
 	protected [EApiRouteType.CREATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.CREATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+		const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = properties.routes[method] ?? {};
+
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const entityInstance: E = new (properties.entity as new () => E)();
@@ -116,7 +119,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 							ROUTE_TYPE: EApiRouteType.CREATE,
 						};
 
-						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Primary key not found in entity columns"));
+						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiRouteType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Primary key not found in entity columns"));
 
 						throw ErrorException("Primary key not found in entity columns");
 					}
@@ -126,7 +129,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					await ApiControllerHandleRequestRelations<E>(this, properties, properties.routes[method]?.request?.relations, body);
 
 					const createResponse: E = await this.service.create(body);
-					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+					const dto: Type<unknown> | undefined = ApiControllerGetDto(properties, entityMetadata, method, EApiDtoType.RESPONSE, routeConfig);
 
 					const requestProperties: TApiFunctionGetProperties<E> = {
 						relations: properties.routes[method]?.response?.relations,
@@ -211,7 +214,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 							ROUTE_TYPE: EApiRouteType.DELETE,
 						};
 
-						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Primary key not found in entity columns"));
+						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiRouteType.DELETE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Primary key not found in entity columns"));
 
 						throw ErrorException("Primary key not found in entity columns");
 					}
@@ -253,6 +256,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 	}
 
 	protected [EApiRouteType.GET](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+		const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = properties.routes[method] ?? {};
+
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const entityInstance: E = new (properties.entity as new () => E)();
@@ -292,7 +297,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 							ROUTE_TYPE: EApiRouteType.GET,
 						};
 
-						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Primary key not found in entity columns"));
+						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiRouteType.GET, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Primary key not found in entity columns"));
 
 						throw ErrorException("Primary key not found in entity columns");
 					}
@@ -324,7 +329,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const finalResponse: E = afterResult ?? response;
 					authorizationDecision = AuthorizationDecisionAttachResource<E, E>(authorizationDecision, finalResponse);
 					const transformedResponse: E = await AuthorizationDecisionApplyResult<E, E>(authorizationDecision, finalResponse);
-					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+					const dto: Type<unknown> | undefined = ApiControllerGetDto(properties, entityMetadata, method, EApiDtoType.RESPONSE, routeConfig);
 
 					return plainToInstance(dto as ClassConstructor<E>, transformedResponse, {
 						/* eslint-disable-next-line @elsikora/typescript/naming-convention */
@@ -347,6 +352,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 	}
 
 	protected [EApiRouteType.GET_LIST](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET_LIST>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+		const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = properties.routes[method] ?? {};
+
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, query: TApiControllerGetListQuery<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<IApiGetListResponseResult<E>> {
 				const entityInstance: E = new (properties.entity as new () => E)();
@@ -384,7 +391,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
 					const filter: TApiFunctionGetListPropertiesWhere<E> = ApiControllerGetListTransformFilter<E>(getListQuery, entityMetadata);
 
-					const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(filter, authorizationDecision?.scope?.where);
+					const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(filter, authorizationDecision?.scope?.where) as Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined;
 
 					const requestProperties: TApiFunctionGetListProperties<E> = {
 						relations: properties.routes[method]?.response?.relations,
@@ -411,7 +418,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 
 					const finalResponse: IApiGetListResponseResult<E> = afterResult ?? response;
 					const transformedResponse: IApiGetListResponseResult<E> = await AuthorizationDecisionApplyResult<E, IApiGetListResponseResult<E>>(authorizationDecision, finalResponse);
-					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+					const dto: Type<unknown> | undefined = ApiControllerGetDto(properties, entityMetadata, method, EApiDtoType.RESPONSE, routeConfig);
 
 					return plainToInstance(dto as ClassConstructor<IApiGetListResponseResult<E>>, transformedResponse, {
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
@@ -434,6 +441,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 	}
 
 	protected [EApiRouteType.PARTIAL_UPDATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.PARTIAL_UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+		const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = properties.routes[method] ?? {};
+
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const entityInstance: E = new (properties.entity as new () => E)();
@@ -475,7 +484,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 							ROUTE_TYPE: EApiRouteType.PARTIAL_UPDATE,
 						};
 
-						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Primary key not found in entity columns"));
+						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiRouteType.PARTIAL_UPDATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Primary key not found in entity columns"));
 
 						throw ErrorException("Primary key not found in entity columns");
 					}
@@ -507,7 +516,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const finalResponse: E = afterResult ?? response;
 					authorizationDecision = AuthorizationDecisionAttachResource<E, E>(authorizationDecision, finalResponse);
 					const transformedResponse: E = await AuthorizationDecisionApplyResult<E, E>(authorizationDecision, finalResponse);
-					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+					const dto: Type<unknown> | undefined = ApiControllerGetDto(properties, entityMetadata, method, EApiDtoType.RESPONSE, routeConfig);
 
 					return plainToInstance(dto as ClassConstructor<E>, transformedResponse, {
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
@@ -530,6 +539,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 	}
 
 	protected [EApiRouteType.UPDATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+		const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = properties.routes[method] ?? {};
+
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
 				const entityInstance: E = new (properties.entity as new () => E)();
@@ -571,7 +582,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 							ROUTE_TYPE: EApiRouteType.UPDATE,
 						};
 
-						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Primary key not found in entity columns"));
+						await ApiSubscriberExecutor.executeRouteErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiRouteType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Primary key not found in entity columns"));
 
 						throw ErrorException("Primary key not found in entity columns");
 					}
@@ -603,7 +614,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 					const finalResponse: E = afterResult ?? response;
 					authorizationDecision = AuthorizationDecisionAttachResource<E, E>(authorizationDecision, finalResponse);
 					const transformedResponse: E = await AuthorizationDecisionApplyResult<E, E>(authorizationDecision, finalResponse);
-					const dto: Type<unknown> | undefined = DtoGenerate(properties.entity, entityMetadata, method, EApiDtoType.RESPONSE, properties.routes[method]?.autoDto?.[EApiDtoType.RESPONSE], properties.routes[method]?.authentication?.guard);
+					const dto: Type<unknown> | undefined = ApiControllerGetDto(properties, entityMetadata, method, EApiDtoType.RESPONSE, routeConfig);
 
 					return plainToInstance(dto as ClassConstructor<E>, transformedResponse, {
 						// eslint-disable-next-line @elsikora/typescript/naming-convention

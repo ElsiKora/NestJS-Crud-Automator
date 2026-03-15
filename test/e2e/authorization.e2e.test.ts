@@ -7,7 +7,7 @@ import type { TApiAuthorizationPolicyBeforeCreateContext, TApiAuthorizationPolic
 import { ApiAuthorizationEngine } from "@class/api/authorization/engine.class";
 import { ApiAuthorizationPolicyBase } from "@class/api/authorization/policy/base.class";
 import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
-import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
+import { EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import { ApiAuthorizationPolicy } from "@decorator/api/authorization-policy.decorator";
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
@@ -40,7 +40,7 @@ class PermissionAllowPolicySubscriber extends ApiAuthorizationPolicyBase<PolicyE
 class PermissionDenyPolicySubscriber extends ApiAuthorizationPolicyBase<PolicyEntity> {
 	public onBeforeGet() {
 		return this.denyForPermissions(["admin.user.read"], {
-			condition: ({ subject }) => Boolean((subject.attributes as { isSuspended?: boolean } | undefined)?.isSuspended),
+			condition: ({ principal }) => Boolean((principal.attributes as { isSuspended?: boolean } | undefined)?.isSuspended),
 		});
 	}
 }
@@ -48,12 +48,12 @@ class PermissionDenyPolicySubscriber extends ApiAuthorizationPolicyBase<PolicyEn
 @ApiAuthorizationPolicy({ entity: PolicyEntity })
 class PayloadAwarePolicySubscriber extends ApiAuthorizationPolicyBase<PolicyEntity> {
 	public onBeforeCreate(context: TApiAuthorizationPolicyBeforeCreateContext<PolicyEntity>) {
-		if (context.body.ownerId !== context.subject.id) {
+		if (context.body.ownerId !== context.principal.id) {
 			return [];
 		}
 
 		return this.allow({
-			scope: () => ({ where: { ownerId: context.subject.id } }),
+			scope: () => ({ where: { ownerId: context.principal.id } }),
 		});
 	}
 
@@ -66,7 +66,7 @@ class PayloadAwarePolicySubscriber extends ApiAuthorizationPolicyBase<PolicyEnti
 		}
 
 		return this.allow({
-			scope: () => ({ where: { ownerId: context.subject.id } }),
+			scope: () => ({ where: { ownerId: context.principal.id } }),
 		});
 	}
 }
@@ -85,22 +85,25 @@ describe("Authorization policy registry (E2E)", () => {
 
 		expect(policy).toBeDefined();
 		expect(policy?.rules).toHaveLength(2);
-		expect(policy?.rules.every((rule) => rule.effect === EAuthorizationEffect.ALLOW)).toBe(true);
+		expect(policy?.rules.every((rule) => rule.effect === EApiPolicyEffect.ALLOW)).toBe(true);
 
 		const engine = new ApiAuthorizationEngine();
 		const decision = await engine.evaluate({
 			action: EApiRouteType.GET,
+			mode: EApiAuthorizationMode.HOOKS,
+			permissions: ["admin.user.*"],
 			policy: policy!,
-			resource: { id: "entity-1" } as PolicyEntity,
-			subject: {
+			principal: {
 				attributes: {},
-				id: "subject-1",
-				permissions: ["admin.user.*"],
+				id: "principal-1",
 				roles: [],
+				type: EApiAuthorizationPrincipalType.USER,
 			},
+			resource: { id: "entity-1" } as PolicyEntity,
+			resourceType: "PolicyEntity",
 		});
 
-		expect(decision.effect).toBe(EAuthorizationEffect.ALLOW);
+		expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
 		expect(decision.scope?.where).toEqual({ id: "entity-1", ownerId: "owner-2" });
 	});
 
@@ -117,17 +120,20 @@ describe("Authorization policy registry (E2E)", () => {
 		const engine = new ApiAuthorizationEngine();
 		const decision = await engine.evaluate({
 			action: EApiRouteType.GET,
+			mode: EApiAuthorizationMode.HOOKS,
+			permissions: ["admin.user.update"],
 			policy: policy!,
-			resource: { id: "entity-1" } as PolicyEntity,
-			subject: {
+			principal: {
 				attributes: {},
-				id: "subject-1",
-				permissions: ["admin.user.update"],
+				id: "principal-1",
 				roles: [],
+				type: EApiAuthorizationPrincipalType.USER,
 			},
+			resource: { id: "entity-1" } as PolicyEntity,
+			resourceType: "PolicyEntity",
 		});
 
-		expect(decision.effect).toBe(EAuthorizationEffect.DENY);
+		expect(decision.effect).toBe(EApiPolicyEffect.DENY);
 		expect(decision.appliedRules).toHaveLength(0);
 		expect(decision.scope).toBeUndefined();
 	});
@@ -151,20 +157,23 @@ describe("Authorization policy registry (E2E)", () => {
 		const engine = new ApiAuthorizationEngine();
 		const decision = await engine.evaluate({
 			action: EApiRouteType.GET,
+			mode: EApiAuthorizationMode.HOOKS,
+			permissions: ["admin.user.read"],
 			policy: policy!,
-			resource: { id: "entity-1" } as PolicyEntity,
-			subject: {
+			principal: {
 				attributes: { isSuspended: true },
-				id: "subject-1",
-				permissions: ["admin.user.read"],
+				id: "principal-1",
 				roles: [],
+				type: EApiAuthorizationPrincipalType.USER,
 			},
+			resource: { id: "entity-1" } as PolicyEntity,
+			resourceType: "PolicyEntity",
 		});
 
-		expect(policy?.rules[0]?.effect).toBe(EAuthorizationEffect.DENY);
-		expect(decision.effect).toBe(EAuthorizationEffect.DENY);
+		expect(policy?.rules[0]?.effect).toBe(EApiPolicyEffect.DENY);
+		expect(decision.effect).toBe(EApiPolicyEffect.DENY);
 		expect(decision.appliedRules).toHaveLength(1);
-		expect(decision.appliedRules[0]?.effect).toBe(EAuthorizationEffect.DENY);
+		expect(decision.appliedRules[0]?.effect).toBe(EApiPolicyEffect.DENY);
 		expect(decision.scope).toBeUndefined();
 	});
 
@@ -187,28 +196,32 @@ describe("Authorization policy registry (E2E)", () => {
 				},
 				ip: "127.0.0.1",
 			},
-			subject: {
+			permissions: [],
+			principal: {
 				attributes: {},
 				id: "owner-1",
-				permissions: [],
 				roles: [],
+				type: EApiAuthorizationPrincipalType.USER,
 			},
 		});
 		const createDecision = await new ApiAuthorizationEngine().evaluate({
 			action: EApiRouteType.CREATE,
+			mode: EApiAuthorizationMode.HOOKS,
+			permissions: [],
 			policy: createPolicy!,
+			principal: {
+				attributes: {},
+				id: "owner-1",
+				roles: [],
+				type: EApiAuthorizationPrincipalType.USER,
+			},
 			resource: {
 				ownerId: "owner-1",
 			} as PolicyEntity,
-			subject: {
-				attributes: {},
-				id: "owner-1",
-				permissions: [],
-				roles: [],
-			},
+			resourceType: "PolicyEntity",
 		});
 
-		expect(createDecision.effect).toBe(EAuthorizationEffect.ALLOW);
+		expect(createDecision.effect).toBe(EApiPolicyEffect.ALLOW);
 		expect(createDecision.scope?.where).toEqual({ ownerId: "owner-1" });
 
 		const partialUpdatePolicy = await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.PARTIAL_UPDATE, {
@@ -224,30 +237,34 @@ describe("Authorization policy registry (E2E)", () => {
 					id: "payload-aware-denied",
 				},
 			},
-			subject: {
+			permissions: [],
+			principal: {
 				attributes: {},
 				id: "owner-1",
-				permissions: [],
 				roles: [],
+				type: EApiAuthorizationPrincipalType.USER,
 			},
 		});
 		const partialUpdateDecision = await new ApiAuthorizationEngine().evaluate({
 			action: EApiRouteType.PARTIAL_UPDATE,
+			mode: EApiAuthorizationMode.HOOKS,
+			permissions: [],
 			policy: partialUpdatePolicy!,
+			principal: {
+				attributes: {},
+				id: "owner-1",
+				roles: [],
+				type: EApiAuthorizationPrincipalType.USER,
+			},
 			resource: {
 				id: "payload-aware-denied",
 				ownerId: "owner-1",
 			} as PolicyEntity,
-			subject: {
-				attributes: {},
-				id: "owner-1",
-				permissions: [],
-				roles: [],
-			},
+			resourceType: "PolicyEntity",
 		});
 
-		expect(partialUpdateDecision.effect).toBe(EAuthorizationEffect.DENY);
+		expect(partialUpdateDecision.effect).toBe(EApiPolicyEffect.DENY);
 		expect(partialUpdateDecision.appliedRules).toHaveLength(1);
-		expect(partialUpdateDecision.appliedRules[0]?.effect).toBe(EAuthorizationEffect.DENY);
+		expect(partialUpdateDecision.appliedRules[0]?.effect).toBe(EApiPolicyEffect.DENY);
 	});
 });

@@ -58,7 +58,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 					FUNCTION_TYPE: EApiFunctionType.CREATE,
 				};
 
-				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Repository is not available in this context"));
+				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}

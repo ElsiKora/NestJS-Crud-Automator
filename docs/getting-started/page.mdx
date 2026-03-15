@@ -194,7 +194,7 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 	public onBeforeGet(): TApiAuthorizationPolicyBeforeGetResult<UserEntity> {
 		return this.allow({
 			scope: (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => ({
-				where: { id: context.subject.id },
+				where: { id: context.principal.id },
 			}),
 		});
 	}

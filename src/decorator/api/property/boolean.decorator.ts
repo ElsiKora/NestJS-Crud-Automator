@@ -6,6 +6,7 @@ import type { IApiBaseEntity } from "index";
 import { EApiPropertyDataType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, IsOptional } from "class-validator";
@@ -310,6 +311,6 @@ function validateOptions(properties: TApiPropertyBaseProperties): void {
 	}
 
 	if (errors.length > 0) {
-		throw new Error(`ApiPropertyBoolean error: ${errors.join("\n")}`);
+		throw ErrorException(`ApiPropertyBoolean error: ${errors.join("\n")}`);
 	}
 }

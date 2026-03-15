@@ -1,4 +1,4 @@
-export enum EAuthorizationPermissionMatch {
+export enum EApiAuthorizationPermissionMatch {
 	ALL = "all",
 	ANY = "any",
 }

@@ -1,7 +1,7 @@
 import type { IApiAuthorizationPolicySubscriberContext } from "@interface/class/api/authorization/policy/subscriber/context/interface";
 
 import { ApiAuthorizationPolicyExecutor } from "@class/api/authorization/policy/executor.class";
-import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
+import { EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api";
 import { describe, expect, it, vi } from "vitest";
 
@@ -12,10 +12,17 @@ class ExecutorEntity {
 const buildContext = (): IApiAuthorizationPolicySubscriberContext<ExecutorEntity> =>
 	({
 		action: "get",
-		DATA: {} as never,
+		DATA: {
+			action: "get",
+			entity: ExecutorEntity,
+			entityMetadata: {} as never,
+			permissions: [],
+			principal: { attributes: {}, id: "user", roles: [], type: EApiAuthorizationPrincipalType.USER },
+		} as never,
 		entity: ExecutorEntity,
 		entityMetadata: {} as never,
-		subject: { id: "user", permissions: [], roles: [] },
+		permissions: [],
+		principal: { attributes: {}, id: "user", roles: [], type: EApiAuthorizationPrincipalType.USER },
 	}) as IApiAuthorizationPolicySubscriberContext<ExecutorEntity>;
 
 describe("ApiAuthorizationPolicyExecutor", () => {
@@ -29,7 +36,7 @@ describe("ApiAuthorizationPolicyExecutor", () => {
 	])("executes policy hook %s", async ({ hookName, routeType }) => {
 		const hook = vi.fn().mockResolvedValue([
 			{
-				effect: EAuthorizationEffect.ALLOW,
+				effect: EApiPolicyEffect.ALLOW,
 			},
 			null,
 		]);
@@ -40,18 +47,18 @@ describe("ApiAuthorizationPolicyExecutor", () => {
 		const result = await ApiAuthorizationPolicyExecutor.execute(subscriber as never, routeType, {
 			...buildContext(),
 			action: routeType,
-			routeType: undefined,
+			routeType,
 		});
 
 		expect(hook).toHaveBeenCalledTimes(1);
 		expect(result).toHaveLength(1);
-		expect(result[0]?.effect).toBe(EAuthorizationEffect.ALLOW);
+		expect(result[0]?.effect).toBe(EApiPolicyEffect.ALLOW);
 	});
 
 	it("executes custom action hook when route type is missing", async () => {
 		const getCustomActionRule = vi.fn().mockResolvedValue([
 			{
-				effect: EAuthorizationEffect.DENY,
+				effect: EApiPolicyEffect.DENY,
 			},
 			null,
 		]);
@@ -63,13 +70,13 @@ describe("ApiAuthorizationPolicyExecutor", () => {
 
 		expect(getCustomActionRule).toHaveBeenCalledTimes(1);
 		expect(result).toHaveLength(1);
-		expect(result[0]?.effect).toBe(EAuthorizationEffect.DENY);
+		expect(result[0]?.effect).toBe(EApiPolicyEffect.DENY);
 	});
 
 	it("prefers explicit route type over action", async () => {
 		const onBeforeGetList = vi.fn().mockResolvedValue([
 			{
-				effect: EAuthorizationEffect.ALLOW,
+				effect: EApiPolicyEffect.ALLOW,
 			},
 		]);
 		const subscriber = {
@@ -84,14 +91,41 @@ describe("ApiAuthorizationPolicyExecutor", () => {
 
 		expect(onBeforeGetList).toHaveBeenCalledTimes(1);
 		expect(result).toHaveLength(1);
-		expect(result[0]?.effect).toBe(EAuthorizationEffect.ALLOW);
+		expect(result[0]?.effect).toBe(EApiPolicyEffect.ALLOW);
+	});
+
+	it("does not derive a CRUD hook from action when routeType is missing", async () => {
+		const onBeforeGet = vi.fn().mockResolvedValue([
+			{
+				effect: EApiPolicyEffect.ALLOW,
+			},
+		]);
+		const getCustomActionRule = vi.fn().mockResolvedValue([
+			{
+				effect: EApiPolicyEffect.DENY,
+			},
+		]);
+		const subscriber = {
+			getCustomActionRule,
+			onBeforeGet,
+		};
+
+		const result = await ApiAuthorizationPolicyExecutor.execute(subscriber as never, EApiRouteType.GET, {
+			...buildContext(),
+			action: EApiRouteType.GET,
+			routeType: undefined,
+		});
+
+		expect(onBeforeGet).not.toHaveBeenCalled();
+		expect(getCustomActionRule).toHaveBeenCalledTimes(1);
+		expect(result[0]?.effect).toBe(EApiPolicyEffect.DENY);
 	});
 
 	it("returns empty when route hook is missing", async () => {
 		const result = await ApiAuthorizationPolicyExecutor.execute({} as never, EApiRouteType.GET, {
 			...buildContext(),
 			action: EApiRouteType.GET,
-			routeType: undefined,
+			routeType: EApiRouteType.GET,
 		});
 
 		expect(result).toEqual([]);

@@ -1,8 +1,8 @@
+import type { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
+import type { IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver } from "@interface/class/api/authorization/principal";
 import type { IApiAuthorizationRequestMetadata } from "@interface/class/api/authorization/request-metadata.interface";
-import type { IApiAuthorizationSubjectResolver } from "@interface/class/api/authorization/resolver.interface";
-import type { IApiAuthorizationSubject } from "@interface/class/api/authorization/subject.interface";
 
 /**
  * Optional inputs for policy building.
@@ -10,7 +10,9 @@ import type { IApiAuthorizationSubject } from "@interface/class/api/authorizatio
  */
 export interface IApiAuthorizationPolicyBuildOptions<E extends IApiBaseEntity = IApiBaseEntity> {
 	authenticationRequest?: IApiAuthenticationRequest;
+	permissions?: ReadonlyArray<string>;
+	principal?: IApiAuthorizationPrincipal;
+	principalResolver?: IApiAuthorizationPrincipalResolver;
 	requestMetadata?: IApiAuthorizationRequestMetadata<E>;
-	subject?: IApiAuthorizationSubject;
-	subjectResolver?: IApiAuthorizationSubjectResolver;
+	routeType?: EApiRouteType;
 }

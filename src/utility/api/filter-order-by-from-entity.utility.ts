@@ -9,6 +9,7 @@ import type { MetadataArgsStorage } from "typeorm/metadata-args/MetadataArgsStor
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { FILTER_API_INTERFACE_CONSTANT } from "@constant/interface/api";
+import { ErrorException } from "@utility/error/exception.utility";
 import { getMetadataArgsStorage } from "typeorm";
 
 import "reflect-metadata";
@@ -35,7 +36,7 @@ export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata
 
 		for (const field in fieldSelector) {
 			if (!entityFields.has(field)) {
-				throw new Error(`Field "${field}" does not exist in the entity.`);
+				throw ErrorException(`Field "${field}" does not exist in the entity.`);
 			}
 		}
 	}

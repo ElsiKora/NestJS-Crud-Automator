@@ -9,5 +9,6 @@ export interface IApiAuthorizationPolicyRegistry {
 	buildAggregatedPolicy<E extends IApiBaseEntity, TAction extends string>(entity: new () => E, action: TAction, options?: IApiAuthorizationPolicyBuildOptions<E>): Promise<IApiAuthorizationPolicy<E, TApiAuthorizationPolicyHookResult<TAction, E>> | undefined>;
 	clear(): void;
 	configureCache(options?: IApiAuthorizationPolicyCacheOptions): void;
+	hasSubscriberForEntity(entity: new () => IApiBaseEntity): boolean;
 	registerSubscriber<E extends IApiBaseEntity>(registration: IApiAuthorizationPolicySubscriberRegistration<E>): void;
 }

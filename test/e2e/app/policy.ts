@@ -10,11 +10,11 @@ import type {
 
 import { Injectable } from "@nestjs/common";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, EAuthorizationPermissionMatch } from "../../../dist/esm/index";
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, EApiAuthorizationPermissionMatch } from "../../../dist/esm/index";
 
 import { E2eEntity } from "./entity";
 
-type TE2ePolicySubjectAttributes = {
+type TE2ePolicyPrincipalAttributes = {
 	applyPolicyTransform?: boolean;
 	blockUpdate?: boolean;
 	operatorId?: string;
@@ -38,7 +38,7 @@ export class E2ePolicySubscriber extends ApiAuthorizationPolicyBase<E2eEntity> {
 	}
 
 	private static transformIfRequested(result: E2eEntity, context: IApiAuthorizationRuleContext<E2eEntity>): E2eEntity {
-		const attributes = context.subject.attributes as TE2ePolicySubjectAttributes | undefined;
+		const attributes = context.principal.attributes as TE2ePolicyPrincipalAttributes | undefined;
 
 		if (!attributes?.applyPolicyTransform) {
 			return result;
@@ -46,45 +46,46 @@ export class E2ePolicySubscriber extends ApiAuthorizationPolicyBase<E2eEntity> {
 
 		return {
 			...result,
-			policyPermissions: context.subject.permissions,
-			policySubjectId: context.subject.id,
+			policyPermissions: [...context.permissions],
+			policyPrincipalId: context.principal.id,
 		};
 	}
 
 	private static shouldBlockUpdate(context: IApiAuthorizationRuleContext<E2eEntity>): boolean {
-		const attributes = context.subject.attributes as TE2ePolicySubjectAttributes | undefined;
+		const attributes = context.principal.attributes as TE2ePolicyPrincipalAttributes | undefined;
 
 		return attributes?.blockUpdate === true;
 	}
 
-	private static assignsPlatformAdmin(body: TApiAuthorizationPolicyBeforePartialUpdateContext<E2eEntity>["body"] | TApiAuthorizationPolicyBeforeUpdateContext<E2eEntity>["body"]): boolean {
-		const authorizedEntity = body.authorizedEntity as TE2eAuthorizedEntityPayload | undefined;
+	private static assignsPlatformAdmin(body: TApiAuthorizationPolicyBeforePartialUpdateContext<E2eEntity>["body"] | TApiAuthorizationPolicyBeforeUpdateContext<E2eEntity>["body"] | undefined): boolean {
+		const authorizedEntity = body?.authorizedEntity as TE2eAuthorizedEntityPayload | undefined;
 
 		return authorizedEntity?.role === "platform-admin";
 	}
 
-	private resolveScopedOwnerId(subject: IApiAuthorizationRuleContext<E2eEntity>["subject"]): string {
-		const attributes = subject.attributes as TE2ePolicySubjectAttributes | undefined;
+	private resolveScopedOwnerId(principal: IApiAuthorizationRuleContext<E2eEntity>["principal"]): string {
+		const attributes = principal.attributes as TE2ePolicyPrincipalAttributes | undefined;
 
-		return typeof attributes?.operatorId === "string" && attributes.operatorId.length > 0 ? attributes.operatorId : subject.id;
+		return typeof attributes?.operatorId === "string" && attributes.operatorId.length > 0 ? attributes.operatorId : principal.id;
 	}
 
-	private shouldAllowRequestedOwner(subject: IApiAuthorizationRuleContext<E2eEntity>["subject"], ownerId: string | undefined): boolean {
-		return ownerId === undefined || ownerId === this.resolveScopedOwnerId(subject);
+	private shouldAllowRequestedOwner(principal: IApiAuthorizationRuleContext<E2eEntity>["principal"], ownerId: string | undefined): boolean {
+		return ownerId === undefined || ownerId === this.resolveScopedOwnerId(principal);
 	}
 
 	private readonly ownerScope = (context: IApiAuthorizationRuleContext<E2eEntity>) => {
 		return {
 			where: {
-				ownerId: this.resolveScopedOwnerId(context.subject),
+				ownerId: this.resolveScopedOwnerId(context.principal),
 			},
 		};
 	};
 
 	private buildPayloadAwareDenyRules(context: TApiAuthorizationPolicyBeforePartialUpdateContext<E2eEntity> | TApiAuthorizationPolicyBeforeUpdateContext<E2eEntity>): Array<IApiAuthorizationPolicySubscriberRule<E2eEntity, unknown>> {
 		const rules: Array<IApiAuthorizationPolicySubscriberRule<E2eEntity, unknown>> = [];
+		const body = (context.body ?? {}) as TApiAuthorizationPolicyBeforePartialUpdateContext<E2eEntity>["body"] | TApiAuthorizationPolicyBeforeUpdateContext<E2eEntity>["body"];
 
-		if (!this.shouldAllowRequestedOwner(context.subject, context.body.ownerId)) {
+		if (!this.shouldAllowRequestedOwner(context.principal, body.ownerId)) {
 			rules.push(
 				...this.deny({
 					description: "Policies can deny updates that attempt to move data outside the caller operator scope",
@@ -93,7 +94,7 @@ export class E2ePolicySubscriber extends ApiAuthorizationPolicyBase<E2eEntity> {
 			);
 		}
 
-		if (E2ePolicySubscriber.assignsPlatformAdmin(context.body)) {
+		if (E2ePolicySubscriber.assignsPlatformAdmin(body)) {
 			rules.push(
 				...this.deny({
 					description: "Payload-aware policies deny attempts to assign platform-admin through update payloads",
@@ -102,7 +103,7 @@ export class E2ePolicySubscriber extends ApiAuthorizationPolicyBase<E2eEntity> {
 			);
 		}
 
-		if (context.parameters.id === "payload-aware-denied" && context.body.name === "PayloadDenied") {
+		if (context.parameters.id === "payload-aware-denied" && body.name === "PayloadDenied") {
 			rules.push(
 				...this.deny({
 					description: "Policies can deny using both route parameters and request body",
@@ -119,7 +120,7 @@ export class E2ePolicySubscriber extends ApiAuthorizationPolicyBase<E2eEntity> {
 			...this.allowForRoles(["admin"], rule),
 			...this.allowForPermissions(requiredPermissions, {
 				...rule,
-				match: EAuthorizationPermissionMatch.ANY,
+					match: EApiAuthorizationPermissionMatch.ANY,
 			}),
 		];
 	}
@@ -129,7 +130,7 @@ export class E2ePolicySubscriber extends ApiAuthorizationPolicyBase<E2eEntity> {
 			...this.allowForRoles(["admin"], rule),
 			...this.allowForPermissions(requiredPermissions, {
 				...rule,
-				match: EAuthorizationPermissionMatch.ALL,
+					match: EApiAuthorizationPermissionMatch.ALL,
 			}),
 		];
 	}
@@ -143,7 +144,7 @@ export class E2ePolicySubscriber extends ApiAuthorizationPolicyBase<E2eEntity> {
 	public onBeforeCreate(context: TApiAuthorizationPolicyBeforeCreateContext<E2eEntity>) {
 		E2ePolicySubscriber.record("create");
 
-		if (context.body.name === "payload-aware-denied-create" || !this.shouldAllowRequestedOwner(context.subject, context.body.ownerId)) {
+		if (context.body.name === "payload-aware-denied-create" || !this.shouldAllowRequestedOwner(context.principal, context.body.ownerId)) {
 			return this.deny({
 				description: "Policies can deny create requests using request body metadata",
 				priority: 200,
@@ -220,10 +221,17 @@ export class E2ePolicySubscriber extends ApiAuthorizationPolicyBase<E2eEntity> {
 		];
 	}
 
-	public getCustomActionRule(action: "promote"): Array<IApiAuthorizationPolicySubscriberRule<E2eEntity, unknown>> {
-		if (action === "promote") {
-			E2ePolicySubscriber.record("promote");
-			return this.allowAdminOrPermissions(["admin.item.promote"], {
+	public getCustomActionRule(action: string): Array<IApiAuthorizationPolicySubscriberRule<E2eEntity, unknown>> {
+		if (action === "create.transaction") {
+			E2ePolicySubscriber.record("create.transaction");
+			return this.allowAdminOrPermissions(["admin.item.create"], {
+				scope: this.ownerScope,
+			});
+		}
+
+		if (action === "update.promote") {
+			E2ePolicySubscriber.record("update.promote");
+			return this.allowAdminOrPermissions(["admin.item.update"], {
 				scope: this.ownerScope,
 			});
 		}

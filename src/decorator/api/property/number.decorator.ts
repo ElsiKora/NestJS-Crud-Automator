@@ -7,6 +7,7 @@ import { NUMBER_CONSTANT } from "@constant/number.constant";
 import { EApiPropertyDataType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDivisibleBy, IsInt, isInt, IsNumber, IsOptional, Max, Min } from "class-validator";
@@ -183,7 +184,7 @@ function buildFormatDecorators(properties: TApiPropertyNumberProperties): Array<
 			}
 
 			default: {
-				throw new Error(`ApiPropertyNumber error: Format is not valid for number property: ${String(properties.format)}`);
+				throw ErrorException(`ApiPropertyNumber error: Format is not valid for number property: ${String(properties.format)}`);
 			}
 		}
 
@@ -301,7 +302,7 @@ function getFormat(properties: TApiPropertyNumberProperties): string {
 		}
 
 		default: {
-			throw new Error("ApiPropertyNumber error: Format is not defined");
+			throw ErrorException("ApiPropertyNumber error: Format is not defined");
 		}
 	}
 }
@@ -395,6 +396,6 @@ function validateOptions(properties: TApiPropertyNumberProperties): void {
 	}
 
 	if (errors.length > 0) {
-		throw new Error(`ApiPropertyNumber error: ${errors.join("\n")}`);
+		throw ErrorException(`ApiPropertyNumber error: ${errors.join("\n")}`);
 	}
 }

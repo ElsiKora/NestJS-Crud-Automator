@@ -58,7 +58,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 					FUNCTION_TYPE: EApiFunctionType.GET_MANY,
 				};
 
-				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Repository is not available in this context"));
+				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}
@@ -74,8 +74,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
  * Executes the retrieval of multiple entities with error handling
  * @template E The entity type
  * @param {IApiFunctionGetManyExecutorProperties<E>} options - Properties required for retrieving multiple entities
- * @returns {Promise<Array<E>>} An array of retrieved entity instances
- * @throws {NotFoundException} If no entities are found
+ * @returns {Promise<Array<E>>} An array of retrieved entity instances, or an empty array when no entities match
  * @throws {InternalServerErrorException} If the retrieval operation fails
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyExecutorProperties<E>): Promise<Array<E>> {
@@ -89,10 +88,6 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 			items = await eventRepository.find(properties);
 		} else {
 			items = await repository.find(properties);
-		}
-
-		if (items.length === 0) {
-			throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));
 		}
 
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, Array<E>> = {

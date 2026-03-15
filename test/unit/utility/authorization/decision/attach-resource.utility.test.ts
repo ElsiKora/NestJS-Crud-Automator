@@ -1,7 +1,7 @@
-import type { IApiAuthorizationDecision } from "@interface/class/api/authorization/decision.interface";
-import type { IApiAuthorizationSubject } from "@interface/class/api/authorization/subject.interface";
+import type { IApiAuthorizationDecision } from "@interface/class/api/authorization/decision";
+import type { IApiAuthorizationPrincipal } from "@interface/class/api/authorization/principal";
 
-import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
+import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { AuthorizationDecisionAttachResource } from "@utility/authorization/decision/attach-resource.utility";
 import { describe, expect, it } from "vitest";
 
@@ -9,10 +9,11 @@ class DecisionResourceEntity {
 	public id?: string;
 }
 
-const subject: IApiAuthorizationSubject = {
+const principal: IApiAuthorizationPrincipal = {
+	attributes: {},
 	id: "subject-attach",
-	permissions: [],
 	roles: [],
+	type: EApiAuthorizationPrincipalType.USER,
 };
 
 describe("AuthorizationDecisionAttachResource", () => {
@@ -20,11 +21,18 @@ describe("AuthorizationDecisionAttachResource", () => {
 		const decision: IApiAuthorizationDecision<DecisionResourceEntity, DecisionResourceEntity> = {
 			action: "get",
 			appliedRules: [],
-			effect: EAuthorizationEffect.ALLOW,
+			effect: EApiPolicyEffect.ALLOW,
+			mode: EApiAuthorizationMode.HOOKS,
+			permissions: [],
 			policyId: "policy-attach",
 			policyIds: ["policy-attach"],
+			principal,
 			resourceType: "DecisionResourceEntity",
-			subject,
+			trace: {
+				decisionType: EApiAuthorizationDecisionType.EXPLICIT_ALLOW,
+				mode: EApiAuthorizationMode.HOOKS,
+				permissions: [],
+			},
 			transforms: [],
 		};
 		const resource = { id: "resource-1" };
@@ -38,11 +46,18 @@ describe("AuthorizationDecisionAttachResource", () => {
 		const decision: IApiAuthorizationDecision<DecisionResourceEntity, DecisionResourceEntity> = {
 			action: "get",
 			appliedRules: [],
-			effect: EAuthorizationEffect.ALLOW,
+			effect: EApiPolicyEffect.ALLOW,
+			mode: EApiAuthorizationMode.HOOKS,
+			permissions: [],
 			policyId: "policy-attach",
 			policyIds: ["policy-attach"],
+			principal,
 			resourceType: "DecisionResourceEntity",
-			subject,
+			trace: {
+				decisionType: EApiAuthorizationDecisionType.EXPLICIT_ALLOW,
+				mode: EApiAuthorizationMode.HOOKS,
+				permissions: [],
+			},
 			transforms: [],
 		};
 

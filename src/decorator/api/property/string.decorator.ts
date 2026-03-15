@@ -7,6 +7,7 @@ import { STRING_PROPERTY_API_INTERFACE_CONSTANT } from "@constant/interface/api"
 import { EApiPropertyDataType, EApiPropertyStringType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { IsRegularExpressionValidator } from "@validator/is-regular-expression.validator";
 import { Exclude, Expose, Type } from "class-transformer";
@@ -546,7 +547,7 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 			}
 
 			default: {
-				throw new Error(`ApiPropertyString error: Format is not valid for string property: ${String(properties.format)}`);
+				throw ErrorException(`ApiPropertyString error: Format is not valid for string property: ${String(properties.format)}`);
 			}
 		}
 	}
@@ -716,6 +717,6 @@ function validateOptions(properties: TApiPropertyStringProperties): void {
 	}
 
 	if (errors.length > 0) {
-		throw new Error(`ApiPropertyString error: ${errors.join("\n")}`);
+		throw ErrorException(`ApiPropertyString error: ${errors.join("\n")}`);
 	}
 }

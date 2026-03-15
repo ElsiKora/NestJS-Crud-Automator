@@ -5,6 +5,7 @@ import type { IApiBaseEntity } from "index";
 
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, IsOptional } from "class-validator";
@@ -247,6 +248,6 @@ function validateOptions(properties: TApiPropertyEnumProperties): void {
 	}
 
 	if (errors.length > 0) {
-		throw new Error(`ApiPropertyEnum error: ${errors.join("\n")}`);
+		throw ErrorException(`ApiPropertyEnum error: ${errors.join("\n")}`);
 	}
 }

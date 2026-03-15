@@ -1,4 +1,4 @@
-import { EAuthorizationPermissionMatch } from "@enum/class/authorization/permission-match.enum";
+import { EApiAuthorizationPermissionMatch } from "@enum/class/authorization";
 import { AuthorizationPermissionSetMatches } from "@utility/authorization/permission/set-matches.utility";
 import { describe, expect, it } from "vitest";
 
@@ -9,8 +9,8 @@ describe("AuthorizationPermissionSetMatches", () => {
 	});
 
 	it("supports ALL matching with wildcards", () => {
-		expect(AuthorizationPermissionSetMatches(["admin.user.*"], ["admin.user.read", "admin.user.update"], { match: EAuthorizationPermissionMatch.ALL })).toBe(true);
-		expect(AuthorizationPermissionSetMatches(["admin.user.read"], ["admin.user.read", "admin.user.update"], { match: EAuthorizationPermissionMatch.ALL })).toBe(false);
+		expect(AuthorizationPermissionSetMatches(["admin.user.*"], ["admin.user.read", "admin.user.update"], { match: EApiAuthorizationPermissionMatch.ALL })).toBe(true);
+		expect(AuthorizationPermissionSetMatches(["admin.user.read"], ["admin.user.read", "admin.user.update"], { match: EApiAuthorizationPermissionMatch.ALL })).toBe(false);
 	});
 
 	it("returns false when granted or required permissions are empty", () => {

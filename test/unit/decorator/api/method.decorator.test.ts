@@ -3,6 +3,7 @@ import "reflect-metadata";
 import type { Type } from "@nestjs/common";
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
+import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiAction, EApiAuthenticationType } from "@enum/decorator/api";
 import { GUARDS_METADATA } from "@nestjs/common/constants";
@@ -124,6 +125,27 @@ describe("ApiMethod", () => {
 
 		expect(guards).toEqual(expect.arrayContaining([CustomGuard, ApiAuthorizationGuard]));
 		expect(securities).toEqual(expect.arrayContaining([{ jwt: [] }, { apiKey: [] }]));
+	});
+
+	it("stores declared action metadata on the handler", () => {
+		const decorator = ApiMethod({
+			action: EApiAction.UPDATE,
+			authorization: {
+				action: "update.publish",
+			},
+			entity: MethodEntity,
+			httpCode: HttpStatus.OK,
+			method: RequestMethod.POST,
+			path: "/publish",
+			responseType: undefined,
+		});
+
+		applyDecorator(decorator);
+
+		expect(Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ACTION_METADATA_KEY, MethodController.prototype.handler)).toBe(EApiAction.UPDATE);
+		expect(Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.AUTHORIZATION_METADATA_KEY, MethodController.prototype.handler)).toEqual({
+			action: "update.publish",
+		});
 	});
 
 	it("throws for unsupported HTTP methods", () => {

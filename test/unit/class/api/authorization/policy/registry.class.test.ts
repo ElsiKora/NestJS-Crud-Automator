@@ -4,8 +4,8 @@ import type { IApiAuthorizationPolicySubscriber } from "@interface/class/api/aut
 import type { IApiAuthorizationPolicySubscriberRule } from "@interface/class/api/authorization/policy/subscriber/rule.interface";
 
 import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
-import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization/policy-decorator.constant";
-import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
+import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization";
+import { EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
@@ -31,11 +31,11 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 	it("builds aggregated policy with normalized priorities and context", async () => {
 		const registry = new ApiAuthorizationPolicyRegistry();
 		const ruleA: IApiAuthorizationPolicySubscriberRule<PolicyEntity, PolicyEntity> = {
-			effect: EAuthorizationEffect.ALLOW,
+			effect: EApiPolicyEffect.ALLOW,
 			priority: 0,
 		};
 		const ruleB: IApiAuthorizationPolicySubscriberRule<PolicyEntity, PolicyEntity> = {
-			effect: EAuthorizationEffect.ALLOW,
+			effect: EApiPolicyEffect.ALLOW,
 			priority: 5,
 		};
 
@@ -65,10 +65,11 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 			authenticationRequest: {
 				user: {
 					id: "user-42",
-					permissions: ["read"],
 					roles: ["admin"],
 				},
 			},
+			permissions: ["read"],
+			routeType: EApiRouteType.GET,
 		});
 
 		expect(policy).toBeDefined();
@@ -82,13 +83,14 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 
 		const context = onBeforeGetA.mock.calls[0]?.[0];
 		expect(context.routeType).toBe(EApiRouteType.GET);
-		expect(context.subject.id).toBe("user-42");
+		expect(context.principal.id).toBe("user-42");
+		expect(context.permissions).toEqual(["read"]);
 	});
 
 	it("passes request metadata through to policy hook context", async () => {
 		const registry = new ApiAuthorizationPolicyRegistry();
 		const allowRule: IApiAuthorizationPolicySubscriberRule<PolicyEntity, PolicyEntity> = {
-			effect: EAuthorizationEffect.ALLOW,
+			effect: EApiPolicyEffect.ALLOW,
 		};
 		const onBeforeCreate = vi.fn().mockResolvedValue([allowRule]);
 		const onBeforeGet = vi.fn().mockResolvedValue([allowRule]);
@@ -119,6 +121,7 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 				headers: { "x-trace-id": "trace-create" },
 				ip: "127.0.0.1",
 			},
+			routeType: EApiRouteType.CREATE,
 		});
 
 		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, {
@@ -132,6 +135,7 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 				ip: "127.0.0.2",
 				parameters: { id: "entity-1" },
 			},
+			routeType: EApiRouteType.GET,
 		});
 
 		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET_LIST, {
@@ -145,6 +149,7 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 				ip: "127.0.0.3",
 				query: { limit: 10, page: 1 },
 			},
+			routeType: EApiRouteType.GET_LIST,
 		});
 
 		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.PARTIAL_UPDATE, {
@@ -159,6 +164,7 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 				ip: "127.0.0.4",
 				parameters: { id: "entity-2" },
 			},
+			routeType: EApiRouteType.PARTIAL_UPDATE,
 		});
 
 		expect(onBeforeCreate).toHaveBeenCalledTimes(1);
@@ -213,19 +219,19 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 		});
 	});
 
-	it("uses a custom subject resolver when build options provide one", async () => {
+	it("uses a custom principal resolver when build options provide one", async () => {
 		const registry = new ApiAuthorizationPolicyRegistry();
 		const onBeforeGet = vi.fn().mockResolvedValue([
 			{
-				effect: EAuthorizationEffect.ALLOW,
+				effect: EApiPolicyEffect.ALLOW,
 			},
 		]);
-		const subjectResolver = {
+		const principalResolver = {
 			resolve: vi.fn().mockResolvedValue({
 				attributes: { operatorId: "operator-1" },
 				id: "custom-user",
-				permissions: ["admin.item.read"],
 				roles: ["operator-admin"],
+				type: EApiAuthorizationPrincipalType.USER,
 			}),
 		};
 
@@ -244,10 +250,12 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 					id: "ignored-user",
 				},
 			},
-			subjectResolver,
+			permissions: ["admin.item.read"],
+			principalResolver,
+			routeType: EApiRouteType.GET,
 		});
 
-		expect(subjectResolver.resolve).toHaveBeenCalledWith(
+		expect(principalResolver.resolve).toHaveBeenCalledWith(
 			{
 				id: "ignored-user",
 			},
@@ -257,12 +265,13 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 				},
 			},
 		);
-		expect(onBeforeGet.mock.calls[0]?.[0]?.subject).toMatchObject({
+		expect(onBeforeGet.mock.calls[0]?.[0]?.principal).toMatchObject({
 			attributes: { operatorId: "operator-1" },
 			id: "custom-user",
-			permissions: ["admin.item.read"],
 			roles: ["operator-admin"],
+			type: EApiAuthorizationPrincipalType.USER,
 		});
+		expect(onBeforeGet.mock.calls[0]?.[0]?.permissions).toEqual(["admin.item.read"]);
 	});
 
 	it("caches rules when cache is enabled", async () => {
@@ -271,7 +280,7 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 
 		const onBeforeGet = vi.fn().mockResolvedValue([
 			{
-				effect: EAuthorizationEffect.ALLOW,
+				effect: EApiPolicyEffect.ALLOW,
 			},
 		]);
 		const subscriber = { onBeforeGet } as IApiAuthorizationPolicySubscriber<PolicyEntity>;
@@ -283,8 +292,8 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 			subscriber,
 		});
 
-		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET);
-		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET);
+		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
+		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
 
 		expect(onBeforeGet).toHaveBeenCalledTimes(1);
 	});
@@ -298,7 +307,7 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 
 		const onBeforeGet = vi.fn().mockResolvedValue([
 			{
-				effect: EAuthorizationEffect.ALLOW,
+				effect: EApiPolicyEffect.ALLOW,
 			},
 		]);
 		const subscriber = { onBeforeGet } as IApiAuthorizationPolicySubscriber<PolicyEntity>;
@@ -310,12 +319,12 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 			subscriber,
 		});
 
-		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET);
+		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
 		expect(onBeforeGet).toHaveBeenCalledTimes(1);
 
 		vi.setSystemTime(new Date("2026-01-01T00:00:00.050Z"));
 
-		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET);
+		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
 		expect(onBeforeGet).toHaveBeenCalledTimes(2);
 
 		vi.useRealTimers();
@@ -327,7 +336,7 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 
 		const onBeforeGetA = vi.fn().mockResolvedValue([
 			{
-				effect: EAuthorizationEffect.ALLOW,
+				effect: EApiPolicyEffect.ALLOW,
 			},
 		]);
 		const subscriberA = { onBeforeGet: onBeforeGetA } as IApiAuthorizationPolicySubscriber<PolicyEntity>;
@@ -339,14 +348,14 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 			subscriber: subscriberA,
 		});
 
-		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET);
-		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET);
+		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
+		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
 
 		expect(onBeforeGetA).toHaveBeenCalledTimes(1);
 
 		const onBeforeGetB = vi.fn().mockResolvedValue([
 			{
-				effect: EAuthorizationEffect.ALLOW,
+				effect: EApiPolicyEffect.ALLOW,
 			},
 		]);
 		const subscriberB = { onBeforeGet: onBeforeGetB } as IApiAuthorizationPolicySubscriber<PolicyEntity>;
@@ -358,7 +367,7 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 			subscriber: subscriberB,
 		});
 
-		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET);
+		await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
 
 		expect(onBeforeGetA).toHaveBeenCalledTimes(2);
 		expect(onBeforeGetB).toHaveBeenCalledTimes(1);

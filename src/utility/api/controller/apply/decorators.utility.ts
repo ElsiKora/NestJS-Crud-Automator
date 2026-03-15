@@ -1,13 +1,15 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { TApiControllerMethodMap } from "@type/factory/api/controller";
 
+import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiAction, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
-import { HttpStatus, RequestMethod } from "@nestjs/common";
-import { DtoGenerate } from "@utility/dto/generate/core.utility";
+import { HttpStatus, RequestMethod, SetMetadata } from "@nestjs/common";
+import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
@@ -24,19 +26,19 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @throws {Error} If the method type is not implemented
  * @template E - The entity type
  */
-export function ApiControllerApplyDecorators<E>(targetMethod: TApiControllerMethodMap<E>[typeof method], entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>): void {
-	const responseDto: Type<unknown> | undefined = routeConfig.dto?.response ?? DtoGenerate(properties.entity, entity, method, EApiDtoType.RESPONSE, routeConfig.autoDto?.[EApiDtoType.RESPONSE], routeConfig.authentication?.guard);
-	const customDecorators: Array<MethodDecorator> = [...decorators];
+export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMethod: TApiControllerMethodMap<E>[typeof method], entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>): void {
+	const responseDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.RESPONSE, routeConfig);
+	const customDecorators: Array<MethodDecorator> = [...decorators, SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_TYPE_METADATA_KEY, method)];
 
 	switch (method) {
 		case EApiRouteType.CREATE: {
-			customDecorators.push(ApiMethod({ action: EApiAction.CREATE, authentication: routeConfig.authentication, entity: properties.entity, httpCode: HttpStatus.CREATED, method: RequestMethod.POST, path: "", responses: { hasConflict: true, hasInternalServerError: true, hasUnauthorized: true }, responseType: responseDto }));
+			customDecorators.push(ApiMethod({ action: EApiAction.CREATE, authentication: routeConfig.authentication, authorization: { action: "create" }, entity: properties.entity, httpCode: HttpStatus.CREATED, method: RequestMethod.POST, path: "", responses: { hasConflict: true, hasInternalServerError: true, hasUnauthorized: true }, responseType: responseDto }));
 
 			break;
 		}
 
 		case EApiRouteType.DELETE: {
-			customDecorators.push(ApiMethod({ action: EApiAction.DELETE, authentication: routeConfig.authentication, entity: properties.entity, httpCode: HttpStatus.NO_CONTENT, method: RequestMethod.DELETE, path: `:${String(entity.primaryKey?.name)}`, responses: { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, responseType: undefined }));
+			customDecorators.push(ApiMethod({ action: EApiAction.DELETE, authentication: routeConfig.authentication, authorization: { action: "delete" }, entity: properties.entity, httpCode: HttpStatus.NO_CONTENT, method: RequestMethod.DELETE, path: `:${String(entity.primaryKey?.name)}`, responses: { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, responseType: undefined }));
 
 			break;
 		}
@@ -46,6 +48,7 @@ export function ApiControllerApplyDecorators<E>(targetMethod: TApiControllerMeth
 				ApiMethod({
 					action: EApiAction.FETCH,
 					authentication: routeConfig.authentication,
+					authorization: { action: "get" },
 					entity: properties.entity,
 					httpCode: HttpStatus.OK,
 					method: RequestMethod.GET,
@@ -63,6 +66,7 @@ export function ApiControllerApplyDecorators<E>(targetMethod: TApiControllerMeth
 				ApiMethod({
 					action: EApiAction.FETCH_LIST,
 					authentication: routeConfig.authentication,
+					authorization: { action: "getList" },
 					entity: properties.entity,
 					httpCode: HttpStatus.OK,
 					method: RequestMethod.GET,
@@ -76,13 +80,13 @@ export function ApiControllerApplyDecorators<E>(targetMethod: TApiControllerMeth
 		}
 
 		case EApiRouteType.PARTIAL_UPDATE: {
-			customDecorators.push(ApiMethod({ action: EApiAction.UPDATE, authentication: routeConfig.authentication, entity: properties.entity, httpCode: HttpStatus.OK, method: RequestMethod.PATCH, path: `:${String(entity.primaryKey?.name)}`, responses: { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, responseType: responseDto }));
+			customDecorators.push(ApiMethod({ action: EApiAction.UPDATE, authentication: routeConfig.authentication, authorization: { action: "partialUpdate" }, entity: properties.entity, httpCode: HttpStatus.OK, method: RequestMethod.PATCH, path: `:${String(entity.primaryKey?.name)}`, responses: { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, responseType: responseDto }));
 
 			break;
 		}
 
 		case EApiRouteType.UPDATE: {
-			customDecorators.push(ApiMethod({ action: EApiAction.UPDATE, authentication: routeConfig.authentication, entity: properties.entity, httpCode: HttpStatus.OK, method: RequestMethod.PUT, path: `:${String(entity.primaryKey?.name)}`, responses: { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, responseType: responseDto }));
+			customDecorators.push(ApiMethod({ action: EApiAction.UPDATE, authentication: routeConfig.authentication, authorization: { action: "update" }, entity: properties.entity, httpCode: HttpStatus.OK, method: RequestMethod.PUT, path: `:${String(entity.primaryKey?.name)}`, responses: { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, responseType: responseDto }));
 
 			break;
 		}

@@ -1,43 +1,43 @@
-import { AuthorizationResolveDefaultSubject } from "@utility/authorization/resolve-default-subject.utility";
+import { AuthorizationResolveDefaultPrincipal } from "@utility/authorization/resolve-default-principal.utility";
 import { describe, expect, it } from "vitest";
 
-describe("AuthorizationResolveDefaultSubject", () => {
+describe("AuthorizationResolveDefaultPrincipal", () => {
 	it("returns defaults when user is missing", () => {
-		const subject = AuthorizationResolveDefaultSubject(undefined);
+		const principal = AuthorizationResolveDefaultPrincipal(undefined);
 
-		expect(subject.id).toBe("anonymous");
-		expect(subject.roles).toEqual([]);
-		expect(subject.permissions).toEqual([]);
+		expect(principal.id).toBe("anonymous");
+		expect(principal.roles).toEqual([]);
+		expect(principal.groups).toEqual([]);
 	});
 
 	it("resolves id from id, uuid, or email", () => {
-		expect(AuthorizationResolveDefaultSubject({ id: "id-1", uuid: "uuid-1", email: "email-1" }).id).toBe("id-1");
-		expect(AuthorizationResolveDefaultSubject({ uuid: "uuid-2", email: "email-2" }).id).toBe("uuid-2");
-		expect(AuthorizationResolveDefaultSubject({ email: "email-3" }).id).toBe("email-3");
+		expect(AuthorizationResolveDefaultPrincipal({ id: "id-1", uuid: "uuid-1", email: "email-1" }).id).toBe("id-1");
+		expect(AuthorizationResolveDefaultPrincipal({ uuid: "uuid-2", email: "email-2" }).id).toBe("uuid-2");
+		expect(AuthorizationResolveDefaultPrincipal({ email: "email-3" }).id).toBe("email-3");
 	});
 
-	it("normalizes roles and permissions from arrays or strings", () => {
-		const arraySubject = AuthorizationResolveDefaultSubject({
-			permissions: ["perm-a", 2, "perm-b"],
+	it("normalizes roles and groups from arrays or strings", () => {
+		const arrayPrincipal = AuthorizationResolveDefaultPrincipal({
+			groups: ["group-a", 2, "group-b"],
 			roles: ["admin", 1, "editor"],
 		});
 
-		expect(arraySubject.roles).toEqual(["admin", "editor"]);
-		expect(arraySubject.permissions).toEqual(["perm-a", "perm-b"]);
+		expect(arrayPrincipal.roles).toEqual(["admin", "editor"]);
+		expect(arrayPrincipal.groups).toEqual(["group-a", "group-b"]);
 
-		const stringSubject = AuthorizationResolveDefaultSubject({
-			permission: "perm-single",
+		const stringPrincipal = AuthorizationResolveDefaultPrincipal({
+			group: "group-single",
 			role: "user",
 		});
 
-		expect(stringSubject.roles).toEqual(["user"]);
-		expect(stringSubject.permissions).toEqual(["perm-single"]);
+		expect(stringPrincipal.roles).toEqual(["user"]);
+		expect(stringPrincipal.groups).toEqual(["group-single"]);
 	});
 
 	it("preserves user attributes", () => {
 		const user = { id: "id-10", roles: ["admin"] };
-		const subject = AuthorizationResolveDefaultSubject(user);
+		const principal = AuthorizationResolveDefaultPrincipal(user);
 
-		expect(subject.attributes).toBe(user);
+		expect(principal.attributes).toBe(user);
 	});
 });

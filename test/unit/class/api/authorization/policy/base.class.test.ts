@@ -4,8 +4,7 @@ import type { TApiAuthorizationPolicyBeforeCreateResult } from "@type/class/api/
 import type { TApiAuthorizationPolicyBeforePartialUpdateResult } from "@type/class/api/authorization/policy/before/partial-update-result.type";
 
 import { ApiAuthorizationPolicyBase } from "@class/api/authorization/policy/base.class";
-import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
-import { EAuthorizationPermissionMatch } from "@enum/class/authorization/permission-match.enum";
+import { EApiAuthorizationPermissionMatch, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { describe, expect, it, vi } from "vitest";
 
 class PolicyEntity {
@@ -27,7 +26,7 @@ class TestPolicy extends ApiAuthorizationPolicyBase<PolicyEntity> {
 		return [
 			...this.deny(),
 			...this.denyForPermissions(["admin.user.update"], {
-				condition: ({ subject }: IApiAuthorizationRuleContext<PolicyEntity>) => subject.id === "user-1",
+				condition: ({ principal }: IApiAuthorizationRuleContext<PolicyEntity>) => principal.id === "user-1",
 			}),
 			...this.allowForPermissions(["admin.user.update"], {
 				resultTransform: async (result: PolicyEntity) => result,
@@ -49,14 +48,14 @@ class TestPolicy extends ApiAuthorizationPolicyBase<PolicyEntity> {
 
 	public allowForPermissionsRule(
 		requiredPermissions: Array<string>,
-		options: Omit<IApiAuthorizationPolicySubscriberRule<PolicyEntity, never>, "effect" | "resultTransform"> & { match?: EAuthorizationPermissionMatch; resultTransform?: never } = {},
+		options: Omit<IApiAuthorizationPolicySubscriberRule<PolicyEntity, never>, "effect" | "resultTransform"> & { match?: EApiAuthorizationPermissionMatch; resultTransform?: never } = {},
 	) {
 		return this.allowForPermissions(requiredPermissions, options);
 	}
 
 	public denyForPermissionsRule(
 		requiredPermissions: Array<string>,
-		options: Omit<IApiAuthorizationPolicySubscriberRule<PolicyEntity, never>, "effect" | "resultTransform"> & { match?: EAuthorizationPermissionMatch; resultTransform?: never } = {},
+		options: Omit<IApiAuthorizationPolicySubscriberRule<PolicyEntity, never>, "effect" | "resultTransform"> & { match?: EApiAuthorizationPermissionMatch; resultTransform?: never } = {},
 	) {
 		return this.denyForPermissions(requiredPermissions, options);
 	}
@@ -64,7 +63,7 @@ class TestPolicy extends ApiAuthorizationPolicyBase<PolicyEntity> {
 	public denyForPermissionsRuleWithTransform<R>(
 		requiredPermissions: Array<string>,
 		options: Omit<IApiAuthorizationPolicySubscriberRule<PolicyEntity, R>, "effect" | "resultTransform"> & {
-			match?: EAuthorizationPermissionMatch;
+			match?: EApiAuthorizationPermissionMatch;
 			resultTransform: NonNullable<IApiAuthorizationPolicySubscriberRule<PolicyEntity, R>["resultTransform"]>;
 		},
 	) {
@@ -82,16 +81,19 @@ describe("ApiAuthorizationPolicyBase", () => {
 		const allowRule = policy.allowRule()[0];
 		const denyRule = policy.denyRule()[0];
 
-		expect(allowRule?.effect).toBe(EAuthorizationEffect.ALLOW);
-		expect(denyRule?.effect).toBe(EAuthorizationEffect.DENY);
+		expect(allowRule?.effect).toBe(EApiPolicyEffect.ALLOW);
+		expect(denyRule?.effect).toBe(EApiPolicyEffect.DENY);
 	});
 
 	it("creates allow rules for matching roles", () => {
 		const policy = new TestPolicy();
 		const rule = policy.allowForRolesRule(["admin"])[0];
-		const context = { subject: { roles: ["admin"] } } as IApiAuthorizationRuleContext<PolicyEntity>;
+		const context = {
+			permissions: [],
+			principal: { attributes: {}, id: "user-1", roles: ["admin"], type: EApiAuthorizationPrincipalType.USER },
+		} as IApiAuthorizationRuleContext<PolicyEntity>;
 
-		expect(rule?.effect).toBe(EAuthorizationEffect.ALLOW);
+		expect(rule?.effect).toBe(EApiPolicyEffect.ALLOW);
 		expect(rule?.condition?.(context)).toBe(true);
 	});
 
@@ -99,12 +101,11 @@ describe("ApiAuthorizationPolicyBase", () => {
 		const policy = new TestPolicy();
 		const rule = policy.allowForPermissionsRule(["admin.user.read"])[0];
 		const context = {
-			subject: {
-				permissions: ["admin.user.*"],
-			},
+			permissions: ["admin.user.*"],
+			principal: { attributes: {}, id: "user-1", roles: [], type: EApiAuthorizationPrincipalType.USER },
 		} as IApiAuthorizationRuleContext<PolicyEntity>;
 
-		expect(rule?.effect).toBe(EAuthorizationEffect.ALLOW);
+		expect(rule?.effect).toBe(EApiPolicyEffect.ALLOW);
 		await expect(rule?.condition?.(context)).resolves.toBe(true);
 	});
 
@@ -112,24 +113,22 @@ describe("ApiAuthorizationPolicyBase", () => {
 		const policy = new TestPolicy();
 		const resultTransform = vi.fn(async (result: PolicyEntity) => result);
 		const scope = vi.fn(async () => ({ where: { ownerId: "user-1" } }));
-		const condition = vi.fn(async ({ subject }: IApiAuthorizationRuleContext<PolicyEntity>) => subject.id === "user-1");
+		const condition = vi.fn(async ({ principal }: IApiAuthorizationRuleContext<PolicyEntity>) => principal.id === "user-1");
 		const rule = policy.denyForPermissionsRuleWithTransform<PolicyEntity>(["admin.user.read", "admin.user.update"], {
 			condition,
 			description: "Deny matched admin updates",
-			match: EAuthorizationPermissionMatch.ALL,
+			match: EApiAuthorizationPermissionMatch.ALL,
 			priority: 9,
 			resultTransform,
 			scope,
 		})[0];
 		const context = {
-			subject: {
-				id: "user-1",
-				permissions: ["admin.user.*"],
-			},
+			permissions: ["admin.user.*"],
+			principal: { attributes: {}, id: "user-1", roles: [], type: EApiAuthorizationPrincipalType.USER },
 		} as IApiAuthorizationRuleContext<PolicyEntity>;
 
 		expect(rule?.description).toBe("Deny matched admin updates");
-		expect(rule?.effect).toBe(EAuthorizationEffect.DENY);
+		expect(rule?.effect).toBe(EApiPolicyEffect.DENY);
 		expect(rule?.priority).toBe(9);
 		expect(rule?.resultTransform).toBe(resultTransform);
 		expect(rule?.scope).toBe(scope);
@@ -142,7 +141,10 @@ describe("ApiAuthorizationPolicyBase", () => {
 		const relationRule = policy.scopeRule("owner")[0];
 		const scalarRule = policy.scopeRule("ownerId")[0];
 
-		const context = { subject: { id: "user-1" } } as IApiAuthorizationRuleContext<PolicyEntity>;
+		const context = {
+			permissions: [],
+			principal: { attributes: {}, id: "user-1", roles: [], type: EApiAuthorizationPrincipalType.USER },
+		} as IApiAuthorizationRuleContext<PolicyEntity>;
 
 		expect(relationRule?.scope?.(context)).toEqual({ where: { owner: { id: "user-1" } } });
 		expect(scalarRule?.scope?.(context)).toEqual({ where: { ownerId: "user-1" } });

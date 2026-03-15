@@ -1,3 +1,4 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiRequestValidator } from "@interface/api/request-validator.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
@@ -13,7 +14,7 @@ import { ErrorString } from "@utility/error/string.utility";
  * @returns {Promise<void>} A promise that resolves when validation passes
  * @template E - The entity type
  */
-export async function ApiControllerValidateRequest<E>(validators: Array<IApiRequestValidator<E>> | undefined, properties: IApiControllerProperties<E>, parameters: Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
+export async function ApiControllerValidateRequest<E extends IApiBaseEntity>(validators: Array<IApiRequestValidator<E>> | undefined, properties: IApiControllerProperties<E>, parameters: Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
 	if (validators) {
 		for (const validator of validators) {
 			const result: boolean | Promise<boolean> = validator.validationFunction(parameters);

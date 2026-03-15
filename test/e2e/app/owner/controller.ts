@@ -1,7 +1,7 @@
 import { Inject } from "@nestjs/common";
 
 import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../../dist/esm/index";
-import { EApiAuthenticationType, EApiRouteType } from "../../../../dist/esm/index";
+import { EApiAuthenticationType, EApiAuthorizationMode, EApiRouteType } from "../../../../dist/esm/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eOwnerEntity } from "./entity";
@@ -15,6 +15,9 @@ const authentication = {
 @ApiControllerObservable()
 @ApiControllerSecurable()
 @ApiController<E2eOwnerEntity>({
+	authorization: {
+		defaultMode: EApiAuthorizationMode.HOOKS,
+	},
 	entity: E2eOwnerEntity,
 	name: "E2eOwners",
 	path: "owners",
