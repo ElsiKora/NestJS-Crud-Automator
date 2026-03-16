@@ -1,5 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationDecision } from "@interface/class/api/authorization/decision.interface";
+import type { IApiAuthorizationDecision } from "@interface/class/api/authorization/decision";
 
 /**
  * Mutates authorization decision to include the resolved entity resource.

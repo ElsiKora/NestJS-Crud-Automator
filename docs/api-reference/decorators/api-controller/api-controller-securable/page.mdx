@@ -1,6 +1,6 @@
 # `@ApiControllerSecurable`
 
-Enables the authorization guard chain produced by `@ApiController`. When omitted, the guard short-circuits and policies are not evaluated. Use this decorator on every controller that must enforce authorization policies or custom guards.
+Marker-only decorator that enables the authorization pipeline for a controller. When omitted, `ApiAuthorizationGuard` short-circuits and no hooks or IAM evaluation runs.
 
 ## Signature
 
@@ -11,8 +11,11 @@ Enables the authorization guard chain produced by `@ApiController`. When omitted
 ## Behavior
 
 - Sets `CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY` to `true`.
-- `ApiAuthorizationGuard` inspects this flag to decide whether to resolve policies, guards, and security schemes for the controller.
-- Works in tandem with `@ApiController` route configuration and `@ApiAuthorizationPolicy` classes.
+- Does not choose `hooks` vs `iam`.
+- Does not declare `policyNamespace`, `resourceDefinition`, sources, or fallback behavior.
+- Must be paired with `@ApiController({ authorization: ... })` on any secured controller.
+- Requires custom `@ApiMethod(...)` handlers on the controller to declare `authorization.action`.
+- Is validated at bootstrap: missing `authorization` on a securable controller is treated as a configuration error.
 
 ## Example
 
@@ -20,13 +23,21 @@ Enables the authorization guard chain produced by `@ApiController`. When omitted
 @Controller("users")
 @ApiControllerSecurable()
 @ApiController<UserEntity>({
-	entity: UserEntity,
-	routes: {
-		[EApiRouteType.GET_LIST]: { authentication: { bearerStrategies: ["access-token"] } },
+	authorization: {
+		defaultMode: EApiAuthorizationMode.HOOKS,
 	},
+	entity: UserEntity,
+	path: "users",
 })
 export class UserController {}
 ```
+
+## Notes
+
+- Keep this decorator even in IAM mode.
+- Use route-level `authorization.mode` inside `@ApiController(...)` when a specific route must differ from the controller default.
+- Each route still runs in exactly one authorization mode.
+- Auto-generated CRUD routes receive their authorization action strings automatically; bespoke `@ApiMethod(...)` routes must provide one explicitly.
 
 ## Related resources
 

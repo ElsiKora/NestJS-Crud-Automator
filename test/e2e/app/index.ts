@@ -1,6 +1,7 @@
 export { TestAuthGuard } from "./auth-guard";
 export * from "./broken";
 export * from "./copy";
+export * from "./custom-response";
 export { E2eController } from "./controller";
 export { E2eEntity } from "./entity";
 export { E2eAppModule } from "./module";

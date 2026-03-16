@@ -89,6 +89,8 @@ const result = await userService.getList(
 
 Retrieves multiple entities:
 
+- Returns `[]` when no records match the criteria.
+
 ```typescript
 const users = await userService.getMany({
 	where: {

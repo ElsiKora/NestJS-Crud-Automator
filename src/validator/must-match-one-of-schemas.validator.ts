@@ -2,6 +2,7 @@ import { EMastMatchOneOfSchemasValidationErrorType } from "@enum/validator";
 import { IMustMatchOneOfSchemasDiscriminatorConfig } from "@interface/validator";
 import { Type } from "@nestjs/common";
 import { TTypeDiscriminator, TTypeDynamicDiscriminator } from "@type/decorator/api/property";
+import { ErrorException } from "@utility/error/exception.utility";
 import { registerDecorator, ValidationArguments, ValidationOptions, ValidatorConstraint, ValidatorConstraintInterface } from "class-validator";
 
 // eslint-disable-next-line @elsikora/typescript/naming-convention
@@ -211,17 +212,17 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 export function MustMatchOneOfSchemasValidator(discriminatorConfig: IMustMatchOneOfSchemasDiscriminatorConfig, validationOptions?: ValidationOptions): PropertyDecorator {
 	return function (target: object, propertyKey: string | symbol) {
 		if (typeof propertyKey !== "string") {
-			throw new TypeError("MatchesOneOfSchemas decorator can only be applied to string properties");
+			throw ErrorException("MatchesOneOfSchemas decorator can only be applied to string properties");
 		}
 
 		if (!discriminatorConfig?.discriminator) {
-			throw new TypeError("discriminatorConfig must contain a discriminator property");
+			throw ErrorException("discriminatorConfig must contain a discriminator property");
 		}
 
 		const discriminator: TTypeDiscriminator | TTypeDynamicDiscriminator = discriminatorConfig.discriminator;
 
 		if (!discriminator.propertyName || !discriminator.mapping) {
-			throw new TypeError("discriminator must contain propertyName and mapping properties");
+			throw ErrorException("discriminator must contain propertyName and mapping properties");
 		}
 
 		registerDecorator({

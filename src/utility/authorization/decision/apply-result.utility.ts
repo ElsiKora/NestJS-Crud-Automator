@@ -1,5 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationDecision } from "@interface/class/api/authorization/decision.interface";
+import type { IApiAuthorizationDecision } from "@interface/class/api/authorization/decision";
 import type { IApiAuthorizationRuleContext } from "@interface/class/api/authorization/rule/context.interface";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
@@ -19,8 +19,9 @@ export async function AuthorizationDecisionApplyResult<E extends IApiBaseEntity,
 	let transformedResult: R = result;
 
 	const context: IApiAuthorizationRuleContext<E> = {
+		permissions: decision.permissions,
+		principal: decision.principal,
 		resource: decision.resource,
-		subject: decision.subject,
 	};
 
 	for (const transform of decision.transforms) {

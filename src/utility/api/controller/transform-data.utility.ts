@@ -22,12 +22,12 @@ import { ErrorString } from "@utility/error/string.utility";
  * @template E - The entity type
  * @template R - The route type
  */
-export function ApiControllerTransformData<E, R extends EApiRouteType>(transformers: TApiControllerPropertiesRouteBaseRequestTransformers<E, R> | TApiControllerPropertiesRouteBaseResponseTransformers<E, R> | undefined, properties: IApiControllerProperties<E>, objectToTransform: TApiControllerTransformDataObjectToTransform<E>, data: TApiControllerTransformDataData): void {
+export function ApiControllerTransformData<E extends IApiBaseEntity, R extends EApiRouteType>(transformers: TApiControllerPropertiesRouteBaseRequestTransformers<E, R> | TApiControllerPropertiesRouteBaseResponseTransformers<E, R> | undefined, properties: IApiControllerProperties<E>, objectToTransform: TApiControllerTransformDataObjectToTransform<E>, data: TApiControllerTransformDataData): void {
 	if (!transformers) return;
 
 	if (EApiDtoType.BODY in transformers && transformers[EApiDtoType.BODY]) {
 		for (const transformer of transformers[EApiDtoType.BODY]) {
-			if (objectToTransform.body) processTransformer(transformer, objectToTransform.body, properties, data);
+			if (objectToTransform.body) processTransformer(transformer, objectToTransform.body as TApiTransformDataIsValidationProperties<E>, properties, data);
 		}
 	}
 
@@ -125,7 +125,7 @@ function isPartialE<E>(object: TApiTransformDataIsValidationProperties<E>): obje
  * @throws {InternalServerErrorException} When required data for transformation is missing
  * @private
  */
-function processTransformer<E>(transformer: TApiRequestTransformer<E>, objectToTransform: TApiTransformDataIsValidationProperties<E>, properties: IApiControllerProperties<E>, data: TApiControllerTransformDataData): void {
+function processTransformer<E extends IApiBaseEntity>(transformer: TApiRequestTransformer<E>, objectToTransform: TApiTransformDataIsValidationProperties<E>, properties: IApiControllerProperties<E>, data: TApiControllerTransformDataData): void {
 	switch (transformer.type) {
 		case EApiControllerRequestTransformerType.DYNAMIC: {
 			if (Object.values(TRANSFORMER_VALUE_DTO_CONSTANT).includes(transformer.value)) {

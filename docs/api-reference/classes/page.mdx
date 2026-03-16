@@ -221,17 +221,60 @@ Executes subscriber hooks in correct order.
 
 ### ApiAuthorizationPolicyBase
 
-Base class for RBAC policies. Provides helper methods (`allow`, `deny`, `allowForRoles`, `scopeToOwner`) for constructing rules that are executed by the policy executor.
+Base class for hooks-mode authorization policies. Provides helper methods such as `allow`, `deny`, `allowForRoles`, `allowForPermissions`, `denyForPermissions`, and `scopeToOwner` for constructing rules executed by the hooks engine.
 
-**Location:** `src/class/authorization/policy/base.class.ts`
+**Location:** `src/class/api/authorization/policy/base.class.ts`
 
 ### ApiAuthorizationModule
 
-Module that wires the authorization registry, discovery service, guard, and engine. Import it once to enable automatic policy discovery.
+Global module that wires the authorization registry, discovery service, guard, hooks runtime, IAM runtime, bootstrap validation, and simulator services.
 
-**Location:** `src/module/authorization/api-authorization.module.ts`
+**Location:** `src/module/api/authorization.module.ts`
 
-**Exports:** `ApiAuthorizationPolicyDiscoveryService`, `AUTHORIZATION_POLICY_REGISTRY_TOKEN`
+**Exports:** `ApiAuthorizationPolicyDiscoveryService`, `ApiAuthorizationRuntime`, `ApiAuthorizationSimulator`, `ApiAuthorizationBootstrapValidationService`, `AUTHORIZATION_POLICY_REGISTRY_TOKEN`
+
+**Static methods:**
+
+- `forRoot(options?: IApiAuthorizationModuleOptions): DynamicModule` for value-based resolver and source registration
+- `forRootAsync(options: IApiAuthorizationModuleAsyncOptions): DynamicModule` for DI-backed `principalResolver`, `hookPermissionSources`, `iam.attachmentSources`, and `iam.documentSources`
+
+`forRootAsync(...)` supports the standard Nest async module patterns: `imports`, `inject`, `useFactory`, `useClass`, and `useExisting`. Use `IApiAuthorizationModuleOptionsFactory` when you want a dedicated Nest provider class that builds the authorization module options.
+
+### ApiAuthorizationRuntime
+
+Shared runtime that resolves the principal, selects the controller or route authorization mode, and dispatches to either hooks or IAM evaluation.
+
+**Location:** `src/class/api/authorization/runtime.class.ts`
+
+### ApiAuthorizationSimulator
+
+Service for evaluating authorization decisions outside HTTP requests by reusing the same runtime as the guard.
+
+**Location:** `src/class/api/authorization/simulator.class.ts`
+
+### ApiAuthorizationIamEngine
+
+Evaluates IAM attachments and policy documents, applies explicit deny and boundary rules, resolves runtime condition paths such as `principal.*`, `resource.*`, and `request.*`, and produces IAM decision traces.
+
+**Location:** `src/class/api/authorization/iam/engine.class.ts`
+
+### ApiAuthorizationIamQueryPlanner
+
+Compiles safe `resource.*` IAM conditions into database scopes for controller queries. The planner supports `StringEquals` and `StringEqualsIfExists` on filterable resource fields, including `resource.id`, `resource.operatorId`, and nested `queryPath` mappings such as `operator.id`.
+
+**Location:** `src/class/api/authorization/iam/query-planner.class.ts`
+
+### ApiAuthorizationHookPermissionResolver
+
+Resolves and caches permissions for hooks mode from configured `IApiHookPermissionSource` implementations.
+
+**Location:** `src/class/api/authorization/hook-permission-resolver.class.ts`
+
+### ApiAuthorizationBootstrapValidationService
+
+Validates securable controller configuration, mode selection, hooks policy presence, and IAM prerequisites during application bootstrap.
+
+**Location:** `src/class/api/authorization/bootstrap-validation.service.class.ts`
 
 ## Next Steps
 

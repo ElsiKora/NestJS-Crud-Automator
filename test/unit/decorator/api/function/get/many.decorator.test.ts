@@ -2,7 +2,6 @@ import type { Repository } from "typeorm";
 
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGetMany } from "@decorator/api/function/get/many.decorator";
-import { HttpStatus } from "@nestjs/common";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 class GetManyEntity {
@@ -39,16 +38,17 @@ describe("ApiFunctionGetMany", () => {
 		expect(result).toHaveLength(2);
 	});
 
-	it("throws not found when list is empty", async () => {
+	it("returns an empty list when no entities match", async () => {
 		const repository = {
 			find: vi.fn(async () => []),
 		} as unknown as Repository<GetManyEntity>;
 		const service = new GetManyService(repository);
 
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
-		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+		const errorSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
 
-		await expect(service.getMany({ where: { id: "missing" } })).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
+		await expect(service.getMany({ where: { id: "missing" } })).resolves.toEqual([]);
+		expect(errorSpy).not.toHaveBeenCalled();
 	});
 
 	it("throws when repository is missing", async () => {

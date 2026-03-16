@@ -1,4 +1,5 @@
 import type { EApiRouteType } from "@enum/decorator/api";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 
@@ -18,7 +19,7 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @throws {Error} When the reserved method is already defined or method implementation is missing
  * @template E - The entity type
  */
-export function ApiControllerWriteMethod<E>(thisTarget: Record<string, (method: EApiRouteType, methodName: string, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>) => void>, target: Record<string, unknown>, method: EApiRouteType, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+export function ApiControllerWriteMethod<E extends IApiBaseEntity>(thisTarget: Record<string, (method: EApiRouteType, methodName: string, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>) => void>, target: Record<string, unknown>, method: EApiRouteType, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 	const methodName: string = ApiControllerGetMethodName(method);
 
 	if (target[methodName]) {

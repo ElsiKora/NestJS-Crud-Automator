@@ -22,7 +22,7 @@ Extends a provider with CRUD-ready methods (`create`, `update`, `delete`, `get`,
 | `update`  | `(criteria, dto, eventManager?)`         | Applies updates with full DTO validation and subscriber lifecycle.   |
 | `delete`  | `(criteria, eventManager?)`              | Removes records and notifies subscribers.                            |
 | `get`     | `(criteria, eventManager?)`              | Loads a single entity, throwing typed HTTP errors on failure.        |
-| `getMany` | `(criteria, eventManager?)`              | Loads multiple records by identifiers.                               |
+| `getMany` | `(criteria, eventManager?)`              | Loads multiple records by identifiers or criteria, returning `[]` when nothing matches. |
 | `getList` | `(properties, relations, eventManager?)` | Returns paginated collections with relations populated as requested. |
 
 ## Example

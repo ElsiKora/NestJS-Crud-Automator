@@ -5,6 +5,7 @@ import type { TDtoGenerateIsAllowedCombination } from "@type/utility";
 
 import { DTO_UTILITY_CONSTANT } from "@constant/utility/dto/constant";
 import { DtoValidatePropertyConfig } from "@utility/dto/validate-property-config.utility";
+import { ErrorException } from "@utility/error/exception.utility";
 
 /**
  * Retrieves the configuration for property decorators based on method, metadata, and DTO type.
@@ -24,7 +25,7 @@ export const DtoGetDecoratorConfig = <M extends EApiRouteType, D extends EApiDto
 	const strategy: Record<EApiDtoType, IDtoStrategy>[D] = DTO_UTILITY_CONSTANT.DTO_STRATEGIES[dtoType];
 
 	if (!strategy) {
-		throw new Error(`Unknown DTO type ${dtoType}`);
+		throw ErrorException(`Unknown DTO type ${dtoType}`);
 	}
 
 	let config: TApiPropertyDescribeDtoProperties = strategy.getDecoratorConfig(method, metadata);

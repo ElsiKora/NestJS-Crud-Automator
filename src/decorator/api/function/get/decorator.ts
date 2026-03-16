@@ -57,7 +57,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 					FUNCTION_TYPE: EApiFunctionType.GET,
 				};
 
-				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, new Error("Repository is not available in this context"));
+				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Repository is not available in this context"));
 
 				throw ErrorException("Repository is not available in this context");
 			}

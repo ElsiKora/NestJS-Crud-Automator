@@ -1,3 +1,4 @@
+export * from "./bootstrap-validation.service.class.test";
 export * from "./engine.class.test";
 export * from "./guard.class.test";
 export * from "./policy";

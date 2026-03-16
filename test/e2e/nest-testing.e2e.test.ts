@@ -51,7 +51,12 @@ describe("Nest TestingModule (E2E)", () => {
 
 		expect(policy).toBeDefined();
 		expect(policy?.rules).toHaveLength(1);
-		expect(policy?.rules?.[0]?.scope?.({ subject: { id: "subject-1", attributes: {}, permissions: [], roles: [] } } as any)).toEqual({
+		expect(
+			policy?.rules?.[0]?.scope?.({
+				permissions: [],
+				principal: { attributes: {}, id: "subject-1", roles: [], type: "user" },
+			} as any),
+		).toEqual({
 			where: { ownerId: "owner-1" },
 		});
 

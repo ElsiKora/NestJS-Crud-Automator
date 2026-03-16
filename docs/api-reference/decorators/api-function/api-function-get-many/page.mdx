@@ -1,6 +1,6 @@
 # `@ApiFunctionGetMany`
 
-Retrieves multiple entities at once (typically by IDs or composite criteria) and enforces the same error handling and subscriber hooks as other CRUD functions.
+Retrieves multiple entities at once (typically by IDs or composite criteria) and enforces the same subscriber lifecycle as other CRUD functions.
 
 ## Signature
 
@@ -16,7 +16,7 @@ Decorated methods gain the shape `getMany(dto: TApiFunctionGetManyProperties<E>,
 
 - Invokes `onBeforeGetMany` subscribers that can override the `FindManyOptions`.
 - Calls `repository.find` or the transactional equivalent to load the records.
-- Throws `NotFoundException` if the result set is empty so controllers surface deterministic HTTP 404 responses.
+- Returns an empty array when the result set is empty.
 - Runs `onAfterGetMany` subscribers; they may adjust the returned list.
 - Emits `onBeforeErrorGetMany` and `onAfterErrorGetMany` subscriber events for error observability.
 

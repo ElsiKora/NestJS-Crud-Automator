@@ -1,4 +1,4 @@
-export enum EAuthorizationEffect {
-	ALLOW = "ALLOW",
-	DENY = "DENY",
+export enum EApiPolicyEffect {
+	ALLOW = "Allow",
+	DENY = "Deny",
 }

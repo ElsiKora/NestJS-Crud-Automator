@@ -1,242 +1,654 @@
 # Authorization
 
-NestJS CRUD Automator now ships with a subscriber-style RBAC system. Policies are declared once, discovered automatically, and applied to securable controllers without manual guard wiring.
+NestJS CRUD Automator ships with a single authorization pipeline and two first-class authoring modes:
 
-## Enable the Authorization Module
+- `hooks`: entity-scoped `@ApiAuthorizationPolicy({ entity })` classes
+- `iam`: storage-agnostic policy attachments and IAM documents
 
-Import `ApiAuthorizationModule` in your root module to boot the discovery service, registry, guard, and engine:
+`@ApiControllerSecurable()` is marker-only. It enables the authorization pipeline for a controller, but the selected mode and all authorization configuration live in `@ApiController({ authorization: ... })`. A route can override the controller default with `routes[routeType].authorization.mode`, but each route still runs in exactly one mode.
+
+## Module Setup
+
+Import `ApiAuthorizationModule` once. Use `forRoot()` for plain value-based setup. Use `forRootAsync()` when `principalResolver`, `hookPermissionSources`, `iam.attachmentSources`, or `iam.documentSources` must come from Nest DI.
 
 ```typescript filename="app.module.ts" copy
+import type {
+	IApiAuthorizationPrincipal,
+	IApiHookPermissionSource,
+	IApiPolicyAttachmentSource,
+	IApiPolicyDocumentSource,
+	IApiResolvedPolicyAttachments,
+} from "@elsikora/nestjs-crud-automator";
+
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { ApiAuthorizationModule } from "@elsikora/nestjs-crud-automator";
+
+import {
+	ApiAuthorizationModule,
+	EApiAuthorizationPrincipalType,
+	EApiPolicySourceType,
+	AuthorizationResolveDefaultPrincipal,
+} from "@elsikora/nestjs-crud-automator";
+
+const hookPermissionSource: IApiHookPermissionSource = {
+	async getPermissions(principal: IApiAuthorizationPrincipal): Promise<ReadonlyArray<string>> {
+		const permissions = principal.claims?.permissions;
+
+		return Array.isArray(permissions)
+			? permissions.filter((value): value is string => typeof value === "string")
+			: [];
+	},
+};
+
+const iamAttachmentSource: IApiPolicyAttachmentSource = {
+	async getAttachments(principal): Promise<IApiResolvedPolicyAttachments> {
+		return {
+			attachments: [
+				{
+					policyId: "user-items",
+					principalId: principal.id,
+					principalType: principal.type,
+				},
+			],
+			boundaries: [],
+		};
+	},
+};
+
+const iamDocumentSource: IApiPolicyDocumentSource = {
+	async getDocumentsByIds(ids) {
+		return ids.map((id) => ({
+			document: {
+				Statement: [
+					{
+						Action: ["admin:item:list", "admin:item:read"],
+						Condition: {
+							StringEquals: {
+								"resource.operatorId": "operator-1",
+							},
+						},
+						Effect: "Allow",
+						Resource: ["gameport:admin:item/{id}"],
+						Sid: "AllowOperatorItems",
+					},
+				],
+				Version: "2012-10-17",
+			},
+			id,
+			namespace: "admin:item",
+			sourceType: EApiPolicySourceType.MANAGED,
+			version: "2026-03-14",
+		}));
+	},
+};
 
 @Module({
 	imports: [
 		TypeOrmModule.forRoot(/* ... */),
-		ApiAuthorizationModule, // 👈 enables discovery + guard
+		ApiAuthorizationModule.forRoot({
+			hookPermissionSources: [hookPermissionSource],
+			iam: {
+				attachmentSources: [iamAttachmentSource],
+				documentSources: [iamDocumentSource],
+			},
+			principalResolver: {
+				resolve(user) {
+					if (!user || typeof user !== "object" || !("account" in user)) {
+						return AuthorizationResolveDefaultPrincipal(user);
+					}
+
+					const payload = user as {
+						account: { id: string; operatorId: string };
+						access: { permissions: Array<string>; roles: Array<string> };
+					};
+
+					return {
+						attributes: { operatorId: payload.account.operatorId },
+						claims: { permissions: payload.access.permissions },
+						id: payload.account.id,
+						roles: payload.access.roles,
+						type: EApiAuthorizationPrincipalType.USER,
+					};
+				},
+			},
+		}),
 	],
 })
 export class AppModule {}
 ```
 
-> The authorization guard is attached automatically. Mark controllers with `@ApiControllerSecurable()` to enable policy evaluation; no `@UseGuards(ApiAuthorizationGuard)` calls are required.
+The built-in `AuthorizationResolveDefaultPrincipal()` maps `request.user` into an `IApiAuthorizationPrincipal` using `id | uuid | email`, `roles | role`, `groups | group`, and `claims`. The principal intentionally does not contain permissions or policy attachments:
 
-## Create a Policy
+- hooks mode resolves permissions through `hookPermissionSources`
+- IAM mode resolves attachments and documents through `iam.attachmentSources` and `iam.documentSources`
 
-Policies mirror the subscriber system: decorate a class and extend `ApiAuthorizationPolicyBase`. The decorator only needs the entity; policy IDs and priorities default to predictable values.
+### `forRootAsync()` for DI-backed sources
 
-```typescript filename="policies/user-access.policy.ts" copy
-import type { IApiAuthorizationRuleContext, IApiAuthorizationScope, TApiAuthorizationPolicyBeforeGetListResult, TApiAuthorizationPolicyBeforeGetResult, TApiAuthorizationPolicyCustomActionResult, TApiAuthorizationRuleResultTransform, TApiAuthorizationRuleScopeResolver } from "@elsikora/nestjs-crud-automator";
+Use `forRootAsync()` when your resolver or IAM sources depend on `Repository`, `DataSource`, or other Nest providers. The authorization module supports `imports`, `inject`, `useFactory`, `useClass`, and `useExisting`. The public API also exports `IApiAuthorizationModuleAsyncOptions` and `IApiAuthorizationModuleOptionsFactory` for typed Nest module wiring.
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
-import { EUserRole } from "../user-role.enum";
-import { UserEntity } from "../user.entity";
+```typescript filename="authorization/authorization.module.ts" copy
+import type {
+	IApiAuthorizationPrincipal,
+	IApiAuthorizationPrincipalResolver,
+	IApiPolicyAttachmentSource,
+	IApiPolicyDocumentRecord,
+	IApiPolicyDocumentSource,
+	IApiResolvedPolicyAttachments,
+} from "@elsikora/nestjs-crud-automator";
 
-@ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
-export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	public onBeforeGet(): TApiAuthorizationPolicyBeforeGetResult<UserEntity> {
-		const resultTransform: TApiAuthorizationRuleResultTransform<UserEntity, UserEntity> = (result: UserEntity, context: IApiAuthorizationRuleContext<UserEntity>): UserEntity => {
-			if (!context.subject.roles.includes(EUserRole.ADMIN)) {
-				result.email = "***";
-			}
+import { Injectable, Module } from "@nestjs/common";
+import { InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
 
-			return result;
+import {
+	ApiAuthorizationModule,
+	AuthorizationResolveDefaultPrincipal,
+	EApiAuthorizationPrincipalType,
+	EApiPolicySourceType,
+} from "@elsikora/nestjs-crud-automator";
+
+@Injectable()
+class DbPrincipalResolver implements IApiAuthorizationPrincipalResolver {
+	public resolve(user: unknown): IApiAuthorizationPrincipal {
+		return AuthorizationResolveDefaultPrincipal(user);
+	}
+}
+
+@Injectable()
+class DbAttachmentSource implements IApiPolicyAttachmentSource {
+	public constructor(
+		@InjectRepository(PolicyAttachmentEntity)
+		private readonly repository: Repository<PolicyAttachmentEntity>,
+	) {}
+
+	public async getAttachments(principal: IApiAuthorizationPrincipal): Promise<IApiResolvedPolicyAttachments> {
+		const rows = await this.repository.find({
+			where: { principalId: principal.id },
+		});
+
+		return {
+			attachments: rows.map((row) => ({
+				policyId: row.policyId,
+				principalId: row.principalId,
+				principalType: EApiAuthorizationPrincipalType.USER,
+			})),
+			boundaries: [],
 		};
+	}
+}
 
-		return this.allowForRoles([EUserRole.ADMIN], {
-			description: "Admins can fetch users by id",
-			scope: (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => ({
-				where: { id: context.subject.id },
+@Injectable()
+class DbDocumentSource implements IApiPolicyDocumentSource {
+	public constructor(
+		@InjectRepository(PolicyDocumentEntity)
+		private readonly repository: Repository<PolicyDocumentEntity>,
+	) {}
+
+	public async getDocumentsByIds(ids: ReadonlyArray<string>): Promise<ReadonlyArray<IApiPolicyDocumentRecord>> {
+		const rows = await this.repository.find();
+
+		return rows
+			.filter((row) => ids.includes(row.id))
+			.map((row) => ({
+				document: row.document,
+				id: row.id,
+				namespace: row.namespace,
+				sourceType: EApiPolicySourceType.DATABASE,
+				version: row.version,
+			}));
+	}
+}
+
+@Module({
+	exports: [DbAttachmentSource, DbDocumentSource, DbPrincipalResolver],
+	imports: [TypeOrmModule.forFeature([PolicyAttachmentEntity, PolicyDocumentEntity])],
+	providers: [DbAttachmentSource, DbDocumentSource, DbPrincipalResolver],
+})
+class AuthorizationSourcesModule {}
+
+@Module({
+	imports: [
+		AuthorizationSourcesModule,
+		ApiAuthorizationModule.forRootAsync({
+			imports: [AuthorizationSourcesModule],
+			inject: [DbAttachmentSource, DbDocumentSource, DbPrincipalResolver],
+			useFactory: (attachmentSource: DbAttachmentSource, documentSource: DbDocumentSource, principalResolver: DbPrincipalResolver) => ({
+				iam: {
+					attachmentSources: [attachmentSource],
+					documentSources: [documentSource],
+				},
+				principalResolver,
 			}),
-			resultTransform,
-		});
+		}),
+	],
+})
+export class AppModule {}
+```
+
+If you prefer Nest factory classes, the same setup can be expressed with `useClass` or `useExisting`.
+
+## Controller Opt-In and Mode Selection
+
+Use both decorators together on any secured controller:
+
+```typescript filename="controllers/user.controller.ts" copy
+import { EApiRouteType } from "@elsikora/nestjs-crud-automator";
+
+import {
+	EApiAuthorizationMode,
+	ApiController,
+	ApiControllerSecurable,
+} from "@elsikora/nestjs-crud-automator";
+
+@ApiControllerSecurable()
+@ApiController<UserEntity>({
+	authorization: {
+		defaultMode: EApiAuthorizationMode.HOOKS,
+	},
+	entity: UserEntity,
+	path: "users",
+	routes: {
+		[EApiRouteType.GET_LIST]: {
+			authorization: {
+				mode: EApiAuthorizationMode.IAM,
+			},
+		},
+	},
+})
+export class UserController {
+	constructor(public service: UserService) {}
+}
+```
+
+Bootstrap validation fails fast when:
+
+- `@ApiControllerSecurable()` is present but the controller has no `authorization` block
+- a controller declares `authorization` but is missing `@ApiControllerSecurable()`
+- the selected mode is not `hooks` or `iam`
+
+## Runtime authorization actions
+
+`@ApiMethod(...)` uses two separate action concepts:
+
+- `action` is a documentation hint used for generated Swagger summaries and descriptions
+- `authorization.action` is the runtime authorization action string used by hooks and IAM
+
+Auto-generated CRUD routes receive built-in runtime actions automatically:
+
+- `create`
+- `delete`
+- `get`
+- `getList`
+- `partialUpdate`
+- `update`
+
+Custom secured routes should declare their own domain action strings:
+
+```typescript filename="controllers/user.controller.ts" copy
+@ApiMethod<UserEntity>({
+	action: EApiAction.UPDATE,
+	authorization: {
+		action: "update.promote",
+	},
+	entity: UserEntity,
+	httpCode: HttpStatus.OK,
+	method: RequestMethod.POST,
+	path: ":id/promote",
+	responseType: UserResponseDto,
+})
+public promote(@Param("id") id: string) {
+	return this.service.promote(id);
+}
+```
+
+That same `authorization.action` value is what hooks receive as `context.action` and what IAM turns into a namespaced action such as `admin:user:update.promote`.
+
+## Hooks Mode
+
+Hooks mode keeps the original policy authoring style, but now runs on `principal + permissions` rather than `subject + subject.permissions`. Policies are still auto-discovered by entity through `@ApiAuthorizationPolicy({ entity })`.
+
+```typescript filename="policies/user-hooks.policy.ts" copy
+import type {
+	IApiAuthorizationRuleContext,
+	IApiAuthorizationScope,
+	TApiAuthorizationPolicyBeforeGetListContext,
+	TApiAuthorizationPolicyBeforePartialUpdateContext,
+} from "@elsikora/nestjs-crud-automator";
+
+import {
+	EApiAuthorizationPermissionMatch,
+	ApiAuthorizationPolicy,
+	ApiAuthorizationPolicyBase,
+} from "@elsikora/nestjs-crud-automator";
+
+@ApiAuthorizationPolicy<UserEntity>({
+	entity: UserEntity,
+	priority: 200,
+})
+export class UserHooksPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
+	private getOperatorId(principal: IApiAuthorizationRuleContext<UserEntity>["principal"]): string | undefined {
+		return principal.attributes.operatorId as string | undefined;
 	}
 
-	public onBeforeGetList(): TApiAuthorizationPolicyBeforeGetListResult<UserEntity> {
-		const scope: TApiAuthorizationRuleScopeResolver<UserEntity> = (context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => ({
-			where: { ownerId: context.subject.id },
-		});
-
-		return this.allowForRoles([EUserRole.ADMIN], {
-			description: "Admins can list users in their tenant",
-			scope,
-		});
+	private scopeToOperator(context: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> {
+		return {
+			where: {
+				operatorId: this.getOperatorId(context.principal),
+			},
+		};
 	}
 
-	public getCustomActionRule(action: "promote"): TApiAuthorizationPolicyCustomActionResult<UserEntity, "promote"> {
-		if (action === "promote") {
-			return this.allowForRoles([EUserRole.ADMIN]);
+	public onBeforeGetList(context: TApiAuthorizationPolicyBeforeGetListContext<UserEntity>) {
+		if (context.query.filters?.operatorId && context.query.filters.operatorId !== this.getOperatorId(context.principal)) {
+			return [];
 		}
 
-		return [];
+		return [
+			...this.allowForRoles(["platform-admin"]),
+			...this.allowForPermissions(["admin.user.read", "admin.user.list"], {
+				match: EApiAuthorizationPermissionMatch.ALL,
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => this.scopeToOperator(ruleContext),
+			}),
+		];
+	}
+
+	public onBeforePartialUpdate(context: TApiAuthorizationPolicyBeforePartialUpdateContext<UserEntity>) {
+		if (context.body.operatorId && context.body.operatorId !== this.getOperatorId(context.principal)) {
+			return [];
+		}
+
+		return [
+			...this.allowForPermissions(["admin.user.update"], {
+				scope: (ruleContext: IApiAuthorizationRuleContext<UserEntity>): IApiAuthorizationScope<UserEntity> => this.scopeToOperator(ruleContext),
+			}),
+			...this.denyForPermissions(["admin.user.update"], {
+				condition: ({ principal }: IApiAuthorizationRuleContext<UserEntity>) => Boolean(principal.attributes.isOperatorLocked),
+				priority: 1000,
+			}),
+		];
 	}
 }
 ```
 
-Inside any policy hook, the `context` argument exposes:
+Generated CRUD routes dispatch to CRUD hooks such as `onBeforeGetList` or `onBeforeUpdate` by internal `routeType`. Custom `@ApiMethod(...)` routes do not use CRUD hook names; handle them in `getCustomActionRule(action, context)` instead:
 
-- `DATA` — typed container (includes `subject` and optional `authenticationRequest`);
-- `action` — a string action name (for example `get`, `create`, `promote`);
-- `routeType` — an `EApiRouteType` value for standard CRUD hooks;
-- `entity` and `entityMetadata` — the model constructor and its metadata (columns, primary key, table name).
+```typescript filename="policies/user-hooks.policy.ts" copy
+public getCustomActionRule(action: string) {
+	if (action === "update.promote") {
+		return this.allowForPermissions(["admin.user.promote"]);
+	}
 
-### Hook Summary
+	return [];
+}
+```
 
-Hook names align with `EApiRouteType`:
+Hook contexts expose:
 
-- `onBeforeCreate`, `onBeforeGet`, `onBeforeGetList`, `onBeforeUpdate`, `onBeforePartialUpdate`, `onBeforeDelete`
-- `getCustomActionRule(action)` handles non-standard methods such as `solve`, `promote`, etc. Return an empty array when no rules apply.
+- `principal` and resolved `permissions`
+- `body`, `parameters`, `query`, `headers`, and `ip`
+- `action`, `routeType`, `entity`, and `entityMetadata`
+- the same data again under `context.DATA`
 
-Every hook can return:
+`routeType` is only populated for auto-generated CRUD handlers. For custom `@ApiMethod(...)` routes, branch on `action`.
 
-- `this.allow()` / `this.deny()` helpers
-- arrays of rules (priority is `policyPriority + rulePriority`)
-- an empty array (`[]`) when no rules apply
+For stronger typing, use the route-aware helper contexts:
 
-To make return types explicit, use `TApiAuthorizationPolicyBefore*Result` and `TApiAuthorizationPolicyCustomActionResult`.
+- `TApiAuthorizationPolicyBeforeCreateContext<E>`
+- `TApiAuthorizationPolicyBeforeGetContext<E>`
+- `TApiAuthorizationPolicyBeforeGetListContext<E>`
+- `TApiAuthorizationPolicyBeforeUpdateContext<E>`
+- `TApiAuthorizationPolicyBeforePartialUpdateContext<E>`
 
-## Subject Resolution
+Permission helpers compare required permissions against the permissions returned by your hook permission sources:
 
-`ApiAuthorizationGuard` normalizes `request.user` through `AuthorizationResolveDefaultSubject`, so every policy receives the same `IApiAuthorizationSubject` shape:
+- `EApiAuthorizationPermissionMatch.ANY` is the default
+- `EApiAuthorizationPermissionMatch.ALL` requires every listed permission
+- wildcards are supported on granted permissions only, for example `admin.user.*`, `admin.*`, or `*`
 
-- `id` — the first non-empty string among `id`, `uuid`, or `email`;
-- `roles` — the values coming from `roles` (array) or `role` (single string);
-- `permissions` — either an array from `permissions` or a single `permission` string;
-- `attributes` — the original `request.user` object (helpful for tenant/organization data, etc.).
+If you need custom checks outside a policy class, use `AuthorizationPermissionMatches()` and `AuthorizationPermissionSetMatches()`.
 
-Just make sure your auth layer injects roles and permissions into `request.user`:
+Policy caching remains available in hooks mode through `ApiAuthorizationPolicyRegistry.configureCache()` or per policy with the `cache` option. Leave caching disabled when a policy depends on request-specific data.
 
-```typescript filename="auth.strategy.ts" copy
-const client = await this.clientsService.resolveFromToken(token);
+## IAM Mode
 
-return {
-	id: client.id,
-	roles: client.roles ?? ["client"],
-	permissions: client.permissions ?? ["challenge:read"],
-	tenantId: client.tenantId,
+IAM mode does not use `@ApiAuthorizationPolicy` classes. Instead, the runtime:
+
+1. Resolves a principal
+2. Loads policy attachments for that principal
+3. Loads IAM documents by attachment policy IDs
+4. Evaluates identity policies and optional boundaries
+5. Compiles safe resource scopes into controller queries
+
+Every IAM-enabled controller must declare:
+
+- `defaultMode: EApiAuthorizationMode.IAM`
+- `policyNamespace`
+- `resourceDefinition`
+
+```typescript filename="controllers/item.controller.ts" copy
+import { ApiController, ApiControllerSecurable, EApiAuthorizationMode } from "@elsikora/nestjs-crud-automator";
+
+@ApiControllerSecurable()
+@ApiController<ItemEntity>({
+	authorization: {
+		defaultMode: EApiAuthorizationMode.IAM,
+		policyNamespace: "admin:item",
+		resourceDefinition: {
+			entity: ItemEntity,
+			fields: [
+				{
+					isFilterable: true,
+					path: "resource.id",
+					queryPath: "id",
+				},
+				{
+					isFilterable: true,
+					path: "resource.operatorId",
+					queryPath: "operator.id",
+				},
+				{
+					isFilterable: true,
+					path: "resource.status",
+					queryPath: "status",
+				},
+			],
+			namespace: "admin:item",
+			resourcePath: "gameport:admin:item/{id}",
+			resourceType: "gameport:admin:item",
+		},
+	},
+	entity: ItemEntity,
+	path: "items",
+})
+export class ItemController {
+	constructor(public service: ItemService) {}
+}
+```
+
+Generated CRUD actions are normalized to IAM-friendly names inside the configured namespace:
+
+- `get` -> `<policyNamespace>:read`
+- `getList` -> `<policyNamespace>:list`
+- `create` -> `<policyNamespace>:create`
+- `update` / `partialUpdate` -> `<policyNamespace>:update`
+- `delete` -> `<policyNamespace>:delete`
+
+Custom `@ApiMethod(...)` actions pass through unchanged after the namespace. For example, `authorization.action: "update.promote"` becomes `admin:item:update.promote` when `policyNamespace` is `admin:item`.
+
+`queryPath` may be nested, such as `operator.id`, when your repository filter shape uses relations. The query planner now safely compiles both `resource.id` and relation-backed paths such as `resource.operatorId` for `GET` and `GET_LIST`.
+
+Example IAM sources:
+
+```typescript filename="authorization/iam-sources.ts" copy
+import type {
+	IApiPolicyAttachmentSource,
+	IApiPolicyDocumentSource,
+	IApiResolvedPolicyAttachments,
+} from "@elsikora/nestjs-crud-automator";
+
+import {
+	EApiAuthorizationPrincipalType,
+	EApiPolicySourceType,
+} from "@elsikora/nestjs-crud-automator";
+
+export const attachmentSource: IApiPolicyAttachmentSource = {
+	async getAttachments(principal): Promise<IApiResolvedPolicyAttachments> {
+		return {
+			attachments: [
+				{
+					policyId: "allow-managed",
+					principalId: principal.id,
+					principalType: EApiAuthorizationPrincipalType.USER,
+				},
+			],
+			boundaries: [
+				{
+					policyId: "boundary-db",
+					principalId: principal.id,
+					principalType: EApiAuthorizationPrincipalType.USER,
+				},
+			],
+		};
+	},
+};
+
+export const documentSource: IApiPolicyDocumentSource = {
+	async getDocumentsByIds(ids) {
+		return ids.map((id) => ({
+			document: {
+				Statement: [
+					{
+						Action: ["admin:item:list", "admin:item:read"],
+						Condition: {
+							StringEquals: {
+								"resource.operatorId": "operator-1",
+							},
+						},
+						Effect: "Allow",
+						Resource: ["gameport:admin:item/{id}"],
+						Sid: id,
+					},
+				],
+				Version: "2012-10-17",
+			},
+			id,
+			namespace: "admin:item",
+			sourceType: EApiPolicySourceType.MANAGED,
+			version: "2026-03-14",
+		}));
+	},
 };
 ```
 
-If you need a different structure, override the resolver — the only requirement is to return a valid `IApiAuthorizationSubject`.
+Relation-backed create and update rules can also work directly with raw UUID payloads. If the consumer sends `request.body.operator = "operator-1"` instead of `{ id: "operator-1" }`, IAM conditions can use that value without any hooks fallback:
 
-## Policy Caching (Optional)
-
-Policies are built per request by default. If your policies are static and do not depend on the subject or request, you can enable caching:
-
-```typescript filename="app.module.ts" copy
-import { ApiAuthorizationPolicyRegistry } from "@elsikora/nestjs-crud-automator";
-import { Injectable, OnModuleInit } from "@nestjs/common";
-
-@Injectable()
-export class AppModule implements OnModuleInit {
-	constructor(private readonly policyRegistry: ApiAuthorizationPolicyRegistry) {}
-
-	onModuleInit() {
-		this.policyRegistry.configureCache({ isEnabled: true, ttlMs: 60_000 });
-	}
-}
-```
-
-Leave caching disabled if policies read dynamic data or depend on the current subject. Policy-level cache options override the registry defaults. Omit `ttlMs` to cache indefinitely.
-
-You can also configure caching per policy:
-
-```typescript filename="policies/user-access.policy.ts" copy
-@ApiAuthorizationPolicy<UserEntity>({
-	entity: UserEntity,
-	cache: { isEnabled: true, ttlMs: 30_000 },
-})
-export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
-	// ...
-}
-```
-
-## Decision Resource Lifecycle
-
-1. The guard runs before the controller, so the engine initially gets `resource: undefined`.
-2. The controller method validates input, performs `service.get / update / create`, and only after success calls `AuthorizationDecisionAttachResource` to store the resource in `authorizationDecision.resource`.
-3. BEFORE-subscribers see decision metadata; AFTER/AFTER_ERROR hooks and `AuthorizationDecisionApplyResult` receive the same entity instance returned by the service.
-4. This keeps the guard free from business logic duplication and ensures transforms/subscribers operate on the real data.
-5. `authorizationDecision.policyIds` contains all policy IDs that contributed rules to the aggregated policy.
-
-## Context, Scope, and Result Transform
-
-Each rule can define:
-
-- `condition(context)` → async boolean
-- `scope(context)` → returns `FindOptionsWhere` fragments (merged with existing filters)
-- `resultTransform(result, context)` → sequential transformations for masking or enrichment
-
-The engine evaluates rules in priority order. The first matching `DENY` short-circuits; otherwise all matching `ALLOW` rules contribute scope and transforms. Scopes are applied to controller queries (`GET`, `GET_LIST`, `UPDATE`, `DELETE`, etc.) before hitting your service.
-
-### Result Transform Example
-
-`resultTransform(result, ruleContext)` is the right place to mask fields or adjust the response based on `ruleContext.subject` and (on AFTER stages) `ruleContext.resource`:
-
-```typescript filename="policies/challenge.policy.ts" copy
-onBeforeGet() {
-	return this.allow({
-		resultTransform: (result, { subject }) => {
-			if (result && !subject.roles.includes("admin")) {
-				delete (result as Challenge).secretKey;
-			}
-
-			return result;
+```typescript filename="authorization/operator-managed-document.ts" copy
+const document = {
+	Statement: [
+		{
+			Action: ["admin:item:create", "admin:item:update"],
+			Condition: {
+				StringEquals: {
+					"request.body.operator": "${principal.attributes.operatorId}",
+				},
+			},
+			Effect: "Allow",
+			Resource: ["gameport:admin:item/*"],
 		},
-	});
-}
-
-onBeforeGetList() {
-	return this.allow({
-		resultTransform: (result) => {
-			if (Array.isArray(result)) {
-				for (const item of result) {
-					delete (item as Challenge).secretKey;
-				}
-			}
-
-			return result;
+		{
+			Action: ["admin:item:read", "admin:item:list"],
+			Condition: {
+				StringEquals: {
+					"resource.id": "${request.parameters.id}",
+					"resource.operatorId": "${principal.attributes.operatorId}",
+				},
+			},
+			Effect: "Allow",
+			Resource: ["gameport:admin:item/*"],
 		},
-	});
+	],
+	Version: "2012-10-17",
+};
+```
+
+IAM behavior is intentionally strict:
+
+- explicit deny wins over allow
+- boundaries intersect the final allow scope
+- the query planner only compiles supported `StringEquals` and `StringEqualsIfExists` conditions on `resource.*` fields marked as `isFilterable`
+- controller filters and authorization scopes are merged with logical `AND`, not overwrite semantics
+- impossible conflicts collapse to a match-nothing branch instead of rewriting the requested filter
+- unsupported or unsafe query-planning cases result in denial instead of hidden in-memory filtering
+- duplicate document IDs across sources and missing requested documents throw immediately
+
+## Decision Trace, Audit, and Simulator
+
+Both modes produce the same `IApiAuthorizationDecision` shape:
+
+- `decision.principal`
+- `decision.effect`
+- `decision.mode`
+- `decision.scope`
+- `decision.permissions`
+- `decision.trace`
+
+Hooks mode populates `decision.trace.rules` and `decision.trace.permissions`. IAM mode populates `decision.trace.attachments`, `decision.trace.boundaries`, `decision.trace.documents`, and `decision.trace.statements`.
+
+Use `ApiAuthorizationSimulator` to evaluate authorization outside HTTP requests:
+
+```typescript filename="authorization/simulator.ts" copy
+import { EApiRouteType } from "@elsikora/nestjs-crud-automator";
+
+import {
+	ApiAuthorizationSimulator,
+	EApiPolicyEffect,
+	ErrorException,
+} from "@elsikora/nestjs-crud-automator";
+
+const decision = await simulator.evaluate({
+	action: EApiRouteType.GET_LIST,
+	authorization: itemAuthorization,
+	entity: ItemEntity,
+	principal,
+	requestMetadata: {
+		query: {
+			limit: 20,
+			page: 1,
+		},
+	},
+});
+
+if (decision.effect !== EApiPolicyEffect.ALLOW) {
+	throw ErrorException("Access denied");
 }
 ```
 
-- You may return several rules with `resultTransform` — the engine appends them to `decision.transforms` and executes sequentially.
-- Transforms receive the same context as conditions/scopes, so you can rely on roles, permissions, and the loaded resource.
+If you need audit logging, provide `AUTHORIZATION_AUDIT_SINK_TOKEN` with an `IApiAuthorizationAuditSink` implementation. The runtime records every final decision through that sink.
 
-### Typed Result Payloads
+The built-in permission, attachment, and document resolvers use simple `Map` caches. Call `clear()` on the relevant resolver when your external permission or policy data changes and you need immediate re-evaluation.
 
-Every standard hook now knows the precise result type, so `resultTransform` receives a strongly typed `result` without extra casts:
+## Bootstrap Validation
 
-| Route                                                                         | Result type `R`                                       | Notes |
-| :---------------------------------------------------------------------------- | :---------------------------------------------------- | :---- |
-| `onBeforeCreate` / `onBeforeGet` / `onBeforePartialUpdate` / `onBeforeUpdate` | `E`                                                   |
-| `onBeforeDelete`                                                              | `void`                                                |
-| `onBeforeGetList`                                                             | `IApiGetListResponseResult<E>`                        |
-| Custom actions                                                                | `TApiAuthorizationRuleTransformPayload<E>` (fallback) |
+The authorization module validates configuration during bootstrap. Common failures include:
 
-- DELETE returns `void`, so transforms there can only trigger side effects.
-- Custom actions fall back to the union type; specify `this.allow<TCustomResult>({ ... })` if you need to narrow it.
+- securable controllers without an `authorization` block
+- controllers with an `authorization` block but no `@ApiControllerSecurable()`
+- hooks mode enabled for an entity with no discovered `@ApiAuthorizationPolicy(...)`
+- IAM mode without `policyNamespace`, `resourceDefinition`, or registered `documentSources`
+- `resourceDefinition.namespace` not matching `policyNamespace`
+- `resourceDefinition.entity` not matching the controller entity
+- invalid `resourceDefinition.fields` entries or duplicate `path` / `queryPath` mappings
 
-## Controller Opt-In
+This keeps misconfiguration explicit and prevents silent fallback behavior.
 
-Mark controllers once with `@ApiControllerSecurable()` to enable policy evaluation. The guard:
+## Migration Notes
 
-1. Resolves the entity from controller metadata
-2. Infers the action from the handler name
-3. Builds/loads the aggregated policy from the registry
-4. Resolves the subject from `request.user` with smart fallbacks (`id`, `uuid`, `email`, roles, permissions)
-5. Applies scope + transforms to the generated methods
+When moving from the older authorization API:
 
-Decisions are stored on the request and injected into subscriber contexts, so you can inspect `context.DATA.authorizationDecision` inside existing hooks.
+1. Replace `subject` with `principal`.
+2. Move granted permissions out of the principal and into `hookPermissionSources`.
+3. Keep `@ApiControllerSecurable()`, but move mode selection into `@ApiController({ authorization })`.
+4. Use `@ApiAuthorizationPolicy(...)` only for hooks mode.
+5. Use IAM attachment/document sources for declarative IAM evaluation.
 
-## Migration Tips
-
-Existing manual guards can be phased out gradually:
-
-1. Import `ApiAuthorizationModule`.
-2. Implement policies using helper methods (`allowForRoles`, `scopeToOwner`, etc.).
-3. Remove legacy controller configuration (no `authorization` blocks required).
-
-See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the complete contract and helper methods exposed by `ApiAuthorizationPolicyBase`.
+See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the hooks policy contract and the [controller decorator docs](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) for marker behavior.

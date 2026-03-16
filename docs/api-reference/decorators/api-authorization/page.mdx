@@ -12,7 +12,7 @@ Authorization decorators register policy classes that run before any auto-genera
 
 1. Implement a policy by extending `ApiAuthorizationPolicyBase`.
 2. Decorate the class with `@ApiAuthorizationPolicy`, providing the entity and optional metadata.
-3. Import `ApiAuthorizationModule` so the policy registry discovers and executes policies for each secured controller.
+3. Import `ApiAuthorizationModule` so the policy registry discovers and executes policies for each secured controller, using `forRoot(...)` or `forRootAsync(...)` depending on whether your resolver and permission sources are plain values or Nest providers.
 
 ## Related resources
 

@@ -1,3 +1,4 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { TApiControllerMethod } from "@type/class";
 import type { TApiControllerGetListQuery, TApiControllerPropertiesRouteBaseRequestRelations } from "@type/decorator/api/controller";
@@ -25,7 +26,7 @@ import { GetEntityColumns } from "@utility/get/entity-columns.utility";
  * @template E - The entity type
  * @template R - The route type
  */
-export async function ApiControllerHandleRequestRelations<E>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
+export async function ApiControllerHandleRequestRelations<E extends IApiBaseEntity>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: TApiControllerPropertiesRouteBaseRequestRelations<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
 	if (relationConfig?.shouldLoadRelations) {
 		for (const propertyName of GetEntityColumns<E>({ entity: properties.entity, shouldTakeRelationsOnly: true })) {
 			// @ts-expect-error
@@ -66,7 +67,7 @@ export async function ApiControllerHandleRequestRelations<E>(controllerMethod: T
 
 				const requestProperties: TApiFunctionGetProperties<E> = {
 					where: {
-						id: parameters[propertyName],
+						id: (parameters as Record<string, unknown>)[propertyName],
 					} as FindOptionsWhere<E>,
 				};
 

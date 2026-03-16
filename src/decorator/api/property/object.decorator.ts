@@ -6,6 +6,7 @@ import type { ClassConstructor } from "class-transformer";
 
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
+import { ErrorException } from "@utility/error/exception.utility";
 import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { MustMatchOneOfSchemasValidator } from "@validator/must-match-one-of-schemas.validator";
@@ -291,6 +292,6 @@ function validateOptions(properties: TApiPropertyObjectProperties): void {
 	}
 
 	if (errors.length > 0) {
-		throw new Error(`ApiPropertyObject error: ${errors.join("\n")}`);
+		throw ErrorException(`ApiPropertyObject error: ${errors.join("\n")}`);
 	}
 }

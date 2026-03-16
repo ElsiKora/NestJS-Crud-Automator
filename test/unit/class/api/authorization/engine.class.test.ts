@@ -1,10 +1,9 @@
-import type { IApiAuthorizationEngineEvaluateOptions } from "@interface/class/api/authorization/evaluate-options.interface";
 import type { IApiAuthorizationPolicy } from "@interface/class/api/authorization/policy/interface";
+import type { IApiAuthorizationPrincipal } from "@interface/class/api/authorization/principal";
 import type { IApiAuthorizationRule } from "@interface/class/api/authorization/rule/interface";
-import type { IApiAuthorizationSubject } from "@interface/class/api/authorization/subject.interface";
 
 import { ApiAuthorizationEngine } from "@class/api/authorization/engine.class";
-import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
+import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { describe, expect, it } from "vitest";
 
 class TestEntity {
@@ -12,10 +11,11 @@ class TestEntity {
 	public status?: string;
 }
 
-const subject: IApiAuthorizationSubject = {
+const principal: IApiAuthorizationPrincipal = {
+	attributes: {},
 	id: "user-1",
-	permissions: [],
 	roles: [],
+	type: EApiAuthorizationPrincipalType.USER,
 };
 
 describe("ApiAuthorizationEngine", () => {
@@ -24,14 +24,14 @@ describe("ApiAuthorizationEngine", () => {
 		const allowRule: IApiAuthorizationRule<TestEntity, TestEntity> = {
 			action: "get",
 			condition: async () => true,
-			effect: EAuthorizationEffect.ALLOW,
+			effect: EApiPolicyEffect.ALLOW,
 			policyId: "policy-allow",
 			priority: 0,
 		};
 		const denyRule: IApiAuthorizationRule<TestEntity, TestEntity> = {
 			action: "get",
 			condition: async () => true,
-			effect: EAuthorizationEffect.DENY,
+			effect: EApiPolicyEffect.DENY,
 			policyId: "policy-deny",
 			priority: 1,
 		};
@@ -44,17 +44,19 @@ describe("ApiAuthorizationEngine", () => {
 			rules: [allowRule, denyRule],
 		};
 
-		const options: IApiAuthorizationEngineEvaluateOptions<TestEntity, TestEntity> = {
+		const decision = await engine.evaluate({
 			action: "get",
+			mode: EApiAuthorizationMode.HOOKS,
+			permissions: [],
 			policy,
+			principal,
 			resource: new TestEntity(),
-			subject,
-		};
+			resourceType: "TestEntity",
+		});
 
-		const decision = await engine.evaluate(options);
-
-		expect(decision.effect).toBe(EAuthorizationEffect.DENY);
+		expect(decision.effect).toBe(EApiPolicyEffect.DENY);
 		expect(decision.appliedRules).toEqual([denyRule]);
+		expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
 		expect(decision.transforms).toHaveLength(0);
 	});
 
@@ -63,7 +65,7 @@ describe("ApiAuthorizationEngine", () => {
 		const firstRule: IApiAuthorizationRule<TestEntity, { value: number }> = {
 			action: "get",
 			condition: async () => true,
-			effect: EAuthorizationEffect.ALLOW,
+			effect: EApiPolicyEffect.ALLOW,
 			policyId: "policy-allow",
 			priority: 0,
 			scope: async () => ({
@@ -76,7 +78,7 @@ describe("ApiAuthorizationEngine", () => {
 		const secondRule: IApiAuthorizationRule<TestEntity, { value: number }> = {
 			action: "get",
 			condition: async () => true,
-			effect: EAuthorizationEffect.ALLOW,
+			effect: EApiPolicyEffect.ALLOW,
 			policyId: "policy-allow-2",
 			priority: 1,
 			scope: async () => ({
@@ -97,13 +99,17 @@ describe("ApiAuthorizationEngine", () => {
 
 		const decision = await engine.evaluate({
 			action: "get",
+			mode: EApiAuthorizationMode.HOOKS,
+			permissions: ["admin.item.read"],
 			policy,
+			principal,
 			resource: new TestEntity(),
-			subject,
+			resourceType: "TestEntity",
 		});
 
-		expect(decision.effect).toBe(EAuthorizationEffect.ALLOW);
+		expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
 		expect(decision.appliedRules).toHaveLength(2);
+		expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
 		expect(decision.scope?.where).toEqual({
 			id: "1",
 			status: "active",
@@ -116,7 +122,7 @@ describe("ApiAuthorizationEngine", () => {
 		const skippedRule: IApiAuthorizationRule<TestEntity, TestEntity> = {
 			action: "get",
 			condition: async () => false,
-			effect: EAuthorizationEffect.ALLOW,
+			effect: EApiPolicyEffect.ALLOW,
 			policyId: "policy-skip",
 			priority: 0,
 		};
@@ -131,13 +137,17 @@ describe("ApiAuthorizationEngine", () => {
 
 		const decision = await engine.evaluate({
 			action: "get",
+			mode: EApiAuthorizationMode.HOOKS,
+			permissions: [],
 			policy,
+			principal,
 			resource: new TestEntity(),
-			subject,
+			resourceType: "TestEntity",
 		});
 
-		expect(decision.effect).toBe(EAuthorizationEffect.DENY);
+		expect(decision.effect).toBe(EApiPolicyEffect.DENY);
 		expect(decision.appliedRules).toHaveLength(0);
+		expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
 		expect(decision.scope).toBeUndefined();
 	});
 });

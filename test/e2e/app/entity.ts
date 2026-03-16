@@ -170,7 +170,7 @@ export class E2eEntity {
 
 	@Column({ type: "varchar", nullable: true })
 	@ApiPropertyDescribe({
-		description: "policySubjectId",
+		description: "policyPrincipalId",
 		exampleValue: E2E_OWNER_ID,
 		format: EApiPropertyStringType.STRING,
 		isNullable: true,
@@ -179,7 +179,7 @@ export class E2eEntity {
 		pattern: "/^.+$/",
 		type: EApiPropertyDescribeType.STRING,
 	})
-	public policySubjectId?: string;
+	public policyPrincipalId?: string;
 
 	@Column({ type: "simple-json", nullable: true })
 	@ApiPropertyDescribe({

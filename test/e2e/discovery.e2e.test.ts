@@ -10,7 +10,7 @@ import { ApiFunctionSubscriberBase } from "@class/api/subscriber/function-base.c
 import { ApiRouteSubscriberBase } from "@class/api/subscriber/route-base.class";
 import { ApiSubscriberDiscoveryService } from "@class/api/subscriber/discovery-service.class";
 import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
-import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization/policy-decorator.constant";
+import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization";
 import { ApiAuthorizationPolicy } from "@decorator/api/authorization-policy.decorator";
 import { ApiFunctionSubscriber } from "@decorator/api/subscriber/function.decorator";
 import { ApiRouteSubscriber } from "@decorator/api/subscriber/route.decorator";

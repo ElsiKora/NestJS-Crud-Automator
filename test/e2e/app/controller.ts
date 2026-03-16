@@ -1,6 +1,6 @@
 import { BadRequestException, Body, HttpStatus, Inject, Param, RequestMethod } from "@nestjs/common";
 
-import { ApiMethod, EApiAction, EApiAuthenticationType, EApiControllerLoadRelationsStrategy, EApiControllerRequestTransformerType, EApiDtoType, EApiRouteType, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../dist/esm/index";
+import { ApiMethod, EApiAction, EApiAuthenticationType, EApiAuthorizationMode, EApiControllerLoadRelationsStrategy, EApiControllerRequestTransformerType, EApiDtoType, EApiRouteType, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../dist/esm/index";
 import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../dist/esm/index";
 
 import { TestAuthGuard } from "./auth-guard";
@@ -17,6 +17,9 @@ const authentication = {
 @ApiControllerObservable()
 @ApiControllerSecurable()
 @ApiController<E2eEntity>({
+	authorization: {
+		defaultMode: EApiAuthorizationMode.HOOKS,
+	},
 	entity: E2eEntity,
 	name: "E2eEntities",
 	path: "items",
@@ -164,6 +167,9 @@ export class E2eController {
 	@ApiMethod<E2eEntity>({
 		action: EApiAction.UPDATE,
 		authentication,
+		authorization: {
+			action: "update.promote",
+		},
 		entity: E2eEntity as unknown as E2eEntity,
 		httpCode: HttpStatus.OK,
 		method: RequestMethod.POST,
@@ -177,6 +183,9 @@ export class E2eController {
 	@ApiMethod<E2eEntity>({
 		action: EApiAction.CREATE,
 		authentication,
+		authorization: {
+			action: "create.transaction",
+		},
 		entity: E2eEntity as unknown as E2eEntity,
 		httpCode: HttpStatus.CREATED,
 		method: RequestMethod.POST,

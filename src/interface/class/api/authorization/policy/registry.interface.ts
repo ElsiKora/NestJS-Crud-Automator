@@ -6,8 +6,9 @@ import type { IApiAuthorizationPolicySubscriberRegistration } from "@interface/c
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
 
 export interface IApiAuthorizationPolicyRegistry {
-	buildAggregatedPolicy<E extends IApiBaseEntity, TAction extends string>(entity: new () => E, action: TAction, options?: IApiAuthorizationPolicyBuildOptions): Promise<IApiAuthorizationPolicy<E, TApiAuthorizationPolicyHookResult<TAction, E>> | undefined>;
+	buildAggregatedPolicy<E extends IApiBaseEntity, TAction extends string>(entity: new () => E, action: TAction, options?: IApiAuthorizationPolicyBuildOptions<E>): Promise<IApiAuthorizationPolicy<E, TApiAuthorizationPolicyHookResult<TAction, E>> | undefined>;
 	clear(): void;
 	configureCache(options?: IApiAuthorizationPolicyCacheOptions): void;
+	hasSubscriberForEntity(entity: new () => IApiBaseEntity): boolean;
 	registerSubscriber<E extends IApiBaseEntity>(registration: IApiAuthorizationPolicySubscriberRegistration<E>): void;
 }

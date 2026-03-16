@@ -4,5 +4,5 @@ import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/auth
 
 export interface IApiAuthenticationRequest {
 	authorizationDecision?: IApiAuthorizationDecision<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>>;
-	user: IApiBaseEntity;
+	user: unknown;
 }

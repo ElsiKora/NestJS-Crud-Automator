@@ -1,7 +1,7 @@
 import { Inject } from "@nestjs/common";
 
 import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../../dist/esm/index";
-import { EApiAuthenticationType, EApiControllerRequestTransformerType, EApiDtoType, EApiRouteType } from "../../../../dist/esm/index";
+import { EApiAuthenticationType, EApiAuthorizationMode, EApiControllerRequestTransformerType, EApiDtoType, EApiRouteType } from "../../../../dist/esm/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eEntity } from "../entity";
@@ -15,6 +15,9 @@ const authentication = {
 @ApiControllerObservable()
 @ApiControllerSecurable()
 @ApiController<E2eEntity>({
+	authorization: {
+		defaultMode: EApiAuthorizationMode.HOOKS,
+	},
 	entity: E2eEntity,
 	name: "TransformErrorEntities",
 	path: "transform-error-items",

@@ -2,7 +2,7 @@ import type { IApiAuthorizationRuleContext } from "@interface/class/api/authoriz
 import type { IApiAuthorizationRule } from "@interface/class/api/authorization/rule/interface";
 import type { IApiAuthorizationScope } from "@interface/class/api/authorization/scope.interface";
 
-import { EAuthorizationEffect } from "@enum/class/authorization/effect.enum";
+import { EApiAuthorizationDecisionType, EApiPolicyEffect } from "@enum/class/authorization";
 import { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import { IApiAuthorizationDecision, IApiAuthorizationEngine, IApiAuthorizationEngineEvaluateOptions } from "@interface/class/api/authorization";
 import { Injectable } from "@nestjs/common";
@@ -12,8 +12,9 @@ import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge
 export class ApiAuthorizationEngine implements IApiAuthorizationEngine<IApiBaseEntity> {
 	public async evaluate<E extends IApiBaseEntity, R>(options: IApiAuthorizationEngineEvaluateOptions<E, R>): Promise<IApiAuthorizationDecision<E, R>> {
 		const context: IApiAuthorizationRuleContext<E> = {
+			permissions: options.permissions,
+			principal: options.principal,
 			resource: options.resource,
-			subject: options.subject,
 		};
 
 		const matchedRules: Array<IApiAuthorizationRule<E, R>> = [];
@@ -27,10 +28,11 @@ export class ApiAuthorizationEngine implements IApiAuthorizationEngine<IApiBaseE
 				continue;
 			}
 
-			if (rule.effect === EAuthorizationEffect.DENY) {
+			if (rule.effect === EApiPolicyEffect.DENY) {
 				return this.buildDecision(options, {
 					appliedRules: [rule],
-					effect: EAuthorizationEffect.DENY,
+					decisionType: EApiAuthorizationDecisionType.EXPLICIT_DENY,
+					effect: EApiPolicyEffect.DENY,
 					scope: undefined,
 					transforms: [],
 				});
@@ -47,7 +49,8 @@ export class ApiAuthorizationEngine implements IApiAuthorizationEngine<IApiBaseE
 		if (matchedRules.length === 0) {
 			return this.buildDecision(options, {
 				appliedRules: [],
-				effect: EAuthorizationEffect.DENY,
+				decisionType: EApiAuthorizationDecisionType.IMPLICIT_DENY,
+				effect: EApiPolicyEffect.DENY,
 				scope: undefined,
 				transforms: [],
 			});
@@ -55,7 +58,8 @@ export class ApiAuthorizationEngine implements IApiAuthorizationEngine<IApiBaseE
 
 		return this.buildDecision(options, {
 			appliedRules: matchedRules,
-			effect: EAuthorizationEffect.ALLOW,
+			decisionType: EApiAuthorizationDecisionType.EXPLICIT_ALLOW,
+			effect: EApiPolicyEffect.ALLOW,
 			scope,
 			transforms,
 		});
@@ -65,7 +69,8 @@ export class ApiAuthorizationEngine implements IApiAuthorizationEngine<IApiBaseE
 		options: IApiAuthorizationEngineEvaluateOptions<E, R>,
 		payload: {
 			appliedRules: Array<IApiAuthorizationRule<E, R>>;
-			effect: EAuthorizationEffect;
+			decisionType: EApiAuthorizationDecisionType;
+			effect: EApiPolicyEffect;
 			scope: IApiAuthorizationScope<E> | undefined;
 			transforms: Array<NonNullable<IApiAuthorizationRule<E, R>["resultTransform"]>>;
 		},
@@ -74,12 +79,26 @@ export class ApiAuthorizationEngine implements IApiAuthorizationEngine<IApiBaseE
 			action: options.action,
 			appliedRules: payload.appliedRules,
 			effect: payload.effect,
+			mode: options.mode,
+			permissions: options.permissions,
 			policyId: options.policy.policyId,
 			policyIds: options.policy.policyIds,
+			principal: options.principal,
 			resource: options.resource,
-			resourceType: options.policy.entity.name ?? "UnknownResource",
+			resourceType: options.resourceType,
 			scope: payload.scope,
-			subject: options.subject,
+			trace: {
+				decisionType: payload.decisionType,
+				mode: options.mode,
+				permissions: options.permissions,
+				rules: options.policy.rules.map((rule: IApiAuthorizationRule<E, R>) => ({
+					description: rule.description,
+					effect: rule.effect,
+					isMatched: payload.appliedRules.includes(rule),
+					policyId: rule.policyId,
+					priority: rule.priority,
+				})),
+			},
 			transforms: payload.transforms,
 		};
 	}
