@@ -24,6 +24,17 @@ class ParentDto {
 	public payload!: ChildDto;
 }
 
+class FreeformResponseDto {
+	@ApiPropertyObject({
+		description: "payload",
+		entity: ObjectEntity,
+		isRequired: true,
+		isResponse: true,
+		type: Object,
+	})
+	public payload!: Record<string, unknown>;
+}
+
 class ObjectArrayDto {
 	@ApiPropertyObject({
 		description: "payloads",
@@ -104,6 +115,34 @@ describe("ApiPropertyObject", () => {
 
 		expect(errors[0]?.children?.[0]?.constraints?.isString).toBeDefined();
 		expect(validateSync(plainToInstance(ParentDto, { payload: { name: "ok" } }))).toHaveLength(0);
+	});
+
+	it("preserves free-form object payloads in response serialization", () => {
+		const instance = plainToInstance(FreeformResponseDto, {
+			payload: {
+				Condition: {
+					StringEquals: {
+						team: "platform",
+					},
+				},
+				Version: "2012-10-17",
+			},
+		}, {
+			/* eslint-disable-next-line @elsikora/typescript/naming-convention */
+			excludeExtraneousValues: true,
+			strategy: "excludeAll",
+		});
+
+		expect(instance).toMatchObject({
+			payload: {
+				Condition: {
+					StringEquals: {
+						team: "platform",
+					},
+				},
+				Version: "2012-10-17",
+			},
+		});
 	});
 
 	it("validates object arrays and size constraints", () => {

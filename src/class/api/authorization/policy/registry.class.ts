@@ -1,5 +1,3 @@
-import type { IRegistry } from "@elsikora/cladi";
-import type { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationPolicy, IApiAuthorizationPolicyRegistry, IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscriberContext, IApiAuthorizationPolicySubscriberRegistration, IApiAuthorizationPolicySubscriberRule, IApiAuthorizationRule } from "@interface/class/api/authorization";
 import type { IApiAuthorizationPolicyBuildOptions } from "@interface/class/api/authorization/policy/build-options.interface";
@@ -10,7 +8,7 @@ import type { IApiEntity } from "@interface/entity/interface";
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
 
 import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization";
-import { createRegistry } from "@elsikora/cladi";
+import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import { AuthorizationResolveDefaultPrincipal } from "@utility/authorization/resolve-default-principal.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -24,13 +22,13 @@ type TEntityConstructor<E extends IApiBaseEntity> = new () => E;
 export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRegistry {
 	private cacheOptions: IApiAuthorizationPolicyCacheOptions;
 
-	private readonly POLICY_REGISTRY: IRegistry<PolicySubscriberWrapper>;
+	private readonly POLICY_REGISTRY: Map<string, PolicySubscriberWrapper>;
 
 	private readonly POLICY_RULE_CACHE: Map<string, { cachedAt: number; rules: Array<IApiAuthorizationPolicySubscriberRule<IApiBaseEntity, unknown>> }>;
 
 	constructor() {
 		this.POLICY_RULE_CACHE = new Map();
-		this.POLICY_REGISTRY = createRegistry<PolicySubscriberWrapper>({});
+		this.POLICY_REGISTRY = new Map();
 		this.cacheOptions = { isEnabled: false };
 	}
 
@@ -42,19 +40,16 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		const registrations: Array<IApiAuthorizationPolicySubscriberRegistration<IApiBaseEntity>> = registrationWrapper?.registrations ?? [];
 
 		policyRegistryLogger.debug(`Found ${registrations.length} registration(s) for entity "${entityName}"`);
-		policyRegistryLogger.debug(
-			`All registered entities: [${this.POLICY_REGISTRY.getAll()
-				.map((wrapper: PolicySubscriberWrapper) => wrapper.getName())
-				.join(", ")}]`,
-		);
+		policyRegistryLogger.debug(`All registered entities: [${[...this.POLICY_REGISTRY.values()].map((wrapper: PolicySubscriberWrapper) => wrapper.getName()).join(", ")}]`);
 
 		if (registrations.length === 0) {
 			return undefined;
 		}
 
 		const entityMetadata: IApiEntity<E> = GenerateEntityInformation<E>(entity);
-		const { authenticationRequest, permissions = [], principal: principalOverride, principalResolver, requestMetadata, routeType }: IApiAuthorizationPolicyBuildOptions<E> = options;
+		const { authenticationRequest, permissions = [], principal: principalOverride, principalResolver, requestMetadata, routeType: routeTypeOverride }: IApiAuthorizationPolicyBuildOptions<E> = options;
 		const principal: IApiAuthorizationPrincipal = await this.resolvePrincipal(authenticationRequest, principalOverride, principalResolver);
+		const routeType: EApiRouteType | undefined = this.resolveRouteType(action, routeTypeOverride);
 
 		const contextData: IApiAuthorizationPolicySubscriberContextData<E> = {
 			action,
@@ -143,7 +138,7 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 
 		if (!wrapper) {
 			wrapper = new PolicySubscriberWrapper(entityName);
-			this.POLICY_REGISTRY.register(wrapper);
+			this.POLICY_REGISTRY.set(entityName, wrapper);
 		}
 
 		wrapper.addRegistration(normalizedRegistration);
@@ -262,6 +257,16 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		}
 
 		return AuthorizationResolveDefaultPrincipal(authenticationRequest?.user);
+	}
+
+	// NOTE: This is a compatibility shim until buildAggregatedPolicy uses a single
+	// source of truth for CRUD actions instead of accepting both action and routeType.
+	private resolveRouteType(action: string, routeType?: EApiRouteType): EApiRouteType | undefined {
+		if (routeType) {
+			return routeType;
+		}
+
+		return Object.values(EApiRouteType).includes(action as EApiRouteType) ? (action as EApiRouteType) : undefined;
 	}
 }
 

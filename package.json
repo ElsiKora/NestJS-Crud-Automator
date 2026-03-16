@@ -1,6 +1,6 @@
 {
 	"name": "@elsikora/nestjs-crud-automator",
-	"version": "1.21.1",
+	"version": "1.22.0-dev.2",
 	"description": "A library for automating the creation of CRUD operations in NestJS.",
 	"keywords": [
 		"NestJS",
@@ -55,7 +55,6 @@
 		}
 	},
 	"dependencies": {
-		"@elsikora/cladi": "^2.0.2",
 		"@elsikora/pluralizer": "^2.0.0",
 		"dotenv": "^17.2.3",
 		"reflect-metadata": "^0.2.2",
@@ -64,6 +63,7 @@
 	"devDependencies": {
 		"@commitlint/cli": "^20.3.1",
 		"@commitlint/config-conventional": "^20.3.1",
+		"@elsikora/cladi": "^2.0.2",
 		"@elsikora/commitizen-plugin-commitlint-ai": "^2.1.1",
 		"@elsikora/eslint-config": "^3.10.0",
 		"@elsikora/eslint-plugin-nestjs-typed": "^3.0.1",
