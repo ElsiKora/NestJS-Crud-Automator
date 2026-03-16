@@ -1,9 +1,7 @@
-import type { IRegistry } from "@elsikora/cladi";
 import type { IMetadataEntry } from "@interface/class";
 import type { TMetadata } from "@type/class";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
-import { createRegistry } from "@elsikora/cladi";
 import { LoggerUtility } from "@utility/logger.utility";
 
 const metadataStorageLogger: LoggerUtility = LoggerUtility.getLogger("MetadataStorage");
@@ -50,10 +48,10 @@ class EntityMetadataWrapper {
 export class MetadataStorage {
 	private static instance: MetadataStorage;
 
-	private readonly REGISTRY: IRegistry<EntityMetadataWrapper>;
+	private readonly REGISTRY: Map<string, EntityMetadataWrapper>;
 
 	constructor() {
-		this.REGISTRY = createRegistry<EntityMetadataWrapper>({});
+		this.REGISTRY = new Map();
 	}
 
 	public static getInstance(): MetadataStorage {
@@ -67,7 +65,7 @@ export class MetadataStorage {
 	public getAllEntitiesMetadata(): Record<string, TMetadata> {
 		const result: Record<string, TMetadata> = {};
 
-		for (const wrapper of this.REGISTRY.getAll()) {
+		for (const wrapper of this.REGISTRY.values()) {
 			result[wrapper.getName()] = wrapper.asRecord();
 		}
 
@@ -98,16 +96,12 @@ export class MetadataStorage {
 
 		if (!wrapper) {
 			wrapper = new EntityMetadataWrapper(entityName);
-			this.REGISTRY.register(wrapper);
+			this.REGISTRY.set(entityName, wrapper);
 			metadataStorageLogger.debug(`Registered new entity metadata wrapper for "${entityName}"`);
 		}
 
 		wrapper.setProperty(propertyName, key, value);
 		metadataStorageLogger.debug(`Total properties for entity "${entityName}": ${wrapper.getPropertyCount()}`);
-		metadataStorageLogger.debug(
-			`All registered entities: [${this.REGISTRY.getAll()
-				.map((w: EntityMetadataWrapper) => w.getName())
-				.join(", ")}]`,
-		);
+		metadataStorageLogger.debug(`All registered entities: [${[...this.REGISTRY.values()].map((w: EntityMetadataWrapper) => w.getName()).join(", ")}]`);
 	}
 }
