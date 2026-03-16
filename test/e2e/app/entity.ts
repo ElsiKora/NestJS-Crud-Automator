@@ -1,10 +1,74 @@
 import "reflect-metadata";
 
-import { ApiPropertyDescribe, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "../../../dist/esm/index";
+import { ApiPropertyDescribe, ApiPropertyEnum, ApiPropertyObject, ApiPropertyString, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "../../../dist/esm/index";
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 
 import { E2E_OWNER_ID } from "./constants";
 import { E2eOwnerEntity } from "./owner/entity";
+
+enum E2ePolicyEffect {
+	ALLOW = "Allow",
+	DENY = "Deny",
+}
+
+class E2ePolicyPrincipalDto {
+	@ApiPropertyString({
+		description: "AWS",
+		entity: E2ePolicyPrincipalDto,
+		exampleValue: "arn:aws:iam::123456789012:root",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 128,
+		minLength: 1,
+		pattern: "/^.+$/",
+	})
+	public AWS!: string;
+}
+
+class E2ePolicyStatementDto {
+	@ApiPropertyEnum({
+		description: "Effect",
+		entity: E2ePolicyStatementDto,
+		enum: E2ePolicyEffect,
+		enumName: "E2ePolicyEffect",
+		isRequired: true,
+	})
+	public Effect!: E2ePolicyEffect;
+
+	@ApiPropertyObject({
+		description: "Principal",
+		entity: E2ePolicyStatementDto,
+		isRequired: true,
+		shouldValidateNested: true,
+		type: E2ePolicyPrincipalDto,
+	})
+	public Principal!: E2ePolicyPrincipalDto;
+}
+
+class E2ePolicyDocumentDto {
+	@ApiPropertyString({
+		description: "Version",
+		entity: E2ePolicyDocumentDto,
+		exampleValue: "2012-10-17",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 32,
+		minLength: 1,
+		pattern: "/^.+$/",
+	})
+	public Version!: string;
+
+	@ApiPropertyObject({
+		description: "Statement",
+		entity: E2ePolicyDocumentDto,
+		isArray: true,
+		isRequired: true,
+		isUniqueItems: false,
+		maxItems: 10,
+		minItems: 1,
+		shouldValidateNested: true,
+		type: E2ePolicyStatementDto,
+	})
+	public Statement!: Array<E2ePolicyStatementDto>;
+}
 
 @Entity("e2e_entities")
 export class E2eEntity {
@@ -154,6 +218,16 @@ export class E2eEntity {
 		type: EApiPropertyDescribeType.OBJECT,
 	})
 	public authorizedEntity?: Record<string, unknown>;
+
+	@Column({ type: "simple-json", nullable: true })
+	@ApiPropertyDescribe({
+		dataType: E2ePolicyDocumentDto,
+		description: "document",
+		isNullable: true,
+		shouldValidateNested: true,
+		type: EApiPropertyDescribeType.OBJECT,
+	} as unknown as { description: string; type: EApiPropertyDescribeType.OBJECT })
+	public document?: E2ePolicyDocumentDto;
 
 	@Column({ type: "varchar", nullable: true })
 	@ApiPropertyDescribe({

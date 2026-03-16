@@ -1,17 +1,88 @@
 import "reflect-metadata";
 
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { ClassConstructor } from "class-transformer";
 
+import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";
+import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
+import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
+import { plainToInstance } from "class-transformer";
+import { validateSync } from "class-validator";
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 enum TestStatus {
 	ACTIVE = "ACTIVE",
 	INACTIVE = "INACTIVE",
+}
+
+enum ManualPolicyEffect {
+	ALLOW = "Allow",
+	DENY = "Deny",
+}
+
+class ManualPolicyPrincipalDto {
+	@ApiPropertyString({
+		description: "AWS",
+		entity: ManualPolicyPrincipalDto,
+		exampleValue: "arn:aws:iam::123456789012:root",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 128,
+		minLength: 1,
+		pattern: "/^.+$/",
+	})
+	public AWS!: string;
+}
+
+class ManualPolicyStatementDto {
+	@ApiPropertyEnum({
+		description: "Effect",
+		entity: ManualPolicyStatementDto,
+		enum: ManualPolicyEffect,
+		enumName: "ManualPolicyEffect",
+		isRequired: true,
+	})
+	public Effect!: ManualPolicyEffect;
+
+	@ApiPropertyObject({
+		description: "Principal",
+		entity: ManualPolicyStatementDto,
+		isRequired: true,
+		shouldValidateNested: true,
+		type: ManualPolicyPrincipalDto,
+	})
+	public Principal!: ManualPolicyPrincipalDto;
+}
+
+class ManualPolicyDocumentDto {
+	@ApiPropertyString({
+		description: "Version",
+		entity: ManualPolicyDocumentDto,
+		exampleValue: "2012-10-17",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 32,
+		minLength: 1,
+		pattern: "/^.+$/",
+	})
+	public Version!: string;
+
+	@ApiPropertyObject({
+		description: "Statement",
+		entity: ManualPolicyDocumentDto,
+		isArray: true,
+		isRequired: true,
+		isUniqueItems: false,
+		maxItems: 10,
+		minItems: 1,
+		shouldValidateNested: true,
+		type: ManualPolicyStatementDto,
+	})
+	public Statement!: Array<ManualPolicyStatementDto>;
 }
 
 @Entity("dto_related_entities")
@@ -177,6 +248,27 @@ class DtoEntity {
 	public owner!: DtoRelatedEntity;
 }
 
+@Entity("manual_nested_policy_entities")
+class ManualNestedPolicyEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		description: "id",
+		type: EApiPropertyDescribeType.UUID,
+	})
+	public id!: string;
+
+	@Column({ type: "json", nullable: true })
+	// eslint-disable-next-line @elsikora/typescript/no-explicit-any
+	@ApiPropertyDescribe({
+		dataType: ManualPolicyDocumentDto,
+		description: "document",
+		isNullable: true,
+		shouldValidateNested: true,
+		type: EApiPropertyDescribeType.OBJECT,
+	} as any)
+	public document?: ManualPolicyDocumentDto;
+}
+
 describe("DtoGenerate", () => {
 	it("generates cached DTOs for request, query, and response types", () => {
 		const entityMetadata = GenerateEntityInformation<DtoEntity>(DtoEntity as unknown as IApiBaseEntity);
@@ -198,5 +290,85 @@ describe("DtoGenerate", () => {
 		expect(queryInstance).toBeDefined();
 		expect(queryInstance && "name[value]" in queryInstance).toBe(true);
 		expect(queryInstance && "name[operator]" in queryInstance).toBe(true);
+	});
+
+	it("serializes nested manual DTOs in response mode without manual isResponse", () => {
+		const entityMetadata = GenerateEntityInformation<ManualNestedPolicyEntity>(ManualNestedPolicyEntity as unknown as IApiBaseEntity);
+		const responseDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE);
+
+		expect(responseDto).toBeDefined();
+
+		const instance = plainToInstance(responseDto as ClassConstructor<ManualNestedPolicyEntity>, {
+			document: {
+				Statement: [
+					{
+						Effect: ManualPolicyEffect.ALLOW,
+						Principal: {
+							AWS: "arn:aws:iam::123456789012:root",
+						},
+					},
+				],
+				Version: "2012-10-17",
+			},
+			id: "policy-1",
+		}, {
+			/* eslint-disable-next-line @elsikora/typescript/naming-convention */
+			excludeExtraneousValues: true,
+			strategy: "excludeAll",
+		});
+
+		expect(instance).toMatchObject({
+			document: {
+				Statement: [
+					{
+						Effect: ManualPolicyEffect.ALLOW,
+						Principal: {
+							AWS: "arn:aws:iam::123456789012:root",
+						},
+					},
+				],
+				Version: "2012-10-17",
+			},
+			id: "policy-1",
+		});
+	});
+
+	it("keeps nested manual DTOs writable and validated in request mode", () => {
+		const entityMetadata = GenerateEntityInformation<ManualNestedPolicyEntity>(ManualNestedPolicyEntity as unknown as IApiBaseEntity);
+		const bodyDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY);
+
+		expect(bodyDto).toBeDefined();
+
+		const invalidInstance = plainToInstance(bodyDto as ClassConstructor<ManualNestedPolicyEntity>, {
+			document: {
+				Statement: [
+					{
+						Effect: ManualPolicyEffect.ALLOW,
+						Principal: {
+							AWS: 123,
+						},
+					},
+				],
+				Version: 123,
+			},
+		});
+		const errors = validateSync(invalidInstance);
+		const versionMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, ManualPolicyDocumentDto.prototype, "Version");
+
+		expect(JSON.stringify(errors)).toContain("isString");
+		expect(validateSync(plainToInstance(bodyDto as ClassConstructor<ManualNestedPolicyEntity>, {
+			document: {
+				Statement: [
+					{
+						Effect: ManualPolicyEffect.ALLOW,
+						Principal: {
+							AWS: "arn:aws:iam::123456789012:root",
+						},
+					},
+				],
+				Version: "2012-10-17",
+			},
+		}))).toHaveLength(0);
+		expect(versionMetadata?.readOnly).toBeUndefined();
 	});
 });

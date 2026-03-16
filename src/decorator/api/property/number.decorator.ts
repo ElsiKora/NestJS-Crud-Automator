@@ -7,6 +7,7 @@ import { NUMBER_CONSTANT } from "@constant/number.constant";
 import { EApiPropertyDataType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform, Type } from "class-transformer";
@@ -96,6 +97,7 @@ export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): Pro
 			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);
 
 			applyDecorators(...decorators)(target, propertyKey);
+			ApplyAutoDtoResponseExposure(target, propertyKey, normalizedProperties);
 		});
 	};
 }

@@ -59,7 +59,7 @@ describe("DtoBuildDecorator", () => {
 		expect(result).toHaveLength(2);
 	});
 
-	it("registers object data types as auto DTO children", () => {
+	it("skips registering plain Object data types as auto DTO children", () => {
 		const metadata = {
 			dataType: Object,
 			description: "payload",
@@ -76,6 +76,6 @@ describe("DtoBuildDecorator", () => {
 		}
 
 		const children = GetRegisteredAutoDtoChildren(target);
-		expect(children?.has(Object)).toBe(true);
+		expect(children?.has(Object)).toBeUndefined();
 	});
 });

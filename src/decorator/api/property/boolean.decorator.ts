@@ -6,6 +6,7 @@ import type { IApiBaseEntity } from "index";
 import { EApiPropertyDataType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform } from "class-transformer";
@@ -74,6 +75,7 @@ export function ApiPropertyBoolean(properties: TApiPropertyBaseProperties): Prop
 			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);
 
 			applyDecorators(...decorators)(target, propertyKey);
+			ApplyAutoDtoResponseExposure(target, propertyKey, normalizedProperties);
 		});
 	};
 }

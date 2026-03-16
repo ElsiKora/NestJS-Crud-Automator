@@ -7,6 +7,7 @@ import { STRING_PROPERTY_API_INTERFACE_CONSTANT } from "@constant/interface/api"
 import { EApiPropertyDataType, EApiPropertyStringType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
+import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { IsRegularExpressionValidator } from "@validator/is-regular-expression.validator";
@@ -137,6 +138,7 @@ export function ApiPropertyString(properties: TApiPropertyStringProperties): Pro
 			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);
 
 			applyDecorators(...decorators)(target, propertyKey);
+			ApplyAutoDtoResponseExposure(target, propertyKey, normalizedProperties);
 		});
 	};
 }
