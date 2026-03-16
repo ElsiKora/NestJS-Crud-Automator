@@ -1,3 +1,12 @@
+# [1.22.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.21.1...v1.22.0) (2026-03-16)
+
+
+### Features
+
+* **api:** add auto dto response exposure for nested objects ([f0755f9](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/f0755f9c59efc3fdf584e7429380342c8d0d8c82))
+* **authorization:** add iam-based authorization engine with policy documents and attachments ([1fe8b78](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/1fe8b7811698609f898e57ab12e53ee314bde224))
+* **authorization:** add subject resolver and permission matching capabilities ([3de3924](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/3de3924175080bf3f0f903bbd0fdf40310e66023))
+
 ## [1.21.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.21.0...v1.21.1) (2026-01-31)
 
 # [1.21.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.20.0...v1.21.0) (2026-01-21)
