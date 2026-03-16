@@ -894,6 +894,47 @@ describe("CRUD routes (E2E)", () => {
 		expect((saved?.authorizedEntity as { id?: string } | undefined)?.id).toBe(E2E_OWNER_ID);
 	});
 
+	it("preserves free-form object fields in generated responses", async () => {
+		const createResponse = await createItem({ id: "item-freeform-response", name: "Freeform", count: 1 });
+
+		expect(createResponse.statusCode).toBe(201);
+		expect(createResponse.json().authorizedEntity).toMatchObject({
+			id: E2E_OWNER_ID,
+		});
+	});
+
+	it("serializes nested manual object DTOs in generated responses", async () => {
+		const document = {
+			Statement: [
+				{
+					Effect: "Allow",
+					Principal: {
+						AWS: "arn:aws:iam::123456789012:root",
+					},
+				},
+			],
+			Version: "2012-10-17",
+		};
+		const createResponse = await createItem({
+			count: 1,
+			document,
+			id: "item-manual-document",
+			name: "ManualDocument",
+		});
+
+		expect(createResponse.statusCode).toBe(201);
+		expect(createResponse.json().document).toEqual(document);
+
+		const getResponse = await fastify.inject({
+			headers: withSignature("item-manual-document"),
+			method: "GET",
+			url: "/items/item-manual-document",
+		});
+
+		expect(getResponse.statusCode).toBe(200);
+		expect(getResponse.json().document).toEqual(document);
+	});
+
 	it("fires create error hooks when after hook throws", async () => {
 		const createResponse = await fastify.inject({
 			headers: adminHeaders,

@@ -34,6 +34,11 @@ export function RegisterAutoDtoChild(parentPrototype: object, child: unknown): v
 
 	if (typeof child === "function") {
 		const childConstructor: Type<unknown> = child as Type<unknown>;
+
+		if (childConstructor === Object) {
+			return;
+		}
+
 		let children: Set<Type<unknown>> | undefined = AUTO_DTO_CHILDREN.get(parentPrototype);
 
 		if (!children) {

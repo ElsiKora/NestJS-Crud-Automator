@@ -29,6 +29,8 @@ export class ApiAuthorizationPolicyExecutor {
 			}
 		}
 
+		// NOTE: This fallback exists while CRUD hooks and custom actions can still share
+		// overlapping action names through the current compatibility layer.
 		if (typeof subscriber.getCustomActionRule !== "function") {
 			return [];
 		}

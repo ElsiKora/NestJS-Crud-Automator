@@ -6,11 +6,12 @@ import type { ClassConstructor } from "class-transformer";
 
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
+import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { MustMatchOneOfSchemasValidator } from "@validator/must-match-one-of-schemas.validator";
-import { Exclude, Expose, Type } from "class-transformer";
+import { Exclude, Expose, Transform, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, ValidateNested } from "class-validator";
 
 /**
@@ -53,6 +54,7 @@ export function ApiPropertyObject(options: TApiPropertyObjectProperties): Proper
 			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedOptions, apiPropertyOptions);
 
 			applyDecorators(...decorators)(target, propertyKey);
+			ApplyAutoDtoResponseExposure(target, propertyKey, normalizedOptions);
 		});
 	};
 }
@@ -252,7 +254,18 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 			}),
 		);
 	} else {
-		decorators.push(Type(() => properties.type as () => unknown));
+		if (properties.type === Object) {
+			decorators.push(
+				Transform(
+					({ key, obj }: { key: string; obj: Record<string, unknown> }) => {
+						return obj[key];
+					},
+					{ toClassOnly: true },
+				),
+			);
+		} else if (properties.type !== undefined) {
+			decorators.push(Type(() => properties.type as () => unknown));
+		}
 	}
 
 	return decorators;

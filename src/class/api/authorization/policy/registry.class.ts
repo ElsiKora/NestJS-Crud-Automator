@@ -259,6 +259,8 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		return AuthorizationResolveDefaultPrincipal(authenticationRequest?.user);
 	}
 
+	// NOTE: This is a compatibility shim until buildAggregatedPolicy uses a single
+	// source of truth for CRUD actions instead of accepting both action and routeType.
 	private resolveRouteType(action: string, routeType?: EApiRouteType): EApiRouteType | undefined {
 		if (routeType) {
 			return routeType;
