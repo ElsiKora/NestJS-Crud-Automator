@@ -1,7 +1,7 @@
 name: Qodana Quality Scan
 
 env:
-  NODE_VERSION: 20
+  NODE_VERSION: 24
   CHECKOUT_DEPTH: 0
 
 on: push

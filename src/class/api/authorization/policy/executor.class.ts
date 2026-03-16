@@ -27,8 +27,6 @@ export class ApiAuthorizationPolicyExecutor {
 
 				return this.normalizeRuleResult(await result);
 			}
-
-			return [];
 		}
 
 		if (typeof subscriber.getCustomActionRule !== "function") {
