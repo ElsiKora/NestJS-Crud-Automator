@@ -1,3 +1,10 @@
+# [1.23.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.22.0...v1.23.0) (2026-03-20)
+
+
+### Features
+
+* **api:** add inheritance support for entity metadata and swagger generation ([d81ee35](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/d81ee35b3a34c24f5567d3c8dca75948adb9f562))
+
 # [1.22.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.21.1...v1.22.0) (2026-03-16)
 
 
