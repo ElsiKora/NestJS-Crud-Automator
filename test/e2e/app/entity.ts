@@ -226,7 +226,7 @@ export class E2eEntity {
 		isNullable: true,
 		shouldValidateNested: true,
 		type: EApiPropertyDescribeType.OBJECT,
-	} as unknown as { description: string; type: EApiPropertyDescribeType.OBJECT })
+	})
 	public document?: E2ePolicyDocumentDto;
 
 	@Column({ type: "varchar", nullable: true })

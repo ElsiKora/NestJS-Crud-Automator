@@ -53,27 +53,96 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 	generatedEntity.name = entity.name;
 
 	const storage: MetadataStorage = MetadataStorage.getInstance();
+	const entityHierarchy: Array<new (...arguments_: Array<unknown>) => unknown> = [];
+	const entityNames: Array<string> = [];
 
-	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
-	const columnList: Array<ColumnMetadataArgs> = getMetadataArgsStorage().columns.filter(({ target }: ColumnMetadataArgs): boolean => (target as Function).name === entity.name);
+	if (typeof entity === "function") {
+		let current: (new (...arguments_: Array<unknown>) => unknown) | undefined = entity as unknown as new (...arguments_: Array<unknown>) => unknown;
 
-	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
-	const relationList: Array<RelationMetadataArgs> = getMetadataArgsStorage().relations.filter(({ target }: RelationMetadataArgs): boolean => (target as Function).name === entity.name);
+		while (current) {
+			entityHierarchy.push(current);
+			entityNames.push(current.name);
+
+			const parentPrototype: null | object = Object.getPrototypeOf(current.prototype) as null | object;
+			const parentConstructor: unknown = parentPrototype ? Reflect.get(parentPrototype, "constructor") : undefined;
+			const parent: (new (...arguments_: Array<unknown>) => unknown) | undefined = typeof parentConstructor === "function" ? (parentConstructor as new (...arguments_: Array<unknown>) => unknown) : undefined;
+
+			if (!parent || parent === Object) {
+				break;
+			}
+
+			current = parent;
+		}
+	} else if (entity.name) {
+		entityNames.push(entity.name);
+	}
+
+	const columnList: Array<ColumnMetadataArgs> = getMetadataArgsStorage().columns.filter(({ target }: ColumnMetadataArgs): boolean => {
+		if (typeof target === "string") {
+			return entityNames.includes(target);
+		}
+
+		if (typeof target !== "function") {
+			return false;
+		}
+
+		const targetEntity: new (...arguments_: Array<unknown>) => unknown = target as unknown as new (...arguments_: Array<unknown>) => unknown;
+
+		return entityHierarchy.some((currentEntity: new (...arguments_: Array<unknown>) => unknown): boolean => currentEntity === targetEntity || currentEntity.name === targetEntity.name) || entityNames.includes(targetEntity.name);
+	});
+
+	const relationList: Array<RelationMetadataArgs> = getMetadataArgsStorage().relations.filter(({ target }: RelationMetadataArgs): boolean => {
+		if (typeof target === "string") {
+			return entityNames.includes(target);
+		}
+
+		if (typeof target !== "function") {
+			return false;
+		}
+
+		const targetEntity: new (...arguments_: Array<unknown>) => unknown = target as unknown as new (...arguments_: Array<unknown>) => unknown;
+
+		return entityHierarchy.some((currentEntity: new (...arguments_: Array<unknown>) => unknown): boolean => currentEntity === targetEntity || currentEntity.name === targetEntity.name) || entityNames.includes(targetEntity.name);
+	});
 
 	const entityColumns: Array<IApiEntityColumn<E>> = [
-		...columnList.map(({ options, propertyName }: ColumnMetadataArgs) => ({
-			isPrimary: Boolean(options.primary),
-			metadata: (storage.getMetadata(entity.name ?? "UnknownResource", propertyName) as Record<string, unknown>) || undefined,
-			name: propertyName as keyof E,
-			// eslint-disable-next-line @elsikora/typescript/no-non-null-assertion
-			type: options.type!,
-		})),
-		...relationList.map(({ propertyName, relationType }: RelationMetadataArgs) => ({
-			isPrimary: false,
-			metadata: (storage.getMetadata(entity.name ?? "UnknownResource", propertyName) as Record<string, unknown>) || undefined,
-			name: propertyName as keyof E,
-			type: relationType as ColumnType,
-		})),
+		...columnList.map(({ options, propertyName }: ColumnMetadataArgs) => {
+			let metadata: Record<string, unknown> | undefined;
+
+			for (const entityName of entityNames) {
+				metadata = storage.getMetadata(entityName, propertyName) as Record<string, unknown> | undefined;
+
+				if (metadata) {
+					break;
+				}
+			}
+
+			return {
+				isPrimary: Boolean(options.primary),
+				metadata,
+				name: propertyName as keyof E,
+				// eslint-disable-next-line @elsikora/typescript/no-non-null-assertion
+				type: options.type!,
+			};
+		}),
+		...relationList.map(({ propertyName, relationType }: RelationMetadataArgs) => {
+			let metadata: Record<string, unknown> | undefined;
+
+			for (const entityName of entityNames) {
+				metadata = storage.getMetadata(entityName, propertyName) as Record<string, unknown> | undefined;
+
+				if (metadata) {
+					break;
+				}
+			}
+
+			return {
+				isPrimary: false,
+				metadata,
+				name: propertyName as keyof E,
+				type: relationType as ColumnType,
+			};
+		}),
 	];
 
 	for (const column of entityColumns) {
