@@ -28,6 +28,27 @@ import { CamelCaseString } from "@utility/camel-case-string.utility";
  */
 export function ApiControllerWriteDtoSwagger<E extends IApiBaseEntity>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, entityMetadata: IApiEntity<E>): void {
 	const swaggerModels: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, target) ?? []) as Array<unknown>;
+	const entityNames: Array<string> = [];
+
+	if (typeof properties.entity === "function") {
+		let current: (new (...arguments_: Array<unknown>) => unknown) | undefined = properties.entity as unknown as new (...arguments_: Array<unknown>) => unknown;
+
+		while (current) {
+			entityNames.push(current.name);
+
+			const parentPrototype: null | object = Object.getPrototypeOf(current.prototype) as null | object;
+			const parentConstructor: unknown = parentPrototype ? Reflect.get(parentPrototype, "constructor") : undefined;
+			const parent: (new (...arguments_: Array<unknown>) => unknown) | undefined = typeof parentConstructor === "function" ? (parentConstructor as new (...arguments_: Array<unknown>) => unknown) : undefined;
+
+			if (!parent || parent === Object) {
+				break;
+			}
+
+			current = parent;
+		}
+	} else if (properties.entity.name) {
+		entityNames.push(properties.entity.name);
+	}
 
 	const requestDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.REQUEST, routeConfig);
 	const queryDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.QUERY, routeConfig);
@@ -41,8 +62,19 @@ export function ApiControllerWriteDtoSwagger<E extends IApiBaseEntity>(target: o
 			swaggerModels.push(dto);
 
 			const storage: MetadataStorage = MetadataStorage.getInstance();
+			const mergedMetadata: TMetadata = {};
+			let hasMetadata: boolean = false;
 
-			const metadata: TMetadata | undefined = storage.getMetadata(entityMetadata.name ?? "UnknownResource");
+			for (const entityName of [...entityNames].reverse()) {
+				const currentMetadata: TMetadata | undefined = storage.getMetadata(entityName);
+
+				if (currentMetadata) {
+					hasMetadata = true;
+					Object.assign(mergedMetadata, currentMetadata);
+				}
+			}
+
+			const metadata: TMetadata | undefined = hasMetadata ? mergedMetadata : undefined;
 
 			if (metadata)
 				for (const key of Object.keys(metadata)) {
