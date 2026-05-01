@@ -217,6 +217,46 @@ For polymorphic objects with discriminator:
 paymentMethod: CardPayment | PayPalPayment;
 ```
 
+## Inherited Entity Metadata
+
+Entities may extend a shared base class that owns common TypeORM columns or `@ApiPropertyDescribe` metadata. DTO generation walks the entity inheritance chain, so inherited columns, primary keys, relations, and property metadata participate in validation and Swagger generation for the concrete entity.
+
+```typescript
+abstract class BaseContentEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.UUID,
+		description: "Unique identifier",
+	})
+	id: string;
+
+	@Column()
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "Shared slug",
+		format: EApiPropertyStringType.STRING,
+		minLength: 1,
+		maxLength: 64,
+	})
+	slug: string;
+}
+
+@Entity("articles")
+export class ArticleEntity extends BaseContentEntity {
+	@Column()
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "Article title",
+		format: EApiPropertyStringType.STRING,
+		minLength: 1,
+		maxLength: 255,
+	})
+	title: string;
+}
+```
+
+In this example, generated `ArticleEntity` DTOs include `id`, `slug`, and `title`. Inherited relation metadata is also registered as Swagger extra models when relation DTOs are generated.
+
 ### Relation Properties
 
 Entity relationships with automatic loading:

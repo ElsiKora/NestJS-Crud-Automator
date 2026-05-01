@@ -3,9 +3,11 @@ import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiPropertyEnumProperties } from "@type/decorator/api/property/enum-properties.type";
 import type { IApiBaseEntity } from "index";
 
+import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/dto/manual/property-metadata/decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
+import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose } from "class-transformer";
@@ -92,6 +94,11 @@ export function ApiPropertyEnum(properties: TApiPropertyEnumProperties): Propert
 			const normalizedProperties: TApiPropertyEnumProperties = { ...properties, entity: resolvedEntity };
 
 			validateOptions(normalizedProperties);
+			RegisterManualDtoPropertyMetadata(target, propertyKey, {
+				apply: ApiPropertyEnum(normalizedProperties),
+				decorator: EManualDtoPropertyMetadataDecorator.ENUM,
+				properties: normalizedProperties,
+			});
 
 			const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(normalizedProperties);
 			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);

@@ -5,9 +5,11 @@ import type { TApiPropertyNumberProperties } from "@type/decorator/api/property"
 
 import { NUMBER_CONSTANT } from "@constant/number.constant";
 import { EApiPropertyDataType, EApiPropertyNumberType } from "@enum/decorator/api";
+import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/dto/manual/property-metadata/decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
+import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform, Type } from "class-transformer";
@@ -92,6 +94,11 @@ export function ApiPropertyNumber(properties: TApiPropertyNumberProperties): Pro
 			normalizedProperties.exampleValue ??= random(normalizedProperties.minimum, normalizedProperties.maximum);
 
 			validateOptions(normalizedProperties);
+			RegisterManualDtoPropertyMetadata(target, propertyKey, {
+				apply: ApiPropertyNumber(normalizedProperties),
+				decorator: EManualDtoPropertyMetadataDecorator.NUMBER,
+				properties: normalizedProperties,
+			});
 
 			const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(normalizedProperties);
 			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);
@@ -277,9 +284,31 @@ function buildTransformDecorators(properties: TApiPropertyNumberProperties): Arr
 
 	if (!properties.isResponse) {
 		if (properties.isArray) {
-			decorators.push(Transform(({ value }: { value: Array<string> }) => value.map(Number), { toClassOnly: true }));
+			decorators.push(
+				Transform(
+					({ value }: { value: Array<string> | null | undefined }) => {
+						if (value === undefined || value === null) {
+							return value;
+						}
+
+						return value.map(Number);
+					},
+					{ toClassOnly: true },
+				),
+			);
 		} else {
-			decorators.push(Transform(({ value }: { value: string }) => Number(value), { toClassOnly: true }));
+			decorators.push(
+				Transform(
+					({ value }: { value: null | string | undefined }) => {
+						if (value === undefined || value === null) {
+							return value;
+						}
+
+						return Number(value);
+					},
+					{ toClassOnly: true },
+				),
+			);
 		}
 	}
 

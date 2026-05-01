@@ -5,9 +5,11 @@ import type { TApiPropertyStringProperties } from "@type/decorator/api/property"
 
 import { STRING_PROPERTY_API_INTERFACE_CONSTANT } from "@constant/interface/api";
 import { EApiPropertyDataType, EApiPropertyStringType } from "@enum/decorator/api";
+import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/dto/manual/property-metadata/decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
+import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { IsRegularExpressionValidator } from "@validator/is-regular-expression.validator";
@@ -133,6 +135,11 @@ export function ApiPropertyString(properties: TApiPropertyStringProperties): Pro
 			};
 
 			validateOptions(normalizedProperties);
+			RegisterManualDtoPropertyMetadata(target, propertyKey, {
+				apply: ApiPropertyString(normalizedProperties),
+				decorator: EManualDtoPropertyMetadataDecorator.STRING,
+				properties: normalizedProperties,
+			});
 
 			const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(normalizedProperties);
 			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);

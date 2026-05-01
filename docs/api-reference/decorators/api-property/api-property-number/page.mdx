@@ -23,6 +23,7 @@ Adds Swagger metadata, validation, and serialization for numeric DTO properties.
 
 - Registers `@ApiProperty` with the appropriate `type`, `format`, `minimum`, `maximum`, and `multipleOf`.
 - Adds `Type(() => Number)` and `Transform` so incoming strings/numbers are coerced into numeric types.
+- Preserves missing optional values as `undefined`/`null` instead of coercing them to `NaN`.
 - Applies `IsInt`/`IsNumber`, `IsDivisibleBy`, `IsOptional`, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
 - Adds `ApiResponseProperty` plus `Expose`/`Exclude` when `isResponse` is enabled.
 

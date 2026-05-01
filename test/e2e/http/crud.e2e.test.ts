@@ -53,6 +53,12 @@ describe("CRUD routes (E2E)", () => {
 			payload,
 			url: "/custom-response-items",
 		});
+	const getCustomItemResponseList = async (headers: Record<string, string> = adminHeaders) =>
+		fastify.inject({
+			headers,
+			method: "GET",
+			url: "/custom-item-response-items?limit=10&page=1&orderBy=id&orderDirection=ASC",
+		});
 	const seedFilterItems = async () => {
 		await createItem({
 			code: "code-a",
@@ -291,6 +297,46 @@ describe("CRUD routes (E2E)", () => {
 			totalItems: 2,
 			visibleCount: 2,
 		});
+	});
+
+	it("uses custom item response DTO with generated get-list wrapper", async () => {
+		await service.repository.save([
+			{
+				count: 1,
+				id: "custom-item-list-1",
+				name: "CustomItemListOne",
+				ownerId: E2E_OWNER_ID,
+			},
+			{
+				count: 2,
+				id: "custom-item-list-2",
+				name: "CustomItemListTwo",
+				ownerId: E2E_OWNER_ID,
+			},
+		]);
+
+		const listResponse = await getCustomItemResponseList();
+
+		expect(listResponse.statusCode).toBe(200);
+		expect(listResponse.json()).toEqual({
+			count: 2,
+			currentPage: 1,
+			items: [
+				{
+					displayName: "CustomItemListOne",
+					owner: E2E_OWNER_ID,
+					resourceId: "custom-item-list-1",
+				},
+				{
+					displayName: "CustomItemListTwo",
+					owner: E2E_OWNER_ID,
+					resourceId: "custom-item-list-2",
+				},
+			],
+			totalCount: 2,
+			totalPages: 1,
+		});
+		expect(listResponse.json().items[0]).not.toHaveProperty("count");
 	});
 
 	it("executes subscribers in priority order", async () => {

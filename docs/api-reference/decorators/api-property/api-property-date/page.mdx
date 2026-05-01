@@ -22,6 +22,7 @@ Formats, validates, and serializes date/time fields. Supports ISO date-time stri
 - Emits `@ApiProperty` with the correct ISO example, pattern, and min/max lengths.
 - Adds `IsDate`, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` validators for request DTOs.
 - Leverages `Transform` to convert ISO strings into `Date` instances (both single values and arrays).
+- Preserves missing optional array values as `undefined`/`null` instead of converting them to an empty array.
 - Adds `ApiResponseProperty` and exposure decorators on response DTOs.
 
 ## Example

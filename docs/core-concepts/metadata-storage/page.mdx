@@ -76,6 +76,8 @@ const metadata = MetadataStorage.getInstance().getMetadata("UserEntity", "userna
 // }
 ```
 
+When an entity extends a base class, DTO generation checks metadata for the concrete entity and its ancestors. This lets shared base properties keep their `@ApiPropertyDescribe` configuration while still being included in the concrete entity's generated DTOs and Swagger schemas.
+
 ### Get All Entity Metadata
 
 Retrieve metadata for all properties of an entity:

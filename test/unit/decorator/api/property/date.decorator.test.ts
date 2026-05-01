@@ -35,6 +35,21 @@ class DateArrayDto {
 	public dates!: Date[];
 }
 
+class DateOptionalArrayDto {
+	@ApiPropertyDate({
+		description: "dates",
+		entity: DateEntity,
+		format: EApiPropertyDateType.DATE,
+		identifier: EApiPropertyDateIdentifier.DATE,
+		isArray: true,
+		isRequired: false,
+		isUniqueItems: false,
+		maxItems: 3,
+		minItems: 1,
+	})
+	public dates?: Date[];
+}
+
 class DateResponseDto {
 	@ApiPropertyDate({
 		description: "updatedAt",
@@ -75,6 +90,14 @@ describe("ApiPropertyDate", () => {
 
 		expect(errors[0]?.constraints?.arrayMinSize).toBeDefined();
 		expect(errors[0]?.constraints?.arrayNotEmpty).toBeDefined();
+	});
+
+	it("keeps optional date arrays undefined when missing", () => {
+		const instance = plainToInstance(DateOptionalArrayDto, {});
+		const errors = validateSync(instance);
+
+		expect(instance.dates).toBeUndefined();
+		expect(errors).toHaveLength(0);
 	});
 
 	it("skips request validation for response DTOs", () => {

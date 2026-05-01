@@ -353,6 +353,45 @@ export class UserController {
 }
 ```
 
+For `GET_LIST`, response DTOs support two explicit modes:
+
+- `response: PublicUserListResponseDto` when the app owns the whole list wrapper.
+- `response: { itemType: PublicUserResponseDto }` when the framework owns the list wrapper and the app owns each item shape.
+
+Use the item DTO mode when you only need to narrow each returned item:
+
+```typescript
+import { Expose } from "class-transformer";
+import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+
+class PublicUserResponseDto {
+	@Expose()
+	id!: string;
+
+	@Expose()
+	username!: string;
+}
+
+@ApiController<UserEntity>({
+	entity: UserEntity,
+	routes: {
+		[EApiRouteType.GET_LIST]: {
+			dto: {
+				response: {
+					itemType: PublicUserResponseDto,
+					name: "PublicUserListResponseDto",
+				},
+			},
+		},
+	},
+})
+export class UserController {
+	constructor(public service: UserService) {}
+}
+```
+
+The generated response keeps `count`, `currentPage`, `items`, `totalCount`, and `totalPages`, while `items` are serialized with `PublicUserResponseDto`.
+
 ### Authorization
 
 Authorization now has two first-class modes:

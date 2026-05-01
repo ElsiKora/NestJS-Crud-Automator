@@ -11,7 +11,7 @@ import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiProp
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
-import { plainToInstance } from "class-transformer";
+import { instanceToPlain, plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
@@ -48,6 +48,14 @@ class ManualPolicyStatementDto {
 		isRequired: true,
 	})
 	public Effect!: ManualPolicyEffect;
+
+	@ApiPropertyObject({
+		description: "Condition",
+		entity: ManualPolicyStatementDto,
+		isRequired: false,
+		type: Object,
+	})
+	public Condition?: Record<string, Record<string, unknown>>;
 
 	@ApiPropertyObject({
 		description: "Principal",
@@ -302,6 +310,11 @@ describe("DtoGenerate", () => {
 			document: {
 				Statement: [
 					{
+						Condition: {
+							StringEquals: {
+								team: "platform",
+							},
+						},
 						Effect: ManualPolicyEffect.ALLOW,
 						Principal: {
 							AWS: "arn:aws:iam::123456789012:root",
@@ -321,6 +334,11 @@ describe("DtoGenerate", () => {
 			document: {
 				Statement: [
 					{
+						Condition: {
+							StringEquals: {
+								team: "platform",
+							},
+						},
 						Effect: ManualPolicyEffect.ALLOW,
 						Principal: {
 							AWS: "arn:aws:iam::123456789012:root",
@@ -331,6 +349,74 @@ describe("DtoGenerate", () => {
 			},
 			id: "policy-1",
 		});
+	});
+
+	it("serializes standalone manual DTOs in response mode without manual isResponse", () => {
+		const serializedDocument = plainToInstance(ManualPolicyDocumentDto, {
+			Statement: [
+				{
+					Condition: {
+						StringEquals: {
+							team: "platform",
+						},
+					},
+					Effect: ManualPolicyEffect.ALLOW,
+					Principal: {
+						AWS: "arn:aws:iam::123456789012:root",
+					},
+				},
+			],
+			Version: "2012-10-17",
+		}, {
+			/* eslint-disable-next-line @elsikora/typescript/naming-convention */
+			excludeExtraneousValues: true,
+			strategy: "excludeAll",
+		});
+
+		expect(instanceToPlain(serializedDocument)).toEqual({
+			Statement: [
+				{
+					Condition: {
+						StringEquals: {
+							team: "platform",
+						},
+					},
+					Effect: ManualPolicyEffect.ALLOW,
+					Principal: {
+						AWS: "arn:aws:iam::123456789012:root",
+					},
+				},
+			],
+			Version: "2012-10-17",
+		});
+	});
+
+	it("generates context-specific nested manual DTO names per auto DTO path", () => {
+		const entityMetadata = GenerateEntityInformation<ManualNestedPolicyEntity>(ManualNestedPolicyEntity as unknown as IApiBaseEntity);
+		const bodyDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY);
+		const responseDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE);
+		const bodyDocumentDto = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, bodyDto?.prototype, "document")?.type as ClassConstructor<ManualPolicyDocumentDto>;
+		const responseDocumentDto = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, responseDto?.prototype, "document")?.type as ClassConstructor<ManualPolicyDocumentDto>;
+		const bodyStatementDto = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, bodyDocumentDto?.prototype, "Statement")?.type as ClassConstructor<ManualPolicyStatementDto>;
+		const responseStatementDto = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, responseDocumentDto?.prototype, "Statement")?.type as ClassConstructor<ManualPolicyStatementDto>;
+
+		expect(bodyDocumentDto).toBeDefined();
+		expect(responseDocumentDto).toBeDefined();
+		expect(bodyStatementDto).toBeDefined();
+		expect(responseStatementDto).toBeDefined();
+
+		expect(bodyDocumentDto).not.toBe(ManualPolicyDocumentDto);
+		expect(responseDocumentDto).not.toBe(ManualPolicyDocumentDto);
+		expect(bodyStatementDto).not.toBe(ManualPolicyStatementDto);
+		expect(responseStatementDto).not.toBe(ManualPolicyStatementDto);
+
+		expect(bodyDocumentDto).not.toBe(responseDocumentDto);
+		expect(bodyStatementDto).not.toBe(responseStatementDto);
+
+		expect(bodyDocumentDto.name).toBe("ManualNestedPolicyEntityCreateBodyDocumentDTO");
+		expect(bodyStatementDto.name).toBe("ManualNestedPolicyEntityCreateBodyDocumentStatementDTO");
+		expect(responseDocumentDto.name).toBe("ManualNestedPolicyEntityGetResponseDocumentDTO");
+		expect(responseStatementDto.name).toBe("ManualNestedPolicyEntityGetResponseDocumentStatementDTO");
 	});
 
 	it("keeps nested manual DTOs writable and validated in request mode", () => {
