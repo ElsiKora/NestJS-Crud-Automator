@@ -201,6 +201,42 @@ Use in controller:
 
 Manual DTOs can also be nested inside auto-generated DTOs through `@ApiPropertyObject`. When this happens, NestJS CRUD Automator creates context-specific wrapper schemas for each generated path, so the same manual DTO can be reused safely in create body DTOs, update body DTOs, and response DTOs without sharing conflicting Swagger or serialization metadata.
 
+### Custom GET_LIST item DTOs
+
+`GET_LIST` response DTOs support two explicit modes:
+
+- Full wrapper mode: `dto.response` is a class that describes the whole list response.
+- Item DTO mode: `dto.response` is `{ itemType }`, and the framework generates the list wrapper.
+
+Use item DTO mode when a route only needs custom serialization for each item:
+
+```typescript
+class PublicUserResponseDto {
+	@Expose()
+	id!: string;
+
+	@Expose()
+	username!: string;
+}
+
+@ApiController<UserEntity>({
+	entity: UserEntity,
+	routes: {
+		[EApiRouteType.GET_LIST]: {
+			dto: {
+				response: {
+					itemType: PublicUserResponseDto,
+					name: "PublicUserListResponseDto",
+				},
+			},
+		},
+	},
+})
+export class UserController {}
+```
+
+Both modes use the same runtime list result shape: `count`, `currentPage`, `items`, `totalCount`, and `totalPages`.
+
 ## DTO Validation
 
 ### Built-in Validators

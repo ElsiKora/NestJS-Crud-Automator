@@ -45,6 +45,50 @@ import { UserResponseDto } from "./dto/user-response.dto";
 })
 ```
 
+For `GET_LIST`, response DTOs support two explicit modes.
+
+Use a full wrapper DTO when the app owns the entire list response shape:
+
+```typescript
+class PublicUserListResponseDto {
+	@Expose()
+	count!: number;
+
+	@Expose()
+	currentPage!: number;
+
+	@Expose()
+	@Type(() => PublicUserResponseDto)
+	items!: Array<PublicUserResponseDto>;
+
+	@Expose()
+	totalCount!: number;
+
+	@Expose()
+	totalPages!: number;
+}
+```
+
+Use item DTO mode when the framework should own the list wrapper and the app should only own each item shape:
+
+```typescript
+@ApiController<UserEntity>({
+	entity: UserEntity,
+	routes: {
+		[EApiRouteType.GET_LIST]: {
+			dto: {
+				response: {
+					itemType: PublicUserResponseDto,
+					name: "PublicUserListResponseDto",
+				},
+			},
+		},
+	},
+})
+```
+
+The `name` field is optional and controls the generated Swagger schema name. Without it, the framework derives a stable name from the entity, route, DTO type, and item DTO class name.
+
 ## Creating Custom Request DTOs
 
 ### Create DTO
