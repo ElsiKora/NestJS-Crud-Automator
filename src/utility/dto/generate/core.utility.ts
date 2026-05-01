@@ -134,6 +134,10 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		}
 	}
 
+	Object.defineProperty(GeneratedDTO, "name", {
+		value: `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`,
+	});
+
 	DtoAutoContextPush(GeneratedDTO.prototype, method, dtoType);
 
 	try {
@@ -209,10 +213,6 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	if (extraModels.length > 0) {
 		ApiExtraModels(...extraModels)(GeneratedDTO);
 	}
-
-	Object.defineProperty(GeneratedDTO, "name", {
-		value: `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`,
-	});
 
 	// @ts-ignore
 	const result: Type<unknown> = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE ? DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`) : GeneratedDTO;

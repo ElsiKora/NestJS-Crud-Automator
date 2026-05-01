@@ -64,8 +64,10 @@ describe("ApiPropertyBoolean", () => {
 	});
 
 	it("skips validation for optional booleans when missing", () => {
-		const errors = validateSync(plainToInstance(BooleanOptionalDto, {}));
+		const instance = plainToInstance(BooleanOptionalDto, {});
+		const errors = validateSync(instance);
 
+		expect(instance.isEnabled).toBeUndefined();
 		expect(errors).toHaveLength(0);
 	});
 

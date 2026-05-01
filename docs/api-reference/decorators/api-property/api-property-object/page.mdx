@@ -25,6 +25,8 @@ Describes nested object fields in DTOs. Works with single DTO types, arrays, pol
 - Adds `Type`, `ValidateNested`, `IsOptional`, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
 - Supports polymorphic validation via `MustMatchOneOfSchemasValidator`.
 - Adds `ApiResponseProperty`, `Expose`, or `Exclude` for response DTOs.
+- When a manual DTO is nested inside an auto-generated DTO, creates context-specific wrapper schemas so request and response metadata do not collide.
+- Leaves `type: Object` as a free-form object and does not wrap it as a contextual DTO.
 
 ## Example
 
@@ -57,6 +59,14 @@ class OrderDto {
 	address!: BillingAddressDto | ShippingAddressDto;
 }
 ```
+
+## Nested manual DTOs in auto DTOs
+
+Manual DTOs decorated with `@ApiPropertyObject` and the other `@ApiProperty*` decorators can be reused inside auto-generated body and response DTOs. When the same manual DTO appears in multiple generated contexts, the library materializes path-specific wrapper classes for Swagger, validation, and serialization metadata.
+
+For example, a `PolicyDocumentDto` nested at `document` can produce separate schemas such as `PolicyEntityCreateBodyDocumentDTO` and `PolicyEntityGetResponseDocumentDTO`. Nested child DTOs receive path-aware names as well, which keeps body and response schemas independent while preserving the original manual DTO contract.
+
+Neutral manual DTO fields do not need to be marked with `isResponse: true` just to serialize in generated response DTOs. `isResponse: true` remains reserved for explicit response-only fields and still emits `ApiResponseProperty`.
 
 ## Related resources
 

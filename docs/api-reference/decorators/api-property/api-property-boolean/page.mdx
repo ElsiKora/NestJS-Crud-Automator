@@ -24,6 +24,7 @@ Applies Swagger metadata, validation decorators, and serialization logic for boo
 - Adds `@ApiProperty` metadata with boolean schema details.
 - Applies `IsBoolean` (with `{ each: true }` for arrays) and optional `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, `ArrayNotEmpty`.
 - Uses `class-transformer` `Transform` to coerce `"true"/"false"`, `"1"/"0"`, numeric values, and arrays of those representations into actual booleans.
+- Preserves missing optional values as `undefined`/`null` instead of coercing them to `false` or `[false]`.
 - Handles `isResponse` differently by adding `ApiResponseProperty` and skipping request validators.
 
 ## Example

@@ -36,13 +36,11 @@ Paginated responses include metadata:
 
 ```typescript
 {
-  items: UserEntity[],     // Array of results
-  total: number,           // Total count of all items
-  page: number,            // Current page number
-  limit: number,           // Items per page
-  totalPages: number,      // Total number of pages
-  hasNextPage: boolean,    // Whether next page exists
-  hasPreviousPage: boolean // Whether previous page exists
+  count: number,       // Number of items on the current page
+  currentPage: number, // Current page number
+  items: UserEntity[], // Array of results
+  totalCount: number,  // Total count of all matching items
+  totalPages: number   // Total number of pages
 }
 ```
 
@@ -50,6 +48,8 @@ Example response:
 
 ```json
 {
+	"count": 2,
+	"currentPage": 1,
 	"items": [
 		{
 			"id": "uuid-1",
@@ -62,12 +62,8 @@ Example response:
 			"email": "jane@example.com"
 		}
 	],
-	"total": 50,
-	"page": 1,
-	"limit": 10,
-	"totalPages": 5,
-	"hasNextPage": true,
-	"hasPreviousPage": false
+	"totalCount": 50,
+	"totalPages": 5
 }
 ```
 
@@ -112,7 +108,7 @@ export class UserReportService {
 			);
 
 			allUsers.push(...result.items);
-			hasMore = result.hasNextPage;
+			hasMore = result.currentPage < result.totalPages;
 			page++;
 		}
 
@@ -197,7 +193,7 @@ class UserListComponent {
 			const data = await response.json();
 
 			this.users.push(...data.items);
-			this.hasMore = data.hasNextPage;
+			this.hasMore = data.currentPage < data.totalPages;
 			this.page++;
 		} finally {
 			this.loading = false;
@@ -248,10 +244,11 @@ export class UserService extends ApiServiceBase<UserEntity> {
 		});
 
 		return {
+			count: items.length,
+			currentPage: properties.page,
 			items,
-			total: this.countCache.value,
-			page: properties.page,
-			limit: properties.limit,
+			totalCount: this.countCache.value,
+			totalPages: Math.ceil(this.countCache.value / properties.limit),
 		};
 	}
 }
@@ -291,13 +288,11 @@ Handle empty result sets gracefully:
 
 ```typescript
 {
+  "count": 0,
+  "currentPage": 0,
   "items": [],
-  "total": 0,
-  "page": 1,
-  "limit": 10,
-  "totalPages": 0,
-  "hasNextPage": false,
-  "hasPreviousPage": false
+  "totalCount": 0,
+  "totalPages": 0
 }
 ```
 
