@@ -117,6 +117,12 @@ describe("ApiPropertyObject", () => {
 		expect(validateSync(plainToInstance(ParentDto, { payload: { name: "ok" } }))).toHaveLength(0);
 	});
 
+	it("keeps explicit response-only objects readOnly in swagger", () => {
+		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, FreeformResponseDto.prototype, "payload");
+
+		expect(metadata?.readOnly).toBe(true);
+	});
+
 	it("preserves free-form object payloads in response serialization", () => {
 		const instance = plainToInstance(FreeformResponseDto, {
 			payload: {

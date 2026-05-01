@@ -55,6 +55,20 @@ class NumberDoubleDto {
 	public ratio!: number;
 }
 
+class NumberOptionalDto {
+	@ApiPropertyNumber({
+		description: "count",
+		entity: NumberEntity,
+		exampleValue: 2,
+		format: EApiPropertyNumberType.INTEGER,
+		maximum: 10,
+		minimum: 1,
+		multipleOf: 1,
+		isRequired: false,
+	})
+	public count?: number;
+}
+
 class NumberResponseDto {
 	@ApiPropertyNumber({
 		description: "total",
@@ -94,6 +108,14 @@ describe("ApiPropertyNumber", () => {
 		const errors = validateSync(plainToInstance(NumberDto, { count: 1.5 }));
 
 		expect(errors[0]?.constraints?.isInt).toBeDefined();
+	});
+
+	it("keeps optional numbers undefined when missing", () => {
+		const instance = plainToInstance(NumberOptionalDto, {});
+		const errors = validateSync(instance);
+
+		expect(instance.count).toBeUndefined();
+		expect(errors).toHaveLength(0);
 	});
 
 	it("validates numeric arrays and size constraints", () => {

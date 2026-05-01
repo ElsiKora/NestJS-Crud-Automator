@@ -230,6 +230,63 @@ export class CreatePostDto {
 }
 ```
 
+### Nested manual DTOs inside generated DTOs
+
+When a manual DTO is referenced from an auto-generated DTO, prefer the library property decorators instead of raw `@ApiProperty` metadata. The decorators keep Swagger, validation, and class-transformer metadata replayable when the same manual DTO is used in different generated contexts.
+
+```typescript filename="dto/policy-document.dto.ts" copy
+import { ApiPropertyEnum, ApiPropertyObject, ApiPropertyString, EApiPropertyStringType } from "@elsikora/nestjs-crud-automator";
+
+enum PolicyEffect {
+	ALLOW = "Allow",
+	DENY = "Deny",
+}
+
+class PolicyStatementDto {
+	@ApiPropertyEnum({
+		entity: () => PolicyStatementDto,
+		description: "Effect",
+		enum: PolicyEffect,
+		enumName: "PolicyEffect",
+		isRequired: true,
+	})
+	Effect!: PolicyEffect;
+
+	@ApiPropertyObject({
+		entity: () => PolicyStatementDto,
+		description: "Condition",
+		type: Object,
+		isRequired: false,
+	})
+	Condition?: Record<string, Record<string, unknown>>;
+}
+
+export class PolicyDocumentDto {
+	@ApiPropertyString({
+		entity: () => PolicyDocumentDto,
+		description: "Version",
+		format: EApiPropertyStringType.STRING,
+		minLength: 1,
+		maxLength: 32,
+		isRequired: true,
+	})
+	Version!: string;
+
+	@ApiPropertyObject({
+		entity: () => PolicyDocumentDto,
+		description: "Statement",
+		type: PolicyStatementDto,
+		isArray: true,
+		minItems: 1,
+		maxItems: 100,
+		shouldValidateNested: true,
+	})
+	Statement!: Array<PolicyStatementDto>;
+}
+```
+
+If `PolicyDocumentDto` is used by an entity field that participates in both create body and get response DTO generation, the generated Swagger models are context-specific, for example `PolicyEntityCreateBodyDocumentDTO` and `PolicyEntityGetResponseDocumentDTO`. Free-form `type: Object` fields remain plain JSON objects.
+
 ## Discriminated Union DTOs
 
 Create polymorphic DTOs:

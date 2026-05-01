@@ -4,9 +4,11 @@ import type { TApiPropertyBaseProperties } from "@type/decorator/api/property";
 import type { IApiBaseEntity } from "index";
 
 import { EApiPropertyDataType } from "@enum/decorator/api";
+import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/dto/manual/property-metadata/decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
+import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform } from "class-transformer";
@@ -70,6 +72,11 @@ export function ApiPropertyBoolean(properties: TApiPropertyBaseProperties): Prop
 			const normalizedProperties: TApiPropertyBaseProperties = { ...properties, entity: resolvedEntity };
 
 			validateOptions(normalizedProperties);
+			RegisterManualDtoPropertyMetadata(target, propertyKey, {
+				apply: ApiPropertyBoolean(normalizedProperties),
+				decorator: EManualDtoPropertyMetadataDecorator.BOOLEAN,
+				properties: normalizedProperties,
+			});
 
 			const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(normalizedProperties);
 			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);
@@ -205,13 +212,13 @@ function buildTransformDecorators(properties: TApiPropertyBaseProperties): Array
 				Transform(
 					({ value }: { value: unknown }) => {
 						if (value === null || value === undefined) {
-							return [];
+							return value;
 						}
 
 						if (!Array.isArray(value)) {
 							const singleValue: unknown = value;
 
-							if (singleValue === undefined || singleValue === null) return [false];
+							if (singleValue === undefined || singleValue === null) return singleValue;
 
 							if (typeof singleValue === "boolean") return [singleValue];
 
@@ -257,7 +264,7 @@ function buildTransformDecorators(properties: TApiPropertyBaseProperties): Array
 			decorators.push(
 				Transform(
 					({ value }: { value: unknown }) => {
-						if (value === undefined || value === null) return false;
+						if (value === undefined || value === null) return value;
 
 						if (typeof value === "boolean") return value;
 

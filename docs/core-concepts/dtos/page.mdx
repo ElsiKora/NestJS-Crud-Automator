@@ -199,6 +199,8 @@ Use in controller:
 })
 ```
 
+Manual DTOs can also be nested inside auto-generated DTOs through `@ApiPropertyObject`. When this happens, NestJS CRUD Automator creates context-specific wrapper schemas for each generated path, so the same manual DTO can be reused safely in create body DTOs, update body DTOs, and response DTOs without sharing conflicting Swagger or serialization metadata.
+
 ## DTO Validation
 
 ### Built-in Validators

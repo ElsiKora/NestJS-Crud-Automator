@@ -103,6 +103,10 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 				}
 			}
 
+			Object.defineProperty(GeneratedDTO, "name", {
+				value: `${entity.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}${CamelCaseString(_propertyName)}${CamelCaseString(name)}DTO`,
+			});
+
 			DtoAutoContextPush(GeneratedDTO.prototype, method, dtoType);
 
 			try {
@@ -119,10 +123,6 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 						}
 					}
 				}
-
-				Object.defineProperty(GeneratedDTO, "name", {
-					value: `${entity.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}${CamelCaseString(_propertyName)}${CamelCaseString(name)}DTO`,
-				});
 
 				if (allNestedTypes.length > 0) {
 					ApiExtraModels(...allNestedTypes)(GeneratedDTO);

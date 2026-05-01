@@ -1,13 +1,19 @@
+import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { Type as NestType } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiPropertyObjectProperties } from "@type/decorator/api/property";
 import type { ClassConstructor } from "class-transformer";
 
+import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/dto/manual/property-metadata/decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
+import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DtoGenerateContextualManualDto } from "@utility/dto/generate/manual-child.utility";
+import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { GetAutoDtoContext } from "@utility/get/auto-dto-context.utility";
 import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { MustMatchOneOfSchemasValidator } from "@validator/must-match-one-of-schemas.validator";
@@ -43,12 +49,17 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, Validat
  */
 export function ApiPropertyObject(options: TApiPropertyObjectProperties): PropertyDecorator {
 	return (target: object, propertyKey: string | symbol): void => {
-		RegisterAutoDtoChild(target, options.type);
-
 		WithResolvedPropertyEntity(options.entity, "ApiPropertyObject", (resolvedEntity: IApiBaseEntity | NestType<IApiBaseEntity>) => {
-			const normalizedOptions: TApiPropertyObjectProperties = { ...options, entity: resolvedEntity };
+			const normalizedOptions: TApiPropertyObjectProperties = resolveContextualObjectOptions(target, propertyKey, { ...options, entity: resolvedEntity });
+
+			RegisterAutoDtoChild(target, normalizedOptions.type);
 
 			validateOptions(normalizedOptions);
+			RegisterManualDtoPropertyMetadata(target, propertyKey, {
+				apply: ApiPropertyObject(normalizedOptions),
+				decorator: EManualDtoPropertyMetadataDecorator.OBJECT,
+				properties: normalizedOptions,
+			});
 
 			const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(normalizedOptions);
 			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedOptions, apiPropertyOptions);
@@ -269,6 +280,80 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 	}
 
 	return decorators;
+}
+
+/**
+ * Replaces manual nested DTO references with context-specific generated wrappers when the property
+ * is applied inside an auto-generated DTO scope.
+ * @param {object} target - Decorated DTO prototype.
+ * @param {string | symbol} propertyKey - Decorated property key.
+ * @param {TApiPropertyObjectProperties} properties - Normalized object property options.
+ * @returns {TApiPropertyObjectProperties} Contextualized object property options.
+ */
+function resolveContextualObjectOptions(target: object, propertyKey: string | symbol, properties: TApiPropertyObjectProperties): TApiPropertyObjectProperties {
+	const context: { dtoType: EApiDtoType; method: EApiRouteType } | undefined = GetAutoDtoContext(target);
+	const parentDtoName: string | undefined = (target as { constructor?: { name?: string } }).constructor?.name;
+
+	if (!context || !parentDtoName || ("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated)) {
+		return properties;
+	}
+
+	if (Array.isArray(properties.type)) {
+		const resolvedTypes: Array<NestType<unknown>> = (properties.type as Array<NestType<unknown>>).map((type: NestType<unknown>): NestType<unknown> => {
+			const variantName: string | undefined = properties.discriminator ? Object.entries(properties.discriminator.mapping).find(([, value]: [string, ClassConstructor<unknown>]) => value === type)?.[0] : undefined;
+
+			return resolveContextualObjectType(type, context.method, context.dtoType, parentDtoName, propertyKey, variantName);
+		});
+
+		if (!properties.discriminator) {
+			return {
+				...properties,
+				type: resolvedTypes,
+			} as TApiPropertyObjectProperties;
+		}
+
+		const resolvedMapping: Record<string, ClassConstructor<unknown>> = Object.fromEntries(
+			Object.entries(properties.discriminator.mapping).map(([key, value]: [string, ClassConstructor<unknown>]) => {
+				return [key, resolveContextualObjectType(value, context.method, context.dtoType, parentDtoName, propertyKey, key) as ClassConstructor<unknown>];
+			}),
+		) as Record<string, ClassConstructor<unknown>>;
+
+		return {
+			...properties,
+			discriminator: {
+				...properties.discriminator,
+				mapping: resolvedMapping,
+			},
+			type: resolvedTypes,
+		} as TApiPropertyObjectProperties;
+	}
+
+	const resolvedType: NestType<unknown> | undefined = properties.type ? resolveContextualObjectType(properties.type as NestType<unknown>, context.method, context.dtoType, parentDtoName, propertyKey) : properties.type;
+
+	return {
+		...properties,
+		type: resolvedType,
+	} as TApiPropertyObjectProperties;
+}
+
+/**
+ * Generates a contextual wrapper for a nested manual DTO type when possible.
+ * @param {Type<unknown>} type - Original nested DTO type.
+ * @param {string} method - Auto DTO route method.
+ * @param {string} dtoType - Auto DTO type.
+ * @param {string} parentDtoName - Parent generated DTO class name.
+ * @param {string | symbol} propertyKey - Current property key.
+ * @param {string} [variantName] - Optional discriminator variant suffix.
+ * @returns {Type<unknown>} Contextualized nested DTO type.
+ */
+function resolveContextualObjectType(type: NestType<unknown>, method: EApiRouteType, dtoType: EApiDtoType, parentDtoName: string, propertyKey: string | symbol, variantName?: string): NestType<unknown> {
+	if (type === (Object as unknown as NestType<unknown>)) {
+		return type;
+	}
+
+	const propertyPathSegment: string = variantName ? `${String(propertyKey)}${CamelCaseString(variantName)}` : String(propertyKey);
+
+	return DtoGenerateContextualManualDto(type, method, dtoType, parentDtoName, propertyPathSegment);
 }
 
 /**

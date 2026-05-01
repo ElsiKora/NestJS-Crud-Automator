@@ -4,9 +4,11 @@ import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiPropertyDateProperties } from "@type/decorator/api/property";
 
 import { EApiPropertyDataType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "@enum/decorator/api";
+import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/dto/manual/property-metadata/decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
+import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform } from "class-transformer";
@@ -74,6 +76,11 @@ export function ApiPropertyDate(properties: TApiPropertyDateProperties): Propert
 			const normalizedProperties: TApiPropertyDateProperties = { ...properties, entity: resolvedEntity };
 
 			validateOptions(normalizedProperties);
+			RegisterManualDtoPropertyMetadata(target, propertyKey, {
+				apply: ApiPropertyDate(normalizedProperties),
+				decorator: EManualDtoPropertyMetadataDecorator.DATE,
+				properties: normalizedProperties,
+			});
 
 			const apiPropertyOptions: ApiPropertyOptions = buildApiPropertyOptions(normalizedProperties);
 			const decorators: Array<PropertyDecorator> = buildDecorators(normalizedProperties, apiPropertyOptions);
@@ -224,10 +231,14 @@ function buildTransformDecorators(properties: TApiPropertyDateProperties): Array
 			decorators.push(
 				Transform(
 					({ value }: { value: unknown }) => {
+						if (value === undefined || value === null) {
+							return value;
+						}
+
 						if (!Array.isArray(value)) {
 							const singleValue: string = value as string;
 
-							return singleValue ? [new Date(singleValue)] : [];
+							return singleValue ? [new Date(singleValue)] : undefined;
 						}
 
 						return value.map((dateString: string) => (dateString ? new Date(dateString) : undefined));

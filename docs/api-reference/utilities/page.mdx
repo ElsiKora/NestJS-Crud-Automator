@@ -6,7 +6,7 @@ Utility functions and helpers provided by NestJS CRUD Automator.
 
 ### GenerateEntityInformation
 
-Generates entity metadata from entity class.
+Generates entity metadata from an entity class. The result includes TypeORM columns, relations, the primary key, and `@ApiPropertyDescribe` metadata discovered on the entity and its inherited base classes.
 
 **Location:** `src/utility/generate-entity-information.utility.ts`
 
