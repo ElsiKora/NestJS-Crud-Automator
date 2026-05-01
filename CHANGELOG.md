@@ -1,3 +1,15 @@
+# [1.24.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.23.0...v1.24.0) (2026-05-01)
+
+
+### Bug Fixes
+
+* **api:** isolate manual dto metadata in generated dtos ([2b66b01](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/2b66b01f859c9d543d2822fc3893d5830e69dd84))
+
+
+### Features
+
+* **api:** add get-list item response dto config ([7904474](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/79044741f94c6a92acbef774825eb91b8b292c2d))
+
 # [1.23.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.22.0...v1.23.0) (2026-03-20)
 
 
