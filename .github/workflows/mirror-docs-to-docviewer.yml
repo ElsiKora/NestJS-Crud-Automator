@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout source repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: source
           fetch-depth: ${{ env.CHECKOUT_DEPTH }}
@@ -39,7 +39,7 @@ jobs:
           echo "DATE=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
       - name: Checkout destination repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: ${{ env.CHECKOUT_DEPTH }}
           repository: ${{ env.DESTINATION_REPOSITORY_NAME }}
