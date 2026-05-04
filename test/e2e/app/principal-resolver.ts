@@ -1,6 +1,6 @@
-import type { IApiAuthenticationRequest, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver } from "../../../dist/esm/index";
+import type { IApiAuthenticationRequest, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver } from "../../../src/index";
 
-import { AuthorizationResolveDefaultPrincipal, EApiAuthorizationPrincipalType } from "../../../dist/esm/index";
+import { AuthorizationResolveDefaultPrincipal, EApiAuthorizationPrincipalType } from "../../../src/index";
 
 export const e2eAuthorizationPrincipalResolver: IApiAuthorizationPrincipalResolver = {
 	resolve(user: unknown, _authenticationRequest?: IApiAuthenticationRequest): IApiAuthorizationPrincipal {

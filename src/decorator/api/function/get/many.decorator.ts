@@ -7,10 +7,12 @@ import type { TApiFunctionGetManyProperties } from "@type/decorator/api/function
 import type { EntityManager, Repository } from "typeorm";
 import type { FindManyOptions } from "typeorm/index";
 
+import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
-import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
+import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
 import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -26,6 +28,7 @@ import { LoggerUtility } from "@utility/logger.utility";
  */
 export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
+	const transactionMode: EApiFunctionTransactionMode = properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 
 	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		// eslint-disable-next-line @elsikora/sonar/void-use
@@ -33,37 +36,44 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 		// eslint-disable-next-line @elsikora/sonar/void-use
 		void _propertyKey;
 
-		descriptor.value = async function (this: { repository: Repository<E> }, getManyProperties: TApiFunctionGetManyProperties<E>, eventManager?: EntityManager): Promise<Array<E>> {
-			const entityInstance: E = new entity();
+		descriptor.value = async function (this: { repository: Repository<E> }, getManyProperties: TApiFunctionGetManyProperties<E>): Promise<Array<E>> {
+			return await ApiFunctionExecuteWithTransaction({
+				callback: async (eventManager: EntityManager | undefined): Promise<Array<E>> => {
+					const entityInstance: E = new entity();
 
-			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetManyProperties<E>> = {
-				DATA: { eventManager, getManyProperties, repository: this.repository },
-				ENTITY: entityInstance,
-				FUNCTION_TYPE: EApiFunctionType.GET_MANY,
-				result: getManyProperties,
-			};
+					const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetManyProperties<E>> = {
+						DATA: { eventManager, getManyProperties, repository: this.repository },
+						ENTITY: entityInstance,
+						FUNCTION_TYPE: EApiFunctionType.GET_MANY,
+						result: getManyProperties,
+					};
 
-			const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE, executionContext);
+					const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE, executionContext);
 
-			if (result) {
-				executionContext.result = result;
-			}
+					if (result) {
+						executionContext.result = result;
+					}
 
-			const repository: Repository<E> = this.repository;
+					const repository: Repository<E> = this.repository;
 
-			if (!repository) {
-				const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-					DATA: { eventManager, getManyProperties, repository: this.repository },
-					ENTITY: entityInstance,
-					FUNCTION_TYPE: EApiFunctionType.GET_MANY,
-				};
+					if (!repository) {
+						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
+							DATA: { eventManager, getManyProperties, repository: this.repository },
+							ENTITY: entityInstance,
+							FUNCTION_TYPE: EApiFunctionType.GET_MANY,
+						};
 
-				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Repository is not available in this context"));
+						await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Repository is not available in this context"));
 
-				throw ErrorException("Repository is not available in this context");
-			}
+						throw ErrorException("Repository is not available in this context");
+					}
 
-			return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, eventManager, properties: executionContext.result ?? ({} as unknown as TApiFunctionGetManyProperties<E>), repository });
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? ({} as unknown as TApiFunctionGetManyProperties<E>), repository });
+				},
+				entity,
+				mode: transactionMode,
+				repository: this.repository,
+			});
 		};
 
 		return descriptor;
@@ -78,7 +88,8 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
  * @throws {InternalServerErrorException} If the retrieval operation fails
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyExecutorProperties<E>): Promise<Array<E>> {
-	const { constructor, entity, eventManager, properties, repository }: IApiFunctionGetManyExecutorProperties<E> = options;
+	const { constructor, entity, properties, repository }: IApiFunctionGetManyExecutorProperties<E> = options;
+	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.get<E>()?.eventManager;
 
 	try {
 		let items: Array<E>;

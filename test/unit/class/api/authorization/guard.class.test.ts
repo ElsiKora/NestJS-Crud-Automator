@@ -5,7 +5,7 @@ import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/author
 import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api";
-import { ForbiddenException } from "@nestjs/common";
+import { ForbiddenException, RequestMethod } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
 class GuardEntity {
@@ -31,6 +31,25 @@ const createExecutionContext = (controller: object, handler: () => void, request
 			getData: () => undefined,
 		}),
 	}) as unknown as ExecutionContext;
+
+const defineRouteMetadata = (handler: () => void, action: string, routeType?: EApiRouteType): void => {
+	Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, {
+		resource: {
+			action,
+			entity: GuardEntity,
+		},
+		route: {
+			method: RequestMethod.GET,
+			path: "",
+			type: routeType,
+		},
+		security: {
+			authorization: {
+				mode: EApiAuthorizationMode.HOOKS,
+			},
+		},
+	}, handler);
+};
 
 describe("ApiAuthorizationGuard", () => {
 	it("allows access when controller is not securable", async () => {
@@ -79,7 +98,7 @@ describe("ApiAuthorizationGuard", () => {
 		}, controller);
 
 		const context = createExecutionContext(controller, handler, request);
-		await expect(guard.canActivate(context)).rejects.toThrow('ApiControllerSecurable handler "publish" requires an explicit authorization.action declared via @ApiMethod(...)');
+		await expect(guard.canActivate(context)).rejects.toThrow('ApiControllerSecurable handler "publish" requires method-level ApiRouteMetadata');
 	});
 
 	it("attaches decision and allows access when policy grants", async () => {
@@ -112,8 +131,7 @@ describe("ApiAuthorizationGuard", () => {
 				get: {},
 			},
 		}, controller);
-		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.AUTHORIZATION_METADATA_KEY, { action: "get" }, handler);
-		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_TYPE_METADATA_KEY, EApiRouteType.GET, handler);
+		defineRouteMetadata(handler, "get", EApiRouteType.GET);
 
 		const context = createExecutionContext(controller, handler, request);
 		const result = await guard.canActivate(context);
@@ -153,8 +171,7 @@ describe("ApiAuthorizationGuard", () => {
 				get: {},
 			},
 		}, controller);
-		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.AUTHORIZATION_METADATA_KEY, { action: "get" }, handler);
-		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_TYPE_METADATA_KEY, EApiRouteType.GET, handler);
+		defineRouteMetadata(handler, "get", EApiRouteType.GET);
 
 		const context = createExecutionContext(controller, handler, request);
 
@@ -212,8 +229,7 @@ describe("ApiAuthorizationGuard", () => {
 				},
 			},
 		}, controller);
-		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.AUTHORIZATION_METADATA_KEY, { action: "partialUpdate" }, handler);
-		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_TYPE_METADATA_KEY, EApiRouteType.PARTIAL_UPDATE, handler);
+		defineRouteMetadata(handler, "partialUpdate", EApiRouteType.PARTIAL_UPDATE);
 
 		const context = createExecutionContext(controller, handler, request);
 		const result = await guard.canActivate(context);
@@ -274,9 +290,7 @@ describe("ApiAuthorizationGuard", () => {
 				update: {},
 			},
 		}, controller);
-		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.AUTHORIZATION_METADATA_KEY, {
-			action: "update.publish",
-		}, handler);
+		defineRouteMetadata(handler, "update.publish");
 
 		const context = createExecutionContext(controller, handler, request);
 		const result = await guard.canActivate(context);
@@ -285,7 +299,9 @@ describe("ApiAuthorizationGuard", () => {
 		expect(runtime.evaluate).toHaveBeenCalledWith(
 			expect.objectContaining({
 				action: "update.publish",
-				routeAuthorization: undefined,
+				routeAuthorization: {
+					mode: EApiAuthorizationMode.HOOKS,
+				},
 			}),
 		);
 	});
@@ -327,8 +343,7 @@ describe("ApiAuthorizationGuard", () => {
 				},
 			},
 		}, controller);
-		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.AUTHORIZATION_METADATA_KEY, { action: "partialUpdate" }, handler);
-		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_TYPE_METADATA_KEY, EApiRouteType.PARTIAL_UPDATE, handler);
+		defineRouteMetadata(handler, "partialUpdate", EApiRouteType.PARTIAL_UPDATE);
 
 		const context = createExecutionContext(controller, handler, request);
 		const result = await guard.canActivate(context);

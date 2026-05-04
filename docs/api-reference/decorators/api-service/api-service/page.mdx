@@ -11,19 +11,19 @@ Extends a provider with CRUD-ready methods (`create`, `update`, `delete`, `get`,
 ## Requirements
 
 - The decorated class must expose a `repository: Repository<E>` property (the decorator does not inject it automatically).
-- Each generated method accepts the DTO created by the controller factory and an optional `EntityManager` to support transactional flows.
+- Each generated method accepts the DTO created by the controller factory. Transaction scope is resolved internally through `ApiFunctionContextStorage`.
 - Methods are defined only if the class does not already provide an implementation, allowing selective overrides.
 
 ## Generated methods
 
-| Method    | Parameters                               | Description                                                          |
-| --------- | ---------------------------------------- | -------------------------------------------------------------------- |
-| `create`  | `(dto, eventManager?)`                   | Persists a new entity and triggers subscriber hooks.                 |
-| `update`  | `(criteria, dto, eventManager?)`         | Applies updates with full DTO validation and subscriber lifecycle.   |
-| `delete`  | `(criteria, eventManager?)`              | Removes records and notifies subscribers.                            |
-| `get`     | `(criteria, eventManager?)`              | Loads a single entity, throwing typed HTTP errors on failure.        |
-| `getMany` | `(criteria, eventManager?)`              | Loads multiple records by identifiers or criteria, returning `[]` when nothing matches. |
-| `getList` | `(properties, relations, eventManager?)` | Returns paginated collections with relations populated as requested. |
+| Method    | Parameters           | Description                                                          |
+| --------- | -------------------- | -------------------------------------------------------------------- |
+| `create`  | `(dto)`              | Persists a new entity and triggers subscriber hooks.                 |
+| `update`  | `(criteria, dto)`    | Applies updates with full DTO validation and subscriber lifecycle.   |
+| `delete`  | `(criteria)`         | Removes records and notifies subscribers.                            |
+| `get`     | `(properties)`       | Loads a single entity, throwing typed HTTP errors on failure.        |
+| `getMany` | `(properties)`       | Loads multiple records by identifiers or criteria, returning `[]` when nothing matches. |
+| `getList` | `(properties)`       | Returns paginated collections with relations populated as requested. |
 
 ## Example
 

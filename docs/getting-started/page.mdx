@@ -67,6 +67,7 @@ export class UserEntity {
 		format: EApiPropertyStringType.EMAIL,
 		minLength: 5,
 		maxLength: 255,
+		pattern: "/^[\\w.-]+@([\\w-]+\\.)+[\\w-]{2,}$/",
 		exampleValue: "user@example.com",
 	})
 	email: string;
@@ -113,7 +114,7 @@ export class UserService extends ApiServiceBase<UserEntity> {
 	}
 
 	// Add custom methods beyond basic CRUD
-	async findByEmail(email: string): Promise<UserEntity | undefined> {
+	async findByEmail(email: string): Promise<UserEntity | null> {
 		return this.repository.findOne({ where: { email } });
 	}
 }
@@ -124,17 +125,17 @@ export class UserService extends ApiServiceBase<UserEntity> {
 Create a controller with the `ApiController` decorator to generate all CRUD endpoints:
 
 ```typescript filename="user.controller.ts" copy
-import { Controller } from "@nestjs/common";
 import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
 import { UserEntity } from "./user.entity";
 import { UserService } from "./user.service";
 
-@Controller("users")
 @ApiController<UserEntity>({
 	entity: UserEntity,
 	name: "Users",
+	path: "users",
 	routes: {
 		[EApiRouteType.CREATE]: {},
+		[EApiRouteType.PARTIAL_UPDATE]: {},
 		[EApiRouteType.UPDATE]: {},
 		[EApiRouteType.DELETE]: {},
 		[EApiRouteType.GET]: {},
@@ -212,7 +213,8 @@ With the above setup, the following endpoints are automatically generated:
 - `POST /users` - Create a new user
 - `GET /users/:id` - Get a single user by ID
 - `GET /users` - Get a paginated list of users with filtering and sorting
-- `PATCH /users/:id` - Update a user
+- `PUT /users/:id` - Update or replace a user
+- `PATCH /users/:id` - Partially update a user
 - `DELETE /users/:id` - Delete a user
 
 ## Swagger Documentation

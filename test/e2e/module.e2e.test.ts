@@ -1,9 +1,9 @@
 import "reflect-metadata";
 
 import type { CanActivate, ExecutionContext, INestApplication } from "@nestjs/common";
-import type { IApiAuthorizationModuleOptionsFactory, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiHookPermissionSource } from "../../dist/esm/index";
+import type { IApiAuthorizationModuleOptionsFactory, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiHookPermissionSource } from "../../src/index";
 
-import { Controller, Get, Injectable, Module, Req, UseGuards } from "@nestjs/common";
+import { Controller, Get, Injectable, Module, Req, RequestMethod, UseGuards } from "@nestjs/common";
 import { MODULE_METADATA } from "@nestjs/common/constants";
 import { DiscoveryModule } from "@nestjs/core";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
@@ -33,7 +33,7 @@ import {
 	EApiAuthorizationMode,
 	EApiAuthorizationPrincipalType,
 	METHOD_API_DECORATOR_CONSTANT,
-} from "../../dist/esm/index";
+} from "../../src/index";
 
 @Entity("cross_module_entities")
 class CrossModuleEntity {
@@ -112,7 +112,21 @@ class CrossModuleFeatureController {
 	}
 }
 
-Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.AUTHORIZATION_METADATA_KEY, { action: "get" }, CrossModuleFeatureController.prototype.get);
+Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, {
+	resource: {
+		action: "get",
+		entity: CrossModuleEntity,
+	},
+	route: {
+		method: RequestMethod.GET,
+		path: "",
+	},
+	security: {
+		authorization: {
+			mode: EApiAuthorizationMode.HOOKS,
+		},
+	},
+}, CrossModuleFeatureController.prototype.get);
 
 Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.ENTITY_METADATA_KEY, CrossModuleEntity, CrossModuleFeatureController);
 Reflect.defineMetadata(
@@ -123,12 +137,12 @@ Reflect.defineMetadata(
 		},
 		entity: CrossModuleEntity,
 		routes: {
-			delete: { isEnabled: false },
-			get: { authorization: { mode: EApiAuthorizationMode.HOOKS } },
-			getList: { isEnabled: false },
-			create: { isEnabled: false },
-			partialUpdate: { isEnabled: false },
-			update: { isEnabled: false },
+			delete: { generation: { isEnabled: false } },
+			get: { security: { authorization: { mode: EApiAuthorizationMode.HOOKS } } },
+			getList: { generation: { isEnabled: false } },
+			create: { generation: { isEnabled: false } },
+			partialUpdate: { generation: { isEnabled: false } },
+			update: { generation: { isEnabled: false } },
 		},
 	},
 	CrossModuleFeatureController,

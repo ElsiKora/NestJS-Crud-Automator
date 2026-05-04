@@ -7,33 +7,41 @@ NestJS CRUD Automator integrates seamlessly with NestJS authentication guards to
 Add authentication to specific routes:
 
 ```typescript filename="user.controller.ts" copy
-import { Controller } from "@nestjs/common";
-import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { ApiController, EApiAuthenticationType, EApiRouteType } from "@elsikora/nestjs-crud-automator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { UserEntity } from "./user.entity";
 import { UserService } from "./user.service";
 
-@Controller("users")
 @ApiController<UserEntity>({
 	entity: UserEntity,
 	name: "Users",
+	path: "users",
 	routes: {
 		[EApiRouteType.CREATE]: {
-			authentication: {
-				guard: JwtAuthGuard,
-				bearerStrategies: ["jwt"],
+			security: {
+				authentication: {
+					type: EApiAuthenticationType.USER,
+					guard: JwtAuthGuard,
+					bearerStrategies: ["jwt"],
+				},
 			},
 		},
 		[EApiRouteType.UPDATE]: {
-			authentication: {
-				guard: JwtAuthGuard,
-				bearerStrategies: ["jwt"],
+			security: {
+				authentication: {
+					type: EApiAuthenticationType.USER,
+					guard: JwtAuthGuard,
+					bearerStrategies: ["jwt"],
+				},
 			},
 		},
 		[EApiRouteType.DELETE]: {
-			authentication: {
-				guard: JwtAuthGuard,
-				bearerStrategies: ["jwt"],
+			security: {
+				authentication: {
+					type: EApiAuthenticationType.USER,
+					guard: JwtAuthGuard,
+					bearerStrategies: ["jwt"],
+				},
 			},
 		},
 		// GET and GET_LIST are public
@@ -114,9 +122,13 @@ Support multiple authentication methods:
 ```typescript
 routes: {
   [EApiRouteType.CREATE]: {
-    authentication: {
-      guard: JwtAuthGuard,
-      bearerStrategies: ["jwt", "api-key"],
+    security: {
+      authentication: {
+        type: EApiAuthenticationType.USER,
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+        securityStrategies: ["api-key"],
+      },
     },
   },
 }
@@ -160,9 +172,12 @@ export class ApiKeyAuthGuard implements CanActivate {
 ```typescript
 routes: {
   [EApiRouteType.CREATE]: {
-    authentication: {
-      guard: ApiKeyAuthGuard,
-      bearerStrategies: ["api-key"],
+    security: {
+      authentication: {
+        type: EApiAuthenticationType.USER,
+        guard: ApiKeyAuthGuard,
+        securityStrategies: ["api-key"],
+      },
     },
   },
 }
@@ -211,14 +226,19 @@ const Roles = (...roles: string[]) => SetMetadata("roles", roles);
   entity: UserEntity,
   routes: {
     [EApiRouteType.DELETE]: {
-      authentication: {
-        guard: JwtAuthGuard,
-        bearerStrategies: ["jwt"],
+      security: {
+        authentication: {
+          type: EApiAuthenticationType.USER,
+          guard: JwtAuthGuard,
+          bearerStrategies: ["jwt"],
+        },
       },
-      decorators: [
-        Roles("admin"),
-        UseGuards(RolesGuard),
-      ],
+      generation: {
+        decorators: [
+          Roles("admin"),
+          UseGuards(RolesGuard),
+        ],
+      },
     },
   },
 })
@@ -236,13 +256,16 @@ import {
 
 routes: {
   [EApiRouteType.CREATE]: {
-    authentication: {
-      guard: JwtAuthGuard,
-      bearerStrategies: ["jwt"],
+    security: {
+      authentication: {
+        type: EApiAuthenticationType.USER,
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+      },
     },
     request: {
-      transformers: {
-        [EApiDtoType.BODY]: [
+      [EApiControllerRequestTarget.BODY]: {
+        transformers: [
           {
             key: "createdBy",
             type: EApiControllerRequestTransformerType.DYNAMIC,
@@ -367,21 +390,30 @@ routes: {
   [EApiRouteType.GET]: {}, // Public
   [EApiRouteType.GET_LIST]: {}, // Public
   [EApiRouteType.CREATE]: {
-    authentication: {
-      guard: JwtAuthGuard,
-      bearerStrategies: ["jwt"],
+    security: {
+      authentication: {
+        type: EApiAuthenticationType.USER,
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+      },
     },
   },
   [EApiRouteType.UPDATE]: {
-    authentication: {
-      guard: JwtAuthGuard,
-      bearerStrategies: ["jwt"],
+    security: {
+      authentication: {
+        type: EApiAuthenticationType.USER,
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+      },
     },
   },
   [EApiRouteType.DELETE]: {
-    authentication: {
-      guard: JwtAuthGuard,
-      bearerStrategies: ["jwt"],
+    security: {
+      authentication: {
+        type: EApiAuthenticationType.USER,
+        guard: JwtAuthGuard,
+        bearerStrategies: ["jwt"],
+      },
     },
   },
 }

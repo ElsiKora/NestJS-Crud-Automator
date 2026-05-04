@@ -1,0 +1,41 @@
+# AI Agent Skill
+
+NestJS CRUD Automator includes repository-local guidance for AI coding agents. The goal is to keep agents source-aligned when they edit implementation, tests, examples, README content, or documentation.
+
+## Canonical Skill
+
+The canonical skill lives at:
+
+```text
+.cursor/skills/crud-automator/SKILL.md
+```
+
+Cursor can load it as a project skill. The same directory also contains:
+
+- `reference.md` for source-aligned API and runtime reminders
+- `examples.md` for copyable current patterns
+- `pitfalls.md` for common stale-doc and wrong-layer failures
+
+## Other Agent Environments
+
+The repository also includes pointer adapters:
+
+- `AGENTS.md` for Codex-style agents and generic agent runners
+- `CLAUDE.md` for Claude Code
+
+These files intentionally point to the canonical skill instead of duplicating the full content. This keeps Cursor, Claude Code, Codex-style agents, and other environments on one shared source of guidance.
+
+## Scope
+
+The skill covers current Crud Automator contracts for:
+
+- `@ApiController`, route generation, and route config nesting
+- `@ApiService`, `@ApiFunction`, `@ApiFunctionCustom`, and transaction scopes
+- `@ApiRouteCustom` versus low-level `@ApiMethod`
+- `ApiPropertyDescribe`, manual DTO decorators, `autoDto`, and GET_LIST item DTOs
+- request/response transformers and validators
+- relation hydration and response relation loading
+- route and function subscribers, including custom hooks and error hooks
+- HOOKS/IAM authorization, policy documents, resource definitions, resolver caches, and simulator usage
+
+When the skill and docs disagree with source, use `src/interface/**`, `src/type/**`, exported barrels, and tests as the contract.

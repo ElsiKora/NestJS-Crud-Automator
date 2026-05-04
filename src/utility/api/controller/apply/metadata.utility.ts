@@ -29,7 +29,7 @@ export function ApiControllerApplyMetadata<E extends IApiBaseEntity>(target: obj
 	let routeArgumentsMetadata: unknown = {};
 	const parameterTypes: Array<unknown> = [];
 
-	const requestDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.REQUEST, routeConfig);
+	const requestDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig);
 	const queryDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.QUERY, routeConfig);
 	const bodyDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.BODY, routeConfig);
 

@@ -1,7 +1,7 @@
 import { Inject } from "@nestjs/common";
 
-import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../../dist/esm/index";
-import { EApiAuthenticationType, EApiAuthorizationMode, EApiRouteType } from "../../../../dist/esm/index";
+import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../../src/index";
+import { EApiAuthenticationType, EApiAuthorizationMode, EApiRouteType } from "../../../../src/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eOwnerEntity } from "./entity";
@@ -22,7 +22,7 @@ const authentication = {
 	name: "E2eOwners",
 	path: "owners",
 	routes: {
-		[EApiRouteType.DELETE]: { authentication },
+		[EApiRouteType.DELETE]: { security: { authentication } },
 	},
 })
 export class E2eOwnerController {

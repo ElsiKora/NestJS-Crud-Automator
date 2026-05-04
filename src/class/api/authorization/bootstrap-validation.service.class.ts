@@ -1,11 +1,12 @@
 import type { InstanceWrapper } from "@nestjs/core/injector/instance-wrapper";
 
 import { AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
+import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { EApiAuthorizationMode } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import { IApiControllerProperties } from "@interface/decorator/api";
+import { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorator/api";
 import { Inject, Injectable, OnApplicationBootstrap, Optional } from "@nestjs/common";
 import { DiscoveryService } from "@nestjs/core";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -84,13 +85,19 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 
 		this.assertValidMode(authorization.defaultMode, metatype.name);
 
-		const enabledRouteTypes: Array<EApiRouteType> = Object.values(EApiRouteType).filter((routeType: EApiRouteType) => properties.routes[routeType]?.isEnabled !== false);
-		const enabledRouteModes: Set<EApiAuthorizationMode> = new Set<EApiAuthorizationMode>(enabledRouteTypes.map((routeType: EApiRouteType) => properties.routes[routeType]?.authorization?.mode ?? authorization.defaultMode));
+		const enabledRouteTypes: Array<EApiRouteType> = Object.values(EApiRouteType).filter((routeType: EApiRouteType) => properties.routes[routeType]?.generation?.isEnabled !== false);
+		const enabledRouteModes: Set<EApiAuthorizationMode> = new Set<EApiAuthorizationMode>(enabledRouteTypes.map((routeType: EApiRouteType) => properties.routes[routeType]?.security?.authorization?.mode ?? authorization.defaultMode));
+		const methodRouteModes: Set<EApiAuthorizationMode> = this.validateMethodLevelRouteMetadata(metatype, properties);
+
+		for (const routeMode of methodRouteModes) {
+			enabledRouteModes.add(routeMode);
+		}
+
 		const usesHooks: boolean = enabledRouteModes.has(EApiAuthorizationMode.HOOKS);
 		const usesIam: boolean = enabledRouteModes.has(EApiAuthorizationMode.IAM);
 
 		for (const routeType of enabledRouteTypes) {
-			const routeMode: EApiAuthorizationMode = properties.routes[routeType]?.authorization?.mode ?? authorization.defaultMode;
+			const routeMode: EApiAuthorizationMode = properties.routes[routeType]?.security?.authorization?.mode ?? authorization.defaultMode;
 			this.assertValidMode(routeMode, metatype.name, routeType);
 		}
 
@@ -133,6 +140,44 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 
 			this.validateResourceDefinition(metatype.name, authorization.resourceDefinition);
 		}
+	}
+
+	private validateMethodLevelRouteMetadata(metatype: new (...arguments_: Array<unknown>) => unknown, properties: IApiControllerProperties<IApiBaseEntity>): Set<EApiAuthorizationMode> {
+		const modes: Set<EApiAuthorizationMode> = new Set<EApiAuthorizationMode>();
+
+		for (const methodName of Object.getOwnPropertyNames(metatype.prototype)) {
+			if (methodName === "constructor") {
+				continue;
+			}
+
+			const handler: unknown = (metatype.prototype as Record<string, unknown>)[methodName];
+			const handlerMetadata: unknown = typeof handler === "function" ? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, handler) : undefined;
+			const prototypeMetadata: unknown = Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, metatype.prototype as object, methodName);
+			const metadata: IApiRouteMetadata<IApiBaseEntity> | undefined = (handlerMetadata ?? prototypeMetadata) as IApiRouteMetadata<IApiBaseEntity> | undefined;
+
+			if (!metadata) {
+				continue;
+			}
+
+			if (!metadata.resource?.action || typeof metadata.resource.action !== "string") {
+				throw ErrorException(`Controller "${metatype.name}" method "${methodName}" must declare route resource.action`);
+			}
+
+			if (metadata.resource.entity !== properties.entity) {
+				throw ErrorException(`Controller "${metatype.name}" method "${methodName}" route resource.entity must match controller entity`);
+			}
+
+			const mode: unknown = metadata.security?.authorization?.mode;
+
+			if (!mode) {
+				throw ErrorException(`Controller "${metatype.name}" method "${methodName}" must declare method-level authorization mode`);
+			}
+
+			this.assertValidMode(mode, metatype.name);
+			modes.add(mode);
+		}
+
+		return modes;
 	}
 
 	private validateResourceDefinition(controllerName: string, resourceDefinition: NonNullable<IApiControllerProperties<IApiBaseEntity>["authorization"]>["resourceDefinition"]): void {

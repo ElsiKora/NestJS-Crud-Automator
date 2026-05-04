@@ -11,73 +11,103 @@ Generates entity metadata from an entity class. The result includes TypeORM colu
 **Location:** `src/utility/generate-entity-information.utility.ts`
 
 ```typescript
-function GenerateEntityInformation<E>(entity: Type<E>): IApiEntity<E>;
+function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity<E>;
 ```
 
 **Usage:**
 
 ```typescript
 const entityInfo = GenerateEntityInformation(UserEntity);
-// Returns: { name: "UserEntity", primaryKey: "id", columns: [...], relations: [...] }
+// Returns: { tableName: "users", primaryKey: { name: "id", ... }, columns: [...] }
 ```
 
-### getEntityColumns
+### GetEntityColumns
 
 Gets all column names from an entity.
 
-**Location:** `src/utility/get-entity-columns.utility.ts`
+**Location:** `src/utility/get/entity-columns.utility.ts`
 
 ```typescript
-function getEntityColumns<E>(entity: Type<E>): string[];
+function GetEntityColumns<E>(properties: IGetEntityColumnsProperties): Array<keyof E>;
 ```
 
 **Internal Use:** Called automatically by controller factory.
+
+### GetDefaultStringFormatProperties
+
+Returns the default description, example, length bounds, and regex pattern for supported string formats.
+
+**Location:** `src/utility/api/get-default-string-format-properties.utility.ts`
+
+```typescript
+function GetDefaultStringFormatProperties(format: TApiPropertyDefaultStringFormat): TApiPropertyDefaultStringFormatProperties;
+```
+
+**Usage:**
+
+```typescript
+const emailDefaults = GetDefaultStringFormatProperties(EApiPropertyStringType.EMAIL);
+
+@ApiPropertyDescribe({
+	type: EApiPropertyDescribeType.STRING,
+	format: EApiPropertyStringType.EMAIL,
+	...emailDefaults,
+})
+email!: string;
+```
 
 ### DtoGenerate
 
 Generates DTO classes from entity metadata.
 
-**Location:** `src/utility/dto/generate.utility.ts`
+**Location:** `src/utility/dto/generate/core.utility.ts`
 
 ```typescript
-function DtoGenerate(/* parameters */): Type<any>;
+function DtoGenerate<E>(
+	entity: ObjectLiteral,
+	entityMetadata: IApiEntity<E>,
+	method: EApiRouteType,
+	dtoType: EApiDtoType,
+	dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig,
+	currentGuard?: Type<IAuthGuard>
+): Type<unknown> | undefined;
 ```
 
 **Internal Use:** Called automatically for DTO generation.
 
 ## String Utilities
 
-### camelCaseString
+### CamelCaseString
 
-Converts string to camelCase.
+Converts a string to the package's PascalCase-style route/DTO name fragment.
 
 **Location:** `src/utility/camel-case-string.utility.ts`
 
 ```typescript
-function camelCaseString(input: string): string;
+function CamelCaseString(input: string): string;
 ```
 
 **Example:**
 
 ```typescript
-camelCaseString("user_name"); // Returns: "userName"
-camelCaseString("UserName"); // Returns: "userName"
+CamelCaseString("get_list"); // Returns: "GetList"
+CamelCaseString("user_name"); // Returns: "UserName"
 ```
 
-### capitalizeString
+### CapitalizeString
 
 Capitalizes first letter of string.
 
 **Location:** `src/utility/capitalize-string.utility.ts`
 
 ```typescript
-function capitalizeString(input: string): string;
+function CapitalizeString(input: string): string;
 ```
 
 **Example:**
 
 ```typescript
-capitalizeString("hello"); // Returns: "Hello"
+CapitalizeString("hello"); // Returns: "Hello"
 ```
 
 ## Error Utilities
@@ -86,45 +116,42 @@ capitalizeString("hello"); // Returns: "Hello"
 
 Creates formatted error messages.
 
-**Location:** `src/utility/error-exception.utility.ts`
+**Location:** `src/utility/error/exception.utility.ts`
 
 ```typescript
-function ErrorException(message: string, context?: any): Error;
+function ErrorException(message: string): Error;
 ```
 
 **Example:**
 
 ```typescript
-throw ErrorException("Invalid entity configuration", {
-	entity: "UserEntity",
-	field: "id",
-});
+throw ErrorException("Invalid entity configuration: UserEntity.id");
 ```
 
-### errorString
+### ErrorString
 
 Formats error objects to strings.
 
-**Location:** `src/utility/error-string.utility.ts`
+**Location:** `src/utility/error/string.utility.ts`
 
 ```typescript
-function errorString(error: unknown): string;
+function ErrorString<T extends IApiBaseEntity>(properties: TErrorStringProperties<T>): string;
 ```
 
-### isErrorOfType
+### IsErrorOfType
 
 Checks if error is of specific type.
 
-**Location:** `src/utility/is-error-of-type.utility.ts`
+**Location:** `src/utility/is/error-of-type.utility.ts`
 
 ```typescript
-function isErrorOfType<T extends Error>(error: unknown, errorType: Type<T>): error is T;
+function IsErrorOfType(error: unknown, type: EException): boolean;
 ```
 
 **Example:**
 
 ```typescript
-if (isErrorOfType(error, ValidationError)) {
+if (IsErrorOfType(error, EException.BAD_REQUEST)) {
 	// Handle validation error
 }
 ```
@@ -139,18 +166,16 @@ Logging utility for internal use.
 
 ```typescript
 class LoggerUtility {
-	static log(message: string, context?: string): void;
-	static error(message: string, trace?: string, context?: string): void;
-	static warn(message: string, context?: string): void;
-	static debug(message: string, context?: string): void;
+	static getLogger(context?: string): LoggerUtility;
 }
 ```
 
 **Example:**
 
 ```typescript
-LoggerUtility.log("Operation completed", "UserService");
-LoggerUtility.error("Operation failed", error.stack, "UserService");
+const logger = LoggerUtility.getLogger("UserService");
+logger.log("Operation completed");
+logger.error("Operation failed", error.stack);
 ```
 
 ## Controller Utilities
@@ -159,7 +184,7 @@ LoggerUtility.error("Operation failed", error.stack, "UserService");
 
 Applies decorators to controller methods.
 
-**Location:** `src/utility/api/controller/apply-decorators.utility.ts`
+**Location:** `src/utility/api/controller/apply/decorators.utility.ts`
 
 **Internal Use:** Used by controller factory.
 
@@ -167,7 +192,7 @@ Applies decorators to controller methods.
 
 Applies metadata to controller methods.
 
-**Location:** `src/utility/api/controller/apply-metadata.utility.ts`
+**Location:** `src/utility/api/controller/apply/metadata.utility.ts`
 
 **Internal Use:** Used by controller factory.
 
@@ -175,7 +200,7 @@ Applies metadata to controller methods.
 
 Gets method name for route type.
 
-**Location:** `src/utility/api/controller/get-method-name.utility.ts`
+**Location:** `src/utility/api/controller/get/method-name.utility.ts`
 
 **Internal Use:** Used by controller factory.
 
@@ -183,11 +208,22 @@ Gets method name for route type.
 
 Gets primary column from entity.
 
-**Location:** `src/utility/api/controller/get-primary-column.utility.ts`
+**Location:** `src/utility/api/controller/get/primary-column.utility.ts`
 
 ```typescript
-function ApiControllerGetPrimaryColumn<E>(entity: Type<E>): IApiControllerPrimaryColumn;
+function ApiControllerGetPrimaryColumn<E>(
+	parameters: DeepPartial<E> | Partial<E>,
+	entityMetadata: IApiEntity<E>
+): IApiControllerPrimaryColumn<E> | undefined;
 ```
+
+### ApiControllerGetDto
+
+Resolves the DTO class for a route and DTO target.
+
+**Location:** `src/utility/api/controller/get/dto.utility.ts`
+
+**Internal Use:** Used by generated and custom route runtimes.
 
 ### ApiControllerHandleRequestRelations
 
@@ -213,11 +249,19 @@ Validates incoming requests.
 
 **Internal Use:** Used by controller factory.
 
+### ApiControllerSerializeRouteResponse
+
+Serializes generated route responses through the selected response DTO and response config.
+
+**Location:** `src/utility/api/controller/serialize-route-response.utility.ts`
+
+**Internal Use:** Used by generated route runtime.
+
 ### ApiControllerWriteDtoSwagger
 
 Writes Swagger documentation for DTOs.
 
-**Location:** `src/utility/api/controller/write-dto-swagger.utility.ts`
+**Location:** `src/utility/api/controller/write/dto-swagger.utility.ts`
 
 **Internal Use:** Used by controller factory.
 
@@ -225,7 +269,7 @@ Writes Swagger documentation for DTOs.
 
 Writes controller methods.
 
-**Location:** `src/utility/api/controller/write-method.utility.ts`
+**Location:** `src/utility/api/controller/write/method.utility.ts`
 
 **Internal Use:** Used by controller factory.
 
@@ -235,7 +279,7 @@ Writes controller methods.
 
 Transforms filter query parameters.
 
-**Location:** `src/utility/api/controller/get-list/transform-filter.utility.ts`
+**Location:** `src/utility/api/controller/get-list/transform/filter.utility.ts`
 
 **Internal Use:** Used for query parameter transformation.
 
@@ -243,17 +287,55 @@ Transforms filter query parameters.
 
 Transforms filter operations.
 
-**Location:** `src/utility/api/controller/get-list/transform-operation.utility.ts`
+**Location:** `src/utility/api/controller/get-list/transform/operation.utility.ts`
 
 **Internal Use:** Used for filter operation mapping.
 
-### filterOrderByFromEntity
+### FilterOrderByFromEntity
 
 Generates order by options from entity.
 
 **Location:** `src/utility/api/filter-order-by-from-entity.utility.ts`
 
 **Internal Use:** Used for sorting configuration.
+
+## Route Response Utilities
+
+### ApiRouteSerializeResponse
+
+Serializes custom route responses according to `@ApiRouteCustom` response metadata.
+
+**Location:** `src/utility/api/route/response/serialize.utility.ts`
+
+### ApiRouteProjectRelationResponse
+
+Projects configured response relations to scalar or object references.
+
+**Location:** `src/utility/api/route/response/project-relation.utility.ts`
+
+## Authorization Utilities
+
+- `AuthorizationDecisionApplyResult` applies an authorization decision's response transforms.
+- `AuthorizationDecisionAttachResource` attaches resolved resources to a decision.
+- `AuthorizationDecisionResolveFromRequest` reads an authorization decision from the authentication request.
+- `AuthorizationPermissionMatches` and `AuthorizationPermissionSetMatches` compare permission strings and sets.
+- `AuthorizationResolveDefaultPrincipal` resolves the default principal from an authentication request.
+- `AuthorizationScopeMergeWhere` merges authorization scopes into TypeORM `where` options.
+
+## Database Utilities
+
+TypeORM helpers detect and explain common database errors:
+
+- `DatabaseTypeOrmIsUniqueViolation`
+- `DatabaseTypeOrmIsForeignKeyViolation`
+- `DatabaseTypeOrmGetUniqueViolationDetails`
+- `DatabaseTypeOrmGetForeignKeyViolationDetails`
+- `DatabaseTypeOrmIsEntityNotFound`
+- `DatabaseTypeOrmIsEntityMetadataNotFound`
+
+## DTO Utilities
+
+Public DTO helpers include generation, decorator, auto-context, manual child DTO, date handling, property marking, and cache-key helpers. Most are intended for advanced integrations with the generated DTO pipeline rather than normal application code.
 
 ## Next Steps
 

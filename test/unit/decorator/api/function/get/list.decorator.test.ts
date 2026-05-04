@@ -1,5 +1,6 @@
 import type { EntityManager, Repository } from "typeorm";
 
+import { ApiFunctionTransactionScope } from "@class/api/function/transaction-scope.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGetList } from "@decorator/api/function/get/list.decorator";
 import type { IApiGetListResponseResult } from "@interface/decorator/api";
@@ -15,9 +16,8 @@ class GetListService {
 	public constructor(public repository: Repository<GetListEntity>) {}
 
 	@ApiFunctionGetList({ entity: GetListEntity })
-	public async getList(properties: { take?: number; skip?: number }, eventManager?: EntityManager): Promise<IApiGetListResponseResult<GetListEntity>> {
+	public async getList(properties: { take?: number; skip?: number }): Promise<IApiGetListResponseResult<GetListEntity>> {
 		void properties;
-		void eventManager;
 
 		return { count: 0, currentPage: 0, items: [], totalCount: 0, totalPages: 0 };
 	}
@@ -58,7 +58,7 @@ describe("ApiFunctionGetList", () => {
 
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
 
-		const result = await service.getList({ take: 1 }, eventManager);
+		const result = await ApiFunctionTransactionScope.runWithEntityManager(eventManager, async () => await service.getList({ take: 1 }));
 
 		expect(eventManager.getRepository).toHaveBeenCalledWith(GetListEntity);
 		expect(eventRepository.findAndCount).toHaveBeenCalledWith({ take: 1 });

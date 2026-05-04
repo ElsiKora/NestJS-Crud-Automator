@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
-import { ApiService, ApiServiceBase, ApiServiceObservable } from "../../../../dist/esm/index";
+import { ApiService, ApiServiceBase, ApiServiceObservable } from "../../../../src/index";
 
 import { E2eEntity } from "../entity";
 

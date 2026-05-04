@@ -1,4 +1,4 @@
-import type { IApiAuthorizationPrincipal, IApiHookPermissionSource } from "../../../dist/esm/index";
+import type { IApiAuthorizationPrincipal, IApiHookPermissionSource } from "../../../src/index";
 
 export const e2eHookPermissionSource: IApiHookPermissionSource = {
 	async getPermissions(principal: IApiAuthorizationPrincipal): Promise<ReadonlyArray<string>> {

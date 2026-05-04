@@ -1,7 +1,7 @@
 import { Inject } from "@nestjs/common";
 
-import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../../dist/esm/index";
-import { EApiAuthenticationType, EApiAuthorizationMode, EApiControllerLoadRelationsStrategy, EApiRouteType } from "../../../../dist/esm/index";
+import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../../src/index";
+import { EApiAuthenticationType, EApiAuthorizationMode, EApiControllerLoadRelationsStrategy, EApiControllerRelationReferenceShape, EApiRouteType } from "../../../../src/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eEntity } from "../entity";
@@ -24,16 +24,21 @@ const authentication = {
 	path: "manual-items",
 	routes: {
 		[EApiRouteType.CREATE]: {
-			authentication,
-			request: {
-				relations: {
-					relationsLoadStrategy: EApiControllerLoadRelationsStrategy.MANUAL,
-					relationsToLoad: ["owner"],
-					relationsServices: {
-						owner: "ownerService",
+			security: { authentication },
+			relations: {
+				request: {
+					load: {
+						relationStrategy: EApiControllerLoadRelationsStrategy.MANUAL,
+						relations: ["owner"],
+						serviceStrategy: EApiControllerLoadRelationsStrategy.MANUAL,
+						services: {
+							owner: "ownerService",
+						},
+						shouldLoad: true,
 					},
-					servicesLoadStrategy: EApiControllerLoadRelationsStrategy.MANUAL,
-					shouldLoadRelations: true,
+					reference: {
+						shape: EApiControllerRelationReferenceShape.SCALAR,
+					},
 				},
 			},
 		},

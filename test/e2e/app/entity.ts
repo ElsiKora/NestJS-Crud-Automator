@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import { ApiPropertyDescribe, ApiPropertyEnum, ApiPropertyObject, ApiPropertyString, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "../../../dist/esm/index";
+import { ApiPropertyDescribe, ApiPropertyEnum, ApiPropertyObject, ApiPropertyString, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "../../../src/index";
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 
 import { E2E_OWNER_ID } from "./constants";

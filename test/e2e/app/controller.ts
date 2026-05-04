@@ -1,7 +1,7 @@
 import { BadRequestException, Body, HttpStatus, Inject, Param, RequestMethod } from "@nestjs/common";
 
-import { ApiMethod, EApiAction, EApiAuthenticationType, EApiAuthorizationMode, EApiControllerLoadRelationsStrategy, EApiControllerRequestTransformerType, EApiDtoType, EApiRouteType, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../dist/esm/index";
-import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../dist/esm/index";
+import { ApiMethod, EApiAuthenticationType, EApiAuthorizationMode, EApiControllerLoadRelationsStrategy, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiRouteType, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../src/index";
+import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../src/index";
 
 import { TestAuthGuard } from "./auth-guard";
 import { E2E_OWNER_ID } from "./constants";
@@ -25,15 +25,22 @@ const authentication = {
 	path: "items",
 	routes: {
 		[EApiRouteType.CREATE]: {
-			authentication,
-			request: {
-				relations: {
-					relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					shouldLoadRelations: true,
+			security: { authentication },
+			relations: {
+				request: {
+					load: {
+						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						shouldLoad: true,
+					},
+					reference: {
+						shape: EApiControllerRelationReferenceShape.SCALAR,
+					},
 				},
-				transformers: {
-					[EApiDtoType.BODY]: [
+			},
+			request: {
+				[EApiControllerRequestTarget.BODY]: {
+					transformers: [
 						{
 							key: "ownerId",
 							shouldSetValueEvenIfMissing: true,
@@ -71,18 +78,18 @@ const authentication = {
 							value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
 						},
 					],
+					validators: [
+						{
+							errorType: EErrorStringAction.VALIDATION_ERROR,
+							exception: BadRequestException,
+							validationFunction: (payload) => "count" in payload && typeof payload.count === "number" && payload.count > 0,
+						},
+					],
 				},
-				validators: [
-					{
-						errorType: EErrorStringAction.VALIDATION_ERROR,
-						exception: BadRequestException,
-						validationFunction: (payload) => typeof payload.count === "number" && payload.count > 0,
-					},
-				],
 			},
 			response: {
-				transformers: {
-					[EApiDtoType.RESPONSE]: [
+				[EApiControllerResponseTarget.RESPONSE]: {
+					transformers: [
 						{
 							key: "name",
 							type: EApiControllerRequestTransformerType.STATIC,
@@ -92,12 +99,23 @@ const authentication = {
 				},
 			},
 		},
-		[EApiRouteType.DELETE]: { authentication },
+		[EApiRouteType.DELETE]: { security: { authentication } },
 		[EApiRouteType.GET]: {
-			authentication,
+			security: { authentication },
+			relations: {
+				response: {
+					load: {
+						include: { owner: true },
+					},
+					reference: {
+						key: "id",
+						shape: EApiControllerRelationReferenceShape.OBJECT,
+					},
+				},
+			},
 			request: {
-				transformers: {
-					[EApiDtoType.REQUEST]: [
+				[EApiControllerRequestTarget.PARAMETERS]: {
+					transformers: [
 						{
 							key: "id",
 							type: EApiControllerRequestTransformerType.DYNAMIC,
@@ -107,9 +125,8 @@ const authentication = {
 				},
 			},
 			response: {
-				relations: { owner: true },
-				transformers: {
-					[EApiDtoType.RESPONSE]: [
+				[EApiControllerResponseTarget.RESPONSE]: {
+					transformers: [
 						{
 							key: "responseSignature",
 							shouldSetValueEvenIfMissing: true,
@@ -118,32 +135,45 @@ const authentication = {
 						},
 					],
 				},
+				serialization: {
+					isEnabled: true,
+				},
 			},
 		},
 		[EApiRouteType.GET_LIST]: {
-			authentication,
+			security: { authentication },
+			relations: {
+				response: {
+					load: {
+						include: { owner: true },
+					},
+					reference: {
+						key: "id",
+						shape: EApiControllerRelationReferenceShape.OBJECT,
+					},
+				},
+			},
 			request: {
-				transformers: {
-					[EApiDtoType.QUERY]: [
+				[EApiControllerRequestTarget.QUERY]: {
+					transformers: [
 						{
 							key: "page",
 							type: EApiControllerRequestTransformerType.STATIC,
 							value: "1",
 						},
 					],
+					validators: [
+						{
+							errorType: EErrorStringAction.VALIDATION_ERROR,
+							exception: BadRequestException,
+							validationFunction: (payload) => (payload as { forceError?: string }).forceError !== "true",
+						},
+					],
 				},
-				validators: [
-					{
-						errorType: EErrorStringAction.VALIDATION_ERROR,
-						exception: BadRequestException,
-						validationFunction: (payload) => (payload as { forceError?: string } | undefined)?.forceError !== "true",
-					},
-				],
 			},
 			response: {
-				relations: { owner: true },
-				transformers: {
-					[EApiDtoType.RESPONSE]: [
+				[EApiControllerResponseTarget.RESPONSE]: {
+					transformers: [
 						{
 							key: "count",
 							type: EApiControllerRequestTransformerType.STATIC,
@@ -153,8 +183,32 @@ const authentication = {
 				},
 			},
 		},
-		[EApiRouteType.PARTIAL_UPDATE]: { authentication },
-		[EApiRouteType.UPDATE]: { authentication },
+		[EApiRouteType.PARTIAL_UPDATE]: { security: { authentication } },
+		[EApiRouteType.UPDATE]: {
+			security: { authentication },
+			relations: {
+				request: {
+					load: {
+						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						shouldLoad: true,
+					},
+					reference: {
+						key: "id",
+						shape: EApiControllerRelationReferenceShape.OBJECT,
+					},
+				},
+				response: {
+					load: {
+						include: { owner: true },
+					},
+					reference: {
+						key: "id",
+						shape: EApiControllerRelationReferenceShape.OBJECT,
+					},
+				},
+			},
+		},
 	},
 })
 export class E2eController {
@@ -165,32 +219,58 @@ export class E2eController {
 	public readonly ownerService!: E2eOwnerService;
 
 	@ApiMethod<E2eEntity>({
-		action: EApiAction.UPDATE,
-		authentication,
-		authorization: {
-			action: "update.promote",
+		metadata: {
+			resource: {
+				action: "update.promote",
+				entity: E2eEntity,
+			},
+			response: {
+				serialization: {
+					isEnabled: true,
+				},
+				status: HttpStatus.OK,
+				type: E2eEntity,
+			},
+			route: {
+				method: RequestMethod.POST,
+				path: "promote/:id",
+			},
+			security: {
+				authentication,
+				authorization: {
+					mode: EApiAuthorizationMode.HOOKS,
+				},
+			},
 		},
-		entity: E2eEntity as unknown as E2eEntity,
-		httpCode: HttpStatus.OK,
-		method: RequestMethod.POST,
-		path: "promote/:id",
-		responseType: E2eEntity,
 	})
 	public async promote(@Param("id") id: string): Promise<E2eEntity> {
 		return this.service.get({ relations: { owner: true }, where: { id } });
 	}
 
 	@ApiMethod<E2eEntity>({
-		action: EApiAction.CREATE,
-		authentication,
-		authorization: {
-			action: "create.transaction",
+		metadata: {
+			resource: {
+				action: "create.transaction",
+				entity: E2eEntity,
+			},
+			response: {
+				serialization: {
+					isEnabled: true,
+				},
+				status: HttpStatus.CREATED,
+				type: E2eEntity,
+			},
+			route: {
+				method: RequestMethod.POST,
+				path: "transaction",
+			},
+			security: {
+				authentication,
+				authorization: {
+					mode: EApiAuthorizationMode.HOOKS,
+				},
+			},
 		},
-		entity: E2eEntity as unknown as E2eEntity,
-		httpCode: HttpStatus.CREATED,
-		method: RequestMethod.POST,
-		path: "transaction",
-		responseType: E2eEntity,
 	})
 	public async createTransaction(@Body() body: Partial<E2eEntity>): Promise<E2eEntity> {
 		return this.service.createWithTransaction(body);

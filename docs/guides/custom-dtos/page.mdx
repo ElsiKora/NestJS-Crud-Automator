@@ -17,6 +17,7 @@ Use custom DTOs when you need:
 Replace auto-generated DTOs with custom ones:
 
 ```typescript filename="user.controller.ts" copy
+import { ApiController, EApiDtoType, EApiRouteType } from "@elsikora/nestjs-crud-automator";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
@@ -26,19 +27,19 @@ import { UserResponseDto } from "./dto/user-response.dto";
   routes: {
     [EApiRouteType.CREATE]: {
       dto: {
-        body: CreateUserDto,
-        response: UserResponseDto,
+        [EApiDtoType.BODY]: CreateUserDto,
+        [EApiDtoType.RESPONSE]: UserResponseDto,
       },
     },
     [EApiRouteType.UPDATE]: {
       dto: {
-        body: UpdateUserDto,
-        response: UserResponseDto,
+        [EApiDtoType.BODY]: UpdateUserDto,
+        [EApiDtoType.RESPONSE]: UserResponseDto,
       },
     },
     [EApiRouteType.GET]: {
       dto: {
-        response: UserResponseDto,
+        [EApiDtoType.RESPONSE]: UserResponseDto,
       },
     },
   },
@@ -77,7 +78,7 @@ Use item DTO mode when the framework should own the list wrapper and the app sho
 	routes: {
 		[EApiRouteType.GET_LIST]: {
 			dto: {
-				response: {
+				[EApiDtoType.RESPONSE]: {
 					itemType: PublicUserResponseDto,
 					name: "PublicUserListResponseDto",
 				},
@@ -288,7 +289,7 @@ enum PolicyEffect {
 
 class PolicyStatementDto {
 	@ApiPropertyEnum({
-		entity: () => PolicyStatementDto,
+		entity: PolicyStatementDto,
 		description: "Effect",
 		enum: PolicyEffect,
 		enumName: "PolicyEffect",
@@ -297,7 +298,7 @@ class PolicyStatementDto {
 	Effect!: PolicyEffect;
 
 	@ApiPropertyObject({
-		entity: () => PolicyStatementDto,
+		entity: PolicyStatementDto,
 		description: "Condition",
 		type: Object,
 		isRequired: false,
@@ -307,22 +308,25 @@ class PolicyStatementDto {
 
 export class PolicyDocumentDto {
 	@ApiPropertyString({
-		entity: () => PolicyDocumentDto,
+		entity: PolicyDocumentDto,
 		description: "Version",
 		format: EApiPropertyStringType.STRING,
 		minLength: 1,
 		maxLength: 32,
+		pattern: "/^[0-9-]+$/",
+		exampleValue: "2012-10-17",
 		isRequired: true,
 	})
 	Version!: string;
 
 	@ApiPropertyObject({
-		entity: () => PolicyDocumentDto,
+		entity: PolicyDocumentDto,
 		description: "Statement",
 		type: PolicyStatementDto,
 		isArray: true,
 		minItems: 1,
 		maxItems: 100,
+		isUniqueItems: false,
 		shouldValidateNested: true,
 	})
 	Statement!: Array<PolicyStatementDto>;

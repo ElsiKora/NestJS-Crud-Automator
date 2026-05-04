@@ -12,7 +12,7 @@ import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, IsOptional } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, ValidateIf } from "class-validator";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
@@ -166,6 +166,27 @@ function buildFormatDecorators(properties: TApiPropertyDateProperties): Array<Pr
 }
 
 /**
+ * Builds the presence validator for date request properties.
+ * @param {TApiPropertyDateProperties} properties - Property configuration that controls required and nullable semantics.
+ * @returns {PropertyDecorator} A class-validator presence decorator.
+ */
+function buildPresenceDecorator(properties: TApiPropertyDateProperties): PropertyDecorator {
+	if (properties.isRequired && properties.isNullable) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== null);
+	}
+
+	if (!properties.isRequired && properties.isNullable) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== undefined && value !== null);
+	}
+
+	if (!properties.isRequired) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== undefined);
+	}
+
+	return ValidateIf((): boolean => true);
+}
+
+/**
  * Builds decorators for request validation including optional status,
  * array validation, and size constraints for date properties.
  * @param {TApiPropertyDateProperties} properties - The property configuration
@@ -176,9 +197,7 @@ function buildRequestDecorators(properties: TApiPropertyDateProperties): Array<P
 	const decorators: Array<PropertyDecorator> = [];
 
 	if (properties.isResponse === false || properties.isResponse === undefined) {
-		if (!properties.isRequired) {
-			decorators.push(IsOptional());
-		}
+		decorators.push(buildPresenceDecorator(properties));
 
 		if (properties.isArray === true) {
 			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));

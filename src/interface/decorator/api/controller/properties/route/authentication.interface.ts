@@ -6,5 +6,5 @@ export interface IApiControllerPropertiesRouteAuthentication {
 	bearerStrategies?: Array<string>;
 	guard: Type<IAuthGuard>;
 	securityStrategies?: Array<string>;
-	type: EApiAuthenticationType;
+	type: EApiAuthenticationType | string;
 }

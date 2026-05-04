@@ -23,18 +23,18 @@ describe("ApiControllerApplyMetadata", () => {
 		const routeConfig = {
 			dto: {
 				body: MetadataDto,
+				parameters: MetadataDto,
 				query: MetadataDto,
-				request: MetadataDto,
 			},
 		};
 
 		const target = {};
 		const targetPrototype = {};
 
-		ApiControllerApplyMetadata(target, targetPrototype, entityMetadata, properties, EApiRouteType.CREATE, "create", routeConfig as never);
+		ApiControllerApplyMetadata(target, targetPrototype, entityMetadata, properties, EApiRouteType.UPDATE, "update", routeConfig as never);
 
-		const paramTypes = Reflect.getMetadata(PARAMTYPES_METADATA, targetPrototype, "create") as Array<unknown>;
-		const routeArgs = Reflect.getMetadata(ROUTE_ARGS_METADATA, target, "create") as Record<string, unknown>;
+		const paramTypes = Reflect.getMetadata(PARAMTYPES_METADATA, targetPrototype, "update") as Array<unknown>;
+		const routeArgs = Reflect.getMetadata(ROUTE_ARGS_METADATA, target, "update") as Record<string, unknown>;
 
 		expect(paramTypes).toEqual([MetadataDto, MetadataDto, MetadataDto, Object, Object, Object]);
 		expect(Object.keys(routeArgs ?? {})).toHaveLength(6);

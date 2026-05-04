@@ -6,11 +6,11 @@ import type {
 	TApiAuthorizationPolicyBeforeGetListContext,
 	TApiAuthorizationPolicyBeforePartialUpdateContext,
 	TApiAuthorizationPolicyBeforeUpdateContext,
-} from "../../../dist/esm/index";
+} from "../../../src/index";
 
 import { Injectable } from "@nestjs/common";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, EApiAuthorizationPermissionMatch } from "../../../dist/esm/index";
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, EApiAuthorizationPermissionMatch } from "../../../src/index";
 
 import { E2eEntity } from "./entity";
 

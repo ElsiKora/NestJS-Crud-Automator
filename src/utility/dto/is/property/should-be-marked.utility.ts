@@ -36,7 +36,7 @@ export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApi
 		return false;
 	}
 
-	if (dtoType === EApiDtoType.REQUEST && isPrimary) {
+	if (dtoType === EApiDtoType.PARAMETERS && isPrimary) {
 		return true;
 	}
 
@@ -44,5 +44,5 @@ export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApi
 		return true;
 	}
 
-	return dtoType !== EApiDtoType.REQUEST && dtoType !== EApiDtoType.QUERY && dtoType !== EApiDtoType.BODY;
+	return dtoType !== EApiDtoType.PARAMETERS && dtoType !== EApiDtoType.QUERY && dtoType !== EApiDtoType.BODY;
 }

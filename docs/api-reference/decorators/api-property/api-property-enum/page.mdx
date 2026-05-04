@@ -13,15 +13,15 @@ Documents and validates DTO fields that map to TypeScript enums. Supports string
 | Option                                              | Description                                                                        |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `enum`                                              | The enum object (e.g., `UserRole`). Used for Swagger `enum` values and validation. |
-| `enumName`                                          | Optional explicit name shown in Swagger schema when using barrel exports.          |
+| `enumName`                                          | Required explicit name shown in Swagger schema when using barrel exports.          |
 | `description`, `entity`, `isRequired`, `isNullable` | Same semantics as other property decorators.                                       |
-| `exampleValue`                                      | Optional; defaults to the first enum value (or an array if `isArray` is `true`).   |
+| `exampleValue`                                      | Optional; must be a value from the enum (or an array of enum values when `isArray` is `true`). Defaults to the first enum value. |
 | `isArray`, `minItems`, `maxItems`, `isUniqueItems`  | Enable enum arrays with array validation.                                          |
 
 ## Behavior
 
 - Adds `@ApiProperty` with the enum schema and example value. Arrays automatically expose `items`.
-- Applies `IsEnum`, `IsOptional`, and array validators for request DTOs.
+- Applies `IsEnum`, presence guards, and array validators for request DTOs.
 - Emits `ApiResponseProperty`, `Expose`, or `Exclude` when `isResponse` is `true`.
 
 ## Example
@@ -34,7 +34,7 @@ enum UserRole {
 
 class UserDto {
 	@ApiPropertyEnum({
-		entity: () => UserEntity,
+		entity: UserEntity,
 		description: "User role",
 		enum: UserRole,
 		enumName: "UserRole",

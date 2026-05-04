@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "../../../../dist/esm/index";
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "../../../../src/index";
 
 import { E2eOwnerEntity } from "./entity";
 

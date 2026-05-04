@@ -1,23 +1,56 @@
 import "reflect-metadata";
 
+import type { IApiRouteMetadata } from "@interface/decorator/api";
 import type { Type } from "@nestjs/common";
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiMethod } from "@decorator/api/method.decorator";
-import { EApiAction, EApiAuthenticationType } from "@enum/decorator/api";
+import { EApiAuthenticationType, EApiRouteType } from "@enum/decorator/api";
 import { GUARDS_METADATA } from "@nestjs/common/constants";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { describe, expect, it } from "vitest";
 
 class MethodEntity {
-	public static name = "MethodEntity";
+	public id?: string;
 }
 
 class MethodController {
 	public handler(): void {}
 }
+
+const createMetadata = (overrides: Partial<IApiRouteMetadata<MethodEntity>> = {}): IApiRouteMetadata<MethodEntity> => ({
+	documentation: {
+		summary: "Create method entity",
+	},
+	resource: {
+		action: EApiRouteType.CREATE,
+		entity: MethodEntity,
+	},
+	response: {
+		errors: {
+			hasBadRequest: true,
+			hasConflict: true,
+			hasForbidden: true,
+			hasInternalServerError: true,
+			hasNotFound: true,
+			hasTooManyRequests: true,
+			hasUnauthorized: true,
+		},
+		serialization: {
+			isEnabled: true,
+		},
+		status: HttpStatus.CREATED,
+		type: undefined,
+	},
+	route: {
+		method: RequestMethod.POST,
+		path: "/secured",
+		type: EApiRouteType.CREATE,
+	},
+	...overrides,
+});
 
 const applyDecorator = (decorator: ReturnType<typeof ApiMethod>): void => {
 	const descriptor = Object.getOwnPropertyDescriptor(MethodController.prototype, "handler") ?? {
@@ -27,137 +60,63 @@ const applyDecorator = (decorator: ReturnType<typeof ApiMethod>): void => {
 };
 
 describe("ApiMethod", () => {
-	it("applies decorators for all actions", () => {
-		for (const action of Object.values(EApiAction)) {
-			const decorator = ApiMethod({
-				action,
-				entity: MethodEntity,
-				httpCode: HttpStatus.OK,
-				method: RequestMethod.GET,
-				path: "/",
-				responseType: undefined,
-			});
-
-			applyDecorator(decorator);
+	it("applies HTTP decorators for supported methods", () => {
+		for (const method of [RequestMethod.POST, RequestMethod.PUT, RequestMethod.PATCH, RequestMethod.DELETE, RequestMethod.GET]) {
+			applyDecorator(ApiMethod({ metadata: createMetadata({ route: { method, path: "/secured", type: EApiRouteType.CREATE } }) }));
 		}
 	});
 
-	it("applies responses, throttling, authentication, and HTTP methods", () => {
+	it("applies responses, grouped throttling, authentication, and guards", () => {
 		class CustomGuard {}
 		class ResponseDto {}
 
-		const methods = [RequestMethod.POST, RequestMethod.PUT, RequestMethod.PATCH, RequestMethod.DELETE, RequestMethod.GET];
-
-		for (const method of methods) {
-			const decorator = ApiMethod({
-				action: EApiAction.CREATE,
+		const metadata = createMetadata({
+			response: {
+				errors: createMetadata().response?.errors,
+				serialization: createMetadata().response?.serialization,
+				status: HttpStatus.CREATED,
+				type: ResponseDto,
+			},
+			security: {
 				authentication: {
 					bearerStrategies: ["bearer"],
 					guard: CustomGuard as unknown as Type,
 					securityStrategies: ["apiKey"],
 					type: EApiAuthenticationType.USER,
 				},
-				entity: MethodEntity,
-				httpCode: HttpStatus.CREATED,
-				method,
-				path: "/secured",
-				responseType: ResponseDto,
-				responses: {
-					hasBadRequest: true,
-					hasConflict: true,
-					hasForbidden: true,
-					hasInternalServerError: true,
-					hasNotFound: true,
-					hasTooManyRequests: true,
-					hasUnauthorized: true,
-				},
-				throttler: {
+			},
+			throttling: {
+				default: {
 					limit: 2,
 					ttl: 10,
 				},
-			});
-
-			applyDecorator(decorator);
-		}
-	});
-
-	it("generates summary and description when not provided", () => {
-		const decorator = ApiMethod({
-			action: EApiAction.FETCH_LIST,
-			entity: MethodEntity,
-			httpCode: HttpStatus.OK,
-			method: RequestMethod.GET,
-			path: "/items",
-			responseType: undefined,
-		});
-
-		applyDecorator(decorator);
-
-		const operation = (Reflect.getMetadata(DECORATORS.API_OPERATION, MethodController.prototype, "handler") as { summary?: string; description?: string }) ?? (Reflect.getMetadata(DECORATORS.API_OPERATION, MethodController.prototype.handler) as { summary?: string; description?: string });
-
-		expect(operation.summary).toContain("Fetching list");
-		expect(operation.summary).toContain("MethodEntities");
-		expect(operation.description).toContain("fetching list");
-	});
-
-	it("registers guards and security metadata", () => {
-		class CustomGuard {}
-
-		const decorator = ApiMethod({
-			action: EApiAction.CREATE,
-			authentication: {
-				bearerStrategies: ["jwt"],
-				guard: CustomGuard as unknown as Type,
-				securityStrategies: ["apiKey"],
-				type: EApiAuthenticationType.USER,
 			},
-			entity: MethodEntity,
-			httpCode: HttpStatus.CREATED,
-			method: RequestMethod.POST,
-			path: "/secured",
-			responseType: undefined,
 		});
 
-		applyDecorator(decorator);
+		applyDecorator(ApiMethod({ metadata }));
 
 		const guards = (Reflect.getMetadata(GUARDS_METADATA, MethodController.prototype, "handler") as Array<unknown>) ?? (Reflect.getMetadata(GUARDS_METADATA, MethodController.prototype.handler) as Array<unknown>);
 		const securities = (Reflect.getMetadata(DECORATORS.API_SECURITY, MethodController.prototype, "handler") as Array<Record<string, Array<string>>>) ?? (Reflect.getMetadata(DECORATORS.API_SECURITY, MethodController.prototype.handler) as Array<Record<string, Array<string>>>);
 
 		expect(guards).toEqual(expect.arrayContaining([CustomGuard, ApiAuthorizationGuard]));
-		expect(securities).toEqual(expect.arrayContaining([{ jwt: [] }, { apiKey: [] }]));
+		expect(securities).toEqual(expect.arrayContaining([{ bearer: [] }, { apiKey: [] }]));
 	});
 
-	it("stores declared action metadata on the handler", () => {
-		const decorator = ApiMethod({
-			action: EApiAction.UPDATE,
-			authorization: {
-				action: "update.publish",
+	it("stores unified route metadata on the handler", () => {
+		const metadata = createMetadata({
+			resource: {
+				action: "publish",
+				entity: MethodEntity,
 			},
-			entity: MethodEntity,
-			httpCode: HttpStatus.OK,
-			method: RequestMethod.POST,
-			path: "/publish",
-			responseType: undefined,
 		});
 
-		applyDecorator(decorator);
+		applyDecorator(ApiMethod({ metadata }));
 
-		expect(Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ACTION_METADATA_KEY, MethodController.prototype.handler)).toBe(EApiAction.UPDATE);
-		expect(Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.AUTHORIZATION_METADATA_KEY, MethodController.prototype.handler)).toEqual({
-			action: "update.publish",
-		});
+		expect(Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, MethodController.prototype.handler)).toEqual(metadata);
 	});
 
 	it("throws for unsupported HTTP methods", () => {
-		const invoke = () =>
-			ApiMethod({
-				action: EApiAction.CREATE,
-				entity: MethodEntity,
-				httpCode: HttpStatus.OK,
-				method: RequestMethod.OPTIONS,
-				path: "/",
-				responseType: undefined,
-			});
+		const invoke = () => ApiMethod({ metadata: createMetadata({ route: { method: RequestMethod.OPTIONS, path: "/", type: EApiRouteType.CREATE } }) });
 
 		expect(invoke).toThrow("ApiMethod error: Method");
 	});

@@ -1,7 +1,7 @@
 import { Inject } from "@nestjs/common";
 
-import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../../dist/esm/index";
-import { EApiAuthenticationType, EApiAuthorizationMode, EApiControllerRequestTransformerType, EApiDtoType, EApiRouteType } from "../../../../dist/esm/index";
+import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../../src/index";
+import { EApiAuthenticationType, EApiAuthorizationMode, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiRouteType } from "../../../../src/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eEntity } from "../entity";
@@ -23,10 +23,10 @@ const authentication = {
 	path: "transform-error-items",
 	routes: {
 		[EApiRouteType.GET]: {
-			authentication,
+			security: { authentication },
 			response: {
-				transformers: {
-					[EApiDtoType.RESPONSE]: [
+				[EApiControllerResponseTarget.RESPONSE]: {
+					transformers: [
 						{
 							key: "missingField" as keyof E2eEntity,
 							type: EApiControllerRequestTransformerType.STATIC,

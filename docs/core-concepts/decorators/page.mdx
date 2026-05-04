@@ -11,19 +11,19 @@ NestJS CRUD Automator is built on a powerful decorator system that enables decla
 The main decorator for automatically generating CRUD controllers. Applied to controller classes to enable automatic endpoint generation.
 
 ```typescript filename="post.controller.ts" copy
-import { Controller } from "@nestjs/common";
 import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 import { PostService } from "./post.service";
 
-@Controller("posts")
 @ApiController<PostEntity>({
 	entity: PostEntity,
 	name: "Posts",
+	path: "posts",
 	routes: {
 		[EApiRouteType.CREATE]: {},
 		[EApiRouteType.GET]: {},
 		[EApiRouteType.GET_LIST]: {},
+		[EApiRouteType.PARTIAL_UPDATE]: {},
 		[EApiRouteType.UPDATE]: {},
 		[EApiRouteType.DELETE]: {},
 	},
@@ -38,12 +38,12 @@ export class PostController {
 Marks a controller as observable, enabling the subscriber system to intercept its operations. Required when using route-level subscribers.
 
 ```typescript filename="post.controller.ts" copy
-import { Controller } from "@nestjs/common";
 import { ApiController, ApiControllerObservable } from "@elsikora/nestjs-crud-automator";
 
-@Controller("posts")
 @ApiController({
-	/* ... */
+	entity: PostEntity,
+	path: "posts",
+	routes: {},
 })
 @ApiControllerObservable()
 export class PostController {
@@ -122,6 +122,7 @@ export class UserEntity {
 		format: EApiPropertyStringType.STRING,
 		minLength: 3,
 		maxLength: 50,
+		pattern: "/^[a-zA-Z0-9_-]+$/",
 		exampleValue: "john_doe",
 	})
 	username: string;
@@ -189,15 +190,18 @@ export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
 Decorators can be combined to create sophisticated configurations:
 
 ```typescript filename="product.controller.ts" copy
-@Controller("products")
 @ApiController<ProductEntity>({
 	entity: ProductEntity,
 	name: "Products",
+	path: "products",
 	routes: {
 		[EApiRouteType.CREATE]: {
-			authentication: {
-				guard: JwtAuthGuard,
-				bearerStrategies: ["jwt"],
+			security: {
+				authentication: {
+					type: EApiAuthenticationType.USER,
+					guard: JwtAuthGuard,
+					bearerStrategies: ["jwt"],
+				},
 			},
 			autoDto: {
 				[EApiDtoType.BODY]: {

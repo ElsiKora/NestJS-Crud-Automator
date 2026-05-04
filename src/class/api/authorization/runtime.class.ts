@@ -1,7 +1,8 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationAuditSink, IApiAuthorizationDecision, IApiAuthorizationPolicy, IApiAuthorizationPolicyRegistry, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiAuthorizationRequestMetadata, IApiPolicyAttachment, IApiPolicyDocumentRecord, IApiResolvedPolicyAttachments } from "@interface/class/api/authorization";
-import type { IApiControllerAuthorizationProperties, IApiControllerRouteAuthorizationProperties } from "@interface/decorator/api/controller/properties";
+import type { IApiControllerAuthorizationProperties } from "@interface/decorator/api/controller/properties";
+import type { IApiRouteAuthorizationProperties } from "@interface/decorator/api/route";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
 import { AUTHORIZATION_AUDIT_SINK_TOKEN, AUTHORIZATION_POLICY_REGISTRY_TOKEN, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN } from "@constant/class/authorization";
@@ -36,17 +37,7 @@ export class ApiAuthorizationRuntime {
 		private readonly auditSink?: IApiAuthorizationAuditSink,
 	) {}
 
-	public async evaluate<E extends IApiBaseEntity>(options: {
-		action: string;
-		authenticationRequest?: IApiAuthenticationRequest;
-		authorization: IApiControllerAuthorizationProperties<E>;
-		entity: new () => E;
-		principal?: IApiAuthorizationPrincipal;
-		requestMetadata: IApiAuthorizationRequestMetadata<E>;
-		resource?: E;
-		routeAuthorization?: IApiControllerRouteAuthorizationProperties;
-		routeType?: EApiRouteType;
-	}): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
+	public async evaluate<E extends IApiBaseEntity>(options: { action: string; authenticationRequest?: IApiAuthenticationRequest; authorization: IApiControllerAuthorizationProperties<E>; entity: new () => E; principal?: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E>; resource?: E; routeAuthorization?: IApiRouteAuthorizationProperties; routeType?: EApiRouteType }): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
 		const principal: IApiAuthorizationPrincipal = await this.resolvePrincipal(options.principal, options.authenticationRequest);
 		const mode: EApiAuthorizationMode = this.resolveMode(options.authorization, options.routeAuthorization);
 
@@ -68,6 +59,7 @@ export class ApiAuthorizationRuntime {
 					principal,
 					requestMetadata: options.requestMetadata,
 					resource: options.resource,
+					routeType: options.routeType,
 				});
 
 		if (this.auditSink) {
@@ -114,7 +106,7 @@ export class ApiAuthorizationRuntime {
 		});
 	}
 
-	private async evaluateIam<E extends IApiBaseEntity>(options: { action: string; authorization: IApiControllerAuthorizationProperties<E>; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E>; resource?: E }): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
+	private async evaluateIam<E extends IApiBaseEntity>(options: { action: string; authorization: IApiControllerAuthorizationProperties<E>; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E>; resource?: E; routeType?: EApiRouteType }): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
 		if (!options.authorization.policyNamespace) {
 			authorizationRuntimeLogger.error("IAM authorization requires policyNamespace");
 
@@ -136,7 +128,7 @@ export class ApiAuthorizationRuntime {
 		authorizationRuntimeLogger.verbose(`Resolved ${documents.length} IAM policy documents for namespace "${options.authorization.policyNamespace}" and principal "${options.principal.id}".`);
 
 		return await this.iamEngine.evaluate({
-			action: this.resolveIamAction(options.authorization.policyNamespace, options.action),
+			action: this.resolveIamAction(options.authorization.policyNamespace, options.action, options.routeType),
 			attachments,
 			documents,
 			policyNamespace: options.authorization.policyNamespace,
@@ -147,8 +139,8 @@ export class ApiAuthorizationRuntime {
 		});
 	}
 
-	private resolveIamAction(policyNamespace: string, action: string): string {
-		const iamActionByRouteType: Record<EApiRouteType, string> = {
+	private resolveIamAction(policyNamespace: string, action: string, routeType?: EApiRouteType): string {
+		const actionByRouteType: Record<EApiRouteType, string> = {
 			[EApiRouteType.CREATE]: "create",
 			[EApiRouteType.DELETE]: "delete",
 			[EApiRouteType.GET]: "read",
@@ -156,12 +148,12 @@ export class ApiAuthorizationRuntime {
 			[EApiRouteType.PARTIAL_UPDATE]: "update",
 			[EApiRouteType.UPDATE]: "update",
 		};
-		const iamAction: string | undefined = iamActionByRouteType[action as EApiRouteType];
+		const resolvedAction: string | undefined = routeType ? actionByRouteType[routeType] : undefined;
 
-		return iamAction ? `${policyNamespace}:${iamAction}` : `${policyNamespace}:${action}`;
+		return resolvedAction ? `${policyNamespace}:${resolvedAction}` : `${policyNamespace}:${action}`;
 	}
 
-	private resolveMode<E extends IApiBaseEntity>(authorization: IApiControllerAuthorizationProperties<E>, routeAuthorization?: IApiControllerRouteAuthorizationProperties): EApiAuthorizationMode {
+	private resolveMode<E extends IApiBaseEntity>(authorization: IApiControllerAuthorizationProperties<E>, routeAuthorization?: IApiRouteAuthorizationProperties): EApiAuthorizationMode {
 		const mode: EApiAuthorizationMode = routeAuthorization?.mode ?? authorization.defaultMode;
 
 		if (mode !== EApiAuthorizationMode.HOOKS && mode !== EApiAuthorizationMode.IAM) {

@@ -10,16 +10,19 @@ Factory decorator that selects the appropriate CRUD decorator (`create`, `update
 
 ## Options
 
-| Option      | Type                      | Description                                                                          |
-| ----------- | ------------------------- | ------------------------------------------------------------------------------------ |
-| `entity`    | `new () => E`             | Entity constructor used to instantiate temporary instances for metadata generation.  |
-| `type`      | `EApiFunctionType`        | Target CRUD operation (`CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, `GET_MANY`). |
-| `relations` | `FindOptionsRelations<E>` | Optional relation map forwarded to the `GET_LIST` executor for eager loading.        |
+| Option             | Type                         | Description                                                                                         |
+| ------------------ | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| `entity`           | `new () => E`                | Entity constructor used to instantiate temporary instances for metadata generation.                 |
+| `type`             | `EApiFunctionType`           | Target operation (`CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, `GET_MANY`, `CUSTOM`).          |
+| `action`           | `string`                     | Optional action name for custom function subscriber filtering.                                      |
+| `transaction.mode` | `EApiFunctionTransactionMode` | Optional transaction mode. Defaults to `SUPPORTS`.                                                  |
 
 ## Behavior
 
 - Wraps the original method, replacing it with the result of the specialized decorator.
 - Provides the service instance (`this`) to the generated descriptor so repository access and subscribers behave consistently.
+- Enforces `NONE`, `SUPPORTS`, `MANDATORY`, and `REQUIRED` transaction modes without exposing `EntityManager` as a public method argument.
+- Loads relations through the TypeORM options passed to `get`, `getList`, or `getMany`, for example `getList({ relations: { author: true } })`.
 - Throws a descriptive error if the `type` is not supported.
 
 ## Example
@@ -31,6 +34,7 @@ export class PostService {
 	@ApiFunction<PostEntity>({
 		entity: PostEntity,
 		type: EApiFunctionType.UPDATE,
+		transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
 	})
 	async updatePost(criteria: TApiFunctionUpdateCriteria<PostEntity>, dto: TApiFunctionUpdateProperties<PostEntity>) {
 		// Implementation replaced by the decorator

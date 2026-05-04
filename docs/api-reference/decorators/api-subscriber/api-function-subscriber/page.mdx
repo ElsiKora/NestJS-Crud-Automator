@@ -7,31 +7,38 @@ Registers a class as a function-level subscriber for a specific entity. Subscrib
 ```typescript
 @ApiFunctionSubscriber<E extends IApiBaseEntity>({
 	entity,
+	functions?,
 	priority?,
 }: IApiFunctionSubscriberProperties<E>)
 ```
 
 ## Options
 
-| Option     | Description                                                                                                             |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `entity`   | Entity the subscriber listens to. The subscriber is ignored for other entities.                                         |
-| `priority` | Higher numbers execute first. Defaults to `0`. Use this to enforce deterministic ordering between multiple subscribers. |
+| Option      | Description                                                                                                             |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `entity`    | Entity the subscriber listens to. The subscriber is ignored for other entities.                                         |
+| `functions` | Optional filters for function type or custom action. Use this when one subscriber should only observe selected hooks.  |
+| `priority`  | Higher numbers execute first. Defaults to `0`. Use this to enforce deterministic ordering between multiple subscribers. |
 
 ## Usage steps
 
 1. Mark the target service with `@ApiServiceObservable()` so hooks are emitted.
 2. Extend `ApiFunctionSubscriberBase<E>` and override desired lifecycle methods (`onBeforeCreate`, `onAfterUpdate`, `onAfterErrorDelete`, etc.).
 3. Decorate the subscriber class with `@ApiFunctionSubscriber`.
+4. Register the subscriber class as a Nest provider.
 
 ## Example
 
 ```typescript
 @Injectable()
-@ApiFunctionSubscriber<PostEntity>({ entity: PostEntity, priority: 50 })
+@ApiFunctionSubscriber<PostEntity>({
+	entity: PostEntity,
+	functions: [{ type: EApiFunctionType.CREATE }],
+	priority: 50,
+})
 export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
 	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>) {
-		context.result.body.slug = this.slugify(context.result.body.title);
+		context.result.slug = this.slugify(context.result.title);
 		return context.result;
 	}
 }

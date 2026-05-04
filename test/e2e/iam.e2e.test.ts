@@ -7,9 +7,9 @@ import type {
 	IApiPolicyAttachmentSource,
 	IApiPolicyDocumentRecord,
 	IApiPolicyDocumentSource,
-} from "../../dist/esm/index";
+} from "../../src/index";
 
-import { Controller, Get, Module } from "@nestjs/common";
+import { Controller, Get, Module, RequestMethod } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { Column, Entity, PrimaryColumn } from "typeorm";
@@ -29,7 +29,7 @@ import {
 	EApiPolicySourceType,
 	EApiRouteType,
 	METHOD_API_DECORATOR_CONSTANT,
-} from "../../dist/esm/index";
+} from "../../src/index";
 
 @Entity("iam_entities")
 class IamEntity {
@@ -84,7 +84,21 @@ class IamValidationController {
 	}
 }
 
-Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.AUTHORIZATION_METADATA_KEY, { action: "get" }, IamValidationController.prototype.get);
+Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, {
+	resource: {
+		action: "get",
+		entity: IamEntity,
+	},
+	route: {
+		method: RequestMethod.GET,
+		path: "",
+	},
+	security: {
+		authorization: {
+			mode: EApiAuthorizationMode.IAM,
+		},
+	},
+}, IamValidationController.prototype.get);
 
 Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.ENTITY_METADATA_KEY, IamEntity, IamValidationController);
 Reflect.defineMetadata(
@@ -93,12 +107,12 @@ Reflect.defineMetadata(
 		authorization: iamAuthorization,
 		entity: IamEntity,
 		routes: {
-			create: { isEnabled: false },
-			delete: { isEnabled: false },
-			get: { isEnabled: false },
+			create: { generation: { isEnabled: false } },
+			delete: { generation: { isEnabled: false } },
+			get: { generation: { isEnabled: false } },
 			getList: {},
-			partialUpdate: { isEnabled: false },
-			update: { isEnabled: false },
+			partialUpdate: { generation: { isEnabled: false } },
+			update: { generation: { isEnabled: false } },
 		},
 	},
 	IamValidationController,
@@ -187,6 +201,7 @@ describe("IAM authorization (E2E)", () => {
 					page: 1,
 				},
 			},
+			routeType: EApiRouteType.GET_LIST,
 		});
 
 		expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
@@ -379,6 +394,7 @@ describe("IAM authorization (E2E)", () => {
 					page: 1,
 				},
 			},
+			routeType: EApiRouteType.GET_LIST,
 		});
 
 		expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
@@ -457,6 +473,7 @@ describe("IAM authorization (E2E)", () => {
 					page: 1,
 				},
 			},
+			routeType: EApiRouteType.GET_LIST,
 		});
 
 		expect(decision.effect).toBe(EApiPolicyEffect.DENY);

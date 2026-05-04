@@ -1,6 +1,6 @@
 # `@ApiFunctionDelete`
 
-Decorates a service method so it loads an entity, runs subscriber hooks, and removes the record through the repository or transaction manager. It reuses `@ApiFunctionGet` internally to guarantee consistent “not found” errors and guard-friendly behavior.
+Decorates a service method so it loads an entity, runs subscriber hooks, and removes the record through the repository or active transaction context. It reuses `@ApiFunctionGet` internally to guarantee consistent “not found” errors and guard-friendly behavior.
 
 ## Signature
 
@@ -10,15 +10,15 @@ Decorates a service method so it loads an entity, runs subscriber hooks, and rem
 )
 ```
 
-Decorated methods gain the shape `delete(criteria: TApiFunctionDeleteCriteria<E>, eventManager?: EntityManager): Promise<E>`.
+Generated service methods expose `delete(criteria: TApiFunctionDeleteCriteria<E>): Promise<void>`. The low-level decorator currently removes and passes the removed entity through function subscribers internally, so avoid depending on a returned entity from the public service/controller delete surface.
 
 ## Behavior
 
 - Executes `onBeforeDelete` subscribers with the provided criteria. Returning criteria replaces the original input.
 - Ensures the service has a repository; otherwise throws and notifies error subscribers.
 - Lazily decorates a helper `get` method using `@ApiFunctionGet` to fetch the entity before deletion, preserving consistent error handling.
-- Removes the entity via `repository.remove` or `eventManager.getRepository(entity).remove`.
-- Runs `onAfterDelete` subscribers, allowing them to return a different entity snapshot.
+- Removes the entity via `repository.remove` or the active transaction manager repository.
+- Runs `onAfterDelete` subscribers with the removed entity snapshot before resolving the public delete call.
 - On exceptions, executes `onBeforeErrorDelete` or `onAfterErrorDelete` subscribers and rethrows `HttpException` instances, wrapping other errors.
 
 ## Example
@@ -28,8 +28,8 @@ export class PostService {
 	constructor(public repository: Repository<PostEntity>) {}
 
 	@ApiFunctionDelete<PostEntity>({ entity: PostEntity })
-	async remove(criteria: TApiFunctionDeleteCriteria<PostEntity>) {
-		return {} as PostEntity;
+	async remove(criteria: TApiFunctionDeleteCriteria<PostEntity>): Promise<void> {
+		void criteria;
 	}
 }
 ```

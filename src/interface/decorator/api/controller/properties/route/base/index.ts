@@ -1,4 +1,7 @@
 export { type IApiControllerRouteAuthorizationProperties } from "./authorization.interface";
+export { type IApiControllerPropertiesRouteBaseGeneration } from "./generation.interface";
 export { type IApiControllerPropertiesRouteBase } from "./interface";
-export { type IApiControllerPropertiesRouteBaseRequest } from "./request.interface";
-export { type IApiControllerPropertiesRouteBaseResponse } from "./response.interface";
+export type * from "./relations";
+export type * from "./request";
+export type * from "./response";
+export { type IApiControllerPropertiesRouteBaseSecurity } from "./security.interface";

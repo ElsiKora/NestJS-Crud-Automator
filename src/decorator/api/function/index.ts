@@ -1,4 +1,5 @@
 export { ApiFunctionCreate } from "./create.decorator";
+export { ApiFunctionCustom } from "./custom.decorator";
 export { ApiFunction } from "./decorator";
 export { ApiFunctionDelete } from "./delete.decorator";
 export * from "./get";

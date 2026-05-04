@@ -1,50 +1,48 @@
-import type { EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiRequestTransformer } from "@type/api-request-transformer.type";
-import type { TApiControllerGetListQuery, TApiControllerPropertiesRouteBaseRequestTransformers, TApiControllerPropertiesRouteBaseResponseTransformers } from "@type/decorator/api/controller";
+import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import type { TApiControllerTransformDataData, TApiControllerTransformDataObjectToTransform, TApiTransformDataIsValidationProperties } from "@type/utility";
 
 import { TRANSFORMER_VALUE_DTO_CONSTANT } from "@constant/dto";
-import { EApiControllerRequestTransformerType, EApiDtoType } from "@enum/decorator/api";
+import { EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { InternalServerErrorException } from "@nestjs/common";
 import { ErrorString } from "@utility/error/string.utility";
 
 /**
  * Transforms data between request/response objects and entity objects.
- * Handles both static and dynamic transformations for body, query, request, and response data.
- * @param {TApiControllerPropertiesRouteBaseRequestTransformers<E, R> | TApiControllerPropertiesRouteBaseResponseTransformers<E, R> | undefined} transformers - Configuration for data transformations
+ * Handles both static and dynamic transformations for body, query, parameters, and response data.
+ * @template E - The entity type.
+ * @param {object | undefined} targets - Target-specific transformer configuration.
  * @param {IApiControllerProperties<E>} properties - Controller configuration properties
  * @param {TApiControllerTransformDataObjectToTransform<E>} objectToTransform - The object to apply transformations to
  * @param {TApiControllerTransformDataData} data - Data sources to use for transformations including headers, IP address, and authentication
  * @returns {void}
- * @template E - The entity type
- * @template R - The route type
  */
-export function ApiControllerTransformData<E extends IApiBaseEntity, R extends EApiRouteType>(transformers: TApiControllerPropertiesRouteBaseRequestTransformers<E, R> | TApiControllerPropertiesRouteBaseResponseTransformers<E, R> | undefined, properties: IApiControllerProperties<E>, objectToTransform: TApiControllerTransformDataObjectToTransform<E>, data: TApiControllerTransformDataData): void {
-	if (!transformers) return;
+export function ApiControllerTransformData<E extends IApiBaseEntity>(targets: Partial<Record<EApiControllerRequestTarget | EApiControllerResponseTarget, { transformers?: Array<TApiRequestTransformer<E>> }>> | undefined, properties: IApiControllerProperties<E>, objectToTransform: TApiControllerTransformDataObjectToTransform<E>, data: TApiControllerTransformDataData): void {
+	if (!targets) return;
 
-	if (EApiDtoType.BODY in transformers && transformers[EApiDtoType.BODY]) {
-		for (const transformer of transformers[EApiDtoType.BODY]) {
+	if (EApiControllerRequestTarget.BODY in targets && targets[EApiControllerRequestTarget.BODY]?.transformers) {
+		for (const transformer of targets[EApiControllerRequestTarget.BODY].transformers) {
 			if (objectToTransform.body) processTransformer(transformer, objectToTransform.body as TApiTransformDataIsValidationProperties<E>, properties, data);
 		}
 	}
 
-	if (EApiDtoType.QUERY in transformers && transformers[EApiDtoType.QUERY]) {
-		for (const transformer of transformers[EApiDtoType.QUERY]) {
+	if (EApiControllerRequestTarget.QUERY in targets && targets[EApiControllerRequestTarget.QUERY]?.transformers) {
+		for (const transformer of targets[EApiControllerRequestTarget.QUERY].transformers) {
 			if (objectToTransform.query) processTransformer(transformer, objectToTransform.query, properties, data);
 		}
 	}
 
-	if (EApiDtoType.REQUEST in transformers && transformers[EApiDtoType.REQUEST]) {
-		for (const transformer of transformers[EApiDtoType.REQUEST]) {
+	if (EApiControllerRequestTarget.PARAMETERS in targets && targets[EApiControllerRequestTarget.PARAMETERS]?.transformers) {
+		for (const transformer of targets[EApiControllerRequestTarget.PARAMETERS].transformers) {
 			if (objectToTransform.parameters) processTransformer(transformer, objectToTransform.parameters, properties, data);
 		}
 	}
 
-	if (EApiDtoType.RESPONSE in transformers && transformers[EApiDtoType.RESPONSE]) {
-		for (const transformer of transformers[EApiDtoType.RESPONSE]) {
+	if (EApiControllerResponseTarget.RESPONSE in targets && targets[EApiControllerResponseTarget.RESPONSE]?.transformers) {
+		for (const transformer of targets[EApiControllerResponseTarget.RESPONSE].transformers) {
 			if (objectToTransform.response) processTransformer(transformer, objectToTransform.response, properties, data);
 		}
 	}

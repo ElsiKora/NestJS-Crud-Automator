@@ -1,6 +1,6 @@
 export enum EApiDtoType {
 	BODY = "body",
+	PARAMETERS = "parameters",
 	QUERY = "query",
-	REQUEST = "request",
 	RESPONSE = "response",
 }

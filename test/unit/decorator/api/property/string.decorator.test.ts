@@ -18,7 +18,7 @@ const buildStringDto = (format: EApiPropertyStringType, overrides: Partial<TApiP
 			entity: StringEntity,
 			exampleValue: "value",
 			format,
-			maxLength: 50,
+			maxLength: 200,
 			minLength: 1,
 			pattern: "/^.+$/",
 			isRequired: true,
@@ -104,7 +104,7 @@ describe("ApiPropertyString", () => {
 
 		expect(metadata?.pattern).toBe("^.+$");
 		expect(metadata?.minLength).toBe(1);
-		expect(metadata?.maxLength).toBe(50);
+		expect(metadata?.maxLength).toBe(200);
 	});
 
 	it.each(stringFormats)("applies IsString validation for %s", (format) => {

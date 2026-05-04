@@ -1,4 +1,5 @@
 export default {
+	"ai-agent-skill": "AI Agent Skill",
 	authentication: "Authentication",
 	authorization: "Authorization",
 	"custom-dtos": "Custom DTOs",

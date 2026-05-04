@@ -10,13 +10,13 @@ Adds update semantics to a service method, including DTO validation, repository 
 )
 ```
 
-Decorated methods gain the shape `update(criteria: TApiFunctionUpdateCriteria<E>, dto: TApiFunctionUpdateProperties<E>, eventManager?: EntityManager): Promise<E>`.
+Decorated methods gain the shape `update(criteria: TApiFunctionUpdateCriteria<E>, dto: TApiFunctionUpdateProperties<E>): Promise<E>`.
 
 ## Behavior
 
 - Runs `onBeforeUpdate` subscribers with the incoming DTO; returning a DTO overrides the update payload.
 - Lazily decorates a helper `get` method (via `@ApiFunctionGet`) to fetch the entity and raise 404 errors if missing.
-- Merges the existing entity with provided properties and saves via the repository or transaction manager.
+- Merges the existing entity with provided properties and saves via the repository or active transaction manager repository.
 - Executes `onAfterUpdate` subscribers; their return value can replace the final response.
 - Fires `onBeforeErrorUpdate` and `onAfterErrorUpdate` subscribers when repositories or validation fail.
 

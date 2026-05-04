@@ -23,6 +23,8 @@ export class UserEntity {
 		format: EApiPropertyStringType.STRING,
 		minLength: 3,
 		maxLength: 20,
+		pattern: "/^[a-zA-Z0-9_-]+$/",
+		exampleValue: "john_doe",
 	})
 	username: string;
 }
@@ -31,7 +33,8 @@ export class UserEntity {
 This automatically generates:
 
 - **CreateUserDto** - For POST requests
-- **UpdateUserDto** - For PATCH requests
+- **UpdateUserDto** - For PUT update/replace requests where enabled fields keep their requiredness
+- **PartialUpdateUserDto** - For PATCH partial-update requests where enabled body fields are optional-friendly
 - **UserResponseDto** - For responses
 - **GetListQueryDto** - For GET /users query parameters
 
@@ -43,14 +46,14 @@ Used for request bodies in CREATE and UPDATE operations.
 
 **Create DTO** includes:
 
-- All properties marked as `isExposedInCreateDto: true` (default: true)
+- Properties enabled for `[EApiRouteType.CREATE][EApiDtoType.BODY]`
 - Validation rules from property configuration
 - Required fields based on `isRequired`
 
 **Update DTO** includes:
 
-- All properties marked as `isExposedInUpdateDto: true` (default: true)
-- All fields are optional by default
+- Properties enabled for `[EApiRouteType.UPDATE][EApiDtoType.BODY]` or `[EApiRouteType.PARTIAL_UPDATE][EApiDtoType.BODY]`
+- `UPDATE` bodies keep required fields required; `PARTIAL_UPDATE` bodies are optional-friendly
 - Validation rules still apply when provided
 
 ### Query DTOs
@@ -63,19 +66,17 @@ interface GetListQueryDto {
 	limit?: number;
 	page?: number;
 	orderBy?: string;
-	orderDirection?: "ASC" | "DESC";
-	[propertyName]?: {
-		operator: EFilterOperation;
-		value?: any;
-		values?: any[];
-	};
+	orderDirection?: "asc" | "desc";
+	"username[operator]"?: EFilterOperation;
+	"username[value]"?: string;
+	"username[values]"?: string[];
 }
 ```
 
 Example usage:
 
 ```
-GET /users?limit=10&page=1&username[operator]=cont&username[value]=john&orderBy=createdAt&orderDirection=DESC
+GET /users?limit=10&page=1&username[operator]=cont&username[value]=john&orderBy=createdAt&orderDirection=desc
 ```
 
 ### Response DTOs
@@ -88,9 +89,16 @@ Control which properties are included in responses:
   type: EApiPropertyDescribeType.STRING,
   description: "Password hash",
   format: EApiPropertyStringType.PASSWORD,
-  dto: {
-    response: {
-      isExposed: false, // Never return in responses
+  minLength: 1,
+  maxLength: 128,
+  pattern: "/^[\\s\\S]{1,128}$/",
+  exampleValue: "hashed-password",
+  properties: {
+    [EApiRouteType.GET]: {
+      [EApiDtoType.RESPONSE]: { isEnabled: false, isResponse: true },
+    },
+    [EApiRouteType.GET_LIST]: {
+      [EApiDtoType.RESPONSE]: { isEnabled: false, isResponse: true },
     },
   },
 })
@@ -109,13 +117,17 @@ Prevent a property from appearing in specific DTOs:
   type: EApiPropertyDescribeType.STRING,
   description: "Internal notes",
   format: EApiPropertyStringType.STRING,
-  dto: {
-    body: {
-      isExposedInCreateDto: false,
-      isExposedInUpdateDto: false,
+  minLength: 0,
+  maxLength: 500,
+  pattern: "/^[\\s\\S]{0,500}$/",
+  exampleValue: "Visible to staff only",
+  properties: {
+    [EApiRouteType.CREATE]: {
+      [EApiDtoType.BODY]: { isEnabled: false },
     },
-    response: {
-      isExposed: true, // Show in responses only
+    [EApiRouteType.UPDATE]: {
+      [EApiDtoType.BODY]: { isEnabled: false },
+      [EApiDtoType.RESPONSE]: { isExpose: true, isResponse: true },
     },
   },
 })
@@ -132,11 +144,16 @@ Control field requirements:
   type: EApiPropertyDescribeType.STRING,
   description: "Email",
   format: EApiPropertyStringType.EMAIL,
-  isRequired: true, // Required in create
-  dto: {
-    body: {
-      isRequiredInCreateDto: true,
-      isRequiredInUpdateDto: false, // Optional in update
+  minLength: 5,
+  maxLength: 255,
+  pattern: "/^[\\w.-]+@([\\w-]+\\.)+[\\w-]{2,}$/",
+  exampleValue: "user@example.com",
+  properties: {
+    [EApiRouteType.CREATE]: {
+      [EApiDtoType.BODY]: { isRequired: true },
+    },
+    [EApiRouteType.PARTIAL_UPDATE]: {
+      [EApiDtoType.BODY]: { isRequired: false },
     },
   },
 })
@@ -152,7 +169,6 @@ Specify default values for DTO properties:
 @ApiPropertyDescribe({
   type: EApiPropertyDescribeType.BOOLEAN,
   description: "Is active",
-  defaultValue: false,
 })
 isActive: boolean;
 ```
@@ -191,8 +207,8 @@ Use in controller:
   routes: {
     [EApiRouteType.CREATE]: {
       dto: {
-        body: CreateUserDto,
-        response: UserResponseDto,
+        [EApiDtoType.BODY]: CreateUserDto,
+        [EApiDtoType.RESPONSE]: UserResponseDto,
       },
     },
   },
@@ -205,8 +221,8 @@ Manual DTOs can also be nested inside auto-generated DTOs through `@ApiPropertyO
 
 `GET_LIST` response DTOs support two explicit modes:
 
-- Full wrapper mode: `dto.response` is a class that describes the whole list response.
-- Item DTO mode: `dto.response` is `{ itemType }`, and the framework generates the list wrapper.
+- Full wrapper mode: `dto[EApiDtoType.RESPONSE]` is a class that describes the whole list response.
+- Item DTO mode: `dto[EApiDtoType.RESPONSE]` is `{ itemType }`, and the framework generates the list wrapper.
 
 Use item DTO mode when a route only needs custom serialization for each item:
 
@@ -224,7 +240,7 @@ class PublicUserResponseDto {
 	routes: {
 		[EApiRouteType.GET_LIST]: {
 			dto: {
-				response: {
+				[EApiDtoType.RESPONSE]: {
 					itemType: PublicUserResponseDto,
 					name: "PublicUserListResponseDto",
 				},
@@ -326,6 +342,8 @@ interface PayPalPayment extends Payment {
       paypal: PayPalPaymentDto,
     },
   },
+  dataType: [CardPaymentDto, PayPalPaymentDto],
+  shouldValidateNested: true,
 })
 paymentMethod: CardPayment | PayPalPayment;
 ```
@@ -342,6 +360,10 @@ import { Transform } from "class-transformer";
   type: EApiPropertyDescribeType.STRING,
   description: "Email",
   format: EApiPropertyStringType.EMAIL,
+  minLength: 5,
+  maxLength: 255,
+  pattern: "/^[\\w.-]+@([\\w-]+\\.)+[\\w-]{2,}$/",
+  exampleValue: "user@example.com",
 })
 @Transform(({ value }) => value.toLowerCase())
 email: string;
@@ -349,7 +371,7 @@ email: string;
 
 ## Guard-Based DTO Properties
 
-Show or hide DTO properties based on guards:
+Generate separate DTO property variants for a guard class:
 
 ```typescript
 @Column()
@@ -357,16 +379,24 @@ Show or hide DTO properties based on guards:
   type: EApiPropertyDescribeType.STRING,
   description: "Admin notes",
   format: EApiPropertyStringType.STRING,
-  dto: {
-    guard: {
-      responseGuards: [AdminGuard],
+  minLength: 0,
+  maxLength: 500,
+  pattern: "/^[\\s\\S]{0,500}$/",
+  exampleValue: "Admin-only note",
+  properties: {
+    [EApiRouteType.GET]: {
+      [EApiDtoType.RESPONSE]: {
+        isExpose: true,
+        isResponse: true,
+        guard: { guards: [AdminGuard] },
+      },
     },
   },
 })
 adminNotes: string;
 ```
 
-Only users passing `AdminGuard` will see this property in responses.
+This metadata tags the generated response DTO variant for routes protected by `AdminGuard`. It is not a per-request authorization check; use authentication guards or authorization policies to decide whether a request may use that route.
 
 ## Relation DTOs
 
@@ -377,20 +407,16 @@ Control how relations appear in DTOs:
 @ApiPropertyDescribe({
   type: EApiPropertyDescribeType.RELATION,
   description: "Post author",
-  relationMetadata: {
-    relationType: "many-to-one",
-    entity: UserEntity,
-    isEager: false,
-  },
-  dto: {
-    response: {
-      isExposed: true, // Include in responses
-      relations: ["author"], // Load author relation
+  properties: {
+    [EApiRouteType.GET]: {
+      [EApiDtoType.RESPONSE]: { isExpose: true, isResponse: true },
     },
   },
 })
 author: UserEntity;
 ```
+
+Load relation data from the route config with `relations.response.load.include`, not from the property metadata.
 
 ## Nested DTOs
 
@@ -401,17 +427,8 @@ For complex nested objects:
 @ApiPropertyDescribe({
   type: EApiPropertyDescribeType.OBJECT,
   description: "User profile",
-  properties: {
-    bio: { type: "string", maxLength: 500 },
-    avatar: { type: "string", format: "url" },
-    socialLinks: {
-      type: "object",
-      properties: {
-        twitter: { type: "string" },
-        linkedin: { type: "string" },
-      },
-    },
-  },
+  dataType: UserProfileDto,
+  shouldValidateNested: true,
 })
 profile: UserProfile;
 ```

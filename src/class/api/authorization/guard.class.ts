@@ -1,14 +1,13 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationRequestMetadata } from "@interface/class/api/authorization/request-metadata.interface";
-import type { IApiControllerProperties, IApiControllerRouteAuthorizationProperties, IApiMethodAuthorizationProperties } from "@interface/decorator/api";
+import type { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorator/api";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
 import { ApiAuthorizationRuntime } from "@class/api/authorization/runtime.class";
 import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/authorization/metadata-decision.constant";
 import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiPolicyEffect } from "@enum/class/authorization";
-import { EApiRouteType } from "@enum/decorator/api";
 import { IApiAuthorizationDecision } from "@interface/class/api/authorization";
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
 import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
@@ -38,16 +37,14 @@ export class ApiAuthorizationGuard implements CanActivate {
 			throw ErrorException("ApiControllerSecurable requires an authorization block in @ApiController(...)");
 		}
 
-		const entityConstructor: new () => IApiBaseEntity = properties.entity as new () => IApiBaseEntity;
-		const authorization: IApiMethodAuthorizationProperties = this.resolveAuthorization(context);
-		const action: string = authorization.action;
-		const routeType: EApiRouteType | undefined = this.resolveRouteType(context);
+		const routeMetadata: IApiRouteMetadata<IApiBaseEntity> = this.resolveRouteMetadata(context);
+		const entityConstructor: new () => IApiBaseEntity = routeMetadata.resource.entity as new () => IApiBaseEntity;
+		const action: string = routeMetadata.resource.action;
 		authorizationGuardLogger.verbose(`Evaluating authorization for entity "${entityConstructor.name}" action "${action}"`);
 
 		const request: TApiAuthorizationGuardRequest = context.switchToHttp().getRequest<TApiAuthorizationGuardRequest>();
 		const authenticationRequest: IApiAuthenticationRequest = request as unknown as IApiAuthenticationRequest;
 		const requestMetadata: IApiAuthorizationRequestMetadata<IApiBaseEntity> = this.resolveRequestMetadata<IApiBaseEntity>(request);
-		const routeAuthorization: IApiControllerRouteAuthorizationProperties | undefined = routeType ? properties.routes[routeType]?.authorization : undefined;
 
 		const decision: IApiAuthorizationDecision<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>> = await this.runtime.evaluate({
 			action,
@@ -56,8 +53,8 @@ export class ApiAuthorizationGuard implements CanActivate {
 			entity: entityConstructor,
 			requestMetadata,
 			resource: undefined,
-			routeAuthorization,
-			routeType,
+			routeAuthorization: routeMetadata.security?.authorization,
+			routeType: routeMetadata.route.type,
 		});
 
 		this.attachDecisionToRequest(request, decision);
@@ -80,19 +77,6 @@ export class ApiAuthorizationGuard implements CanActivate {
 
 	private isControllerSecurable(context: ExecutionContext): boolean {
 		return Boolean(Reflect.getMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, context.getClass()));
-	}
-
-	private resolveAuthorization(context: ExecutionContext): IApiMethodAuthorizationProperties {
-		const authorization: IApiMethodAuthorizationProperties | undefined = Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.AUTHORIZATION_METADATA_KEY, context.getHandler()) as IApiMethodAuthorizationProperties | undefined;
-
-		if (authorization) {
-			return authorization;
-		}
-
-		const handlerName: string = context.getHandler().name || "unknown";
-		authorizationGuardLogger.error(`ApiControllerSecurable handler "${handlerName}" requires an explicit authorization.action declared via @ApiMethod(...)`);
-
-		throw ErrorException(`ApiControllerSecurable handler "${handlerName}" requires an explicit authorization.action declared via @ApiMethod(...)`);
 	}
 
 	private resolveControllerProperties(context: ExecutionContext): IApiControllerProperties<IApiBaseEntity> | undefined {
@@ -133,7 +117,16 @@ export class ApiAuthorizationGuard implements CanActivate {
 		};
 	}
 
-	private resolveRouteType(context: ExecutionContext): EApiRouteType | undefined {
-		return Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_TYPE_METADATA_KEY, context.getHandler()) as EApiRouteType | undefined;
+	private resolveRouteMetadata(context: ExecutionContext): IApiRouteMetadata<IApiBaseEntity> {
+		const metadata: IApiRouteMetadata<IApiBaseEntity> | undefined = Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, context.getHandler()) as IApiRouteMetadata<IApiBaseEntity> | undefined;
+
+		if (metadata) {
+			return metadata;
+		}
+
+		const handlerName: string = context.getHandler().name || "unknown";
+		authorizationGuardLogger.error(`ApiControllerSecurable handler "${handlerName}" requires method-level ApiRouteMetadata`);
+
+		throw ErrorException(`ApiControllerSecurable handler "${handlerName}" requires method-level ApiRouteMetadata`);
 	}
 }

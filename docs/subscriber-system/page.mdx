@@ -74,9 +74,10 @@ export class AppModule {}
 ```typescript filename="post.controller.ts" copy
 import { ApiController, ApiControllerObservable } from "@elsikora/nestjs-crud-automator";
 
-@Controller("posts")
 @ApiController({
-	/* ... */
+	entity: PostEntity,
+	path: "posts",
+	routes: {},
 })
 @ApiControllerObservable() // Required for route subscribers
 export class PostController {

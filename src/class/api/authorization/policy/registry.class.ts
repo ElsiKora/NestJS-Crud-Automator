@@ -1,3 +1,4 @@
+import type { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationPolicy, IApiAuthorizationPolicyRegistry, IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscriberContext, IApiAuthorizationPolicySubscriberRegistration, IApiAuthorizationPolicySubscriberRule, IApiAuthorizationRule } from "@interface/class/api/authorization";
 import type { IApiAuthorizationPolicyBuildOptions } from "@interface/class/api/authorization/policy/build-options.interface";
@@ -8,16 +9,14 @@ import type { IApiEntity } from "@interface/entity/interface";
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
 
 import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization";
-import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
 import { AuthorizationResolveDefaultPrincipal } from "@utility/authorization/resolve-default-principal.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
 import { ApiAuthorizationPolicyExecutor } from "./executor.class";
+import { PolicySubscriberWrapper } from "./subscriber-wrapper.class";
 
 const policyRegistryLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationPolicyRegistry");
-
-type TEntityConstructor<E extends IApiBaseEntity> = new () => E;
 
 export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRegistry {
 	private cacheOptions: IApiAuthorizationPolicyCacheOptions;
@@ -32,7 +31,7 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		this.cacheOptions = { isEnabled: false };
 	}
 
-	public async buildAggregatedPolicy<E extends IApiBaseEntity, TAction extends string>(entity: TEntityConstructor<E>, action: TAction, options: IApiAuthorizationPolicyBuildOptions<E> = {}): Promise<IApiAuthorizationPolicy<E, TApiAuthorizationPolicyHookResult<TAction, E>> | undefined> {
+	public async buildAggregatedPolicy<E extends IApiBaseEntity, TAction extends string>(entity: new () => E, action: TAction, options: IApiAuthorizationPolicyBuildOptions<E> = {}): Promise<IApiAuthorizationPolicy<E, TApiAuthorizationPolicyHookResult<TAction, E>> | undefined> {
 		const entityName: string = this.getEntityName(entity);
 		policyRegistryLogger.debug(`Building aggregated policy for entity "${entityName}" action "${action}"`);
 
@@ -49,7 +48,6 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		const entityMetadata: IApiEntity<E> = GenerateEntityInformation<E>(entity);
 		const { authenticationRequest, permissions = [], principal: principalOverride, principalResolver, requestMetadata, routeType: routeTypeOverride }: IApiAuthorizationPolicyBuildOptions<E> = options;
 		const principal: IApiAuthorizationPrincipal = await this.resolvePrincipal(authenticationRequest, principalOverride, principalResolver);
-		const routeType: EApiRouteType | undefined = this.resolveRouteType(action, routeTypeOverride);
 
 		const contextData: IApiAuthorizationPolicySubscriberContextData<E> = {
 			action,
@@ -59,7 +57,7 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 			entityMetadata,
 			permissions,
 			principal,
-			routeType,
+			routeType: routeTypeOverride,
 		};
 		const aggregatedRules: Array<IApiAuthorizationRule<E, TApiAuthorizationPolicyHookResult<TAction, E>>> = [];
 		const policyIds: Set<string> = new Set<string>();
@@ -116,15 +114,25 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		};
 	}
 
-	public hasSubscriberForEntity(entity: TEntityConstructor<IApiBaseEntity>): boolean {
+	public hasSubscriberForEntity(entity: new () => IApiBaseEntity): boolean {
 		return (this.POLICY_REGISTRY.get(this.getEntityName(entity))?.registrations.length ?? 0) > 0;
+	}
+
+	public invalidateCache(entity?: new () => IApiBaseEntity): void {
+		if (!entity) {
+			this.POLICY_RULE_CACHE.clear();
+
+			return;
+		}
+
+		this.invalidateCacheForEntity(this.getEntityName(entity));
 	}
 
 	public registerSubscriber<E extends IApiBaseEntity>(registration: IApiAuthorizationPolicySubscriberRegistration<E>): void {
 		const normalizedRegistration: IApiAuthorizationPolicySubscriberRegistration<IApiBaseEntity> = {
 			cache: registration.cache,
 			description: registration.description,
-			entity: registration.entity as TEntityConstructor<IApiBaseEntity>,
+			entity: registration.entity as new () => IApiBaseEntity,
 			policyId: registration.policyId,
 			priority: registration.priority ?? 0,
 			subscriber: registration.subscriber as never,
@@ -144,7 +152,7 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		wrapper.addRegistration(normalizedRegistration);
 		policyRegistryLogger.debug(`Total registrations for entity "${entityName}": ${wrapper.getRegistrationCount()}`);
 
-		this.invalidateCacheForEntity(entityName);
+		this.invalidateCache(normalizedRegistration.entity);
 	}
 
 	private cacheRules<E extends IApiBaseEntity, R>(cacheKey: string, rules: Array<IApiAuthorizationPolicySubscriberRule<E, R>>, cacheOptions: IApiAuthorizationPolicyCacheOptions): void {
@@ -181,7 +189,7 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		return cachedEntry.rules as unknown as Array<IApiAuthorizationPolicySubscriberRule<E, R>>;
 	}
 
-	private getEntityName<E extends IApiBaseEntity>(entity: TEntityConstructor<E>): string {
+	private getEntityName(entity: new () => IApiBaseEntity): string {
 		return (entity.name ?? "UnknownResource").toLowerCase();
 	}
 
@@ -227,7 +235,7 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		};
 	}
 
-	private resolvePolicyId<E extends IApiBaseEntity>(entity: TEntityConstructor<E>): string {
+	private resolvePolicyId(entity: new () => IApiBaseEntity): string {
 		return `${this.getEntityName(entity)}${AUTHORIZATION_POLICY_DECORATOR_CONSTANT.DEFAULT_POLICY_ID_SUFFIX}`;
 	}
 
@@ -258,44 +266,6 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 
 		return AuthorizationResolveDefaultPrincipal(authenticationRequest?.user);
 	}
-
-	// NOTE: This is a compatibility shim until buildAggregatedPolicy uses a single
-	// source of truth for CRUD actions instead of accepting both action and routeType.
-	private resolveRouteType(action: string, routeType?: EApiRouteType): EApiRouteType | undefined {
-		if (routeType) {
-			return routeType;
-		}
-
-		return Object.values(EApiRouteType).includes(action as EApiRouteType) ? (action as EApiRouteType) : undefined;
-	}
 }
 
 export const apiAuthorizationPolicyRegistry: ApiAuthorizationPolicyRegistry = new ApiAuthorizationPolicyRegistry();
-
-class PolicySubscriberWrapper {
-	public registrations: Array<IApiAuthorizationPolicySubscriberRegistration<IApiBaseEntity>>;
-
-	constructor(
-		private readonly name: string,
-		registrations: Array<IApiAuthorizationPolicySubscriberRegistration<IApiBaseEntity>> = [],
-	) {
-		this.registrations = registrations;
-	}
-
-	public addRegistration(registration: IApiAuthorizationPolicySubscriberRegistration<IApiBaseEntity>): void {
-		this.registrations.push(registration);
-		this.registrations.sort((a: IApiAuthorizationPolicySubscriberRegistration<IApiBaseEntity>, b: IApiAuthorizationPolicySubscriberRegistration<IApiBaseEntity>) => (b.priority ?? 0) - (a.priority ?? 0));
-	}
-
-	public getName(): string {
-		return this.getNormalizedName();
-	}
-
-	public getRegistrationCount(): number {
-		return this.registrations.length;
-	}
-
-	private getNormalizedName(): string {
-		return this.name;
-	}
-}

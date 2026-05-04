@@ -50,7 +50,7 @@ describe("ApiService", () => {
 		expect(repository.findOne).toHaveBeenCalledWith({ where: { id: "id-1" } });
 		expect(found).toMatchObject({ id: "id-1", name: "existing" });
 
-		const list = await service.getList({ skip: 0, take: 1 }, undefined);
+		const list = await service.getList({ skip: 0, take: 1 });
 		expect(repository.findAndCount).toHaveBeenCalledWith({ skip: 0, take: 1 });
 		expect(list.items).toHaveLength(1);
 		expect(list.totalCount).toBe(1);

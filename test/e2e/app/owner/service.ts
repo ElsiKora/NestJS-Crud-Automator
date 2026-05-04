@@ -3,7 +3,7 @@ import type { Repository } from "typeorm";
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 
-import { ApiService, ApiServiceBase } from "../../../../dist/esm/index";
+import { ApiService, ApiServiceBase } from "../../../../src/index";
 
 import { E2eOwnerEntity } from "./entity";
 

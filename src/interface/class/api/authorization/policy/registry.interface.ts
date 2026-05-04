@@ -10,5 +10,6 @@ export interface IApiAuthorizationPolicyRegistry {
 	clear(): void;
 	configureCache(options?: IApiAuthorizationPolicyCacheOptions): void;
 	hasSubscriberForEntity(entity: new () => IApiBaseEntity): boolean;
+	invalidateCache(entity?: new () => IApiBaseEntity): void;
 	registerSubscriber<E extends IApiBaseEntity>(registration: IApiAuthorizationPolicySubscriberRegistration<E>): void;
 }
