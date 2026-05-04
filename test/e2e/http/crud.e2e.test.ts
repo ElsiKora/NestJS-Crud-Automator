@@ -4,14 +4,16 @@ import type { INestApplication } from "@nestjs/common";
 
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CorrelationIDResponseBodyInterceptor } from "../../../dist/esm/index";
+import { ApiAuthorizationCacheInvalidationService, AUTHORIZATION_POLICY_REGISTRY_TOKEN, CorrelationIDResponseBodyInterceptor, type IApiAuthorizationPolicyRegistry } from "../../../src/index";
 import { E2E_OWNER_ID, E2E_OWNER_ID_OTHER } from "../app/constants";
-import { E2eAppModule, E2eFunctionSubscriber, E2eOwnerService, E2ePolicySubscriber, E2eRouteSubscriber, E2eService } from "../app";
+import { E2eAppModule, E2eCustomRouteSubscriber, E2eEntity, E2eFunctionSubscriber, E2eOwnerService, E2ePolicySubscriber, E2eRouteSubscriber, E2eService } from "../app";
 
 describe("CRUD routes (E2E)", () => {
 	let app: INestApplication;
+	let cacheInvalidationService: ApiAuthorizationCacheInvalidationService;
+	let policyRegistry: IApiAuthorizationPolicyRegistry;
 	let service: E2eService;
 	let ownerService: E2eOwnerService;
 	let fastify: { inject: (options: { method: string; url: string; payload?: unknown; headers?: Record<string, string> }) => Promise<{ statusCode: number; json: () => any }> };
@@ -94,6 +96,8 @@ describe("CRUD routes (E2E)", () => {
 		app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
 		await app.init();
 
+		cacheInvalidationService = app.get(ApiAuthorizationCacheInvalidationService);
+		policyRegistry = app.get(AUTHORIZATION_POLICY_REGISTRY_TOKEN);
 		service = app.get(E2eService);
 		ownerService = app.get(E2eOwnerService);
 		fastify = app.getHttpAdapter().getInstance();
@@ -104,6 +108,7 @@ describe("CRUD routes (E2E)", () => {
 		await ownerService.reset();
 		await ownerService.repository.save({ id: E2E_OWNER_ID, name: "Owner" });
 		E2eFunctionSubscriber.reset();
+		E2eCustomRouteSubscriber.reset();
 		E2ePolicySubscriber.reset();
 		E2eRouteSubscriber.reset();
 	});
@@ -907,7 +912,8 @@ describe("CRUD routes (E2E)", () => {
 		});
 
 		expect(listResponse.statusCode).toBe(400);
-		expect(E2eRouteSubscriber.events).toContain("route:after_error:getList");
+		expect(E2eRouteSubscriber.events).toContain("route:before_error:getList");
+		expect(E2eRouteSubscriber.events).not.toContain("route:after_error:getList");
 	});
 
 	it("fails when response transformer targets missing key", async () => {
@@ -1010,6 +1016,30 @@ describe("CRUD routes (E2E)", () => {
 		expect(saved?.owner?.id).toBe(E2E_OWNER_ID);
 	});
 
+	it("reloads update response relations", async () => {
+		await service.repository.save({
+			count: 1,
+			id: "item-update-relation",
+			name: "UpdateRelation",
+			ownerId: E2E_OWNER_ID,
+		});
+
+		const updateResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "PUT",
+			payload: { count: 2, name: "UpdatedRelation" },
+			url: "/items/item-update-relation",
+		});
+
+		expect(updateResponse.statusCode).toBe(200);
+		expect(updateResponse.json().owner).toEqual({ id: E2E_OWNER_ID });
+		const saved = await service.repository.findOne({
+			relations: { owner: true },
+			where: { id: "item-update-relation" },
+		});
+		expect(saved?.owner?.id).toBe(E2E_OWNER_ID);
+	});
+
 	it("executes getMany function hooks", async () => {
 		await fastify.inject({
 			headers: adminHeaders,
@@ -1049,11 +1079,241 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:getMany");
 	});
 
+	it("executes ApiRouteCustom through the full request, response, subscriber, and serialization pipeline", async () => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { count: 3, id: "custom-route-1", name: "Original" },
+			url: "/custom-route/echo/original-param?code=original-query",
+		});
+
+		expect(response.statusCode).toBe(200);
+		expect(response.json()).toEqual({
+			code: "query-transformed",
+			count: 3,
+			id: "param-transformed",
+			name: "custom-after-body-transformed",
+			responseSignature: "sig-1",
+		});
+		expect(response.json()).not.toHaveProperty("hidden");
+		expect(E2eCustomRouteSubscriber.events).toEqual(expect.arrayContaining(["custom-route:before:custom.echo", "custom-route:after:custom.echo"]));
+	});
+
+	it("fires custom route before_error hooks when request target validation fails", async () => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { count: 0, id: "custom-route-invalid", name: "Invalid" },
+			url: "/custom-route/echo/original-param?code=original-query",
+		});
+
+		expect(response.statusCode).toBe(400);
+		expect(E2eCustomRouteSubscriber.events).toContain("custom-route:before_error:custom.echo");
+	});
+
+	it("fires custom route after_error hooks when the handler fails", async () => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { count: 1, id: "throw-custom", name: "Throw" },
+			url: "/custom-route/echo/original-param?code=original-query",
+		});
+
+		expect(response.statusCode).toBe(500);
+		expect(E2eCustomRouteSubscriber.events).toContain("custom-route:after_error:custom.echo");
+	});
+
+	it("projects custom route relation responses using the configured reference shape", async () => {
+		const createResponse = await createItem({ count: 1, id: "custom-route-relation", name: "Relation" });
+
+		expect(createResponse.statusCode).toBe(201);
+
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/custom-route/relation/custom-route-relation",
+		});
+
+		expect(response.statusCode).toBe(200);
+		expect(response.json().owner).toBe(E2E_OWNER_ID);
+	});
+
+	it("hydrates custom route request relations before the handler runs", async () => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: {
+				owner: E2E_OWNER_ID,
+			},
+			url: "/custom-route/request-relation",
+		});
+
+		expect(response.statusCode).toBe(200);
+		expect(response.json()).toEqual({
+			owner: E2E_OWNER_ID,
+		});
+	});
+
+	it("loads and projects custom route array relation responses", async () => {
+		await createItem({ count: 1, id: "custom-route-array-1", name: "RelationArrayOne" });
+		await createItem({ count: 2, id: "custom-route-array-2", name: "RelationArrayTwo" });
+
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/custom-route/relations",
+		});
+
+		expect(response.statusCode).toBe(200);
+		expect(response.json()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "custom-route-array-1",
+					owner: E2E_OWNER_ID,
+				}),
+				expect.objectContaining({
+					id: "custom-route-array-2",
+					owner: E2E_OWNER_ID,
+				}),
+			]),
+		);
+	});
+
+	it("runs ApiFunctionCustom REQUIRED mode in a transaction through HTTP", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "custom-required-1", name: "Required", ownerId: E2E_OWNER_ID },
+			url: "/function/custom-required",
+		});
+
+		expect(response.statusCode).toBe(201);
+		expect(response.json().name).toBe("custom-after-fn-custom-Required");
+		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:custom.required", "function:before:custom.required:transaction", "function:after:custom.required", "function:before:create:transaction"]));
+		expect((await service.repository.findOne({ where: { id: "custom-required-1" } }))?.name).toBe("fn-custom-Required");
+	});
+
+	it("runs built-in ApiFunction REQUIRED mode in a transaction through HTTP", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "builtin-required-1", name: "Required", ownerId: E2E_OWNER_ID },
+			url: "/function/builtin-required",
+		});
+
+		expect(response.statusCode).toBe(201);
+		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:create:transaction", "function:after:create"]));
+		expect((await service.repository.findOne({ where: { id: "builtin-required-1" } }))?.name).toBe("fn-Required");
+	});
+
+	it("runs ApiFunctionCustom SUPPORTS mode without opening a transaction when none is active", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "custom-supports-1", name: "Supports", ownerId: E2E_OWNER_ID },
+			url: "/function/custom-supports",
+		});
+
+		expect(response.statusCode).toBe(201);
+		expect(response.json().name).toBe("custom-after-fn-custom-Supports");
+		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:custom.supports", "function:after:custom.supports"]));
+		expect(E2eFunctionSubscriber.events).not.toContain("function:before:custom.supports:transaction");
+	});
+
+	it("runs built-in ApiFunction SUPPORTS mode without opening a transaction when none is active", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "builtin-supports-1", name: "Supports", ownerId: E2E_OWNER_ID },
+			url: "/function/builtin-supports",
+		});
+
+		expect(response.statusCode).toBe(201);
+		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:create", "function:after:create"]));
+		expect(E2eFunctionSubscriber.events).not.toContain("function:before:create:transaction");
+	});
+
+	it("fails ApiFunctionCustom MANDATORY mode without an active transaction through HTTP", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "custom-mandatory-1", name: "Mandatory", ownerId: E2E_OWNER_ID },
+			url: "/function/custom-mandatory",
+		});
+
+		expect(response.statusCode).toBe(500);
+		expect(await service.repository.findOne({ where: { id: "custom-mandatory-1" } })).toBeNull();
+		expect(E2eFunctionSubscriber.events).toContain("function:before_error:custom.mandatory");
+	});
+
+	it("fires ApiFunctionCustom before_error when a before hook fails through HTTP", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "custom-before-error", name: "BeforeError", ownerId: E2E_OWNER_ID },
+			url: "/function/custom-supports",
+		});
+
+		expect(response.statusCode).toBe(500);
+		expect(await service.repository.findOne({ where: { id: "custom-before-error" } })).toBeNull();
+		expect(E2eFunctionSubscriber.events).toContain("function:before_error:custom.supports");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:custom.supports");
+	});
+
+	it("fails built-in ApiFunction MANDATORY mode without an active transaction through HTTP", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "builtin-mandatory-1", name: "Mandatory", ownerId: E2E_OWNER_ID },
+			url: "/function/builtin-mandatory",
+		});
+
+		expect(response.statusCode).toBe(500);
+		expect(await service.repository.findOne({ where: { id: "builtin-mandatory-1" } })).toBeNull();
+	});
+
+	it("fails ApiFunctionCustom NONE mode inside an active transaction through HTTP", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "custom-none-1", name: "None", ownerId: E2E_OWNER_ID },
+			url: "/function/custom-none-inside-transaction",
+		});
+
+		expect(response.statusCode).toBe(500);
+		expect(await service.repository.findOne({ where: { id: "custom-none-1" } })).toBeNull();
+		expect(E2eFunctionSubscriber.events).toContain("function:before_error:custom.none");
+	});
+
+	it("fails built-in ApiFunction NONE mode inside an active transaction through HTTP", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "builtin-none-1", name: "None", ownerId: E2E_OWNER_ID },
+			url: "/function/builtin-none-inside-transaction",
+		});
+
+		expect(response.statusCode).toBe(500);
+		expect(await service.repository.findOne({ where: { id: "builtin-none-1" } })).toBeNull();
+	});
+
+	it("exposes authorization cache invalidation through the Nest module", () => {
+		const invalidateSpy = vi.spyOn(policyRegistry, "invalidateCache");
+
+		cacheInvalidationService.invalidate(E2eEntity);
+		cacheInvalidationService.invalidate();
+
+		expect(invalidateSpy).toHaveBeenNthCalledWith(1, E2eEntity);
+		expect(invalidateSpy).toHaveBeenNthCalledWith(2, undefined);
+	});
+
 	it("fails validation when count is not positive", async () => {
 		const createResponse = await fastify.inject({
 			headers: adminHeaders,
 			method: "POST",
 			payload: { id: "item-4", name: "Invalid", count: 0 },
+			url: "/items",
+		});
+
+		expect(createResponse.statusCode).toBe(400);
+	});
+
+	it("rejects object relation references when the route requires scalar references", async () => {
+		const createResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { count: 1, id: "item-object-relation", name: "ObjectRelation", owner: { id: E2E_OWNER_ID } },
 			url: "/items",
 		});
 
@@ -1100,7 +1360,8 @@ describe("CRUD routes (E2E)", () => {
 		});
 
 		expect(createResponse.statusCode).toBe(500);
-		expect(E2eRouteSubscriber.events).toContain("route:after_error:create");
+		expect(E2eRouteSubscriber.events).toContain("route:before_error:create");
+		expect(E2eRouteSubscriber.events).not.toContain("route:after_error:create");
 	});
 
 	it("fails when timestamp header is missing", async () => {
@@ -1135,7 +1396,8 @@ describe("CRUD routes (E2E)", () => {
 		});
 
 		expect(createResponse.statusCode).toBe(500);
-		expect(E2eRouteSubscriber.events).toContain("route:after_error:create");
+		expect(E2eRouteSubscriber.events).toContain("route:before_error:create");
+		expect(E2eRouteSubscriber.events).not.toContain("route:after_error:create");
 	});
 
 	it("fires before_error when primary key metadata is missing", async () => {
@@ -1148,7 +1410,7 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(createResponse.statusCode).toBe(500);
 		expect(E2eRouteSubscriber.events).toContain("route:before_error:create");
-		expect(E2eRouteSubscriber.events).toContain("route:after_error:create");
+		expect(E2eRouteSubscriber.events).not.toContain("route:after_error:create");
 	});
 
 	it("fires before_error hooks for other routes when primary key is missing", async () => {
@@ -1186,7 +1448,8 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(missingPut.statusCode).toBe(500);
 
-		expect(E2eRouteSubscriber.events).toEqual(expect.arrayContaining(["route:before_error:get", "route:after_error:get", "route:before_error:delete", "route:after_error:delete", "route:before_error:partialUpdate", "route:after_error:partialUpdate", "route:before_error:update", "route:after_error:update"]));
+		expect(E2eRouteSubscriber.events).toEqual(expect.arrayContaining(["route:before_error:get", "route:before_error:delete", "route:before_error:partialUpdate", "route:before_error:update"]));
+		expect(E2eRouteSubscriber.events).not.toEqual(expect.arrayContaining(["route:after_error:get", "route:after_error:delete", "route:after_error:partialUpdate", "route:after_error:update"]));
 	});
 
 	it("fires function before_error hooks when repository is missing", async () => {

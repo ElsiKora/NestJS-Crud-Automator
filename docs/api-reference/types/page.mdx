@@ -1,0 +1,77 @@
+# Types
+
+Key public type aliases exported by NestJS CRUD Automator.
+
+## Service Function Types
+
+```typescript
+type TApiFunctionCreateProperties<E> = DeepPartial<E>;
+type TApiFunctionUpdateProperties<E> = DeepPartial<E>;
+type TApiFunctionDeleteCriteria<E> = FindOptionsWhere<E>;
+type TApiFunctionGetProperties<E> = FindOneOptions<E>;
+type TApiFunctionGetListProperties<E> = FindManyOptions<E>;
+type TApiFunctionGetManyProperties<E> = FindManyOptions<E>;
+```
+
+`create` and `update` receive entity partials directly. They are not wrapped in `{ body }`, and `EntityManager` is not a public method argument.
+
+## Route Query Types
+
+```typescript
+type TApiControllerGetListQuery<E> = {
+	limit: number;
+	orderBy?: keyof E;
+	orderDirection?: EFilterOrderDirection;
+	page: number;
+} & Partial<TFilterKeys<E>>;
+```
+
+HTTP list queries use lowercase sort directions: `asc` and `desc`.
+
+## Subscriber Context Helpers
+
+```typescript
+type TApiSubscriberFunctionBeforeCreateContext<E extends IApiBaseEntity> = IApiSubscriberFunctionExecutionContext<
+	E,
+	TApiFunctionCreateProperties<E>,
+	IApiSubscriberFunctionExecutionContextData<E>
+>;
+
+type TApiSubscriberRouteBeforeCreateContext<E extends IApiBaseEntity> = IApiSubscriberRouteExecutionContext<
+	E,
+	{
+		authenticationRequest?: IApiAuthenticationRequest;
+		body: DeepPartial<E>;
+		headers: Record<string, string>;
+		ip: string;
+	},
+	IApiSubscriberRouteExecutionContextData<E, E>
+>;
+```
+
+Prefer the exported helper types over manually spelling every generic parameter.
+
+## Authorization Types
+
+```typescript
+type TApiAuthorizationRuleTransformPayload<E extends IApiBaseEntity> =
+	| Array<unknown>
+	| boolean
+	| E
+	| IApiGetListResponseResult<E>
+	| null
+	| number
+	| object
+	| Partial<E>
+	| Record<string, unknown>
+	| string
+	| undefined;
+```
+
+Authorization transforms receive the payload produced by the route action and may return a replacement payload of the same public response family.
+
+## Related resources
+
+- [Interfaces](/docs/nestjs-crud-automator/api-reference/interfaces)
+- [Function Decorators](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
+- [Subscriber Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context)

@@ -71,7 +71,7 @@ validators: [
 
 Ensures at least one of the specified properties is provided.
 
-**Location:** `src/validator/has-at-least-one-of-listed-properties.validator.ts`
+**Location:** `src/validator/has/at/least/one/of-listed-properties.validator.ts`
 
 **Usage:**
 
@@ -92,9 +92,9 @@ validators: [
 
 ### HasAtLeastOneAndOnlyOneOfListedPropertiesValidator
 
-Ensures exactly one of the specified properties is provided (alias for OnlyOneOfListedPropertiesValidator).
+Ensures exactly one of the specified properties is provided.
 
-**Location:** `src/validator/has-at-least-one-and-only-one-of-listed-properties.validator.ts`
+**Location:** `src/validator/has/at/least/one/and-only-one-of-listed-properties.validator.ts`
 
 **Usage:**
 
@@ -111,7 +111,7 @@ validators: [
 
 Ensures at least one property is provided in the DTO.
 
-**Location:** `src/validator/has-at-least-one-property.validator.ts`
+**Location:** `src/validator/has/at/least/one/property.validator.ts`
 
 **Usage:**
 
@@ -158,33 +158,40 @@ export class CreateFilterDto {
 
 ### MustMatchOneOfSchemasValidator
 
-Validates that the data matches at least one of the provided schemas.
+Property decorator factory that validates an object against one of several discriminator-backed schemas. For generated DTOs, prefer `ApiPropertyObject({ type: [...], discriminator, shouldValidateNested: true })`, which wires this validator for object payloads.
 
 **Location:** `src/validator/must-match-one-of-schemas.validator.ts`
 
 **Usage:**
 
 ```typescript
-validators: [
-	{
-		constraintClass: MustMatchOneOfSchemasValidator,
-		options: [CardPaymentSchema, PayPalPaymentSchema, BankTransferSchema],
-	},
-];
+class PaymentDto {
+	@MustMatchOneOfSchemasValidator({
+		discriminator: {
+			propertyName: "type",
+			mapping: {
+				card: CardPaymentDto,
+				paypal: PayPalPaymentDto,
+			},
+		},
+	})
+	payload!: CardPaymentDto | PayPalPaymentDto;
+}
 ```
 
 **Behavior:**
 
-- Data must match at least one of the provided schemas
-- Useful for polymorphic/discriminated union types
+- The object must include the configured discriminator property
+- The discriminator value must match one configured mapping entry
+- The object must match the selected schema
 
 ## Paired Field Validators
 
 ### HasPairedCustomSuffixesFieldsValidator
 
-Validates that fields with custom suffixes are provided together.
+Validates bracketed filter field groups such as `name[operator]`, `name[value]`, and `name[values]`.
 
-**Location:** `src/validator/has-paired-custom-suffixes-fields.validator.ts`
+**Location:** `src/validator/has/paired-custom-suffixes-fields.validator.ts`
 
 **Usage:**
 
@@ -192,19 +199,17 @@ Validates that fields with custom suffixes are provided together.
 validators: [
 	{
 		constraintClass: HasPairedCustomSuffixesFieldsValidator,
-		options: {
-			baseName: "address",
-			suffixes: ["Street", "City", "Country", "ZipCode"],
-		},
+		options: ["operator", ["value", "values"]],
 	},
 ];
 ```
 
 **Behavior:**
 
-- If any field like `addressStreet`, `addressCity`, `addressCountry`, or `addressZipCode` is provided
-- Then all fields must be provided
-- Useful for ensuring complete address information
+- A `field[value]` or `field[values]` suffix requires `field[operator]`
+- Operators that require a single value reject array values
+- Operators that require an array reject single values
+- Null operators such as `isnull` and `notnull` reject value suffixes
 
 ## Custom Validator Example
 

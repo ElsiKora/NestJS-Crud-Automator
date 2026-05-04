@@ -18,7 +18,9 @@ Understanding the execution order of subscribers and operations is crucial for i
 9. Service returns result
 10. Controller transformers (response)
 11. Route subscribers: onAfterCreate (priority: high → low)
-12. HTTP Response sent to client
+12. Authorization result transforms
+13. Relation projection and DTO serialization
+14. HTTP Response sent to client
 ```
 
 ### Update Operation
@@ -36,7 +38,9 @@ Understanding the execution order of subscribers and operations is crucial for i
 10. Service returns result
 11. Controller transformers (response)
 12. Route subscribers: onAfterUpdate (priority: high → low)
-13. HTTP Response sent to client
+13. Authorization result transforms
+14. Relation projection and DTO serialization
+15. HTTP Response sent to client
 ```
 
 ### Get Operation
@@ -51,7 +55,9 @@ Understanding the execution order of subscribers and operations is crucial for i
 7. Service returns result
 8. Controller transformers (response)
 9. Route subscribers: onAfterGet (priority: high → low)
-10. HTTP Response sent to client
+10. Authorization result transforms
+11. Relation projection and DTO serialization
+12. HTTP Response sent to client
 ```
 
 ### Get List Operation
@@ -67,7 +73,9 @@ Understanding the execution order of subscribers and operations is crucial for i
 8. Service returns result with pagination metadata
 9. Controller transformers (response)
 10. Route subscribers: onAfterGetList (priority: high → low)
-11. HTTP Response sent to client
+11. Authorization result transforms
+12. Relation projection and DTO serialization
+13. HTTP Response sent to client
 ```
 
 ### Delete Operation
@@ -87,19 +95,18 @@ Understanding the execution order of subscribers and operations is crucial for i
 
 ## Error Flow
 
-When an error occurs at any step:
+Generated route error hooks have explicit boundaries:
 
 ```
-1. Error thrown at step N
-2. Execution stops
-3. onBeforeError hooks called (priority: high → low)
-   - Route level (if error in controller/route subscriber)
-   - Function level (if error in service/function subscriber)
-4. onAfterError hooks called (priority: high → low)
-   - Function level
-   - Route level
-5. Error propagated to exception filter
-6. Error response sent to client
+1. Request-side failures run before-error hooks:
+   - route before subscribers
+   - request transformers
+   - request validators
+   - request relation loading
+   - primary-key resolution
+2. Service, response transformer, after subscriber, authorization result transform, relation projection, and serialization failures run after-error hooks.
+3. Function-level failures dispatch function before-error or after-error hooks according to the same setup/before versus operation/after boundary.
+4. Errors are rethrown after subscribers observe them.
 ```
 
 ## Priority Execution
@@ -299,8 +306,8 @@ async onBeforeCreate(
     const tags = await manager.save(TagEntity, [...]);
     const category = await manager.save(CategoryEntity, {...});
 
-    context.result.body.tags = tags;
-    context.result.body.categoryId = category.id;
+    context.result.tags = tags;
+    context.result.categoryId = category.id;
   }
 
   return context.result;
@@ -333,7 +340,7 @@ export class NotificationSubscriber {}
 @ApiFunctionSubscriber({ entity: Post })
 export class SlugGeneratorSubscriber {
 	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<Post>): Promise<TApiFunctionCreateProperties<Post>> {
-		context.result.body.slug = this.generateSlug(context.result.body.title);
+		context.result.slug = this.generateSlug(context.result.title);
 		return context.result;
 	}
 }
@@ -343,7 +350,7 @@ export class SlugGeneratorSubscriber {
 export class MixedSubscriber {
 	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<Post>): Promise<TApiFunctionCreateProperties<Post>> {
 		// Don't do this
-		context.result.body.slug = this.generateSlug(context.result.body.title);
+		context.result.slug = this.generateSlug(context.result.title);
 		await this.sendNotification();
 		await this.updateCache();
 		return context.result;

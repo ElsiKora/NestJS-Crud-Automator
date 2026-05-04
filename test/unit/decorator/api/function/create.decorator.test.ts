@@ -1,5 +1,6 @@
 import type { EntityManager, Repository } from "typeorm";
 
+import { ApiFunctionTransactionScope } from "@class/api/function/transaction-scope.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionCreate } from "@decorator/api/function/create.decorator";
 import { HttpStatus } from "@nestjs/common";
@@ -14,9 +15,8 @@ class CreateService {
 	public constructor(public repository: Repository<CreateEntity>) {}
 
 	@ApiFunctionCreate({ entity: CreateEntity })
-	public async create(properties: Partial<CreateEntity>, eventManager?: EntityManager): Promise<CreateEntity> {
+	public async create(properties: Partial<CreateEntity>): Promise<CreateEntity> {
 		void properties;
-		void eventManager;
 
 		return {} as CreateEntity;
 	}
@@ -64,7 +64,7 @@ describe("ApiFunctionCreate", () => {
 
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
 
-		const result = await service.create({ name: "txn" } as CreateEntity, eventManager);
+		const result = await ApiFunctionTransactionScope.runWithEntityManager(eventManager, async () => await service.create({ name: "txn" } as CreateEntity));
 
 		expect(eventRepository.save).toHaveBeenCalled();
 		expect(repository.save).not.toHaveBeenCalled();

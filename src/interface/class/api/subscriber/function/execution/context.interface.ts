@@ -26,5 +26,6 @@ import type { IApiSubscriberExecutionContext } from "@interface/class/api/subscr
  * ```
  */
 export interface IApiSubscriberFunctionExecutionContext<E extends IApiBaseEntity, Result = unknown, Input = unknown> extends IApiSubscriberExecutionContext<E, Result, Input> {
+	action?: string;
 	readonly FUNCTION_TYPE: EApiFunctionType;
 }

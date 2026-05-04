@@ -30,7 +30,7 @@ Formats, validates, and serializes date/time fields. Supports ISO date-time stri
 ```typescript
 class AuditDto {
 	@ApiPropertyDate({
-		entity: () => UserEntity,
+		entity: UserEntity,
 		identifier: EApiPropertyDateIdentifier.CREATED_AT,
 		format: EApiPropertyDateType.DATE_TIME,
 		isResponse: true,
@@ -38,7 +38,7 @@ class AuditDto {
 	createdAt!: Date;
 
 	@ApiPropertyDate({
-		entity: () => UserEntity,
+		entity: UserEntity,
 		identifier: EApiPropertyDateIdentifier.UPDATED_AT_FROM,
 		format: EApiPropertyDateType.DATE,
 		isRequired: false,

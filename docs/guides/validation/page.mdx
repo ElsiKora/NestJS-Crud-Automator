@@ -17,7 +17,12 @@ export class UserEntity {
 		minLength: 3, // Adds @MinLength(3)
 		maxLength: 20, // Adds @MaxLength(20)
 		pattern: "/^[a-zA-Z0-9_-]+$/", // Adds @Matches(/^[a-zA-Z0-9_-]+$/)
-		isRequired: true, // Adds @IsNotEmpty()
+		exampleValue: "john_doe",
+		properties: {
+			[EApiRouteType.CREATE]: {
+				[EApiDtoType.BODY]: { isRequired: true },
+			},
+		},
 	})
 	username: string;
 
@@ -26,7 +31,15 @@ export class UserEntity {
 		type: EApiPropertyDescribeType.STRING,
 		description: "Email",
 		format: EApiPropertyStringType.EMAIL, // Adds @IsEmail()
-		isRequired: true,
+		minLength: 5,
+		maxLength: 255,
+		pattern: "/^[\\w.-]+@([\\w-]+\\.)+[\\w-]{2,}$/",
+		exampleValue: "john@example.com",
+		properties: {
+			[EApiRouteType.CREATE]: {
+				[EApiDtoType.BODY]: { isRequired: true },
+			},
+		},
 	})
 	email: string;
 
@@ -37,6 +50,8 @@ export class UserEntity {
 		format: EApiPropertyNumberType.INTEGER, // Adds @IsInt()
 		minimum: 18, // Adds @Min(18)
 		maximum: 120, // Adds @Max(120)
+		multipleOf: 1,
+		exampleValue: 25,
 	})
 	age: number;
 }
@@ -52,7 +67,10 @@ Ensures either all or none of the specified properties are provided:
 
 ```typescript filename="user.controller.ts" copy
 import {
-  AllOrNoneOfListedPropertiesValidator
+	AllOrNoneOfListedPropertiesValidator,
+	ApiController,
+	EApiDtoType,
+	EApiRouteType,
 } from "@elsikora/nestjs-crud-automator";
 
 @ApiController<UserEntity>({
@@ -121,17 +139,23 @@ validators: [
 
 ### MustMatchOneOfSchemasValidator
 
-Validates against one of multiple possible schemas:
+Validates an object property against one of multiple discriminator-backed schemas. Prefer `ApiPropertyObject({ type: [...], discriminator, shouldValidateNested: true })` for generated DTO object payloads because it wires the validator from property metadata.
 
 ```typescript
 import { MustMatchOneOfSchemasValidator } from "@elsikora/nestjs-crud-automator";
 
-validators: [
-	{
-		constraintClass: MustMatchOneOfSchemasValidator,
-		options: [CardPaymentSchema, PayPalPaymentSchema],
-	},
-];
+class PaymentDto {
+	@MustMatchOneOfSchemasValidator({
+		discriminator: {
+			propertyName: "type",
+			mapping: {
+				card: CardPaymentDto,
+				paypal: PayPalPaymentDto,
+			},
+		},
+	})
+	payload!: CardPaymentDto | PayPalPaymentDto;
+}
 ```
 
 ### HasPairedCustomSuffixesFieldsValidator
@@ -144,10 +168,7 @@ import { HasPairedCustomSuffixesFieldsValidator } from "@elsikora/nestjs-crud-au
 validators: [
 	{
 		constraintClass: HasPairedCustomSuffixesFieldsValidator,
-		options: {
-			baseName: "address",
-			suffixes: ["Street", "City", "Country"],
-		},
+		options: ["operator", ["value", "values"]],
 	},
 ];
 ```
@@ -201,6 +222,10 @@ import { IsStrongPassword } from "./validators/is-strong-password.validator";
   type: EApiPropertyDescribeType.STRING,
   description: "Password",
   format: EApiPropertyStringType.PASSWORD,
+  minLength: 12,
+  maxLength: 128,
+  pattern: "/^[\\s\\S]{12,128}$/",
+  exampleValue: "CorrectHorse123!",
 })
 @IsStrongPassword()
 password: string;
@@ -280,6 +305,8 @@ class AddressDto {
 @ApiPropertyDescribe({
   type: EApiPropertyDescribeType.OBJECT,
   description: "User address",
+  dataType: AddressDto,
+  shouldValidateNested: true,
 })
 @ValidateNested()
 @Type(() => AddressDto)
@@ -295,9 +322,17 @@ import { IsArray, ArrayMinSize, ArrayMaxSize, ValidateNested } from "class-valid
 
 @Column({ type: "jsonb" })
 @ApiPropertyDescribe({
-  type: EApiPropertyDescribeType.OBJECT,
+  type: EApiPropertyDescribeType.STRING,
   description: "User tags",
+  format: EApiPropertyStringType.STRING,
+  minLength: 1,
+  maxLength: 64,
+  pattern: "/^[a-z0-9-]+$/",
   isArray: true,
+  minItems: 1,
+  maxItems: 10,
+  isUniqueItems: true,
+  exampleValue: ["nestjs", "api"],
 })
 @IsArray()
 @ArrayMinSize(1)
@@ -339,6 +374,8 @@ Customize validation error messages:
   format: EApiPropertyStringType.STRING,
   minLength: 3,
   maxLength: 20,
+  pattern: "/^[a-zA-Z0-9_-]+$/",
+  exampleValue: "john_doe",
 })
 @MinLength(3, {
   message: "Username is too short. Minimum length is 3 characters."

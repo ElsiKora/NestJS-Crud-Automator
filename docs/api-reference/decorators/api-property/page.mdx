@@ -22,6 +22,56 @@ Property decorators describe DTO fields, attach Swagger metadata, and generate c
 2. Apply the property-specific decorators to manual DTOs when fine-grained control is needed.
 3. Use `@ApiPropertyCopy` to mirror existing metadata onto custom DTOs or nested payloads while preserving auto-context behavior.
 
+## Required, nullable, and response-only semantics
+
+Manual property decorators now use explicit presence guards instead of a blanket `IsOptional` behavior:
+
+- `isRequired: true` rejects missing `undefined` values.
+- `isNullable: true` allows `null` without making missing `undefined` valid unless `isRequired` is also `false`.
+- `isRequired: false` allows missing `undefined`.
+- `isResponse: true` marks a response-only field and skips request validators such as `IsString`, `IsNumber`, `IsUUID`, `IsEnum`, `IsObject`, and nested validators.
+
+```typescript
+export class CreatePostDTO {
+	@ApiPropertyString({
+		entity: CreatePostDTO,
+		description: "Required title",
+		format: EApiPropertyStringType.STRING,
+		minLength: 1,
+		maxLength: 120,
+		pattern: "/^[\\s\\S]{1,120}$/",
+		exampleValue: "Launch notes",
+		isRequired: true,
+	})
+	title!: string;
+
+	@ApiPropertyString({
+		entity: CreatePostDTO,
+		description: "Optional subtitle",
+		format: EApiPropertyStringType.STRING,
+		minLength: 0,
+		maxLength: 160,
+		pattern: "/^[\\s\\S]{0,160}$/",
+		exampleValue: "A short summary",
+		isRequired: false,
+	})
+	subtitle?: string;
+
+	@ApiPropertyString({
+		entity: CreatePostDTO,
+		description: "Required but nullable external reference",
+		format: EApiPropertyStringType.STRING,
+		minLength: 1,
+		maxLength: 64,
+		pattern: "/^[a-zA-Z0-9_-]+$/",
+		exampleValue: "external-123",
+		isNullable: true,
+		isRequired: true,
+	})
+	externalReference!: null | string;
+}
+```
+
 ## Related resources
 
 - [Core Concepts – Entities](/docs/nestjs-crud-automator/core-concepts/entities)

@@ -30,6 +30,7 @@ Available CRUD function types.
 ```typescript
 enum EApiFunctionType {
 	CREATE = "create",
+	CUSTOM = "custom",
 	DELETE = "delete",
 	GET = "get",
 	GET_LIST = "getList",
@@ -67,10 +68,59 @@ String format types.
 
 ```typescript
 enum EApiPropertyStringType {
-	STRING = "string",
+	API_KEY = "api-key",
+	BASE64 = "base64",
+	BCRYPT = "bcrypt",
+	BITCOIN_ADDRESS = "bitcoin-address",
+	COORDINATES = "coordinates",
+	COUNTRY_CODE_ALPHA2 = "country-code-alpha2",
+	COUNTRY_CODE_ALPHA3 = "country-code-alpha3",
+	CREDIT_CARD = "credit-card",
+	CRON = "cron",
+	CURRENCY_CODE = "currency-code",
+	DATA_URI = "data-uri",
+	DATE = "date",
+	DOMAIN = "domain",
 	EMAIL = "email",
-	URL = "url",
+	ETHEREUM_ADDRESS = "ethereum-address",
+	FILE_PATH = "file-path",
+	GIT_COMMIT_SHA = "git-commit-sha",
+	HASH_MD5 = "hash-md5",
+	HASH_SHA1 = "hash-sha1",
+	HASH_SHA256 = "hash-sha256",
+	HASH_SHA512 = "hash-sha512",
+	HEX_COLOR = "hex-color",
+	HSL_COLOR = "hsl-color",
+	HSLA_COLOR = "hsla-color",
+	IBAN = "iban",
+	IPV4 = "ipv4",
+	IPV6 = "ipv6",
+	ISBN = "isbn",
+	JWT = "jwt",
+	LANGUAGE_CODE_ISO639 = "language-code-iso639",
+	LOCALE = "locale",
+	LOWERCASE_STRING = "lowercase-string",
+	MAC_ADDRESS = "mac-address",
+	MIME_TYPE = "mime-type",
+	MONGODB_OBJECT_ID = "mongodb-object-id",
+	NANOID = "nanoid",
+	OAUTH2_SCOPE = "oauth2-scope",
 	PASSWORD = "password",
+	PHONE_NUMBER = "phone-number",
+	POSTAL_CODE = "postal-code",
+	REGEXP = "regexp",
+	RGB_COLOR = "rgb-color",
+	RGBA_COLOR = "rgba-color",
+	SEMVER = "semver",
+	SLUG = "slug",
+	STRING = "string",
+	TIMEZONE = "timezone",
+	ULID = "ulid",
+	UPPERCASE_STRING = "uppercase-string",
+	URL = "url",
+	URL_PATH = "url-path",
+	USERNAME = "username",
+	UUID = "uuid",
 }
 ```
 
@@ -80,8 +130,8 @@ Number format types.
 
 ```typescript
 enum EApiPropertyNumberType {
+	DOUBLE = "double",
 	INTEGER = "integer",
-	FLOAT = "float",
 }
 ```
 
@@ -103,9 +153,34 @@ Date field identifiers.
 
 ```typescript
 enum EApiPropertyDateIdentifier {
-	CREATED_AT = "createdAt",
-	UPDATED_AT = "updatedAt",
-	DELETED_AT = "deletedAt",
+	CREATED_AT = "created",
+	CREATED_AT_FROM = "createdAtFrom",
+	CREATED_AT_TO = "createdAtTo",
+	DATE = "date",
+	EXPIRES_IN = "expiresIn",
+	RECEIVED_AT = "receivedAt",
+	RECEIVED_AT_FROM = "receivedAtFrom",
+	RECEIVED_AT_TO = "receivedAtTo",
+	REFRESH_IN = "refreshIn",
+	UPDATED_AT = "updated",
+	UPDATED_AT_FROM = "updatedAtFrom",
+	UPDATED_AT_TO = "updatedAtTo",
+}
+```
+
+### EApiPropertyDataType
+
+Combined OpenAPI data type values used by property factories and generated schemas.
+
+```typescript
+enum EApiPropertyDataType {
+	BOOLEAN = "boolean",
+	DOUBLE = "double",
+	INTEGER = "integer",
+	NUMBER = "number",
+	STRING = "string",
+	UUID = "uuid",
+	// Also includes string/date formats such as EMAIL, DATE_TIME, URL, SLUG, and others.
 }
 ```
 
@@ -144,6 +219,17 @@ enum EFilterOperation {
 ```
 
 **Type-Specific Operations:**
+
+#### EFilterOperationArray
+
+```typescript
+enum EFilterOperationArray {
+	CONT = "cont",
+	EXCL = "excl",
+	ISNULL = "isnull",
+	NOTNULL = "notnull",
+}
+```
 
 #### EFilterOperationString
 
@@ -229,6 +315,30 @@ enum EFilterOperationEnum {
 }
 ```
 
+#### EFilterOperationObject
+
+```typescript
+enum EFilterOperationObject {
+	EQ = "eq",
+	ISNULL = "isnull",
+	NE = "ne",
+	NOTNULL = "notnull",
+}
+```
+
+#### EFilterOperationRelation
+
+```typescript
+enum EFilterOperationRelation {
+	EQ = "eq",
+	IN = "in",
+	ISNULL = "isnull",
+	NE = "ne",
+	NOTIN = "notin",
+	NOTNULL = "notnull",
+}
+```
+
 #### EFilterOperationUuid
 
 ```typescript
@@ -250,8 +360,8 @@ Sort order directions.
 
 ```typescript
 enum EFilterOrderDirection {
-	ASC = "ASC",
-	DESC = "DESC",
+	ASC = "asc",
+	DESC = "desc",
 }
 ```
 
@@ -264,11 +374,31 @@ DTO types for requests and responses.
 ```typescript
 enum EApiDtoType {
 	BODY = "body",
+	PARAMETERS = "parameters",
 	QUERY = "query",
-	PARAM = "param",
 	RESPONSE = "response",
 }
 ```
+
+Use `PARAMETERS` for path parameters. The old `PARAM` name is not part of the current strict contract.
+
+### EApiFunctionTransactionMode
+
+Transaction modes for built-in and custom `ApiFunction` decorators.
+
+```typescript
+enum EApiFunctionTransactionMode {
+	MANDATORY = "MANDATORY",
+	NONE = "NONE",
+	REQUIRED = "REQUIRED",
+	SUPPORTS = "SUPPORTS",
+}
+```
+
+- `SUPPORTS` joins an active transaction if present and otherwise runs without one.
+- `REQUIRED` joins an active transaction or opens a new one.
+- `MANDATORY` requires an active transaction.
+- `NONE` requires no active transaction.
 
 ### EApiControllerRequestTransformerType
 
@@ -276,8 +406,8 @@ Request transformer types.
 
 ```typescript
 enum EApiControllerRequestTransformerType {
-	STATIC = "static",
-	DYNAMIC = "dynamic",
+	DYNAMIC = "DYNAMIC",
+	STATIC = "STATIC",
 }
 ```
 
@@ -285,20 +415,139 @@ enum EApiControllerRequestTransformerType {
 
 - [Guides - Transformers](/docs/nestjs-crud-automator/guides/transformers)
 
+### EApiControllerRequestTarget
+
+Request targets for validators, transformers, and relation hydration.
+
+```typescript
+enum EApiControllerRequestTarget {
+	BODY = "BODY",
+	PARAMETERS = "PARAMETERS",
+	QUERY = "QUERY",
+}
+```
+
+### EApiControllerResponseTarget
+
+Response transformer target.
+
+```typescript
+enum EApiControllerResponseTarget {
+	RESPONSE = "RESPONSE",
+}
+```
+
 ### EApiControllerLoadRelationsStrategy
 
 Relation loading strategies.
 
 ```typescript
 enum EApiControllerLoadRelationsStrategy {
-	AUTO = "auto",
-	MANUAL = "manual",
+	AUTO = "AUTO",
+	MANUAL = "MANUAL",
 }
 ```
 
 **Related:**
 
 - [Guides - Relations](/docs/nestjs-crud-automator/guides/relations)
+
+### EApiControllerRelationReferenceShape
+
+Relation reference shapes used by request hydration and response projection.
+
+```typescript
+enum EApiControllerRelationReferenceShape {
+	OBJECT = "OBJECT",
+	SCALAR = "SCALAR",
+}
+```
+
+### EApiAuthenticationType
+
+Built-in authentication principal labels accepted by `security.authentication.type`.
+
+```typescript
+enum EApiAuthenticationType {
+	ACCOUNT = "account",
+	ADMIN = "admin",
+	MERCHANT = "merchant",
+	USER = "user",
+}
+```
+
+### EApiAuthorizationMode
+
+Authorization runtimes accepted by controller defaults and route overrides.
+
+```typescript
+enum EApiAuthorizationMode {
+	HOOKS = "hooks",
+	IAM = "iam",
+}
+```
+
+### Authorization and Policy Enums
+
+```typescript
+enum EApiAuthorizationDecisionType {
+	EXPLICIT_ALLOW = "explicit-allow",
+	EXPLICIT_DENY = "explicit-deny",
+	IMPLICIT_DENY = "implicit-deny",
+}
+
+enum EApiAuthorizationPermissionMatch {
+	ALL = "all",
+	ANY = "any",
+}
+
+enum EApiAuthorizationPrincipalType {
+	GROUP = "group",
+	OPERATOR = "operator",
+	ROLE = "role",
+	TENANT = "tenant",
+	USER = "user",
+}
+
+enum EApiPolicyEffect {
+	ALLOW = "Allow",
+	DENY = "Deny",
+}
+
+enum EApiPolicyAttachmentType {
+	ATTACHMENT = "attachment",
+	BOUNDARY = "boundary",
+}
+
+enum EApiPolicyOnType {
+	BEFORE = "Before",
+}
+
+enum EApiPolicySourceType {
+	DATABASE = "database",
+	MANAGED = "managed",
+}
+
+enum EApiPolicyStatus {
+	ACTIVE = "active",
+	ARCHIVED = "archived",
+	DRAFT = "draft",
+	PUBLISHED = "published",
+}
+```
+
+### Utility and Validator Enums
+
+The package also exports large utility enum families used by generated errors, manual DTO metadata, and validators:
+
+- `EApiAction`
+- `EException`
+- `EApiExceptionDetailsType`
+- `EErrorStringAction`
+- `EErrorStringCompositeAction`
+- `EManualDtoPropertyMetadataDecorator`
+- `EHasPairedCustomSuffixesFieldsArgumentType`
+- `EMastMatchOneOfSchemasValidationErrorType`
 
 ## Subscriber Enums
 
@@ -308,9 +557,10 @@ Subscriber hook timing.
 
 ```typescript
 enum EApiSubscriberOnType {
-	BEFORE = "before",
-	AFTER = "after",
-	ERROR = "error",
+	AFTER = "After",
+	AFTER_ERROR = "AfterError",
+	BEFORE = "Before",
+	BEFORE_ERROR = "BeforeError",
 }
 ```
 

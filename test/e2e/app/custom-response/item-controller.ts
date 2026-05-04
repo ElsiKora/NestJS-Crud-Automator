@@ -1,6 +1,6 @@
 import { Inject } from "@nestjs/common";
 
-import { ApiController, ApiControllerObservable, ApiControllerSecurable, EApiAuthenticationType, EApiAuthorizationMode, EApiRouteType } from "../../../../dist/esm/index";
+import { ApiController, ApiControllerObservable, ApiControllerSecurable, EApiAuthenticationType, EApiAuthorizationMode, EApiRouteType } from "../../../../src/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eEntity } from "../entity";
@@ -23,7 +23,7 @@ const authentication = {
 	path: "custom-item-response-items",
 	routes: {
 		[EApiRouteType.GET_LIST]: {
-			authentication,
+			security: { authentication },
 			dto: {
 				response: {
 					itemType: E2eCustomResponseItemDto,

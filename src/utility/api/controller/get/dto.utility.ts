@@ -36,7 +36,7 @@ export function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRout
 		return configuredDto as Type<unknown>;
 	}
 
-	return DtoGenerate(properties.entity, entity, method, dtoType, routeConfig.autoDto?.[dtoType], routeConfig.authentication?.guard);
+	return DtoGenerate(properties.entity, entity, method, dtoType, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard);
 }
 
 /**

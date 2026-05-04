@@ -1,4 +1,4 @@
-import { ApiPropertyCopy, EApiDtoType, EApiRouteType } from "../../../../dist/esm/index";
+import { ApiPropertyCopy, EApiDtoType, EApiRouteType } from "../../../../src/index";
 
 import { E2eEntity } from "../entity";
 

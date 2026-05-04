@@ -7,10 +7,12 @@ import type { TApiFunctionGetListProperties } from "@type/decorator/api/function
 import type { EntityManager, Repository } from "typeorm";
 import type { FindManyOptions } from "typeorm/index";
 
+import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
-import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
+import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
 import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -26,39 +28,47 @@ import { LoggerUtility } from "@utility/logger.utility";
  */
 export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
+	const transactionMode: EApiFunctionTransactionMode = properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 
 	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
-		descriptor.value = async function (this: { repository: Repository<E> }, getListProperties: TApiFunctionGetListProperties<E>, eventManager?: EntityManager): Promise<IApiGetListResponseResult<E>> {
-			const entityInstance: E = new entity();
+		descriptor.value = async function (this: { repository: Repository<E> }, getListProperties: TApiFunctionGetListProperties<E>): Promise<IApiGetListResponseResult<E>> {
+			return await ApiFunctionExecuteWithTransaction({
+				callback: async (eventManager: EntityManager | undefined): Promise<IApiGetListResponseResult<E>> => {
+					const entityInstance: E = new entity();
 
-			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetListProperties<E>> = {
-				DATA: { eventManager, getListProperties, repository: this.repository },
-				ENTITY: entityInstance,
-				FUNCTION_TYPE: EApiFunctionType.GET_LIST,
-				result: getListProperties,
-			};
+					const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetListProperties<E>> = {
+						DATA: { eventManager, getListProperties, repository: this.repository },
+						ENTITY: entityInstance,
+						FUNCTION_TYPE: EApiFunctionType.GET_LIST,
+						result: getListProperties,
+					};
 
-			const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE, executionContext);
+					const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE, executionContext);
 
-			if (result) {
-				executionContext.result = result;
-			}
+					if (result) {
+						executionContext.result = result;
+					}
 
-			const repository: Repository<E> = this.repository;
+					const repository: Repository<E> = this.repository;
 
-			if (!repository) {
-				const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-					DATA: { eventManager, getListProperties, repository: this.repository },
-					ENTITY: entityInstance,
-					FUNCTION_TYPE: EApiFunctionType.GET_LIST,
-				};
+					if (!repository) {
+						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
+							DATA: { eventManager, getListProperties, repository: this.repository },
+							ENTITY: entityInstance,
+							FUNCTION_TYPE: EApiFunctionType.GET_LIST,
+						};
 
-				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Repository is not available in this context"));
+						await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Repository is not available in this context"));
 
-				throw ErrorException("Repository is not available in this context");
-			}
+						throw ErrorException("Repository is not available in this context");
+					}
 
-			return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, eventManager, properties: executionContext.result ?? ({} as unknown as TApiFunctionGetListProperties<E>), repository });
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? ({} as unknown as TApiFunctionGetListProperties<E>), repository });
+				},
+				entity,
+				mode: transactionMode,
+				repository: this.repository,
+			});
 		};
 
 		return descriptor;
@@ -92,7 +102,8 @@ function calculateCurrentPage<E extends IApiBaseEntity>(properties: TApiFunction
  * @throws {InternalServerErrorException} If the list retrieval operation fails
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListExecutorProperties<E>): Promise<IApiGetListResponseResult<E>> {
-	const { constructor, entity, eventManager, properties, repository }: IApiFunctionGetListExecutorProperties<E> = options;
+	const { constructor, entity, properties, repository }: IApiFunctionGetListExecutorProperties<E> = options;
+	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.get<E>()?.eventManager;
 
 	try {
 		let items: Array<E>;

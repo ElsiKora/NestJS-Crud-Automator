@@ -2,10 +2,11 @@ import { Module } from "@nestjs/common";
 import { APP_PIPE } from "@nestjs/core";
 import { TypeOrmModule } from "@nestjs/typeorm";
 
-import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../dist/esm/index";
+import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../src/index";
 
 import { E2eBrokenController, E2eBrokenService } from "./broken";
 import { E2eCopyController } from "./copy";
+import { E2eCustomRouteController, E2eCustomRouteSubscriber } from "./custom-route";
 import { E2eCustomItemResponseController, E2eCustomResponseController } from "./custom-response";
 import { TestAuthGuard } from "./auth-guard";
 import { E2eController } from "./controller";
@@ -22,7 +23,7 @@ import { E2eTransformerErrorController } from "./transformer-error";
 import { E2eValidationPipe } from "./validation-pipe";
 
 @Module({
-	controllers: [E2eController, E2eCustomResponseController, E2eCustomItemResponseController, E2eFunctionController, E2eBrokenController, E2eCopyController, E2eManualController, E2eTransformerErrorController, E2eOwnerController],
+	controllers: [E2eController, E2eCustomResponseController, E2eCustomItemResponseController, E2eCustomRouteController, E2eFunctionController, E2eBrokenController, E2eCopyController, E2eManualController, E2eTransformerErrorController, E2eOwnerController],
 	imports: [
 		TypeOrmModule.forRoot({
 			database: ":memory:",
@@ -50,6 +51,7 @@ import { E2eValidationPipe } from "./validation-pipe";
 		TestAuthGuard,
 		E2ePolicySubscriber,
 		E2eOwnerPolicySubscriber,
+		E2eCustomRouteSubscriber,
 		E2eFunctionSubscriber,
 		E2eFunctionPrioritySubscriber,
 		E2eRouteSubscriber,

@@ -350,11 +350,18 @@ IApiSubscriberExecutionContext<E, Result, Input>;
 ### Common Result Types
 
 ```typescript
-// Create operation (function + route before)
-TApiFunctionCreateProperties<E> = { body: DeepPartial<E> };
+// Function create before hook
+TApiFunctionCreateProperties<E> = DeepPartial<E>;
 
-// Update operation (function + route before)
-TApiFunctionUpdateProperties<E> = { body: DeepPartial<E> };
+// Function update before hook
+TApiFunctionUpdateProperties<E> = DeepPartial<E>;
+
+// Route create/update before hooks
+TApiControllerRequestProperties<E> = {
+	body?: DeepPartial<E>;
+	parameters?: Partial<E>;
+	query?: TApiControllerGetListQuery<E>;
+};
 
 // Get operation (function + route after)
 E; // The entity itself
@@ -425,7 +432,7 @@ async onBeforeCreate(
       { name: "programming" },
     ]);
 
-    context.result.body.tags = tags;
+    context.result.tags = tags;
   }
 
   return context.result;

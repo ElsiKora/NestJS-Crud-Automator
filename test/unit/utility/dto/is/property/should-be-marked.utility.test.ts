@@ -48,7 +48,7 @@ describe("DtoIsPropertyShouldBeMarked", () => {
 	});
 
 	it("marks primary keys for request DTOs", () => {
-		const result = DtoIsPropertyShouldBeMarked(EApiRouteType.GET, EApiDtoType.REQUEST, "id", stringMetadata, true);
+		const result = DtoIsPropertyShouldBeMarked(EApiRouteType.GET, EApiDtoType.PARAMETERS, "id", stringMetadata, true);
 
 		expect(result).toBe(true);
 	});

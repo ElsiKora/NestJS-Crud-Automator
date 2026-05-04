@@ -1,6 +1,6 @@
 # Function Decorators
 
-Function decorators wrap repository operations inside services, applying DTO validation, subscriber hooks, and standardized error handling for every CRUD action.
+Function decorators wrap repository operations inside services, applying DTO validation, subscriber hooks, transaction boundaries, and standardized error handling for CRUD and custom service actions.
 
 ## Available decorators
 
@@ -8,17 +8,40 @@ Function decorators wrap repository operations inside services, applying DTO val
 | --------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@ApiFunction`        | Entry point that selects the correct CRUD decorator based on `type`.                     | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function)                   |
 | `@ApiFunctionCreate`  | Persists new records with subscriber before/after hooks and error propagation.           | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-create](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-create)     |
-| `@ApiFunctionDelete`  | Deletes records using criteria DTOs, handling transactional repositories when provided.  | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-delete](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-delete)     |
+| `@ApiFunctionCustom`  | Wraps custom service commands with function subscribers, context operations, and transaction modes. | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-custom](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-custom)     |
+| `@ApiFunctionDelete`  | Deletes records using criteria DTOs and the active transaction context when present.     | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-delete](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-delete)     |
 | `@ApiFunctionGet`     | Fetches a single entity instance with guard-friendly errors.                             | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get)           |
 | `@ApiFunctionGetList` | Retrieves paginated collections with filtering, sorting, and projection metadata.        | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-list](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-list) |
 | `@ApiFunctionGetMany` | Optimized multi-record fetch that returns arrays, including empty results.               | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-many](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-many) |
-| `@ApiFunctionUpdate`  | Updates entities with DTO validation, transactional repository support, and subscribers. | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-update](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-update)     |
+| `@ApiFunctionUpdate`  | Updates entities with DTO validation, ambient transaction support, and subscribers.      | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-update](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-update)     |
+
+## Transaction modes
+
+All built-in function decorators and `@ApiFunctionCustom` support `transaction.mode`:
+
+```typescript
+@ApiFunction<PostEntity>({
+	entity: PostEntity,
+	type: EApiFunctionType.CREATE,
+	transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+})
+async createPost(properties: TApiFunctionCreateProperties<PostEntity>) {
+	return {} as PostEntity;
+}
+```
+
+- `SUPPORTS` is the default. It joins an active `ApiFunction` transaction when one exists and otherwise runs without opening one.
+- `REQUIRED` joins an active transaction or opens a new TypeORM transaction for the full decorated function lifecycle.
+- `MANDATORY` requires an active transaction and fails before the operation when none exists.
+- `NONE` requires no active transaction and fails before the operation when one exists.
+
+Transaction managers are no longer public method arguments. Decorated methods keep clean signatures; subscribers receive the active manager on `context.DATA.eventManager`, and custom functions can use `this.getApiFunctionContext()` from `ApiServiceBase` to access `context.operations` and transactional repositories.
 
 ## Usage guidelines
 
 1. Ensure the decorated service exposes a `repository` property compatible with TypeORM repositories.
 2. Choose the specific decorator when you want direct control, or use `@ApiFunction` with `type` to route automatically.
-3. Pass `EntityManager` instances into decorated methods when wrapping operations inside explicit transactions.
+3. Use `transaction.mode` and nested decorated calls to share transaction scope. Do not pass `EntityManager` as a public method argument.
 
 ## Related resources
 

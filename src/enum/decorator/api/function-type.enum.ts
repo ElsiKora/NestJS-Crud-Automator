@@ -1,5 +1,6 @@
 export enum EApiFunctionType {
 	CREATE = "create",
+	CUSTOM = "custom",
 	DELETE = "delete",
 	GET = "get",
 	GET_LIST = "getList",

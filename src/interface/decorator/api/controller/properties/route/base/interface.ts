@@ -1,14 +1,10 @@
 import type { EApiRouteType } from "@enum/decorator/api";
-import type { IApiControllerPropertiesRouteAuthentication, IApiControllerPropertiesRouteBaseRequest, IApiControllerPropertiesRouteBaseResponse } from "@interface/decorator/api";
-
-import type { IApiControllerRouteAuthorizationProperties } from "./authorization.interface";
+import type { IApiControllerPropertiesRouteBaseGeneration, IApiControllerPropertiesRouteBaseRelations, IApiControllerPropertiesRouteBaseRequest, IApiControllerPropertiesRouteBaseResponse, IApiControllerPropertiesRouteBaseSecurity } from "@interface/decorator/api";
 
 export interface IApiControllerPropertiesRouteBase<E, R extends EApiRouteType> {
-	authentication?: IApiControllerPropertiesRouteAuthentication;
-	authorization?: IApiControllerRouteAuthorizationProperties;
-	decorators?: Array<MethodDecorator> | Array<PropertyDecorator>;
-	isEnabled?: boolean;
+	generation?: IApiControllerPropertiesRouteBaseGeneration;
+	relations?: IApiControllerPropertiesRouteBaseRelations<E>;
 	request?: IApiControllerPropertiesRouteBaseRequest<E, R>;
 	response?: IApiControllerPropertiesRouteBaseResponse<E, R>;
-	shouldWriteToController?: boolean;
+	security?: IApiControllerPropertiesRouteBaseSecurity;
 }

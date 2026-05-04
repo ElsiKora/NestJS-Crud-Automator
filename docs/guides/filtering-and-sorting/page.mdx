@@ -223,23 +223,23 @@ This returns active users aged 18 or older with "john" in their username.
 Sort by a single field:
 
 ```
-GET /users?orderBy=createdAt&orderDirection=DESC
+GET /users?orderBy=createdAt&orderDirection=desc
 ```
 
 Available directions:
 
-- `ASC` - Ascending order
-- `DESC` - Descending order
+- `asc` - Ascending order
+- `desc` - Descending order
 
 ### Multiple Field Sort
 
-Sort by multiple fields (comma-separated):
+Generated GET_LIST routes accept one `orderBy` field and one `orderDirection` value. Comma-separated multi-sort is not part of the current public contract.
 
 ```
-GET /users?orderBy=role,createdAt&orderDirection=ASC,DESC
+GET /users?orderBy=createdAt&orderDirection=desc
 ```
 
-This sorts first by role (ascending), then by createdAt (descending).
+Use a custom service method when an endpoint needs multi-column ordering.
 
 ## Programmatic Usage
 
@@ -248,26 +248,17 @@ Use filters programmatically in services:
 ```typescript filename="user.service.ts" copy
 import { EFilterOperation } from "@elsikora/nestjs-crud-automator";
 
-const users = await userService.getList(
-	{
-		where: {
-			username: {
-				operator: EFilterOperation.CONT,
-				value: "john",
-			},
-			age: {
-				operator: EFilterOperation.GTE,
-				value: 18,
-			},
-		},
-		order: {
-			createdAt: "DESC",
-		},
-		limit: 10,
-		page: 1,
+const users = await userService.getList({
+	where: {
+		username: ILike("%john%"),
+		age: MoreThanOrEqual(18),
 	},
-	{},
-);
+	order: {
+		createdAt: "DESC",
+	},
+	take: 10,
+	skip: 0,
+});
 ```
 
 ## Configuring Filters
@@ -280,10 +271,15 @@ Control which properties can be filtered in entity configuration:
   type: EApiPropertyDescribeType.STRING,
   description: "Internal admin notes",
   format: EApiPropertyStringType.STRING,
-  dto: {
-    query: {
-      getList: {
-        isExposedAsFilter: false, // Cannot be used in filters
+  minLength: 0,
+  maxLength: 500,
+  pattern: "/^[\\s\\S]{0,500}$/",
+  exampleValue: "Internal note",
+  properties: {
+    [EApiRouteType.GET_LIST]: {
+      [EApiDtoType.QUERY]: {
+        isEnabled: false, // Cannot be used in generated list filters
+        useAsOrderByFilter: false,
       },
     },
   },
@@ -326,6 +322,10 @@ Ensure frequently filtered fields are indexed:
   type: EApiPropertyDescribeType.STRING,
   description: "Username",
   format: EApiPropertyStringType.STRING,
+  minLength: 3,
+  maxLength: 50,
+  pattern: "/^[a-zA-Z0-9_-]+$/",
+  exampleValue: "john_doe",
 })
 username: string;
 ```

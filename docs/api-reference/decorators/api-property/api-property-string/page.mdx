@@ -19,11 +19,13 @@ Provides comprehensive Swagger, validation, and transformation support for strin
 | `isRequired`, `isNullable`, `isResponse`, `isExpose` | Control optionality, Swagger metadata, and serialization.                                                                                                             |
 | `exampleValue`                                       | Single value or array; validated against the regex/length constraints.                                                                                                |
 
+Use `GetDefaultStringFormatProperties(format)` when you want the package defaults for built-in formats instead of hand-maintaining `description`, `exampleValue`, `minLength`, `maxLength`, and `pattern`.
+
 ## Behavior
 
 - Emits `@ApiProperty` with the correct format, pattern, and example. Arrays automatically wrap the schema in `items`.
 - Adds format-specific validators pulled from `class-validator` (e.g., `IsEmail`, `IsPhoneNumber`, `IsStrongPassword`, `IsJWT`, `IsHexColor`).
-- Registers request validators (`Matches`, `Length`, `IsOptional`, array validators) unless `isResponse` is `true`.
+- Registers request validators (`Matches`, `Length`, presence guards, array validators) unless `isResponse` is `true`.
 - Applies `ApiResponseProperty`, `Expose`, or `Exclude` on response DTOs.
 
 ## Example
@@ -31,23 +33,25 @@ Provides comprehensive Swagger, validation, and transformation support for strin
 ```typescript
 class UserDto {
 	@ApiPropertyString({
-		entity: () => UserEntity,
-		description: "Email address",
+		entity: UserEntity,
 		format: EApiPropertyStringType.EMAIL,
-		minLength: 5,
-		maxLength: 255,
-		pattern: "/^[\\w.-]+@([\\w-]+\\.)+[\\w-]{2,}$/",
+		...GetDefaultStringFormatProperties(EApiPropertyStringType.EMAIL),
 		isRequired: true,
 	})
 	email!: string;
 
 	@ApiPropertyString({
-		entity: () => UserEntity,
+		entity: UserEntity,
 		description: "Tags",
 		format: EApiPropertyStringType.SLUG,
+		minLength: 1,
+		maxLength: 64,
+		pattern: "/^[a-z0-9-]+$/",
+		exampleValue: ["api", "docs"],
 		isArray: true,
 		minItems: 1,
 		maxItems: 5,
+		isUniqueItems: true,
 	})
 	tags!: Array<string>;
 }

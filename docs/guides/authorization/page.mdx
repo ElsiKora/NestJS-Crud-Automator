@@ -5,7 +5,7 @@ NestJS CRUD Automator ships with a single authorization pipeline and two first-c
 - `hooks`: entity-scoped `@ApiAuthorizationPolicy({ entity })` classes
 - `iam`: storage-agnostic policy attachments and IAM documents
 
-`@ApiControllerSecurable()` is marker-only. It enables the authorization pipeline for a controller, but the selected mode and all authorization configuration live in `@ApiController({ authorization: ... })`. A route can override the controller default with `routes[routeType].authorization.mode`, but each route still runs in exactly one mode.
+`@ApiControllerSecurable()` is marker-only. It enables the authorization pipeline for a controller, but the selected mode and all authorization configuration live in `@ApiController({ authorization: ... })`. A generated route can override the controller default with `routes[routeType].security.authorization.mode`. `@ApiMethod` custom routes use `metadata.security.authorization.mode`, while `@ApiRouteCustom` uses top-level `security.authorization.mode`. Each route still runs in exactly one mode.
 
 ## Module Setup
 
@@ -26,6 +26,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import {
 	ApiAuthorizationModule,
 	EApiAuthorizationPrincipalType,
+	EApiPolicyEffect,
 	EApiPolicySourceType,
 	AuthorizationResolveDefaultPrincipal,
 } from "@elsikora/nestjs-crud-automator";
@@ -67,8 +68,8 @@ const iamDocumentSource: IApiPolicyDocumentSource = {
 								"resource.operatorId": "operator-1",
 							},
 						},
-						Effect: "Allow",
-						Resource: ["gameport:admin:item/{id}"],
+						Effect: EApiPolicyEffect.ALLOW,
+						Resource: ["gameport:admin:item/*"],
 						Sid: "AllowOperatorItems",
 					},
 				],
@@ -247,13 +248,7 @@ import {
 	},
 	entity: UserEntity,
 	path: "users",
-	routes: {
-		[EApiRouteType.GET_LIST]: {
-			authorization: {
-				mode: EApiAuthorizationMode.IAM,
-			},
-		},
-	},
+	routes: {},
 })
 export class UserController {
 	constructor(public service: UserService) {}
@@ -268,10 +263,7 @@ Bootstrap validation fails fast when:
 
 ## Runtime authorization actions
 
-`@ApiMethod(...)` uses two separate action concepts:
-
-- `action` is a documentation hint used for generated Swagger summaries and descriptions
-- `authorization.action` is the runtime authorization action string used by hooks and IAM
+`@ApiMethod(...)` uses one route action identity: `metadata.resource.action`. Generated CRUD routes also carry `metadata.route.type` for built-in CRUD/IAM mapping.
 
 Auto-generated CRUD routes receive built-in runtime actions automatically:
 
@@ -286,22 +278,30 @@ Custom secured routes should declare their own domain action strings:
 
 ```typescript filename="controllers/user.controller.ts" copy
 @ApiMethod<UserEntity>({
-	action: EApiAction.UPDATE,
-	authorization: {
-		action: "update.promote",
+	metadata: {
+		resource: {
+			action: "update.promote",
+			entity: UserEntity,
+		},
+		route: {
+			method: RequestMethod.POST,
+			path: ":id/promote",
+		},
+		security: {
+			authorization: { mode: EApiAuthorizationMode.HOOKS },
+		},
+		response: {
+			status: HttpStatus.OK,
+			type: UserResponseDto,
+		},
 	},
-	entity: UserEntity,
-	httpCode: HttpStatus.OK,
-	method: RequestMethod.POST,
-	path: ":id/promote",
-	responseType: UserResponseDto,
 })
 public promote(@Param("id") id: string) {
 	return this.service.promote(id);
 }
 ```
 
-That same `authorization.action` value is what hooks receive as `context.action` and what IAM turns into a namespaced action such as `admin:user:update.promote`.
+That same `metadata.resource.action` value is what hooks receive as `context.action` and what IAM turns into a namespaced action such as `admin:user:update.promote`.
 
 ## Hooks Mode
 
@@ -339,7 +339,9 @@ export class UserHooksPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 	}
 
 	public onBeforeGetList(context: TApiAuthorizationPolicyBeforeGetListContext<UserEntity>) {
-		if (context.query.filters?.operatorId && context.query.filters.operatorId !== this.getOperatorId(context.principal)) {
+		const requestedOperatorId = context.query.operatorId as string | undefined;
+
+		if (requestedOperatorId && requestedOperatorId !== this.getOperatorId(context.principal)) {
 			return [];
 		}
 
@@ -370,7 +372,7 @@ export class UserHooksPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 }
 ```
 
-Generated CRUD routes dispatch to CRUD hooks such as `onBeforeGetList` or `onBeforeUpdate` by internal `routeType`. Custom `@ApiMethod(...)` routes do not use CRUD hook names; handle them in `getCustomActionRule(action, context)` instead:
+Generated CRUD routes dispatch to CRUD hooks such as `onBeforeGetList` or `onBeforeUpdate` by internal `routeType`. Custom `@ApiMethod(...)` and `@ApiRouteCustom(...)` routes without `metadata.route.type` do not use CRUD hook names; handle them in `getCustomActionRule(action, context)` instead:
 
 ```typescript filename="policies/user-hooks.policy.ts" copy
 public getCustomActionRule(action: string) {
@@ -408,6 +410,24 @@ Permission helpers compare required permissions against the permissions returned
 If you need custom checks outside a policy class, use `AuthorizationPermissionMatches()` and `AuthorizationPermissionSetMatches()`.
 
 Policy caching remains available in hooks mode through `ApiAuthorizationPolicyRegistry.configureCache()` or per policy with the `cache` option. Leave caching disabled when a policy depends on request-specific data.
+
+When policy rule data changes at runtime, inject `ApiAuthorizationCacheInvalidationService` and invalidate either the full policy registry cache or only one entity scope. This does not clear permission, IAM attachment, IAM document, or custom principal resolver caches; clear those through their owning resolver/service when their backing data changes:
+
+```typescript
+@Injectable()
+export class PermissionAdminService {
+	constructor(
+		private readonly cacheInvalidation: ApiAuthorizationCacheInvalidationService,
+		private readonly hookPermissionResolver: ApiAuthorizationHookPermissionResolver,
+	) {}
+
+	async revokeUserPermission(userId: string, permission: string): Promise<void> {
+		await this.permissionRepository.delete({ userId, permission });
+		this.cacheInvalidation.invalidate(UserEntity);
+		this.hookPermissionResolver.clear();
+	}
+}
+```
 
 ## IAM Mode
 
@@ -459,6 +479,7 @@ import { ApiController, ApiControllerSecurable, EApiAuthorizationMode } from "@e
 	},
 	entity: ItemEntity,
 	path: "items",
+	routes: {},
 })
 export class ItemController {
 	constructor(public service: ItemService) {}
@@ -473,7 +494,7 @@ Generated CRUD actions are normalized to IAM-friendly names inside the configure
 - `update` / `partialUpdate` -> `<policyNamespace>:update`
 - `delete` -> `<policyNamespace>:delete`
 
-Custom `@ApiMethod(...)` actions pass through unchanged after the namespace. For example, `authorization.action: "update.promote"` becomes `admin:item:update.promote` when `policyNamespace` is `admin:item`.
+Custom `@ApiMethod(...)` actions pass through unchanged after the namespace. For example, `resource.action: "update.promote"` becomes `admin:item:update.promote` when `policyNamespace` is `admin:item`.
 
 `queryPath` may be nested, such as `operator.id`, when your repository filter shape uses relations. The query planner now safely compiles both `resource.id` and relation-backed paths such as `resource.operatorId` for `GET` and `GET_LIST`.
 
@@ -524,8 +545,8 @@ export const documentSource: IApiPolicyDocumentSource = {
 								"resource.operatorId": "operator-1",
 							},
 						},
-						Effect: "Allow",
-						Resource: ["gameport:admin:item/{id}"],
+						Effect: EApiPolicyEffect.ALLOW,
+						Resource: ["gameport:admin:item/*"],
 						Sid: id,
 					},
 				],
@@ -552,7 +573,7 @@ const document = {
 					"request.body.operator": "${principal.attributes.operatorId}",
 				},
 			},
-			Effect: "Allow",
+			Effect: EApiPolicyEffect.ALLOW,
 			Resource: ["gameport:admin:item/*"],
 		},
 		{
@@ -563,7 +584,7 @@ const document = {
 					"resource.operatorId": "${principal.attributes.operatorId}",
 				},
 			},
-			Effect: "Allow",
+			Effect: EApiPolicyEffect.ALLOW,
 			Resource: ["gameport:admin:item/*"],
 		},
 	],
@@ -610,6 +631,7 @@ const decision = await simulator.evaluate({
 	authorization: itemAuthorization,
 	entity: ItemEntity,
 	principal,
+	routeType: EApiRouteType.GET_LIST,
 	requestMetadata: {
 		query: {
 			limit: 20,

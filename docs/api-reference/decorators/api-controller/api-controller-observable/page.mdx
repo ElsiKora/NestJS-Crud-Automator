@@ -17,9 +17,9 @@ Marks a controller as observable so its CRUD lifecycle emits events to route sub
 ## Usage example
 
 ```typescript
-@Controller("posts")
 @ApiController({
 	entity: PostEntity,
+	path: "posts",
 	routes: {
 		/* ... */
 	},

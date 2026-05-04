@@ -28,11 +28,6 @@ export class PostEntity {
 	@ApiPropertyDescribe({
 		type: EApiPropertyDescribeType.RELATION,
 		description: "Post author",
-		relationMetadata: {
-			relationType: "many-to-one",
-			entity: UserEntity,
-			isEager: false,
-		},
 	})
 	author: UserEntity;
 
@@ -43,12 +38,6 @@ export class PostEntity {
 	@ApiPropertyDescribe({
 		type: EApiPropertyDescribeType.RELATION,
 		description: "Post comments",
-		isArray: true,
-		relationMetadata: {
-			relationType: "one-to-many",
-			entity: CommentEntity,
-			isEager: false,
-		},
 	})
 	comments: CommentEntity[];
 }
@@ -61,35 +50,34 @@ export class PostEntity {
 Configure automatic relation loading in controller routes:
 
 ```typescript filename="post.controller.ts" copy
-import { ApiController, EApiRouteType, EApiControllerLoadRelationsStrategy } from "@elsikora/nestjs-crud-automator";
+import { ApiController, EApiRouteType, EApiControllerLoadRelationsStrategy, EApiControllerRelationReferenceShape } from "@elsikora/nestjs-crud-automator";
 
-@Controller("posts")
 @ApiController<PostEntity>({
 	entity: PostEntity,
+	path: "posts",
 	routes: {
-		[EApiRouteType.GET]: {
-			request: {
-				relations: {
-					shouldLoadRelations: true,
-					relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					relationsToLoad: ["author", "comments"],
+		[EApiRouteType.CREATE]: {
+			relations: {
+				request: {
+					reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
+					load: {
+						shouldLoad: true,
+						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+					},
 				},
-			},
-			response: {
-				relations: ["author", "comments"],
+				response: {
+					reference: { shape: EApiControllerRelationReferenceShape.OBJECT, key: "id" },
+					load: { include: { author: true, comments: true } },
+				},
 			},
 		},
 		[EApiRouteType.GET_LIST]: {
-			request: {
-				relations: {
-					shouldLoadRelations: true,
-					relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					relationsToLoad: ["author"],
+			relations: {
+				response: {
+					reference: { shape: EApiControllerRelationReferenceShape.OBJECT, key: "id" },
+					load: { include: { author: true } },
 				},
-			},
-			response: {
-				relations: ["author"],
 			},
 		},
 	},
@@ -98,7 +86,6 @@ export class PostController {
 	constructor(
 		public service: PostService,
 		public authorService: UserService,
-		public commentsService: CommentService,
 	) {}
 }
 ```
@@ -109,33 +96,33 @@ Specify exactly which relations to load:
 
 ```typescript
 routes: {
-  [EApiRouteType.GET]: {
-    request: {
-      relations: {
-        shouldLoadRelations: true,
-        relationsLoadStrategy: EApiControllerLoadRelationsStrategy.MANUAL,
-        relationsToLoad: ["author"],
+  [EApiRouteType.CREATE]: {
+    relations: {
+      request: {
+        reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
+        load: {
+          shouldLoad: true,
+          relationStrategy: EApiControllerLoadRelationsStrategy.MANUAL,
+          relations: ["author"],
+        },
       },
     },
   },
 }
 ```
 
-### Nested Relations
+### Nested Response Relations
 
-Load nested relations (relations of relations):
+Use nested `response.load.include` objects when a GET/GET_LIST response should include relations of relations. Request-side relation hydration reads direct relation property names from request bodies for CREATE, UPDATE/PARTIAL_UPDATE, and `@ApiRouteCustom` body payloads. It does not hydrate GET/DELETE route parameters.
 
 ```typescript
 routes: {
-  [EApiRouteType.GET]: {
-    request: {
-      relations: {
-        shouldLoadRelations: true,
-        relationsToLoad: ["author", "author.profile", "comments", "comments.author"],
+  [EApiRouteType.GET_LIST]: {
+    relations: {
+      response: {
+        reference: { shape: EApiControllerRelationReferenceShape.OBJECT, key: "id" },
+        load: { include: { author: { profile: true }, comments: { author: true } } },
       },
-    },
-    response: {
-      relations: ["author", "author.profile", "comments", "comments.author"],
     },
   },
 }
@@ -148,7 +135,7 @@ routes: {
 Automatically detects and loads configured relations:
 
 ```typescript
-relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO;
+relationStrategy: EApiControllerLoadRelationsStrategy.AUTO;
 ```
 
 ### `MANUAL` Strategy
@@ -156,7 +143,7 @@ relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO;
 Only loads explicitly specified relations:
 
 ```typescript
-relationsLoadStrategy: EApiControllerLoadRelationsStrategy.MANUAL;
+relationStrategy: EApiControllerLoadRelationsStrategy.MANUAL;
 ```
 
 ## Service Injection for Relations
@@ -164,15 +151,19 @@ relationsLoadStrategy: EApiControllerLoadRelationsStrategy.MANUAL;
 Inject related services to enable relation loading:
 
 ```typescript filename="post.controller.ts" copy
-@Controller("posts")
 @ApiController<PostEntity>({
 	entity: PostEntity,
+	path: "posts",
 	routes: {
-		[EApiRouteType.GET]: {
-			request: {
-				relations: {
-					shouldLoadRelations: true,
-					relationsToLoad: ["author", "comments"],
+		[EApiRouteType.CREATE]: {
+			relations: {
+				request: {
+					reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
+					load: {
+						shouldLoad: true,
+						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+					},
 				},
 			},
 		},
@@ -183,7 +174,6 @@ export class PostController {
 		public service: PostService,
 		// Inject related services
 		public authorService: UserService,
-		public commentsService: CommentService,
 	) {}
 }
 ```
@@ -201,11 +191,6 @@ Relations marked as eager are always loaded:
 @ApiPropertyDescribe({
   type: EApiPropertyDescribeType.RELATION,
   description: "Post author",
-  relationMetadata: {
-    relationType: "many-to-one",
-    entity: UserEntity,
-    isEager: true,
-  },
 })
 author: UserEntity;
 ```
@@ -219,40 +204,32 @@ Load relations only when needed:
 @ApiPropertyDescribe({
   type: EApiPropertyDescribeType.RELATION,
   description: "Post author",
-  relationMetadata: {
-    relationType: "many-to-one",
-    entity: UserEntity,
-    isEager: false,
-  },
 })
 author: UserEntity;
 ```
 
 ## Filtering by Relations
 
-Filter entities based on relation properties:
+Generated GET_LIST relation filters work on the relation property itself. For relation metadata, the runtime maps the filter value to the related entity `id`.
 
 ```
-GET /posts?author.username[operator]=eq&author.username[value]=john_doe
+GET /posts?author[operator]=eq&author[value]=550e8400-e29b-41d4-a716-446655440000
 ```
+
+Nested HTTP relation filters such as `author.username[operator]=eq` are not part of the generated query contract. Use a custom service/controller method when an endpoint needs relation-property filtering by fields other than the related `id`.
 
 ```typescript
 // Programmatic filtering by relation
-const posts = await postService.getList(
-	{
-		where: {
-			author: {
-				username: {
-					operator: EFilterOperation.EQ,
-					value: "john_doe",
-				},
-			},
+const posts = await postService.getList({
+	where: {
+		author: {
+			username: "john_doe",
 		},
-		limit: 10,
-		page: 1,
 	},
-	{ author: true },
-);
+	relations: { author: true },
+	take: 10,
+	skip: 0,
+});
 ```
 
 ## Circular Relations
@@ -266,15 +243,12 @@ export class UserEntity {
 	@ApiPropertyDescribe({
 		type: EApiPropertyDescribeType.RELATION,
 		description: "User posts",
-		isArray: true,
-		relationMetadata: {
-			relationType: "one-to-many",
-			entity: PostEntity,
-			isEager: false,
-		},
-		dto: {
-			response: {
-				isExposed: false, // Don't auto-load in user responses
+		properties: {
+			[EApiRouteType.GET]: {
+				[EApiDtoType.RESPONSE]: { isEnabled: false, isResponse: true },
+			},
+			[EApiRouteType.GET_LIST]: {
+				[EApiDtoType.RESPONSE]: { isEnabled: false, isResponse: true },
 			},
 		},
 	})
@@ -289,15 +263,69 @@ export class PostEntity {
 	@ApiPropertyDescribe({
 		type: EApiPropertyDescribeType.RELATION,
 		description: "Post author",
-		relationMetadata: {
-			relationType: "many-to-one",
-			entity: UserEntity,
-			isEager: false,
-		},
 	})
 	author: UserEntity;
 }
 ```
+
+## Reference Shapes and Keys
+
+Request relation loading supports scalar references and object references. Configure `reference.key` when consumers identify related records by a key other than `id`:
+
+```typescript
+routes: {
+  [EApiRouteType.CREATE]: {
+    relations: {
+      request: {
+        load: { shouldLoad: true },
+        reference: {
+          key: "code",
+          shape: EApiControllerRelationReferenceShape.OBJECT,
+        },
+      },
+      response: {
+        load: { include: { author: true } },
+        reference: {
+          key: "code",
+          shape: EApiControllerRelationReferenceShape.OBJECT,
+        },
+      },
+    },
+  },
+}
+```
+
+With that configuration, `{ author: { code: "author-001" } }` is validated and hydrated before the service call. If the route uses `SCALAR`, sending an object reference fails fast with a bad request.
+
+## Custom Route Relations
+
+`@ApiRouteCustom` uses the same `relations.request` and `relations.response` contract as generated routes:
+
+```typescript
+@ApiRouteCustom<PostEntity>({
+	resource: { action: "assignAuthor", entity: PostEntity },
+	route: { method: RequestMethod.POST, path: ":id/author" },
+	relations: {
+		request: {
+			load: { shouldLoad: true },
+			reference: { key: "id", shape: EApiControllerRelationReferenceShape.SCALAR },
+		},
+		response: {
+			load: { include: { author: true } },
+			reference: { key: "id", shape: EApiControllerRelationReferenceShape.SCALAR },
+		},
+	},
+	response: {
+		status: HttpStatus.OK,
+		type: PostEntity,
+	},
+})
+async assignAuthor(@Body() body: Partial<PostEntity>): Promise<PostEntity> {
+	return await this.service.assignAuthor(body);
+}
+```
+
+Request relations are hydrated before the handler runs. Response relations can be reloaded and projected for single entities, arrays, and get-list style `{ items }` envelopes. Generated CREATE reloads the created entity with configured response relations; UPDATE and PARTIAL_UPDATE reload only when response relation loading is configured; DELETE returns no response body to project.
 
 ## Performance Optimization
 
@@ -307,17 +335,17 @@ Avoid N+1 queries by loading relations efficiently:
 
 ```typescript
 // Bad: Causes N+1 queries
-const posts = await postService.getList({ limit: 100 }, {});
+const posts = await postService.getList({ take: 100 });
 for (const post of posts.items) {
 	// Each iteration causes a separate query
 	const author = await post.author;
 }
 
 // Good: Load relations upfront
-const posts = await postService.getList(
-	{ limit: 100 },
-	{ author: true }, // Load all authors in one query
-);
+const posts = await postService.getList({
+	relations: { author: true },
+	take: 100,
+});
 ```
 
 ### Selective Loading
@@ -327,19 +355,24 @@ Only load relations when needed:
 ```typescript
 routes: {
   [EApiRouteType.GET_LIST]: {
-    // Don't load relations for list view
-    request: {
-      relations: {
-        shouldLoadRelations: false,
+    // Don't reload response relations for list view
+    relations: {
+      response: {
+        reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
+        load: {
+          include: {},
+        },
       },
     },
   },
   [EApiRouteType.GET]: {
-    // Load relations for detail view
-    request: {
-      relations: {
-        shouldLoadRelations: true,
-        relationsToLoad: ["author", "comments"],
+    // Reload response relations for detail view
+    relations: {
+      response: {
+        reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
+        load: {
+          include: { author: true, comments: true },
+        },
       },
     },
   },
@@ -373,12 +406,6 @@ Handle many-to-many relations:
 @ApiPropertyDescribe({
   type: EApiPropertyDescribeType.RELATION,
   description: "Post tags",
-  isArray: true,
-  relationMetadata: {
-    relationType: "many-to-many",
-    entity: TagEntity,
-    isEager: false,
-  },
 })
 tags: TagEntity[];
 ```
@@ -390,25 +417,21 @@ Create entities with relations:
 ```typescript
 // Create post with existing author
 await postService.create({
-	body: {
-		title: "New Post",
-		content: "Post content",
-		authorId: "existing-user-uuid",
-	},
+	title: "New Post",
+	content: "Post content",
+	authorId: "existing-user-uuid",
 });
 
 // Create nested relations
 await userService.create({
-	body: {
-		username: "john_doe",
-		email: "john@example.com",
-		posts: [
-			{
-				title: "First Post",
-				content: "Content",
-			},
-		],
-	},
+	username: "john_doe",
+	email: "john@example.com",
+	posts: [
+		{
+			title: "First Post",
+			content: "Content",
+		},
+	],
 });
 ```
 

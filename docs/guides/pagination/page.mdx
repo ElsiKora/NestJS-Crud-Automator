@@ -72,7 +72,7 @@ Example response:
 Pagination works seamlessly with filtering and sorting:
 
 ```
-GET /users?limit=20&page=2&username[operator]=cont&username[value]=john&orderBy=createdAt&orderDirection=DESC
+GET /users?limit=20&page=2&username[operator]=cont&username[value]=john&orderBy=createdAt&orderDirection=desc
 ```
 
 This returns page 2 of users with "john" in username, sorted by creation date descending, 20 items per page.
@@ -98,14 +98,11 @@ export class UserReportService {
 		let hasMore = true;
 
 		while (hasMore) {
-			const result: IApiGetListResponseResult<UserEntity> = await this.userService.getList(
-				{
-					where: {},
-					limit,
-					page,
-				},
-				{},
-			);
+			const result: IApiGetListResponseResult<UserEntity> = await this.userService.getList({
+				where: {},
+				take: limit,
+				skip: (page - 1) * limit,
+			});
 
 			allUsers.push(...result.items);
 			hasMore = result.currentPage < result.totalPages;
@@ -117,23 +114,9 @@ export class UserReportService {
 }
 ```
 
-## Configuring Pagination Limits
+## Pagination Limits
 
-Set default and maximum pagination limits in controller:
-
-```typescript filename="user.controller.ts" copy
-@ApiController<UserEntity>({
-  entity: UserEntity,
-  routes: {
-    [EApiRouteType.GET_LIST]: {
-      pagination: {
-        defaultLimit: 20,
-        maxLimit: 100,
-      },
-    },
-  },
-})
-```
+Generated GET_LIST routes read `limit` and `page` from the query DTO and pass them to the service as TypeORM `take` and `skip`. There is no route-level `pagination` config in the current public contract; enforce project-specific defaults or maximums with request validators, interceptors, or a custom route/service method.
 
 ## Cursor-Based Pagination
 
@@ -230,7 +213,7 @@ export class UserService extends ApiServiceBase<UserEntity> {
 	private countCache: { value: number; timestamp: number } | null = null;
 	private readonly CACHE_TTL = 60000; // 1 minute
 
-	async getList(properties, relations) {
+	async getList(properties) {
 		const now = Date.now();
 		if (!this.countCache || now - this.countCache.timestamp > this.CACHE_TTL) {
 			const total = await this.repository.count();
@@ -239,16 +222,17 @@ export class UserService extends ApiServiceBase<UserEntity> {
 
 		// Use cached count
 		const items = await this.repository.find({
-			skip: (properties.page - 1) * properties.limit,
-			take: properties.limit,
+			relations: properties.relations,
+			skip: properties.skip,
+			take: properties.take,
 		});
 
 		return {
 			count: items.length,
-			currentPage: properties.page,
+			currentPage: properties.skip && properties.take ? Math.floor(properties.skip / properties.take) + 1 : 1,
 			items,
 			totalCount: this.countCache.value,
-			totalPages: Math.ceil(this.countCache.value / properties.limit),
+			totalPages: Math.ceil(this.countCache.value / (properties.take ?? 1)),
 		};
 	}
 }

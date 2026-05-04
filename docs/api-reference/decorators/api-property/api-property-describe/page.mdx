@@ -1,6 +1,6 @@
 # `@ApiPropertyDescribe`
 
-Central metadata decorator for entity properties. The metadata drives auto-generated DTOs, validation rules, Swagger schemas, filters, and guards.
+Central metadata decorator for entity properties. The metadata drives auto-generated DTOs, validation rules, Swagger schemas, filters, and route-specific exposure metadata.
 
 ## Signature
 
@@ -14,12 +14,14 @@ Central metadata decorator for entity properties. The metadata drives auto-gener
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `type`               | Required `EApiPropertyDescribeType` (STRING, NUMBER, BOOLEAN, DATE, ENUM, OBJECT, UUID, RELATION). Governs downstream validators and Swagger schema. |
 | `description`        | Human-readable field description appended to DTOs and Swagger docs.                                                                                  |
-| `exampleValue`       | Example displayed in Swagger and used when validating `pattern` alignment.                                                                           |
-| `dto`                | Fine-grained control over exposure in create/update/query/response DTOs, plus guard configuration for response properties.                           |
-| `relationMetadata`   | Relation-specific settings: `relationType`, related entity, `isEager`, cascade flags, etc.                                                           |
+| `exampleValue`       | Example displayed in Swagger for describe metadata that supports it. Current entity describe types include it for string and number metadata; manual property decorators expose their own example options. |
+| `isNullable`         | Marks the property as nullable in generated DTO and Swagger metadata.                                                                                |
+| `properties`         | Per-route DTO controls keyed by `EApiRouteType`, then `EApiDtoType` (`BODY`, `PARAMETERS`, `QUERY`, `RESPONSE`).                                    |
 | Type-specific fields | Each type exposes additional options (e.g., `minLength`, `format`, `enum`, `identifier`, `minimum`, `maximum`).                                      |
 
 The decorator stores values in `MetadataStorage`, allowing factory pipelines to retrieve them even when DTOs are generated lazily.
+
+For built-in string formats, `GetDefaultStringFormatProperties(format)` returns the package defaults for `description`, `exampleValue`, `minLength`, `maxLength`, and `pattern`. Spread those defaults when you want examples to stay aligned with the validator for formats such as email, URL, UUID, slug, or API key.
 
 ## Example
 
@@ -27,25 +29,29 @@ The decorator stores values in `MetadataStorage`, allowing factory pipelines to 
 @Column()
 @ApiPropertyDescribe({
 	type: EApiPropertyDescribeType.STRING,
-	description: "Display name",
-	format: EApiPropertyStringType.STRING,
-	minLength: 3,
-	maxLength: 64,
-	pattern: "/^[a-zA-Z0-9 _-]+$/",
-	dto: {
-		body: { isExposedInCreateDto: true, isRequiredInCreateDto: true },
-		response: { isExposed: true },
-		query: { getList: { isExposedAsFilter: true } },
+	format: EApiPropertyStringType.EMAIL,
+	...GetDefaultStringFormatProperties(EApiPropertyStringType.EMAIL),
+	properties: {
+		[EApiRouteType.CREATE]: {
+			[EApiDtoType.BODY]: { isRequired: true },
+			[EApiDtoType.RESPONSE]: { isExpose: true, isResponse: true },
+		},
+		[EApiRouteType.GET_LIST]: {
+			[EApiDtoType.QUERY]: { isEnabled: true, useAsOrderByFilter: true },
+			[EApiDtoType.RESPONSE]: { isExpose: true, isResponse: true },
+		},
 	},
 })
-name!: string;
+email!: string;
 ```
+
+`isExpose` is only valid when `isResponse: true`; request DTOs use `isEnabled`, `isRequired`, and `isNullable` instead. Guard classes on metadata select generated DTO variants; they are not per-request role checks.
 
 ## Best practices
 
 - Apply `@ApiPropertyDescribe` to every persistent column so DTOs remain in sync with the entity model.
 - Pair it with the property-level decorators (`@ApiPropertyString`, `@ApiPropertyNumber`, etc.) for manual DTOs or overrides.
-- Keep `exampleValue` in sync with `pattern`/range rules to avoid validation errors during bootstrapping.
+- Keep string and number `exampleValue` in sync with `pattern` or range rules to avoid validation errors during bootstrapping.
 
 ## Related resources
 

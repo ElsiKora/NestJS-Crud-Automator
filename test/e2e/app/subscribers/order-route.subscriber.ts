@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
-import { ApiRouteSubscriber, ApiRouteSubscriberBase } from "../../../../dist/esm/index";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase } from "../../../../src/index";
 
 import { E2eEntity } from "../entity";
 import { E2eRouteSubscriber } from "./route";

@@ -1,0 +1,46 @@
+# Modules
+
+Public Nest modules exported by NestJS CRUD Automator.
+
+## ApiSubscriberModule
+
+Discovers route and function subscriber providers.
+
+**Location:** `src/module/api/subscriber.module.ts`
+
+Use it once in the application module when route or function subscribers should execute:
+
+```typescript
+@Module({
+	imports: [ApiSubscriberModule],
+	providers: [PostAuditSubscriber, PostSlugSubscriber],
+})
+export class AppModule {}
+```
+
+Subscriber discovery only sees Nest provider instances. Importing the module is not enough by itself; register subscriber classes as providers and mark observed controllers/services with `@ApiControllerObservable()` or `@ApiServiceObservable()`.
+
+## ApiAuthorizationModule
+
+Wires the authorization runtime, guard, hooks policy discovery, IAM resolvers, simulator, bootstrap validation, and cache invalidation services.
+
+**Location:** `src/module/api/authorization.module.ts`
+
+```typescript
+@Module({
+	imports: [
+		ApiAuthorizationModule.forRoot({
+			hookPermissionSources: [hookPermissionSource],
+			principalResolver,
+		}),
+	],
+})
+export class AppModule {}
+```
+
+Use `forRoot(...)` for value-based configuration and `forRootAsync(...)` when principal resolvers, permission sources, IAM attachment sources, or IAM document sources come from Nest providers.
+
+## Related resources
+
+- [Authorization Guide](/docs/nestjs-crud-automator/guides/authorization)
+- [Subscriber System](/docs/nestjs-crud-automator/subscriber-system)

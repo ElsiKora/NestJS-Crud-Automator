@@ -3,6 +3,7 @@ import type { DynamicModule, Provider } from "@nestjs/common";
 
 import {
 	ApiAuthorizationBootstrapValidationService,
+	ApiAuthorizationCacheInvalidationService,
 	ApiAuthorizationEngine,
 	ApiAuthorizationGuard,
 	ApiAuthorizationHookPermissionResolver,
@@ -29,10 +30,26 @@ import { ErrorException } from "@utility/error/exception.utility";
  */
 @Global()
 @Module({
-	exports: [AUTHORIZATION_POLICY_REGISTRY_TOKEN, ApiAuthorizationBootstrapValidationService, ApiAuthorizationEngine, ApiAuthorizationGuard, ApiAuthorizationHookPermissionResolver, ApiAuthorizationIamAttachmentResolver, ApiAuthorizationIamDocumentResolver, ApiAuthorizationIamDocumentValidator, ApiAuthorizationIamEngine, ApiAuthorizationIamQueryPlanner, ApiAuthorizationPolicyDiscoveryService, ApiAuthorizationRuntime, ApiAuthorizationSimulator],
+	exports: [
+		AUTHORIZATION_POLICY_REGISTRY_TOKEN,
+		ApiAuthorizationBootstrapValidationService,
+		ApiAuthorizationCacheInvalidationService,
+		ApiAuthorizationEngine,
+		ApiAuthorizationGuard,
+		ApiAuthorizationHookPermissionResolver,
+		ApiAuthorizationIamAttachmentResolver,
+		ApiAuthorizationIamDocumentResolver,
+		ApiAuthorizationIamDocumentValidator,
+		ApiAuthorizationIamEngine,
+		ApiAuthorizationIamQueryPlanner,
+		ApiAuthorizationPolicyDiscoveryService,
+		ApiAuthorizationRuntime,
+		ApiAuthorizationSimulator,
+	],
 	imports: [DiscoveryModule],
 	providers: [
 		ApiAuthorizationBootstrapValidationService,
+		ApiAuthorizationCacheInvalidationService,
 		ApiAuthorizationEngine,
 		ApiAuthorizationGuard,
 		ApiAuthorizationHookPermissionResolver,

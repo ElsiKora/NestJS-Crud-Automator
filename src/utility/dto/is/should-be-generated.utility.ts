@@ -16,12 +16,12 @@ export const DtoIsShouldBeGenerated = (method: EApiRouteType, dtoType: EApiDtoTy
 			return [EApiRouteType.CREATE, EApiRouteType.PARTIAL_UPDATE, EApiRouteType.UPDATE].includes(method);
 		}
 
-		case EApiDtoType.QUERY: {
-			return method === EApiRouteType.GET_LIST;
+		case EApiDtoType.PARAMETERS: {
+			return [EApiRouteType.DELETE, EApiRouteType.GET, EApiRouteType.PARTIAL_UPDATE, EApiRouteType.UPDATE].includes(method);
 		}
 
-		case EApiDtoType.REQUEST: {
-			return [EApiRouteType.DELETE, EApiRouteType.GET, EApiRouteType.PARTIAL_UPDATE, EApiRouteType.UPDATE].includes(method);
+		case EApiDtoType.QUERY: {
+			return method === EApiRouteType.GET_LIST;
 		}
 
 		case EApiDtoType.RESPONSE: {

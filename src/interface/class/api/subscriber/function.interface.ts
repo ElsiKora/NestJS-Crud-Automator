@@ -8,9 +8,11 @@ import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunc
 
 export interface IApiSubscriberFunction<E extends IApiBaseEntity> extends IApiSubscriber {
 	onAfterCreate?(context: IApiSubscriberFunctionExecutionContext<E, E, IApiSubscriberFunctionExecutionContextData<E>>): Promise<E | undefined>;
+	onAfterCustom?(context: IApiSubscriberFunctionExecutionContext<E, unknown, IApiSubscriberFunctionExecutionContextData<E>>): Promise<unknown>;
 	onAfterDelete?(context: IApiSubscriberFunctionExecutionContext<E, E, IApiSubscriberFunctionExecutionContextData<E>>): Promise<E | undefined>;
 
 	onAfterErrorCreate?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
+	onAfterErrorCustom?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
 	onAfterErrorDelete?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
 
 	onAfterErrorGet?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
@@ -26,8 +28,10 @@ export interface IApiSubscriberFunction<E extends IApiBaseEntity> extends IApiSu
 	onAfterUpdate?(context: IApiSubscriberFunctionExecutionContext<E, E, IApiSubscriberFunctionExecutionContextData<E>>): Promise<E | undefined>;
 
 	onBeforeCreate?(context: IApiSubscriberFunctionExecutionContext<E, TApiFunctionCreateProperties<E>, IApiSubscriberFunctionExecutionContextData<E>>): Promise<TApiFunctionCreateProperties<E> | undefined>;
+	onBeforeCustom?(context: IApiSubscriberFunctionExecutionContext<E, unknown, IApiSubscriberFunctionExecutionContextData<E>>): Promise<unknown>;
 	onBeforeDelete?(context: IApiSubscriberFunctionExecutionContext<E, TApiFunctionDeleteCriteria<E>, IApiSubscriberFunctionExecutionContextData<E>>): Promise<TApiFunctionDeleteCriteria<E> | undefined>;
 	onBeforeErrorCreate?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
+	onBeforeErrorCustom?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
 	onBeforeErrorDelete?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
 	onBeforeErrorGet?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
 	onBeforeErrorGetList?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;

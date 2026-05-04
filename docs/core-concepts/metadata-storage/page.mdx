@@ -16,6 +16,8 @@ export class UserEntity {
 		format: EApiPropertyStringType.STRING,
 		minLength: 3,
 		maxLength: 20,
+		pattern: "/^[a-zA-Z0-9_-]+$/",
+		exampleValue: "john_doe",
 	})
 	username: string;
 }
@@ -24,9 +26,14 @@ export class UserEntity {
 Behind the scenes, `@ApiPropertyDescribe` calls:
 
 ```typescript
-MetadataStorage.getInstance().setMetadata("UserEntity", "username", "api-property-describe", {
+MetadataStorage.getInstance().setMetadata("UserEntity", "username", "API_PROPERTY_DESCRIBE_METADATA_KEY", {
 	type: EApiPropertyDescribeType.STRING,
 	description: "Username",
+	format: EApiPropertyStringType.STRING,
+	minLength: 3,
+	maxLength: 20,
+	pattern: "/^[a-zA-Z0-9_-]+$/",
+	exampleValue: "john_doe",
 	// ... other properties
 });
 ```
@@ -64,7 +71,7 @@ MetadataStorage
 Retrieve metadata for a specific property:
 
 ```typescript
-const metadata = MetadataStorage.getInstance().getMetadata("UserEntity", "username", "api-property-describe");
+const metadata = MetadataStorage.getInstance().getMetadata("UserEntity", "username", "API_PROPERTY_DESCRIBE_METADATA_KEY");
 
 // Returns:
 // {
@@ -73,6 +80,8 @@ const metadata = MetadataStorage.getInstance().getMetadata("UserEntity", "userna
 //   format: EApiPropertyStringType.STRING,
 //   minLength: 3,
 //   maxLength: 20,
+//   pattern: "/^[a-zA-Z0-9_-]+$/",
+//   exampleValue: "john_doe",
 // }
 ```
 
@@ -83,17 +92,17 @@ When an entity extends a base class, DTO generation checks metadata for the conc
 Retrieve metadata for all properties of an entity:
 
 ```typescript
-const allMetadata = MetadataStorage.getInstance().getAllMetadata("UserEntity");
+const allMetadata = MetadataStorage.getInstance().getMetadata("UserEntity");
 
 // Returns object with all properties and their metadata
 ```
 
-### Check Metadata Existence
+### Get All Registered Entities
 
-Verify if metadata exists for a property:
+Retrieve metadata for every registered entity:
 
 ```typescript
-const exists = MetadataStorage.getInstance().hasMetadata("UserEntity", "username", "api-property-describe");
+const allEntitiesMetadata = MetadataStorage.getInstance().getAllEntitiesMetadata();
 ```
 
 ## Usage in Library
@@ -112,7 +121,9 @@ When generating DTOs, the library retrieves property metadata to determine:
 ```typescript
 // Simplified example of DTO generation
 function generateDto(entityName: string) {
-	const metadata = MetadataStorage.getInstance().getAllMetadata(entityName);
+	const metadata = MetadataStorage.getInstance().getMetadata(entityName);
+
+	if (!metadata) return;
 
 	for (const [propertyName, propertyMetadata] of Object.entries(metadata)) {
 		// Apply validation decorators based on metadata
@@ -151,7 +162,7 @@ const customMetadata = storage.getMetadata("CustomEntity", "customProperty", "cu
 
 The library uses predefined metadata keys:
 
-- `api-property-describe` - Property configuration from @ApiPropertyDescribe
+- `API_PROPERTY_DESCRIBE_METADATA_KEY` - Property configuration from @ApiPropertyDescribe
 - Additional keys for internal use by specific features
 
 ## Thread Safety
@@ -174,7 +185,7 @@ To inspect stored metadata during development:
 import { MetadataStorage } from "@elsikora/nestjs-crud-automator";
 
 // Get all metadata for an entity
-const userMetadata = MetadataStorage.getInstance().getAllMetadata("UserEntity");
+const userMetadata = MetadataStorage.getInstance().getMetadata("UserEntity");
 console.log("User Entity Metadata:", JSON.stringify(userMetadata, null, 2));
 ```
 

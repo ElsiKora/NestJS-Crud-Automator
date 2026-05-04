@@ -9,7 +9,7 @@ import type { IApiAuthorizationPolicySubscriberContextData } from "./data.interf
 
 /**
  * Execution context for authorization policy hooks.
- * Includes typed DATA while keeping legacy top-level fields.
+ * Includes typed DATA and explicit route/action identity.
  */
 export interface IApiAuthorizationPolicySubscriberContext<E extends IApiBaseEntity> extends IApiAuthorizationRequestMetadata<E> {
 	action: string;
