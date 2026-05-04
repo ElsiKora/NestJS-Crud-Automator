@@ -1,9 +1,9 @@
-import type { EApiDtoType } from "@enum/decorator/api";
+import type { EApiControllerRequestTarget, EApiControllerResponseTarget } from "@enum/decorator/api";
 import type { TApiRequestTransformer } from "@type/api-request-transformer.type";
 
 export type TApiControllerTransformerConfig<E> = {
-	[EApiDtoType.BODY]?: Array<TApiRequestTransformer<E>>;
-	[EApiDtoType.QUERY]?: Array<TApiRequestTransformer<E>>;
-	[EApiDtoType.REQUEST]?: Array<TApiRequestTransformer<E>>;
-	[EApiDtoType.RESPONSE]?: Array<TApiRequestTransformer<E>>;
+	[EApiControllerRequestTarget.BODY]?: Array<TApiRequestTransformer<E>>;
+	[EApiControllerRequestTarget.PARAMETERS]?: Array<TApiRequestTransformer<E>>;
+	[EApiControllerRequestTarget.QUERY]?: Array<TApiRequestTransformer<E>>;
+	[EApiControllerResponseTarget.RESPONSE]?: Array<TApiRequestTransformer<E>>;
 };

@@ -6,6 +6,7 @@ Registers a hooks-mode authorization policy for a specific entity. Policies are 
 
 ```typescript
 @ApiAuthorizationPolicy<E extends IApiBaseEntity>({
+	cache?,
 	entity,
 	priority?,
 	policyId?,
@@ -27,8 +28,9 @@ Registers a hooks-mode authorization policy for a specific entity. Policies are 
 
 1. Extend `ApiAuthorizationPolicyBase<E>` and implement lifecycle hooks such as `onBeforeGetList`.
 2. Decorate the class with `@ApiAuthorizationPolicy({ entity })`.
-3. Import `ApiAuthorizationModule` and register `hookPermissionSources` and `principalResolver` when needed, using `forRoot(...)` for plain values or `forRootAsync(...)` for DI-backed providers.
-4. Mark controllers with `@ApiControllerSecurable()` and choose `defaultMode: EApiAuthorizationMode.HOOKS` in `@ApiController({ authorization })`.
+3. Register the policy class as a Nest provider; discovery only sees provider instances.
+4. Import `ApiAuthorizationModule` and register `hookPermissionSources` and `principalResolver` when needed, using `forRoot(...)` for plain values or `forRootAsync(...)` for DI-backed providers.
+5. Mark controllers with `@ApiControllerSecurable()` and choose `defaultMode: EApiAuthorizationMode.HOOKS` in `@ApiController({ authorization })`.
 
 This decorator has no effect in IAM mode.
 
@@ -68,7 +70,9 @@ export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 	}
 
 	public onBeforeGetList(context: TApiAuthorizationPolicyBeforeGetListContext<UserEntity>) {
-		if (context.query.filters?.operatorId && context.query.filters.operatorId !== this.getOperatorId(context.principal)) {
+		const requestedOperatorId = context.query.operatorId as string | undefined;
+
+		if (requestedOperatorId && requestedOperatorId !== this.getOperatorId(context.principal)) {
 			return [];
 		}
 
@@ -123,7 +127,7 @@ Policy hooks receive:
 
 `action` is always the runtime authorization action string. `routeType` is only populated for auto-generated CRUD routes.
 
-Custom `@ApiMethod(...)` routes do not dispatch to `onBeforeCreate`, `onBeforeUpdate`, and similar CRUD hooks. Handle them in `getCustomActionRule(action, context)` and branch on the same string you declared in `@ApiMethod({ authorization: { action: "..." } })`.
+Custom `@ApiMethod(...)` and `@ApiRouteCustom(...)` routes without `metadata.route.type` do not dispatch to `onBeforeCreate`, `onBeforeUpdate`, and similar CRUD hooks. Handle them in `getCustomActionRule(action, context)` and branch on the same string you declared in method-level `metadata.resource.action` or custom-route `resource.action`.
 
 For stronger route-aware typing, use:
 

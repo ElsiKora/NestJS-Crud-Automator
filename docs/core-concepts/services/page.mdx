@@ -31,20 +31,18 @@ export class UserService extends ApiServiceBase<UserEntity> {
 
 The `@ApiService` decorator automatically adds the following methods to your service:
 
-### `create(properties, eventManager?): Promise<E>`
+### `create(properties): Promise<E>`
 
 Creates a new entity:
 
 ```typescript
 const user = await userService.create({
-	body: {
-		username: "john_doe",
-		email: "john@example.com",
-	},
+	username: "john_doe",
+	email: "john@example.com",
 });
 ```
 
-### `get(properties, eventManager?): Promise<E>`
+### `get(properties): Promise<E>`
 
 Retrieves a single entity by criteria:
 
@@ -54,38 +52,33 @@ const user = await userService.get({
 });
 ```
 
-### `getList(properties, relations, eventManager?): Promise<IApiGetListResponseResult<E>>`
+### `getList(properties): Promise<IApiGetListResponseResult<E>>`
 
 Retrieves a paginated list with filtering and sorting:
 
 ```typescript
-const result = await userService.getList(
-	{
-		where: {
-			username: {
-				operator: EFilterOperation.CONT,
-				value: "john",
-			},
-		},
-		order: {
-			createdAt: "DESC",
-		},
-		limit: 10,
-		page: 1,
+const result = await userService.getList({
+	where: {
+		username: ILike("%john%"),
 	},
-	{},
-);
+	order: {
+		createdAt: "DESC",
+	},
+	take: 10,
+	skip: 0,
+});
 
 // Result contains:
 // {
 //   items: UserEntity[],
-//   total: number,
-//   page: number,
-//   limit: number
+//   count: number,
+//   currentPage: number,
+//   totalCount: number,
+//   totalPages: number
 // }
 ```
 
-### `getMany(properties, eventManager?): Promise<E[]>`
+### `getMany(properties): Promise<E[]>`
 
 Retrieves multiple entities:
 
@@ -99,7 +92,7 @@ const users = await userService.getMany({
 });
 ```
 
-### `update(criteria, properties, eventManager?): Promise<E>`
+### `update(criteria, properties): Promise<E>`
 
 Updates an existing entity:
 
@@ -107,14 +100,12 @@ Updates an existing entity:
 const updatedUser = await userService.update(
 	{ id: "uuid-here" },
 	{
-		body: {
-			username: "new_username",
-		},
+		username: "new_username",
 	},
 );
 ```
 
-### `delete(criteria, eventManager?): Promise<void>`
+### `delete(criteria): Promise<void>`
 
 Deletes an entity:
 
@@ -152,10 +143,8 @@ export class UserService extends ApiServiceBase<UserEntity> {
 		return this.update(
 			{ id },
 			{
-				body: {
-					isActive: true,
-					activatedAt: new Date(),
-				},
+				isActive: true,
+				activatedAt: new Date(),
 			},
 		);
 	}
@@ -169,10 +158,10 @@ export class UserService extends ApiServiceBase<UserEntity> {
 
 ## Transaction Support
 
-All CRUD methods accept an optional `EntityManager` parameter for transaction support:
+Do not pass `EntityManager` as a public service method argument. Use function `transaction.mode` and nested decorated calls so the framework propagates the active transaction through `ApiFunctionContextStorage`.
 
 ```typescript filename="post.service.ts" copy
-import { DataSource } from "typeorm";
+import { ApiFunctionCustom, EApiFunctionTransactionMode } from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
 export class PostService extends ApiServiceBase<PostEntity> {
@@ -184,21 +173,23 @@ export class PostService extends ApiServiceBase<PostEntity> {
 		super();
 	}
 
+	@ApiFunctionCustom<PostEntity>({
+		action: "createWithComments",
+		entity: PostEntity,
+		transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+	})
 	async createPostWithComments(postData: DeepPartial<PostEntity>, commentsData: DeepPartial<CommentEntity>[]): Promise<PostEntity> {
-		return this.dataSource.transaction(async (manager) => {
-			// Create post within transaction
-			const post = await this.create({ body: postData }, manager);
+		const context = this.getApiFunctionContext<PostEntity>();
+		const post = await context.operations.create(postData);
 
-			// Create comments within same transaction
-			for (const commentData of commentsData) {
-				await manager.save(CommentEntity, {
-					...commentData,
-					postId: post.id,
-				});
-			}
+		for (const commentData of commentsData) {
+			await context.getRepository(CommentEntity).save({
+				...commentData,
+				postId: post.id,
+			});
+		}
 
-			return post;
-		});
+		return post;
 	}
 }
 ```
@@ -261,11 +252,9 @@ export class OrderService extends ApiServiceBase<OrderEntity> {
 
 		// Create order
 		return this.create({
-			body: {
-				userId,
-				total,
-				status: OrderStatus.PENDING,
-			},
+			userId,
+			total,
+			status: OrderStatus.PENDING,
 		});
 	}
 }
@@ -327,10 +316,8 @@ async activateUser(id: string): Promise<UserEntity> {
   return this.update(
     { id },
     {
-      body: {
-        isActive: true,
-        activatedAt: new Date(),
-      },
+      isActive: true,
+      activatedAt: new Date(),
     }
   );
 }

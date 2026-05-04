@@ -14,8 +14,8 @@ import { EApiDtoType, EApiPropertyDescribeType } from "@enum/decorator/api";
 
 const DTO_STRATEGIES: Record<EApiDtoType, IDtoStrategy> = {
 	[EApiDtoType.BODY]: new DtoStrategyBody(),
+	[EApiDtoType.PARAMETERS]: new DtoStrategyRequest(),
 	[EApiDtoType.QUERY]: new DtoStrategyQuery(),
-	[EApiDtoType.REQUEST]: new DtoStrategyRequest(),
 	[EApiDtoType.RESPONSE]: new DtoStrategyResponse(),
 };
 

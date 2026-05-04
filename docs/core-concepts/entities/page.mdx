@@ -26,6 +26,7 @@ export class ProductEntity {
 		format: EApiPropertyStringType.STRING,
 		minLength: 3,
 		maxLength: 100,
+		pattern: "/^.{3,100}$/",
 		exampleValue: "Laptop",
 	})
 	name: string;
@@ -34,8 +35,10 @@ export class ProductEntity {
 	@ApiPropertyDescribe({
 		type: EApiPropertyDescribeType.NUMBER,
 		description: "Product price",
-		format: EApiPropertyNumberType.FLOAT,
+		format: EApiPropertyNumberType.DOUBLE,
 		minimum: 0,
+		maximum: 999999,
+		multipleOf: 0.01,
 		exampleValue: 999.99,
 	})
 	price: number;
@@ -94,6 +97,7 @@ Numeric fields with range validation:
   format: EApiPropertyNumberType.INTEGER,
   minimum: 18,
   maximum: 120,
+  multipleOf: 1,
   exampleValue: 25,
 })
 age: number;
@@ -102,7 +106,7 @@ age: number;
 Available number formats:
 
 - `INTEGER` - Whole numbers
-- `FLOAT` - Decimal numbers
+- `DOUBLE` - Decimal numbers
 
 ### Boolean Properties
 
@@ -113,8 +117,6 @@ Boolean flags:
 @ApiPropertyDescribe({
   type: EApiPropertyDescribeType.BOOLEAN,
   description: "Is user active",
-  defaultValue: false,
-  exampleValue: true,
 })
 isActive: boolean;
 ```
@@ -149,7 +151,6 @@ Available date identifiers:
 
 - `CREATED_AT` - Creation timestamp
 - `UPDATED_AT` - Last update timestamp
-- `DELETED_AT` - Soft delete timestamp
 
 ### Enum Properties
 
@@ -172,8 +173,6 @@ export enum UserRole {
   description: "User role",
   enum: UserRole,
   enumName: "UserRole",
-  defaultValue: UserRole.USER,
-  exampleValue: UserRole.USER,
 })
 role: UserRole;
 ```
@@ -187,14 +186,8 @@ Complex nested objects with optional discriminator support:
 @ApiPropertyDescribe({
   type: EApiPropertyDescribeType.OBJECT,
   description: "User metadata",
-  properties: {
-    theme: { type: "string" },
-    language: { type: "string" },
-  },
-  exampleValue: {
-    theme: "dark",
-    language: "en",
-  },
+  dataType: UserMetadataDto,
+  shouldValidateNested: true,
 })
 metadata: Record<string, unknown>;
 ```
@@ -213,6 +206,7 @@ For polymorphic objects with discriminator:
       paypal: PayPalPaymentDto,
     },
   },
+  dataType: [CardPaymentDto, PayPalPaymentDto],
 })
 paymentMethod: CardPayment | PayPalPayment;
 ```
@@ -237,6 +231,8 @@ abstract class BaseContentEntity {
 		format: EApiPropertyStringType.STRING,
 		minLength: 1,
 		maxLength: 64,
+		pattern: "/^[a-z0-9-]+$/",
+		exampleValue: "intro-to-crud",
 	})
 	slug: string;
 }
@@ -250,6 +246,8 @@ export class ArticleEntity extends BaseContentEntity {
 		format: EApiPropertyStringType.STRING,
 		minLength: 1,
 		maxLength: 255,
+		pattern: "/^.{1,255}$/",
+		exampleValue: "Getting started",
 	})
 	title: string;
 }
@@ -266,11 +264,6 @@ Entity relationships with automatic loading:
 @ApiPropertyDescribe({
   type: EApiPropertyDescribeType.RELATION,
   description: "Post author",
-  relationMetadata: {
-    relationType: "many-to-one",
-    entity: UserEntity,
-    isEager: false,
-  },
 })
 author: UserEntity;
 
@@ -278,12 +271,6 @@ author: UserEntity;
 @ApiPropertyDescribe({
   type: EApiPropertyDescribeType.RELATION,
   description: "Post comments",
-  isArray: true,
-  relationMetadata: {
-    relationType: "one-to-many",
-    entity: CommentEntity,
-    isEager: false,
-  },
 })
 comments: CommentEntity[];
 ```
@@ -298,13 +285,17 @@ Control which DTOs include specific properties:
   type: EApiPropertyDescribeType.STRING,
   description: "Internal admin notes",
   format: EApiPropertyStringType.STRING,
-  dto: {
-    body: {
-      isExposedInCreateDto: false,
-      isExposedInUpdateDto: true,
+  minLength: 0,
+  maxLength: 500,
+  pattern: "/^[\\s\\S]{0,500}$/",
+  exampleValue: "Visible to admins only",
+  properties: {
+    [EApiRouteType.CREATE]: {
+      [EApiDtoType.BODY]: { isEnabled: false },
     },
-    response: {
-      isExposed: false, // Never return in responses
+    [EApiRouteType.UPDATE]: {
+      [EApiDtoType.BODY]: { isEnabled: true },
+      [EApiDtoType.RESPONSE]: { isEnabled: false, isResponse: true },
     },
   },
 })
@@ -324,8 +315,11 @@ Add custom validation behavior:
   minLength: 3,
   maxLength: 20,
   pattern: "/^[a-zA-Z0-9_-]+$/",
-  isUnique: true, // Enforce uniqueness
-  isRequired: true, // Required in create operations
+  properties: {
+    [EApiRouteType.CREATE]: {
+      [EApiDtoType.BODY]: { isRequired: true },
+    },
+  },
   exampleValue: "john_doe",
 })
 username: string;
@@ -333,7 +327,7 @@ username: string;
 
 ## Guard-Based Visibility
 
-Show or hide properties based on user roles:
+Generate route/guard-specific response DTO metadata:
 
 ```typescript
 @Column()
@@ -341,14 +335,24 @@ Show or hide properties based on user roles:
   type: EApiPropertyDescribeType.STRING,
   description: "Sensitive data",
   format: EApiPropertyStringType.STRING,
-  dto: {
-    guard: {
-      responseGuards: [AdminGuard], // Only visible to admins
+  minLength: 1,
+  maxLength: 255,
+  pattern: "/^[\\s\\S]{1,255}$/",
+  exampleValue: "restricted",
+  properties: {
+    [EApiRouteType.GET]: {
+      [EApiDtoType.RESPONSE]: {
+        isExpose: true,
+        isResponse: true,
+        guard: { guards: [AdminGuard] },
+      },
     },
   },
 })
 sensitiveData: string;
 ```
+
+The `guard` metadata selects a generated DTO variant for routes protected by that guard. It does not inspect the current user's role at serialization time; runtime allow/deny decisions belong in Nest guards or authorization policies.
 
 ## Example Values
 
@@ -360,6 +364,9 @@ Provide example values for Swagger documentation:
   type: EApiPropertyDescribeType.STRING,
   description: "Product description",
   format: EApiPropertyStringType.STRING,
+  minLength: 1,
+  maxLength: 500,
+  pattern: "/^[\\s\\S]{1,500}$/",
   exampleValue: "High-quality laptop with 16GB RAM",
 })
 description: string;

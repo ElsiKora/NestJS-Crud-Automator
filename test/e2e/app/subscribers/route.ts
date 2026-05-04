@@ -3,7 +3,7 @@ import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { TApiSubscriberRouteBeforeCreateContext } from "@type/class/api/subscriber/route/before";
 import { Injectable } from "@nestjs/common";
 
-import { ApiRouteSubscriber, ApiRouteSubscriberBase } from "../../../../dist/esm/index";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase } from "../../../../src/index";
 
 import { E2eEntity } from "../entity";
 

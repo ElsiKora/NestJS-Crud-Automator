@@ -9,9 +9,10 @@ Transform incoming request data before processing:
 ```typescript filename="post.controller.ts" copy
 import {
   ApiController,
-  EApiRouteType,
-  EApiDtoType,
+  EApiControllerRequestTarget,
+  EApiControllerResponseTarget,
   EApiControllerRequestTransformerType,
+  EApiRouteType,
   TRANSFORMER_VALUE_DTO_CONSTANT
 } from "@elsikora/nestjs-crud-automator";
 
@@ -20,8 +21,8 @@ import {
   routes: {
     [EApiRouteType.CREATE]: {
       request: {
-        transformers: {
-          [EApiDtoType.BODY]: [
+        [EApiControllerRequestTarget.BODY]: {
+          transformers: [
             {
               key: "author",
               type: EApiControllerRequestTransformerType.DYNAMIC,
@@ -121,22 +122,51 @@ Transform outgoing response data:
 routes: {
   [EApiRouteType.GET]: {
     response: {
-      transformers: [
-        {
-          key: "viewer",
-          type: EApiControllerRequestTransformerType.DYNAMIC,
-          value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
-          shouldSetValueEvenIfMissing: true,
-        },
-        {
-          key: "responseSource",
-          type: EApiControllerRequestTransformerType.STATIC,
-          value: "api",
-          shouldSetValueEvenIfMissing: true,
-        },
-      ],
+      [EApiControllerResponseTarget.RESPONSE]: {
+        transformers: [
+          {
+            key: "viewer",
+            type: EApiControllerRequestTransformerType.DYNAMIC,
+            value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
+            shouldSetValueEvenIfMissing: true,
+          },
+          {
+            key: "responseSource",
+            type: EApiControllerRequestTransformerType.STATIC,
+            value: "api",
+            shouldSetValueEvenIfMissing: true,
+          },
+        ],
+      },
     },
   },
+}
+```
+
+`@ApiRouteCustom` uses the same target-first response transformer shape. Put response metadata such as `status`, `type`, `errors`, and `serialization` at the top of `response`, and put runtime response transformers under `[EApiControllerResponseTarget.RESPONSE]`:
+
+```typescript
+@ApiRouteCustom<PostEntity>({
+	resource: { action: "preview", entity: PostEntity },
+	route: { method: RequestMethod.GET, path: ":id/preview" },
+	response: {
+		status: HttpStatus.OK,
+		type: PreviewPostDTO,
+		serialization: { isEnabled: true },
+		[EApiControllerResponseTarget.RESPONSE]: {
+			transformers: [
+				{
+					key: "viewer",
+					type: EApiControllerRequestTransformerType.DYNAMIC,
+					value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
+					shouldSetValueEvenIfMissing: true,
+				},
+			],
+		},
+	},
+})
+async preview(@Param("id") id: string): Promise<PostEntity> {
+	return await this.service.get({ where: { id } });
 }
 ```
 
@@ -223,34 +253,51 @@ Async operations should be handled in subscribers instead of request transformer
 
 Remove properties from response using class-transformer (`@Exclude`) or subscriber hooks.
 
-## Global Transformers
+## Shared Transformer Configuration
 
-Apply transformers to all routes:
+There is no global transformer block. `response` remains a target-first route response config. Reuse the inner target block when several routes need the same response behavior:
 
 ```typescript
+const responseSourceTarget = {
+  transformers: [
+    {
+      key: "responseSource",
+      type: EApiControllerRequestTransformerType.STATIC,
+      value: "api",
+      shouldSetValueEvenIfMissing: true,
+    },
+  ],
+};
+
 @ApiController<UserEntity>({
   entity: UserEntity,
-  globalTransformers: {
-    request: {
-      [EApiDtoType.BODY]: [
-        {
-          key: "source",
-          type: EApiControllerRequestTransformerType.STATIC,
-          value: "api",
-        },
-      ],
-    },
-    response: [
-      {
-        key: "responseSource",
-        type: EApiControllerRequestTransformerType.STATIC,
-        value: "api",
-        shouldSetValueEvenIfMissing: true,
-      },
-    ],
-  },
   routes: {
-    // ... route configurations
+    [EApiRouteType.GET]: {
+      response: {
+        [EApiControllerResponseTarget.RESPONSE]: responseSourceTarget,
+      },
+    },
+    [EApiRouteType.GET_LIST]: {
+      response: {
+        [EApiControllerResponseTarget.RESPONSE]: responseSourceTarget,
+      },
+    },
+    [EApiRouteType.CREATE]: {
+      request: {
+        [EApiControllerRequestTarget.BODY]: {
+          transformers: [
+            {
+              key: "source",
+              type: EApiControllerRequestTransformerType.STATIC,
+              value: "api",
+            },
+          ],
+        },
+      },
+      response: {
+        [EApiControllerResponseTarget.RESPONSE]: responseSourceTarget,
+      },
+    },
   },
 })
 ```
@@ -259,12 +306,10 @@ Apply transformers to all routes:
 
 Transformers execute in the following order:
 
-1. Global request transformers
-2. Route-specific request transformers
-3. Validation
-4. Service method execution
-5. Route-specific response transformers
-6. Global response transformers
+1. Request target transformers
+2. Request target validation
+3. Service method execution
+4. Response target transformers
 
 ## Performance Considerations
 
@@ -273,10 +318,7 @@ Transformers execute in the following order:
 ```typescript
 // Prefer relations or subscribers for heavy work
 request: {
-  relations: {
-    shouldLoadRelations: true,
-    relationsToLoad: ["posts"],
-  },
+  // Prefer route-level relations.request.load for heavy relation hydration.
 }
 ```
 

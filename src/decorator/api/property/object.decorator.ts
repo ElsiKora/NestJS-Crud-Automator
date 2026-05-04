@@ -18,7 +18,7 @@ import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { MustMatchOneOfSchemasValidator } from "@validator/must-match-one-of-schemas.validator";
 import { Exclude, Expose, Transform, Type } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, ValidateNested } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsObject, ValidateIf, ValidateNested } from "class-validator";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
@@ -171,6 +171,27 @@ function buildObjectValidationDecorators(properties: TApiPropertyObjectPropertie
 }
 
 /**
+ * Builds the presence validator for object request properties.
+ * @param {TApiPropertyObjectProperties} properties - Property configuration that controls required and nullable semantics.
+ * @returns {PropertyDecorator} A class-validator presence decorator.
+ */
+function buildPresenceDecorator(properties: TApiPropertyObjectProperties): PropertyDecorator {
+	if (properties.isRequired && properties.isNullable) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== null);
+	}
+
+	if (!properties.isRequired && properties.isNullable) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== undefined && value !== null);
+	}
+
+	if (!properties.isRequired) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== undefined);
+	}
+
+	return ValidateIf((): boolean => true);
+}
+
+/**
  * Builds decorators for request validation including optional status,
  * array validation, and size constraints.
  * @param {TApiPropertyObjectProperties} properties - The property configuration
@@ -181,9 +202,7 @@ function buildRequestDecorators(properties: TApiPropertyObjectProperties): Array
 	const decorators: Array<PropertyDecorator> = [];
 
 	if (properties.isResponse === false || properties.isResponse === undefined) {
-		if (!properties.isRequired) {
-			decorators.push(IsOptional());
-		}
+		decorators.push(buildPresenceDecorator(properties));
 
 		if (properties.isArray === true) {
 			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
@@ -191,6 +210,8 @@ function buildRequestDecorators(properties: TApiPropertyObjectProperties): Array
 			if (properties.minItems > 0) {
 				decorators.push(ArrayNotEmpty());
 			}
+		} else {
+			decorators.push(IsObject());
 		}
 	}
 

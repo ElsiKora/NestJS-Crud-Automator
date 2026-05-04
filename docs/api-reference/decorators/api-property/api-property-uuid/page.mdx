@@ -19,7 +19,7 @@ Describes UUID-based DTO fields and enforces RFC 4122 validation. Supports singl
 ## Behavior
 
 - Generates a random UUID example for Swagger and sets the appropriate regex pattern/length.
-- Adds `IsUUID`, `IsOptional`, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
+- Adds `IsUUID`, presence guards, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
 - Marks the Swagger schema with `format: uuid` and sets `example` or `[example]` for arrays.
 - Adds `ApiResponseProperty`, `Expose`, or `Exclude` for response DTOs.
 
@@ -28,7 +28,7 @@ Describes UUID-based DTO fields and enforces RFC 4122 validation. Supports singl
 ```typescript
 class BulkDeleteDto {
 	@ApiPropertyUUID({
-		entity: () => UserEntity,
+		entity: UserEntity,
 		description: "IDs to remove",
 		isArray: true,
 		minItems: 1,

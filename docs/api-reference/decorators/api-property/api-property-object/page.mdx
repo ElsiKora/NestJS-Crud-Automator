@@ -22,7 +22,7 @@ Describes nested object fields in DTOs. Works with single DTO types, arrays, pol
 
 - Calls `RegisterAutoDtoChild` so generated DTOs are discoverable inside auto contexts.
 - Emits `@ApiProperty` with `type`, `oneOf`, or `discriminator` metadata. Allows arrays and `additionalProperties`.
-- Adds `Type`, `ValidateNested`, `IsOptional`, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
+- Adds `Type`, `ValidateNested`, presence guards, `IsObject`, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
 - Supports polymorphic validation via `MustMatchOneOfSchemasValidator`.
 - Adds `ApiResponseProperty`, `Expose`, or `Exclude` for response DTOs.
 - When a manual DTO is nested inside an auto-generated DTO, creates context-specific wrapper schemas so request and response metadata do not collide.
@@ -43,7 +43,7 @@ class ShippingAddressDto extends AddressDto {
 
 class OrderDto {
 	@ApiPropertyObject({
-		entity: () => OrderEntity,
+		entity: OrderEntity,
 		description: "Address payload",
 		type: [BillingAddressDto, ShippingAddressDto],
 		discriminator: {

@@ -8,7 +8,7 @@
 <p align="center">
     <a aria-label="ElsiKora logo" href="https://elsikora.com">
   <img src="https://img.shields.io/badge/MADE%20BY%20ElsiKora-333333.svg?style=for-the-badge" alt="ElsiKora">
-</a> <img src="https://img.shields.io/badge/npm-blue.svg?style=for-the-badge&logo=npm&logoColor=white" alt="npm"> <img src="https://img.shields.io/badge/typescript-blue.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="typescript"> <img src="https://img.shields.io/badge/nestjs-red.svg?style=for-the-badge&logo=nestjs&logoColor=white" alt="nestjs"> <img src="https://img.shields.io/badge/swagger-green.svg?style=for-the-badge&logo=swagger&logoColor=white" alt="swagger"> <img src="https://img.shields.io/badge/license-blue.svg?style=for-the-badge&logo=license&logoColor=white" alt="license"> <img src="https://img.shields.io/badge/version-1.6.2-brightgreen.svg?style=for-the-badge&logo=v&logoColor=white" alt="version-1.6.2">
+</a> <img src="https://img.shields.io/badge/npm-blue.svg?style=for-the-badge&logo=npm&logoColor=white" alt="npm"> <img src="https://img.shields.io/badge/typescript-blue.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="typescript"> <img src="https://img.shields.io/badge/nestjs-red.svg?style=for-the-badge&logo=nestjs&logoColor=white" alt="nestjs"> <img src="https://img.shields.io/badge/swagger-green.svg?style=for-the-badge&logo=swagger&logoColor=white" alt="swagger"> <img src="https://img.shields.io/badge/license-blue.svg?style=for-the-badge&logo=license&logoColor=white" alt="license"> <img src="https://img.shields.io/badge/version-1.24.0-brightgreen.svg?style=for-the-badge&logo=v&logoColor=white" alt="version-1.24.0">
 </p>
 
 ## 📚 Table of Contents
@@ -21,7 +21,8 @@
   - [Advanced Usage](#advanced-usage)
 - [Subscriber System (Hooks)](#subscriber-system-hooks-intercepting-and-extending-logic)
 - [Swagger Documentation](#swagger-documentation)
-- [Roadmap](#-roadmap)
+- [Current Status](#-current-status)
+- [AI Agent Skill](#-ai-agent-skill)
 - [FAQ](#-faq)
 - [License](#-license)
 
@@ -45,19 +46,16 @@ The core philosophy of this library is built on four pillars: being **Declarativ
 - ✨ **🌐 Full support for TypeScript with strong typing throughout the library**
 - ✨ **Hooks and Subscriber System:** Intercept and extend business logic at both the controller and service level.
 - ✨ **Dynamic and Polymorphic DTOs:** Generate DTOs on-the-fly based on discriminator fields.
-- ✨ **Field-Level RBAC:** Show/hide fields in responses based on user roles using guards.
+- ✨ **Guard-Based Field Exposure:** Generate route-specific response DTOs based on configured guard classes.
 - ✨ **🔐 Declarative Authorization Policies:** Subscriber-style policies with automatic guard wiring, scopes, and response transforms.
 - ✨ **Request Tracing:** Built-in `CorrelationIDResponseBodyInterceptor` to correlate requests and logs.
 - ✨ **Convention over Configuration:** Smart defaults for service and DTO naming to reduce boilerplate.
 
 ## 🛠 Installation
 
-```bash
-## Installation
-
 Install NestJS-Crud-Automator using your preferred package manager:
 
-
+```bash
 # Using npm
 npm install @elsikora/nestjs-crud-automator
 
@@ -66,22 +64,27 @@ yarn add @elsikora/nestjs-crud-automator
 
 # Using pnpm
 pnpm add @elsikora/nestjs-crud-automator
-
+```
 
 ### Prerequisites
 
 Make sure you have the following dependencies installed in your NestJS project:
 
-- NestJS (^9.0.0)
-- TypeORM (^0.3.0)
-- class-validator (^0.14.0)
-- class-transformer (^0.5.1)
-- @nestjs/swagger (^6.0.0)
+- NestJS `@nestjs/common` and `@nestjs/core` `>=11.0.5`
+- `@nestjs/passport` `>=11.0.5`
+- `@nestjs/platform-fastify` `>=11.0.5`
+- `@nestjs/swagger` `>=11.0.3`
+- `@nestjs/throttler` `>=6.4.0`
+- TypeORM `>=0.3.20`
+- Fastify `>=5.0.0`
+- `class-validator` `>=0.14.1`
+- `class-transformer` `>=0.5.1`
+- `lodash` `>=4.17.21`
 
 You might need to install these peer dependencies if they're not already in your project:
 
-
-npm install @nestjs/common @nestjs/swagger @nestjs/throttler typeorm class-transformer class-validator reflect-metadata
+```bash
+npm install @nestjs/common @nestjs/core @nestjs/passport @nestjs/platform-fastify @nestjs/swagger @nestjs/throttler typeorm class-transformer class-validator fastify lodash
 ```
 
 ## 💡 Usage
@@ -94,7 +97,7 @@ First, define your entity with the `ApiPropertyDescribe` decorators to provide m
 
 ```typescript
 import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
-import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "@elsikora/nestjs-crud-automator";
+import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType, EApiPropertyDateIdentifier, EApiPropertyDateType, GetDefaultStringFormatProperties } from "@elsikora/nestjs-crud-automator";
 
 @Entity("users")
 export class UserEntity {
@@ -122,10 +125,7 @@ export class UserEntity {
 		type: EApiPropertyDescribeType.STRING,
 		description: "User email",
 		format: EApiPropertyStringType.EMAIL,
-		minLength: 5,
-		maxLength: 255,
-		pattern: "/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/",
-		exampleValue: "user@example.com",
+		...GetDefaultStringFormatProperties(EApiPropertyStringType.EMAIL),
 	})
 	email: string;
 
@@ -171,7 +171,7 @@ export class UserService extends ApiServiceBase<UserEntity> {
 	}
 
 	// You can add custom methods here that go beyond basic CRUD
-	async findByEmail(email: string): Promise<UserEntity | undefined> {
+	async findByEmail(email: string): Promise<UserEntity | null> {
 		return this.repository.findOne({ where: { email } });
 	}
 }
@@ -182,35 +182,44 @@ export class UserService extends ApiServiceBase<UserEntity> {
 Create a controller with the `ApiController` decorator to generate all CRUD endpoints:
 
 ```typescript
-import { Controller, UseGuards } from "@nestjs/common";
-import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { ApiController, EApiAuthenticationType, EApiRouteType } from "@elsikora/nestjs-crud-automator";
 import { UserEntity } from "./user.entity";
 import { UserService } from "./user.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 
-@Controller("users")
 @ApiController<UserEntity>({
 	entity: UserEntity,
 	name: "Users",
+	path: "users",
 	routes: {
 		[EApiRouteType.CREATE]: {
-			authentication: {
-				guard: JwtAuthGuard,
-				bearerStrategies: ["jwt"],
+			security: {
+				authentication: {
+					type: EApiAuthenticationType.USER,
+					guard: JwtAuthGuard,
+					bearerStrategies: ["jwt"],
+				},
 			},
 		},
 		[EApiRouteType.UPDATE]: {
-			authentication: {
-				guard: JwtAuthGuard,
-				bearerStrategies: ["jwt"],
+			security: {
+				authentication: {
+					type: EApiAuthenticationType.USER,
+					guard: JwtAuthGuard,
+					bearerStrategies: ["jwt"],
+				},
 			},
 		},
 		[EApiRouteType.DELETE]: {
-			authentication: {
-				guard: JwtAuthGuard,
-				bearerStrategies: ["jwt"],
+			security: {
+				authentication: {
+					type: EApiAuthenticationType.USER,
+					guard: JwtAuthGuard,
+					bearerStrategies: ["jwt"],
+				},
 			},
 		},
+		[EApiRouteType.PARTIAL_UPDATE]: {},
 		[EApiRouteType.GET]: {},
 		[EApiRouteType.GET_LIST]: {},
 	},
@@ -257,7 +266,7 @@ export class UserController {
 Automatically transform request data:
 
 ```typescript
-import { ApiController, EApiRouteType, EApiDtoType, EApiControllerRequestTransformerType, TRANSFORMER_VALUE_DTO_CONSTANT } from "@elsikora/nestjs-crud-automator";
+import { ApiController, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiRouteType, TRANSFORMER_VALUE_DTO_CONSTANT } from "@elsikora/nestjs-crud-automator";
 
 @ApiController<UserEntity>({
 	entity: UserEntity,
@@ -265,8 +274,8 @@ import { ApiController, EApiRouteType, EApiDtoType, EApiControllerRequestTransfo
 	routes: {
 		[EApiRouteType.CREATE]: {
 			request: {
-				transformers: {
-					[EApiDtoType.BODY]: [
+				[EApiControllerRequestTarget.BODY]: {
+					transformers: [
 						{
 							key: "createdBy",
 							type: EApiControllerRequestTransformerType.DYNAMIC,
@@ -289,24 +298,27 @@ export class UserController {
 Automatically load related entities:
 
 ```typescript
-import { ApiController, EApiRouteType, EApiControllerLoadRelationsStrategy } from "@elsikora/nestjs-crud-automator";
+import { ApiController, EApiControllerLoadRelationsStrategy, EApiControllerRelationReferenceShape, EApiRouteType } from "@elsikora/nestjs-crud-automator";
 
 @ApiController<PostEntity>({
 	entity: PostEntity,
 	name: "Posts",
 	routes: {
-		[EApiRouteType.GET]: {
-			request: {
-				relations: {
-					shouldLoadRelations: true,
-					relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					shouldForceAllServicesToBeSpecified: false,
-					relationsToLoad: ["author", "comments"],
+		[EApiRouteType.CREATE]: {
+			relations: {
+				request: {
+					reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
+					load: {
+						shouldLoad: true,
+						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						shouldForceAllServicesToBeSpecified: false,
+					},
 				},
-			},
-			response: {
-				relations: ["author", "comments"],
+				response: {
+					reference: { shape: EApiControllerRelationReferenceShape.OBJECT, key: "id" },
+					load: { include: { author: true, comments: true } },
+				},
 			},
 		},
 	},
@@ -315,7 +327,6 @@ export class PostController {
 	constructor(
 		public service: PostService,
 		public authorService: UserService,
-		public commentsService: CommentService,
 	) {}
 }
 ```
@@ -325,7 +336,7 @@ export class PostController {
 Use custom DTOs instead of auto-generated ones:
 
 ```typescript
-import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { ApiController, EApiDtoType, EApiRouteType } from "@elsikora/nestjs-crud-automator";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UserResponseDto } from "./dto/user-response.dto";
@@ -336,14 +347,14 @@ import { UserResponseDto } from "./dto/user-response.dto";
 	routes: {
 		[EApiRouteType.CREATE]: {
 			dto: {
-				body: CreateUserDto,
-				response: UserResponseDto,
+				[EApiDtoType.BODY]: CreateUserDto,
+				[EApiDtoType.RESPONSE]: UserResponseDto,
 			},
 		},
 		[EApiRouteType.UPDATE]: {
 			dto: {
-				body: UpdateUserDto,
-				response: UserResponseDto,
+				[EApiDtoType.BODY]: UpdateUserDto,
+				[EApiDtoType.RESPONSE]: UserResponseDto,
 			},
 		},
 	},
@@ -355,14 +366,14 @@ export class UserController {
 
 For `GET_LIST`, response DTOs support two explicit modes:
 
-- `response: PublicUserListResponseDto` when the app owns the whole list wrapper.
-- `response: { itemType: PublicUserResponseDto }` when the framework owns the list wrapper and the app owns each item shape.
+- `[EApiDtoType.RESPONSE]: PublicUserListResponseDto` when the app owns the whole list wrapper.
+- `[EApiDtoType.RESPONSE]: { itemType: PublicUserResponseDto }` when the framework owns the list wrapper and the app owns each item shape.
 
 Use the item DTO mode when you only need to narrow each returned item:
 
 ```typescript
 import { Expose } from "class-transformer";
-import { ApiController, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { ApiController, EApiDtoType, EApiRouteType } from "@elsikora/nestjs-crud-automator";
 
 class PublicUserResponseDto {
 	@Expose()
@@ -377,7 +388,7 @@ class PublicUserResponseDto {
 	routes: {
 		[EApiRouteType.GET_LIST]: {
 			dto: {
-				response: {
+				[EApiDtoType.RESPONSE]: {
 					itemType: PublicUserResponseDto,
 					name: "PublicUserListResponseDto",
 				},
@@ -399,14 +410,11 @@ Authorization now has two first-class modes:
 - `hooks`: auto-discovered `@ApiAuthorizationPolicy({ entity })` classes
 - `iam`: attachment/document-based IAM evaluation with optional boundaries
 
-`@ApiControllerSecurable()` is marker-only. It turns on the authorization pipeline, but mode selection and all authorization configuration live in `@ApiController({ authorization: ... })`. Each route uses exactly one mode, and route config can override the controller default with `routes[routeType].authorization.mode`.
+`@ApiControllerSecurable()` is marker-only. It turns on the authorization pipeline, but mode selection and all authorization configuration live in `@ApiController({ authorization: ... })`. Each route uses exactly one mode, and route config can override the controller default with `routes[routeType].security.authorization.mode`.
 
 #### Runtime authorization actions
 
-`@ApiMethod(...)` uses two different action concepts:
-
-- `action` is a documentation hint for Swagger summaries and descriptions
-- `authorization.action` is the runtime authorization action string used by hooks and IAM
+`@ApiMethod(...)` uses one route action identity: `metadata.resource.action`. Generated CRUD routes also carry `metadata.route.type` for built-in CRUD/IAM mapping.
 
 Auto-generated CRUD routes receive built-in runtime actions automatically:
 
@@ -421,49 +429,79 @@ Custom secured routes should declare their own domain-specific action strings:
 
 ```typescript
 @ApiMethod<UserEntity>({
-	action: EApiAction.UPDATE,
-	authorization: {
-		action: "update.promote",
+	metadata: {
+		resource: {
+			action: "update.promote",
+			entity: UserEntity,
+		},
+		route: {
+			method: RequestMethod.POST,
+			path: ":id/promote",
+		},
+		security: {
+			authorization: { mode: EApiAuthorizationMode.HOOKS },
+		},
+		response: {
+			status: HttpStatus.OK,
+			type: UserResponseDto,
+		},
 	},
-	entity: UserEntity,
-	httpCode: HttpStatus.OK,
-	method: RequestMethod.POST,
-	path: ":id/promote",
-	responseType: UserResponseDto,
 })
 public promote(@Param("id") id: string) {
 	return this.service.promote(id);
 }
 ```
 
-The same `authorization.action` value is what hooks receive as `context.action` and what IAM turns into a namespaced action such as `admin:user:update.promote`.
+The same `metadata.resource.action` value is what hooks receive as `context.action` and what IAM turns into a namespaced action such as `admin:user:update.promote`.
+
+Use `@ApiRouteCustom(...)` when a custom controller route should also participate in the custom route runtime: request/response transformers, route subscribers, relation loading/projection, authorization result transforms, and response serialization. `@ApiMethod(...)` remains the low-level metadata/decorator composer.
+
+```typescript
+@ApiRouteCustom<UserEntity>({
+	resource: { action: "update.promote", entity: UserEntity },
+	route: { method: RequestMethod.POST, path: ":id/promote" },
+	security: {
+		authorization: { mode: EApiAuthorizationMode.HOOKS },
+	},
+	response: {
+		status: HttpStatus.OK,
+		type: UserResponseDto,
+		serialization: { isEnabled: true },
+	},
+})
+public promote(@Param("id") id: string) {
+	return this.service.promote(id);
+}
+```
+
+Function decorators support explicit transaction modes without exposing `EntityManager` as a public method argument:
+
+```typescript
+@ApiFunctionCustom<UserEntity>({
+	action: "bulkPromote",
+	entity: UserEntity,
+	transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+})
+async bulkPromote(ids: Array<string>): Promise<Array<UserEntity>> {
+	const context = this.getApiFunctionContext<UserEntity>();
+
+	return await Promise.all(ids.map(async (id) => await context.operations.update({ id }, { role: "admin" })));
+}
+```
 
 ```typescript
 // app.module.ts
-import type {
-	IApiAuthorizationPrincipal,
-	IApiHookPermissionSource,
-	IApiPolicyAttachmentSource,
-	IApiPolicyDocumentSource,
-	IApiResolvedPolicyAttachments,
-} from "@elsikora/nestjs-crud-automator";
+import type { IApiAuthorizationPrincipal, IApiHookPermissionSource, IApiPolicyAttachmentSource, IApiPolicyDocumentSource, IApiResolvedPolicyAttachments } from "@elsikora/nestjs-crud-automator";
 
 import { Module } from "@nestjs/common";
 
-import {
-	ApiAuthorizationModule,
-	EApiAuthorizationPrincipalType,
-	EApiPolicySourceType,
-	AuthorizationResolveDefaultPrincipal,
-} from "@elsikora/nestjs-crud-automator";
+import { ApiAuthorizationModule, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, AuthorizationResolveDefaultPrincipal } from "@elsikora/nestjs-crud-automator";
 
 const hookPermissionSource: IApiHookPermissionSource = {
 	async getPermissions(principal: IApiAuthorizationPrincipal): Promise<ReadonlyArray<string>> {
 		const permissions = principal.claims?.permissions;
 
-		return Array.isArray(permissions)
-			? permissions.filter((value): value is string => typeof value === "string")
-			: [];
+		return Array.isArray(permissions) ? permissions.filter((value): value is string => typeof value === "string") : [];
 	},
 };
 
@@ -494,8 +532,8 @@ const iamDocumentSource: IApiPolicyDocumentSource = {
 								"resource.operatorId": "operator-1",
 							},
 						},
-						Effect: "Allow",
-						Resource: ["gameport:admin:item/{id}"],
+						Effect: EApiPolicyEffect.ALLOW,
+						Resource: ["gameport:admin:item/*"],
 						Sid: "AllowOperatorItems",
 					},
 				],
@@ -549,10 +587,7 @@ Use `ApiAuthorizationModule.forRootAsync(...)` when the resolver or IAM sources 
 // authorization.module.ts
 import { Injectable, Module } from "@nestjs/common";
 
-import {
-	ApiAuthorizationModule,
-	AuthorizationResolveDefaultPrincipal,
-} from "@elsikora/nestjs-crud-automator";
+import { ApiAuthorizationModule, AuthorizationResolveDefaultPrincipal } from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
 class DbPrincipalResolver {
@@ -600,11 +635,7 @@ Use the controller `authorization` block to pick the mode:
 
 ```typescript
 // user.controller.ts
-import {
-	EApiAuthorizationMode,
-	ApiController,
-	ApiControllerSecurable,
-} from "@elsikora/nestjs-crud-automator";
+import { EApiAuthorizationMode, ApiController, ApiControllerSecurable } from "@elsikora/nestjs-crud-automator";
 
 @ApiControllerSecurable()
 @ApiController<UserEntity>({
@@ -613,6 +644,7 @@ import {
 	},
 	entity: UserEntity,
 	path: "users",
+	routes: {},
 })
 export class UserController {
 	constructor(public service: UserService) {}
@@ -623,18 +655,9 @@ Hooks mode keeps entity-based policy autodiscovery:
 
 ```typescript
 // policies/user-hooks.policy.ts
-import type {
-	IApiAuthorizationRuleContext,
-	IApiAuthorizationScope,
-	TApiAuthorizationPolicyBeforeGetListContext,
-	TApiAuthorizationPolicyBeforeUpdateContext,
-} from "@elsikora/nestjs-crud-automator";
+import type { IApiAuthorizationRuleContext, IApiAuthorizationScope, TApiAuthorizationPolicyBeforeGetListContext, TApiAuthorizationPolicyBeforeUpdateContext } from "@elsikora/nestjs-crud-automator";
 
-import {
-	EApiAuthorizationPermissionMatch,
-	ApiAuthorizationPolicy,
-	ApiAuthorizationPolicyBase,
-} from "@elsikora/nestjs-crud-automator";
+import { EApiAuthorizationPermissionMatch, ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
 
 @ApiAuthorizationPolicy<UserEntity>({ entity: UserEntity, priority: 200 })
 export class UserHooksPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
@@ -651,7 +674,9 @@ export class UserHooksPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 	}
 
 	public onBeforeGetList(context: TApiAuthorizationPolicyBeforeGetListContext<UserEntity>) {
-		if (context.query.filters?.operatorId && context.query.filters.operatorId !== this.getOperatorId(context.principal)) {
+		const requestedOperatorId = context.query.operatorId as string | undefined;
+
+		if (requestedOperatorId && requestedOperatorId !== this.getOperatorId(context.principal)) {
 			return [];
 		}
 
@@ -676,6 +701,15 @@ export class UserHooksPolicy extends ApiAuthorizationPolicyBase<UserEntity> {
 		];
 	}
 }
+```
+
+Register hooks policies as Nest providers; discovery only sees provider instances:
+
+```typescript
+@Module({
+	providers: [UserHooksPolicy],
+})
+export class UserModule {}
 ```
 
 Generated CRUD routes dispatch to CRUD hooks such as `onBeforeGetList` or `onBeforeUpdate` using the internal `routeType`. Custom `@ApiMethod(...)` routes do not use CRUD hook names; handle them in `getCustomActionRule(action, context)` instead:
@@ -719,6 +753,7 @@ IAM mode stays storage-agnostic. Attachments and documents come from your config
 	},
 	entity: ItemEntity,
 	path: "items",
+	routes: {},
 })
 export class ItemController {
 	constructor(public service: ItemService) {}
@@ -733,7 +768,7 @@ Generated CRUD actions are normalized to IAM-friendly names inside the configure
 - `update` / `partialUpdate` -> `<policyNamespace>:update`
 - `delete` -> `<policyNamespace>:delete`
 
-Custom `@ApiMethod(...)` actions pass through unchanged after the namespace. For example, `authorization.action: "update.promote"` becomes `admin:item:update.promote` when `policyNamespace` is `admin:item`.
+Custom `@ApiMethod(...)` actions pass through unchanged after the namespace. For example, `resource.action: "update.promote"` becomes `admin:item:update.promote` when `policyNamespace` is `admin:item`.
 
 The runtime resolves a `principal`, dispatches to the selected mode, and stores a unified `authorizationDecision` on the request. Hooks mode traces matched rules and resolved permissions; IAM mode traces attachments, documents, statements, boundaries, and final decision type. For out-of-band checks, inject `ApiAuthorizationSimulator` and call `evaluate(...)` with the same controller authorization metadata you use at runtime.
 
@@ -744,6 +779,7 @@ Important IAM details from the current implementation:
 - route filters and authorization scopes are merged with logical `AND`, not overwrite semantics
 - impossible conflicts collapse to a match-nothing branch instead of rewriting the requested filter
 - relation payloads can be raw UUID strings, so create/update conditions like `request.body.operator = "${principal.attributes.operatorId}"` work without hooks fallback
+- `{id}` placeholders belong to `resourceDefinition.resourcePath`; policy document `Resource` entries should use concrete strings or wildcards such as `gameport:admin:item/*`
 
 ### `CorrelationIDResponseBodyInterceptor`: Request Tracing
 
@@ -785,7 +821,7 @@ This is the most powerful feature for extending the default behavior. It allows 
 
 #### Enabling the Subscriber System
 
-To get the subscriber system working, you need to follow **three mandatory steps**:
+To get the subscriber system working, you need to follow **four mandatory steps**:
 
 1.  **Import `ApiSubscriberModule`**: This module provides the `ApiSubscriberDiscoveryService`, which is responsible for discovering your subscribers. You need to import it into the root module of your application. `app.module.ts`
 
@@ -807,27 +843,33 @@ To get the subscriber system working, you need to follow **three mandatory steps
     ```typescript
     import { ApiController, ApiControllerObservable } from "@elsikora/nestjs-crud-automator";
 
-    @Controller("posts")
     @ApiController({
-    	/* ... */
+        entity: PostEntity,
+        path: "posts",
+        routes: {},
     })
     @ApiControllerObservable() // <--- IMPORTANT
     export class PostController {
-    	/* ... */
+        /* ... */
     }
     ```
 
-3.  **Make the service "observable"**: Similarly, add the `@ApiServiceObservable()` decorator to the service class. ```typescript import { ApiService, ApiServiceBase, ApiServiceObservable } from "@elsikora/nestjs-crud-automator";
+3.  **Make the service "observable"**: Similarly, add the `@ApiServiceObservable()` decorator to the service class.
 
-        @Injectable()
-        @ApiService({
-            /* ... */
-        })
-        @ApiServiceObservable() // <--- IMPORTANT
-        export class PostService extends ApiServiceBase<Post> {
-            /* ... */
-        }
-        ```
+    ```typescript
+    import { ApiService, ApiServiceBase, ApiServiceObservable } from "@elsikora/nestjs-crud-automator";
+
+    @Injectable()
+    @ApiService({
+        entity: PostEntity,
+    })
+    @ApiServiceObservable() // <--- IMPORTANT
+    export class PostService extends ApiServiceBase<PostEntity> {
+        /* ... */
+    }
+    ```
+
+4.  **Register subscriber classes as Nest providers**: discovery only sees provider instances.
 
     Without these steps, your subscriber classes will simply not be discovered and called.
 
@@ -874,7 +916,7 @@ In case of an error at any stage, execution is interrupted, and the correspondin
     		const createdPost = context.result;
 
     		// Fully typed access to authentication and request data
-    		const currentUser = context.DATA.authenticationRequest?.user;
+            const currentUser = context.DATA.authenticationRequest?.user as { id: string } | undefined;
     		const clientIp = context.DATA.ip;
 
     		if (createdPost && currentUser) {
@@ -986,43 +1028,51 @@ The library provides advanced filtering capabilities for list endpoints:
 
 This query would search for users with "john" in their username and created between Jan 1 and Dec 31, 2023.
 
+## 🛣 Current Status
+
+The current public package focuses on NestJS REST controllers backed by TypeORM repositories. Core CRUD generation, DTO generation, Swagger/OpenAPI metadata, request/response transformers, relation loading, pagination, filtering/sorting, subscribers, and hooks/IAM authorization are implemented.
+
+MongoDB, GraphQL, soft deletes, bulk operations, general-purpose cache integration, and custom parameter decorators are not part of the current public contract. Authorization policy rule caching and explicit authorization cache invalidation are supported.
+
 ## 🛣 Roadmap
 
-## Roadmap
+The roadmap is aligned with the current source contract rather than older docs-only examples.
 
-| Task / Feature                              | Status         |
-| ------------------------------------------- | -------------- |
-| Core CRUD operations                        | ✅ Done        |
-| TypeORM integration                         | ✅ Done        |
-| Swagger/OpenAPI documentation               | ✅ Done        |
-| Validation with class-validator             | ✅ Done        |
-| Transformation with class-transformer       | ✅ Done        |
-| Advanced filtering for GET_LIST operation   | ✅ Done        |
-| Authentication guard integration            | ✅ Done        |
-| Request/response transformers               | ✅ Done        |
-| Relation loading strategies                 | ✅ Done        |
-| Custom validator integration                | ✅ Done        |
-| Pagination support                          | ✅ Done        |
-| Error handling with standardized responses  | ✅ Done        |
-| Support for TypeScript decorators           | ✅ Done        |
-| Support for ESM and CommonJS modules        | ✅ Done        |
-| Subscriber System                           | ✅ Done        |
-| Hooks and IAM authorization pipeline        | ✅ Done        |
-| DI-backed authorization bootstrap           | ✅ Done        |
-| Scope-safe authorization filtering          | ✅ Done        |
-| MongoDB support                             | 🚧 In Progress |
-| GraphQL integration                         | 🚧 In Progress |
-| Support for soft deletes                    | 🚧 In Progress |
-| Cache integration                           | 🚧 In Progress |
-| Audit logging middleware                    | 🚧 In Progress |
-| Bulk operations (create many, update many)  | 🚧 In Progress |
-| Query complexity analyzer                   | 🚧 In Progress |
-| Rate limiting enhancements                  | 🚧 In Progress |
-| Custom parameter decorators                 | 🚧 In Progress |
+### Available Now
+
+- REST CRUD controller and service generation for TypeORM entities
+- Entity-driven DTO generation for body, query, parameters, and response contracts
+- Custom DTO support, including nested manual DTOs and GET_LIST item response DTOs
+- Swagger/OpenAPI metadata generation for generated and custom routes
+- Pagination, filtering, sorting, request validators, and request/response transformers
+- Request and response relation loading with configurable reference projection
+- Route and function subscribers, including custom route/function hooks and error hooks
+- Hooks-mode authorization policies and IAM-style policy document authorization
+- Function transaction scopes for generated and custom service operations
+- Environment-agnostic AI guidance bundle for AI-assisted development
+
+### Current Focus
+
+- Keep `README.md`, `docs/`, and `ai/` synchronized with the public TypeScript interfaces
+- Expand examples for `ApiRouteCustom`, `ApiFunctionCustom`, relation loading boundaries, and IAM cache invalidation
+- Harden documentation around generated `PUT` vs `PATCH`, GET_LIST response modes, subscriber context shapes, and authorization custom actions
+- Continue improving tests for custom DTOs, route runtime behavior, policy execution, and transaction scopes
+
+### Future Candidates
+
+- Soft-delete route semantics
+- Bulk create/update/delete operations
+- File upload recipes for generated and custom controllers
+- General-purpose cache adapter examples beyond authorization rule caching
+- GraphQL or MongoDB support after a separate API design pass
+
+## 🤖 AI Guidance Bundle
+
+This repository includes a source-aligned, environment-agnostic AI guidance bundle at `ai/`. The canonical CRUD Automator skill lives at `ai/crud-automator/SKILL.md`, with adapters for Cursor, Claude Code, Codex-style agents, and other agent runners.
+
+Use `ai/README.md` for installation instructions when a specific tool expects files such as `.cursor/skills`, `AGENTS.md`, or `CLAUDE.md`. The skill covers current route config shape, DTO rules, custom route/function boundaries, subscribers, HOOKS/IAM authorization, relation loading, transactions, and common docs drift pitfalls.
 
 ## ❓ FAQ
-
-## Frequently Asked Questions
 
 ### How does NestJS-Crud-Automator compare to @nestjsx/crud?
 
@@ -1060,7 +1110,7 @@ Yes, as long as your repository follows the TypeORM Repository pattern, it will 
 
 ## 🔒 License
 
-This project is licensed under \*\*MIT License
+This project is licensed under **MIT License**.
 
 Copyright (c) 2025 ElsiKora
 
@@ -1068,4 +1118,4 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\*\*.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

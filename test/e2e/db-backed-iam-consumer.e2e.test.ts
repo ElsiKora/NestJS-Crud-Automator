@@ -2,7 +2,7 @@ import "reflect-metadata";
 
 import type { ExecutionContext, INestApplication } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
-import type { IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiPolicyAttachmentSource, IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "../../dist/esm/index";
+import type { IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiPolicyAttachmentSource, IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "../../src/index";
 import type { Repository } from "typeorm";
 
 import { Inject, Injectable, Module } from "@nestjs/common";
@@ -30,12 +30,13 @@ import {
 	EApiAuthorizationMode,
 	EApiAuthorizationPrincipalType,
 	EApiControllerLoadRelationsStrategy,
+	EApiControllerRelationReferenceShape,
 	EApiPolicyEffect,
 	EApiPolicySourceType,
 	EApiPropertyDescribeType,
 	EApiPropertyStringType,
 	EApiRouteType,
-} from "../../dist/esm/index";
+} from "../../src/index";
 
 function describeRelationProperty(entity: new () => unknown, description: string): PropertyDecorator {
 	return ApiPropertyDescribe({
@@ -314,46 +315,69 @@ const iamConsumerAuthorization = {
 	path: "iam-consumer-items",
 	routes: {
 		[EApiRouteType.CREATE]: {
-			authentication: iamConsumerAuthentication,
-			request: {
-				relations: {
-					relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					shouldLoadRelations: true,
+			security: { authentication: iamConsumerAuthentication },
+			relations: {
+				request: {
+					load: {
+						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						shouldLoad: true,
+					},
+					reference: {
+						shape: EApiControllerRelationReferenceShape.SCALAR,
+					},
 				},
 			},
 		},
 		[EApiRouteType.DELETE]: {
-			isEnabled: false,
+			generation: { isEnabled: false },
 		},
 		[EApiRouteType.GET]: {
-			authentication: iamConsumerAuthentication,
-			response: {
-				relations: {
-					operator: true,
+			security: { authentication: iamConsumerAuthentication },
+			relations: {
+				response: {
+					load: {
+						include: {
+							operator: true,
+						},
+					},
+					reference: {
+						key: "id",
+						shape: EApiControllerRelationReferenceShape.OBJECT,
+					},
 				},
 			},
 		},
 		[EApiRouteType.GET_LIST]: {
-			authentication: iamConsumerAuthentication,
+			security: { authentication: iamConsumerAuthentication },
 		},
 		[EApiRouteType.PARTIAL_UPDATE]: {
-			authentication: iamConsumerAuthentication,
-			request: {
-				relations: {
-					relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					shouldLoadRelations: true,
+			security: { authentication: iamConsumerAuthentication },
+			relations: {
+				request: {
+					load: {
+						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						shouldLoad: true,
+					},
+					reference: {
+						shape: EApiControllerRelationReferenceShape.SCALAR,
+					},
 				},
 			},
 		},
 		[EApiRouteType.UPDATE]: {
-			authentication: iamConsumerAuthentication,
-			request: {
-				relations: {
-					relationsLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					servicesLoadStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					shouldLoadRelations: true,
+			security: { authentication: iamConsumerAuthentication },
+			relations: {
+				request: {
+					load: {
+						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						shouldLoad: true,
+					},
+					reference: {
+						shape: EApiControllerRelationReferenceShape.SCALAR,
+					},
 				},
 			},
 		},

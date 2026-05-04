@@ -1,9 +1,12 @@
+import type { EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function.interface";
 import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.interface";
 import type { IApiFunctionSubscriberProperties, IApiRouteSubscriberProperties } from "@interface/decorator/api/subscriber";
 
 import { LoggerUtility } from "@utility/logger.utility";
+
+import { SubscriberWrapper } from "./wrapper.class";
 
 const subscriberRegistryLogger: LoggerUtility = LoggerUtility.getLogger("ApiSubscriberRegistry");
 
@@ -17,12 +20,12 @@ class ApiSubscriberRegistry {
 		this.ROUTE_SUBSCRIBERS = new Map();
 	}
 
-	public getFunctionSubscribers<E extends IApiBaseEntity>(entityName: string): Array<IApiSubscriberFunction<E>> {
-		return (this.FUNCTION_SUBSCRIBERS.get(entityName)?.subscribers ?? []).map((s: { priority: number; subscriber: IApiSubscriberFunction<IApiBaseEntity> }) => s.subscriber) as unknown as Array<IApiSubscriberFunction<E>>;
+	public getFunctionSubscribers<E extends IApiBaseEntity>(entityName: string, functionType?: EApiFunctionType, action?: string): Array<IApiSubscriberFunction<E>> {
+		return (this.FUNCTION_SUBSCRIBERS.get(entityName)?.subscribers ?? []).filter((entry: { properties?: IApiFunctionSubscriberProperties<IApiBaseEntity>; subscriber: IApiSubscriberFunction<IApiBaseEntity> }) => this.isFunctionSubscriberMatching(entry.properties, functionType, action)).map((s: { subscriber: IApiSubscriberFunction<IApiBaseEntity> }) => s.subscriber) as unknown as Array<IApiSubscriberFunction<E>>;
 	}
 
-	public getRouteSubscribers<E extends IApiBaseEntity>(entityName: string): Array<IApiSubscriberRoute<E>> {
-		return (this.ROUTE_SUBSCRIBERS.get(entityName)?.subscribers ?? []).map((s: { priority: number; subscriber: IApiSubscriberRoute<IApiBaseEntity> }) => s.subscriber) as unknown as Array<IApiSubscriberRoute<E>>;
+	public getRouteSubscribers<E extends IApiBaseEntity>(entityName: string, controller?: new (...arguments_: Array<unknown>) => unknown, routeType?: EApiRouteType, action?: string): Array<IApiSubscriberRoute<E>> {
+		return (this.ROUTE_SUBSCRIBERS.get(entityName)?.subscribers ?? []).filter((entry: { properties?: IApiRouteSubscriberProperties<IApiBaseEntity>; subscriber: IApiSubscriberRoute<IApiBaseEntity> }) => this.isRouteSubscriberMatching(entry.properties, controller, routeType, action)).map((s: { subscriber: IApiSubscriberRoute<IApiBaseEntity> }) => s.subscriber) as unknown as Array<IApiSubscriberRoute<E>>;
 	}
 
 	public registerFunctionSubscriber<E extends IApiBaseEntity>(properties: IApiFunctionSubscriberProperties<E>, subscriber: IApiSubscriberFunction<E>): void {
@@ -34,7 +37,7 @@ class ApiSubscriberRegistry {
 			this.FUNCTION_SUBSCRIBERS.set(entityName, wrapper);
 		}
 
-		wrapper.addSubscriber(subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>, properties.priority);
+		wrapper.addSubscriber(subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>, properties.priority, properties as unknown as IApiFunctionSubscriberProperties<IApiBaseEntity>);
 
 		subscriberRegistryLogger.debug(`Total function subscribers for "${entityName}": ${wrapper.getSubscriberCount()}`);
 		subscriberRegistryLogger.debug(`Registered function subscriber entities: [${[...this.FUNCTION_SUBSCRIBERS.values()].map((registeredWrapper: SubscriberWrapper<IApiSubscriberFunction<IApiBaseEntity>>) => registeredWrapper.getName()).join(", ")}]`);
@@ -49,30 +52,36 @@ class ApiSubscriberRegistry {
 			this.ROUTE_SUBSCRIBERS.set(entityName, wrapper);
 		}
 
-		wrapper.addSubscriber(subscriber as unknown as IApiSubscriberRoute<IApiBaseEntity>, properties.priority);
+		wrapper.addSubscriber(subscriber as unknown as IApiSubscriberRoute<IApiBaseEntity>, properties.priority, properties as unknown as IApiRouteSubscriberProperties<IApiBaseEntity>);
 
 		subscriberRegistryLogger.debug(`Total route subscribers for "${entityName}": ${wrapper.getSubscriberCount()}`);
 		subscriberRegistryLogger.debug(`Registered route subscriber entities: [${[...this.ROUTE_SUBSCRIBERS.values()].map((registeredWrapper: SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity>>) => registeredWrapper.getName()).join(", ")}]`);
 	}
-}
 
-class SubscriberWrapper<T> {
-	constructor(
-		private readonly name: string,
-		public subscribers: Array<{ priority: number; subscriber: T }> = [],
-	) {}
+	private isFunctionSubscriberMatching(properties: IApiFunctionSubscriberProperties<IApiBaseEntity> | undefined, functionType?: EApiFunctionType, action?: string): boolean {
+		if (!properties?.functions?.length) {
+			return true;
+		}
 
-	addSubscriber(subscriber: T, priority: number = 0): void {
-		this.subscribers.push({ priority, subscriber });
-		this.subscribers.sort((a: { priority: number; subscriber: T }, b: { priority: number; subscriber: T }) => b.priority - a.priority);
+		return properties.functions.some((filter: NonNullable<IApiFunctionSubscriberProperties<IApiBaseEntity>["functions"]>[number]) => filter.type === functionType && (filter.action === undefined || filter.action === action));
 	}
 
-	getName(): string {
-		return this.name;
-	}
+	private isRouteSubscriberMatching(properties: IApiRouteSubscriberProperties<IApiBaseEntity> | undefined, controller?: new (...arguments_: Array<unknown>) => unknown, routeType?: EApiRouteType, action?: string): boolean {
+		if (!properties) {
+			return true;
+		}
 
-	getSubscriberCount(): number {
-		return this.subscribers.length;
+		const isControllerMatching: boolean =
+			!properties.controllers?.length ||
+			properties.controllers.some((controllerReference: NonNullable<IApiRouteSubscriberProperties<IApiBaseEntity>["controllers"]>[number]) => {
+				const resolvedController: new (...arguments_: Array<unknown>) => unknown = typeof controllerReference === "function" && "prototype" in controllerReference ? (controllerReference as new (...arguments_: Array<unknown>) => unknown) : (controllerReference as () => new (...arguments_: Array<unknown>) => unknown)();
+
+				return resolvedController === controller;
+			});
+		const isRouteMatching: boolean = !properties.routes?.length || (routeType !== undefined && properties.routes.includes(routeType));
+		const isActionMatching: boolean = !properties.actions?.length || (action !== undefined && properties.actions.includes(action));
+
+		return isControllerMatching && isRouteMatching && isActionMatching;
 	}
 }
 

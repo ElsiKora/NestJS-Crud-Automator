@@ -7,7 +7,7 @@ import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiAuthorizationPolicyRegistry, ApiFunctionSubscriber, ApiFunctionSubscriberBase, ApiRouteSubscriber, ApiRouteSubscriberBase, ApiSubscriberModule, EApiRouteType, apiSubscriberRegistry } from "../../dist/esm/index";
+import { ApiAuthorizationModule, ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiAuthorizationPolicyRegistry, ApiFunctionSubscriber, ApiFunctionSubscriberBase, ApiRouteSubscriber, ApiRouteSubscriberBase, ApiSubscriberModule, EApiRouteType, apiSubscriberRegistry } from "../../src/index";
 
 @Entity("nest_policy_entities")
 class NestPolicyEntity {
@@ -47,7 +47,7 @@ describe("Nest TestingModule (E2E)", () => {
 		await app.init();
 
 		const registry = moduleRef.get(ApiAuthorizationPolicyRegistry);
-		const policy = await registry.buildAggregatedPolicy(NestPolicyEntity, EApiRouteType.GET);
+		const policy = await registry.buildAggregatedPolicy(NestPolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
 
 		expect(policy).toBeDefined();
 		expect(policy?.rules).toHaveLength(1);

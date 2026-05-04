@@ -2,17 +2,19 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiSubscriber } from "@interface/class/api/subscriber/interface";
 import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route/error-execution-context.interface";
-import type { IApiSubscriberRouteExecutionContextData, IApiSubscriberRouteExecutionContextDataExtended } from "@interface/class/api/subscriber/route/execution/context-data.interface";
-import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route/execution/context.interface";
+import type { IApiSubscriberRouteExecutionContextData, IApiSubscriberRouteExecutionContextDataExtended } from "@interface/class/api/subscriber/route/execution/context";
+import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route/execution/context";
 import type { IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import type { DeepPartial } from "typeorm";
 
 export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubscriber {
 	onAfterCreate?(context: IApiSubscriberRouteExecutionContext<E, E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>): Promise<E | undefined>;
+	onAfterCustom?(context: IApiSubscriberRouteExecutionContext<E, unknown, IApiSubscriberRouteExecutionContextDataExtended<E, unknown>>): Promise<unknown>;
 	onAfterDelete?(context: IApiSubscriberRouteExecutionContext<E, Partial<E>, IApiSubscriberRouteExecutionContextDataExtended<E, undefined>>): Promise<Partial<E> | undefined>;
 
 	onAfterErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>, error: Error): Promise<void>;
+	onAfterErrorCustom?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, unknown>>, error: Error): Promise<void>;
 	onAfterErrorDelete?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, undefined>>, error: Error): Promise<void>;
 
 	onAfterErrorGet?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextDataExtended<E, E>>, error: Error): Promise<void>;
@@ -45,6 +47,7 @@ export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubsc
 		  }
 		| undefined
 	>;
+	onBeforeCustom?(context: IApiSubscriberRouteExecutionContext<E, unknown, IApiSubscriberRouteExecutionContextData<E, unknown>>): Promise<unknown>;
 	onBeforeDelete?(
 		context: IApiSubscriberRouteExecutionContext<
 			E,
@@ -66,6 +69,7 @@ export interface IApiSubscriberRoute<E extends IApiBaseEntity> extends IApiSubsc
 		| undefined
 	>;
 	onBeforeErrorCreate?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E, E>>, error: Error): Promise<void>;
+	onBeforeErrorCustom?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E, unknown>>, error: Error): Promise<void>;
 	onBeforeErrorDelete?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E, undefined>>, error: Error): Promise<void>;
 	onBeforeErrorGet?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E, E>>, error: Error): Promise<void>;
 	onBeforeErrorGetList?(context: IApiSubscriberRouteErrorExecutionContext<E, IApiSubscriberRouteExecutionContextData<E, IApiGetListResponseResult<E>>>, error: Error): Promise<void>;

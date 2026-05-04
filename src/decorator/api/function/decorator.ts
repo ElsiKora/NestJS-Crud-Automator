@@ -6,6 +6,7 @@ import { EApiFunctionType } from "@enum/decorator/api";
 import { ErrorException } from "@utility/error/exception.utility";
 
 import { ApiFunctionCreate } from "./create.decorator";
+import { ApiFunctionCustom } from "./custom.decorator";
 import { ApiFunctionDelete } from "./delete.decorator";
 import { ApiFunctionGet } from "./get/decorator";
 import { ApiFunctionGetList } from "./get/list.decorator";
@@ -33,37 +34,43 @@ export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctio
 
 			switch (type) {
 				case EApiFunctionType.CREATE: {
-					decoratorFunction = ApiFunctionCreate({ entity });
+					decoratorFunction = ApiFunctionCreate({ entity, transaction: properties.transaction });
+
+					break;
+				}
+
+				case EApiFunctionType.CUSTOM: {
+					decoratorFunction = ApiFunctionCustom({ action: properties.action ?? propertyKey, entity, transaction: properties.transaction });
 
 					break;
 				}
 
 				case EApiFunctionType.DELETE: {
-					decoratorFunction = ApiFunctionDelete({ entity });
+					decoratorFunction = ApiFunctionDelete({ entity, transaction: properties.transaction });
 
 					break;
 				}
 
 				case EApiFunctionType.GET: {
-					decoratorFunction = ApiFunctionGet({ entity });
+					decoratorFunction = ApiFunctionGet({ entity, transaction: properties.transaction });
 
 					break;
 				}
 
 				case EApiFunctionType.GET_LIST: {
-					decoratorFunction = ApiFunctionGetList({ entity });
+					decoratorFunction = ApiFunctionGetList({ entity, transaction: properties.transaction });
 
 					break;
 				}
 
 				case EApiFunctionType.GET_MANY: {
-					decoratorFunction = ApiFunctionGetMany({ entity });
+					decoratorFunction = ApiFunctionGetMany({ entity, transaction: properties.transaction });
 
 					break;
 				}
 
 				case EApiFunctionType.UPDATE: {
-					decoratorFunction = ApiFunctionUpdate({ entity });
+					decoratorFunction = ApiFunctionUpdate({ entity, transaction: properties.transaction });
 
 					break;
 				}

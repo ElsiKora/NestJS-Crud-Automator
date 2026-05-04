@@ -25,9 +25,9 @@ class InheritedSwaggerEntity extends InheritedSwaggerBaseEntity {}
 describe("ApiControllerWriteDtoSwagger", () => {
 	it("registers relation DTOs in swagger extra models", () => {
 		const entityMetadata: IApiEntity<{ name?: string }> = {
-			columns: [],
+			columns: [{ isPrimary: true, name: "id" as never, type: "uuid" }],
 			name: "SwaggerEntity",
-			primaryKey: undefined,
+			primaryKey: { isPrimary: true, name: "id" as never, type: "uuid" },
 			tableName: "swagger_entities",
 		};
 		const properties: IApiControllerProperties<{ name?: string }> = {
@@ -38,7 +38,7 @@ describe("ApiControllerWriteDtoSwagger", () => {
 			dto: {
 				body: SwaggerDto,
 				query: SwaggerDto,
-				request: SwaggerDto,
+				parameters: SwaggerDto,
 				response: SwaggerDto,
 			},
 		};
@@ -60,9 +60,9 @@ describe("ApiControllerWriteDtoSwagger", () => {
 
 	it("registers inherited relation DTOs in swagger extra models", () => {
 		const entityMetadata: IApiEntity<{ owner?: { id: string } }> = {
-			columns: [],
+			columns: [{ isPrimary: true, name: "id" as never, type: "uuid" }],
 			name: InheritedSwaggerEntity.name,
-			primaryKey: undefined,
+			primaryKey: { isPrimary: true, name: "id" as never, type: "uuid" },
 			tableName: "inherited_swagger_entities",
 		};
 		const properties: IApiControllerProperties<{ owner?: { id: string } }> = {
@@ -73,7 +73,7 @@ describe("ApiControllerWriteDtoSwagger", () => {
 			dto: {
 				body: SwaggerDto,
 				query: SwaggerDto,
-				request: SwaggerDto,
+				parameters: SwaggerDto,
 				response: SwaggerDto,
 			},
 		};

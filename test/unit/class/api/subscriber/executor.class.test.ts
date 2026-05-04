@@ -29,6 +29,7 @@ const routeHookSuffixes: Record<EApiRouteType, string> = {
 
 const functionHookSuffixes: Record<EApiFunctionType, string> = {
 	[EApiFunctionType.CREATE]: "Create",
+	[EApiFunctionType.CUSTOM]: "Custom",
 	[EApiFunctionType.DELETE]: "Delete",
 	[EApiFunctionType.GET]: "Get",
 	[EApiFunctionType.GET_LIST]: "GetList",

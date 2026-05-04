@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
-import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, type TApiSubscriberFunctionBeforeCreateContext } from "../../../../dist/esm/index";
+import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, type TApiSubscriberFunctionBeforeCreateContext } from "../../../../src/index";
 
 import { E2eEntity } from "../entity";
 
@@ -29,11 +29,41 @@ export class E2eFunctionSubscriber extends ApiFunctionSubscriberBase<E2eEntity> 
 		return context.result;
 	}
 
+	public async onBeforeCustom(context: { action?: string; DATA: { eventManager?: unknown }; result: Array<Partial<E2eEntity>> }) {
+		E2eFunctionSubscriber.record("before", context.action ?? "custom");
+
+		if (context.DATA.eventManager) {
+			E2eFunctionSubscriber.record("before", `${context.action ?? "custom"}:transaction`);
+		}
+
+		const [body] = context.result;
+
+		if (body?.id === "custom-before-error") {
+			throw new Error("Forced before-custom error");
+		}
+
+		if (body?.name) {
+			body.name = `custom-${body.name}`;
+		}
+
+		return context.result;
+	}
+
 	public async onAfterCreate(context: { result: E2eEntity }) {
 		E2eFunctionSubscriber.record("after", "create");
 
 		if (context.result.name === "fn-ThrowAfterCreate") {
 			throw new Error("Forced after-create error");
+		}
+
+		return context.result;
+	}
+
+	public async onAfterCustom(context: { action?: string; result: E2eEntity }) {
+		E2eFunctionSubscriber.record("after", context.action ?? "custom");
+
+		if (context.result.name) {
+			context.result.name = `custom-after-${context.result.name}`;
 		}
 
 		return context.result;
@@ -114,6 +144,18 @@ export class E2eFunctionSubscriber extends ApiFunctionSubscriberBase<E2eEntity> 
 		E2eFunctionSubscriber.record("after_error", "create");
 		// eslint-disable-next-line @elsikora/sonar/void-use
 		void _context;
+		// eslint-disable-next-line @elsikora/sonar/void-use
+		void _error;
+	}
+
+	public async onAfterErrorCustom(context: { action?: string }, _error: Error): Promise<void> {
+		E2eFunctionSubscriber.record("after_error", context.action ?? "custom");
+		// eslint-disable-next-line @elsikora/sonar/void-use
+		void _error;
+	}
+
+	public async onBeforeErrorCustom(context: { action?: string }, _error: Error): Promise<void> {
+		E2eFunctionSubscriber.record("before_error", context.action ?? "custom");
 		// eslint-disable-next-line @elsikora/sonar/void-use
 		void _error;
 	}

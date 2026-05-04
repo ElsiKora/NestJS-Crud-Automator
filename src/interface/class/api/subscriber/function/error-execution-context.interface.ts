@@ -9,5 +9,6 @@ import type { IApiSubscriberErrorExecutionContext } from "@interface/class/api/s
  * @template Input - Type of the DATA field (immutable context data). Use IApiSubscriberFunctionExecutionContextData<E> for typed access.
  */
 export interface IApiSubscriberFunctionErrorExecutionContext<E extends IApiBaseEntity, Input = unknown> extends IApiSubscriberErrorExecutionContext<E, Input> {
+	action?: string;
 	readonly FUNCTION_TYPE: EApiFunctionType;
 }

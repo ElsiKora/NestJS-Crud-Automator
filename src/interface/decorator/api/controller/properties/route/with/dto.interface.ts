@@ -11,5 +11,5 @@ export interface IApiControllerPropertiesRouteWithDto<E, R extends EApiRouteType
 type TApiControllerPropertiesRouteDto<R extends EApiRouteType> = Partial<
 	{
 		[EApiDtoType.RESPONSE]: R extends EApiRouteType.GET_LIST ? IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown> : Type<unknown>;
-	} & Record<EApiDtoType.BODY | EApiDtoType.QUERY | EApiDtoType.REQUEST, Type<unknown>>
+	} & Record<EApiDtoType.BODY | EApiDtoType.PARAMETERS | EApiDtoType.QUERY, Type<unknown>>
 >;

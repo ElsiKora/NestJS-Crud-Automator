@@ -6,11 +6,13 @@ import type { IApiFunctionProperties, IApiFunctionUpdateExecutorProperties } fro
 import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 import type { DeepPartial, EntityManager, Repository } from "typeorm";
 
+import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
-import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
+import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { EApiExceptionDetailsType } from "@enum/utility/exception-details-type.enum";
 import { BadRequestException, ConflictException, HttpException, HttpStatus, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 import { DatabaseTypeOrmGetForeignKeyViolationDetails } from "@utility/database/typeorm/get/foreign-key-violation-details.utility";
 import { DatabaseTypeOrmGetUniqueViolationDetails } from "@utility/database/typeorm/get/unique-violation-details.utility";
 import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
@@ -32,56 +34,62 @@ import { ApiFunctionGet } from "./get/decorator";
  */
 export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity }: IApiFunctionProperties<E> = properties;
-	const getDecorator: (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity });
-	let getFunction: (properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager) => Promise<E>;
+	const transactionMode: EApiFunctionTransactionMode = properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
+	const getDecorator: (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity, transaction: properties.transaction });
+	let getFunction: (properties: TApiFunctionGetProperties<E>) => Promise<E>;
 
 	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
-		descriptor.value = async function (this: { repository: Repository<E> }, criteria: TApiFunctionUpdateCriteria<E>, updateProperties: TApiFunctionUpdateProperties<E>, eventManager?: EntityManager): Promise<E> {
-			const entityInstance: E = new entity();
+		descriptor.value = async function (this: { repository: Repository<E> }, criteria: TApiFunctionUpdateCriteria<E>, updateProperties: TApiFunctionUpdateProperties<E>): Promise<E> {
+			return await ApiFunctionExecuteWithTransaction({
+				callback: async (eventManager: EntityManager | undefined): Promise<E> => {
+					const entityInstance: E = new entity();
 
-			const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionUpdateProperties<E>> = {
-				DATA: { criteria, eventManager, repository: this.repository },
-				ENTITY: entityInstance,
-				FUNCTION_TYPE: EApiFunctionType.UPDATE,
-				result: updateProperties,
-			};
+					const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionUpdateProperties<E>> = {
+						DATA: { criteria, eventManager, repository: this.repository },
+						ENTITY: entityInstance,
+						FUNCTION_TYPE: EApiFunctionType.UPDATE,
+						result: updateProperties,
+					};
 
-			const result: TApiFunctionUpdateProperties<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE, executionContext);
+					const result: TApiFunctionUpdateProperties<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE, executionContext);
 
-			if (result) {
-				executionContext.result = result;
-			}
+					if (result) {
+						executionContext.result = result;
+					}
 
-			const repository: Repository<E> = this.repository;
+					const repository: Repository<E> = this.repository;
 
-			if (!repository) {
-				const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-					DATA: { criteria, eventManager, repository: this.repository },
-					ENTITY: entityInstance,
-					FUNCTION_TYPE: EApiFunctionType.UPDATE,
-				};
+					if (!repository) {
+						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
+							DATA: { criteria, eventManager, repository: this.repository },
+							ENTITY: entityInstance,
+							FUNCTION_TYPE: EApiFunctionType.UPDATE,
+						};
 
-				await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Repository is not available in this context"));
+						await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Repository is not available in this context"));
 
-				throw ErrorException("Repository is not available in this context");
-			}
+						throw ErrorException("Repository is not available in this context");
+					}
 
-			if (!getFunction) {
-				const getDescriptor: TypedPropertyDescriptor<(properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager) => Promise<E>> = {
-					value: function () {
-						return Promise.reject(ErrorException("Not implemented"));
-					},
-				};
-				getDecorator(this, "get", getDescriptor);
+					if (!getFunction) {
+						const getDescriptor: TypedPropertyDescriptor<(properties: TApiFunctionGetProperties<E>) => Promise<E>> = {
+							value: rejectMissingGetFunction,
+						};
+						getDecorator(this, "get", getDescriptor);
 
-				if (getDescriptor.value) {
-					getFunction = getDescriptor.value.bind(this);
-				} else {
-					throw ErrorException("Get function is not properly decorated");
-				}
-			}
+						if (getDescriptor.value) {
+							getFunction = getDescriptor.value.bind(this);
+						} else {
+							throw ErrorException("Get function is not properly decorated");
+						}
+					}
 
-			return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria, entity, eventManager, getFunction, properties: executionContext.result ?? ({} as unknown as TApiFunctionUpdateProperties<E>), repository });
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria, entity, getFunction, properties: executionContext.result ?? ({} as unknown as TApiFunctionUpdateProperties<E>), repository });
+				},
+				entity,
+				mode: transactionMode,
+				repository: this.repository,
+			});
 		};
 
 		return descriptor;
@@ -96,10 +104,11 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
  * @throws {InternalServerErrorException} If the update operation fails
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExecutorProperties<E>): Promise<E> {
-	const { constructor, criteria, entity, eventManager, getFunction, properties, repository }: IApiFunctionUpdateExecutorProperties<E> = options;
+	const { constructor, criteria, entity, getFunction, properties, repository }: IApiFunctionUpdateExecutorProperties<E> = options;
+	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.get<E>()?.eventManager;
 
 	try {
-		const existingEntity: E = await getFunction({ where: criteria }, eventManager);
+		const existingEntity: E = await getFunction({ where: criteria });
 		const updatedProperties: Partial<E> = {};
 		const typedEntries: Array<[keyof E, E[keyof E]]> = Object.entries(properties) as Array<[keyof E, E[keyof E]]>;
 
@@ -184,4 +193,13 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			{ cause: caughtError },
 		);
 	}
+}
+
+/**
+ * Rejects calls to a generated fallback get function before it is decorated.
+ * @template E - Entity type expected from the get function.
+ * @returns {Promise<E>} A rejected promise explaining that the function is not implemented.
+ */
+function rejectMissingGetFunction<E extends IApiBaseEntity>(): Promise<E> {
+	return Promise.reject(ErrorException("Not implemented"));
 }

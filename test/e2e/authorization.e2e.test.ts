@@ -81,7 +81,7 @@ describe("Authorization policy registry (E2E)", () => {
 			subscriber: new PermissionAllowPolicySubscriber() as unknown as IApiAuthorizationPolicySubscriber<PolicyEntity>,
 		});
 
-		const policy = await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET);
+		const policy = await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
 
 		expect(policy).toBeDefined();
 		expect(policy?.rules).toHaveLength(2);
@@ -116,7 +116,7 @@ describe("Authorization policy registry (E2E)", () => {
 			subscriber: new PermissionAllowPolicySubscriber() as unknown as IApiAuthorizationPolicySubscriber<PolicyEntity>,
 		});
 
-		const policy = await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET);
+		const policy = await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
 		const engine = new ApiAuthorizationEngine();
 		const decision = await engine.evaluate({
 			action: EApiRouteType.GET,
@@ -153,7 +153,7 @@ describe("Authorization policy registry (E2E)", () => {
 			subscriber: new PermissionDenyPolicySubscriber() as unknown as IApiAuthorizationPolicySubscriber<PolicyEntity>,
 		});
 
-		const policy = await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET);
+		const policy = await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
 		const engine = new ApiAuthorizationEngine();
 		const decision = await engine.evaluate({
 			action: EApiRouteType.GET,
@@ -187,6 +187,7 @@ describe("Authorization policy registry (E2E)", () => {
 		});
 
 		const createPolicy = await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.CREATE, {
+			routeType: EApiRouteType.CREATE,
 			requestMetadata: {
 				body: {
 					ownerId: "owner-1",
@@ -225,6 +226,7 @@ describe("Authorization policy registry (E2E)", () => {
 		expect(createDecision.scope?.where).toEqual({ ownerId: "owner-1" });
 
 		const partialUpdatePolicy = await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.PARTIAL_UPDATE, {
+			routeType: EApiRouteType.PARTIAL_UPDATE,
 			requestMetadata: {
 				body: {
 					ownerId: "other-owner",

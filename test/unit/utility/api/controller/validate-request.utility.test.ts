@@ -20,14 +20,16 @@ describe("ApiControllerValidateRequest", () => {
 	});
 
 	it("throws when a validator fails", async () => {
-		const validators = [
+		const target = {
+			validators: [
 			{
 				errorType: EErrorStringAction.INVALID_DATA,
 				exception: BadRequestException,
 				validationFunction: () => false,
 			},
-		];
+			],
+		};
 
-		await expect(ApiControllerValidateRequest(validators, properties, { id: "1" })).rejects.toBeInstanceOf(BadRequestException);
+		await expect(ApiControllerValidateRequest(target, properties, { id: "1" })).rejects.toBeInstanceOf(BadRequestException);
 	});
 });

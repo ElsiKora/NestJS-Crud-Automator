@@ -1,0 +1,92 @@
+# `@ApiFunctionCustom`
+
+`@ApiFunctionCustom` wraps a custom service command in the same function subscriber and transaction lifecycle used by built-in CRUD function decorators. Use it for domain operations that are not plain create, update, delete, get, list, or get-many calls but still need observable lifecycle hooks and transaction-aware helper operations.
+
+## Signature
+
+```typescript
+@ApiFunctionCustom<E extends IApiBaseEntity>(
+	properties: IApiFunctionCustomProperties<E>
+): (target, propertyKey, descriptor) => PropertyDescriptor
+```
+
+## Options
+
+| Option             | Type                                | Description                                                                 |
+| ------------------ | ----------------------------------- | --------------------------------------------------------------------------- |
+| `entity`           | `new () => E`                       | Entity constructor used for subscribers, repositories, and context helpers. |
+| `action`           | `string`                            | Custom action name used by function subscriber filters.                     |
+| `transaction.mode` | `EApiFunctionTransactionMode`       | Optional transaction mode. Defaults to `SUPPORTS`.                          |
+
+## Lifecycle
+
+1. Resolve the transaction mode.
+2. Execute `onBeforeCustom` subscribers for the configured `action`.
+3. Run the original method inside `ApiFunctionContextStorage`.
+4. Execute `onAfterCustom` subscribers.
+5. Dispatch setup or before-hook failures to `onBeforeErrorCustom`.
+6. Dispatch original method or after-hook failures to `onAfterErrorCustom`.
+
+## Transaction modes
+
+```typescript
+@ApiFunctionCustom<OrderEntity>({
+	action: "checkout",
+	entity: OrderEntity,
+	transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+})
+async checkout(orderId: string): Promise<OrderEntity> {
+	const context = this.getApiFunctionContext<OrderEntity>();
+
+	const order = await context.operations.get({ where: { id: orderId } });
+	const updated = await context.operations.update({ id: orderId }, { status: "paid" });
+
+	await context.getRepository(OrderAuditEntity).save({
+		orderId: order.id,
+		status: "paid",
+	});
+
+	return updated;
+}
+```
+
+`context.operations` uses the active transaction manager when one exists. That includes `create`, `delete`, `get`, `getList`, `getMany`, `update`, and `getRepository`.
+
+| Operation | Signature |
+| --------- | --------- |
+| `create` | `(properties: TApiFunctionCreateProperties<E>) => Promise<E>` |
+| `delete` | `(criteria: TApiFunctionDeleteCriteria<E> \| Array<TApiFunctionDeleteCriteria<E>>) => Promise<void>` |
+| `get` | `(properties: TApiFunctionGetProperties<E>) => Promise<E>` |
+| `getList` | `(properties: TApiFunctionGetListProperties<E>) => Promise<IApiGetListResponseResult<E>>` |
+| `getMany` | `(properties: TApiFunctionGetManyProperties<E>) => Promise<Array<E>>` |
+| `getRepository` | `<T extends IApiBaseEntity>(entity: new () => T) => Repository<T>` |
+| `update` | `(criteria: TApiFunctionUpdateCriteria<E> \| Array<TApiFunctionUpdateCriteria<E>>, properties: TApiFunctionUpdateProperties<E>) => Promise<E>` |
+
+`this.getApiFunctionContext()` is only available while a decorated function is executing. Calling it outside `@ApiFunction` or `@ApiFunctionCustom` throws.
+
+## Subscriber example
+
+```typescript
+@Injectable()
+@ApiFunctionSubscriber({
+	entity: OrderEntity,
+	functions: [{ type: EApiFunctionType.CUSTOM, action: "checkout" }],
+})
+export class CheckoutSubscriber extends ApiFunctionSubscriberBase<OrderEntity> {
+	async onBeforeCustom(context: IApiSubscriberFunctionExecutionContext<OrderEntity, Array<unknown>>): Promise<Array<unknown> | undefined> {
+		const manager = context.DATA.eventManager;
+
+		if (manager) {
+			await manager.getRepository(OrderAuditEntity).save({ event: "checkout-started" });
+		}
+
+		return context.result;
+	}
+}
+```
+
+## Related resources
+
+- [Function Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
+- [Subscriber System – Function Subscribers](/docs/nestjs-crud-automator/subscriber-system/function-subscribers)
+- [Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context)

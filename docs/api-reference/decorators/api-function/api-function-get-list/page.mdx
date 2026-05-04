@@ -10,12 +10,12 @@ Provides paginated list retrieval with filtering, sorting, and relation loading 
 )
 ```
 
-Decorated methods gain the shape `getList(dto: TApiFunctionGetListProperties<E>, eventManager?: EntityManager): Promise<IApiGetListResponseResult<E>>`.
+Decorated methods gain the shape `getList(dto: TApiFunctionGetListProperties<E>): Promise<IApiGetListResponseResult<E>>`.
 
 ## Behavior
 
 - Runs `onBeforeGetList` subscribers so they can modify the `FindManyOptions` (filters, joins, pagination).
-- Uses `repository.findAndCount` (or the transactional repository) to retrieve data and the total count.
+- Uses `repository.findAndCount` or the active transaction manager repository to retrieve data and the total count.
 - Computes `count`, `totalCount`, `totalPages`, and `currentPage` for the response DTO.
 - Executes `onAfterGetList` subscribers, allowing them to reshape items or pagination metadata.
 - Captures and rethrows HTTP exceptions while notifying `onBeforeErrorGetList` or `onAfterErrorGetList` subscribers.

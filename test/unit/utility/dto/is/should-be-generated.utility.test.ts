@@ -9,10 +9,10 @@ describe("DtoIsShouldBeGenerated", () => {
 		expect(DtoIsShouldBeGenerated(EApiRouteType.GET, EApiDtoType.BODY)).toBe(false);
 	});
 
-	it("handles query and request DTO generation rules", () => {
+	it("handles query and parameters DTO generation rules", () => {
 		expect(DtoIsShouldBeGenerated(EApiRouteType.GET_LIST, EApiDtoType.QUERY)).toBe(true);
 		expect(DtoIsShouldBeGenerated(EApiRouteType.GET, EApiDtoType.QUERY)).toBe(false);
-		expect(DtoIsShouldBeGenerated(EApiRouteType.GET, EApiDtoType.REQUEST)).toBe(true);
+		expect(DtoIsShouldBeGenerated(EApiRouteType.GET, EApiDtoType.PARAMETERS)).toBe(true);
 	});
 
 	it("handles response DTO generation rules", () => {

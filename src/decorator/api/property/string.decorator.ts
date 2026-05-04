@@ -42,7 +42,6 @@ import {
 	IsMACAddress,
 	IsMimeType,
 	IsMongoId,
-	IsOptional,
 	IsPhoneNumber,
 	IsPostalCode,
 	IsRgbColor,
@@ -56,6 +55,7 @@ import {
 	Length,
 	Matches,
 	Validate,
+	ValidateIf,
 } from "class-validator";
 
 /**
@@ -565,6 +565,27 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 }
 
 /**
+ * Builds the presence validator for string request properties.
+ * @param {TApiPropertyStringProperties} properties - Property configuration that controls required and nullable semantics.
+ * @returns {PropertyDecorator} A class-validator presence decorator.
+ */
+function buildPresenceDecorator(properties: TApiPropertyStringProperties): PropertyDecorator {
+	if (properties.isRequired && properties.isNullable) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== null);
+	}
+
+	if (!properties.isRequired && properties.isNullable) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== undefined && value !== null);
+	}
+
+	if (!properties.isRequired) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== undefined);
+	}
+
+	return ValidateIf((): boolean => true);
+}
+
+/**
  * Builds decorators for request validation including optional status,
  * array validation, and size constraints for string properties.
  * @param {TApiPropertyStringProperties} properties - The property configuration
@@ -575,9 +596,7 @@ function buildRequestDecorators(properties: TApiPropertyStringProperties): Array
 	const decorators: Array<PropertyDecorator> = [];
 
 	if (properties.isResponse === false || properties.isResponse === undefined) {
-		if (!properties.isRequired) {
-			decorators.push(IsOptional());
-		}
+		decorators.push(buildPresenceDecorator(properties));
 
 		if (properties.isArray === true) {
 			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
@@ -625,12 +644,9 @@ function buildStringValidationDecorators(properties: TApiPropertyStringPropertie
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
 
-	if (properties.isResponse === false || properties.isResponse === undefined) {
+	if ((properties.isResponse === false || properties.isResponse === undefined) && properties.format !== EApiPropertyStringType.DATE) {
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
-		Matches(new RegExp(properties.pattern.slice(1, -1)), { each: isArray });
-
-		// eslint-disable-next-line @elsikora/typescript/naming-convention
-		Length(properties.minLength, properties.maxLength, { each: isArray });
+		decorators.push(Matches(new RegExp(properties.pattern.slice(1, -1)), { each: isArray }), Length(properties.minLength, properties.maxLength, { each: isArray }));
 	}
 
 	return decorators;

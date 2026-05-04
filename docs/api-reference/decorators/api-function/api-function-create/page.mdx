@@ -1,6 +1,6 @@
 # `@ApiFunctionCreate`
 
-Decorates a service method so it creates a new entity instance, executes before/after function subscribers, and propagates typed HTTP errors. It uses the repository on `this` or an optional `EntityManager` for transactional work.
+Decorates a service method so it creates a new entity instance, executes before/after function subscribers, and propagates typed HTTP errors. It uses the repository on `this` or the ambient transaction context selected by `transaction.mode`.
 
 ## Signature
 
@@ -10,13 +10,13 @@ Decorates a service method so it creates a new entity instance, executes before/
 ): (target, propertyKey, descriptor) => PropertyDescriptor
 ```
 
-Decorated methods receive the shape `create(dto: TApiFunctionCreateProperties<E>, eventManager?: EntityManager): Promise<E>`.
+Decorated methods receive the shape `create(dto: TApiFunctionCreateProperties<E>): Promise<E>`. Transaction managers are resolved internally and exposed to subscribers through `context.DATA.eventManager`.
 
 ## Behavior
 
 - Instantiates the entity to collect metadata and subscriber context.
 - Executes `onBeforeCreate` subscribers; if a handler returns a DTO, it replaces the incoming body.
-- Persists the entity using `repository.save` or `eventManager.getRepository(entity).save`.
+- Persists the entity using `repository.save` or the active transaction manager repository.
 - Executes `onAfterCreate` subscribers with the persisted entity.
 - On errors, runs `onBeforeErrorCreate` or `onAfterErrorCreate` subscribers and rethrows `HttpException` instances or wraps unknown errors in `InternalServerErrorException`.
 
@@ -26,7 +26,10 @@ Decorated methods receive the shape `create(dto: TApiFunctionCreateProperties<E>
 export class PostService {
 	constructor(public repository: Repository<PostEntity>) {}
 
-	@ApiFunctionCreate<PostEntity>({ entity: PostEntity })
+	@ApiFunctionCreate<PostEntity>({
+		entity: PostEntity,
+		transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+	})
 	async createPost(properties: TApiFunctionCreateProperties<PostEntity>) {
 		// Implementation replaced by decorator
 		return {} as PostEntity;

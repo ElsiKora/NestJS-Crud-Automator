@@ -13,7 +13,7 @@ import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform, Type } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDivisibleBy, IsInt, isInt, IsNumber, IsOptional, Max, Min } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDivisibleBy, IsInt, isInt, IsNumber, Max, Min, ValidateIf } from "class-validator";
 import random from "lodash/random";
 
 /**
@@ -214,12 +214,38 @@ function buildNumberValidationDecorators(properties: TApiPropertyNumberPropertie
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
 
+	if (properties.isResponse === false || properties.isResponse === undefined) {
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		decorators.push(Min(properties.minimum, { each: isArray }), Max(properties.maximum, { each: isArray }));
+	}
+
 	if ((properties.isResponse === false || properties.isResponse === undefined) && properties.multipleOf != undefined) {
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
-		decorators.push(IsDivisibleBy(properties.multipleOf, { each: isArray }), Min(properties.minimum, { each: isArray }), Max(properties.maximum, { each: isArray }));
+		decorators.push(IsDivisibleBy(properties.multipleOf, { each: isArray }));
 	}
 
 	return decorators;
+}
+
+/**
+ * Builds the presence validator for number request properties.
+ * @param {TApiPropertyNumberProperties} properties - Property configuration that controls required and nullable semantics.
+ * @returns {PropertyDecorator} A class-validator presence decorator.
+ */
+function buildPresenceDecorator(properties: TApiPropertyNumberProperties): PropertyDecorator {
+	if (properties.isRequired && properties.isNullable) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== null);
+	}
+
+	if (!properties.isRequired && properties.isNullable) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== undefined && value !== null);
+	}
+
+	if (!properties.isRequired) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== undefined);
+	}
+
+	return ValidateIf((): boolean => true);
 }
 
 /**
@@ -233,9 +259,7 @@ function buildRequestDecorators(properties: TApiPropertyNumberProperties): Array
 	const decorators: Array<PropertyDecorator> = [];
 
 	if (properties.isResponse === false || properties.isResponse === undefined) {
-		if (!properties.isRequired) {
-			decorators.push(IsOptional());
-		}
+		decorators.push(buildPresenceDecorator(properties));
 
 		if (properties.isArray === true) {
 			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));

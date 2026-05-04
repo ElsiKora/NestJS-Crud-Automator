@@ -16,9 +16,9 @@ import type {
 	TApiAuthorizationPolicyBeforeGetResult,
 	TApiAuthorizationPolicyBeforePartialUpdateContext,
 	TApiAuthorizationPolicyBeforePartialUpdateResult,
-} from "../../dist/esm/index";
+} from "../../src/index";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, EApiAuthorizationMode, EApiAuthorizationPrincipalType } from "../../dist/esm/index";
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, EApiAuthorizationMode, EApiAuthorizationPrincipalType } from "../../src/index";
 import { describe, expect, it } from "vitest";
 
 class PublicApiUser {

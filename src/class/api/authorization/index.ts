@@ -1,4 +1,5 @@
 export { ApiAuthorizationBootstrapValidationService } from "./bootstrap-validation.service.class";
+export { ApiAuthorizationCacheInvalidationService } from "./cache-invalidation.service.class";
 export { ApiAuthorizationEngine } from "./engine.class";
 export { ApiAuthorizationGuard } from "./guard.class";
 export { ApiAuthorizationHookPermissionResolver } from "./hook-permission-resolver.class";

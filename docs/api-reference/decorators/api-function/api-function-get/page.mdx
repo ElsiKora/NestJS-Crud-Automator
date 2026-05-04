@@ -1,6 +1,6 @@
 # `@ApiFunctionGet`
 
-Decorates a service method so it fetches a single entity using repository or transactional manager APIs while running subscriber hooks before and after the read. It centralizes “not found” errors so controllers can rely on consistent HTTP semantics.
+Decorates a service method so it fetches a single entity using the service repository or active transaction context while running subscriber hooks before and after the read. It centralizes “not found” errors so controllers can rely on consistent HTTP semantics.
 
 ## Signature
 
@@ -10,12 +10,12 @@ Decorates a service method so it fetches a single entity using repository or tra
 )
 ```
 
-Decorated methods gain the shape `get(properties: TApiFunctionGetProperties<E>, eventManager?: EntityManager): Promise<E>`.
+Decorated methods gain the shape `get(properties: TApiFunctionGetProperties<E>): Promise<E>`.
 
 ## Behavior
 
 - Executes `onBeforeGet` subscribers with the incoming `FindOneOptions`. Returning options overrides the query before execution.
-- Queries via `repository.findOne` or `eventManager.getRepository(entity).findOne`.
+- Queries via `repository.findOne` or the active transaction manager repository.
 - Throws `NotFoundException` with a generated error message if no entity is found.
 - Runs `onAfterGet` subscribers and allows them to swap the returned entity.
 - Emits `onBeforeErrorGet` and `onAfterErrorGet` hooks for HTTP or unexpected errors.

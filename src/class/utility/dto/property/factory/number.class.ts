@@ -15,7 +15,7 @@ export class DtoPropertyFactoryNumber<E> implements IDtoGenerateFactory<E> {
 			...config,
 			...restProperties,
 			// @ts-ignore
-			multipleOf: dtoType === EApiDtoType.REQUEST ? undefined : metadata.multipleOf,
+			multipleOf: dtoType === EApiDtoType.PARAMETERS ? undefined : metadata.multipleOf,
 		});
 	}
 }

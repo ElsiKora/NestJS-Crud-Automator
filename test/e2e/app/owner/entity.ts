@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType } from "../../../../dist/esm/index";
+import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType } from "../../../../src/index";
 import { Column, Entity, PrimaryColumn } from "typeorm";
 
 import { E2E_OWNER_ID } from "../constants";

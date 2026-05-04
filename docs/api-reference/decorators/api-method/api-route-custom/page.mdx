@@ -1,0 +1,139 @@
+# `@ApiRouteCustom`
+
+`@ApiRouteCustom` is the high-level custom route decorator. It keeps the same strict route metadata contract as `@ApiMethod`, then adds runtime configuration for request/response transformers, DTOs, relation handling, custom route subscribers, authorization result transforms, and response serialization.
+
+Use it when a controller method is not standard CRUD but should still behave like generated CRUD routes at the framework boundary.
+
+## Signature
+
+```typescript
+@ApiRouteCustom<E extends IApiBaseEntity>(
+	properties: IApiRouteCustomProperties<E>
+): MethodDecorator
+```
+
+## Contract split
+
+`@ApiRouteCustom` separates route metadata from runtime properties:
+
+- Metadata fields (`resource`, `route`, `documentation`, `security`, `throttling`, and response `status`, `type`, `errors`, `serialization`) are stored as `IApiRouteMetadata`.
+- Runtime fields (`request`, target-first response transformers, `relations`, `dto`, and `autoDto`) are stored as `IApiRouteRuntimeProperties`.
+- Response target keys such as `[EApiControllerResponseTarget.RESPONSE]` belong only to runtime properties, not method metadata.
+
+## Runtime behavior
+
+Custom routes can use the same target-first request and response configuration as generated routes:
+
+```typescript
+@ApiRouteCustom<PostEntity>({
+	resource: {
+		action: "publish",
+		entity: PostEntity,
+	},
+	route: {
+		method: RequestMethod.POST,
+		path: ":id/publish",
+	},
+	security: {
+		authentication: {
+			type: EApiAuthenticationType.USER,
+			guard: JwtAuthGuard,
+		},
+		authorization: {
+			mode: EApiAuthorizationMode.HOOKS,
+		},
+	},
+	request: {
+		[EApiControllerRequestTarget.BODY]: {
+			transformers: [
+				{
+					key: "publisher",
+					type: EApiControllerRequestTransformerType.DYNAMIC,
+					value: TRANSFORMER_VALUE_DTO_CONSTANT.AUTHORIZED_ENTITY,
+					shouldSetValueEvenIfMissing: true,
+				},
+			],
+		},
+	},
+	response: {
+		status: HttpStatus.OK,
+		type: PublishPostResponseDto,
+		serialization: { isEnabled: true },
+		[EApiControllerResponseTarget.RESPONSE]: {
+			transformers: [
+				{
+					key: "requestSignature",
+					type: EApiControllerRequestTransformerType.DYNAMIC,
+					value: TRANSFORMER_VALUE_DTO_CONSTANT.REQUEST_SIGNATURE,
+					shouldSetValueEvenIfMissing: true,
+				},
+			],
+		},
+	},
+})
+async publish(@Param("id") id: string, @Body() body: Partial<PostEntity>): Promise<PostEntity> {
+	return await this.service.publish(id, body);
+}
+```
+
+## Relations
+
+Custom route relations live under `relations.request` and `relations.response`, just like generated route config:
+
+```typescript
+@ApiRouteCustom<PostEntity>({
+	resource: { action: "assignAuthor", entity: PostEntity },
+	route: { method: RequestMethod.POST, path: ":id/author" },
+	relations: {
+		request: {
+			load: { shouldLoad: true },
+			reference: {
+				key: "id",
+				shape: EApiControllerRelationReferenceShape.OBJECT,
+			},
+		},
+		response: {
+			load: { include: { author: true } },
+			reference: {
+				key: "id",
+				shape: EApiControllerRelationReferenceShape.SCALAR,
+			},
+		},
+	},
+	response: {
+		status: HttpStatus.OK,
+		type: PostEntity,
+	},
+})
+async assignAuthor(@Body() body: Partial<PostEntity>): Promise<PostEntity> {
+	// body.author is hydrated before the handler when request relation loading is enabled.
+	return await this.service.assignAuthor(body);
+}
+```
+
+For response relation loading, the route response must identify the entity so the runtime can reload configured relations before projecting them to the configured reference shape.
+
+## Subscribers
+
+`@ApiRouteCustom` emits custom route subscriber hooks with the configured `resource.action`. The controller must still be marked with `@ApiControllerObservable()` for route subscribers to run:
+
+```typescript
+@ApiRouteSubscriber({
+	entity: PostEntity,
+	actions: ["publish"],
+})
+export class PublishRouteSubscriber extends ApiRouteSubscriberBase<PostEntity> {
+	async onBeforeCustom(context: IApiSubscriberRouteExecutionContext<PostEntity>): Promise<unknown> {
+		return context.result;
+	}
+}
+```
+
+Use custom actions for non-CRUD policy rules and route subscriber filters. Generated CRUD hooks remain tied to their `EApiRouteType`. Custom route before hooks receive `{ body?, parameters?, query? }` in `context.result`; read headers, IP, authentication request, route metadata, and runtime properties from `context.DATA`.
+
+## Related resources
+
+- [`@ApiMethod`](/docs/nestjs-crud-automator/api-reference/decorators/api-method/api-method)
+- [Relations guide](/docs/nestjs-crud-automator/guides/relations)
+- [Transformers guide](/docs/nestjs-crud-automator/guides/transformers)
+- [Route Subscribers](/docs/nestjs-crud-automator/subscriber-system/route-subscribers)

@@ -14,7 +14,7 @@ import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsOptional, IsUUID } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsUUID, ValidateIf } from "class-validator";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
@@ -149,10 +149,35 @@ function buildFormatDecorators(properties: TApiPropertyUuidProperties): Array<Pr
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
 
+	if (properties.isResponse) {
+		return decorators;
+	}
+
 	// eslint-disable-next-line @elsikora/typescript/naming-convention
 	decorators.push(IsUUID(undefined, { each: isArray }));
 
 	return decorators;
+}
+
+/**
+ * Builds the presence validator for UUID request properties.
+ * @param {TApiPropertyUuidProperties} properties - Property configuration that controls required and nullable semantics.
+ * @returns {PropertyDecorator} A class-validator presence decorator.
+ */
+function buildPresenceDecorator(properties: TApiPropertyUuidProperties): PropertyDecorator {
+	if (properties.isRequired && properties.isNullable) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== null);
+	}
+
+	if (!properties.isRequired && properties.isNullable) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== undefined && value !== null);
+	}
+
+	if (!properties.isRequired) {
+		return ValidateIf((_object: object, value: unknown): boolean => value !== undefined);
+	}
+
+	return ValidateIf((): boolean => true);
 }
 
 /**
@@ -166,9 +191,7 @@ function buildRequestDecorators(properties: TApiPropertyUuidProperties): Array<P
 	const decorators: Array<PropertyDecorator> = [];
 
 	if (properties.isResponse === false || properties.isResponse === undefined) {
-		if (!properties.isRequired) {
-			decorators.push(IsOptional());
-		}
+		decorators.push(buildPresenceDecorator(properties));
 
 		if (properties.isArray === true) {
 			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));

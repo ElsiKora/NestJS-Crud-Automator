@@ -2,6 +2,7 @@ export * from "./action.enum";
 export * from "./authentication-type.enum";
 export * from "./controller";
 export * from "./dto-type.enum";
+export { EApiFunctionTransactionMode } from "./function-transaction-mode.enum";
 export { EApiFunctionType } from "./function-type.enum";
 export * from "./on-type.enum";
 export * from "./property";
