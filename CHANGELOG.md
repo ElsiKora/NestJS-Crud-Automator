@@ -1,3 +1,15 @@
+# [2.0.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.24.0...v2.0.0) (2026-05-04)
+
+
+* feat(api)!: introduce v2 route runtime contract ([aed2088](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/aed2088783b13b5a8ae853d48a7b7cf2a0cb2338))
+
+
+### BREAKING CHANGES
+
+* Controller route configuration, custom route/function
+contracts, subscriber context shapes, and request/response transformer targets
+now follow the v2 nested runtime model.
+
 # [1.24.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.23.0...v1.24.0) (2026-05-01)
 
 
