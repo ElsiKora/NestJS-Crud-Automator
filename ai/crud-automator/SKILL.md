@@ -12,7 +12,6 @@ Use local source as the contract:
 1. `src/interface/**`, `src/type/**`, and exported barrels define public API shape.
 2. `test/unit/**` and `test/e2e/**` show supported behavior.
 3. `docs/**` and `README.md` explain behavior, but may drift and must be checked against source.
-4. Follow `.cursor/rules/file-organization.mdc` for file layout, one entity per file, and barrel exports.
 
 ## Default Workflow
 

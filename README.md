@@ -1049,11 +1049,11 @@ The roadmap is aligned with the current source contract rather than older docs-o
 - Route and function subscribers, including custom route/function hooks and error hooks
 - Hooks-mode authorization policies and IAM-style policy document authorization
 - Function transaction scopes for generated and custom service operations
-- Source-aligned Cursor/agent skill documentation for AI-assisted development
+- Environment-agnostic AI guidance bundle for AI-assisted development
 
 ### Current Focus
 
-- Keep `README.md`, `docs/`, and `.cursor/skills/crud-automator/` synchronized with the public TypeScript interfaces
+- Keep `README.md`, `docs/`, and `ai/` synchronized with the public TypeScript interfaces
 - Expand examples for `ApiRouteCustom`, `ApiFunctionCustom`, relation loading boundaries, and IAM cache invalidation
 - Harden documentation around generated `PUT` vs `PATCH`, GET_LIST response modes, subscriber context shapes, and authorization custom actions
 - Continue improving tests for custom DTOs, route runtime behavior, policy execution, and transaction scopes
@@ -1066,11 +1066,11 @@ The roadmap is aligned with the current source contract rather than older docs-o
 - General-purpose cache adapter examples beyond authorization rule caching
 - GraphQL or MongoDB support after a separate API design pass
 
-## 🤖 AI Agent Skill
+## 🤖 AI Guidance Bundle
 
-This repository includes a source-aligned CRUD Automator agent skill at `.cursor/skills/crud-automator/SKILL.md`. Cursor can use it as a project skill, while `AGENTS.md` and `CLAUDE.md` point Codex-style agents, Claude Code, and other agent runners to the same canonical guidance.
+This repository includes a source-aligned, environment-agnostic AI guidance bundle at `ai/`. The canonical CRUD Automator skill lives at `ai/crud-automator/SKILL.md`, with adapters for Cursor, Claude Code, Codex-style agents, and other agent runners.
 
-The skill covers current route config shape, DTO rules, custom route/function boundaries, subscribers, HOOKS/IAM authorization, relation loading, transactions, and common docs drift pitfalls.
+Use `ai/README.md` for installation instructions when a specific tool expects files such as `.cursor/skills`, `AGENTS.md`, or `CLAUDE.md`. The skill covers current route config shape, DTO rules, custom route/function boundaries, subscribers, HOOKS/IAM authorization, relation loading, transactions, and common docs drift pitfalls.
 
 ## ❓ FAQ
 

@@ -1,6 +1,6 @@
 # Claude Code Guidance
 
-This repository keeps its canonical CRUD Automator agent instructions in `.cursor/skills/crud-automator/SKILL.md`.
+This repository keeps its canonical CRUD Automator agent instructions in `ai/crud-automator/SKILL.md`.
 
 Read that skill before changing implementation, tests, examples, README content, or documentation for `@elsikora/nestjs-crud-automator`.
 
