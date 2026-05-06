@@ -1,3 +1,5 @@
+## [2.0.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.0...v2.0.1) (2026-05-06)
+
 # [2.0.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.24.0...v2.0.0) (2026-05-04)
 
 - feat(api)!: introduce v2 route runtime contract ([aed2088](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/aed2088783b13b5a8ae853d48a7b7cf2a0cb2338))
