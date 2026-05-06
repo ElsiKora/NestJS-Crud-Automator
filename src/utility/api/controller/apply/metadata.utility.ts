@@ -7,8 +7,8 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 
 import { EApiDtoType } from "@enum/decorator/api";
 import { assignMetadata } from "@nestjs/common";
-import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
-import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
+import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
+import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum.js";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 
 /**

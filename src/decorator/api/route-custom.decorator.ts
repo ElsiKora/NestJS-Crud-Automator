@@ -7,8 +7,8 @@ import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiControllerResponseTarget } from "@enum/decorator/api";
 import { ApiRouteRuntimeInterceptor } from "@interceptor/api-route-runtime.interceptor";
 import { applyDecorators, SetMetadata, UseInterceptors } from "@nestjs/common";
-import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
-import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
+import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
+import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum.js";
 
 import { ApiMethod } from "./method.decorator";
 
