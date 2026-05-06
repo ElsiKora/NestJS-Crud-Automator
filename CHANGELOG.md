@@ -1,3 +1,10 @@
+## [2.0.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.1...v2.0.2) (2026-05-06)
+
+
+### Bug Fixes
+
+* **esm:** fully specify external subpath imports ([c5c30e7](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/c5c30e73ba07fc8708129414514dec1051e79f9c))
+
 ## [2.0.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.0...v2.0.1) (2026-05-06)
 
 # [2.0.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.24.0...v2.0.0) (2026-05-04)
