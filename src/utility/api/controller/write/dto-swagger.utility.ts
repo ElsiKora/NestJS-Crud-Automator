@@ -9,7 +9,7 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 import { MetadataStorage } from "@class/metadata-storage.class";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiPropertyDescribeType } from "@enum/decorator/api";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { DECORATORS } from "@nestjs/swagger/dist/constants.js";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 
