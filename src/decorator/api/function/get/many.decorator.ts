@@ -68,7 +68,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 						throw ErrorException("Repository is not available in this context");
 					}
 
-					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? ({} as unknown as TApiFunctionGetManyProperties<E>), repository });
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? {}, repository });
 				},
 				entity,
 				mode: transactionMode,

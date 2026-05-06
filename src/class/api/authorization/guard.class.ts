@@ -38,7 +38,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 		}
 
 		const routeMetadata: IApiRouteMetadata<IApiBaseEntity> = this.resolveRouteMetadata(context);
-		const entityConstructor: new () => IApiBaseEntity = routeMetadata.resource.entity as new () => IApiBaseEntity;
+		const entityConstructor: new () => IApiBaseEntity = routeMetadata.resource.entity;
 		const action: string = routeMetadata.resource.action;
 		authorizationGuardLogger.verbose(`Evaluating authorization for entity "${entityConstructor.name}" action "${action}"`);
 

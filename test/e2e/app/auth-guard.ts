@@ -52,10 +52,8 @@ export class TestAuthGuard implements IAuthGuard {
 				: [];
 
 		if (authShape === "custom") {
-			const customRoles: Array<string> =
-				resolvedRoles.length > 0 ? resolvedRoles : typeof userRole === "string" && userRole.length > 0 ? [userRole] : role ? [String(role)] : [];
-			const customPermissions: Array<string> =
-				resolvedPermissions.length > 0 ? resolvedPermissions : typeof permission === "string" && permission.length > 0 ? [permission] : [];
+			const customRoles: Array<string> = resolvedRoles.length > 0 ? resolvedRoles : typeof userRole === "string" && userRole.length > 0 ? [userRole] : role ? [String(role)] : [];
+			const customPermissions: Array<string> = resolvedPermissions.length > 0 ? resolvedPermissions : typeof permission === "string" && permission.length > 0 ? [permission] : [];
 
 			request.user = {
 				access: {

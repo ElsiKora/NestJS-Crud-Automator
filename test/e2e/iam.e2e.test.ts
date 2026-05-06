@@ -1,13 +1,7 @@
 import "reflect-metadata";
 
 import type { INestApplication } from "@nestjs/common";
-import type {
-	IApiAuthorizationPrincipal,
-	IApiControllerAuthorizationProperties,
-	IApiPolicyAttachmentSource,
-	IApiPolicyDocumentRecord,
-	IApiPolicyDocumentSource,
-} from "../../src/index";
+import type { IApiAuthorizationPrincipal, IApiControllerAuthorizationProperties, IApiPolicyAttachmentSource, IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "../../src/index";
 
 import { Controller, Get, Module, RequestMethod } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
@@ -15,21 +9,7 @@ import { Test } from "@nestjs/testing";
 import { Column, Entity, PrimaryColumn } from "typeorm";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-	ApiAuthorizationIamEngine,
-	ApiAuthorizationIamQueryPlanner,
-	ApiAuthorizationModule,
-	ApiAuthorizationSimulator,
-	ApiControllerSecurable,
-	CONTROLLER_API_DECORATOR_CONSTANT,
-	EApiAuthorizationDecisionType,
-	EApiAuthorizationMode,
-	EApiAuthorizationPrincipalType,
-	EApiPolicyEffect,
-	EApiPolicySourceType,
-	EApiRouteType,
-	METHOD_API_DECORATOR_CONSTANT,
-} from "../../src/index";
+import { ApiAuthorizationIamEngine, ApiAuthorizationIamQueryPlanner, ApiAuthorizationModule, ApiAuthorizationSimulator, ApiControllerSecurable, CONTROLLER_API_DECORATOR_CONSTANT, EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, EApiRouteType, METHOD_API_DECORATOR_CONSTANT } from "../../src/index";
 
 @Entity("iam_entities")
 class IamEntity {
@@ -84,21 +64,25 @@ class IamValidationController {
 	}
 }
 
-Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, {
-	resource: {
-		action: "get",
-		entity: IamEntity,
-	},
-	route: {
-		method: RequestMethod.GET,
-		path: "",
-	},
-	security: {
-		authorization: {
-			mode: EApiAuthorizationMode.IAM,
+Reflect.defineMetadata(
+	METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
+	{
+		resource: {
+			action: "get",
+			entity: IamEntity,
+		},
+		route: {
+			method: RequestMethod.GET,
+			path: "",
+		},
+		security: {
+			authorization: {
+				mode: EApiAuthorizationMode.IAM,
+			},
 		},
 	},
-}, IamValidationController.prototype.get);
+	IamValidationController.prototype.get,
+);
 
 Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.ENTITY_METADATA_KEY, IamEntity, IamValidationController);
 Reflect.defineMetadata(
@@ -174,7 +158,7 @@ describe("IAM authorization (E2E)", () => {
 								sourceType: EApiPolicySourceType.MANAGED,
 								version: "1",
 							},
-					  ]
+						]
 					: [];
 			},
 		};
@@ -257,7 +241,7 @@ describe("IAM authorization (E2E)", () => {
 								sourceType: EApiPolicySourceType.MANAGED,
 								version: "1",
 							},
-					  ]
+						]
 					: [];
 			},
 		};
@@ -338,7 +322,7 @@ describe("IAM authorization (E2E)", () => {
 								sourceType: EApiPolicySourceType.MANAGED,
 								version: "1",
 							},
-					  ]
+						]
 					: [];
 			},
 		};
@@ -367,7 +351,7 @@ describe("IAM authorization (E2E)", () => {
 								sourceType: EApiPolicySourceType.DATABASE,
 								version: "7",
 							},
-					  ]
+						]
 					: [];
 			},
 		};

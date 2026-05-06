@@ -70,7 +70,7 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 			for (const propertyName of Object.keys(data)) {
 				const propertyData: TApiPropertyDescribeProperties | undefined = data[propertyName];
 
-				if (propertyData && propertyData.type === EApiPropertyDescribeType.OBJECT && !Array.isArray(propertyData.dataType) && "isDynamicallyGenerated" in propertyData && propertyData.isDynamicallyGenerated) {
+				if (propertyData?.type === EApiPropertyDescribeType.OBJECT && !Array.isArray(propertyData.dataType) && "isDynamicallyGenerated" in propertyData && propertyData.isDynamicallyGenerated) {
 					const nestedPropertyName: string = `${_propertyName}${CamelCaseString(name)}${CamelCaseString(propertyName)}`;
 
 					const childNestedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(method, propertyData, entity, dtoType, nestedPropertyName, currentGuard);

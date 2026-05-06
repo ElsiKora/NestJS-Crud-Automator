@@ -81,7 +81,7 @@ export function IsErrorOfType(error: unknown, type: EException): boolean {
 		return true;
 	}
 
-	const errorObject: { name?: string } = error as { name?: string };
+	const errorObject: { name?: string } = error;
 
 	return !!(errorObject.name && errorObject.name === ExceptionClass.name);
 }

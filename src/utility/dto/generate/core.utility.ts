@@ -188,7 +188,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 
 	if (dtoConfig?.validators) {
 		for (const validator of dtoConfig.validators) {
-			Validate(validator.constraintClass as unknown as () => unknown, validator.options)(GeneratedDTO.prototype, "object");
+			Validate(validator.constraintClass, validator.options)(GeneratedDTO.prototype, "object");
 		}
 	}
 

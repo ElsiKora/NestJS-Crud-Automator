@@ -335,9 +335,9 @@ function resolveContextualObjectOptions(target: object, propertyKey: string | sy
 
 		const resolvedMapping: Record<string, ClassConstructor<unknown>> = Object.fromEntries(
 			Object.entries(properties.discriminator.mapping).map(([key, value]: [string, ClassConstructor<unknown>]) => {
-				return [key, resolveContextualObjectType(value, context.method, context.dtoType, parentDtoName, propertyKey, key) as ClassConstructor<unknown>];
+				return [key, resolveContextualObjectType(value, context.method, context.dtoType, parentDtoName, propertyKey, key)];
 			}),
-		) as Record<string, ClassConstructor<unknown>>;
+		);
 
 		return {
 			...properties,
@@ -346,7 +346,7 @@ function resolveContextualObjectOptions(target: object, propertyKey: string | sy
 				mapping: resolvedMapping,
 			},
 			type: resolvedTypes,
-		} as TApiPropertyObjectProperties;
+		};
 	}
 
 	const resolvedType: NestType<unknown> | undefined = properties.type ? resolveContextualObjectType(properties.type as NestType<unknown>, context.method, context.dtoType, parentDtoName, propertyKey) : properties.type;

@@ -31,10 +31,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 	});
 
 	it("keeps identical scalar filters unchanged", () => {
-		const result = AuthorizationScopeMergeWhere(
-			{ id: "entity-1", operatorId: "operator-1" } as TApiAuthorizationScopeWhere<ScopeEntity>,
-			{ operatorId: "operator-1" } as TApiAuthorizationScopeWhere<ScopeEntity>,
-		) as Record<string, unknown>;
+		const result = AuthorizationScopeMergeWhere({ id: "entity-1", operatorId: "operator-1" } as TApiAuthorizationScopeWhere<ScopeEntity>, { operatorId: "operator-1" } as TApiAuthorizationScopeWhere<ScopeEntity>) as Record<string, unknown>;
 
 		expect(result).toEqual({
 			id: "entity-1",
@@ -43,10 +40,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 	});
 
 	it("converts conflicting id filters into a match-nothing branch", () => {
-		const result = AuthorizationScopeMergeWhere(
-			{ id: "foreign-id" } as TApiAuthorizationScopeWhere<ScopeEntity>,
-			{ id: "own-id" } as TApiAuthorizationScopeWhere<ScopeEntity>,
-		) as Record<string, unknown>;
+		const result = AuthorizationScopeMergeWhere({ id: "foreign-id" } as TApiAuthorizationScopeWhere<ScopeEntity>, { id: "own-id" } as TApiAuthorizationScopeWhere<ScopeEntity>) as Record<string, unknown>;
 
 		expect(result.id).toMatchObject({
 			_type: "in",
@@ -55,10 +49,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 	});
 
 	it("converts conflicting operatorId filters into a match-nothing branch", () => {
-		const result = AuthorizationScopeMergeWhere(
-			{ operatorId: "foreign-operator" } as TApiAuthorizationScopeWhere<ScopeEntity>,
-			{ operatorId: "own-operator" } as TApiAuthorizationScopeWhere<ScopeEntity>,
-		) as Record<string, unknown>;
+		const result = AuthorizationScopeMergeWhere({ operatorId: "foreign-operator" } as TApiAuthorizationScopeWhere<ScopeEntity>, { operatorId: "own-operator" } as TApiAuthorizationScopeWhere<ScopeEntity>) as Record<string, unknown>;
 
 		expect(result.operatorId).toMatchObject({
 			_type: "in",
@@ -67,10 +58,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 	});
 
 	it("converts nested path conflicts into a match-nothing branch", () => {
-		const result = AuthorizationScopeMergeWhere(
-			{ operator: { id: "foreign-operator" } } as TApiAuthorizationScopeWhere<ScopeEntity>,
-			{ operator: { id: "own-operator" } } as TApiAuthorizationScopeWhere<ScopeEntity>,
-		) as {
+		const result = AuthorizationScopeMergeWhere({ operator: { id: "foreign-operator" } } as TApiAuthorizationScopeWhere<ScopeEntity>, { operator: { id: "own-operator" } } as TApiAuthorizationScopeWhere<ScopeEntity>) as {
 			operator?: {
 				id?: unknown;
 			};
@@ -83,10 +71,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 	});
 
 	it("preserves cartesian OR branches without overwriting conflicting values", () => {
-		const result = AuthorizationScopeMergeWhere(
-			[{ id: "foreign-id" }, { id: "own-id" }] as TApiAuthorizationScopeWhere<ScopeEntity>,
-			[{ operatorId: "operator-1" }, { id: "own-id" }] as TApiAuthorizationScopeWhere<ScopeEntity>,
-		) as Array<Record<string, unknown>>;
+		const result = AuthorizationScopeMergeWhere([{ id: "foreign-id" }, { id: "own-id" }] as TApiAuthorizationScopeWhere<ScopeEntity>, [{ operatorId: "operator-1" }, { id: "own-id" }] as TApiAuthorizationScopeWhere<ScopeEntity>) as Array<Record<string, unknown>>;
 
 		expect(result).toHaveLength(4);
 		expect(result[0]).toMatchObject({

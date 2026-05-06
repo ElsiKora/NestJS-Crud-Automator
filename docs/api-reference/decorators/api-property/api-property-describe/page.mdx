@@ -10,14 +10,14 @@ Central metadata decorator for entity properties. The metadata drives auto-gener
 
 ## Key configuration
 
-| Option               | Description                                                                                                                                          |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`               | Required `EApiPropertyDescribeType` (STRING, NUMBER, BOOLEAN, DATE, ENUM, OBJECT, UUID, RELATION). Governs downstream validators and Swagger schema. |
-| `description`        | Human-readable field description appended to DTOs and Swagger docs.                                                                                  |
+| Option               | Description                                                                                                                                                                                                |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`               | Required `EApiPropertyDescribeType` (STRING, NUMBER, BOOLEAN, DATE, ENUM, OBJECT, UUID, RELATION). Governs downstream validators and Swagger schema.                                                       |
+| `description`        | Human-readable field description appended to DTOs and Swagger docs.                                                                                                                                        |
 | `exampleValue`       | Example displayed in Swagger for describe metadata that supports it. Current entity describe types include it for string and number metadata; manual property decorators expose their own example options. |
-| `isNullable`         | Marks the property as nullable in generated DTO and Swagger metadata.                                                                                |
-| `properties`         | Per-route DTO controls keyed by `EApiRouteType`, then `EApiDtoType` (`BODY`, `PARAMETERS`, `QUERY`, `RESPONSE`).                                    |
-| Type-specific fields | Each type exposes additional options (e.g., `minLength`, `format`, `enum`, `identifier`, `minimum`, `maximum`).                                      |
+| `isNullable`         | Marks the property as nullable in generated DTO and Swagger metadata.                                                                                                                                      |
+| `properties`         | Per-route DTO controls keyed by `EApiRouteType`, then `EApiDtoType` (`BODY`, `PARAMETERS`, `QUERY`, `RESPONSE`).                                                                                           |
+| Type-specific fields | Each type exposes additional options (e.g., `minLength`, `format`, `enum`, `identifier`, `minimum`, `maximum`).                                                                                            |
 
 The decorator stores values in `MetadataStorage`, allowing factory pipelines to retrieve them even when DTOs are generated lazily.
 

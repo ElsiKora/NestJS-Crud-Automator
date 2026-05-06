@@ -83,7 +83,7 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMet
 	if (customDecorators.length > 0) {
 		for (const decorator of customDecorators) {
 			const descriptor: TypedPropertyDescriptor<unknown> | undefined = Reflect.getOwnPropertyDescriptor(targetMethod, methodName);
-			(decorator as MethodDecorator | PropertyDecorator)(targetMethod, methodName, descriptor ?? { value: targetMethod });
+			decorator(targetMethod, methodName, descriptor ?? { value: targetMethod });
 		}
 	}
 }

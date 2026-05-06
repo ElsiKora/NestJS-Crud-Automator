@@ -33,22 +33,26 @@ const createExecutionContext = (controller: object, handler: () => void, request
 	}) as unknown as ExecutionContext;
 
 const defineRouteMetadata = (handler: () => void, action: string, routeType?: EApiRouteType): void => {
-	Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, {
-		resource: {
-			action,
-			entity: GuardEntity,
-		},
-		route: {
-			method: RequestMethod.GET,
-			path: "",
-			type: routeType,
-		},
-		security: {
-			authorization: {
-				mode: EApiAuthorizationMode.HOOKS,
+	Reflect.defineMetadata(
+		METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
+		{
+			resource: {
+				action,
+				entity: GuardEntity,
+			},
+			route: {
+				method: RequestMethod.GET,
+				path: "",
+				type: routeType,
+			},
+			security: {
+				authorization: {
+					mode: EApiAuthorizationMode.HOOKS,
+				},
 			},
 		},
-	}, handler);
+		handler,
+	);
 };
 
 describe("ApiAuthorizationGuard", () => {
@@ -87,15 +91,19 @@ describe("ApiAuthorizationGuard", () => {
 		const request = {};
 
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
-		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, {
-			authorization: {
-				defaultMode: EApiAuthorizationMode.HOOKS,
+		Reflect.defineMetadata(
+			CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY,
+			{
+				authorization: {
+					defaultMode: EApiAuthorizationMode.HOOKS,
+				},
+				entity: GuardEntity,
+				routes: {
+					update: {},
+				},
 			},
-			entity: GuardEntity,
-			routes: {
-				update: {},
-			},
-		}, controller);
+			controller,
+		);
 
 		const context = createExecutionContext(controller, handler, request);
 		await expect(guard.canActivate(context)).rejects.toThrow('ApiControllerSecurable handler "publish" requires method-level ApiRouteMetadata');
@@ -122,15 +130,19 @@ describe("ApiAuthorizationGuard", () => {
 		const request: Record<string, unknown> = {};
 
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
-		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, {
-			authorization: {
-				defaultMode: EApiAuthorizationMode.HOOKS,
+		Reflect.defineMetadata(
+			CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY,
+			{
+				authorization: {
+					defaultMode: EApiAuthorizationMode.HOOKS,
+				},
+				entity: GuardEntity,
+				routes: {
+					get: {},
+				},
 			},
-			entity: GuardEntity,
-			routes: {
-				get: {},
-			},
-		}, controller);
+			controller,
+		);
 		defineRouteMetadata(handler, "get", EApiRouteType.GET);
 
 		const context = createExecutionContext(controller, handler, request);
@@ -162,15 +174,19 @@ describe("ApiAuthorizationGuard", () => {
 		const request: Record<string, unknown> = {};
 
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
-		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, {
-			authorization: {
-				defaultMode: EApiAuthorizationMode.HOOKS,
+		Reflect.defineMetadata(
+			CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY,
+			{
+				authorization: {
+					defaultMode: EApiAuthorizationMode.HOOKS,
+				},
+				entity: GuardEntity,
+				routes: {
+					get: {},
+				},
 			},
-			entity: GuardEntity,
-			routes: {
-				get: {},
-			},
-		}, controller);
+			controller,
+		);
 		defineRouteMetadata(handler, "get", EApiRouteType.GET);
 
 		const context = createExecutionContext(controller, handler, request);
@@ -216,19 +232,23 @@ describe("ApiAuthorizationGuard", () => {
 		};
 
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
-		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, {
-			authorization: {
-				defaultMode: EApiAuthorizationMode.HOOKS,
-			},
-			entity: GuardEntity,
-			routes: {
-				partialUpdate: {
-					authorization: {
-						mode: EApiAuthorizationMode.HOOKS,
+		Reflect.defineMetadata(
+			CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY,
+			{
+				authorization: {
+					defaultMode: EApiAuthorizationMode.HOOKS,
+				},
+				entity: GuardEntity,
+				routes: {
+					partialUpdate: {
+						authorization: {
+							mode: EApiAuthorizationMode.HOOKS,
+						},
 					},
 				},
 			},
-		}, controller);
+			controller,
+		);
 		defineRouteMetadata(handler, "partialUpdate", EApiRouteType.PARTIAL_UPDATE);
 
 		const context = createExecutionContext(controller, handler, request);
@@ -281,15 +301,19 @@ describe("ApiAuthorizationGuard", () => {
 		};
 
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
-		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, {
-			authorization: {
-				defaultMode: EApiAuthorizationMode.HOOKS,
+		Reflect.defineMetadata(
+			CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY,
+			{
+				authorization: {
+					defaultMode: EApiAuthorizationMode.HOOKS,
+				},
+				entity: GuardEntity,
+				routes: {
+					update: {},
+				},
 			},
-			entity: GuardEntity,
-			routes: {
-				update: {},
-			},
-		}, controller);
+			controller,
+		);
 		defineRouteMetadata(handler, "update.publish");
 
 		const context = createExecutionContext(controller, handler, request);
@@ -330,19 +354,23 @@ describe("ApiAuthorizationGuard", () => {
 		};
 
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
-		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, {
-			authorization: {
-				defaultMode: EApiAuthorizationMode.HOOKS,
-			},
-			entity: GuardEntity,
-			routes: {
-				partialUpdate: {
-					authorization: {
-						mode: EApiAuthorizationMode.HOOKS,
+		Reflect.defineMetadata(
+			CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY,
+			{
+				authorization: {
+					defaultMode: EApiAuthorizationMode.HOOKS,
+				},
+				entity: GuardEntity,
+				routes: {
+					partialUpdate: {
+						authorization: {
+							mode: EApiAuthorizationMode.HOOKS,
+						},
 					},
 				},
 			},
-		}, controller);
+			controller,
+		);
 		defineRouteMetadata(handler, "partialUpdate", EApiRouteType.PARTIAL_UPDATE);
 
 		const context = createExecutionContext(controller, handler, request);
