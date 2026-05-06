@@ -63,7 +63,7 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 						throw ErrorException("Repository is not available in this context");
 					}
 
-					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? ({} as unknown as TApiFunctionGetListProperties<E>), repository });
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? {}, repository });
 				},
 				entity,
 				mode: transactionMode,

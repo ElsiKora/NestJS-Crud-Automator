@@ -151,7 +151,7 @@ export abstract class ApiAuthorizationPolicyBase<E extends IApiBaseEntity> exten
 	 */
 	protected scopeToOwner(ownerField?: keyof E, rule?: TApiAuthorizationPolicySubscriberRuleWithoutEffectWithoutTransform<E>, options?: { isRelation?: boolean }): Array<TApiAuthorizationPolicySubscriberRuleWithoutTransform<E>>;
 	protected scopeToOwner<R>(ownerField: keyof E | undefined, rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect">, options?: { isRelation?: boolean }): Array<IApiAuthorizationPolicySubscriberRule<E, R>>;
-	protected scopeToOwner<R>(ownerField: keyof E = "ownerId" as keyof E, rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> | TApiAuthorizationPolicySubscriberRuleWithoutEffectWithoutTransform<E> = {}, options: { isRelation?: boolean } = {}): Array<IApiAuthorizationPolicySubscriberRule<E, R> | TApiAuthorizationPolicySubscriberRuleWithoutTransform<E>> {
+	protected scopeToOwner<R>(ownerField: keyof E = "ownerId", rule: Omit<IApiAuthorizationPolicySubscriberRule<E, R>, "effect"> | TApiAuthorizationPolicySubscriberRuleWithoutEffectWithoutTransform<E> = {}, options: { isRelation?: boolean } = {}): Array<IApiAuthorizationPolicySubscriberRule<E, R> | TApiAuthorizationPolicySubscriberRuleWithoutTransform<E>> {
 		const ownerFieldName: string = String(ownerField);
 		const isRelation: boolean = options.isRelation ?? !ownerFieldName.endsWith("Id");
 

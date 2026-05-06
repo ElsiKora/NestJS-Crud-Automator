@@ -1,65 +1,54 @@
 # [2.0.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.24.0...v2.0.0) (2026-05-04)
 
-
-* feat(api)!: introduce v2 route runtime contract ([aed2088](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/aed2088783b13b5a8ae853d48a7b7cf2a0cb2338))
-
+- feat(api)!: introduce v2 route runtime contract ([aed2088](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/aed2088783b13b5a8ae853d48a7b7cf2a0cb2338))
 
 ### BREAKING CHANGES
 
-* Controller route configuration, custom route/function
-contracts, subscriber context shapes, and request/response transformer targets
-now follow the v2 nested runtime model.
+- Controller route configuration, custom route/function contracts, subscriber context shapes, and request/response transformer targets now follow the v2 nested runtime model.
 
 # [1.24.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.23.0...v1.24.0) (2026-05-01)
 
-
 ### Bug Fixes
 
-* **api:** isolate manual dto metadata in generated dtos ([2b66b01](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/2b66b01f859c9d543d2822fc3893d5830e69dd84))
-
+- **api:** isolate manual dto metadata in generated dtos ([2b66b01](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/2b66b01f859c9d543d2822fc3893d5830e69dd84))
 
 ### Features
 
-* **api:** add get-list item response dto config ([7904474](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/79044741f94c6a92acbef774825eb91b8b292c2d))
+- **api:** add get-list item response dto config ([7904474](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/79044741f94c6a92acbef774825eb91b8b292c2d))
 
 # [1.23.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.22.0...v1.23.0) (2026-03-20)
 
-
 ### Features
 
-* **api:** add inheritance support for entity metadata and swagger generation ([d81ee35](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/d81ee35b3a34c24f5567d3c8dca75948adb9f562))
+- **api:** add inheritance support for entity metadata and swagger generation ([d81ee35](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/d81ee35b3a34c24f5567d3c8dca75948adb9f562))
 
 # [1.22.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.21.1...v1.22.0) (2026-03-16)
 
-
 ### Features
 
-* **api:** add auto dto response exposure for nested objects ([f0755f9](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/f0755f9c59efc3fdf584e7429380342c8d0d8c82))
-* **authorization:** add iam-based authorization engine with policy documents and attachments ([1fe8b78](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/1fe8b7811698609f898e57ab12e53ee314bde224))
-* **authorization:** add subject resolver and permission matching capabilities ([3de3924](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/3de3924175080bf3f0f903bbd0fdf40310e66023))
+- **api:** add auto dto response exposure for nested objects ([f0755f9](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/f0755f9c59efc3fdf584e7429380342c8d0d8c82))
+- **authorization:** add iam-based authorization engine with policy documents and attachments ([1fe8b78](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/1fe8b7811698609f898e57ab12e53ee314bde224))
+- **authorization:** add subject resolver and permission matching capabilities ([3de3924](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/3de3924175080bf3f0f903bbd0fdf40310e66023))
 
 ## [1.21.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.21.0...v1.21.1) (2026-01-31)
 
 # [1.21.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.20.0...v1.21.0) (2026-01-21)
 
-
 ### Features
 
-* **authorization:** add return type definitions for policy lifecycle methods ([dcc3700](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/dcc3700136ae4d8c10f3c569495193f796f50111))
+- **authorization:** add return type definitions for policy lifecycle methods ([dcc3700](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/dcc3700136ae4d8c10f3c569495193f796f50111))
 
 # [1.20.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.19.0...v1.20.0) (2026-01-16)
 
-
 ### Features
 
-* **authorization:** unify policy context and caching ([ff8a64d](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/ff8a64d349be00983c2e3f0632a93970559d90b6))
+- **authorization:** unify policy context and caching ([ff8a64d](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/ff8a64d349be00983c2e3f0632a93970559d90b6))
 
 # [1.19.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.18.0...v1.19.0) (2026-01-15)
 
-
 ### Features
 
-* **database:** add automatic handling for database constraint violations ([bd853ab](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/bd853abc994d508d66b6a173231320978ab151a2))
+- **database:** add automatic handling for database constraint violations ([bd853ab](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/bd853abc994d508d66b6a173231320978ab151a2))
 
 # [1.18.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v1.17.1...v1.18.0) (2025-11-24)
 

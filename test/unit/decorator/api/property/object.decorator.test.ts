@@ -124,20 +124,24 @@ describe("ApiPropertyObject", () => {
 	});
 
 	it("preserves free-form object payloads in response serialization", () => {
-		const instance = plainToInstance(FreeformResponseDto, {
-			payload: {
-				Condition: {
-					StringEquals: {
-						team: "platform",
+		const instance = plainToInstance(
+			FreeformResponseDto,
+			{
+				payload: {
+					Condition: {
+						StringEquals: {
+							team: "platform",
+						},
 					},
+					Version: "2012-10-17",
 				},
-				Version: "2012-10-17",
 			},
-		}, {
-			/* eslint-disable-next-line @elsikora/typescript/naming-convention */
-			excludeExtraneousValues: true,
-			strategy: "excludeAll",
-		});
+			{
+				/* eslint-disable-next-line @elsikora/typescript/naming-convention */
+				excludeExtraneousValues: true,
+				strategy: "excludeAll",
+			},
+		);
 
 		expect(instance).toMatchObject({
 			payload: {

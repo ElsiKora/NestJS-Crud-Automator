@@ -16,13 +16,13 @@ Registers a class as a route-level subscriber for a specific entity. Subscribers
 
 ## Options
 
-| Option        | Description                                                                                                 |
-| ------------- | ----------------------------------------------------------------------------------------------------------- |
-| `actions`     | Optional custom route action filters. Use with `@ApiRouteCustom`/custom action names.                       |
-| `controllers` | Optional controller class/factory filters when the same entity is served by multiple controllers.           |
-| `entity`      | Entity that the subscriber observes.                                                                        |
-| `priority`    | Execution order (higher runs first). Defaults to `0`.                                                       |
-| `routes`      | Optional generated CRUD route filters such as `EApiRouteType.CREATE` or `EApiRouteType.PARTIAL_UPDATE`.     |
+| Option        | Description                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------- |
+| `actions`     | Optional custom route action filters. Use with `@ApiRouteCustom`/custom action names.                   |
+| `controllers` | Optional controller class/factory filters when the same entity is served by multiple controllers.       |
+| `entity`      | Entity that the subscriber observes.                                                                    |
+| `priority`    | Execution order (higher runs first). Defaults to `0`.                                                   |
+| `routes`      | Optional generated CRUD route filters such as `EApiRouteType.CREATE` or `EApiRouteType.PARTIAL_UPDATE`. |
 
 ## Usage steps
 

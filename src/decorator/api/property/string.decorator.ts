@@ -276,7 +276,7 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 
 			case EApiPropertyStringType.BASE64: {
 				// eslint-disable-next-line @elsikora/typescript/naming-convention
-				decorators.push(IsBase64({ each: isArray }));
+				decorators.push(IsBase64(undefined, { each: isArray }));
 
 				break;
 			}
@@ -335,7 +335,7 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 
 			case EApiPropertyStringType.DOMAIN: {
 				// eslint-disable-next-line @elsikora/typescript/naming-convention
-				decorators.push(IsFQDN({ each: isArray }));
+				decorators.push(IsFQDN(undefined, { each: isArray }));
 
 				break;
 			}
@@ -398,7 +398,7 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 
 			case EApiPropertyStringType.IBAN: {
 				// eslint-disable-next-line @elsikora/typescript/naming-convention
-				decorators.push(IsIBAN({ each: isArray }));
+				decorators.push(IsIBAN(undefined, { each: isArray }));
 
 				break;
 			}

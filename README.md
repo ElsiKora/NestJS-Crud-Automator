@@ -844,13 +844,13 @@ To get the subscriber system working, you need to follow **four mandatory steps*
     import { ApiController, ApiControllerObservable } from "@elsikora/nestjs-crud-automator";
 
     @ApiController({
-        entity: PostEntity,
-        path: "posts",
-        routes: {},
+    	entity: PostEntity,
+    	path: "posts",
+    	routes: {},
     })
     @ApiControllerObservable() // <--- IMPORTANT
     export class PostController {
-        /* ... */
+    	/* ... */
     }
     ```
 
@@ -861,11 +861,11 @@ To get the subscriber system working, you need to follow **four mandatory steps*
 
     @Injectable()
     @ApiService({
-        entity: PostEntity,
+    	entity: PostEntity,
     })
     @ApiServiceObservable() // <--- IMPORTANT
     export class PostService extends ApiServiceBase<PostEntity> {
-        /* ... */
+    	/* ... */
     }
     ```
 
@@ -916,7 +916,7 @@ In case of an error at any stage, execution is interrupted, and the correspondin
     		const createdPost = context.result;
 
     		// Fully typed access to authentication and request data
-            const currentUser = context.DATA.authenticationRequest?.user as { id: string } | undefined;
+    		const currentUser = context.DATA.authenticationRequest?.user as { id: string } | undefined;
     		const clientIp = context.DATA.ip;
 
     		if (createdPost && currentUser) {

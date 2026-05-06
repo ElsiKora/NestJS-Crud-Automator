@@ -261,13 +261,15 @@ class IamConsumerPolicyDocumentSource implements IApiPolicyDocumentSource {
 			},
 		});
 
-		return records.map((record: IamConsumerPolicyDocumentEntity): IApiPolicyDocumentRecord => ({
-			document: record.document,
-			id: record.id,
-			namespace: record.namespace,
-			sourceType: record.sourceType,
-			version: record.version,
-		}));
+		return records.map(
+			(record: IamConsumerPolicyDocumentEntity): IApiPolicyDocumentRecord => ({
+				document: record.document,
+				id: record.id,
+				namespace: record.namespace,
+				sourceType: record.sourceType,
+				version: record.version,
+			}),
+		);
 	}
 }
 
@@ -406,11 +408,7 @@ class IamConsumerItemController {
 		ApiAuthorizationModule.forRootAsync({
 			imports: [IamConsumerAuthorizationSupportModule],
 			inject: [IamConsumerPolicyAttachmentSource, IamConsumerPolicyDocumentSource, IamConsumerPrincipalResolver],
-			useFactory: (
-				attachmentSource: IamConsumerPolicyAttachmentSource,
-				documentSource: IamConsumerPolicyDocumentSource,
-				principalResolver: IamConsumerPrincipalResolver,
-			) => ({
+			useFactory: (attachmentSource: IamConsumerPolicyAttachmentSource, documentSource: IamConsumerPolicyDocumentSource, principalResolver: IamConsumerPrincipalResolver) => ({
 				iam: {
 					attachmentSources: [attachmentSource],
 					documentSources: [documentSource],
@@ -432,12 +430,7 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 	let operatorService: IamConsumerOperatorService;
 	let simulator: ApiAuthorizationSimulator;
 	let fastify: {
-		inject: (options: {
-			headers?: Record<string, string>;
-			method: string;
-			payload?: unknown;
-			url: string;
-		}) => Promise<{
+		inject: (options: { headers?: Record<string, string>; method: string; payload?: unknown; url: string }) => Promise<{
 			json: () => any;
 			statusCode: number;
 		}>;
@@ -565,7 +558,12 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 		});
 
 		expect(listResponse.statusCode).toBe(200);
-		expect(listResponse.json().items.map((item: { id: string }) => item.id).sort()).toEqual(["iam-item-own", "iam-item-own-2"]);
+		expect(
+			listResponse
+				.json()
+				.items.map((item: { id: string }) => item.id)
+				.sort(),
+		).toEqual(["iam-item-own", "iam-item-own-2"]);
 
 		const ownGetResponse = await fastify.inject({
 			headers: principalHeaders(),

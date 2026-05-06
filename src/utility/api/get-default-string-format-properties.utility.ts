@@ -1,7 +1,7 @@
 import type { TApiPropertyDefaultStringFormat, TApiPropertyDefaultStringFormatProperties } from "@type/decorator/api/property";
 
 import { DEFAULT_STRING_FORMAT_PROPERTY_API_INTERFACE_CONSTANT } from "@constant/interface/api";
-import cloneDeep from "lodash/cloneDeep";
+import cloneDeep from "lodash/cloneDeep.js";
 
 /**
  * Returns default format properties for supported string types (EMAIL, IP, URL, UUID).

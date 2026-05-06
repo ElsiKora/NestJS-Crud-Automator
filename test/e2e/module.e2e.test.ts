@@ -112,21 +112,25 @@ class CrossModuleFeatureController {
 	}
 }
 
-Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, {
-	resource: {
-		action: "get",
-		entity: CrossModuleEntity,
-	},
-	route: {
-		method: RequestMethod.GET,
-		path: "",
-	},
-	security: {
-		authorization: {
-			mode: EApiAuthorizationMode.HOOKS,
+Reflect.defineMetadata(
+	METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
+	{
+		resource: {
+			action: "get",
+			entity: CrossModuleEntity,
+		},
+		route: {
+			method: RequestMethod.GET,
+			path: "",
+		},
+		security: {
+			authorization: {
+				mode: EApiAuthorizationMode.HOOKS,
+			},
 		},
 	},
-}, CrossModuleFeatureController.prototype.get);
+	CrossModuleFeatureController.prototype.get,
+);
 
 Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.ENTITY_METADATA_KEY, CrossModuleEntity, CrossModuleFeatureController);
 Reflect.defineMetadata(

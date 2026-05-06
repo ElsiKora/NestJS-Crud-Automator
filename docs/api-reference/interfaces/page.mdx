@@ -214,10 +214,7 @@ interface IApiFunctionContextOperations<E extends IApiBaseEntity> {
 	getList: (properties: TApiFunctionGetListProperties<E>) => Promise<IApiGetListResponseResult<E>>;
 	getMany: (properties: TApiFunctionGetManyProperties<E>) => Promise<Array<E>>;
 	getRepository: <T extends IApiBaseEntity>(entity: new () => T) => Repository<T>;
-	update: (
-		criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>,
-		properties: TApiFunctionUpdateProperties<E>
-	) => Promise<E>;
+	update: (criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: TApiFunctionUpdateProperties<E>) => Promise<E>;
 }
 ```
 

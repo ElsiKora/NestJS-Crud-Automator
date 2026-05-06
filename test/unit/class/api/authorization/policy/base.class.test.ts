@@ -14,12 +14,7 @@ class PolicyEntity {
 
 class TestPolicy extends ApiAuthorizationPolicyBase<PolicyEntity> {
 	public typedBeforeCreateResult(): TApiAuthorizationPolicyBeforeCreateResult<PolicyEntity> {
-		return [
-			...this.allow(),
-			...this.allowForPermissions(["admin.user.create"]),
-			...this.allowForRoles(["admin"]),
-			...this.scopeToOwner(),
-		];
+		return [...this.allow(), ...this.allowForPermissions(["admin.user.create"]), ...this.allowForRoles(["admin"]), ...this.scopeToOwner()];
 	}
 
 	public typedBeforePartialUpdateResult(): TApiAuthorizationPolicyBeforePartialUpdateResult<PolicyEntity> {
@@ -46,17 +41,11 @@ class TestPolicy extends ApiAuthorizationPolicyBase<PolicyEntity> {
 		return this.allowForRoles(roles);
 	}
 
-	public allowForPermissionsRule(
-		requiredPermissions: Array<string>,
-		options: Omit<IApiAuthorizationPolicySubscriberRule<PolicyEntity, never>, "effect" | "resultTransform"> & { match?: EApiAuthorizationPermissionMatch; resultTransform?: never } = {},
-	) {
+	public allowForPermissionsRule(requiredPermissions: Array<string>, options: Omit<IApiAuthorizationPolicySubscriberRule<PolicyEntity, never>, "effect" | "resultTransform"> & { match?: EApiAuthorizationPermissionMatch; resultTransform?: never } = {}) {
 		return this.allowForPermissions(requiredPermissions, options);
 	}
 
-	public denyForPermissionsRule(
-		requiredPermissions: Array<string>,
-		options: Omit<IApiAuthorizationPolicySubscriberRule<PolicyEntity, never>, "effect" | "resultTransform"> & { match?: EApiAuthorizationPermissionMatch; resultTransform?: never } = {},
-	) {
+	public denyForPermissionsRule(requiredPermissions: Array<string>, options: Omit<IApiAuthorizationPolicySubscriberRule<PolicyEntity, never>, "effect" | "resultTransform"> & { match?: EApiAuthorizationPermissionMatch; resultTransform?: never } = {}) {
 		return this.denyForPermissions(requiredPermissions, options);
 	}
 

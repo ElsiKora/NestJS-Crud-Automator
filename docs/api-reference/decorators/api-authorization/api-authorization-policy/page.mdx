@@ -16,13 +16,13 @@ Registers a hooks-mode authorization policy for a specific entity. Policies are 
 
 ## Options
 
-| Option        | Description                                                                                                           |
-| ------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `cache`       | Optional cache override for this policy (`isEnabled`, `ttlMs`).                                                       |
-| `entity`      | Entity this policy protects. Required.                                                                                |
-| `priority`    | Higher priorities execute earlier. Defaults to `0`.                                                                   |
+| Option        | Description                                                                                                          |
+| ------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `cache`       | Optional cache override for this policy (`isEnabled`, `ttlMs`).                                                      |
+| `entity`      | Entity this policy protects. Required.                                                                               |
+| `priority`    | Higher priorities execute earlier. Defaults to `0`.                                                                  |
 | `policyId`    | Optional custom identifier. Defaults to `<entityName>Policy`. Useful when multiple policies protect the same entity. |
-| `description` | Short summary displayed in tooling or logs.                                                                           |
+| `description` | Short summary displayed in tooling or logs.                                                                          |
 
 ## Usage steps
 
@@ -37,18 +37,9 @@ This decorator has no effect in IAM mode.
 ## Example
 
 ```typescript
-import type {
-	IApiAuthorizationRuleContext,
-	IApiAuthorizationScope,
-	TApiAuthorizationPolicyBeforeGetListContext,
-	TApiAuthorizationPolicyBeforeUpdateContext,
-} from "@elsikora/nestjs-crud-automator";
+import type { IApiAuthorizationRuleContext, IApiAuthorizationScope, TApiAuthorizationPolicyBeforeGetListContext, TApiAuthorizationPolicyBeforeUpdateContext } from "@elsikora/nestjs-crud-automator";
 
-import {
-	EApiAuthorizationPermissionMatch,
-	ApiAuthorizationPolicy,
-	ApiAuthorizationPolicyBase,
-} from "@elsikora/nestjs-crud-automator";
+import { EApiAuthorizationPermissionMatch, ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
 @ApiAuthorizationPolicy<UserEntity>({

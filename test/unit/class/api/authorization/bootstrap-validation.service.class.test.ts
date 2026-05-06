@@ -45,21 +45,25 @@ function defineSecurableControllerMetadata(controller: new () => unknown): void 
 }
 
 function defineRouteMetadata(handler: () => void, action: string): void {
-	Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, {
-		resource: {
-			action,
-			entity: ValidationEntity,
-		},
-		route: {
-			method: RequestMethod.POST,
-			path: "",
-		},
-		security: {
-			authorization: {
-				mode: EApiAuthorizationMode.HOOKS,
+	Reflect.defineMetadata(
+		METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
+		{
+			resource: {
+				action,
+				entity: ValidationEntity,
+			},
+			route: {
+				method: RequestMethod.POST,
+				path: "",
+			},
+			security: {
+				authorization: {
+					mode: EApiAuthorizationMode.HOOKS,
+				},
 			},
 		},
-	}, handler);
+		handler,
+	);
 }
 
 function createService(controller: new () => unknown): ApiAuthorizationBootstrapValidationService {
@@ -95,16 +99,20 @@ describe("ApiAuthorizationBootstrapValidationService", () => {
 
 	it("rejects securable custom routes without method-level authorization mode", () => {
 		defineSecurableControllerMetadata(MissingCustomAuthorizationController);
-		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, {
-			resource: {
-				action: "publish",
-				entity: ValidationEntity,
+		Reflect.defineMetadata(
+			METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
+			{
+				resource: {
+					action: "publish",
+					entity: ValidationEntity,
+				},
+				route: {
+					method: RequestMethod.POST,
+					path: "",
+				},
 			},
-			route: {
-				method: RequestMethod.POST,
-				path: "",
-			},
-		}, MissingCustomAuthorizationController.prototype.publish);
+			MissingCustomAuthorizationController.prototype.publish,
+		);
 
 		const service = createService(MissingCustomAuthorizationController);
 

@@ -18,12 +18,6 @@ export default defineConfig({
 		}),
 	],
 	publicDir: false,
-	resolve: {
-		alias: {
-			lodash: "lodash",
-			"lodash/random": "lodash/random.js",
-		},
-	},
 	ssr: {
 		noExternal: ["@elsikora/nestjs-crud-automator"],
 	},

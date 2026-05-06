@@ -306,29 +306,33 @@ describe("DtoGenerate", () => {
 
 		expect(responseDto).toBeDefined();
 
-		const instance = plainToInstance(responseDto as ClassConstructor<ManualNestedPolicyEntity>, {
-			document: {
-				Statement: [
-					{
-						Condition: {
-							StringEquals: {
-								team: "platform",
+		const instance = plainToInstance(
+			responseDto as ClassConstructor<ManualNestedPolicyEntity>,
+			{
+				document: {
+					Statement: [
+						{
+							Condition: {
+								StringEquals: {
+									team: "platform",
+								},
+							},
+							Effect: ManualPolicyEffect.ALLOW,
+							Principal: {
+								AWS: "arn:aws:iam::123456789012:root",
 							},
 						},
-						Effect: ManualPolicyEffect.ALLOW,
-						Principal: {
-							AWS: "arn:aws:iam::123456789012:root",
-						},
-					},
-				],
-				Version: "2012-10-17",
+					],
+					Version: "2012-10-17",
+				},
+				id: "policy-1",
 			},
-			id: "policy-1",
-		}, {
-			/* eslint-disable-next-line @elsikora/typescript/naming-convention */
-			excludeExtraneousValues: true,
-			strategy: "excludeAll",
-		});
+			{
+				/* eslint-disable-next-line @elsikora/typescript/naming-convention */
+				excludeExtraneousValues: true,
+				strategy: "excludeAll",
+			},
+		);
 
 		expect(instance).toMatchObject({
 			document: {
@@ -352,26 +356,30 @@ describe("DtoGenerate", () => {
 	});
 
 	it("serializes standalone manual DTOs in response mode without manual isResponse", () => {
-		const serializedDocument = plainToInstance(ManualPolicyDocumentDto, {
-			Statement: [
-				{
-					Condition: {
-						StringEquals: {
-							team: "platform",
+		const serializedDocument = plainToInstance(
+			ManualPolicyDocumentDto,
+			{
+				Statement: [
+					{
+						Condition: {
+							StringEquals: {
+								team: "platform",
+							},
+						},
+						Effect: ManualPolicyEffect.ALLOW,
+						Principal: {
+							AWS: "arn:aws:iam::123456789012:root",
 						},
 					},
-					Effect: ManualPolicyEffect.ALLOW,
-					Principal: {
-						AWS: "arn:aws:iam::123456789012:root",
-					},
-				},
-			],
-			Version: "2012-10-17",
-		}, {
-			/* eslint-disable-next-line @elsikora/typescript/naming-convention */
-			excludeExtraneousValues: true,
-			strategy: "excludeAll",
-		});
+				],
+				Version: "2012-10-17",
+			},
+			{
+				/* eslint-disable-next-line @elsikora/typescript/naming-convention */
+				excludeExtraneousValues: true,
+				strategy: "excludeAll",
+			},
+		);
 
 		expect(instanceToPlain(serializedDocument)).toEqual({
 			Statement: [
@@ -442,19 +450,23 @@ describe("DtoGenerate", () => {
 		const versionMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, ManualPolicyDocumentDto.prototype, "Version");
 
 		expect(JSON.stringify(errors)).toContain("isString");
-		expect(validateSync(plainToInstance(bodyDto as ClassConstructor<ManualNestedPolicyEntity>, {
-			document: {
-				Statement: [
-					{
-						Effect: ManualPolicyEffect.ALLOW,
-						Principal: {
-							AWS: "arn:aws:iam::123456789012:root",
-						},
+		expect(
+			validateSync(
+				plainToInstance(bodyDto as ClassConstructor<ManualNestedPolicyEntity>, {
+					document: {
+						Statement: [
+							{
+								Effect: ManualPolicyEffect.ALLOW,
+								Principal: {
+									AWS: "arn:aws:iam::123456789012:root",
+								},
+							},
+						],
+						Version: "2012-10-17",
 					},
-				],
-				Version: "2012-10-17",
-			},
-		}))).toHaveLength(0);
+				}),
+			),
+		).toHaveLength(0);
 		expect(versionMetadata?.readOnly).toBeUndefined();
 	});
 });

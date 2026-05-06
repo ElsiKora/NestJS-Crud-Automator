@@ -76,9 +76,7 @@ class PublicApiPolicy extends ApiAuthorizationPolicyBase<PublicApiUser> {
 	}
 
 	public onBeforeGetList(_context: TApiAuthorizationPolicyBeforeGetListContext<PublicApiUser>): TApiAuthorizationPolicyBeforeGetListResult<PublicApiUser> {
-		return [
-			...this.allowForPermissions(["admin.user.list"]),
-		];
+		return [...this.allowForPermissions(["admin.user.list"])];
 	}
 
 	public onBeforePartialUpdate(context: TApiAuthorizationPolicyBeforePartialUpdateContext<PublicApiUser>): TApiAuthorizationPolicyBeforePartialUpdateResult<PublicApiUser> {
@@ -127,10 +125,12 @@ describe("public authorization API (E2E)", () => {
 				id: "user-1",
 			},
 		};
-		const resolvedPrincipal: IApiAuthorizationPrincipal = await Promise.resolve(principalResolver.resolve({
-			id: "user-1",
-			operatorId: "operator-1",
-		}));
+		const resolvedPrincipal: IApiAuthorizationPrincipal = await Promise.resolve(
+			principalResolver.resolve({
+				id: "user-1",
+				operatorId: "operator-1",
+			}),
+		);
 
 		expect(moduleOptions.principalResolver).toBe(principalResolver);
 		expect(moduleOptions.hookPermissionSources).toEqual([publicApiHookPermissionSource]);

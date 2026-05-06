@@ -204,7 +204,7 @@ export class ApiRouteRuntime {
 		};
 		const afterResult: R | undefined = await ApiSubscriberExecutor.executeRouteSubscribers(options.executionContext.getClass(), entityInstance, options.metadata.route.type, EApiSubscriberOnType.AFTER, afterContext, action);
 		const finalResult: R = afterResult ?? (responseTarget.response as R);
-		const transformedResult: R = (await AuthorizationDecisionApplyResult(AuthorizationDecisionAttachResource(authorizationDecision as never, finalResult as never) as never, finalResult as never)) as R;
+		const transformedResult: R = await AuthorizationDecisionApplyResult(AuthorizationDecisionAttachResource(authorizationDecision as never, finalResult as never) as never, finalResult as never);
 
 		return ApiRouteSerializeResponse(options.metadata, transformedResult);
 	}
@@ -280,7 +280,7 @@ export class ApiRouteRuntime {
 				const query: TApiControllerGetListQuery<E> = targets.query;
 				const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
 				const filter: TApiFunctionGetListPropertiesWhere<E> = ApiControllerGetListTransformFilter<E>(getListQuery, options.entityMetadata);
-				const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(filter, authorizationDecision?.scope?.where) as Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined;
+				const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(filter, authorizationDecision?.scope?.where);
 
 				const requestProperties: TApiFunctionGetListProperties<E> = {
 					relations: routeConfig.relations?.response?.load?.include,
@@ -310,21 +310,22 @@ export class ApiRouteRuntime {
 
 	private static async executeGeneratedRequestPipeline<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, targetOrder: Array<EApiControllerRequestTarget>): Promise<void> {
 		const routeConfig: TApiControllerPropertiesRoute<E, R> = options.properties.routes[options.method] ?? {};
+		const requestTargets: Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E>>> | undefined = routeConfig.request;
 
 		for (const target of targetOrder) {
 			if (target === EApiControllerRequestTarget.PARAMETERS) {
 				ApiControllerTransformData<E>(routeConfig.request, options.properties, { parameters: targets.parameters }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
-				await ApiControllerValidateRequest<E>((routeConfig.request as Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E>>> | undefined)?.[target], options.properties, targets.parameters ?? {});
+				await ApiControllerValidateRequest<E>(requestTargets?.[target], options.properties, targets.parameters ?? {});
 			}
 
 			if (target === EApiControllerRequestTarget.QUERY) {
 				ApiControllerTransformData<E>(routeConfig.request, options.properties, { query: targets.query }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
-				await ApiControllerValidateRequest<E>((routeConfig.request as Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E>>> | undefined)?.[target], options.properties, (targets.query ?? {}) as TApiControllerGetListQuery<E>);
+				await ApiControllerValidateRequest<E>(requestTargets?.[target], options.properties, targets.query ?? {});
 			}
 
 			if (target === EApiControllerRequestTarget.BODY) {
 				ApiControllerTransformData<E>(routeConfig.request, options.properties, { body: targets.body }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
-				await ApiControllerValidateRequest<E>((routeConfig.request as Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E>>> | undefined)?.[target], options.properties, (targets.body ?? {}) as Partial<E>);
+				await ApiControllerValidateRequest<E>(requestTargets?.[target], options.properties, (targets.body ?? {}) as Partial<E>);
 			}
 		}
 	}
@@ -374,13 +375,14 @@ export class ApiRouteRuntime {
 			entity: metadata.resource.entity,
 			routes: {},
 		};
+		const requestTargets: Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E>>> | undefined = runtimeProperties.request;
 
 		ApiControllerTransformData<E>(runtimeProperties.request, controllerProperties, { parameters: request.params }, contextData);
-		await ApiControllerValidateRequest<E>((runtimeProperties.request as Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E>>> | undefined)?.[EApiControllerRequestTarget.PARAMETERS], controllerProperties, request.params ?? {});
+		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.PARAMETERS], controllerProperties, request.params ?? {});
 		ApiControllerTransformData<E>(runtimeProperties.request, controllerProperties, { query: request.query as TApiControllerGetListQuery<E> | undefined }, contextData);
-		await ApiControllerValidateRequest<E>((runtimeProperties.request as Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E>>> | undefined)?.[EApiControllerRequestTarget.QUERY], controllerProperties, (request.query ?? {}) as TApiControllerGetListQuery<E>);
+		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.QUERY], controllerProperties, request.query ?? {});
 		ApiControllerTransformData<E>(runtimeProperties.request, controllerProperties, { body: request.body as E | undefined }, contextData);
-		await ApiControllerValidateRequest<E>((runtimeProperties.request as Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E>>> | undefined)?.[EApiControllerRequestTarget.BODY], controllerProperties, request.body ?? {});
+		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.BODY], controllerProperties, request.body ?? {});
 	}
 
 	private static async loadCustomResponseRelations<E extends IApiBaseEntity>(service: ApiServiceBase<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: unknown): Promise<unknown> {

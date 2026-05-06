@@ -35,7 +35,7 @@ export class ApiAuthorizationPolicyExecutor {
 			return [];
 		}
 
-		const customActionHook: (actionValue: TAction, hookContext: IApiAuthorizationPolicySubscriberContext<E>) => TApiAuthorizationPolicyHookExecutionResult<E, TAction> = subscriber.getCustomActionRule.bind(subscriber) as (actionValue: TAction, hookContext: IApiAuthorizationPolicySubscriberContext<E>) => TApiAuthorizationPolicyHookExecutionResult<E, TAction>;
+		const customActionHook: (actionValue: TAction, hookContext: IApiAuthorizationPolicySubscriberContext<E>) => TApiAuthorizationPolicyHookExecutionResult<E, TAction> = subscriber.getCustomActionRule.bind(subscriber);
 
 		const customResult: TApiAuthorizationPolicyHookExecutionResult<E, TAction> = customActionHook(action, context);
 

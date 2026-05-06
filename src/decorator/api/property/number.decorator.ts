@@ -14,7 +14,7 @@ import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDivisibleBy, IsInt, isInt, IsNumber, Max, Min, ValidateIf } from "class-validator";
-import random from "lodash/random";
+import random from "lodash/random.js";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators

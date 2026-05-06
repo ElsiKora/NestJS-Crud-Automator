@@ -22,11 +22,11 @@ describe("ApiControllerValidateRequest", () => {
 	it("throws when a validator fails", async () => {
 		const target = {
 			validators: [
-			{
-				errorType: EErrorStringAction.INVALID_DATA,
-				exception: BadRequestException,
-				validationFunction: () => false,
-			},
+				{
+					errorType: EErrorStringAction.INVALID_DATA,
+					exception: BadRequestException,
+					validationFunction: () => false,
+				},
 			],
 		};
 

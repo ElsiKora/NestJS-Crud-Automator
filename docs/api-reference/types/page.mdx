@@ -31,11 +31,7 @@ HTTP list queries use lowercase sort directions: `asc` and `desc`.
 ## Subscriber Context Helpers
 
 ```typescript
-type TApiSubscriberFunctionBeforeCreateContext<E extends IApiBaseEntity> = IApiSubscriberFunctionExecutionContext<
-	E,
-	TApiFunctionCreateProperties<E>,
-	IApiSubscriberFunctionExecutionContextData<E>
->;
+type TApiSubscriberFunctionBeforeCreateContext<E extends IApiBaseEntity> = IApiSubscriberFunctionExecutionContext<E, TApiFunctionCreateProperties<E>, IApiSubscriberFunctionExecutionContextData<E>>;
 
 type TApiSubscriberRouteBeforeCreateContext<E extends IApiBaseEntity> = IApiSubscriberRouteExecutionContext<
 	E,
@@ -54,18 +50,7 @@ Prefer the exported helper types over manually spelling every generic parameter.
 ## Authorization Types
 
 ```typescript
-type TApiAuthorizationRuleTransformPayload<E extends IApiBaseEntity> =
-	| Array<unknown>
-	| boolean
-	| E
-	| IApiGetListResponseResult<E>
-	| null
-	| number
-	| object
-	| Partial<E>
-	| Record<string, unknown>
-	| string
-	| undefined;
+type TApiAuthorizationRuleTransformPayload<E extends IApiBaseEntity> = Array<unknown> | boolean | E | IApiGetListResponseResult<E> | null | number | object | Partial<E> | Record<string, unknown> | string | undefined;
 ```
 
 Authorization transforms receive the payload produced by the route action and may return a replacement payload of the same public response family.
