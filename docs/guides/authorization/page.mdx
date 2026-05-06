@@ -12,32 +12,18 @@ NestJS CRUD Automator ships with a single authorization pipeline and two first-c
 Import `ApiAuthorizationModule` once. Use `forRoot()` for plain value-based setup. Use `forRootAsync()` when `principalResolver`, `hookPermissionSources`, `iam.attachmentSources`, or `iam.documentSources` must come from Nest DI.
 
 ```typescript filename="app.module.ts" copy
-import type {
-	IApiAuthorizationPrincipal,
-	IApiHookPermissionSource,
-	IApiPolicyAttachmentSource,
-	IApiPolicyDocumentSource,
-	IApiResolvedPolicyAttachments,
-} from "@elsikora/nestjs-crud-automator";
+import type { IApiAuthorizationPrincipal, IApiHookPermissionSource, IApiPolicyAttachmentSource, IApiPolicyDocumentSource, IApiResolvedPolicyAttachments } from "@elsikora/nestjs-crud-automator";
 
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 
-import {
-	ApiAuthorizationModule,
-	EApiAuthorizationPrincipalType,
-	EApiPolicyEffect,
-	EApiPolicySourceType,
-	AuthorizationResolveDefaultPrincipal,
-} from "@elsikora/nestjs-crud-automator";
+import { ApiAuthorizationModule, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, AuthorizationResolveDefaultPrincipal } from "@elsikora/nestjs-crud-automator";
 
 const hookPermissionSource: IApiHookPermissionSource = {
 	async getPermissions(principal: IApiAuthorizationPrincipal): Promise<ReadonlyArray<string>> {
 		const permissions = principal.claims?.permissions;
 
-		return Array.isArray(permissions)
-			? permissions.filter((value): value is string => typeof value === "string")
-			: [];
+		return Array.isArray(permissions) ? permissions.filter((value): value is string => typeof value === "string") : [];
 	},
 };
 
@@ -128,25 +114,13 @@ The built-in `AuthorizationResolveDefaultPrincipal()` maps `request.user` into a
 Use `forRootAsync()` when your resolver or IAM sources depend on `Repository`, `DataSource`, or other Nest providers. The authorization module supports `imports`, `inject`, `useFactory`, `useClass`, and `useExisting`. The public API also exports `IApiAuthorizationModuleAsyncOptions` and `IApiAuthorizationModuleOptionsFactory` for typed Nest module wiring.
 
 ```typescript filename="authorization/authorization.module.ts" copy
-import type {
-	IApiAuthorizationPrincipal,
-	IApiAuthorizationPrincipalResolver,
-	IApiPolicyAttachmentSource,
-	IApiPolicyDocumentRecord,
-	IApiPolicyDocumentSource,
-	IApiResolvedPolicyAttachments,
-} from "@elsikora/nestjs-crud-automator";
+import type { IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiPolicyAttachmentSource, IApiPolicyDocumentRecord, IApiPolicyDocumentSource, IApiResolvedPolicyAttachments } from "@elsikora/nestjs-crud-automator";
 
 import { Injectable, Module } from "@nestjs/common";
 import { InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 
-import {
-	ApiAuthorizationModule,
-	AuthorizationResolveDefaultPrincipal,
-	EApiAuthorizationPrincipalType,
-	EApiPolicySourceType,
-} from "@elsikora/nestjs-crud-automator";
+import { ApiAuthorizationModule, AuthorizationResolveDefaultPrincipal, EApiAuthorizationPrincipalType, EApiPolicySourceType } from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
 class DbPrincipalResolver implements IApiAuthorizationPrincipalResolver {
@@ -235,11 +209,7 @@ Use both decorators together on any secured controller:
 ```typescript filename="controllers/user.controller.ts" copy
 import { EApiRouteType } from "@elsikora/nestjs-crud-automator";
 
-import {
-	EApiAuthorizationMode,
-	ApiController,
-	ApiControllerSecurable,
-} from "@elsikora/nestjs-crud-automator";
+import { EApiAuthorizationMode, ApiController, ApiControllerSecurable } from "@elsikora/nestjs-crud-automator";
 
 @ApiControllerSecurable()
 @ApiController<UserEntity>({
@@ -308,18 +278,9 @@ That same `metadata.resource.action` value is what hooks receive as `context.act
 Hooks mode keeps the original policy authoring style, but now runs on `principal + permissions` rather than `subject + subject.permissions`. Policies are still auto-discovered by entity through `@ApiAuthorizationPolicy({ entity })`.
 
 ```typescript filename="policies/user-hooks.policy.ts" copy
-import type {
-	IApiAuthorizationRuleContext,
-	IApiAuthorizationScope,
-	TApiAuthorizationPolicyBeforeGetListContext,
-	TApiAuthorizationPolicyBeforePartialUpdateContext,
-} from "@elsikora/nestjs-crud-automator";
+import type { IApiAuthorizationRuleContext, IApiAuthorizationScope, TApiAuthorizationPolicyBeforeGetListContext, TApiAuthorizationPolicyBeforePartialUpdateContext } from "@elsikora/nestjs-crud-automator";
 
-import {
-	EApiAuthorizationPermissionMatch,
-	ApiAuthorizationPolicy,
-	ApiAuthorizationPolicyBase,
-} from "@elsikora/nestjs-crud-automator";
+import { EApiAuthorizationPermissionMatch, ApiAuthorizationPolicy, ApiAuthorizationPolicyBase } from "@elsikora/nestjs-crud-automator";
 
 @ApiAuthorizationPolicy<UserEntity>({
 	entity: UserEntity,
@@ -501,16 +462,9 @@ Custom `@ApiMethod(...)` actions pass through unchanged after the namespace. For
 Example IAM sources:
 
 ```typescript filename="authorization/iam-sources.ts" copy
-import type {
-	IApiPolicyAttachmentSource,
-	IApiPolicyDocumentSource,
-	IApiResolvedPolicyAttachments,
-} from "@elsikora/nestjs-crud-automator";
+import type { IApiPolicyAttachmentSource, IApiPolicyDocumentSource, IApiResolvedPolicyAttachments } from "@elsikora/nestjs-crud-automator";
 
-import {
-	EApiAuthorizationPrincipalType,
-	EApiPolicySourceType,
-} from "@elsikora/nestjs-crud-automator";
+import { EApiAuthorizationPrincipalType, EApiPolicySourceType } from "@elsikora/nestjs-crud-automator";
 
 export const attachmentSource: IApiPolicyAttachmentSource = {
 	async getAttachments(principal): Promise<IApiResolvedPolicyAttachments> {
@@ -620,11 +574,7 @@ Use `ApiAuthorizationSimulator` to evaluate authorization outside HTTP requests:
 ```typescript filename="authorization/simulator.ts" copy
 import { EApiRouteType } from "@elsikora/nestjs-crud-automator";
 
-import {
-	ApiAuthorizationSimulator,
-	EApiPolicyEffect,
-	ErrorException,
-} from "@elsikora/nestjs-crud-automator";
+import { ApiAuthorizationSimulator, EApiPolicyEffect, ErrorException } from "@elsikora/nestjs-crud-automator";
 
 const decision = await simulator.evaluate({
 	action: EApiRouteType.GET_LIST,

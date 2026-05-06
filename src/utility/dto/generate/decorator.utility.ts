@@ -22,7 +22,7 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @template E - The entity type
  */
 export function DtoGenerateDecorator<E>(metadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string, generatedDTOs?: Record<string, Type<unknown>>): PropertyDecorator {
-	const factory: IDtoGenerateFactory<E> = DTO_UTILITY_CONSTANT.PROPERTY_DECORATOR_FACTORIES[metadata.type] as IDtoGenerateFactory<E>;
+	const factory: IDtoGenerateFactory<E> = DTO_UTILITY_CONSTANT.PROPERTY_DECORATOR_FACTORIES[metadata.type];
 
 	if (!factory) {
 		throw ErrorException(`Unknown property type ${metadata.type}`);

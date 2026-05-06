@@ -132,7 +132,7 @@ export class ApiAuthorizationPolicyRegistry implements IApiAuthorizationPolicyRe
 		const normalizedRegistration: IApiAuthorizationPolicySubscriberRegistration<IApiBaseEntity> = {
 			cache: registration.cache,
 			description: registration.description,
-			entity: registration.entity as new () => IApiBaseEntity,
+			entity: registration.entity,
 			policyId: registration.policyId,
 			priority: registration.priority ?? 0,
 			subscriber: registration.subscriber as never,

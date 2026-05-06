@@ -85,7 +85,7 @@ function resolveRouteArgumentIndex(target: object, propertyKey: string | symbol,
 	for (const entry of Object.entries(routeArgumentsMetadata)) {
 		const [key, value]: [string, { index?: number }] = entry;
 		const [type]: Array<string> = key.split(":");
-		const metadataParameterType: RouteParamtypes = Number(type) as RouteParamtypes;
+		const metadataParameterType: RouteParamtypes = Number(type);
 
 		if (metadataParameterType === parameterType) {
 			return value.index;

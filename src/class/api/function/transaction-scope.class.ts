@@ -10,7 +10,7 @@ export class ApiFunctionTransactionScope {
 	}
 
 	public static async runWithEntityManager<R>(entityManager: EntityManager, callback: () => Promise<R>): Promise<R> {
-		const entity: new () => IApiBaseEntity = Object as unknown as new () => IApiBaseEntity;
+		const entity: new () => IApiBaseEntity = Object;
 
 		const context: IApiFunctionContext<IApiBaseEntity> = {
 			entity,

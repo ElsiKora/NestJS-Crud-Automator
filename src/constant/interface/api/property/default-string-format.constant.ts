@@ -34,7 +34,7 @@ const COUNTRY_CODE_ALPHA2: TApiPropertyDefaultStringFormatProperties = {
 const CREDIT_CARD: TApiPropertyDefaultStringFormatProperties = {
 	description: "credit card number",
 	exampleValue: "4532015112830366",
-	format: EApiPropertyStringType.CREDIT_CARD as EApiPropertyStringType,
+	format: EApiPropertyStringType.CREDIT_CARD,
 	maxLength: 19,
 	minLength: 13,
 	pattern: String.raw`/^[0-9]{13,19}$/`,

@@ -55,7 +55,7 @@ export class ApiSubscriberExecutor {
 				const hookResult: TResult | undefined = (await hook.call(subscriber, { ...context, result })) as TResult | undefined;
 
 				if (hookResult !== undefined) {
-					result = hookResult as TResult;
+					result = hookResult;
 				}
 			}
 		}

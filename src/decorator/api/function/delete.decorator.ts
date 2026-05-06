@@ -5,7 +5,6 @@ import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/ap
 import type { IApiFunctionDeleteExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
 import type { TApiFunctionDeleteCriteria, TApiFunctionGetProperties } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
-import type { FindOptionsWhere } from "typeorm/index";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
@@ -83,7 +82,7 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 						}
 					}
 
-					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria: executionContext.result ?? ({} as unknown as FindOptionsWhere<E>), entity, getFunction, repository });
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria: executionContext.result ?? {}, entity, getFunction, repository });
 				},
 				entity,
 				mode: transactionMode,

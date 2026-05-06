@@ -14,7 +14,7 @@ class EntityMetadataWrapper {
 	}
 
 	public asRecord(): TMetadata {
-		return Object.fromEntries(this.PROPERTIES) as TMetadata;
+		return Object.fromEntries(this.PROPERTIES);
 	}
 
 	public getName(): string {

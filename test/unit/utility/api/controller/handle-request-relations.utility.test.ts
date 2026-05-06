@@ -32,16 +32,18 @@ class RelationOwnerService extends ApiServiceBase<RelationOwner> {
 	}
 }
 
-const createRelationConfig = (overrides: {
-	referenceKey?: string;
-	referenceShape?: EApiControllerRelationReferenceShape;
-	relationStrategy?: EApiControllerLoadRelationsStrategy;
-	relations?: Array<"owner">;
-	serviceStrategy?: EApiControllerLoadRelationsStrategy;
-	services?: Partial<Record<"owner", string>>;
-	shouldForceAllServicesToBeSpecified?: boolean;
-	shouldLoad?: boolean;
-} = {}) => ({
+const createRelationConfig = (
+	overrides: {
+		referenceKey?: string;
+		referenceShape?: EApiControllerRelationReferenceShape;
+		relationStrategy?: EApiControllerLoadRelationsStrategy;
+		relations?: Array<"owner">;
+		serviceStrategy?: EApiControllerLoadRelationsStrategy;
+		services?: Partial<Record<"owner", string>>;
+		shouldForceAllServicesToBeSpecified?: boolean;
+		shouldLoad?: boolean;
+	} = {},
+) => ({
 	load: {
 		relationStrategy: overrides.relationStrategy ?? EApiControllerLoadRelationsStrategy.AUTO,
 		relations: overrides.relations,

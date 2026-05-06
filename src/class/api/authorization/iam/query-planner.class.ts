@@ -63,7 +63,7 @@ export class ApiAuthorizationIamQueryPlanner {
 			return;
 		}
 
-		let currentValue: Record<string, unknown> = where as unknown as Record<string, unknown>;
+		let currentValue: Record<string, unknown> = where;
 
 		for (const segment of pathSegments.slice(0, -1)) {
 			if (!this.isRecord(currentValue[segment])) {
@@ -89,7 +89,7 @@ export class ApiAuthorizationIamQueryPlanner {
 			};
 		}
 
-		const where: FindOptionsWhere<E> = {} as FindOptionsWhere<E>;
+		const where: FindOptionsWhere<E> = {};
 		let hasResourceCondition: boolean = false;
 
 		for (const [operator, operands] of Object.entries(options.condition)) {

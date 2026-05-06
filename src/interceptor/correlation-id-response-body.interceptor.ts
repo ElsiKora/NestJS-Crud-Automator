@@ -28,8 +28,8 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 		const headerCorrelationId: string | undefined = Array.isArray(rawCorrelationId) ? rawCorrelationId.find((value: string) => value.trim().length > 0) : rawCorrelationId;
 		const normalizedCorrelationId: string | undefined = typeof headerCorrelationId === "string" ? headerCorrelationId.trim() : undefined;
 		const correlationId: string = normalizedCorrelationId && normalizedCorrelationId.length > 0 ? normalizedCorrelationId : randomUUID();
-		const requestMethod: string = (request.method as string | undefined) ?? "UNKNOWN_METHOD";
-		const requestUrl: string = (request.url as string | undefined) ?? "UNKNOWN_URL";
+		const requestMethod: string = request.method ?? "UNKNOWN_METHOD";
+		const requestUrl: string = request.url ?? "UNKNOWN_URL";
 
 		// Persist the resolved correlation ID for downstream loggers/middlewares
 		(request.headers as unknown as Record<string, unknown>)["x-correlation-id"] = correlationId;

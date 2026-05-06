@@ -342,7 +342,7 @@ export class ApiAuthorizationIamEngine {
 						parameters: options.requestMetadata.parameters,
 						query: options.requestMetadata.query,
 					},
-					resource: options.resource as IApiBaseEntity | undefined,
+					resource: options.resource,
 				});
 
 				if (!this.evaluateOperator(operator, actualValue, expectedValue)) {
@@ -482,8 +482,8 @@ export class ApiAuthorizationIamEngine {
 
 	private resolveResourceString<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, requestMetadata: IApiAuthorizationRequestMetadata<E>, resource: E | undefined): string {
 		const resourceSource: Record<string, unknown> = {
-			...(this.isRecord(resource) ? (resource as Record<string, unknown>) : {}),
-			...(this.isRecord(requestMetadata.parameters) ? (requestMetadata.parameters as Record<string, unknown>) : {}),
+			...(this.isRecord(resource) ? resource : {}),
+			...(this.isRecord(requestMetadata.parameters) ? requestMetadata.parameters : {}),
 		};
 
 		return resourceDefinition.resourcePath.replaceAll(/\{([\w.-]+)\}/g, (_match: string, key: string) => {

@@ -110,7 +110,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 			let metadata: Record<string, unknown> | undefined;
 
 			for (const entityName of entityNames) {
-				metadata = storage.getMetadata(entityName, propertyName) as Record<string, unknown> | undefined;
+				metadata = storage.getMetadata(entityName, propertyName);
 
 				if (metadata) {
 					break;
@@ -129,7 +129,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 			let metadata: Record<string, unknown> | undefined;
 
 			for (const entityName of entityNames) {
-				metadata = storage.getMetadata(entityName, propertyName) as Record<string, unknown> | undefined;
+				metadata = storage.getMetadata(entityName, propertyName);
 
 				if (metadata) {
 					break;

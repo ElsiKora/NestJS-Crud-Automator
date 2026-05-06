@@ -1,7 +1,6 @@
 {
 	"compilerOptions": {
 		"allowSyntheticDefaultImports": true,
-		"baseUrl": "./src",
 		"declaration": true,
 		"emitDeclarationOnly": false,
 		"emitDecoratorMetadata": true,
@@ -19,17 +18,17 @@
 		"noUnusedParameters": true,
 		"outDir": "./dist",
 		"paths": {
-			"@class/*": ["class/*"],
-			"@constant/*": ["constant/*"],
-			"@decorator/*": ["decorator/*"],
-			"@enum/*": ["enum/*"],
-			"@factory/*": ["factory/*"],
-			"@interceptor/*": ["interceptor/*"],
-			"@interface/*": ["interface/*"],
-			"@type/*": ["type/*"],
-			"@utility/*": ["utility/*"],
-			"@validator/*": ["validator/*"],
-			"typeorm/*": ["../node_modules/typeorm/*"]
+			"@class/*": ["./src/class/*"],
+			"@constant/*": ["./src/constant/*"],
+			"@decorator/*": ["./src/decorator/*"],
+			"@enum/*": ["./src/enum/*"],
+			"@factory/*": ["./src/factory/*"],
+			"@interceptor/*": ["./src/interceptor/*"],
+			"@interface/*": ["./src/interface/*"],
+			"@type/*": ["./src/type/*"],
+			"@utility/*": ["./src/utility/*"],
+			"@validator/*": ["./src/validator/*"],
+			"typeorm/*": ["./node_modules/typeorm/*"]
 		},
 		"skipLibCheck": true,
 		"sourceMap": true,

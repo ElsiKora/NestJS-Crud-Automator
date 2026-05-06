@@ -1,12 +1,4 @@
-import type {
-	IApiAuthorizationPolicySubscriberRule,
-	IApiAuthorizationRuleContext,
-	TApiAuthorizationPolicyBeforeCreateContext,
-	TApiAuthorizationPolicyBeforeGetContext,
-	TApiAuthorizationPolicyBeforeGetListContext,
-	TApiAuthorizationPolicyBeforePartialUpdateContext,
-	TApiAuthorizationPolicyBeforeUpdateContext,
-} from "../../../src/index";
+import type { IApiAuthorizationPolicySubscriberRule, IApiAuthorizationRuleContext, TApiAuthorizationPolicyBeforeCreateContext, TApiAuthorizationPolicyBeforeGetContext, TApiAuthorizationPolicyBeforeGetListContext, TApiAuthorizationPolicyBeforePartialUpdateContext, TApiAuthorizationPolicyBeforeUpdateContext } from "../../../src/index";
 
 import { Injectable } from "@nestjs/common";
 
@@ -120,7 +112,7 @@ export class E2ePolicySubscriber extends ApiAuthorizationPolicyBase<E2eEntity> {
 			...this.allowForRoles(["admin"], rule),
 			...this.allowForPermissions(requiredPermissions, {
 				...rule,
-					match: EApiAuthorizationPermissionMatch.ANY,
+				match: EApiAuthorizationPermissionMatch.ANY,
 			}),
 		];
 	}
@@ -130,7 +122,7 @@ export class E2ePolicySubscriber extends ApiAuthorizationPolicyBase<E2eEntity> {
 			...this.allowForRoles(["admin"], rule),
 			...this.allowForPermissions(requiredPermissions, {
 				...rule,
-					match: EApiAuthorizationPermissionMatch.ALL,
+				match: EApiAuthorizationPermissionMatch.ALL,
 			}),
 		];
 	}

@@ -10,13 +10,13 @@ Documents and validates DTO fields that map to TypeScript enums. Supports string
 
 ## Required configuration
 
-| Option                                              | Description                                                                        |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `enum`                                              | The enum object (e.g., `UserRole`). Used for Swagger `enum` values and validation. |
-| `enumName`                                          | Required explicit name shown in Swagger schema when using barrel exports.          |
-| `description`, `entity`, `isRequired`, `isNullable` | Same semantics as other property decorators.                                       |
+| Option                                              | Description                                                                                                                      |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `enum`                                              | The enum object (e.g., `UserRole`). Used for Swagger `enum` values and validation.                                               |
+| `enumName`                                          | Required explicit name shown in Swagger schema when using barrel exports.                                                        |
+| `description`, `entity`, `isRequired`, `isNullable` | Same semantics as other property decorators.                                                                                     |
 | `exampleValue`                                      | Optional; must be a value from the enum (or an array of enum values when `isArray` is `true`). Defaults to the first enum value. |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems`  | Enable enum arrays with array validation.                                          |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems`  | Enable enum arrays with array validation.                                                                                        |
 
 ## Behavior
 

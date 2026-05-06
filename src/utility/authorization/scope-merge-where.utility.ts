@@ -276,7 +276,7 @@ function mergeWhereValue(baseValue: unknown, scopedValue: unknown): unknown {
  * @template E - Entity type
  */
 function mergeWhereVariant<E extends IApiBaseEntity>(baseVariant: FindOptionsWhere<E>, scopedVariant: FindOptionsWhere<E>): FindOptionsWhere<E> {
-	return mergeRecordValues(baseVariant as Record<string, unknown>, scopedVariant as Record<string, unknown>) as FindOptionsWhere<E>;
+	return mergeRecordValues(baseVariant, scopedVariant) as FindOptionsWhere<E>;
 }
 
 /**
