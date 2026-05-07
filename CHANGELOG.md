@@ -1,3 +1,10 @@
+## [2.0.3](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.2...v2.0.3) (2026-05-07)
+
+
+### Bug Fixes
+
+* **auth:** clean cache invalidation and declarations ([875545d](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/875545d0412ad4b42fa551e68b3455025888010b))
+
 ## [2.0.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.1...v2.0.2) (2026-05-06)
 
 
