@@ -1,18 +1,19 @@
 import type { IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "@interface/class/api/authorization";
 
-import { ApiAuthorizationIamDocumentValidator } from "@class/api/authorization/iam/document-validator.class";
 import { AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
+import { ApiAuthorizationIamDocumentCache } from "./cache.class";
+import { ApiAuthorizationIamDocumentValidator } from "./validator.class";
+
 const iamDocumentResolverLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationIamDocumentResolver");
 
 @Injectable()
 export class ApiAuthorizationIamDocumentResolver {
-	private readonly CACHE: Map<string, ReadonlyArray<IApiPolicyDocumentRecord>> = new Map<string, ReadonlyArray<IApiPolicyDocumentRecord>>();
-
 	public constructor(
+		private readonly cache: ApiAuthorizationIamDocumentCache,
 		private readonly validator: ApiAuthorizationIamDocumentValidator,
 		@Optional()
 		@Inject(AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN)
@@ -20,18 +21,17 @@ export class ApiAuthorizationIamDocumentResolver {
 	) {}
 
 	public clear(): void {
-		this.CACHE.clear();
+		this.cache.clear();
 	}
 
 	public async resolve(ids: ReadonlyArray<string>): Promise<ReadonlyArray<IApiPolicyDocumentRecord>> {
-		const normalizedIds: Array<string> = [...new Set(ids.filter((id: string) => typeof id === "string" && id.length > 0))].sort((left: string, right: string) => left.localeCompare(right));
+		const normalizedIds: Array<string> = this.cache.normalizeIds(ids);
 
 		if (normalizedIds.length === 0) {
 			return [];
 		}
 
-		const cacheKey: string = normalizedIds.join("::");
-		const cachedDocuments: ReadonlyArray<IApiPolicyDocumentRecord> | undefined = this.CACHE.get(cacheKey);
+		const cachedDocuments: ReadonlyArray<IApiPolicyDocumentRecord> | undefined = this.cache.get(normalizedIds);
 
 		if (cachedDocuments) {
 			iamDocumentResolverLogger.verbose(`Using cached IAM policy documents for ${normalizedIds.length} requested ids.`);
@@ -79,7 +79,7 @@ export class ApiAuthorizationIamDocumentResolver {
 
 			result.push(record);
 		}
-		this.CACHE.set(cacheKey, result);
+		this.cache.set(normalizedIds, result);
 		iamDocumentResolverLogger.verbose(`Resolved ${result.length} IAM policy documents from ${this.sources.length} sources.`);
 
 		return result;

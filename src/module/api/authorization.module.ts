@@ -6,8 +6,11 @@ import {
 	ApiAuthorizationCacheInvalidationService,
 	ApiAuthorizationEngine,
 	ApiAuthorizationGuard,
+	ApiAuthorizationHookPermissionCache,
 	ApiAuthorizationHookPermissionResolver,
+	ApiAuthorizationIamAttachmentCache,
 	ApiAuthorizationIamAttachmentResolver,
+	ApiAuthorizationIamDocumentCache,
 	ApiAuthorizationIamDocumentResolver,
 	ApiAuthorizationIamDocumentValidator,
 	ApiAuthorizationIamEngine,
@@ -52,8 +55,11 @@ import { ErrorException } from "@utility/error/exception.utility";
 		ApiAuthorizationCacheInvalidationService,
 		ApiAuthorizationEngine,
 		ApiAuthorizationGuard,
+		ApiAuthorizationHookPermissionCache,
 		ApiAuthorizationHookPermissionResolver,
+		ApiAuthorizationIamAttachmentCache,
 		ApiAuthorizationIamAttachmentResolver,
+		ApiAuthorizationIamDocumentCache,
 		ApiAuthorizationIamDocumentResolver,
 		ApiAuthorizationIamDocumentValidator,
 		ApiAuthorizationIamEngine,
@@ -118,7 +124,7 @@ export class ApiAuthorizationModule {
 		}
 
 		const dynamicModule: DynamicModule = {
-			exports: exportTokens,
+			exports: [ApiAuthorizationCacheInvalidationService, ...exportTokens],
 			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			global: true,
 			module: ApiAuthorizationModule,
@@ -130,7 +136,7 @@ export class ApiAuthorizationModule {
 
 	public static forRootAsync(options: IApiAuthorizationModuleAsyncOptions): DynamicModule {
 		const dynamicModule: DynamicModule = {
-			exports: [AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN, AUTHORIZATION_POLICY_ATTACHMENT_SOURCES_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN],
+			exports: [ApiAuthorizationCacheInvalidationService, AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN, AUTHORIZATION_POLICY_ATTACHMENT_SOURCES_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN],
 			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			global: true,
 			imports: options.imports ?? [],
