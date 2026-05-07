@@ -1,7 +1,7 @@
 import "reflect-metadata";
 
 import type { CanActivate, ExecutionContext, INestApplication } from "@nestjs/common";
-import type { IApiAuthorizationModuleOptionsFactory, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiHookPermissionSource } from "../../src/index";
+import type { IApiAuthorizationModuleOptionsFactory, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiHookPermissionSource, IApiPolicyAttachmentSource, IApiPolicyDocumentSource, IApiPolicyDocumentRecord, IApiResolvedPolicyAttachments } from "../../src/index";
 
 import { Controller, Get, Injectable, Module, Req, RequestMethod, UseGuards } from "@nestjs/common";
 import { MODULE_METADATA } from "@nestjs/common/constants";
@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
 	ApiAuthorizationBootstrapValidationService,
+	ApiAuthorizationCacheInvalidationService,
 	ApiAuthorizationEngine,
 	ApiAuthorizationGuard,
 	ApiAuthorizationModule,
@@ -206,6 +207,38 @@ class CrossModuleAuthorizationOptionsFactory implements IApiAuthorizationModuleO
 })
 class CrossModuleAsyncProvidersModule {}
 
+@Injectable()
+class CrossModuleIamDomainService {
+	public constructor(public readonly cacheInvalidationService: ApiAuthorizationCacheInvalidationService) {}
+}
+
+@Injectable()
+class CrossModuleIamAttachmentSource implements IApiPolicyAttachmentSource {
+	public constructor(public readonly domainService: CrossModuleIamDomainService) {}
+
+	public async getAttachments(): Promise<IApiResolvedPolicyAttachments> {
+		return {
+			attachments: [],
+			boundaries: [],
+		};
+	}
+}
+
+@Injectable()
+class CrossModuleIamDocumentSource implements IApiPolicyDocumentSource {
+	public constructor(public readonly domainService: CrossModuleIamDomainService) {}
+
+	public async getDocumentsByIds(): Promise<ReadonlyArray<IApiPolicyDocumentRecord>> {
+		return [];
+	}
+}
+
+@Module({
+	exports: [CrossModuleIamAttachmentSource, CrossModuleIamDocumentSource, CrossModuleIamDomainService],
+	providers: [CrossModuleIamAttachmentSource, CrossModuleIamDocumentSource, CrossModuleIamDomainService],
+})
+class CrossModuleIamSourcesModule {}
+
 describe("Module metadata (E2E)", () => {
 	it("makes the custom principal resolver available to guards used in imported feature modules", async () => {
 		const principalResolver = {
@@ -286,7 +319,7 @@ describe("Module metadata (E2E)", () => {
 		expect(providers).toEqual(expect.arrayContaining([ApiAuthorizationBootstrapValidationService, ApiAuthorizationEngine, ApiAuthorizationGuard, ApiAuthorizationPolicyDiscoveryService, ApiAuthorizationRuntime, ApiAuthorizationSimulator]));
 		expect(providers.some((provider: any) => provider?.provide === AUTHORIZATION_POLICY_REGISTRY_TOKEN)).toBe(true);
 		expect(providers.some((provider: any) => provider?.provide === ApiAuthorizationPolicyRegistry)).toBe(true);
-		expect(exportsList).toEqual(expect.arrayContaining([AUTHORIZATION_POLICY_REGISTRY_TOKEN, ApiAuthorizationBootstrapValidationService, ApiAuthorizationEngine, ApiAuthorizationGuard, ApiAuthorizationPolicyDiscoveryService, ApiAuthorizationRuntime, ApiAuthorizationSimulator]));
+		expect(exportsList).toEqual(expect.arrayContaining([AUTHORIZATION_POLICY_REGISTRY_TOKEN, ApiAuthorizationBootstrapValidationService, ApiAuthorizationCacheInvalidationService, ApiAuthorizationEngine, ApiAuthorizationGuard, ApiAuthorizationPolicyDiscoveryService, ApiAuthorizationRuntime, ApiAuthorizationSimulator]));
 		expect(imports).toEqual(expect.arrayContaining([DiscoveryModule]));
 	});
 
@@ -312,7 +345,7 @@ describe("Module metadata (E2E)", () => {
 
 		expect(dynamicModule.providers?.some((provider: any) => provider?.provide === AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN)).toBe(true);
 		expect(dynamicModule.providers?.some((provider: any) => provider?.provide === AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN)).toBe(true);
-		expect(dynamicModule.exports).toEqual(expect.arrayContaining([AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN]));
+		expect(dynamicModule.exports).toEqual(expect.arrayContaining([ApiAuthorizationCacheInvalidationService, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN]));
 		expect(dynamicModule.global).toBe(true);
 	});
 
@@ -324,7 +357,7 @@ describe("Module metadata (E2E)", () => {
 		expect(dynamicModule.providers?.some((provider: any) => provider?.provide === AUTHORIZATION_MODULE_OPTIONS_TOKEN)).toBe(true);
 		expect(dynamicModule.providers?.some((provider: any) => provider?.provide === AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN)).toBe(true);
 		expect(dynamicModule.providers?.some((provider: any) => provider?.provide === AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN)).toBe(true);
-		expect(dynamicModule.exports).toEqual(expect.arrayContaining([AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN]));
+		expect(dynamicModule.exports).toEqual(expect.arrayContaining([ApiAuthorizationCacheInvalidationService, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN]));
 		expect(dynamicModule.global).toBe(true);
 	});
 
@@ -399,6 +432,38 @@ describe("Module metadata (E2E)", () => {
 
 		app.get(ApiAuthorizationPolicyRegistry).clear();
 		await app.close();
+	});
+
+	it("allows IAM sources used by forRootAsync to depend on cache invalidation without a resolver cycle", async () => {
+		@Module({
+			imports: [
+				ApiAuthorizationModule.forRootAsync({
+					imports: [CrossModuleIamSourcesModule],
+					inject: [CrossModuleIamAttachmentSource, CrossModuleIamDocumentSource],
+					useFactory: (attachmentSource: CrossModuleIamAttachmentSource, documentSource: CrossModuleIamDocumentSource) => ({
+						iam: {
+							attachmentSources: [attachmentSource],
+							documentSources: [documentSource],
+						},
+					}),
+				}),
+			],
+		})
+		class CrossModuleIamAppModule {}
+
+		const moduleRef = await Test.createTestingModule({
+			imports: [CrossModuleIamAppModule],
+		}).compile();
+		const cacheInvalidationService = moduleRef.get(ApiAuthorizationCacheInvalidationService);
+		const attachmentSource = moduleRef.get(CrossModuleIamAttachmentSource);
+		const documentSource = moduleRef.get(CrossModuleIamDocumentSource);
+
+		expect(attachmentSource.domainService.cacheInvalidationService).toBe(cacheInvalidationService);
+		expect(documentSource.domainService.cacheInvalidationService).toBe(cacheInvalidationService);
+
+		cacheInvalidationService.clearIamCache();
+
+		await moduleRef.close();
 	});
 
 	it("injects custom authorization providers through forRootAsync useClass", async () => {

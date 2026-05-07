@@ -14,7 +14,7 @@ import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
 import { ApiAuthorizationEngine } from "./engine.class";
-import { ApiAuthorizationHookPermissionResolver } from "./hook-permission-resolver.class";
+import { ApiAuthorizationHookPermissionResolver } from "./hook";
 import { ApiAuthorizationIamAttachmentResolver, ApiAuthorizationIamDocumentResolver, ApiAuthorizationIamEngine } from "./iam";
 
 const authorizationRuntimeLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationRuntime");
