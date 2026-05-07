@@ -1,7 +1,7 @@
 import resolve from "@rollup/plugin-node-resolve";
 import typescript from "@rollup/plugin-typescript";
-import dtsPathAlias from "rollup-plugin-dts-path-alias";
 import generatePackageJson from "rollup-plugin-generate-package-json";
+import dts from "unplugin-dts/rollup";
 
 const external = ["@elsikora/pluralizer", "@nestjs/common", "@nestjs/core", "@nestjs/swagger", "dotenv", "@nestjs/throttler", "node:crypto", "rxjs/operators", "typeorm", "class-transformer", "reflect-metadata", "class-validator", "lodash/cloneDeep.js", "lodash/random.js", "@nestjs/common/constants.js", "@nestjs/common/enums/route-paramtypes.enum.js", "@nestjs/swagger/dist/constants.js"];
 
@@ -27,13 +27,16 @@ export default [
 			resolve({
 				include: ["node_modules/tslib/**"],
 			}),
-			dtsPathAlias(),
 			typescript({
-				declaration: true,
-				declarationDir: "dist/esm",
+				declaration: false,
 				outDir: "dist/esm",
 				sourceMap: true,
 				tsconfig: "./tsconfig.build.json",
+			}),
+			dts({
+				entryRoot: "src",
+				outDirs: ["dist/esm", "dist/cjs"],
+				tsconfigPath: "./tsconfig.build.json",
 			}),
 			generatePackageJson({
 				baseContents: { type: "module" },
@@ -63,10 +66,8 @@ export default [
 			resolve({
 				include: ["node_modules/tslib/**"],
 			}),
-			dtsPathAlias(),
 			typescript({
-				declaration: true,
-				declarationDir: "dist/cjs",
+				declaration: false,
 				outDir: "dist/cjs",
 				sourceMap: true,
 				tsconfig: "./tsconfig.build.json",

@@ -372,23 +372,21 @@ If you need custom checks outside a policy class, use `AuthorizationPermissionMa
 
 Policy caching remains available in hooks mode through `ApiAuthorizationPolicyRegistry.configureCache()` or per policy with the `cache` option. Leave caching disabled when a policy depends on request-specific data.
 
-When policy rule data changes at runtime, inject `ApiAuthorizationCacheInvalidationService` and invalidate either the full policy registry cache or only one entity scope. This does not clear permission, IAM attachment, IAM document, or custom principal resolver caches; clear those through their owning resolver/service when their backing data changes:
+When policy rule, hook permission, IAM attachment, or IAM document data changes at runtime, inject `ApiAuthorizationCacheInvalidationService`. It is the public facade for clearing automator-owned authorization caches, so application services do not need to inject IAM resolver internals:
 
 ```typescript
 @Injectable()
 export class PermissionAdminService {
-	constructor(
-		private readonly cacheInvalidation: ApiAuthorizationCacheInvalidationService,
-		private readonly hookPermissionResolver: ApiAuthorizationHookPermissionResolver,
-	) {}
+	constructor(private readonly cacheInvalidation: ApiAuthorizationCacheInvalidationService) {}
 
 	async revokeUserPermission(userId: string, permission: string): Promise<void> {
 		await this.permissionRepository.delete({ userId, permission });
-		this.cacheInvalidation.invalidate(UserEntity);
-		this.hookPermissionResolver.clear();
+		this.cacheInvalidation.clearAll(UserEntity);
 	}
 }
 ```
+
+Use the narrower methods when the backing change is scoped to one cache family: `clearPolicyCache(entity?)`, `clearHookPermissionCache()`, `clearIamAttachmentCache()`, `clearIamDocumentCache()`, or `clearIamCache()`.
 
 ## IAM Mode
 

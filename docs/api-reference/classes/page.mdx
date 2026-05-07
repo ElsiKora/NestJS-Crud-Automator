@@ -257,7 +257,7 @@ Global module that wires the authorization registry, discovery service, guard, h
 
 **Location:** `src/module/api/authorization.module.ts`
 
-**Module providers/exports include:** `ApiAuthorizationGuard`, `ApiAuthorizationRuntime`, `ApiAuthorizationSimulator`, `ApiAuthorizationBootstrapValidationService`, `ApiAuthorizationPolicyDiscoveryService`, `ApiAuthorizationPolicyRegistry`, `ApiAuthorizationHookPermissionResolver`, IAM attachment/document resolvers, IAM document validator, IAM query planner, `ApiAuthorizationCacheInvalidationService`, and related authorization tokens.
+**Module providers/exports include:** `ApiAuthorizationGuard`, `ApiAuthorizationRuntime`, `ApiAuthorizationSimulator`, `ApiAuthorizationBootstrapValidationService`, `ApiAuthorizationPolicyDiscoveryService`, `ApiAuthorizationPolicyRegistry`, `ApiAuthorizationHookPermissionResolver`, IAM attachment/document resolvers, IAM document validator, IAM query planner, authorization cache stores, `ApiAuthorizationCacheInvalidationService`, and related authorization tokens.
 
 **Static methods:**
 
@@ -294,7 +294,25 @@ Compiles safe `resource.*` IAM conditions into database scopes for controller qu
 
 Resolves and caches permissions for hooks mode from configured `IApiHookPermissionSource` implementations.
 
-**Location:** `src/class/api/authorization/hook-permission-resolver.class.ts`
+**Location:** `src/class/api/authorization/hook/permission/resolver.class.ts`
+
+### ApiAuthorizationHookPermissionCache
+
+Stores hook-mode permissions by normalized principal for `ApiAuthorizationHookPermissionResolver` and public invalidation through `ApiAuthorizationCacheInvalidationService`.
+
+**Location:** `src/class/api/authorization/hook/permission/cache.class.ts`
+
+### ApiAuthorizationIamAttachmentCache
+
+Stores IAM policy attachments and boundaries by normalized principal for `ApiAuthorizationIamAttachmentResolver` and public invalidation through `ApiAuthorizationCacheInvalidationService`.
+
+**Location:** `src/class/api/authorization/iam/attachment/cache.class.ts`
+
+### ApiAuthorizationIamDocumentCache
+
+Stores IAM policy document records by normalized document id set for `ApiAuthorizationIamDocumentResolver` and public invalidation through `ApiAuthorizationCacheInvalidationService`.
+
+**Location:** `src/class/api/authorization/iam/document/cache.class.ts`
 
 ### ApiAuthorizationBootstrapValidationService
 
@@ -304,7 +322,7 @@ Validates securable controller configuration, mode selection, hooks policy prese
 
 ### ApiAuthorizationCacheInvalidationService
 
-Public Nest injectable facade for clearing the authorization policy registry cache after policy or permission changes. It does not clear external resolver or database caches; invalidate those in the owning service.
+Public Nest injectable facade for clearing authorization policy, hook permission, and IAM resolver caches after policy or permission changes.
 
 **Location:** `src/class/api/authorization/cache-invalidation.service.class.ts`
 
@@ -315,7 +333,7 @@ export class PermissionAdminService {
 
 	async grantPermission(userId: string, permission: string): Promise<void> {
 		await this.permissionRepository.save({ userId, permission });
-		this.cacheInvalidation.invalidate(UserEntity);
+		this.cacheInvalidation.clearAll(UserEntity);
 	}
 }
 ```
