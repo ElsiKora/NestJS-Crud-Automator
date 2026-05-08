@@ -11,15 +11,6 @@ import { Throttle } from "@nestjs/throttler";
 import { DtoGenerateException } from "@utility/dto/generate/exception.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
-const DEFAULT_OPERATION_SUMMARY_BY_ROUTE: Partial<Record<EApiRouteType, string>> = {
-	[EApiRouteType.CREATE]: "Create resource",
-	[EApiRouteType.DELETE]: "Delete resource",
-	[EApiRouteType.GET]: "Get resource",
-	[EApiRouteType.GET_LIST]: "Get resource list",
-	[EApiRouteType.PARTIAL_UPDATE]: "Partially update resource",
-	[EApiRouteType.UPDATE]: "Update resource",
-};
-
 /**
  * Composes Nest route, Swagger, throttling, authentication, and route metadata decorators.
  * @template E - Entity type represented by the route metadata.
@@ -28,13 +19,54 @@ const DEFAULT_OPERATION_SUMMARY_BY_ROUTE: Partial<Record<EApiRouteType, string>>
  */
 export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodProperties<E>): MethodDecorator {
 	const metadata: IApiMethodProperties<E>["metadata"] = options.metadata;
+	let operationSummary: string | undefined = metadata.documentation?.summary ?? metadata.resource.action;
+
+	if (!metadata.documentation?.summary && metadata.route.type) {
+		switch (metadata.route.type) {
+			case EApiRouteType.CREATE: {
+				operationSummary = "Create resource";
+
+				break;
+			}
+
+			case EApiRouteType.DELETE: {
+				operationSummary = "Delete resource";
+
+				break;
+			}
+
+			case EApiRouteType.GET: {
+				operationSummary = "Get resource";
+
+				break;
+			}
+
+			case EApiRouteType.GET_LIST: {
+				operationSummary = "Get resource list";
+
+				break;
+			}
+
+			case EApiRouteType.PARTIAL_UPDATE: {
+				operationSummary = "Partially update resource";
+
+				break;
+			}
+
+			case EApiRouteType.UPDATE: {
+				operationSummary = "Update resource";
+
+				break;
+			}
+		}
+	}
 
 	const decorators: Array<MethodDecorator> = [
 		SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, metadata),
 		ApiOperation({
 			description: metadata.documentation?.description,
 			operationId: metadata.documentation?.operationId,
-			summary: metadata.documentation?.summary ?? (metadata.route.type ? DEFAULT_OPERATION_SUMMARY_BY_ROUTE[metadata.route.type] : metadata.resource.action),
+			summary: operationSummary,
 		}),
 		ApiResponse({
 			description: "Success",

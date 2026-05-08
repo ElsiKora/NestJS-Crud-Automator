@@ -1,6 +1,6 @@
 import type { IDtoAutoContextMetadata } from "@type/auto-context-metadata.type";
 
-import { DTO_AUTO_CONTEXT_METADATA_KEY } from "@constant/dto/auto-context.constant";
+import { AUTO_CONTEXT_DTO_CONSTANT } from "@constant/dto/auto-context.constant";
 import { GetRegisteredAutoDtoChildren } from "@utility/register-auto-dto-child.utility";
 
 /**
@@ -11,15 +11,15 @@ import { GetRegisteredAutoDtoChildren } from "@utility/register-auto-dto-child.u
 export function DtoAutoContextPop(target: object, visited?: WeakSet<object>): void {
 	if (!target) return;
 
-	const stack: Array<IDtoAutoContextMetadata> | undefined = Reflect.getMetadata?.(DTO_AUTO_CONTEXT_METADATA_KEY, target) as Array<IDtoAutoContextMetadata> | undefined;
+	const stack: Array<IDtoAutoContextMetadata> | undefined = Reflect.getMetadata?.(AUTO_CONTEXT_DTO_CONSTANT.METADATA_KEY, target) as Array<IDtoAutoContextMetadata> | undefined;
 
 	if (stack && stack.length > 0) {
 		stack.pop();
 
 		if (stack.length === 0) {
-			Reflect.deleteMetadata?.(DTO_AUTO_CONTEXT_METADATA_KEY, target);
+			Reflect.deleteMetadata?.(AUTO_CONTEXT_DTO_CONSTANT.METADATA_KEY, target);
 		} else {
-			Reflect.defineMetadata?.(DTO_AUTO_CONTEXT_METADATA_KEY, stack, target);
+			Reflect.defineMetadata?.(AUTO_CONTEXT_DTO_CONSTANT.METADATA_KEY, stack, target);
 		}
 	}
 

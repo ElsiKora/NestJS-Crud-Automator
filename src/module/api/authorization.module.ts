@@ -123,19 +123,17 @@ export class ApiAuthorizationModule {
 			exportTokens.push(AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN);
 		}
 
-		const dynamicModule: DynamicModule = {
+		return {
 			exports: [ApiAuthorizationCacheInvalidationService, ...exportTokens],
 			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			global: true,
 			module: ApiAuthorizationModule,
 			providers,
 		};
-
-		return dynamicModule;
 	}
 
 	public static forRootAsync(options: IApiAuthorizationModuleAsyncOptions): DynamicModule {
-		const dynamicModule: DynamicModule = {
+		return {
 			exports: [ApiAuthorizationCacheInvalidationService, AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN, AUTHORIZATION_POLICY_ATTACHMENT_SOURCES_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN],
 			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			global: true,
@@ -143,8 +141,6 @@ export class ApiAuthorizationModule {
 			module: ApiAuthorizationModule,
 			providers: [...ApiAuthorizationModule.createAsyncOptionsProviders(options), ...ApiAuthorizationModule.createDerivedOptionProviders()],
 		};
-
-		return dynamicModule;
 	}
 
 	private static createAsyncOptionsProvider(options: IApiAuthorizationModuleAsyncOptions): Provider {

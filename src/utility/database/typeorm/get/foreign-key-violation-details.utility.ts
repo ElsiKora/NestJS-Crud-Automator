@@ -1,17 +1,5 @@
 import { QueryFailedError } from "typeorm";
 
-const REGEX_GROUP_1_INDEX: number = 1;
-const REGEX_GROUP_2_INDEX: number = 2;
-const REGEX_GROUP_3_INDEX: number = 3;
-
-const MYSQL_CONSTRAINT_REGEX: RegExp = /CONSTRAINT `([^`]+)`/;
-const MYSQL_FOREIGN_KEY_REGEX: RegExp = /FOREIGN KEY \(`([^`]+)`\) REFERENCES `([^`]+)` \(`([^`]+)`\)/;
-
-const POSTGRES_FOREIGN_KEY_CONSTRAINT_REGEX: RegExp = /foreign key constraint "([^"]+)"/;
-const POSTGRES_ON_TABLE_REGEX: RegExp = /on table "([^"]+)"/;
-const POSTGRES_REFERENCED_REGEX: RegExp = /Key \(([^)]+)\)=\(([^)]+)\) is still referenced from table "([^"]+)"/;
-const POSTGRES_REFERENCED_ROW_MISSING_REGEX: RegExp = /Key \(([^)]+)\)=\(([^)]+)\) is not present in table "([^"]+)"/;
-
 /**
  * Extracts best-effort details from a TypeORM FOREIGN KEY violation (QueryFailedError).
  * Works best with PostgreSQL (driverError.detail / driverError.constraint).
@@ -62,42 +50,42 @@ export function DatabaseTypeOrmGetForeignKeyViolationDetails(error: unknown): { 
 
 	const detailOrMessage: string = detail ?? message;
 
-	const postgresMissingMatch: null | RegExpExecArray = POSTGRES_REFERENCED_ROW_MISSING_REGEX.exec(detailOrMessage);
+	const postgresMissingMatch: null | RegExpExecArray = /Key \((?<field>[^)]+)\)=\((?<value>[^)]+)\) is not present in table "(?<referencedTable>[^"]+)"/.exec(detailOrMessage);
 
 	if (postgresMissingMatch) {
-		field = postgresMissingMatch[REGEX_GROUP_1_INDEX];
-		value = postgresMissingMatch[REGEX_GROUP_2_INDEX];
-		referencedTable = postgresMissingMatch[REGEX_GROUP_3_INDEX];
+		field = postgresMissingMatch.groups?.field;
+		value = postgresMissingMatch.groups?.value;
+		referencedTable = postgresMissingMatch.groups?.referencedTable;
 	}
 
-	const postgresReferencedMatch: null | RegExpExecArray = POSTGRES_REFERENCED_REGEX.exec(detailOrMessage);
+	const postgresReferencedMatch: null | RegExpExecArray = /Key \((?<field>[^)]+)\)=\((?<value>[^)]+)\) is still referenced from table "(?<referencedTable>[^"]+)"/.exec(detailOrMessage);
 
 	if (postgresReferencedMatch) {
-		field ??= postgresReferencedMatch[REGEX_GROUP_1_INDEX];
-		value ??= postgresReferencedMatch[REGEX_GROUP_2_INDEX];
-		referencedTable ??= postgresReferencedMatch[REGEX_GROUP_3_INDEX];
+		field ??= postgresReferencedMatch.groups?.field;
+		value ??= postgresReferencedMatch.groups?.value;
+		referencedTable ??= postgresReferencedMatch.groups?.referencedTable;
 	}
 
-	const mysqlForeignKeyMatch: null | RegExpExecArray = MYSQL_FOREIGN_KEY_REGEX.exec(detailOrMessage);
+	const mysqlForeignKeyMatch: null | RegExpExecArray = /FOREIGN KEY \(`(?<field>[^`]+)`\) REFERENCES `(?<referencedTable>[^`]+)` \(`(?<referencedField>[^`]+)`\)/.exec(detailOrMessage);
 
 	if (mysqlForeignKeyMatch) {
-		field ??= mysqlForeignKeyMatch[REGEX_GROUP_1_INDEX];
-		referencedTable ??= mysqlForeignKeyMatch[REGEX_GROUP_2_INDEX];
-		referencedField ??= mysqlForeignKeyMatch[REGEX_GROUP_3_INDEX];
+		field ??= mysqlForeignKeyMatch.groups?.field;
+		referencedTable ??= mysqlForeignKeyMatch.groups?.referencedTable;
+		referencedField ??= mysqlForeignKeyMatch.groups?.referencedField;
 	}
 
 	let constraint: string | undefined = constraintFromDriver;
 
 	if (!constraint) {
-		const postgresConstraintMatch: null | RegExpExecArray = POSTGRES_FOREIGN_KEY_CONSTRAINT_REGEX.exec(message);
+		const postgresConstraintMatch: null | RegExpExecArray = /foreign key constraint "(?<constraint>[^"]+)"/.exec(message);
 
 		if (postgresConstraintMatch) {
-			constraint = postgresConstraintMatch[REGEX_GROUP_1_INDEX];
+			constraint = postgresConstraintMatch.groups?.constraint;
 		} else {
-			const mysqlConstraintMatch: null | RegExpExecArray = MYSQL_CONSTRAINT_REGEX.exec(detailOrMessage);
+			const mysqlConstraintMatch: null | RegExpExecArray = /CONSTRAINT `(?<constraint>[^`]+)`/.exec(detailOrMessage);
 
 			if (mysqlConstraintMatch) {
-				constraint = mysqlConstraintMatch[REGEX_GROUP_1_INDEX];
+				constraint = mysqlConstraintMatch.groups?.constraint;
 			}
 		}
 	}
@@ -105,10 +93,10 @@ export function DatabaseTypeOrmGetForeignKeyViolationDetails(error: unknown): { 
 	let table: string | undefined = tableFromDriver;
 
 	if (!table) {
-		const postgresTableMatch: null | RegExpExecArray = POSTGRES_ON_TABLE_REGEX.exec(message);
+		const postgresTableMatch: null | RegExpExecArray = /on table "(?<table>[^"]+)"/.exec(message);
 
 		if (postgresTableMatch) {
-			table = postgresTableMatch[REGEX_GROUP_1_INDEX];
+			table = postgresTableMatch.groups?.table;
 		}
 	}
 

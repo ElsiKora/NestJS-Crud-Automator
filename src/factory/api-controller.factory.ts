@@ -12,7 +12,7 @@ import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiRouteType } from "@enum/decorator/api";
 import { Controller } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { ApiControllerApplyDecorators, ApiControllerApplyMetadata, ApiControllerWriteDtoSwagger, ApiControllerWriteMethod } from "@utility/api";
+import { ApiControllerApplyDecorators, ApiControllerApplyMetadata, ApiControllerGetMethodName, ApiControllerWriteDtoSwagger, ApiControllerWriteMethod } from "@utility/api";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
@@ -44,7 +44,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 		if (!(method in this.properties.routes) || this.properties.routes[method]?.generation?.isEnabled !== false) {
 			const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = this.properties.routes[method] ?? {};
 			const routeDecorators: Array<MethodDecorator> | Array<PropertyDecorator> = routeConfig.generation?.decorators ?? [];
-			const methodName: TApiControllerMethodNameMap[typeof method] = `${CONTROLLER_API_DECORATOR_CONSTANT.RESERVED_METHOD_PREFIX}${method}` as TApiControllerMethodNameMap[typeof method];
+			const methodName: TApiControllerMethodNameMap[typeof method] = ApiControllerGetMethodName(method) as TApiControllerMethodNameMap[typeof method];
 
 			ApiControllerWriteMethod<E>(this as never, this.targetPrototype, method, this.properties, this.ENTITY);
 			const targetMethod: TApiControllerMethodMap<E>[typeof method] = this.targetPrototype[methodName] as TApiControllerMethodMap<E>[typeof method];
