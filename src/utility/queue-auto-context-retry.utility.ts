@@ -18,7 +18,5 @@ export function QueueAutoContextRetry(target: object, executor: () => void): voi
 		return;
 	}
 
-	QueueAutoDtoContextExecution(target, () => {
-		executor();
-	});
+	QueueAutoDtoContextExecution(target, executor);
 }

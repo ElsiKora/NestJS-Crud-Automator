@@ -36,7 +36,7 @@ export function DtoGenerateContextualManualDto(sourceDto: Type<unknown>, method:
 	// eslint-disable-next-line @elsikora/typescript/no-magic-numbers
 	const parentDtoNameBase: string = parentDtoName.endsWith("DTO") ? parentDtoName.slice(0, -3) : parentDtoName;
 	const className: string = `${parentDtoNameBase}${CamelCaseString(propertyPathSegment)}DTO`;
-	const cached: Type<unknown> | undefined = getCachedContextualManualDto(sourceDto, className);
+	const cached: Type<unknown> | undefined = contextualManualDtoCache.get(sourceDto)?.get(className);
 
 	if (cached) {
 		return cached;
@@ -72,7 +72,14 @@ export function DtoGenerateContextualManualDto(sourceDto: Type<unknown>, method:
 		GeneratedDTO,
 	);
 
-	cacheContextualManualDto(sourceDto, className, GeneratedDTO);
+	let dtoCache: Map<string, Type<unknown>> | undefined = contextualManualDtoCache.get(sourceDto);
+
+	if (!dtoCache) {
+		dtoCache = new Map<string, Type<unknown>>();
+		contextualManualDtoCache.set(sourceDto, dtoCache);
+	}
+
+	dtoCache.set(className, GeneratedDTO);
 	DtoAutoContextPush(GeneratedDTO.prototype, method, dtoType);
 
 	try {
@@ -93,31 +100,4 @@ export function DtoGenerateContextualManualDto(sourceDto: Type<unknown>, method:
  */
 export function IsContextualManualDto(value: unknown): value is Type<unknown> {
 	return typeof value === "function" && Boolean(Reflect.getMetadata?.(CONTEXTUAL_MANUAL_DTO_CONSTANT.METADATA_KEY, value));
-}
-
-/**
- * Stores a contextual wrapper in the generation cache.
- * @param {Type<unknown>} sourceDto - Source manual DTO class.
- * @param {string} className - Generated class name.
- * @param {Type<unknown>} generatedDto - Generated contextual wrapper.
- */
-function cacheContextualManualDto(sourceDto: Type<unknown>, className: string, generatedDto: Type<unknown>): void {
-	let dtoCache: Map<string, Type<unknown>> | undefined = contextualManualDtoCache.get(sourceDto);
-
-	if (!dtoCache) {
-		dtoCache = new Map<string, Type<unknown>>();
-		contextualManualDtoCache.set(sourceDto, dtoCache);
-	}
-
-	dtoCache.set(className, generatedDto);
-}
-
-/**
- * Reads a cached contextual wrapper for the provided source DTO.
- * @param {Type<unknown>} sourceDto - Source manual DTO class.
- * @param {string} className - Generated class name.
- * @returns {Type<unknown> | undefined} Cached wrapper when available.
- */
-function getCachedContextualManualDto(sourceDto: Type<unknown>, className: string): Type<unknown> | undefined {
-	return contextualManualDtoCache.get(sourceDto)?.get(className);
 }

@@ -31,7 +31,7 @@ export function AuthorizationScopeMergeWhere<E extends IApiBaseEntity>(baseWhere
 
 	for (const baseVariant of baseVariants) {
 		for (const scopedVariant of scopedVariants) {
-			mergedVariants.push(mergeWhereVariant(baseVariant, scopedVariant));
+			mergedVariants.push(mergeRecordValues(baseVariant, scopedVariant) as FindOptionsWhere<E>);
 		}
 	}
 
@@ -266,17 +266,6 @@ function mergeWhereValue(baseValue: unknown, scopedValue: unknown): unknown {
 	}
 
 	return createMatchNothingOperator();
-}
-
-/**
- * Merges a single TypeORM where variant using logical AND semantics.
- * @param {FindOptionsWhere<E>} baseVariant - Existing branch.
- * @param {FindOptionsWhere<E>} scopedVariant - Scoped branch.
- * @returns {FindOptionsWhere<E>} Merged branch.
- * @template E - Entity type
- */
-function mergeWhereVariant<E extends IApiBaseEntity>(baseVariant: FindOptionsWhere<E>, scopedVariant: FindOptionsWhere<E>): FindOptionsWhere<E> {
-	return mergeRecordValues(baseVariant, scopedVariant) as FindOptionsWhere<E>;
 }
 
 /**

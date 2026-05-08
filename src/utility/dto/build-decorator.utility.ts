@@ -54,14 +54,14 @@ export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoT
 
 			return dateProperties.map((property: { identifier: EApiPropertyDateIdentifier; name: string }) => {
 				const newMetadata: TApiPropertyDescribeProperties = { ...dateMetadata, identifier: property.identifier };
-				const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, newMetadata, dtoType, property.name);
+				const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, newMetadata, dtoType);
 
 				return DtoGenerateDecorator(newMetadata, entity, config, method, dtoType, propertyName);
 			});
 		}
 	}
 
-	const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, propertyMetadata, dtoType, propertyName);
+	const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, propertyMetadata, dtoType);
 
 	const decorators: Array<PropertyDecorator> = [];
 

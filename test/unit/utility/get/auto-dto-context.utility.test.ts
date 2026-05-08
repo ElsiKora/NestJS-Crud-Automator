@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import { DTO_AUTO_CONTEXT_METADATA_KEY } from "@constant/dto/auto-context.constant";
+import { AUTO_CONTEXT_DTO_CONSTANT } from "@constant/dto/auto-context.constant";
 import { GetAutoDtoContext } from "@utility/get/auto-dto-context.utility";
 import { describe, expect, it } from "vitest";
 
@@ -16,7 +16,7 @@ describe("GetAutoDtoContext", () => {
 			{ method: "create", dtoType: "body" },
 			{ method: "getList", dtoType: "query" },
 		];
-		Reflect.defineMetadata(DTO_AUTO_CONTEXT_METADATA_KEY, stack, target);
+		Reflect.defineMetadata(AUTO_CONTEXT_DTO_CONSTANT.METADATA_KEY, stack, target);
 
 		expect(GetAutoDtoContext(target)).toEqual(stack[1]);
 	});

@@ -140,15 +140,49 @@ export class ApiAuthorizationRuntime {
 	}
 
 	private resolveIamAction(policyNamespace: string, action: string, routeType?: EApiRouteType): string {
-		const actionByRouteType: Record<EApiRouteType, string> = {
-			[EApiRouteType.CREATE]: "create",
-			[EApiRouteType.DELETE]: "delete",
-			[EApiRouteType.GET]: "read",
-			[EApiRouteType.GET_LIST]: "list",
-			[EApiRouteType.PARTIAL_UPDATE]: "update",
-			[EApiRouteType.UPDATE]: "update",
-		};
-		const resolvedAction: string | undefined = routeType ? actionByRouteType[routeType] : undefined;
+		let resolvedAction: string | undefined;
+
+		switch (routeType) {
+			case EApiRouteType.CREATE: {
+				resolvedAction = "create";
+
+				break;
+			}
+
+			case EApiRouteType.DELETE: {
+				resolvedAction = "delete";
+
+				break;
+			}
+
+			case EApiRouteType.GET: {
+				resolvedAction = "read";
+
+				break;
+			}
+
+			case EApiRouteType.GET_LIST: {
+				resolvedAction = "list";
+
+				break;
+			}
+
+			case EApiRouteType.PARTIAL_UPDATE: {
+				resolvedAction = "update";
+
+				break;
+			}
+
+			case EApiRouteType.UPDATE: {
+				resolvedAction = "update";
+
+				break;
+			}
+
+			case undefined: {
+				break;
+			}
+		}
 
 		return resolvedAction ? `${policyNamespace}:${resolvedAction}` : `${policyNamespace}:${action}`;
 	}

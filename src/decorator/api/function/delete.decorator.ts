@@ -70,9 +70,7 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 					}
 
 					if (!getFunction) {
-						const getDescriptor: TypedPropertyDescriptor<(properties: TApiFunctionGetProperties<E>) => Promise<E>> = {
-							value: rejectMissingGetFunction,
-						};
+						const getDescriptor: TypedPropertyDescriptor<(properties: TApiFunctionGetProperties<E>) => Promise<E>> = {};
 						getDecorator(this, "get", getDescriptor);
 
 						if (getDescriptor.value) {
@@ -174,13 +172,4 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExe
 			{ cause: caughtError },
 		);
 	}
-}
-
-/**
- * Rejects calls to a generated fallback get function before it is decorated.
- * @template E - Entity type expected from the get function.
- * @returns {Promise<E>} A rejected promise explaining that the function is not implemented.
- */
-function rejectMissingGetFunction<E extends IApiBaseEntity>(): Promise<E> {
-	return Promise.reject(ErrorException("Not implemented"));
 }

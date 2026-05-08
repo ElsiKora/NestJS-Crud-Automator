@@ -57,10 +57,9 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 					throw new HttpException(customErrorResponse, error.getStatus());
 				} else if (error instanceof HttpException) {
 					const errorResponse: object | string = error.getResponse();
-					const status: number = error.getStatus();
-					const internalServerErrorStatus: number = HttpStatus.INTERNAL_SERVER_ERROR;
+					const status: HttpStatus = error.getStatus();
 
-					if (status >= internalServerErrorStatus) {
+					if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
 						const errorStack: string | undefined = error instanceof Error ? error.stack : undefined;
 						interceptorLogger.error(`HTTP ${status} ${requestMethod} ${requestUrl} correlationID=${correlationId}`, errorStack);
 

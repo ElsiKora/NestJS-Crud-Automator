@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import { DTO_AUTO_CONTEXT_METADATA_KEY } from "@constant/dto/auto-context.constant";
+import { AUTO_CONTEXT_DTO_CONSTANT } from "@constant/dto/auto-context.constant";
 import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { QueueAutoDtoContextExecution } from "@utility/auto-dto-context-queue.utility";
 import { GetRegisteredAutoDtoChildren, RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
@@ -15,7 +15,7 @@ describe("RegisterAutoDtoChild", () => {
 		const parentPrototype = ParentDto.prototype as object;
 		const childPrototype = ChildDto.prototype as object;
 
-		Reflect.defineMetadata(DTO_AUTO_CONTEXT_METADATA_KEY, [{ method: EApiRouteType.GET_LIST, dtoType: EApiDtoType.QUERY }], parentPrototype);
+		Reflect.defineMetadata(AUTO_CONTEXT_DTO_CONSTANT.METADATA_KEY, [{ method: EApiRouteType.GET_LIST, dtoType: EApiDtoType.QUERY }], parentPrototype);
 
 		const queuedHandler = vi.fn();
 		QueueAutoDtoContextExecution(childPrototype, queuedHandler);
@@ -24,7 +24,7 @@ describe("RegisterAutoDtoChild", () => {
 
 		const children = GetRegisteredAutoDtoChildren(parentPrototype);
 		expect(children?.has(ChildDto)).toBe(true);
-		expect(Reflect.getMetadata(DTO_AUTO_CONTEXT_METADATA_KEY, childPrototype)).toEqual([{ method: EApiRouteType.GET_LIST, dtoType: EApiDtoType.QUERY }]);
+		expect(Reflect.getMetadata(AUTO_CONTEXT_DTO_CONSTANT.METADATA_KEY, childPrototype)).toEqual([{ method: EApiRouteType.GET_LIST, dtoType: EApiDtoType.QUERY }]);
 		expect(queuedHandler).toHaveBeenCalledTimes(1);
 	});
 
