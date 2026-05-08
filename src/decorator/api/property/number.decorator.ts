@@ -123,7 +123,7 @@ function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiP
 		format: getFormat(properties),
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: !!properties.isNullable,
-		type: getType(properties),
+		type: properties.format === EApiPropertyNumberType.DOUBLE ? EApiPropertyDataType.NUMBER : EApiPropertyDataType.INTEGER,
 	};
 
 	apiPropertyOptions.required = properties.isRequired;
@@ -358,25 +358,6 @@ function getFormat(properties: TApiPropertyNumberProperties): string {
 
 		default: {
 			throw ErrorException("ApiPropertyNumber error: Format is not defined");
-		}
-	}
-}
-
-/**
- * Determines the appropriate Swagger data type for the number property.
- * Maps formatter types to the corresponding API property data types.
- * @param {TApiPropertyNumberProperties} properties - The property configuration
- * @returns {EApiPropertyDataType.INTEGER | EApiPropertyDataType.NUMBER} The Swagger data type
- * @private
- */
-function getType(properties: TApiPropertyNumberProperties): EApiPropertyDataType.INTEGER | EApiPropertyDataType.NUMBER {
-	switch (properties.format) {
-		case EApiPropertyNumberType.DOUBLE: {
-			return EApiPropertyDataType.NUMBER;
-		}
-
-		case EApiPropertyNumberType.INTEGER: {
-			return EApiPropertyDataType.INTEGER;
 		}
 	}
 }

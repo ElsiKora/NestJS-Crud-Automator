@@ -669,11 +669,11 @@ function validateOptions(properties: TApiPropertyStringProperties): void {
 	const errors: Array<string> = [];
 
 	if ((!properties.isResponse && (!properties.exampleValue || !properties.pattern)) || (properties.exampleValue && properties.pattern)) {
-		const matches: null | RegExpMatchArray = /^\/(.*?)\/([gimuy]*)$/.exec(properties.pattern);
+		const matches: null | RegExpMatchArray = /^\/(?<pattern>.*?)\/(?<flags>[gimuy]*)$/.exec(properties.pattern);
 
 		if (matches) {
-			const pattern: string = matches[STRING_PROPERTY_API_INTERFACE_CONSTANT.REGEX_PATTERN_INDEX] ?? "";
-			const flags: string = matches[STRING_PROPERTY_API_INTERFACE_CONSTANT.REGEX_FLAGS_INDEX] ?? "";
+			const pattern: string = matches.groups?.pattern ?? "";
+			const flags: string = matches.groups?.flags ?? "";
 
 			const regex: RegExp = new RegExp(pattern, flags);
 

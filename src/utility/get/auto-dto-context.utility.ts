@@ -1,6 +1,6 @@
 import type { IDtoAutoContextMetadata } from "@type/auto-context-metadata.type";
 
-import { DTO_AUTO_CONTEXT_METADATA_KEY } from "@constant/dto/auto-context.constant";
+import { AUTO_CONTEXT_DTO_CONSTANT } from "@constant/dto/auto-context.constant";
 
 /**
  * Retrieves stored DTO auto-context (route method + dto type) for a generated DTO prototype.
@@ -8,7 +8,7 @@ import { DTO_AUTO_CONTEXT_METADATA_KEY } from "@constant/dto/auto-context.consta
  * @returns {IDtoAutoContextMetadata | undefined} Stored context metadata if available.
  */
 export function GetAutoDtoContext(target: object): IDtoAutoContextMetadata | undefined {
-	const stack: Array<IDtoAutoContextMetadata> | undefined = Reflect.getMetadata?.(DTO_AUTO_CONTEXT_METADATA_KEY, target) as Array<IDtoAutoContextMetadata> | undefined;
+	const stack: Array<IDtoAutoContextMetadata> | undefined = Reflect.getMetadata?.(AUTO_CONTEXT_DTO_CONSTANT.METADATA_KEY, target) as Array<IDtoAutoContextMetadata> | undefined;
 
 	if (!stack || stack.length === 0) {
 		return undefined;

@@ -22,7 +22,7 @@ export class ApiAuthorizationPolicyDiscoveryService implements OnModuleInit {
 	public onModuleInit(): void {
 		policyDiscoveryLogger.verbose("Starting authorization policy discovery...");
 		const providers: Array<InstanceWrapper> = this.discoveryService.getProviders();
-		const policyProviders: Array<InstanceWrapper> = providers.filter((wrapper: InstanceWrapper) => this.isPolicyWrapper(wrapper));
+		const policyProviders: Array<InstanceWrapper> = providers.filter((wrapper: InstanceWrapper) => Boolean(wrapper.instance && wrapper.metatype && wrapper.instance instanceof ApiAuthorizationPolicyBase && Reflect.hasMetadata(AUTHORIZATION_POLICY_DECORATOR_CONSTANT.METADATA_KEY, wrapper.metatype)));
 
 		for (const wrapper of policyProviders) {
 			if (!wrapper.metatype) {
@@ -51,9 +51,5 @@ export class ApiAuthorizationPolicyDiscoveryService implements OnModuleInit {
 		}
 
 		policyDiscoveryLogger.verbose(`Authorization policy discovery finished. Registered ${policyProviders.length} providers.`);
-	}
-
-	private isPolicyWrapper(wrapper: InstanceWrapper): boolean {
-		return Boolean(wrapper.instance && wrapper.metatype && wrapper.instance instanceof ApiAuthorizationPolicyBase && Reflect.hasMetadata(AUTHORIZATION_POLICY_DECORATOR_CONSTANT.METADATA_KEY, wrapper.metatype));
 	}
 }

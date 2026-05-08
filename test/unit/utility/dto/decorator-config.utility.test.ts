@@ -21,7 +21,7 @@ describe("DtoGetDecoratorConfig", () => {
 			type: EApiPropertyDescribeType.STRING,
 		} as TApiPropertyDescribeProperties;
 
-		const config = DtoGetDecoratorConfig(EApiRouteType.CREATE, metadata, EApiDtoType.BODY, "name");
+		const config = DtoGetDecoratorConfig(EApiRouteType.CREATE, metadata, EApiDtoType.BODY);
 
 		expect(config.isRequired).toBe(false);
 	});
@@ -37,7 +37,7 @@ describe("DtoGetDecoratorConfig", () => {
 			type: EApiPropertyDescribeType.STRING,
 		} as TApiPropertyDescribeProperties;
 
-		const invoke = () => DtoGetDecoratorConfig(EApiRouteType.CREATE, metadata, "invalid" as EApiDtoType, "name");
+		const invoke = () => DtoGetDecoratorConfig(EApiRouteType.CREATE, metadata, "invalid" as EApiDtoType);
 
 		expect(invoke).toThrow("Unknown DTO type");
 	});

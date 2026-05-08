@@ -1,7 +1,7 @@
 import type { Type } from "@nestjs/common";
 import type { IDtoAutoContextMetadata } from "@type/auto-context-metadata.type";
 
-import { DTO_AUTO_CONTEXT_METADATA_KEY } from "@constant/dto/auto-context.constant";
+import { AUTO_CONTEXT_DTO_CONSTANT } from "@constant/dto/auto-context.constant";
 import { FlushAutoDtoContextExecutions } from "@utility/auto-dto-context-queue.utility";
 
 const AUTO_DTO_CHILDREN: WeakMap<object, Set<Type<unknown>>> = new WeakMap<object, Set<Type<unknown>>>();
@@ -59,17 +59,17 @@ export function RegisterAutoDtoChild(parentPrototype: object, child: unknown): v
  * @param {object} childPrototype - Child DTO prototype.
  */
 function inheritExistingContexts(parentPrototype: object, childPrototype: object): void {
-	const parentStack: Array<IDtoAutoContextMetadata> | undefined = Reflect.getMetadata?.(DTO_AUTO_CONTEXT_METADATA_KEY, parentPrototype) as Array<IDtoAutoContextMetadata> | undefined;
+	const parentStack: Array<IDtoAutoContextMetadata> | undefined = Reflect.getMetadata?.(AUTO_CONTEXT_DTO_CONSTANT.METADATA_KEY, parentPrototype) as Array<IDtoAutoContextMetadata> | undefined;
 
 	if (!parentStack || parentStack.length === 0) {
 		return;
 	}
 
-	const childStack: Array<IDtoAutoContextMetadata> = (Reflect.getMetadata?.(DTO_AUTO_CONTEXT_METADATA_KEY, childPrototype) as Array<IDtoAutoContextMetadata>) ?? [];
+	const childStack: Array<IDtoAutoContextMetadata> = (Reflect.getMetadata?.(AUTO_CONTEXT_DTO_CONSTANT.METADATA_KEY, childPrototype) as Array<IDtoAutoContextMetadata>) ?? [];
 
 	if (childStack.length < parentStack.length) {
 		const updatedStack: Array<IDtoAutoContextMetadata> = [...childStack, ...parentStack.slice(childStack.length)];
-		Reflect.defineMetadata?.(DTO_AUTO_CONTEXT_METADATA_KEY, updatedStack, childPrototype);
+		Reflect.defineMetadata?.(AUTO_CONTEXT_DTO_CONSTANT.METADATA_KEY, updatedStack, childPrototype);
 		FlushAutoDtoContextExecutions(childPrototype);
 	}
 

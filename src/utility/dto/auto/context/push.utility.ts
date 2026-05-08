@@ -1,7 +1,7 @@
 import type { EApiDtoType, EApiRouteType } from "@enum/index";
 import type { IDtoAutoContextMetadata } from "@type/auto-context-metadata.type";
 
-import { DTO_AUTO_CONTEXT_METADATA_KEY } from "@constant/dto/auto-context.constant";
+import { AUTO_CONTEXT_DTO_CONSTANT } from "@constant/dto/auto-context.constant";
 import { FlushAutoDtoContextExecutions } from "@utility/auto-dto-context-queue.utility";
 import { GetRegisteredAutoDtoChildren } from "@utility/register-auto-dto-child.utility";
 
@@ -15,9 +15,9 @@ import { GetRegisteredAutoDtoChildren } from "@utility/register-auto-dto-child.u
 export function DtoAutoContextPush(target: object, method: EApiRouteType, dtoType: EApiDtoType, visited?: WeakSet<object>): void {
 	if (!target) return;
 
-	const stack: Array<IDtoAutoContextMetadata> = (Reflect.getMetadata?.(DTO_AUTO_CONTEXT_METADATA_KEY, target) as Array<IDtoAutoContextMetadata>) ?? [];
+	const stack: Array<IDtoAutoContextMetadata> = (Reflect.getMetadata?.(AUTO_CONTEXT_DTO_CONSTANT.METADATA_KEY, target) as Array<IDtoAutoContextMetadata>) ?? [];
 	stack.push({ dtoType, method });
-	Reflect.defineMetadata?.(DTO_AUTO_CONTEXT_METADATA_KEY, stack, target);
+	Reflect.defineMetadata?.(AUTO_CONTEXT_DTO_CONSTANT.METADATA_KEY, stack, target);
 	FlushAutoDtoContextExecutions(target);
 
 	visited ??= new WeakSet<object>();
