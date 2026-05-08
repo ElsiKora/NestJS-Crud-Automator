@@ -1,3 +1,10 @@
+## [2.0.4](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.3...v2.0.4) (2026-05-08)
+
+
+### Bug Fixes
+
+* **swagger:** document custom route request dtos ([01e6a77](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/01e6a7739bfa0943ce20ee77085d5b0e26c781ae))
+
 ## [2.0.3](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.2...v2.0.3) (2026-05-07)
 
 
