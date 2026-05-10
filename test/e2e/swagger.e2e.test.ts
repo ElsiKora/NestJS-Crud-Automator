@@ -10,7 +10,7 @@ import { Test } from "@nestjs/testing";
 import { Column, Entity, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiMethod, ApiPropertyDescribe, ApiRouteCustom, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
+import { ApiAuthorizationModule, ApiController, ApiMethod, ApiPropertyDescribe, ApiRouteCustom, ApiServiceBase, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
 
 type TSwaggerOperation = NonNullable<NonNullable<OpenAPIObject["paths"][string]>["post"]>;
 
@@ -73,6 +73,26 @@ class SwaggerQueryDto {
 	@ApiProperty()
 	public filter!: string;
 }
+
+class SwaggerGeneratedService extends ApiServiceBase<SwaggerAutoDtoEntity> {}
+
+class SwaggerGeneratedControllerBase {
+	public service: SwaggerGeneratedService = new SwaggerGeneratedService();
+}
+
+const SwaggerGeneratedController = ApiController<SwaggerAutoDtoEntity>({
+	entity: SwaggerAutoDtoEntity,
+	path: "swagger-generated",
+	routes: {
+		[EApiRouteType.CREATE]: {},
+		[EApiRouteType.GET_LIST]: {
+			documentation: {
+				description: "Custom generated list description",
+				summary: "Custom generated list summary",
+			},
+		},
+	},
+})(SwaggerGeneratedControllerBase);
 
 @Controller("swagger")
 class SwaggerDocumentationController {
@@ -175,7 +195,7 @@ class SwaggerDocumentationController {
 }
 
 @Module({
-	controllers: [SwaggerDocumentationController],
+	controllers: [SwaggerDocumentationController, SwaggerGeneratedController],
 	imports: [ApiAuthorizationModule],
 })
 class SwaggerDocumentationModule {}
@@ -241,8 +261,22 @@ describe("Swagger request DTO documentation (E2E)", () => {
 		expect(JSON.stringify(manualRequestBody)).toContain("#/components/schemas/SwaggerRequestBodyDto");
 	});
 
-	function getOperation(path: string): TSwaggerOperation {
-		const operation: TSwaggerOperation | undefined = document.paths[path]?.post as TSwaggerOperation | undefined;
+	it("generates pluralized documentation for generated CRUD routes", () => {
+		const createOperation = getOperation("/swagger-generated");
+
+		expect(createOperation.summary).toBe("Creating `SwaggerAutoDtoEntities`");
+		expect(createOperation.description).toBe("This method is used for creating `SwaggerAutoDtoEntities`");
+	});
+
+	it("allows generated route documentation overrides", () => {
+		const listOperation = getOperation("/swagger-generated", "get");
+
+		expect(listOperation.summary).toBe("Custom generated list summary");
+		expect(listOperation.description).toBe("Custom generated list description");
+	});
+
+	function getOperation(path: string, method: "get" | "post" = "post"): TSwaggerOperation {
+		const operation: TSwaggerOperation | undefined = document.paths[path]?.[method] as TSwaggerOperation | undefined;
 
 		expect(operation).toBeDefined();
 

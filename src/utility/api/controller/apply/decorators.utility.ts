@@ -7,9 +7,10 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 import type { TApiControllerMethodMap } from "@type/factory/api/controller";
 
 import { ApiMethod } from "@decorator/api/method.decorator";
-import { EApiAction, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
+import { ApiRouteBuildDocumentation } from "@utility/api/route/build-documentation.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
@@ -32,13 +33,13 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMet
 
 	switch (method) {
 		case EApiRouteType.CREATE: {
-			customDecorators.push(ApiMethod({ metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.POST, "", HttpStatus.CREATED, responseDto, { hasConflict: true, hasInternalServerError: true, hasUnauthorized: true }, EApiAction.CREATE) }));
+			customDecorators.push(ApiMethod({ metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.POST, "", HttpStatus.CREATED, responseDto, { hasConflict: true, hasInternalServerError: true, hasUnauthorized: true }) }));
 
 			break;
 		}
 
 		case EApiRouteType.DELETE: {
-			customDecorators.push(ApiMethod({ metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.DELETE, `:${String(entity.primaryKey?.name)}`, HttpStatus.NO_CONTENT, undefined, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, EApiAction.DELETE) }));
+			customDecorators.push(ApiMethod({ metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.DELETE, `:${String(entity.primaryKey?.name)}`, HttpStatus.NO_CONTENT, undefined, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }) }));
 
 			break;
 		}
@@ -46,7 +47,7 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMet
 		case EApiRouteType.GET: {
 			customDecorators.push(
 				ApiMethod({
-					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, EApiAction.FETCH),
+					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }),
 				}),
 			);
 
@@ -56,7 +57,7 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMet
 		case EApiRouteType.GET_LIST: {
 			customDecorators.push(
 				ApiMethod({
-					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, "", HttpStatus.OK, responseDto, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, EApiAction.FETCH_LIST),
+					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, "", HttpStatus.OK, responseDto, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }),
 				}),
 			);
 
@@ -64,13 +65,13 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMet
 		}
 
 		case EApiRouteType.PARTIAL_UPDATE: {
-			customDecorators.push(ApiMethod({ metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PATCH, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, EApiAction.UPDATE) }));
+			customDecorators.push(ApiMethod({ metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PATCH, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }) }));
 
 			break;
 		}
 
 		case EApiRouteType.UPDATE: {
-			customDecorators.push(ApiMethod({ metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PUT, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }, EApiAction.UPDATE) }));
+			customDecorators.push(ApiMethod({ metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PUT, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }) }));
 
 			break;
 		}
@@ -99,14 +100,11 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMet
  * @param {HttpStatus} status - Successful HTTP status code.
  * @param {Type<unknown> | undefined} responseType - Swagger and serialization response DTO type.
  * @param {NonNullable<IApiRouteMetadata<E>["response"]>["errors"]} errors - Standard error response flags.
- * @param {EApiAction} documentationAction - Action label used for generated documentation.
  * @returns {IApiRouteMetadata<E>} Route metadata consumed by ApiMethod and the route runtime.
  */
-function createRouteMetadata<E extends IApiBaseEntity>(properties: IApiControllerProperties<E>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType>, routeType: EApiRouteType, requestMethod: RequestMethod, path: string, status: HttpStatus, responseType: Type<unknown> | undefined, errors: NonNullable<IApiRouteMetadata<E>["response"]>["errors"], documentationAction: EApiAction): IApiRouteMetadata<E> {
+function createRouteMetadata<E extends IApiBaseEntity>(properties: IApiControllerProperties<E>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType>, routeType: EApiRouteType, requestMethod: RequestMethod, path: string, status: HttpStatus, responseType: Type<unknown> | undefined, errors: NonNullable<IApiRouteMetadata<E>["response"]>["errors"]): IApiRouteMetadata<E> {
 	return {
-		documentation: {
-			summary: documentationAction,
-		},
+		documentation: ApiRouteBuildDocumentation({ documentation: routeConfig.documentation, entity: properties.entity, routeType }),
 		resource: {
 			action: routeType,
 			entity: properties.entity as Type<E>,
