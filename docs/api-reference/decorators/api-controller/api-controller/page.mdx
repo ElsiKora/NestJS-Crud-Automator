@@ -26,6 +26,7 @@ Each route entry can be described in two ways:
 
 Routes also accept:
 
+- `documentation` – per-route Swagger `summary`, `description`, and `operationId` overrides. When omitted, generated CRUD routes receive pluralized default summaries and descriptions based on the entity name.
 - `security.authentication` – bearer/security schemes and custom guards. `type` is required and may be an `EApiAuthenticationType` value or a project-specific string.
 - `security.authorization` – authorization mode and optional per-route overrides.
 - `request` / `response` – target-scoped pipe and serializer overrides for each CRUD action.
@@ -51,6 +52,11 @@ Routes also accept:
 			},
 		},
 		[EApiRouteType.GET_LIST]: {
+			documentation: {
+				summary: "List users",
+				description: "Returns a filtered and paginated list of users",
+				operationId: "listUsers",
+			},
 			autoDto: {
 				[EApiDtoType.QUERY]: {
 					validators: [
@@ -75,6 +81,7 @@ export class UserController {}
 - Combine with `@ApiControllerObservable` to emit route subscriber hooks.
 - Add `@ApiControllerSecurable` when authorization policies should execute before each route.
 - Align `routes` with the DTO metadata defined on the entity (`@ApiPropertyDescribe`) for consistent validation.
+- Leave `routes[routeType].documentation` empty to use generated pluralized Swagger text, or set only the fields you need to override.
 
 ## Related resources
 

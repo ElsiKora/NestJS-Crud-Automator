@@ -70,6 +70,26 @@ routes: {
 }
 ```
 
+### Swagger Documentation
+
+Generated CRUD routes automatically receive pluralized Swagger summaries and descriptions based on the entity name. For example, a `UserEntity` create route gets text such as `Creating Users` and `This method is used for creating Users`.
+
+Override the generated text per route when your public API needs domain-specific wording:
+
+```typescript
+routes: {
+  [EApiRouteType.GET_LIST]: {
+    documentation: {
+      summary: "List public users",
+      description: "Returns users visible to the current caller",
+      operationId: "listPublicUsers",
+    },
+  },
+}
+```
+
+Any omitted field falls back to the generated default.
+
 ### Custom Path
 
 Override the default controller path:
