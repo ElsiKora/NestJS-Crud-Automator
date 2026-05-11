@@ -1,3 +1,15 @@
+# [2.1.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.4...v2.1.0) (2026-05-11)
+
+
+### Bug Fixes
+
+* **swagger:** refine generated route documentation ([d6981dd](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/d6981ddfb9ba89db10bb12913829bdcdb0f9f2e1))
+
+
+### Features
+
+* **swagger:** generate route documentation ([646f578](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/646f5783f278258a81b6e0adbc57f8554848e1f5))
+
 ## [2.0.4](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.3...v2.0.4) (2026-05-08)
 
 
