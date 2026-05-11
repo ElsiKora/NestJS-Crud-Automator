@@ -52,6 +52,25 @@ interface IApiControllerProperties<E extends IApiBaseEntity> {
 }
 ```
 
+Generated route entries also accept `documentation?: IApiRouteDocumentationProperties` through their shared route base configuration. Use it to override the default pluralized Swagger summary, description, or operation ID for a specific CRUD route.
+
+```typescript
+interface IApiRouteDocumentationProperties {
+	description?: string;
+	operationId?: string;
+	summary?: string;
+}
+
+interface IApiControllerPropertiesRouteBase<E, R extends EApiRouteType> {
+	documentation?: IApiRouteDocumentationProperties;
+	generation?: IApiControllerPropertiesRouteBaseGeneration;
+	relations?: IApiControllerPropertiesRouteBaseRelations<E>;
+	request?: IApiControllerPropertiesRouteBaseRequest<E, R>;
+	response?: IApiControllerPropertiesRouteBaseResponse<E, R>;
+	security?: IApiControllerPropertiesRouteBaseSecurity;
+}
+```
+
 ### IApiControllerPropertiesRouteAuthentication
 
 Authentication configuration for routes.

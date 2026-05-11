@@ -10,9 +10,10 @@ import { Test } from "@nestjs/testing";
 import { Column, Entity, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiMethod, ApiPropertyDescribe, ApiRouteCustom, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
+import { ApiAuthorizationModule, ApiController, ApiMethod, ApiPropertyDescribe, ApiRouteCustom, ApiServiceBase, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
 
-type TSwaggerOperation = NonNullable<NonNullable<OpenAPIObject["paths"][string]>["post"]>;
+type TSwaggerMethod = "delete" | "get" | "patch" | "post" | "put";
+type TSwaggerOperation = NonNullable<NonNullable<OpenAPIObject["paths"][string]>[TSwaggerMethod]>;
 
 class SwaggerEntity {
 	public id?: string;
@@ -73,6 +74,50 @@ class SwaggerQueryDto {
 	@ApiProperty()
 	public filter!: string;
 }
+
+class SwaggerGeneratedService extends ApiServiceBase<SwaggerAutoDtoEntity> {}
+
+class SwaggerGeneratedDefaultControllerBase {
+	public service: SwaggerGeneratedService = new SwaggerGeneratedService();
+}
+
+class SwaggerGeneratedOverrideControllerBase {
+	public service: SwaggerGeneratedService = new SwaggerGeneratedService();
+}
+
+const SwaggerGeneratedDefaultController = ApiController<SwaggerAutoDtoEntity>({
+	entity: SwaggerAutoDtoEntity,
+	name: "SwaggerAutoDtoResource",
+	path: "swagger-generated-default",
+	routes: {
+		[EApiRouteType.CREATE]: {},
+		[EApiRouteType.DELETE]: {},
+		[EApiRouteType.GET]: {},
+		[EApiRouteType.GET_LIST]: {},
+		[EApiRouteType.PARTIAL_UPDATE]: {},
+		[EApiRouteType.UPDATE]: {},
+	},
+})(SwaggerGeneratedDefaultControllerBase);
+
+const SwaggerGeneratedOverrideController = ApiController<SwaggerAutoDtoEntity>({
+	entity: SwaggerAutoDtoEntity,
+	name: "SwaggerAutoDtoResource",
+	path: "swagger-generated-override",
+	routes: {
+		[EApiRouteType.GET]: {
+			documentation: {
+				description: "Custom generated get description",
+			},
+		},
+		[EApiRouteType.GET_LIST]: {
+			documentation: {
+				description: "Custom generated list description",
+				operationId: "customGeneratedList",
+				summary: "Custom generated list summary",
+			},
+		},
+	},
+})(SwaggerGeneratedOverrideControllerBase);
 
 @Controller("swagger")
 class SwaggerDocumentationController {
@@ -175,7 +220,7 @@ class SwaggerDocumentationController {
 }
 
 @Module({
-	controllers: [SwaggerDocumentationController],
+	controllers: [SwaggerDocumentationController, SwaggerGeneratedDefaultController, SwaggerGeneratedOverrideController],
 	imports: [ApiAuthorizationModule],
 })
 class SwaggerDocumentationModule {}
@@ -241,11 +286,42 @@ describe("Swagger request DTO documentation (E2E)", () => {
 		expect(JSON.stringify(manualRequestBody)).toContain("#/components/schemas/SwaggerRequestBodyDto");
 	});
 
-	function getOperation(path: string): TSwaggerOperation {
-		const operation: TSwaggerOperation | undefined = document.paths[path]?.post as TSwaggerOperation | undefined;
+	it("generates pluralized documentation for generated CRUD routes", () => {
+		expectGeneratedDocumentation(getOperation("/swagger-generated-default"), "Creating");
+		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "delete"), "Deleting");
+		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "get"), "Fetching");
+		expectGeneratedDocumentation(getOperation("/swagger-generated-default", "get"), "Fetching list of");
+		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "patch"), "Partially updating");
+		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "put"), "Updating");
+	});
+
+	it("allows generated route documentation overrides", () => {
+		const listOperation = getOperation("/swagger-generated-override", "get");
+
+		expect(listOperation.summary).toBe("Custom generated list summary");
+		expect(listOperation.description).toBe("Custom generated list description");
+		expect(listOperation.operationId).toBe("customGeneratedList");
+	});
+
+	it("merges partial generated route documentation overrides", () => {
+		const operation = getOperation("/swagger-generated-override/{id}", "get");
+
+		expect(operation.summary).toBe("Fetching `SwaggerAutoDtoResources`");
+		expect(operation.description).toBe("Custom generated get description");
+		expect(operation.operationId).toBe("SwaggerGeneratedOverrideControllerBase_get");
+	});
+
+	function getOperation(path: string, method: TSwaggerMethod = "post"): TSwaggerOperation {
+		const operation: TSwaggerOperation | undefined = document.paths[path]?.[method] as TSwaggerOperation | undefined;
 
 		expect(operation).toBeDefined();
 
 		return operation as TSwaggerOperation;
+	}
+
+	function expectGeneratedDocumentation(operation: TSwaggerOperation, action: string): void {
+		expect(operation.summary).toBe(`${action} \`SwaggerAutoDtoResources\``);
+		expect(operation.description).toBe(`This method is used for ${action.toLowerCase()} \`SwaggerAutoDtoResources\``);
+		expect(operation.operationId).toEqual(expect.any(String));
 	}
 });
