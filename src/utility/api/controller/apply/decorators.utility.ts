@@ -9,8 +9,8 @@ import type { TApiControllerMethodMap } from "@type/factory/api/controller";
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
+import { ApiControllerBuildRouteDocumentation } from "@utility/api/controller/build-route-documentation.utility";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
-import { ApiRouteBuildDocumentation } from "@utility/api/route/build-documentation.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
@@ -104,7 +104,7 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMet
  */
 function createRouteMetadata<E extends IApiBaseEntity>(properties: IApiControllerProperties<E>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType>, routeType: EApiRouteType, requestMethod: RequestMethod, path: string, status: HttpStatus, responseType: Type<unknown> | undefined, errors: NonNullable<IApiRouteMetadata<E>["response"]>["errors"]): IApiRouteMetadata<E> {
 	return {
-		documentation: ApiRouteBuildDocumentation({ documentation: routeConfig.documentation, entity: properties.entity, routeType }),
+		documentation: ApiControllerBuildRouteDocumentation({ documentation: routeConfig.documentation, resourceName: properties.name ?? properties.entity.name ?? "UnknownResource", routeType }),
 		resource: {
 			action: routeType,
 			entity: properties.entity as Type<E>,

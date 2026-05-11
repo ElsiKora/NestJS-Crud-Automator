@@ -72,7 +72,7 @@ routes: {
 
 ### Swagger Documentation
 
-Generated CRUD routes automatically receive pluralized Swagger summaries and descriptions based on the entity name. For example, a `UserEntity` create route gets text such as `Creating Users` and `This method is used for creating Users`.
+Generated CRUD routes automatically receive pluralized Swagger summaries and descriptions based on the controller `name` option, or the entity name when `name` is omitted. For example, `name: "User"` produces text such as `Creating \`Users\`` and `This method is used for creating \`Users\``.
 
 Override the generated text per route when your public API needs domain-specific wording:
 
@@ -88,7 +88,7 @@ routes: {
 }
 ```
 
-Any omitted field falls back to the generated default.
+Omitted `summary` and `description` fields fall back to the generated defaults. Omitted `operationId` uses Nest Swagger's default operation ID.
 
 ### Custom Path
 
@@ -342,20 +342,15 @@ routes: {
 
 ## Route Documentation
 
-Generated CRUD routes use the package defaults. Add extra Nest or Swagger decorators through `generation.decorators` when a route needs custom documentation:
+Generated CRUD routes use the package defaults unless you set `documentation` on the route. Use `documentation` for operation text and `operationId`; reserve `generation.decorators` for additive decorators such as interceptors, guards, or non-operation Swagger metadata:
 
 ```typescript
-import { ApiOperation } from "@nestjs/swagger";
-
 routes: {
   [EApiRouteType.CREATE]: {
-    generation: {
-      decorators: [
-        ApiOperation({
-          description: "Creates a new user with the provided data",
-          summary: "Create a new user",
-        }),
-      ],
+    documentation: {
+      description: "Creates a new user with the provided data",
+      operationId: "createUser",
+      summary: "Create a new user",
     },
   },
 }
