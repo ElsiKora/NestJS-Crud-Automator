@@ -26,7 +26,7 @@ Each route entry can be described in two ways:
 
 Routes also accept:
 
-- `documentation` – per-route Swagger `summary`, `description`, and `operationId` overrides. When omitted, generated CRUD routes receive pluralized default summaries and descriptions based on `name` or the entity name.
+- `documentation` – per-route Swagger `summary`, `description`, and `operationId` overrides. When omitted, generated CRUD routes receive default summaries and descriptions based on `name` or the entity name, using singular resource names for item routes and plural names for list routes.
 - `security.authentication` – bearer/security schemes and custom guards. `type` is required and may be an `EApiAuthenticationType` value or a project-specific string.
 - `security.authorization` – authorization mode and optional per-route overrides.
 - `request` / `response` – target-scoped pipe and serializer overrides for each CRUD action.
@@ -81,7 +81,7 @@ export class UserController {}
 - Combine with `@ApiControllerObservable` to emit route subscriber hooks.
 - Add `@ApiControllerSecurable` when authorization policies should execute before each route.
 - Align `routes` with the DTO metadata defined on the entity (`@ApiPropertyDescribe`) for consistent validation.
-- Leave `routes[routeType].documentation` empty to use generated pluralized Swagger text. Set only the fields you need to override; omitted `summary` and `description` fall back to generated text, while omitted `operationId` uses Nest Swagger's default operation ID.
+- Leave `routes[routeType].documentation` empty to use generated Swagger text. Set only the fields you need to override; omitted `summary` and `description` fall back to generated text, while omitted `operationId` uses Nest Swagger's default operation ID.
 
 ## Related resources
 

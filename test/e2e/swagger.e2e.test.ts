@@ -287,12 +287,12 @@ describe("Swagger request DTO documentation (E2E)", () => {
 	});
 
 	it("generates pluralized documentation for generated CRUD routes", () => {
-		expectGeneratedDocumentation(getOperation("/swagger-generated-default"), "Creating");
-		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "delete"), "Deleting");
-		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "get"), "Fetching");
-		expectGeneratedDocumentation(getOperation("/swagger-generated-default", "get"), "Fetching list of");
-		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "patch"), "Partially updating");
-		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "put"), "Updating");
+		expectGeneratedDocumentation(getOperation("/swagger-generated-default"), "Create `SwaggerAutoDtoResource`", "Creates a new `SwaggerAutoDtoResource` resource.");
+		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "delete"), "Delete `SwaggerAutoDtoResource`", "Deletes an existing `SwaggerAutoDtoResource` resource.");
+		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "get"), "Get `SwaggerAutoDtoResource`", "Returns a single `SwaggerAutoDtoResource` resource by its identifier.");
+		expectGeneratedDocumentation(getOperation("/swagger-generated-default", "get"), "List `SwaggerAutoDtoResources`", "Returns a paginated list of `SwaggerAutoDtoResources` resources.");
+		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "patch"), "Partially update `SwaggerAutoDtoResource`", "Partially updates an existing `SwaggerAutoDtoResource` resource.");
+		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "put"), "Update `SwaggerAutoDtoResource`", "Replaces an existing `SwaggerAutoDtoResource` resource.");
 	});
 
 	it("allows generated route documentation overrides", () => {
@@ -306,7 +306,7 @@ describe("Swagger request DTO documentation (E2E)", () => {
 	it("merges partial generated route documentation overrides", () => {
 		const operation = getOperation("/swagger-generated-override/{id}", "get");
 
-		expect(operation.summary).toBe("Fetching `SwaggerAutoDtoResources`");
+		expect(operation.summary).toBe("Get `SwaggerAutoDtoResource`");
 		expect(operation.description).toBe("Custom generated get description");
 		expect(operation.operationId).toBe("SwaggerGeneratedOverrideControllerBase_get");
 	});
@@ -319,9 +319,9 @@ describe("Swagger request DTO documentation (E2E)", () => {
 		return operation as TSwaggerOperation;
 	}
 
-	function expectGeneratedDocumentation(operation: TSwaggerOperation, action: string): void {
-		expect(operation.summary).toBe(`${action} \`SwaggerAutoDtoResources\``);
-		expect(operation.description).toBe(`This method is used for ${action.toLowerCase()} \`SwaggerAutoDtoResources\``);
+	function expectGeneratedDocumentation(operation: TSwaggerOperation, summary: string, description: string): void {
+		expect(operation.summary).toBe(summary);
+		expect(operation.description).toBe(description);
 		expect(operation.operationId).toEqual(expect.any(String));
 	}
 });

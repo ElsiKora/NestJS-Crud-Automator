@@ -13,49 +13,50 @@ import { EApiRouteType as EApiRouteTypeValue } from "@enum/decorator/api";
  * @returns {IApiRouteDocumentationProperties} Documentation metadata for ApiMethod.
  */
 export function ApiControllerBuildRouteDocumentation(options: { documentation?: IApiRouteDocumentationProperties; resourceName: string; routeType: EApiRouteType }): IApiRouteDocumentationProperties {
-	const resourceName: string = pluralizer.toPlural(options.resourceName);
+	const pluralResourceName: string = pluralizer.toPlural(options.resourceName);
+	const singularResourceName: string = pluralizer.toSingular(options.resourceName);
 	let summary: string;
 	let description: string;
 
 	switch (options.routeType) {
 		case EApiRouteTypeValue.CREATE: {
-			summary = `Creating \`${resourceName}\``;
-			description = `This method is used for creating \`${resourceName}\``;
+			summary = `Create \`${singularResourceName}\``;
+			description = `Creates a new \`${singularResourceName}\` resource.`;
 
 			break;
 		}
 
 		case EApiRouteTypeValue.DELETE: {
-			summary = `Deleting \`${resourceName}\``;
-			description = `This method is used for deleting \`${resourceName}\``;
+			summary = `Delete \`${singularResourceName}\``;
+			description = `Deletes an existing \`${singularResourceName}\` resource.`;
 
 			break;
 		}
 
 		case EApiRouteTypeValue.GET: {
-			summary = `Fetching \`${resourceName}\``;
-			description = `This method is used for fetching \`${resourceName}\``;
+			summary = `Get \`${singularResourceName}\``;
+			description = `Returns a single \`${singularResourceName}\` resource by its identifier.`;
 
 			break;
 		}
 
 		case EApiRouteTypeValue.GET_LIST: {
-			summary = `Fetching list of \`${resourceName}\``;
-			description = `This method is used for fetching list of \`${resourceName}\``;
+			summary = `List \`${pluralResourceName}\``;
+			description = `Returns a paginated list of \`${pluralResourceName}\` resources.`;
 
 			break;
 		}
 
 		case EApiRouteTypeValue.PARTIAL_UPDATE: {
-			summary = `Partially updating \`${resourceName}\``;
-			description = `This method is used for partially updating \`${resourceName}\``;
+			summary = `Partially update \`${singularResourceName}\``;
+			description = `Partially updates an existing \`${singularResourceName}\` resource.`;
 
 			break;
 		}
 
 		case EApiRouteTypeValue.UPDATE: {
-			summary = `Updating \`${resourceName}\``;
-			description = `This method is used for updating \`${resourceName}\``;
+			summary = `Update \`${singularResourceName}\``;
+			description = `Replaces an existing \`${singularResourceName}\` resource.`;
 
 			break;
 		}
