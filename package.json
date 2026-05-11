@@ -61,7 +61,7 @@
 		"rxjs": "^7.8.2"
 	},
 	"devDependencies": {
-		"@commitlint/cli": "^20.5.3",
+		"@commitlint/cli": "^21.0.0",
 		"@commitlint/config-conventional": "^20.5.3",
 		"@elsikora/cladi": "^2.1.2",
 		"@elsikora/commitizen-plugin-commitlint-ai": "^2.5.0",
