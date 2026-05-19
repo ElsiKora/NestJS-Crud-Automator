@@ -6,7 +6,7 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiPropertyDescribeType, EApiPropertyStringType } from "@enum/decorator/api";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 @Entity("info_entities")
@@ -49,6 +49,25 @@ class ExtendedInfoEntity extends InheritedInfoBaseEntity {
 	public name!: string;
 }
 
+@Entity("info_relation_target_entities")
+class InfoRelationTargetEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+}
+
+@Entity("info_relation_owner_entities")
+class InfoRelationOwnerEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@ManyToOne(() => InfoRelationTargetEntity)
+	@ApiPropertyDescribe({
+		description: "target",
+		type: EApiPropertyDescribeType.RELATION,
+	})
+	public target!: InfoRelationTargetEntity;
+}
+
 describe("GenerateEntityInformation", () => {
 	it("builds entity metadata with table name and primary key", () => {
 		const metadata = GenerateEntityInformation<InfoEntity>(InfoEntity as unknown as IApiBaseEntity);
@@ -72,5 +91,12 @@ describe("GenerateEntityInformation", () => {
 		expect(metadata.columns.find((column) => column.name === "slug")?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]).toMatchObject({
 			type: EApiPropertyDescribeType.STRING,
 		});
+	});
+
+	it("preserves TypeORM relation target metadata", () => {
+		const metadata = GenerateEntityInformation<InfoRelationOwnerEntity>(InfoRelationOwnerEntity as unknown as IApiBaseEntity);
+		const relation = metadata.columns.find((column) => column.name === "target");
+
+		expect(relation?.relation?.target).toBe(InfoRelationTargetEntity);
 	});
 });

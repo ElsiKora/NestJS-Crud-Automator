@@ -125,7 +125,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 				type: options.type!,
 			};
 		}),
-		...relationList.map(({ propertyName, relationType }: RelationMetadataArgs) => {
+		...relationList.map(({ propertyName, relationType, type }: RelationMetadataArgs) => {
 			let metadata: Record<string, unknown> | undefined;
 
 			for (const entityName of entityNames) {
@@ -136,10 +136,34 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 				}
 			}
 
+			let relationTarget: IApiBaseEntity | undefined;
+			let resolvedRelationTarget: unknown = type;
+
+			if (typeof type === "function") {
+				try {
+					resolvedRelationTarget = (type as () => unknown)();
+				} catch {
+					resolvedRelationTarget = type;
+				}
+			}
+
+			if (typeof resolvedRelationTarget === "string") {
+				relationTarget = { name: resolvedRelationTarget };
+			} else if (typeof resolvedRelationTarget === "function" && resolvedRelationTarget.name) {
+				relationTarget = resolvedRelationTarget as unknown as IApiBaseEntity;
+			} else if (typeof resolvedRelationTarget === "object" && resolvedRelationTarget !== null && "name" in resolvedRelationTarget && typeof (resolvedRelationTarget as { name?: unknown }).name === "string") {
+				relationTarget = resolvedRelationTarget as IApiBaseEntity;
+			}
+
 			return {
 				isPrimary: false,
 				metadata,
 				name: propertyName as keyof E,
+				relation: relationTarget
+					? {
+							target: relationTarget,
+						}
+					: undefined,
 				type: relationType as ColumnType,
 			};
 		}),
