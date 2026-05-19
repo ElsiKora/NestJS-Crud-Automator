@@ -47,7 +47,7 @@ currency.description === "DepositEntity currency";
 currency.id.description === "DepositEntity currency identifier";
 ```
 
-For request DTOs, relation references remain UUID references unless route relation loading is configured to read another reference key at runtime.
+For request DTOs, generated relation fields keep the existing UUID reference schema. Route relation loading can still be configured to read another `reference.key` at runtime, but that does not change generated DTO metadata.
 
 ## Example
 
