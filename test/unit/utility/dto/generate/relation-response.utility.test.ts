@@ -25,4 +25,21 @@ describe("DtoGenerateRelationResponse", () => {
 
 		expect(metadata).toBeDefined();
 	});
+
+	it("uses relation-aware metadata for the id description", () => {
+		const dto = DtoGenerateRelationResponse(entity, EApiRouteType.GET, EApiDtoType.RESPONSE, "owner", {
+			relationDescription: "owner",
+		});
+		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, dto.prototype, "id");
+
+		expect(metadata.description).toBe("Order owner identifier");
+		expect(metadata.description).not.toBe("Order identifier");
+	});
+
+	it("uses the relation property name when relation description is missing", () => {
+		const dto = DtoGenerateRelationResponse(entity, EApiRouteType.GET, EApiDtoType.RESPONSE, "owner");
+		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, dto.prototype, "id");
+
+		expect(metadata.description).toBe("Order owner identifier");
+	});
 });

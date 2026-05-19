@@ -23,6 +23,32 @@ The decorator stores values in `MetadataStorage`, allowing factory pipelines to 
 
 For built-in string formats, `GetDefaultStringFormatProperties(format)` returns the package defaults for `description`, `exampleValue`, `minLength`, `maxLength`, and `pattern`. Spread those defaults when you want examples to stay aligned with the validator for formats such as email, URL, UUID, slug, or API key.
 
+## Relation metadata
+
+`EApiPropertyDescribeType.RELATION` should be used together with a TypeORM relation decorator such as `@ManyToOne(() => CurrencyEntity)`. The generator reads TypeORM relation metadata to identify the target entity.
+
+For response DTOs, relation references are rendered as a small object with an `id` field. The nested identifier description is relation-aware:
+
+```typescript
+class DepositEntity {
+	@ManyToOne(() => CurrencyEntity)
+	@ApiPropertyDescribe({
+		description: "currency",
+		type: EApiPropertyDescribeType.RELATION,
+	})
+	currency!: CurrencyEntity;
+}
+```
+
+This produces Swagger descriptions like:
+
+```typescript
+currency.description === "DepositEntity currency";
+currency.id.description === "DepositEntity currency identifier";
+```
+
+For request DTOs, relation references remain UUID references unless route relation loading is configured to read another reference key at runtime.
+
 ## Example
 
 ```typescript

@@ -7,7 +7,7 @@ import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 @Entity("copy_entities")
@@ -30,6 +30,50 @@ class CopyEntity {
 		type: EApiPropertyDescribeType.STRING,
 	})
 	public name!: string;
+}
+
+@Entity("copy_currency_entities")
+class CopyCurrencyEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		description: "id",
+		type: EApiPropertyDescribeType.UUID,
+	})
+	public id!: string;
+}
+
+@Entity("copy_deposit_entities")
+class CopyDepositEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		description: "id",
+		type: EApiPropertyDescribeType.UUID,
+	})
+	public id!: string;
+
+	@ManyToOne(() => CopyCurrencyEntity)
+	@ApiPropertyDescribe({
+		description: "currency",
+		type: EApiPropertyDescribeType.RELATION,
+	})
+	public currency!: CopyCurrencyEntity;
+}
+
+@Entity("copy_invalid_relation_entities")
+class CopyInvalidRelationEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		description: "id",
+		type: EApiPropertyDescribeType.UUID,
+	})
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({
+		description: "country",
+		type: EApiPropertyDescribeType.RELATION,
+	})
+	public country!: string;
 }
 
 @Entity("copy_missing_metadata_entities")
@@ -101,6 +145,61 @@ describe("ApiPropertyCopy", () => {
 
 		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, CopyDto.prototype, "name");
 		expect(metadata).toBeDefined();
+	});
+
+	it("copies relation response decorators with a relation-aware nested id description", () => {
+		class CopyRelationResponseDto {
+			@ApiPropertyCopy({
+				entity: CopyDepositEntity,
+				propertyName: "currency",
+				method: EApiRouteType.GET,
+				dtoType: EApiDtoType.RESPONSE,
+			})
+			public currency!: CopyCurrencyEntity;
+		}
+
+		const relationMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, CopyRelationResponseDto.prototype, "currency");
+		const relationDto = relationMetadata.type;
+		const idMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, relationDto.prototype, "id");
+
+		expect(relationMetadata.description).toBe("CopyDepositEntity currency");
+		expect(idMetadata.description).toBe("CopyDepositEntity currency identifier");
+		expect(idMetadata.description).not.toBe("CopyDepositEntity identifier");
+	});
+
+	it("keeps request relation copies as UUID references", () => {
+		class CopyRelationRequestDto {
+			@ApiPropertyCopy({
+				entity: CopyDepositEntity,
+				propertyName: "currency",
+				method: EApiRouteType.CREATE,
+				dtoType: EApiDtoType.BODY,
+			})
+			public currency!: string;
+		}
+
+		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, CopyRelationRequestDto.prototype, "currency");
+
+		expect(metadata.description).toBe("CopyDepositEntity currency");
+		expect(metadata.type).toBe("string");
+	});
+
+	it("throws a clear error when relation metadata is missing its TypeORM relation target", () => {
+		const buildDto = () => {
+			class CopyInvalidRelationDto {
+				@ApiPropertyCopy({
+					entity: CopyInvalidRelationEntity,
+					propertyName: "country",
+					method: EApiRouteType.CREATE,
+					dtoType: EApiDtoType.BODY,
+				})
+				public country!: string;
+			}
+
+			return CopyInvalidRelationDto;
+		};
+
+		expect(buildDto).toThrow("Property CopyInvalidRelationEntity.country is marked as RELATION but TypeORM relation target metadata was not found");
 	});
 
 	it("throws when property is not found on entity", () => {
