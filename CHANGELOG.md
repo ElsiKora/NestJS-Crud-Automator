@@ -1,3 +1,11 @@
+## [2.1.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.1.1...v2.1.2) (2026-05-19)
+
+
+### Bug Fixes
+
+* **deps:** pin swagger before exports regression ([55c5ad3](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/55c5ad3be0aec503ba28cde83a26e0fe9c4090f5))
+* **swagger:** correct relation response identifiers ([a86cd92](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/a86cd92319f07de27cd332ba934dd8fce2a415ce))
+
 ## [2.1.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.1.0...v2.1.1) (2026-05-11)
 
 
