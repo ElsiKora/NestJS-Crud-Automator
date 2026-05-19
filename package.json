@@ -72,7 +72,7 @@
 		"@nestjs/core": "^11.1.19",
 		"@nestjs/passport": "^11.0.5",
 		"@nestjs/platform-fastify": "^11.1.19",
-		"@nestjs/swagger": "^11.4.2",
+		"@nestjs/swagger": "11.4.2",
 		"@nestjs/testing": "^11.1.19",
 		"@nestjs/throttler": "^6.5.0",
 		"@nestjs/typeorm": "^11.0.1",
