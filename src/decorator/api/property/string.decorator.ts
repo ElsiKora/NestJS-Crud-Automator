@@ -228,6 +228,9 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 			case EApiPropertyStringType.BCRYPT:
 			// falls through
 
+			case EApiPropertyStringType.BIGINT_STRING:
+			// falls through
+
 			case EApiPropertyStringType.COORDINATES:
 			// falls through
 
@@ -556,7 +559,9 @@ function buildFormatDecorators(properties: TApiPropertyStringProperties): Array<
 			}
 
 			default: {
-				throw ErrorException(`ApiPropertyString error: Format is not valid for string property: ${String(properties.format)}`);
+				const format: unknown = properties.format;
+
+				throw ErrorException(`ApiPropertyString error: Format is not valid for string property: ${String(format)}`);
 			}
 		}
 	}

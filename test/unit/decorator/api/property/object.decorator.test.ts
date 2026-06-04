@@ -1,105 +1,13 @@
 import "reflect-metadata";
 
 import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
-import { plainToInstance } from "class-transformer";
-import { IsString, validateSync } from "class-validator";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
+import { plainToInstance } from "class-transformer";
+import { validateSync } from "class-validator";
 import { describe, expect, it } from "vitest";
 
-class ObjectEntity {}
-
-class ChildDto {
-	@IsString()
-	public name!: string;
-}
-
-class ParentDto {
-	@ApiPropertyObject({
-		description: "payload",
-		entity: ObjectEntity,
-		isRequired: true,
-		shouldValidateNested: true,
-		type: ChildDto,
-	})
-	public payload!: ChildDto;
-}
-
-class FreeformResponseDto {
-	@ApiPropertyObject({
-		description: "payload",
-		entity: ObjectEntity,
-		isRequired: true,
-		isResponse: true,
-		type: Object,
-	})
-	public payload!: Record<string, unknown>;
-}
-
-class ObjectArrayDto {
-	@ApiPropertyObject({
-		description: "payloads",
-		entity: ObjectEntity,
-		isArray: true,
-		isRequired: true,
-		isUniqueItems: true,
-		maxItems: 3,
-		minItems: 2,
-		shouldValidateNested: true,
-		type: ChildDto,
-	})
-	public payloads!: Array<ChildDto>;
-}
-
-class CatDto {
-	@IsString()
-	public kind!: string;
-}
-
-class DogDto {
-	@IsString()
-	public kind!: string;
-}
-
-class DiscriminatorDto {
-	@ApiPropertyObject({
-		description: "pet",
-		discriminator: {
-			mapping: {
-				cat: CatDto,
-				dog: DogDto,
-			},
-			propertyName: "kind",
-			shouldKeepDiscriminatorProperty: true,
-		},
-		entity: ObjectEntity,
-		isRequired: true,
-		shouldValidateNested: true,
-		type: [CatDto, DogDto],
-	})
-	public pet!: CatDto | DogDto;
-}
-
-class DynamicDto {
-	@ApiPropertyObject({
-		description: "dynamic",
-		discriminator: {
-			mapping: {
-				cat: "CatDto",
-			},
-			propertyName: "kind",
-			shouldKeepDiscriminatorProperty: true,
-		},
-		entity: ObjectEntity,
-		generatedDTOs: {
-			CatDto,
-		},
-		isDynamicallyGenerated: true,
-		isRequired: true,
-		shouldValidateNested: true,
-		type: [CatDto],
-	})
-	public dynamic!: CatDto;
-}
+import { CatDto, ChildDto, DiscriminatorDto, DogDto, DynamicDto, FreeformResponseDto, ObjectArrayDto, ObjectEntity, ParentDto } from "./object/fixture";
 
 describe("ApiPropertyObject", () => {
 	it("writes swagger metadata for single objects", () => {
@@ -169,6 +77,10 @@ describe("ApiPropertyObject", () => {
 		expect(metadata?.discriminator?.propertyName).toBe("kind");
 	});
 
+	it("registers polymorphic object variants as nested DTO children", () => {
+		expect(GetRegisteredAutoDtoChildrenRecursive(DiscriminatorDto.prototype)).toEqual(expect.arrayContaining([CatDto, DogDto]));
+	});
+
 	it("applies discriminator validation rules", () => {
 		const instance = plainToInstance(DiscriminatorDto, { pet: { name: "Unknown" } });
 		const errors = validateSync(instance);
@@ -182,6 +94,29 @@ describe("ApiPropertyObject", () => {
 
 		expect(metadata?.oneOf).toHaveLength(1);
 		expect(metadata?.discriminator?.propertyName).toBe("kind");
+	});
+
+	it("throws when discriminator config does not match object variants", () => {
+		const applyDecorator = () => {
+			const decorator = ApiPropertyObject({
+				description: "pet",
+				discriminator: {
+					mapping: {
+						cat: CatDto,
+					},
+					propertyName: "kind",
+					shouldKeepDiscriminatorProperty: true,
+				},
+				entity: ObjectEntity,
+				isRequired: true,
+				shouldValidateNested: true,
+				type: [CatDto, DogDto],
+			});
+
+			decorator({}, "pet");
+		};
+
+		expect(applyDecorator).toThrow("type contains DTO DogDto");
 	});
 
 	it("throws when array object lacks nested validation", () => {

@@ -6,8 +6,10 @@ import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiRouteType } from "@enum/decorator/api";
 import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, SetMetadata, UseGuards } from "@nestjs/common";
-import { ApiBadRequestResponse, ApiBearerAuth, ApiConflictResponse, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
+import { ApiBadRequestResponse, ApiBearerAuth, ApiConflictResponse, ApiExtraModels, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
+import { ApiRouteBuildDiscriminatedDtoOpenApiSchema } from "@utility/api/route/discriminator";
+import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto";
 import { DtoGenerateException } from "@utility/dto/generate/exception.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
@@ -61,6 +63,42 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 		}
 	}
 
+	const successResponseDecorators: Array<MethodDecorator> = [];
+
+	if (metadata.response && metadata.response.status !== HttpStatus.NO_CONTENT && Array.isArray(metadata.response.type)) {
+		if (!metadata.response.discriminator) {
+			throw ErrorException("ApiMethod error: response.discriminator is required when response.type is an array");
+		}
+
+		const responseDtos: Array<Type<unknown>> = [];
+		ApiRouteCollectDtoWithRegisteredChildren(responseDtos, metadata.response.type);
+
+		successResponseDecorators.push(
+			ApiExtraModels(...responseDtos),
+			ApiResponse({
+				description: "Success",
+				schema: ApiRouteBuildDiscriminatedDtoOpenApiSchema(
+					{
+						discriminator: metadata.response.discriminator,
+						type: metadata.response.type,
+					},
+					"ApiMethod response",
+				),
+				status: metadata.response.status,
+			}),
+		);
+	} else {
+		const responseType: Type<unknown> | undefined = Array.isArray(metadata.response?.type) ? undefined : metadata.response?.type;
+
+		successResponseDecorators.push(
+			ApiResponse({
+				description: "Success",
+				status: metadata.response?.status,
+				type: responseType,
+			}),
+		);
+	}
+
 	const decorators: Array<MethodDecorator> = [
 		SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, metadata),
 		ApiOperation({
@@ -68,11 +106,7 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 			operationId: metadata.documentation?.operationId,
 			summary: operationSummary,
 		}),
-		ApiResponse({
-			description: "Success",
-			status: metadata.response?.status,
-			type: metadata.response?.type,
-		}),
+		...successResponseDecorators,
 		HttpCode(metadata.response?.status ?? HttpStatus.OK),
 	];
 

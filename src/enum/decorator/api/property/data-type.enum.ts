@@ -2,6 +2,7 @@ export enum EApiPropertyDataType {
 	API_KEY = "api-key",
 	BASE64 = "base64",
 	BCRYPT = "bcrypt",
+	BIGINT_STRING = "bigint-string",
 	BITCOIN_ADDRESS = "bitcoin-address",
 	BOOLEAN = "boolean",
 	COORDINATES = "coordinates",

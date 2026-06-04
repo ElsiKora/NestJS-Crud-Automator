@@ -1,0 +1,9 @@
+export { CatDto } from "./cat.dto";
+export { ChildDto } from "./child.dto";
+export { DiscriminatorDto } from "./discriminator.dto";
+export { DogDto } from "./dog.dto";
+export { DynamicDto } from "./dynamic.dto";
+export { ObjectEntity } from "./entity";
+export { FreeformResponseDto } from "./freeform-response.dto";
+export { ObjectArrayDto } from "./object-array.dto";
+export { ParentDto } from "./parent.dto";

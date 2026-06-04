@@ -37,10 +37,13 @@ function GetEntityColumns<E>(properties: IGetEntityColumnsProperties): Array<key
 
 Returns the default description, example, length bounds, and regex pattern for supported string formats.
 
-**Location:** `src/utility/api/get-default-string-format-properties.utility.ts`
+**Location:** `src/utility/api/get-default-string-format-properties/utility.ts`
 
 ```typescript
-function GetDefaultStringFormatProperties(format: TApiPropertyDefaultStringFormat): TApiPropertyDefaultStringFormatProperties;
+function GetDefaultStringFormatProperties<TFormat extends TApiPropertyDefaultStringFormat>(
+	format: TFormat,
+	...parameters: TApiGetDefaultStringFormatPropertiesParameters<TFormat>
+): TApiPropertyDefaultStringFormatProperties;
 ```
 
 **Usage:**
@@ -54,6 +57,14 @@ const emailDefaults = GetDefaultStringFormatProperties(EApiPropertyStringType.EM
 	...emailDefaults,
 })
 email!: string;
+```
+
+`BIGINT_STRING` accepts format-specific options:
+
+```typescript
+const unsignedBigintDefaults = GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, {
+	sign: "unsigned",
+});
 ```
 
 ### DtoGenerate

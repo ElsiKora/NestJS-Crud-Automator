@@ -1,4 +1,4 @@
-export type * from "./api/controller/transform-data";
+export type * from "./api";
 export { type TCapitalizeString } from "./capitalize-string.type";
 export type * from "./date";
 export type * from "./dto";

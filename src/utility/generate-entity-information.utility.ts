@@ -150,7 +150,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 			if (typeof resolvedRelationTarget === "string") {
 				relationTarget = { name: resolvedRelationTarget };
 			} else if (typeof resolvedRelationTarget === "function" && resolvedRelationTarget.name) {
-				relationTarget = resolvedRelationTarget as unknown as IApiBaseEntity;
+				relationTarget = resolvedRelationTarget;
 			} else if (typeof resolvedRelationTarget === "object" && resolvedRelationTarget !== null && "name" in resolvedRelationTarget && typeof (resolvedRelationTarget as { name?: unknown }).name === "string") {
 				relationTarget = resolvedRelationTarget as IApiBaseEntity;
 			}

@@ -474,6 +474,53 @@ public promote(@Param("id") id: string) {
 }
 ```
 
+Custom routes also support flat root-level discriminated request bodies and responses. Use this when the entire body or response is a command/result union; keep using `ApiPropertyObject` when only a nested property is polymorphic.
+
+```typescript
+@ApiRouteCustom<UserEntity>({
+	resource: { action: "registration.create", entity: UserEntity },
+	route: { method: RequestMethod.POST, path: "registrations" },
+	dto: {
+		body: {
+			type: [EmailRegistrationBodyDto, UsernameRegistrationBodyDto],
+			validatorOptions: {
+				skipMissingProperties: true,
+			},
+			discriminator: {
+				propertyName: "channel",
+				shouldKeepDiscriminatorProperty: true,
+				mapping: {
+					email: EmailRegistrationBodyDto,
+					username: UsernameRegistrationBodyDto,
+				},
+			},
+		},
+	},
+	response: {
+		status: HttpStatus.CREATED,
+		type: [VerificationResponseDto, SessionResponseDto],
+		discriminator: {
+			propertyName: "mode",
+			shouldKeepDiscriminatorProperty: true,
+			mapping: {
+				verification: VerificationResponseDto,
+				session: SessionResponseDto,
+			},
+		},
+		serialization: { isEnabled: true },
+	},
+})
+public register(@Body() body: EmailRegistrationBodyDto | UsernameRegistrationBodyDto) {
+	return this.service.register(body);
+}
+```
+
+Swagger emits `oneOf` plus OpenAPI discriminator metadata for both sides. Request bodies are transformed and validated as the selected DTO variant before the controller method runs. Serialized responses select the declared response DTO variant by discriminator and still strip fields that are not exposed. Existing single DTO configs (`dto.body: SomeDto`, `response.type: SomeDto`, and `response.type: undefined`) and generated CRUD routes keep their existing behavior.
+
+Declare the discriminator field, such as `channel` or `mode`, on every variant DTO with the usual property decorators. If `shouldKeepDiscriminatorProperty` is `false`, make that DTO property optional so Swagger can still document the input contract while the transformed instance omits the field.
+
+Root-level discriminator selection runs before Nest can infer a concrete DTO class, so global `ValidationPipe` options are not applied automatically to the selected variant. Add `validatorOptions` or `transformOptions` to the discriminated body config when a route needs specific validation or transformation settings.
+
 Function decorators support explicit transaction modes without exposing `EntityManager` as a public method argument:
 
 ```typescript

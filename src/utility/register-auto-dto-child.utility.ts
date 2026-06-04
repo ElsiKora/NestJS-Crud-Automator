@@ -16,6 +16,19 @@ export function GetRegisteredAutoDtoChildren(parentPrototype: object): Set<Type<
 }
 
 /**
+ * Returns all registered child DTO constructors for the provided parent prototype recursively.
+ * @param {object} parentPrototype - Parent DTO prototype.
+ * @returns {Array<Type<unknown>>} Registered child constructors including nested descendants.
+ */
+export function GetRegisteredAutoDtoChildrenRecursive(parentPrototype: object): Array<Type<unknown>> {
+	const collected: Set<Type<unknown>> = new Set<Type<unknown>>();
+
+	collectRegisteredAutoDtoChildren(parentPrototype, collected);
+
+	return [...collected];
+}
+
+/**
  * Registers DTO constructors as children of the provided parent prototype.
  * Used to propagate auto DTO context to nested manual DTOs.
  * @param {object} parentPrototype - Parent DTO prototype.
@@ -50,6 +63,29 @@ export function RegisterAutoDtoChild(parentPrototype: object, child: unknown): v
 			children.add(childConstructor);
 			inheritExistingContexts(parentPrototype, childConstructor.prototype as object);
 		}
+	}
+}
+
+/**
+ * Collects registered child DTO constructors recursively.
+ * @param {object} parentPrototype - Parent DTO prototype.
+ * @param {Set<Type<unknown>>} collected - Accumulator for discovered constructors.
+ * @returns {void}
+ */
+function collectRegisteredAutoDtoChildren(parentPrototype: object, collected: Set<Type<unknown>>): void {
+	const children: Set<Type<unknown>> | undefined = AUTO_DTO_CHILDREN.get(parentPrototype);
+
+	if (!children) {
+		return;
+	}
+
+	for (const child of children) {
+		if (collected.has(child)) {
+			continue;
+		}
+
+		collected.add(child);
+		collectRegisteredAutoDtoChildren(child.prototype as object, collected);
 	}
 }
 
