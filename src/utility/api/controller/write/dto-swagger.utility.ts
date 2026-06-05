@@ -12,6 +12,7 @@ import { EApiDtoType, EApiPropertyDescribeType } from "@enum/decorator/api";
 import { DECORATORS } from "@nestjs/swagger/dist/constants.js";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
 
 /**
  * Generates and registers Swagger documentation for DTOs.
@@ -58,14 +59,18 @@ export function ApiControllerWriteDtoSwagger<E extends IApiBaseEntity>(target: o
 	const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, responseDto];
 
 	for (const dto of dtoList) {
-		if (dto && !swaggerModels.includes(dto)) {
-			swaggerModels.push(dto);
+		for (const swaggerDto of dto ? [dto, ...GetRegisteredAutoDtoChildrenRecursive(dto.prototype as object)] : []) {
+			if (swaggerModels.includes(swaggerDto)) {
+				continue;
+			}
+
+			swaggerModels.push(swaggerDto);
 
 			const storage: MetadataStorage = MetadataStorage.getInstance();
 			const mergedMetadata: TMetadata = {};
 			let hasMetadata: boolean = false;
 
-			for (const entityName of [...entityNames].reverse()) {
+			for (const entityName of entityNames.toReversed()) {
 				const currentMetadata: TMetadata | undefined = storage.getMetadata(entityName);
 
 				if (currentMetadata) {

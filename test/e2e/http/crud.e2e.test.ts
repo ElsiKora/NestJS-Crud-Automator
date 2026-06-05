@@ -1099,6 +1099,72 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eCustomRouteSubscriber.events).toEqual(expect.arrayContaining(["custom-route:before:custom.echo", "custom-route:after:custom.echo"]));
 	});
 
+	it("executes discriminated ApiRouteCustom request and response DTOs", async () => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { channel: "email", email: "user@example.com" },
+			url: "/custom-route/discriminated-registration",
+		});
+
+		expect(response.statusCode).toBe(201);
+		expect(response.json()).toEqual({
+			bodyClass: "E2eCustomRouteDiscriminatedEmailBodyDto",
+			mode: "verification",
+			verificationToken: "user@example.com",
+		});
+		expect(response.json()).not.toHaveProperty("hidden");
+		expect(response.json()).not.toHaveProperty("sessionToken");
+	});
+
+	it("rejects discriminated ApiRouteCustom bodies with missing or invalid discriminators", async () => {
+		const missingResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { email: "user@example.com" },
+			url: "/custom-route/discriminated-registration",
+		});
+		const invalidResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { channel: "phone", email: "user@example.com" },
+			url: "/custom-route/discriminated-registration",
+		});
+
+		expect(missingResponse.statusCode).toBe(400);
+		expect(invalidResponse.statusCode).toBe(400);
+		expect(Array.isArray(missingResponse.json().message)).toBe(true);
+		expect(invalidResponse.json().message).toEqual([expect.stringContaining("channel has invalid discriminator value 'phone'")]);
+	});
+
+	it("runs validation for the selected discriminated ApiRouteCustom body variant", async () => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { channel: "email", email: 123 },
+			url: "/custom-route/discriminated-registration",
+		});
+
+		expect(response.statusCode).toBe(400);
+		expect(response.json().message).toEqual([expect.stringContaining("email must be a string")]);
+	});
+
+	it("honors shouldKeepDiscriminatorProperty for discriminated ApiRouteCustom bodies", async () => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { channel: "token", token: "one-click" },
+			url: "/custom-route/discriminated-strip",
+		});
+
+		expect(response.statusCode).toBe(200);
+		expect(response.json()).toEqual({
+			bodyClass: "E2eCustomRouteDiscriminatedStrippedBodyDto",
+			token: "one-click",
+		});
+		expect(response.json()).not.toHaveProperty("channel");
+	});
+
 	it("fires custom route before_error hooks when request target validation fails", async () => {
 		const response = await fastify.inject({
 			headers: adminHeaders,

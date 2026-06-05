@@ -12,8 +12,8 @@ const hookPermissionResolverLogger: LoggerUtility = LoggerUtility.getLogger("Api
 export class ApiAuthorizationHookPermissionResolver {
 	public constructor(
 		private readonly cache: ApiAuthorizationHookPermissionCache,
-		@Optional()
 		@Inject(AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN)
+		@Optional()
 		private readonly sources: ReadonlyArray<IApiHookPermissionSource> = [],
 	) {}
 

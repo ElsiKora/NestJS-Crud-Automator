@@ -16,9 +16,11 @@ import type {
 	TApiAuthorizationPolicyBeforeGetResult,
 	TApiAuthorizationPolicyBeforePartialUpdateContext,
 	TApiAuthorizationPolicyBeforePartialUpdateResult,
+	TApiGetDefaultStringFormatPropertiesBigIntStringOptions,
+	TApiRouteDiscriminatedDtoProperties,
 } from "../../src/index";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, EApiAuthorizationMode, EApiAuthorizationPrincipalType } from "../../src/index";
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPropertyStringType, GetDefaultStringFormatProperties } from "../../src/index";
 import { describe, expect, it } from "vitest";
 
 class PublicApiUser {
@@ -28,6 +30,8 @@ class PublicApiUser {
 
 	public role?: string;
 }
+
+class PublicApiEmailBodyDto {}
 
 class PublicApiPrincipalResolver implements IApiAuthorizationPrincipalResolver {
 	public resolve(user: unknown): IApiAuthorizationPrincipal {
@@ -125,6 +129,19 @@ describe("public authorization API (E2E)", () => {
 				id: "user-1",
 			},
 		};
+		const routeDiscriminatorConfig: TApiRouteDiscriminatedDtoProperties = {
+			discriminator: {
+				mapping: {
+					email: PublicApiEmailBodyDto,
+				},
+				propertyName: "channel",
+			},
+			type: [PublicApiEmailBodyDto],
+		};
+		const bigintStringOptions: TApiGetDefaultStringFormatPropertiesBigIntStringOptions = {
+			sign: "unsigned",
+		};
+		const bigintStringDefaults = GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, bigintStringOptions);
 		const resolvedPrincipal: IApiAuthorizationPrincipal = await Promise.resolve(
 			principalResolver.resolve({
 				id: "user-1",
@@ -136,6 +153,8 @@ describe("public authorization API (E2E)", () => {
 		expect(moduleOptions.hookPermissionSources).toEqual([publicApiHookPermissionSource]);
 		expect(requestMetadata.body).toEqual({ role: "operator-user" });
 		expect(requestMetadata.parameters).toEqual({ id: "user-1" });
+		expect(routeDiscriminatorConfig.discriminator.propertyName).toBe("channel");
+		expect(bigintStringDefaults.pattern).toBe(String.raw`/^(0|[1-9]\d{0,19})$/`);
 		expect(AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN).toBe("API_AUTHORIZATION_PRINCIPAL_RESOLVER");
 		expect(resolvedPrincipal.id).toBe("user-1");
 		expect(EApiAuthorizationMode.HOOKS).toBe("hooks");

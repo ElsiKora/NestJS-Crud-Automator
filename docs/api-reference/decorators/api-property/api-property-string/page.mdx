@@ -57,6 +57,30 @@ class UserDto {
 }
 ```
 
+## BigInt string defaults
+
+`EApiPropertyStringType.BIGINT_STRING` describes a decimal integer stored as a string. Use format-specific options when you need to restrict the sign:
+
+```typescript
+class AccountDto {
+	@ApiPropertyString({
+		entity: AccountEntity,
+		format: EApiPropertyStringType.BIGINT_STRING,
+		...GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, {
+			sign: "unsigned",
+		}),
+		isRequired: true,
+	})
+	balance!: string;
+}
+```
+
+Supported `sign` values:
+
+- `signed` accepts zero, positive, and negative values. This is the default.
+- `unsigned` accepts zero and positive values.
+- `negative` accepts only negative values.
+
 ## Related resources
 
 - [Property Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-property)

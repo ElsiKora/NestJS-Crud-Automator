@@ -12,13 +12,7 @@ import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { describe, expect, it } from "vitest";
 
-class MethodEntity {
-	public id?: string;
-}
-
-class MethodController {
-	public handler(): void {}
-}
+import { MethodController, MethodEmailPayloadDto, MethodEmailResponseDto, MethodEntity, MethodPhonePayloadDto, MethodPhoneResponseDto } from "./method/fixture";
 
 const createMetadata = (overrides: Partial<IApiRouteMetadata<MethodEntity>> = {}): IApiRouteMetadata<MethodEntity> => ({
 	documentation: {
@@ -113,6 +107,48 @@ describe("ApiMethod", () => {
 		applyDecorator(ApiMethod({ metadata }));
 
 		expect(Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, MethodController.prototype.handler)).toEqual(metadata);
+	});
+
+	it("writes discriminated success response swagger metadata", () => {
+		applyDecorator(
+			ApiMethod({
+				metadata: createMetadata({
+					response: {
+						discriminator: {
+							mapping: {
+								email: MethodEmailResponseDto,
+								phone: MethodPhoneResponseDto,
+							},
+							propertyName: "channel",
+						},
+						status: HttpStatus.OK,
+						type: [MethodEmailResponseDto, MethodPhoneResponseDto],
+					},
+				}),
+			}),
+		);
+
+		const responses = (Reflect.getMetadata(DECORATORS.API_RESPONSE, MethodController.prototype, "handler") ?? Reflect.getMetadata(DECORATORS.API_RESPONSE, MethodController.prototype.handler)) as unknown;
+		const extraModels = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, MethodController.prototype, "handler") ?? Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, MethodController.prototype.handler)) as Array<unknown>;
+
+		expect(JSON.stringify(responses)).toContain("oneOf");
+		expect(JSON.stringify(responses)).toContain("channel");
+		expect(extraModels).toEqual(expect.arrayContaining([MethodEmailResponseDto, MethodPhoneResponseDto]));
+		expect(extraModels).toEqual(expect.arrayContaining([MethodEmailPayloadDto, MethodPhonePayloadDto]));
+	});
+
+	it("throws when discriminated success response is missing discriminator metadata", () => {
+		const invoke = () =>
+			ApiMethod({
+				metadata: createMetadata({
+					response: {
+						status: HttpStatus.OK,
+						type: [MethodEmailResponseDto, MethodPhoneResponseDto],
+					},
+				}),
+			});
+
+		expect(invoke).toThrow("response.discriminator is required");
 	});
 
 	it("throws for unsupported HTTP methods", () => {

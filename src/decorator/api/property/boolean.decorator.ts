@@ -29,7 +29,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, Validate
  * number values (0/non-zero), and proper boolean values. This makes it robust when working with
  * form data and query parameters.
  * @param {TApiPropertyBaseProperties} properties - Configuration options for the boolean property
- * @returns {Function} A decorator function that can be applied to a class property
+ * @returns {PropertyDecorator} A decorator function that can be applied to a class property
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-boolean | API Reference - ApiPropertyBoolean}
  * @example
  * ```typescript
@@ -98,10 +98,10 @@ function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPro
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: !!properties.isNullable,
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		required: properties.isRequired,
 		type: EApiPropertyDataType.BOOLEAN,
 	};
-
-	apiPropertyOptions.required = properties.isRequired;
 
 	if (properties.isArray) {
 		apiPropertyOptions.isArray = true;
@@ -124,11 +124,7 @@ function buildApiPropertyOptions(properties: TApiPropertyBaseProperties): ApiPro
  * @private
  */
 function buildDecorators(properties: TApiPropertyBaseProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties));
-
-	return decorators;
+	return [ApiProperty(apiPropertyOptions), ...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties)];
 }
 
 /**

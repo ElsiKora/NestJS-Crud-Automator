@@ -1,6 +1,5 @@
 import { EMastMatchOneOfSchemasValidationErrorType } from "@enum/validator";
 import { IMustMatchOneOfSchemasDiscriminatorConfig } from "@interface/validator";
-import { Type } from "@nestjs/common";
 import { TTypeDiscriminator, TTypeDynamicDiscriminator } from "@type/decorator/api/property";
 import { ErrorException } from "@utility/error/exception.utility";
 import { registerDecorator, ValidationArguments, ValidationOptions, ValidatorConstraint, ValidatorConstraintInterface } from "class-validator";
@@ -16,8 +15,6 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 
 	private errorType: EMastMatchOneOfSchemasValidationErrorType = EMastMatchOneOfSchemasValidationErrorType.UNKNOWN;
 
-	private schemasInfo: Record<string, string> = {};
-
 	/**
 	 * Provides a custom error message based on the type of validation failure
 	 * @param {ValidationArguments} _arguments - Validation arguments containing property information
@@ -29,10 +26,8 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 		switch (this.errorType) {
 			case EMastMatchOneOfSchemasValidationErrorType.INVALID_DISCRIMINATOR: {
 				const schemasList: string = this.allowedValues
-					.map((value: string) => {
-						const schemaName: string = this.schemasInfo[value] ?? "Unknown schema";
-
-						return `'${value}' (${schemaName})`;
+					.map((value: string): string => {
+						return `'${value}'`;
 					})
 					.join(", ");
 
@@ -45,10 +40,8 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 
 			case EMastMatchOneOfSchemasValidationErrorType.SCHEMA_MISMATCH: {
 				const schemasList: string = this.allowedValues
-					.map((value: string) => {
-						const schemaName: string = this.schemasInfo[value] ?? "Unknown schema";
-
-						return `'${value}' (${schemaName})`;
+					.map((value: string): string => {
+						return `'${value}'`;
 					})
 					.join(", ");
 
@@ -150,14 +143,13 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 	}
 
 	/**
-	 * Prepares the list of allowed schemas and their names based on validation constraints
+	 * Prepares the list of allowed discriminator values based on validation constraints
 	 * @param {ValidationArguments} _arguments - Validation arguments containing constraints
 	 * @returns {void}
 	 * @private
 	 */
 	private prepareAllowedSchemas(_arguments: ValidationArguments): void {
 		this.allowedValues = [];
-		this.schemasInfo = {};
 
 		const constraints: Array<IMustMatchOneOfSchemasDiscriminatorConfig> = _arguments.constraints as Array<IMustMatchOneOfSchemasDiscriminatorConfig>;
 
@@ -165,41 +157,13 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 			return;
 		}
 
-		const { discriminator, schemas }: IMustMatchOneOfSchemasDiscriminatorConfig = constraints[0];
+		const { discriminator }: IMustMatchOneOfSchemasDiscriminatorConfig = constraints[0];
 
 		if (!discriminator?.mapping) {
 			return;
 		}
 
 		this.allowedValues = Object.keys(discriminator.mapping);
-
-		for (const [key, value] of Object.entries(discriminator.mapping)) {
-			let schemaName: string = "Unknown schema";
-
-			if (Array.isArray(schemas)) {
-				// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
-				const schemaClass: Function | Type<unknown> | undefined = schemas.find((schema: Function | Type<unknown>) => {
-					if (typeof value === "function" && schema === value) {
-						return true;
-					}
-
-					return typeof value === "string" && (schema as { name?: string }).name === value;
-				});
-
-				if (schemaClass) {
-					schemaName = (schemaClass as { name?: string }).name ?? "Anonymous class";
-				}
-			} else if (schemas && typeof schemas === "object") {
-				if (typeof value === "string" && value in schemas) {
-					const schemaClass: { name?: string } = schemas[value] as { name?: string };
-					schemaName = schemaClass.name ?? value;
-				} else if (typeof value === "function") {
-					schemaName = (value as { name?: string }).name ?? "Anonymous class";
-				}
-			}
-
-			this.schemasInfo[key] = schemaName;
-		}
 	}
 }
 

@@ -4,6 +4,7 @@ export enum EApiPropertyStringType {
 	API_KEY = EApiPropertyDataType.API_KEY,
 	BASE64 = EApiPropertyDataType.BASE64,
 	BCRYPT = EApiPropertyDataType.BCRYPT,
+	BIGINT_STRING = EApiPropertyDataType.BIGINT_STRING,
 	BITCOIN_ADDRESS = EApiPropertyDataType.BITCOIN_ADDRESS,
 	COORDINATES = EApiPropertyDataType.COORDINATES,
 	COUNTRY_CODE_ALPHA2 = EApiPropertyDataType.COUNTRY_CODE_ALPHA2,

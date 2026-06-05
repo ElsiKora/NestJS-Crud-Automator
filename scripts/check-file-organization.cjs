@@ -7,6 +7,10 @@ const path = require("path");
 const rootPath = process.argv[2] ? path.resolve(process.argv[2]) : path.join(process.cwd(), "src");
 const issues = [];
 
+function writeWarning(message) {
+	process.stderr.write(`${message}\n`);
+}
+
 function isTsFile(entry) {
 	return entry.isFile() && entry.name.endsWith(".ts");
 }
@@ -75,27 +79,27 @@ function scanDirectory(directoryPath) {
 }
 
 if (!fs.existsSync(rootPath)) {
-	console.warn(`Path does not exist: ${rootPath}`);
+	writeWarning(`Path does not exist: ${rootPath}`);
 	process.exit(1);
 }
 
 scanDirectory(rootPath);
 
 if (issues.length === 0) {
-	console.warn("No file organization issues found.");
+	writeWarning("No file organization issues found.");
 	process.exit(0);
 }
 
-console.warn(`Found ${issues.length} potential file organization issue(s):`);
+writeWarning(`Found ${issues.length} potential file organization issue(s):`);
 
 for (const issue of issues) {
-	console.warn(`\n- ${issue.type} in ${issue.directory}`);
+	writeWarning(`\n- ${issue.type} in ${issue.directory}`);
 
 	if (issue.prefix) {
-		console.warn(`  prefix: ${issue.prefix}`);
+		writeWarning(`  prefix: ${issue.prefix}`);
 	}
 
-	console.warn(`  files: ${issue.files.join(", ")}`);
+	writeWarning(`  files: ${issue.files.join(", ")}`);
 }
 
 process.exit(1);

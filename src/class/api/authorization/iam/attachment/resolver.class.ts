@@ -12,8 +12,8 @@ const iamAttachmentResolverLogger: LoggerUtility = LoggerUtility.getLogger("ApiA
 export class ApiAuthorizationIamAttachmentResolver {
 	public constructor(
 		private readonly cache: ApiAuthorizationIamAttachmentCache,
-		@Optional()
 		@Inject(AUTHORIZATION_POLICY_ATTACHMENT_SOURCES_TOKEN)
+		@Optional()
 		private readonly sources: ReadonlyArray<IApiPolicyAttachmentSource> = [],
 	) {}
 
@@ -76,7 +76,7 @@ export class ApiAuthorizationIamAttachmentResolver {
 
 		const normalizedValue: Record<string, unknown> = {};
 		const recordValue: Record<string, unknown> = value as Record<string, unknown>;
-		const sortedKeys: Array<string> = Object.keys(recordValue).sort((left: string, right: string) => left.localeCompare(right));
+		const sortedKeys: Array<string> = Object.keys(recordValue).toSorted((left: string, right: string) => left.localeCompare(right));
 
 		for (const key of sortedKeys) {
 			normalizedValue[key] = this.normalizeAttachmentValue(recordValue[key]);

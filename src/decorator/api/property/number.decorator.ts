@@ -32,7 +32,7 @@ import random from "lodash/random.js";
  * The decorator can automatically generate an example value within the specified range
  * if one is not provided, and applies appropriate validation rules based on the configuration.
  * @param {TApiPropertyNumberProperties} properties - Configuration options for the number property
- * @returns {Function} A decorator function that can be applied to a class property
+ * @returns {PropertyDecorator} A decorator function that can be applied to a class property
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-number | API Reference - ApiPropertyNumber}
  * @example
  * ```typescript
@@ -123,10 +123,10 @@ function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiP
 		format: getFormat(properties),
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: !!properties.isNullable,
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		required: properties.isRequired,
 		type: properties.format === EApiPropertyNumberType.DOUBLE ? EApiPropertyDataType.NUMBER : EApiPropertyDataType.INTEGER,
 	};
-
-	apiPropertyOptions.required = properties.isRequired;
 
 	if (properties.isArray) {
 		apiPropertyOptions.isArray = true;
@@ -158,11 +158,7 @@ function buildApiPropertyOptions(properties: TApiPropertyNumberProperties): ApiP
  * @private
  */
 function buildDecorators(properties: TApiPropertyNumberProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties), ...buildNumberValidationDecorators(properties));
-
-	return decorators;
+	return [ApiProperty(apiPropertyOptions), ...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties), ...buildNumberValidationDecorators(properties)];
 }
 
 /**

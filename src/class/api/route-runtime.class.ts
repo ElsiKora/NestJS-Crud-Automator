@@ -14,7 +14,10 @@ import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/
 import type { TApiControllerMethod } from "@type/class/controller-method.type";
 import type { TApiControllerGetListQuery, TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetListPropertiesWhere, TApiFunctionGetProperties, TApiFunctionUpdateCriteria } from "@type/decorator/api/function";
+import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 import type { TApiControllerTransformDataObjectToTransform } from "@type/utility";
+import type { ClassConstructor } from "class-transformer";
+import type { ValidationError } from "class-validator";
 import type { DeepPartial, FindOptionsOrder, FindOptionsWhere } from "typeorm";
 
 import { ApiServiceBase } from "@class/api/service-base.class";
@@ -22,6 +25,7 @@ import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiControllerRequestTarget, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiDtoType } from "@enum/decorator/api";
+import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetPrimaryColumn } from "@utility/api/controller/get/primary-column.utility";
@@ -29,11 +33,14 @@ import { ApiControllerHandleRequestRelations } from "@utility/api/controller/han
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
 import { ApiControllerTransformData } from "@utility/api/controller/transform-data.utility";
 import { ApiControllerValidateRequest } from "@utility/api/controller/validate-request.utility";
-import { ApiRouteProjectRelationResponse } from "@utility/api/route";
+import { ApiRouteProjectRelationResponse, ApiRouteValidationFlattenErrors } from "@utility/api/route";
+import { ApiRouteCreateDiscriminatedDtoValidationFailure, ApiRouteIsDiscriminatedDtoProperties, ApiRoutePrepareDiscriminatedDtoPayload, ApiRouteResolveDiscriminatedDto } from "@utility/api/route/discriminator";
 import { ApiRouteSerializeResponse } from "@utility/api/route/response/serialize.utility";
 import { AuthorizationDecisionApplyResult, AuthorizationDecisionAttachResource, AuthorizationDecisionResolveFromRequest } from "@utility/authorization/decision";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { plainToInstance } from "class-transformer";
+import { validate } from "class-validator";
 
 export class ApiRouteRuntime {
 	public static async executeCustom<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>): Promise<R> {
@@ -119,8 +126,10 @@ export class ApiRouteRuntime {
 			return (await Promise.all(response.map(async (item: unknown): Promise<unknown> => await this.loadCustomResponseRelations(controller.service, runtimeProperties, item)))) as R;
 		}
 
-		if (response !== null && typeof response === "object" && "items" in response && Array.isArray((response as { items?: unknown }).items)) {
-			const responseObject: { items: Array<unknown> } = response as { items: Array<unknown> };
+		const responseValue: unknown = response;
+
+		if (responseValue !== null && typeof responseValue === "object" && "items" in responseValue && Array.isArray((responseValue as { items?: unknown }).items)) {
+			const responseObject: { items: Array<unknown> } = responseValue as { items: Array<unknown> };
 			responseObject.items = await Promise.all(responseObject.items.map(async (item: unknown): Promise<unknown> => await this.loadCustomResponseRelations(controller.service, runtimeProperties, item)));
 
 			return response;
@@ -207,6 +216,36 @@ export class ApiRouteRuntime {
 		const transformedResult: R = await AuthorizationDecisionApplyResult(AuthorizationDecisionAttachResource(authorizationDecision as never, finalResult as never) as never, finalResult as never);
 
 		return ApiRouteSerializeResponse(options.metadata, transformedResult);
+	}
+
+	private static async executeDiscriminatedRequestBodyDto<E extends IApiBaseEntity>(runtimeProperties: IApiRouteRuntimeProperties<E>, request: IApiRouteRuntimeHttpRequest<E>): Promise<void> {
+		const bodyDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = runtimeProperties.dto?.[EApiDtoType.BODY];
+
+		if (!ApiRouteIsDiscriminatedDtoProperties(bodyDto)) {
+			return;
+		}
+
+		let selectedDto: Type<unknown>;
+
+		try {
+			selectedDto = ApiRouteResolveDiscriminatedDto(bodyDto, request.body, "ApiRouteCustom body");
+		} catch {
+			const validationError: ValidationError = ApiRouteCreateDiscriminatedDtoValidationFailure(bodyDto, request.body);
+			const validationMessages: Array<string> = ApiRouteValidationFlattenErrors([validationError]);
+
+			throw new BadRequestException(validationMessages);
+		}
+
+		const transformedBody: unknown = plainToInstance(selectedDto as ClassConstructor<unknown>, ApiRoutePrepareDiscriminatedDtoPayload(bodyDto, request.body), bodyDto.transformOptions);
+		const validationErrors: Array<ValidationError> = await validate(transformedBody as object, bodyDto.validatorOptions);
+
+		if (validationErrors.length > 0) {
+			const validationMessages: Array<string> = ApiRouteValidationFlattenErrors(validationErrors);
+
+			throw new BadRequestException(validationMessages);
+		}
+
+		request.body = transformedBody as Partial<E>;
 	}
 
 	private static async executeGeneratedErrorSubscribers<E extends IApiBaseEntity, R extends EApiRouteType>(
@@ -383,6 +422,7 @@ export class ApiRouteRuntime {
 		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.QUERY], controllerProperties, request.query ?? {});
 		ApiControllerTransformData<E>(runtimeProperties.request, controllerProperties, { body: request.body as E | undefined }, contextData);
 		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.BODY], controllerProperties, request.body ?? {});
+		await this.executeDiscriminatedRequestBodyDto(runtimeProperties, request);
 	}
 
 	private static async loadCustomResponseRelations<E extends IApiBaseEntity>(service: ApiServiceBase<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: unknown): Promise<unknown> {

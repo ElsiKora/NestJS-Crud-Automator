@@ -2,12 +2,13 @@ import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { Type as NestType } from "@nestjs/common";
 import type { ApiPropertyOptions } from "@nestjs/swagger";
-import type { TApiPropertyObjectProperties } from "@type/decorator/api/property";
+import type { TApiPropertyObjectProperties, TApiPropertyObjectWithDiscriminatorProperties } from "@type/decorator/api/property";
 import type { ClassConstructor } from "class-transformer";
 
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/dto/manual/property-metadata/decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
+import { ApiDiscriminatorValidateConfig } from "@utility/api/discriminator";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerateContextualManualDto } from "@utility/dto/generate/manual-child.utility";
@@ -32,7 +33,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsObject, ValidateI
  * - Validation rules
  * - Transformation rules
  * @param {TApiPropertyObjectProperties} options - Configuration options for the object property
- * @returns {Function} A decorator function that can be applied to a class property
+ * @returns {PropertyDecorator} A decorator function that can be applied to a class property
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object | API Reference - ApiPropertyObject}
  * @example
  * ```typescript
@@ -53,6 +54,10 @@ export function ApiPropertyObject(options: TApiPropertyObjectProperties): Proper
 			const normalizedOptions: TApiPropertyObjectProperties = resolveContextualObjectOptions(target, propertyKey, { ...options, entity: resolvedEntity });
 
 			RegisterAutoDtoChild(target, normalizedOptions.type);
+
+			if ("isDynamicallyGenerated" in normalizedOptions && normalizedOptions.isDynamicallyGenerated) {
+				RegisterAutoDtoChild(target, Object.values(normalizedOptions.generatedDTOs));
+			}
 
 			validateOptions(normalizedOptions);
 			RegisterManualDtoPropertyMetadata(target, propertyKey, {
@@ -108,7 +113,7 @@ function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiP
 		if (properties.discriminator) {
 			apiPropertyOptions.discriminator = {
 				// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
-				mapping: Object.fromEntries(Object.keys(properties.discriminator.mapping).map((key: string) => [key, getSchemaPath(properties.generatedDTOs[key] as Function)])),
+				mapping: Object.fromEntries(Object.entries(properties.discriminator.mapping).map(([key, value]: [string, string]) => [key, getSchemaPath(properties.generatedDTOs[value] as Function)])),
 				propertyName: properties.discriminator.propertyName,
 			};
 		}
@@ -145,11 +150,7 @@ function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiP
  * @private
  */
 function buildDecorators(properties: TApiPropertyObjectProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildTransformDecorators(properties), ...buildObjectValidationDecorators(properties));
-
-	return decorators;
+	return [ApiProperty(apiPropertyOptions), ...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildTransformDecorators(properties), ...buildObjectValidationDecorators(properties)];
 }
 
 /**
@@ -251,7 +252,7 @@ function buildResponseDecorators(properties: TApiPropertyObjectProperties): Arra
 function buildTransformDecorators(properties: TApiPropertyObjectProperties): Array<PropertyDecorator> {
 	const decorators: Array<PropertyDecorator> = [];
 
-	if (Array.isArray(properties.type) && properties.discriminator) {
+	if (Array.isArray(properties.type) && properties.discriminator && !("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated)) {
 		decorators.push(
 			MustMatchOneOfSchemasValidator({
 				discriminator: properties.discriminator,
@@ -301,6 +302,15 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 	}
 
 	return decorators;
+}
+
+/**
+ * Checks whether object property options use explicit class-based discriminator variants.
+ * @param {TApiPropertyObjectProperties} properties - Object property options.
+ * @returns {boolean} Whether properties contain class-based discriminator variants.
+ */
+function isApiPropertyObjectWithDiscriminatorProperties(properties: TApiPropertyObjectProperties): properties is TApiPropertyObjectWithDiscriminatorProperties {
+	return Array.isArray(properties.type) && "discriminator" in properties && Boolean(properties.discriminator) && !("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated);
 }
 
 /**
@@ -412,5 +422,32 @@ function validateOptions(properties: TApiPropertyObjectProperties): void {
 
 	if (errors.length > 0) {
 		throw ErrorException(`ApiPropertyObject error: ${errors.join("\n")}`);
+	}
+
+	if (isApiPropertyObjectWithDiscriminatorProperties(properties)) {
+		ApiDiscriminatorValidateConfig({
+			context: "ApiPropertyObject",
+			discriminator: properties.discriminator,
+			shouldRequireDeclaredDiscriminatorProperty: true,
+			variants: properties.type as Array<NestType<unknown>>,
+		});
+	}
+
+	if ("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated) {
+		const discriminatorMapping: Record<string, ClassConstructor<unknown>> = Object.fromEntries(
+			Object.entries(properties.discriminator.mapping).map(([key, value]: [string, string]): [string, ClassConstructor<unknown>] => {
+				return [key, properties.generatedDTOs[value] as ClassConstructor<unknown>];
+			}),
+		);
+
+		ApiDiscriminatorValidateConfig({
+			context: "ApiPropertyObject",
+			discriminator: {
+				...properties.discriminator,
+				mapping: discriminatorMapping,
+			},
+			shouldRequireDeclaredDiscriminatorProperty: true,
+			variants: Object.values(properties.generatedDTOs),
+		});
 	}
 }

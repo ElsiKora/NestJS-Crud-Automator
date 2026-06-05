@@ -1,11 +1,12 @@
 import { BadRequestException, Body, Controller, HttpStatus, Inject, Param, Query, RequestMethod } from "@nestjs/common";
 
-import { ApiControllerObservable, ApiRouteCustom, EApiAuthenticationType, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../../src/index";
+import { ApiControllerObservable, ApiRouteCustom, EApiAuthenticationType, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../../src/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eEntity } from "../entity";
 import { E2eOwnerService } from "../owner";
 import { E2eService } from "../service";
+import { E2eCustomRouteDiscriminatedEmailBodyDto, E2eCustomRouteDiscriminatedSessionResponseDto, E2eCustomRouteDiscriminatedStrippedBodyDto, E2eCustomRouteDiscriminatedUsernameBodyDto, E2eCustomRouteDiscriminatedVerificationResponseDto } from "./discriminated";
 import { E2eCustomRouteResponseDto } from "./response.dto";
 
 const authentication = {
@@ -198,5 +199,101 @@ export class E2eCustomRouteController {
 	})
 	public async relations(): Promise<Array<E2eEntity>> {
 		return await this.service.repository.find();
+	}
+
+	@ApiRouteCustom<E2eEntity>({
+		dto: {
+			[EApiDtoType.BODY]: {
+				discriminator: {
+					mapping: {
+						email: E2eCustomRouteDiscriminatedEmailBodyDto,
+						username: E2eCustomRouteDiscriminatedUsernameBodyDto,
+					},
+					propertyName: "channel",
+					shouldKeepDiscriminatorProperty: true,
+				},
+				type: [E2eCustomRouteDiscriminatedEmailBodyDto, E2eCustomRouteDiscriminatedUsernameBodyDto],
+			},
+		},
+		resource: {
+			action: "custom.discriminatedRegistration",
+			entity: E2eEntity,
+		},
+		response: {
+			discriminator: {
+				mapping: {
+					session: E2eCustomRouteDiscriminatedSessionResponseDto,
+					verification: E2eCustomRouteDiscriminatedVerificationResponseDto,
+				},
+				propertyName: "mode",
+				shouldKeepDiscriminatorProperty: true,
+			},
+			serialization: {
+				isEnabled: true,
+			},
+			status: HttpStatus.CREATED,
+			type: [E2eCustomRouteDiscriminatedVerificationResponseDto, E2eCustomRouteDiscriminatedSessionResponseDto],
+		},
+		route: {
+			method: RequestMethod.POST,
+			path: "discriminated-registration",
+		},
+		security: {
+			authentication,
+		},
+	})
+	public discriminatedRegistration(@Body() body: E2eCustomRouteDiscriminatedEmailBodyDto | E2eCustomRouteDiscriminatedUsernameBodyDto): Record<string, unknown> {
+		if (body instanceof E2eCustomRouteDiscriminatedEmailBodyDto) {
+			return {
+				bodyClass: body.constructor.name,
+				hidden: "should-not-serialize",
+				mode: "verification",
+				verificationToken: body.email,
+			};
+		}
+
+		return {
+			bodyClass: body.constructor.name,
+			hidden: "should-not-serialize",
+			mode: "session",
+			sessionToken: body.username,
+		};
+	}
+
+	@ApiRouteCustom<E2eEntity>({
+		dto: {
+			[EApiDtoType.BODY]: {
+				discriminator: {
+					mapping: {
+						token: E2eCustomRouteDiscriminatedStrippedBodyDto,
+					},
+					propertyName: "channel",
+					shouldKeepDiscriminatorProperty: false,
+				},
+				type: [E2eCustomRouteDiscriminatedStrippedBodyDto],
+			},
+		},
+		resource: {
+			action: "custom.discriminatedStripped",
+			entity: E2eEntity,
+		},
+		response: {
+			status: HttpStatus.OK,
+			type: undefined,
+		},
+		route: {
+			method: RequestMethod.POST,
+			path: "discriminated-strip",
+		},
+		security: {
+			authentication,
+		},
+	})
+	public discriminatedStrip(@Body() body: E2eCustomRouteDiscriminatedStrippedBodyDto & { channel?: string }): Record<string, unknown> {
+		return {
+			bodyClass: body.constructor.name,
+			channel: body.channel,
+			token: body.token,
+		};
 	}
 }

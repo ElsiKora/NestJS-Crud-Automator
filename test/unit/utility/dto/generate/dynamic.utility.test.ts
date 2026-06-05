@@ -24,6 +24,15 @@ describe("DtoGenerateDynamic", () => {
 		const metadata = {
 			dataType: {
 				Foo: {
+					type: {
+						description: "type",
+						exampleValue: "foo",
+						format: EApiPropertyStringType.STRING,
+						maxLength: 10,
+						minLength: 1,
+						pattern: "/^.+$/",
+						type: EApiPropertyDescribeType.STRING,
+					},
 					title: {
 						description: "title",
 						exampleValue: "Title",

@@ -15,8 +15,8 @@ export class ApiAuthorizationIamDocumentResolver {
 	public constructor(
 		private readonly cache: ApiAuthorizationIamDocumentCache,
 		private readonly validator: ApiAuthorizationIamDocumentValidator,
-		@Optional()
 		@Inject(AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN)
+		@Optional()
 		private readonly sources: ReadonlyArray<IApiPolicyDocumentSource> = [],
 	) {}
 

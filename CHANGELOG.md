@@ -1,50 +1,43 @@
 ## [2.1.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.1.1...v2.1.2) (2026-05-19)
 
-
 ### Bug Fixes
 
-* **deps:** pin swagger before exports regression ([55c5ad3](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/55c5ad3be0aec503ba28cde83a26e0fe9c4090f5))
-* **swagger:** correct relation response identifiers ([a86cd92](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/a86cd92319f07de27cd332ba934dd8fce2a415ce))
+- **deps:** pin swagger before exports regression ([55c5ad3](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/55c5ad3be0aec503ba28cde83a26e0fe9c4090f5))
+- **swagger:** correct relation response identifiers ([a86cd92](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/a86cd92319f07de27cd332ba934dd8fce2a415ce))
 
 ## [2.1.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.1.0...v2.1.1) (2026-05-11)
 
-
 ### Bug Fixes
 
-* **swagger:** improve route documentation wording ([9dd7367](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/9dd7367332c846c8f065be684289c2a7e9427750))
+- **swagger:** improve route documentation wording ([9dd7367](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/9dd7367332c846c8f065be684289c2a7e9427750))
 
 # [2.1.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.4...v2.1.0) (2026-05-11)
 
-
 ### Bug Fixes
 
-* **swagger:** refine generated route documentation ([d6981dd](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/d6981ddfb9ba89db10bb12913829bdcdb0f9f2e1))
-
+- **swagger:** refine generated route documentation ([d6981dd](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/d6981ddfb9ba89db10bb12913829bdcdb0f9f2e1))
 
 ### Features
 
-* **swagger:** generate route documentation ([646f578](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/646f5783f278258a81b6e0adbc57f8554848e1f5))
+- **swagger:** generate route documentation ([646f578](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/646f5783f278258a81b6e0adbc57f8554848e1f5))
 
 ## [2.0.4](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.3...v2.0.4) (2026-05-08)
 
-
 ### Bug Fixes
 
-* **swagger:** document custom route request dtos ([01e6a77](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/01e6a7739bfa0943ce20ee77085d5b0e26c781ae))
+- **swagger:** document custom route request dtos ([01e6a77](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/01e6a7739bfa0943ce20ee77085d5b0e26c781ae))
 
 ## [2.0.3](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.2...v2.0.3) (2026-05-07)
 
-
 ### Bug Fixes
 
-* **auth:** clean cache invalidation and declarations ([875545d](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/875545d0412ad4b42fa551e68b3455025888010b))
+- **auth:** clean cache invalidation and declarations ([875545d](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/875545d0412ad4b42fa551e68b3455025888010b))
 
 ## [2.0.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.1...v2.0.2) (2026-05-06)
 
-
 ### Bug Fixes
 
-* **esm:** fully specify external subpath imports ([c5c30e7](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/c5c30e73ba07fc8708129414514dec1051e79f9c))
+- **esm:** fully specify external subpath imports ([c5c30e7](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/c5c30e73ba07fc8708129414514dec1051e79f9c))
 
 ## [2.0.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.0.0...v2.0.1) (2026-05-06)
 

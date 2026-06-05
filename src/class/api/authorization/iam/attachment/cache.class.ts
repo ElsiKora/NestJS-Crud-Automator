@@ -33,7 +33,7 @@ export class ApiAuthorizationIamAttachmentCache {
 
 		const normalizedValue: Record<string, unknown> = {};
 		const recordValue: Record<string, unknown> = value as Record<string, unknown>;
-		const sortedKeys: Array<string> = Object.keys(recordValue).sort((left: string, right: string) => left.localeCompare(right));
+		const sortedKeys: Array<string> = Object.keys(recordValue).toSorted((left: string, right: string) => left.localeCompare(right));
 
 		for (const key of sortedKeys) {
 			normalizedValue[key] = this.normalizeValue(recordValue[key]);

@@ -9,7 +9,7 @@ import { EApiFunctionType } from "@enum/decorator/api";
 /**
  * Creates a class decorator that adds CRUD operations to a service class for a specific entity
  * @param {TApiServiceProperties<E>} properties - Configuration properties for the service
- * @returns {Function} A class decorator function that extends the target class with CRUD methods
+ * @returns {ClassDecorator} A class decorator function that extends the target class with CRUD methods
  * @template E - The entity type
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-service/api-service | API Reference - ApiService}
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/core-concepts/services | Core Concepts - Services}

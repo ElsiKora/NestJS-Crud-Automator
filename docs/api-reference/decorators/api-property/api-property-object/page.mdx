@@ -27,6 +27,9 @@ Describes nested object fields in DTOs. Works with single DTO types, arrays, pol
 - Adds `ApiResponseProperty`, `Expose`, or `Exclude` for response DTOs.
 - When a manual DTO is nested inside an auto-generated DTO, creates context-specific wrapper schemas so request and response metadata do not collide.
 - Leaves `type: Object` as a free-form object and does not wrap it as a contextual DTO.
+- When `discriminator` is used, every variant DTO must declare the discriminator property with the usual property decorators, such as `ApiPropertyEnum` or `ApiProperty`.
+
+`@ApiPropertyObject` discriminators apply to nested object properties inside a DTO. For a flat custom route body union or flat polymorphic custom route response, use root-level `ApiRouteCustom.dto.body` and `ApiRouteCustom.response` discriminators instead.
 
 ## Example
 
@@ -35,10 +38,12 @@ class AddressDto {
 	/* ... */
 }
 class BillingAddressDto extends AddressDto {
-	/* ... */
+	@ApiProperty()
+	type!: string;
 }
 class ShippingAddressDto extends AddressDto {
-	/* ... */
+	@ApiProperty()
+	type!: string;
 }
 
 class OrderDto {
