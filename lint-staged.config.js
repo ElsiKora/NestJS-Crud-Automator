@@ -1,6 +1,6 @@
 export default {
 	"*": (files) => {
-		const commands = ["prettier --write --ignore-unknown"];
+		const commands = [`prettier --write --ignore-unknown ${files.join(" ")}`];
 
 		const filteredFiles = files.filter((file) => !file.includes("test/") && !file.includes("tsconfig") && !file.includes("vitest") && !file.includes("CHANGELOG"));
 
