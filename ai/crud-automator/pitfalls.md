@@ -73,7 +73,7 @@ DTO guard visibility is based on the route's configured guard class during DTO g
 
 ## Unsupported Generated GET_LIST Features
 
-Generated GET_LIST supports one `orderBy`, one `orderDirection`, `limit`, `page`, and bracketed filters. Use a custom method for multi-sort or relation-property filters like `author.username`.
+Generated GET_LIST supports one `orderBy`, one `orderDirection`, `limit`, `page`, and bracketed filters. Relation filters use one-level explicit paths such as `author.id[...]` and `author.username[...]`; use a custom method for multi-sort or deeper relation/object filters.
 
 ## Docs Drift
 

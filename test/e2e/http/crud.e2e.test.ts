@@ -833,17 +833,107 @@ describe("CRUD routes (E2E)", () => {
 		expect(listResponse.json().count).toBe("999");
 	});
 
-	it("filters by relation property", async () => {
+	it("filters by explicit relation properties", async () => {
 		await seedFilterItems();
-
-		const listResponse = await fastify.inject({
-			headers: adminHeaders,
-			method: "GET",
-			url: `/items?limit=10&page=1&owner[operator]=eq&owner[value]=${E2E_OWNER_ID}`,
+		await ownerService.repository.save({ id: E2E_OWNER_ID_OTHER, name: "Other Owner" });
+		await service.repository.save({
+			count: 7,
+			id: "filter-other-owner",
+			name: "OtherOwner",
+			ownerId: E2E_OWNER_ID_OTHER,
 		});
 
-		expect(listResponse.statusCode).toBe(200);
-		expect(listResponse.json().items).not.toHaveLength(0);
+		const unscopedAdminHeaders = {
+			...adminHeaders,
+			"x-user-permissions": "admin.item.unscoped",
+		};
+
+		const idMatchResponse = await fastify.inject({
+			headers: unscopedAdminHeaders,
+			method: "GET",
+			url: `/items?limit=1&page=1&owner.id[operator]=eq&owner.id[value]=${E2E_OWNER_ID}`,
+		});
+
+		expect(idMatchResponse.statusCode).toBe(200);
+		expect(idMatchResponse.json().items).toHaveLength(1);
+		expect(idMatchResponse.json().totalCount).toBe(3);
+
+		const idMissResponse = await fastify.inject({
+			headers: unscopedAdminHeaders,
+			method: "GET",
+			url: `/items?limit=1&page=1&owner.id[operator]=eq&owner.id[value]=${E2E_OWNER_ID_OTHER}`,
+		});
+
+		expect(idMissResponse.statusCode).toBe(200);
+		expect(idMissResponse.json().items).toHaveLength(1);
+		expect(idMissResponse.json().items[0]?.id).toBe("filter-other-owner");
+		expect(idMissResponse.json().totalCount).toBe(1);
+
+		const nameMatchResponse = await fastify.inject({
+			headers: unscopedAdminHeaders,
+			method: "GET",
+			url: "/items?limit=1&page=1&owner.name[operator]=eq&owner.name[value]=Owner",
+		});
+
+		expect(nameMatchResponse.statusCode).toBe(200);
+		expect(nameMatchResponse.json().items).toHaveLength(1);
+		expect(nameMatchResponse.json().totalCount).toBe(3);
+
+		const nameMissResponse = await fastify.inject({
+			headers: unscopedAdminHeaders,
+			method: "GET",
+			url: "/items?limit=1&page=1&owner.name[operator]=eq&owner.name[value]=Other%20Owner",
+		});
+
+		expect(nameMissResponse.statusCode).toBe(200);
+		expect(nameMissResponse.json().items).toHaveLength(1);
+		expect(nameMissResponse.json().items[0]?.id).toBe("filter-other-owner");
+		expect(nameMissResponse.json().totalCount).toBe(1);
+
+		const legacyRelationResponse = await fastify.inject({
+			headers: unscopedAdminHeaders,
+			method: "GET",
+			url: `/items?limit=10&page=1&owner[operator]=eq&owner[value]=${E2E_OWNER_ID_OTHER}`,
+		});
+
+		expect(legacyRelationResponse.statusCode).toBe(200);
+		expect(
+			legacyRelationResponse
+				.json()
+				.items.map((item: { id: string }) => item.id)
+				.sort(),
+		).toEqual(["filter-1", "filter-2", "filter-3", "filter-other-owner"]);
+		expect(legacyRelationResponse.json().totalCount).toBe(4);
+
+		const invalidRelationResponse = await fastify.inject({
+			headers: unscopedAdminHeaders,
+			method: "GET",
+			url: "/items?limit=10&page=1&owner.missing[operator]=eq&owner.missing[value]=Owner",
+		});
+
+		expect(invalidRelationResponse.statusCode).toBe(200);
+		expect(
+			invalidRelationResponse
+				.json()
+				.items.map((item: { id: string }) => item.id)
+				.sort(),
+		).toEqual(["filter-1", "filter-2", "filter-3", "filter-other-owner"]);
+		expect(invalidRelationResponse.json().totalCount).toBe(4);
+
+		const deeperRelationResponse = await fastify.inject({
+			headers: unscopedAdminHeaders,
+			method: "GET",
+			url: "/items?limit=10&page=1&owner.name..deep[operator]=eq&owner.name..deep[value]=Owner",
+		});
+
+		expect(deeperRelationResponse.statusCode).toBe(200);
+		expect(
+			deeperRelationResponse
+				.json()
+				.items.map((item: { id: string }) => item.id)
+				.sort(),
+		).toEqual(["filter-1", "filter-2", "filter-3", "filter-other-owner"]);
+		expect(deeperRelationResponse.json().totalCount).toBe(4);
 	});
 
 	it("returns conflict for duplicate unique fields", async () => {

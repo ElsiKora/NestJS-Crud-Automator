@@ -66,6 +66,12 @@ export class E2ePolicySubscriber extends ApiAuthorizationPolicyBase<E2eEntity> {
 	}
 
 	private readonly ownerScope = (context: IApiAuthorizationRuleContext<E2eEntity>) => {
+		const permissions: unknown = context.principal.claims?.permissions;
+
+		if (Array.isArray(permissions) && permissions.some((permission: unknown): boolean => permission === "admin.item.unscoped")) {
+			return {};
+		}
+
 		return {
 			where: {
 				ownerId: this.resolveScopedOwnerId(context.principal),

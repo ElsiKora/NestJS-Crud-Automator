@@ -1,5 +1,5 @@
 import type { IApiControllerPropertiesRouteAutoDtoConfig } from "@interface/decorator/api";
-import type { IApiEntity } from "@interface/entity";
+import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
@@ -19,6 +19,7 @@ import { DtoGetGetListQueryBaseClass } from "@utility/dto/get/get-list-query-bas
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "@utility/dto/is/should-be-generated.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { HasPairedCustomSuffixesFieldsValidator } from "@validator/has/paired-custom-suffixes-fields.validator";
 import { Validate } from "class-validator";
 
@@ -82,15 +83,61 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 			});
 		}
 	}
+
+	const queryFilterProperties: Array<{
+		entityMetadata: IApiEntity<unknown>;
+		metadata: TApiPropertyDescribeProperties;
+		name: string;
+	}> = [];
+
+	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
+		for (const property of markedProperties) {
+			if (property.metadata.type !== EApiPropertyDescribeType.RELATION) {
+				queryFilterProperties.push({
+					entityMetadata: entityMetadata as IApiEntity<unknown>,
+					metadata: property.metadata,
+					name: property.name as string,
+				});
+
+				continue;
+			}
+
+			const relationColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>): boolean => column.name == property.name);
+
+			if (!relationColumn?.relation?.target) continue;
+
+			let relationEntityMetadata: IApiEntity<unknown>;
+
+			try {
+				relationEntityMetadata = GenerateEntityInformation(relationColumn.relation.target);
+			} catch {
+				continue;
+			}
+
+			for (const relationProperty of relationEntityMetadata.columns) {
+				const relationPropertyMetadata: TApiPropertyDescribeProperties | undefined = relationProperty.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
+
+				if (!relationPropertyMetadata || relationPropertyMetadata.type === EApiPropertyDescribeType.RELATION || relationPropertyMetadata.type === EApiPropertyDescribeType.OBJECT) continue;
+
+				if (!relationProperty.isPrimary && !DtoIsPropertyShouldBeMarked(method, dtoType, relationProperty.name, relationPropertyMetadata, relationProperty.isPrimary, currentGuard)) continue;
+
+				queryFilterProperties.push({
+					entityMetadata: relationEntityMetadata,
+					metadata: relationPropertyMetadata,
+					name: `${property.name as string}.${relationProperty.name as string}`,
+				});
+			}
+		}
+	}
 	const BaseClass: Type = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? DtoGetGetListQueryBaseClass<E>(entity, entityMetadata, method, dtoType) : class {};
 
 	class GeneratedDTO extends BaseClass {
 		constructor() {
 			super();
 
-			for (const property of markedProperties) {
-				if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
-					Object.defineProperty(this, `${property.name as string}[value]`, {
+			if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
+				for (const property of queryFilterProperties) {
+					Object.defineProperty(this, `${property.name}[value]`, {
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
@@ -100,7 +147,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 						writable: true,
 					});
 
-					Object.defineProperty(this, `${property.name as string}[values]`, {
+					Object.defineProperty(this, `${property.name}[values]`, {
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
@@ -110,7 +157,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 						writable: true,
 					});
 
-					Object.defineProperty(this, `${property.name as string}[operator]`, {
+					Object.defineProperty(this, `${property.name}[operator]`, {
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
@@ -119,7 +166,9 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
-				} else {
+				}
+			} else {
+				for (const property of markedProperties) {
 					Object.defineProperty(this, property.name, {
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						configurable: true,
@@ -141,44 +190,49 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	DtoAutoContextPush(GeneratedDTO.prototype, method, dtoType);
 
 	try {
-		for (const property of markedProperties) {
-			const generatedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard);
+		if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
+			for (const property of queryFilterProperties) {
+				const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, property.entityMetadata, dtoType, property.name, currentGuard);
 
-			const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard, generatedDTOs);
+				if (decorators) {
+					for (const [, decorator] of decorators.entries()) {
+						decorator(GeneratedDTO.prototype, `${property.name}[value]`);
 
-			if (decorators) {
-				for (const [, decorator] of decorators.entries()) {
-					if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
-						decorator(GeneratedDTO.prototype, `${property.name as string}[value]`);
-
-						DtoGenerateFilterDecorator(property.metadata, entityMetadata)(GeneratedDTO.prototype, `${property.name as string}[operator]`);
-					} else {
-						decorator(GeneratedDTO.prototype, property.name as string);
+						DtoGenerateFilterDecorator(property.metadata, property.entityMetadata)(GeneratedDTO.prototype, `${property.name}[operator]`);
 					}
 				}
-			}
 
-			if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
-				// @ts-ignore
-				const metadataArray: TApiPropertyDescribeProperties = { ...property.metadata, isArray: true, isUniqueItems: false, maxItems: DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES, minItems: DTO_GENERATE_CONSTANT.MINIMUM_FILTER_PROPERTIES };
+				const metadataArray: TApiPropertyDescribeProperties = { ...property.metadata, isArray: true, isUniqueItems: false, maxItems: DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES, minItems: DTO_GENERATE_CONSTANT.MINIMUM_FILTER_PROPERTIES } as TApiPropertyDescribeProperties;
 
-				const decoratorsArray: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, metadataArray, entityMetadata, dtoType, property.name as string, currentGuard);
+				const decoratorsArray: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, metadataArray, property.entityMetadata, dtoType, property.name, currentGuard);
 
 				if (decoratorsArray) {
 					for (const [, decorator] of decoratorsArray.entries()) {
-						decorator(GeneratedDTO.prototype, `${property.name as string}[values]`);
+						decorator(GeneratedDTO.prototype, `${property.name}[values]`);
 					}
 				}
 			}
+		} else {
+			for (const property of markedProperties) {
+				const generatedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard);
 
-			if (property.metadata.type === EApiPropertyDescribeType.OBJECT && Array.isArray(property.metadata.dataType)) {
-				// @ts-ignore
-				extraModels.push(...property.metadata.dataType);
-			}
+				const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, entityMetadata, dtoType, property.name as string, currentGuard, generatedDTOs);
 
-			if (generatedDTOs) {
-				for (const [, value] of Object.entries(generatedDTOs)) {
-					extraModels.push(value);
+				if (decorators) {
+					for (const [, decorator] of decorators.entries()) {
+						decorator(GeneratedDTO.prototype, property.name as string);
+					}
+				}
+
+				if (property.metadata.type === EApiPropertyDescribeType.OBJECT && Array.isArray(property.metadata.dataType)) {
+					// @ts-ignore
+					extraModels.push(...property.metadata.dataType);
+				}
+
+				if (generatedDTOs) {
+					for (const [, value] of Object.entries(generatedDTOs)) {
+						extraModels.push(value);
+					}
 				}
 			}
 		}
