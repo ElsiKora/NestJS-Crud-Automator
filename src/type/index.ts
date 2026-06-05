@@ -6,6 +6,7 @@ export type * from "./decorator/api/controller";
 export type * from "./decorator/api/filter";
 export type * from "./decorator/api/function";
 export type * from "./decorator/api/property";
+export type * from "./decorator/api/route";
 export type * from "./decorator/api/service";
 export type * from "./factory/api/controller";
 export type * from "./utility";

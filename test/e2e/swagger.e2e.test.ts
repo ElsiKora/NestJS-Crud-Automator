@@ -10,7 +10,7 @@ import { Test } from "@nestjs/testing";
 import { Column, Entity, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiController, ApiMethod, ApiPropertyDescribe, ApiRouteCustom, ApiServiceBase, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
+import { ApiAuthorizationModule, ApiController, ApiMethod, ApiPropertyDescribe, ApiPropertyObject, ApiRouteCustom, ApiServiceBase, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
 
 type TSwaggerMethod = "delete" | "get" | "patch" | "post" | "put";
 type TSwaggerOperation = NonNullable<NonNullable<OpenAPIObject["paths"][string]>[TSwaggerMethod]>;
@@ -73,6 +73,72 @@ class SwaggerParametersDto {
 class SwaggerQueryDto {
 	@ApiProperty()
 	public filter!: string;
+}
+
+class SwaggerEmailRegistrationBodyDto {
+	@ApiProperty()
+	public channel!: string;
+
+	@ApiProperty()
+	public email!: string;
+}
+
+class SwaggerUsernameRegistrationBodyDto {
+	@ApiProperty()
+	public channel!: string;
+
+	@ApiProperty()
+	public username!: string;
+}
+
+class SwaggerVerificationResponseDto {
+	@ApiProperty()
+	public mode!: string;
+
+	@ApiProperty()
+	public verificationToken!: string;
+}
+
+class SwaggerSessionResponseDto {
+	@ApiProperty()
+	public mode!: string;
+
+	@ApiProperty()
+	public sessionToken!: string;
+}
+
+class SwaggerNestedEmailPayloadDto {
+	@ApiProperty()
+	public channel!: string;
+
+	@ApiProperty()
+	public email!: string;
+}
+
+class SwaggerNestedPhonePayloadDto {
+	@ApiProperty()
+	public channel!: string;
+
+	@ApiProperty()
+	public phone!: string;
+}
+
+class SwaggerNestedDiscriminatorBodyDto {
+	@ApiPropertyObject({
+		discriminator: {
+			mapping: {
+				email: SwaggerNestedEmailPayloadDto,
+				phone: SwaggerNestedPhonePayloadDto,
+			},
+			propertyName: "channel",
+			shouldKeepDiscriminatorProperty: true,
+		},
+		entity: SwaggerEntity,
+		isRequired: true,
+		shouldValidateNested: true,
+		type: [SwaggerNestedEmailPayloadDto, SwaggerNestedPhonePayloadDto],
+	})
+	public payload!: SwaggerNestedEmailPayloadDto | SwaggerNestedPhonePayloadDto;
 }
 
 class SwaggerGeneratedService extends ApiServiceBase<SwaggerAutoDtoEntity> {}
@@ -217,6 +283,74 @@ class SwaggerDocumentationController {
 	public manualBody(@Body() body: SwaggerRequestBodyDto): SwaggerRequestBodyDto {
 		return body;
 	}
+
+	@ApiRouteCustom<SwaggerEntity>({
+		dto: {
+			body: {
+				discriminator: {
+					mapping: {
+						email: SwaggerEmailRegistrationBodyDto,
+						username: SwaggerUsernameRegistrationBodyDto,
+					},
+					propertyName: "channel",
+					shouldKeepDiscriminatorProperty: true,
+				},
+				type: [SwaggerEmailRegistrationBodyDto, SwaggerUsernameRegistrationBodyDto],
+			},
+		},
+		resource: {
+			action: "swagger.discriminated",
+			entity: SwaggerEntity,
+		},
+		response: {
+			discriminator: {
+				mapping: {
+					session: SwaggerSessionResponseDto,
+					verification: SwaggerVerificationResponseDto,
+				},
+				propertyName: "mode",
+				shouldKeepDiscriminatorProperty: true,
+			},
+			status: HttpStatus.CREATED,
+			type: [SwaggerVerificationResponseDto, SwaggerSessionResponseDto],
+		},
+		route: {
+			method: RequestMethod.POST,
+			path: "discriminated",
+		},
+	})
+	public discriminated(@Body() body: SwaggerEmailRegistrationBodyDto | SwaggerUsernameRegistrationBodyDto): SwaggerSessionResponseDto | SwaggerVerificationResponseDto {
+		return "email" in body
+			? {
+					mode: "verification",
+					verificationToken: body.email,
+				}
+			: {
+					mode: "session",
+					sessionToken: body.username,
+				};
+	}
+
+	@ApiRouteCustom<SwaggerEntity>({
+		dto: {
+			[EApiDtoType.BODY]: SwaggerNestedDiscriminatorBodyDto,
+		},
+		resource: {
+			action: "swagger.nestedDiscriminated",
+			entity: SwaggerEntity,
+		},
+		response: {
+			status: HttpStatus.OK,
+			type: undefined,
+		},
+		route: {
+			method: RequestMethod.POST,
+			path: "nested-discriminated",
+		},
+	})
+	public nestedDiscriminated(@Body() body: SwaggerNestedDiscriminatorBodyDto): SwaggerNestedDiscriminatorBodyDto {
+		return body;
+	}
 }
 
 @Module({
@@ -259,12 +393,7 @@ describe("Swagger request DTO documentation (E2E)", () => {
 	it("documents configured query and parameter DTOs for ApiRouteCustom", () => {
 		const parameters = getOperation("/swagger/custom/{id}").parameters ?? [];
 
-		expect(parameters).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ in: "path", name: "id" }),
-				expect.objectContaining({ in: "query", name: "filter" }),
-			]),
-		);
+		expect(parameters).toEqual(expect.arrayContaining([expect.objectContaining({ in: "path", name: "id" }), expect.objectContaining({ in: "query", name: "filter" })]));
 	});
 
 	it("documents generated autoDto request bodies for ApiRouteCustom", () => {
@@ -284,6 +413,44 @@ describe("Swagger request DTO documentation (E2E)", () => {
 			}),
 		);
 		expect(JSON.stringify(manualRequestBody)).toContain("#/components/schemas/SwaggerRequestBodyDto");
+	});
+
+	it("documents discriminated custom route request bodies and responses", () => {
+		const operation = getOperation("/swagger/discriminated");
+		const requestBody = operation.requestBody;
+		const response = operation.responses?.["201"];
+
+		expect(JSON.stringify(requestBody)).toContain("oneOf");
+		expect(JSON.stringify(requestBody)).toContain("channel");
+		expect(JSON.stringify(requestBody)).toContain("#/components/schemas/SwaggerEmailRegistrationBodyDto");
+		expect(JSON.stringify(requestBody)).toContain("#/components/schemas/SwaggerUsernameRegistrationBodyDto");
+		expect(JSON.stringify(response)).toContain("oneOf");
+		expect(JSON.stringify(response)).toContain("mode");
+		expect(JSON.stringify(response)).toContain("#/components/schemas/SwaggerVerificationResponseDto");
+		expect(JSON.stringify(response)).toContain("#/components/schemas/SwaggerSessionResponseDto");
+		expect(document.components?.schemas?.SwaggerEmailRegistrationBodyDto).toBeDefined();
+		expect(document.components?.schemas?.SwaggerUsernameRegistrationBodyDto).toBeDefined();
+		expect(document.components?.schemas?.SwaggerVerificationResponseDto).toBeDefined();
+		expect(document.components?.schemas?.SwaggerSessionResponseDto).toBeDefined();
+	});
+
+	it("registers nested ApiPropertyObject discriminator variants for custom route body DTOs", () => {
+		const operation = getOperation("/swagger/nested-discriminated");
+		const requestBody = operation.requestBody;
+		const parentSchema = document.components?.schemas?.SwaggerNestedDiscriminatorBodyDto as { properties?: { payload?: { discriminator?: unknown; oneOf?: Array<unknown> } } } | undefined;
+
+		expect(JSON.stringify(requestBody)).toContain("#/components/schemas/SwaggerNestedDiscriminatorBodyDto");
+		expect(document.components?.schemas?.SwaggerNestedDiscriminatorBodyDto).toBeDefined();
+		expect(document.components?.schemas?.SwaggerNestedEmailPayloadDto).toBeDefined();
+		expect(document.components?.schemas?.SwaggerNestedPhonePayloadDto).toBeDefined();
+		expect(parentSchema?.properties?.payload?.oneOf).toEqual([{ $ref: "#/components/schemas/SwaggerNestedEmailPayloadDto" }, { $ref: "#/components/schemas/SwaggerNestedPhonePayloadDto" }]);
+		expect(parentSchema?.properties?.payload?.discriminator).toEqual({
+			mapping: {
+				email: "#/components/schemas/SwaggerNestedEmailPayloadDto",
+				phone: "#/components/schemas/SwaggerNestedPhonePayloadDto",
+			},
+			propertyName: "channel",
+		});
 	});
 
 	it("generates pluralized documentation for generated CRUD routes", () => {

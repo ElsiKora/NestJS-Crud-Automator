@@ -104,7 +104,7 @@ export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstrai
 		const fieldGroups: Map<string, Set<string>> = new Map<string, Set<string>>();
 
 		const suffixPattern: string = [operatorSuffix, ...valueSuffixes].map((suffix: string): string => suffix.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)).join("|");
-		const regex: RegExp = new RegExp(`^(.+?)\\[(${suffixPattern})\\]$`);
+		const regex: RegExp = new RegExp(String.raw`^(.+?)\[(${suffixPattern})\]$`);
 
 		for (const field of fields) {
 			const match: null | RegExpExecArray = regex.exec(field);

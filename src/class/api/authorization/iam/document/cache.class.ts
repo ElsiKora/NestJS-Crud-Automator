@@ -21,7 +21,7 @@ export class ApiAuthorizationIamDocumentCache {
 	}
 
 	public normalizeIds(ids: ReadonlyArray<string>): Array<string> {
-		return [...new Set(ids.filter((id: string) => typeof id === "string" && id.length > 0))].sort((left: string, right: string) => left.localeCompare(right));
+		return [...new Set(ids.filter((id: string) => typeof id === "string" && id.length > 0))].toSorted((left: string, right: string) => left.localeCompare(right));
 	}
 
 	public set(ids: ReadonlyArray<string>, documents: ReadonlyArray<IApiPolicyDocumentRecord>): void {

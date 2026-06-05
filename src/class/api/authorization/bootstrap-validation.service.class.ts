@@ -21,8 +21,8 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	public constructor(
 		private readonly discoveryService: DiscoveryService,
 		private readonly policyRegistry: ApiAuthorizationPolicyRegistry,
-		@Optional()
 		@Inject(AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN)
+		@Optional()
 		private readonly documentSources: ReadonlyArray<unknown> = [],
 	) {}
 

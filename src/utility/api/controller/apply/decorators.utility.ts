@@ -16,7 +16,7 @@ import { ErrorException } from "@utility/error/exception.utility";
 /**
  * Applies appropriate decorators to controller methods based on the route type.
  * Configures HTTP methods, status codes, paths, and response types for API endpoints.
- * @param {Function} targetMethod - The controller method to apply decorators to
+ * @param {TApiControllerMethodMap<E>[typeof method]} targetMethod - The controller method to apply decorators to
  * @param {IApiEntity<E>} entity - The entity metadata for the controller
  * @param {IApiControllerProperties<E>} properties - Controller configuration properties
  * @param {EApiRouteType} method - The type of route to configure (CREATE, DELETE, GET, etc.)

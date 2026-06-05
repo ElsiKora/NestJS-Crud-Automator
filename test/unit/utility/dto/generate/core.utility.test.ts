@@ -215,6 +215,15 @@ class DtoEntity {
 	@ApiPropertyDescribe({
 		dataType: {
 			Variant: {
+				kind: {
+					description: "kind",
+					exampleValue: "Variant",
+					format: EApiPropertyStringType.STRING,
+					maxLength: 50,
+					minLength: 1,
+					pattern: "/^.+$/",
+					type: EApiPropertyDescribeType.STRING,
+				},
 				label: {
 					description: "label",
 					exampleValue: "value",

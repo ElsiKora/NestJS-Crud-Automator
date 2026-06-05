@@ -98,9 +98,5 @@ export function DatabaseTypeOrmIsForeignKeyViolation(error: unknown): boolean {
 	}
 
 	// MSSQL
-	if (messageLower.includes("conflicted with the foreign key constraint")) {
-		return true;
-	}
-
-	return false;
+	return messageLower.includes("conflicted with the foreign key constraint");
 }

@@ -22,6 +22,41 @@
 - Stores `metadata.resource.action` as the single action source for docs, subscribers, hooks authorization, and IAM authorization.
 - Does not run request transformers, relation loading, subscribers, authorization result transforms, or response serialization. Use `@ApiRouteCustom` when a custom handler needs the shared route runtime.
 
+## Discriminated responses
+
+`metadata.response.type` can be an array when the success response is a root-level discriminated union. In that case `metadata.response.discriminator` is required so Swagger can emit `oneOf` plus OpenAPI discriminator metadata.
+
+```typescript
+@ApiMethod<UserEntity>({
+	metadata: {
+		resource: {
+			action: "register",
+			entity: UserEntity,
+		},
+		route: {
+			method: RequestMethod.POST,
+			path: "register",
+		},
+		response: {
+			discriminator: {
+				mapping: {
+					session: SessionResponseDto,
+					verification: VerificationResponseDto,
+				},
+				propertyName: "mode",
+			},
+			status: HttpStatus.CREATED,
+			type: [VerificationResponseDto, SessionResponseDto],
+		},
+	},
+})
+public register() {
+	return this.service.register();
+}
+```
+
+`@ApiMethod` only writes metadata and Swagger decorators. It does not serialize the returned value. Use `@ApiRouteCustom` when the route also needs runtime response serialization against the selected discriminator variant.
+
 ## Authorization model
 
 Use `metadata.resource.action` as the only action identity. Auto-generated CRUD routes use `EApiRouteType` values and set `metadata.route.type`; custom routes use a domain action string such as `activate`, `update.promote`, or `billing.refund`.

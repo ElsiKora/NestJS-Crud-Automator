@@ -12,6 +12,6 @@ export * from "./get";
 export * from "./is";
 export { LoggerUtility } from "./logger.utility";
 export { QueueAutoContextRetry } from "./queue-auto-context-retry.utility";
-export { GetRegisteredAutoDtoChildren, RegisterAutoDtoChild } from "./register-auto-dto-child.utility";
+export { GetRegisteredAutoDtoChildren, GetRegisteredAutoDtoChildrenRecursive, RegisterAutoDtoChild } from "./register-auto-dto-child.utility";
 export * from "./resolve";
 export { WithResolvedPropertyEntity } from "./with-resolved-property-entity.utility";

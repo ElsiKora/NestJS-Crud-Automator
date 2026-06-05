@@ -1,4 +1,5 @@
-// eslint-disable-next-line @elsikora/unicorn/prevent-abbreviations
+/* eslint-disable @elsikora/unicorn/prevent-abbreviations */
+
 import typescript from "@rollup/plugin-typescript";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vitest/config";

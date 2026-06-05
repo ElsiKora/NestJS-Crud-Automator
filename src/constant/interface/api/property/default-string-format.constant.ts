@@ -22,6 +22,15 @@ const BCRYPT: TApiPropertyDefaultStringFormatProperties = {
 	pattern: String.raw`/^\$2[aby]\$\d{1,2}\$[.\/A-Za-z0-9]{53}$/`,
 };
 
+const BIGINT_STRING: TApiPropertyDefaultStringFormatProperties = {
+	description: "bigint decimal string",
+	exampleValue: "1000",
+	format: EApiPropertyStringType.BIGINT_STRING,
+	maxLength: 20,
+	minLength: 1,
+	pattern: String.raw`/^-?(0|[1-9]\d{0,18})$/`,
+};
+
 const COUNTRY_CODE_ALPHA2: TApiPropertyDefaultStringFormatProperties = {
 	description: "ISO 3166-1 alpha-2 country code",
 	exampleValue: "US",
@@ -448,6 +457,7 @@ export const DEFAULT_STRING_FORMAT_PROPERTY_API_INTERFACE_CONSTANT: {
 		[EApiPropertyStringType.API_KEY]: API_KEY,
 		[EApiPropertyStringType.BASE64]: BASE64,
 		[EApiPropertyStringType.BCRYPT]: BCRYPT,
+		[EApiPropertyStringType.BIGINT_STRING]: BIGINT_STRING,
 		[EApiPropertyStringType.BITCOIN_ADDRESS]: BITCOIN_ADDRESS,
 		[EApiPropertyStringType.COORDINATES]: COORDINATES,
 		[EApiPropertyStringType.COUNTRY_CODE_ALPHA2]: COUNTRY_CODE_ALPHA2,

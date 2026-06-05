@@ -29,11 +29,11 @@ export class ApiAuthorizationRuntime {
 		private readonly iamAttachmentResolver: ApiAuthorizationIamAttachmentResolver,
 		private readonly iamDocumentResolver: ApiAuthorizationIamDocumentResolver,
 		private readonly iamEngine: ApiAuthorizationIamEngine,
-		@Optional()
 		@Inject(AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN)
-		private readonly principalResolver?: IApiAuthorizationPrincipalResolver,
 		@Optional()
+		private readonly principalResolver?: IApiAuthorizationPrincipalResolver,
 		@Inject(AUTHORIZATION_AUDIT_SINK_TOKEN)
+		@Optional()
 		private readonly auditSink?: IApiAuthorizationAuditSink,
 	) {}
 

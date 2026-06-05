@@ -63,9 +63,5 @@ export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoT
 
 	const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, propertyMetadata, dtoType);
 
-	const decorators: Array<PropertyDecorator> = [];
-
-	decorators.push(DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName, generatedDTOs));
-
-	return decorators;
+	return [DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName, generatedDTOs)];
 }

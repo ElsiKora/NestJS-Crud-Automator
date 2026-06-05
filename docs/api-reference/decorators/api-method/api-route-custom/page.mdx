@@ -76,6 +76,57 @@ async publish(@Param("id") id: string, @Body() body: Partial<PostEntity>): Promi
 }
 ```
 
+## Root-level discriminated DTOs
+
+Use root-level discriminators when the whole custom route request body or response is polymorphic. Use `@ApiPropertyObject` when only a nested property inside a DTO is polymorphic.
+
+```typescript
+@ApiRouteCustom<UserEntity>({
+	resource: { action: "registration.create", entity: UserEntity },
+	route: { method: RequestMethod.POST, path: "registrations" },
+	dto: {
+		body: {
+			type: [EmailRegistrationBodyDto, UsernameRegistrationBodyDto],
+			validatorOptions: {
+				skipMissingProperties: true,
+			},
+			discriminator: {
+				propertyName: "channel",
+				shouldKeepDiscriminatorProperty: true,
+				mapping: {
+					email: EmailRegistrationBodyDto,
+					username: UsernameRegistrationBodyDto,
+				},
+			},
+		},
+	},
+	response: {
+		status: HttpStatus.CREATED,
+		type: [VerificationResponseDto, SessionResponseDto],
+		discriminator: {
+			propertyName: "mode",
+			shouldKeepDiscriminatorProperty: true,
+			mapping: {
+				verification: VerificationResponseDto,
+				session: SessionResponseDto,
+			},
+		},
+		serialization: { isEnabled: true },
+	},
+})
+async register(@Body() body: EmailRegistrationBodyDto | UsernameRegistrationBodyDto): Promise<VerificationResponseDto | SessionResponseDto> {
+	return await this.service.register(body);
+}
+```
+
+For request bodies, Crud Automator selects the variant DTO from `discriminator.mapping`, transforms the plain body into that DTO class, runs `class-validator` on the selected variant, and passes the transformed instance to the controller method. Missing or unknown discriminator values fail request validation. Declare the discriminator property on every variant DTO with the usual property decorators, such as `ApiPropertyEnum`; make it optional on the DTO when `shouldKeepDiscriminatorProperty: false` should remove it from the transformed instance.
+
+Root-level discriminator selection happens before Nest can validate a concrete DTO class, so global `ValidationPipe` options are not applied automatically to the selected variant. Use `validatorOptions` and `transformOptions` on the discriminated body config when the route must mirror specific validation or transformation settings.
+
+For responses, Swagger emits `oneOf` with an OpenAPI discriminator. When serialization is enabled, Crud Automator selects the response DTO from the returned value's discriminator, then applies the same `excludeExtraneousValues` response serialization used by single DTO responses. Returning a value without a valid discriminator is treated as a route contract error.
+
+Single DTO configs remain unchanged: `dto.body: SomeDto`, `response.type: SomeDto`, and `response.type: undefined` keep their existing behavior. Generated CRUD routes are not changed by root-level custom route discriminators.
+
 ## Relations
 
 Custom route relations live under `relations.request` and `relations.response`, just like generated route config:

@@ -85,9 +85,5 @@ export function DatabaseTypeOrmIsUniqueViolation(error: unknown): boolean {
 	}
 
 	// MSSQL
-	if (messageLower.includes("cannot insert duplicate key")) {
-		return true;
-	}
-
-	return false;
+	return messageLower.includes("cannot insert duplicate key");
 }

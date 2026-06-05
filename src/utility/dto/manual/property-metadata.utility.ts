@@ -46,7 +46,7 @@ export function RegisterManualDtoPropertyMetadata(target: object, propertyKey: s
 		return;
 	}
 
-	const registry: Map<string | symbol, TManualDtoPropertyMetadata> = new Map<string | symbol, TManualDtoPropertyMetadata>((Reflect.getMetadata?.(MANUAL_DTO_PROPERTY_METADATA_KEY, target) as Map<string | symbol, TManualDtoPropertyMetadata> | undefined) ?? []);
+	const registry: Map<string | symbol, TManualDtoPropertyMetadata> = new Map<string | symbol, TManualDtoPropertyMetadata>(Reflect.getMetadata?.(MANUAL_DTO_PROPERTY_METADATA_KEY, target) as Map<string | symbol, TManualDtoPropertyMetadata> | undefined);
 
 	registry.set(propertyKey, metadata);
 	Reflect.defineMetadata?.(MANUAL_DTO_PROPERTY_METADATA_KEY, registry, target);

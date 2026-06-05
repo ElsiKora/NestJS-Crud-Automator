@@ -11,7 +11,7 @@ import { ApiControllerGetListTransformOperation } from "./operation.utility";
  * Transforms query parameters into TypeORM FindOptionsWhere filter objects.
  * Parses query parameters with filter operations and converts them to appropriate database filters.
  * Handles special cases for relation properties.
- * @param {Record<string, any>} query - The query parameters from the HTTP request
+ * @param {Record<string, unknown>} query - The query parameters from the HTTP request
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
  * @returns {FindOptionsWhere<E>} The TypeORM filter object for the query
  * @template E - The entity type

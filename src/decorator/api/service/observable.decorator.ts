@@ -7,7 +7,14 @@ import { SERVICE_API_DECORATOR_CONSTANT } from "@constant/decorator/api/service.
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-service/api-service-observable | API Reference - ApiServiceObservable}
  */
 export function ApiServiceObservable(): ClassDecorator {
-	return (target: object) => {
-		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, target);
-	};
+	return applyApiServiceObservableMetadata;
+}
+
+/**
+ * Applies service observable metadata.
+ * @param {object} target - Decorated service target.
+ * @returns {void}
+ */
+function applyApiServiceObservableMetadata(target: object): void {
+	Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, target);
 }

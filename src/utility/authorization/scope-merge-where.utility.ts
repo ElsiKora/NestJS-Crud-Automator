@@ -58,8 +58,8 @@ function areValuesEquivalent(left: unknown, right: unknown): boolean {
 	}
 
 	if (isRecord(left) && isRecord(right)) {
-		const leftKeys: Array<string> = Object.keys(left).sort((a: string, b: string) => a.localeCompare(b));
-		const rightKeys: Array<string> = Object.keys(right).sort((a: string, b: string) => a.localeCompare(b));
+		const leftKeys: Array<string> = Object.keys(left).toSorted((a: string, b: string) => a.localeCompare(b));
+		const rightKeys: Array<string> = Object.keys(right).toSorted((a: string, b: string) => a.localeCompare(b));
 
 		if (!areValuesEquivalent(leftKeys, rightKeys)) {
 			return false;

@@ -3,14 +3,19 @@ import type { IApiControllerProperties, IApiRouteMetadata, IApiRouteRuntimePrope
 import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
+import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 
 import { EApiDtoType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum.js";
-import { ApiExtraModels } from "@nestjs/swagger";
+import { ApiBody, ApiExtraModels } from "@nestjs/swagger";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
+import { ApiRouteBuildDiscriminatedDtoOpenApiSchema, ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
+import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
+
+type TApiRouteRequestDto = TApiRouteDiscriminatedDtoProperties | Type<unknown>;
 
 /**
  * Applies request DTO metadata used by Nest Swagger for custom routes.
@@ -23,14 +28,16 @@ import { GenerateEntityInformation } from "@utility/generate-entity-information.
  * @returns {void}
  */
 export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: object, propertyKey: string | symbol, metadata: IApiRouteMetadata<E>, runtimeProperties: IApiRouteRuntimeProperties<E, undefined>, descriptor: PropertyDescriptor): void {
-	const bodyDto: Type<unknown> | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.BODY);
-	const parametersDto: Type<unknown> | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.PARAMETERS);
-	const queryDto: Type<unknown> | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.QUERY);
+	const bodyDto: TApiRouteRequestDto | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.BODY);
+	const parametersDtoConfig: TApiRouteRequestDto | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.PARAMETERS);
+	const queryDtoConfig: TApiRouteRequestDto | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.QUERY);
+	const parametersDto: Type<unknown> | undefined = ApiRouteIsDiscriminatedDtoProperties(parametersDtoConfig) ? undefined : parametersDtoConfig;
+	const queryDto: Type<unknown> | undefined = ApiRouteIsDiscriminatedDtoProperties(queryDtoConfig) ? undefined : queryDtoConfig;
 	const routeArgumentsMetadata: Record<string, { data?: unknown; index?: number }> | undefined = Reflect.getMetadata(ROUTE_ARGS_METADATA, target.constructor, propertyKey) as Record<string, { data?: unknown; index?: number }> | undefined;
 	const parameterTypes: Array<unknown> = [...((Reflect.getMetadata(PARAMTYPES_METADATA, target, propertyKey) as Array<unknown> | undefined) ?? [])];
 
 	for (const { dto, parameterType } of [
-		{ dto: bodyDto, parameterType: RouteParamtypes.BODY },
+		{ dto: ApiRouteIsDiscriminatedDtoProperties(bodyDto) ? Object : bodyDto, parameterType: RouteParamtypes.BODY },
 		{ dto: parametersDto, parameterType: RouteParamtypes.PARAM },
 		{ dto: queryDto, parameterType: RouteParamtypes.QUERY },
 	]) {
@@ -52,12 +59,22 @@ export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: objec
 	const requestDtos: Array<Type<unknown>> = [];
 
 	for (const dto of [bodyDto, parametersDto, queryDto]) {
-		if (dto) {
-			requestDtos.push(dto);
+		if (ApiRouteIsDiscriminatedDtoProperties(dto)) {
+			ApiRouteCollectDtoWithRegisteredChildren(requestDtos, dto.type);
+		} else if (dto) {
+			ApiRouteCollectDtoWithRegisteredChildren(requestDtos, dto);
 		}
 	}
 
 	const swaggerDecorators: Array<MethodDecorator> = requestDtos.length > 0 ? [ApiExtraModels(...requestDtos)] : [];
+
+	if (ApiRouteIsDiscriminatedDtoProperties(bodyDto)) {
+		swaggerDecorators.push(
+			ApiBody({
+				schema: ApiRouteBuildDiscriminatedDtoOpenApiSchema(bodyDto, "ApiRouteCustom body"),
+			}),
+		);
+	}
 
 	if (swaggerDecorators.length > 0) {
 		applyDecorators(...swaggerDecorators)(target, propertyKey, descriptor);
@@ -70,10 +87,10 @@ export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: objec
  * @param {IApiRouteMetadata<E>} metadata - Route metadata used for entity and route type.
  * @param {IApiRouteRuntimeProperties<E, undefined>} runtimeProperties - Runtime route config containing dto/autoDto.
  * @param {Exclude<EApiDtoType, EApiDtoType.RESPONSE>} dtoType - Request DTO target.
- * @returns {Type<unknown> | undefined} Resolved request DTO.
+ * @returns {TApiRouteRequestDto | undefined} Resolved request DTO.
  */
-function resolveRequestDto<E extends IApiBaseEntity>(metadata: IApiRouteMetadata<E>, runtimeProperties: IApiRouteRuntimeProperties<E, undefined>, dtoType: Exclude<EApiDtoType, EApiDtoType.RESPONSE>): Type<unknown> | undefined {
-	const configuredDto: Type<unknown> | undefined = runtimeProperties.dto?.[dtoType];
+function resolveRequestDto<E extends IApiBaseEntity>(metadata: IApiRouteMetadata<E>, runtimeProperties: IApiRouteRuntimeProperties<E, undefined>, dtoType: Exclude<EApiDtoType, EApiDtoType.RESPONSE>): TApiRouteRequestDto | undefined {
+	const configuredDto: TApiRouteRequestDto | undefined = runtimeProperties.dto?.[dtoType];
 
 	if (configuredDto) {
 		return configuredDto;

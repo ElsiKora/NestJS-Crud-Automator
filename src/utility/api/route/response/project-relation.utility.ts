@@ -32,19 +32,23 @@ export function ApiRouteProjectRelationResponse<E extends IApiBaseEntity, R>(rel
 
 			return projectedItem;
 		});
-	} else if (response !== null && typeof response === "object" && "items" in response && Array.isArray((response as { items?: unknown }).items)) {
-		(response as { items: Array<unknown> }).items = (response as { items: Array<unknown> }).items.map((item: unknown): unknown => {
-			if (item === null || typeof item !== "object") {
-				return item;
-			}
+	} else {
+		const responseValue: unknown = response;
 
-			const projectedItem: Record<string, unknown> = { ...(item as Record<string, unknown>) };
-			responses.push(projectedItem);
+		if (responseValue !== null && typeof responseValue === "object" && "items" in responseValue && Array.isArray((responseValue as { items?: unknown }).items)) {
+			(responseValue as { items: Array<unknown> }).items = (responseValue as { items: Array<unknown> }).items.map((item: unknown): unknown => {
+				if (item === null || typeof item !== "object") {
+					return item;
+				}
 
-			return projectedItem;
-		});
-	} else if (response !== null && typeof response === "object") {
-		responses.push(response as Record<string, unknown>);
+				const projectedItem: Record<string, unknown> = { ...(item as Record<string, unknown>) };
+				responses.push(projectedItem);
+
+				return projectedItem;
+			});
+		} else if (responseValue !== null && typeof responseValue === "object") {
+			responses.push(responseValue as Record<string, unknown>);
+		}
 	}
 
 	for (const projectedResponse of responses) {
@@ -60,5 +64,5 @@ export function ApiRouteProjectRelationResponse<E extends IApiBaseEntity, R>(rel
 		}
 	}
 
-	return projectedArray ? (projectedArray as R) : response;
+	return (projectedArray as R) || response;
 }

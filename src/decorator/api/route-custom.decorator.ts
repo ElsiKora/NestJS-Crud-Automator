@@ -22,6 +22,7 @@ import { ApiMethod } from "./method.decorator";
 export function ApiRouteCustom<E extends IApiBaseEntity>(properties: IApiRouteCustomProperties<E>): MethodDecorator {
 	const metadataResponse: IApiRouteMetadata<E>["response"] | undefined = properties.response
 		? {
+				discriminator: properties.response.discriminator,
 				errors: properties.response.errors,
 				serialization: properties.response.serialization,
 				status: properties.response.status,

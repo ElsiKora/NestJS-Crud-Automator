@@ -4,6 +4,7 @@ export type TApiPropertyDefaultStringFormat =
 	| EApiPropertyStringType.API_KEY
 	| EApiPropertyStringType.BASE64
 	| EApiPropertyStringType.BCRYPT
+	| EApiPropertyStringType.BIGINT_STRING
 	| EApiPropertyStringType.BITCOIN_ADDRESS
 	| EApiPropertyStringType.COORDINATES
 	| EApiPropertyStringType.COUNTRY_CODE_ALPHA2

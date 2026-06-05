@@ -1,0 +1,1 @@
+export { GetDefaultStringFormatProperties } from "./utility";
