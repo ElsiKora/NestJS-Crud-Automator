@@ -17,14 +17,7 @@ import { DefaultNamingStrategy, getMetadataArgsStorage } from "typeorm";
  * @template E - The entity type
  */
 export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity<E> {
-	const generatedEntity: IApiEntity<E> = {
-		columns: [],
-		name: "",
-		primaryKey: undefined,
-		tableName: "",
-	};
-
-	generatedEntity.tableName = ((): string => {
+	const tableName: string = ((): string => {
 		// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
 		const table: TableMetadataArgs | undefined = getMetadataArgsStorage().tables.find(({ target }: TableMetadataArgs): boolean => (target as Function).name === entity.name);
 
@@ -49,8 +42,6 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 
 		return namingStrategy(table.name);
 	})();
-
-	generatedEntity.name = entity.name;
 
 	const storage: MetadataStorage = MetadataStorage.getInstance();
 	const entityHierarchy: Array<new (...arguments_: Array<unknown>) => unknown> = [];
@@ -169,13 +160,12 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 		}),
 	];
 
-	for (const column of entityColumns) {
-		if (column.isPrimary) {
-			generatedEntity.primaryKey = column;
-		}
-	}
+	const primaryKey: IApiEntityColumn<E> | undefined = entityColumns.find((column: IApiEntityColumn<E>): boolean => column.isPrimary);
 
-	generatedEntity.columns = entityColumns;
-
-	return generatedEntity;
+	return {
+		columns: entityColumns,
+		name: entity.name,
+		primaryKey,
+		tableName,
+	};
 }

@@ -29,7 +29,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDate, ValidateIf 
  * The decorator provides appropriate examples and validation patterns based on the format,
  * and handles string-to-Date transformation for request DTOs.
  * @param {TApiPropertyDateProperties} properties - Configuration options for the date property
- * @returns {Function} A decorator function that can be applied to a class property
+ * @returns {PropertyDecorator} A decorator function that can be applied to a class property
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-date | API Reference - ApiPropertyDate}
  * @example
  * ```typescript
@@ -104,10 +104,10 @@ function buildApiPropertyOptions(properties: TApiPropertyDateProperties): ApiPro
 		description: `${String(properties.entity.name)} ${getDescription(properties.identifier)}`,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: !!properties.isNullable,
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		required: properties.isRequired,
 		type: EApiPropertyDataType.STRING,
 	};
-
-	apiPropertyOptions.required = properties.isRequired;
 
 	if (properties.isArray) {
 		apiPropertyOptions.isArray = true;
@@ -139,11 +139,7 @@ function buildApiPropertyOptions(properties: TApiPropertyDateProperties): ApiPro
  * @private
  */
 function buildDecorators(properties: TApiPropertyDateProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties));
-
-	return decorators;
+	return [ApiProperty(apiPropertyOptions), ...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties)];
 }
 
 /**

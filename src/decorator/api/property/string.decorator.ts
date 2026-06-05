@@ -73,7 +73,7 @@ import {
  *
  * The decorator applies appropriate validation rules based on the format and configuration.
  * @param {TApiPropertyStringProperties} properties - Configuration options for the string property
- * @returns {Function} A decorator function that can be applied to a class property
+ * @returns {PropertyDecorator} A decorator function that can be applied to a class property
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-string | API Reference - ApiPropertyString}
  * @example
  * ```typescript
@@ -163,10 +163,10 @@ function buildApiPropertyOptions(properties: TApiPropertyStringProperties): ApiP
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: !!properties.isNullable,
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		required: properties.isRequired,
 		type: EApiPropertyDataType.STRING,
 	};
-
-	apiPropertyOptions.required = properties.isRequired;
 
 	if (properties.isArray === true) {
 		apiPropertyOptions.isArray = true;
@@ -200,11 +200,7 @@ function buildApiPropertyOptions(properties: TApiPropertyStringProperties): ApiP
  * @private
  */
 function buildDecorators(properties: TApiPropertyStringProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildStringValidationDecorators(properties));
-
-	return decorators;
+	return [ApiProperty(apiPropertyOptions), ...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildStringValidationDecorators(properties)];
 }
 
 /**

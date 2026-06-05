@@ -33,7 +33,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsObject, ValidateI
  * - Validation rules
  * - Transformation rules
  * @param {TApiPropertyObjectProperties} options - Configuration options for the object property
- * @returns {Function} A decorator function that can be applied to a class property
+ * @returns {PropertyDecorator} A decorator function that can be applied to a class property
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object | API Reference - ApiPropertyObject}
  * @example
  * ```typescript
@@ -150,11 +150,7 @@ function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiP
  * @private
  */
 function buildDecorators(properties: TApiPropertyObjectProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildTransformDecorators(properties), ...buildObjectValidationDecorators(properties));
-
-	return decorators;
+	return [ApiProperty(apiPropertyOptions), ...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildTransformDecorators(properties), ...buildObjectValidationDecorators(properties)];
 }
 
 /**

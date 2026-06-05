@@ -30,7 +30,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsUUID, ValidateIf 
  * The decorator automatically generates a UUID example for Swagger documentation and
  * applies appropriate validation rules based on the configuration.
  * @param {TApiPropertyUuidProperties} properties - Configuration options for the UUID property
- * @returns {Function} A decorator function that can be applied to a class property
+ * @returns {PropertyDecorator} A decorator function that can be applied to a class property
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-uuid | API Reference - ApiPropertyUUID}
  * @example
  * ```typescript
@@ -94,10 +94,10 @@ function buildApiPropertyOptions(uuidExample: string, properties: TApiPropertyUu
 		description: `${String(properties.entity.name)} ${properties.description ?? "identifier"}`,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: !!properties.isNullable,
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		required: properties.isRequired,
 		type: EApiPropertyDataType.STRING,
 	};
-
-	apiPropertyOptions.required = properties.isRequired;
 
 	if (properties.isArray) {
 		apiPropertyOptions.isArray = true;
@@ -131,11 +131,7 @@ function buildApiPropertyOptions(uuidExample: string, properties: TApiPropertyUu
  * @private
  */
 function buildDecorators(properties: TApiPropertyUuidProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties));
-
-	return decorators;
+	return [ApiProperty(apiPropertyOptions), ...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties)];
 }
 
 /**

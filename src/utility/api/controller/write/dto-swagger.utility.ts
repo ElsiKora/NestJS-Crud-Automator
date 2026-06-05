@@ -70,7 +70,7 @@ export function ApiControllerWriteDtoSwagger<E extends IApiBaseEntity>(target: o
 			const mergedMetadata: TMetadata = {};
 			let hasMetadata: boolean = false;
 
-			for (const entityName of [...entityNames].reverse()) {
+			for (const entityName of entityNames.toReversed()) {
 				const currentMetadata: TMetadata | undefined = storage.getMetadata(entityName);
 
 				if (currentMetadata) {

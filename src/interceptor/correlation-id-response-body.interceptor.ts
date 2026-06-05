@@ -42,8 +42,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 					const errorResponse: object | string = error.getResponse();
 					interceptorLogger.warn(`HTTP ${HttpStatus.TOO_MANY_REQUESTS} ${requestMethod} ${requestUrl} correlationID=${correlationId}`);
 
-					let customErrorResponse: Record<string, unknown> = {};
-					customErrorResponse.statusCode = HttpStatus.TOO_MANY_REQUESTS;
+					let customErrorResponse: Record<string, unknown> = { statusCode: HttpStatus.TOO_MANY_REQUESTS };
 
 					if (typeof errorResponse === "object" && errorResponse != null) {
 						customErrorResponse = { ...errorResponse };
@@ -102,12 +101,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 
 					const internalError: HttpException | InternalServerErrorException = error as HttpException | InternalServerErrorException;
 					const errorResponse: string = "Internal server error";
-					const customErrorResponse: Record<string, unknown> = {};
-					customErrorResponse.statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
-					customErrorResponse.message = errorResponse;
-					customErrorResponse.error = "Internal server error";
-					customErrorResponse.timestamp = Date.now();
-					customErrorResponse.correlationID = correlationId;
+					const customErrorResponse: Record<string, unknown> = { correlationID: correlationId, error: "Internal server error", message: errorResponse, statusCode: HttpStatus.INTERNAL_SERVER_ERROR, timestamp: Date.now() };
 
 					const status: number = "getStatus" in internalError && typeof internalError.getStatus === "function" ? internalError.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 

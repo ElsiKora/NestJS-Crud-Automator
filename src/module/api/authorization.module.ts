@@ -34,7 +34,6 @@ import { ErrorException } from "@utility/error/exception.utility";
 @Global()
 @Module({
 	exports: [
-		AUTHORIZATION_POLICY_REGISTRY_TOKEN,
 		ApiAuthorizationBootstrapValidationService,
 		ApiAuthorizationCacheInvalidationService,
 		ApiAuthorizationEngine,
@@ -48,6 +47,7 @@ import { ErrorException } from "@utility/error/exception.utility";
 		ApiAuthorizationPolicyDiscoveryService,
 		ApiAuthorizationRuntime,
 		ApiAuthorizationSimulator,
+		AUTHORIZATION_POLICY_REGISTRY_TOKEN,
 	],
 	imports: [DiscoveryModule],
 	providers: [

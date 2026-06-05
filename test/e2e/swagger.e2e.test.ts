@@ -393,12 +393,7 @@ describe("Swagger request DTO documentation (E2E)", () => {
 	it("documents configured query and parameter DTOs for ApiRouteCustom", () => {
 		const parameters = getOperation("/swagger/custom/{id}").parameters ?? [];
 
-		expect(parameters).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ in: "path", name: "id" }),
-				expect.objectContaining({ in: "query", name: "filter" }),
-			]),
-		);
+		expect(parameters).toEqual(expect.arrayContaining([expect.objectContaining({ in: "path", name: "id" }), expect.objectContaining({ in: "query", name: "filter" })]));
 	});
 
 	it("documents generated autoDto request bodies for ApiRouteCustom", () => {
@@ -448,10 +443,7 @@ describe("Swagger request DTO documentation (E2E)", () => {
 		expect(document.components?.schemas?.SwaggerNestedDiscriminatorBodyDto).toBeDefined();
 		expect(document.components?.schemas?.SwaggerNestedEmailPayloadDto).toBeDefined();
 		expect(document.components?.schemas?.SwaggerNestedPhonePayloadDto).toBeDefined();
-		expect(parentSchema?.properties?.payload?.oneOf).toEqual([
-			{ $ref: "#/components/schemas/SwaggerNestedEmailPayloadDto" },
-			{ $ref: "#/components/schemas/SwaggerNestedPhonePayloadDto" },
-		]);
+		expect(parentSchema?.properties?.payload?.oneOf).toEqual([{ $ref: "#/components/schemas/SwaggerNestedEmailPayloadDto" }, { $ref: "#/components/schemas/SwaggerNestedPhonePayloadDto" }]);
 		expect(parentSchema?.properties?.payload?.discriminator).toEqual({
 			mapping: {
 				email: "#/components/schemas/SwaggerNestedEmailPayloadDto",

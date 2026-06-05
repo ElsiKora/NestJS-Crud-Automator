@@ -29,7 +29,7 @@ import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, ValidateIf 
  * The decorator provides proper validation and documentation of enum values, ensuring
  * that only valid options are accepted in requests and properly documented in the API.
  * @param {TApiPropertyEnumProperties} properties - Configuration options for the enum property
- * @returns {Function} A decorator function that can be applied to a class property
+ * @returns {PropertyDecorator} A decorator function that can be applied to a class property
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-enum | API Reference - ApiPropertyEnum}
  * @example
  * ```typescript
@@ -120,9 +120,9 @@ function buildApiPropertyOptions(properties: TApiPropertyEnumProperties): ApiPro
 		description: `${String(properties.entity.name)} ${properties.description ?? ""}`,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: !!properties.isNullable,
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		required: properties.isRequired,
 	};
-
-	apiPropertyOptions.required = properties.isRequired;
 
 	if (properties.isArray === true) {
 		apiPropertyOptions.isArray = true;
@@ -154,11 +154,7 @@ function buildApiPropertyOptions(properties: TApiPropertyEnumProperties): ApiPro
  * @private
  */
 function buildDecorators(properties: TApiPropertyEnumProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [ApiProperty(apiPropertyOptions)];
-
-	decorators.push(...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties));
-
-	return decorators;
+	return [ApiProperty(apiPropertyOptions), ...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties)];
 }
 
 /**

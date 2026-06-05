@@ -7,8 +7,8 @@ import { Between, Equal, ILike, In, IsNull, LessThan, LessThanOrEqual, Like, Mor
  * Converts filter operation enum values to TypeORM query operators.
  * Supports various operations like BETWEEN, CONTAINS, EQUALS, GREATER_THAN, etc.
  * @param {EFilterOperation} operation - The filter operation type from the enum
- * @param {any} value - The value to filter by
- * @returns {FindOperator<any>} The TypeORM FindOperator for the specified operation and value
+ * @param {unknown} value - The value to filter by
+ * @returns {FindOperator<unknown>} The TypeORM FindOperator for the specified operation and value
  */
 export function ApiControllerGetListTransformOperation(operation: EFilterOperation, value: unknown): FindOperator<unknown> {
 	switch (operation) {

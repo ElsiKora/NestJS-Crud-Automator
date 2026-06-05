@@ -7,7 +7,14 @@ import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/contr
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable | API Reference - ApiControllerSecurable}
  */
 export function ApiControllerSecurable(): ClassDecorator {
-	return (target: object) => {
-		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, target);
-	};
+	return applyApiControllerSecurableMetadata;
+}
+
+/**
+ * Applies controller securable metadata.
+ * @param {object} target - Decorated controller target.
+ * @returns {void}
+ */
+function applyApiControllerSecurableMetadata(target: object): void {
+	Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, target);
 }

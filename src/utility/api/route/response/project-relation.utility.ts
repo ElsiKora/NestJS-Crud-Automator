@@ -64,5 +64,5 @@ export function ApiRouteProjectRelationResponse<E extends IApiBaseEntity, R>(rel
 		}
 	}
 
-	return projectedArray ? (projectedArray as R) : response;
+	return (projectedArray as R) || response;
 }

@@ -7,7 +7,14 @@ import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/contr
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-observable | API Reference - ApiControllerObservable}
  */
 export function ApiControllerObservable(): ClassDecorator {
-	return (target: object) => {
-		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, target);
-	};
+	return applyApiControllerObservableMetadata;
+}
+
+/**
+ * Applies controller observable metadata.
+ * @param {object} target - Decorated controller target.
+ * @returns {void}
+ */
+function applyApiControllerObservableMetadata(target: object): void {
+	Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, target);
 }

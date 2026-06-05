@@ -61,7 +61,6 @@ export function ApiControllerApplyMetadata<E extends IApiBaseEntity>(target: obj
 
 	routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.REQUEST, parameterIndex);
 	parameterTypes.push(Object);
-	parameterIndex++;
 
 	Reflect.defineMetadata(ROUTE_ARGS_METADATA, routeArgumentsMetadata, target, methodName);
 	Reflect.defineMetadata(PARAMTYPES_METADATA, parameterTypes, targetPrototype, methodName);
