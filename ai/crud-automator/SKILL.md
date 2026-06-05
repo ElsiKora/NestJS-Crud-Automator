@@ -63,7 +63,8 @@ Use local source as the contract:
 - Request load config uses `shouldLoad`, `relationStrategy`, `serviceStrategy`, `relations`, `services`, and `shouldForceAllServicesToBeSpecified`.
 - `relations.request.load.relations` only filters loaded relations when `relationStrategy` is `MANUAL`; `services` is only required when `serviceStrategy` is `MANUAL`.
 - Response relation config: `relations.response.reference` and `relations.response.load.include`.
-- HTTP generated relation filters work on relation IDs, not nested query paths such as `author.username`.
+- HTTP generated relation filters use explicit one-level paths such as `author.id[...]` and `author.username[...]`; top-level `author[...]` is not generated or transformed.
+- Generated relation filters skip relation fields and object fields on the related entity.
 - For nested response relations, use TypeORM relation object maps in `response.load.include`.
 
 ## Subscriber Model
