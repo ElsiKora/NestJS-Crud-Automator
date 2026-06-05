@@ -8,6 +8,7 @@ import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
 import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EFilterOperationString, EFilterOperationUuid } from "@enum/filter";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
@@ -101,6 +102,18 @@ class DtoRelatedEntity {
 		type: EApiPropertyDescribeType.UUID,
 	})
 	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({
+		description: "owner name",
+		exampleValue: "Owner",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 50,
+		minLength: 1,
+		pattern: "/^.+$/",
+		type: EApiPropertyDescribeType.STRING,
+	})
+	public name!: string;
 }
 
 class MetaInfo {
@@ -307,6 +320,20 @@ describe("DtoGenerate", () => {
 		expect(queryInstance).toBeDefined();
 		expect(queryInstance && "name[value]" in queryInstance).toBe(true);
 		expect(queryInstance && "name[operator]" in queryInstance).toBe(true);
+		expect(queryInstance && "owner[value]" in queryInstance).toBe(false);
+		expect(queryInstance && "owner[operator]" in queryInstance).toBe(false);
+		expect(queryInstance && "owner.id[value]" in queryInstance).toBe(true);
+		expect(queryInstance && "owner.id[values]" in queryInstance).toBe(true);
+		expect(queryInstance && "owner.id[operator]" in queryInstance).toBe(true);
+		expect(queryInstance && "owner.name[value]" in queryInstance).toBe(true);
+		expect(queryInstance && "owner.name[values]" in queryInstance).toBe(true);
+		expect(queryInstance && "owner.name[operator]" in queryInstance).toBe(true);
+
+		const ownerIdOperatorMetadata = queryDto ? Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, queryDto.prototype, "owner.id[operator]") : undefined;
+		const ownerNameOperatorMetadata = queryDto ? Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, queryDto.prototype, "owner.name[operator]") : undefined;
+
+		expect(ownerIdOperatorMetadata?.enum).toEqual(Object.values(EFilterOperationUuid));
+		expect(ownerNameOperatorMetadata?.enum).toEqual(Object.values(EFilterOperationString));
 	});
 
 	it("serializes nested manual DTOs in response mode without manual isResponse", () => {

@@ -210,13 +210,21 @@ author: UserEntity;
 
 ## Filtering by Relations
 
-Generated GET_LIST relation filters work on the relation property itself. For relation metadata, the runtime maps the filter value to the related entity `id`.
+Generated GET_LIST relation filters use explicit one-level relation property paths. To filter by a related entity id, include the `id` field in the query path.
 
 ```
-GET /posts?author[operator]=eq&author[value]=550e8400-e29b-41d4-a716-446655440000
+GET /posts?author.id[operator]=eq&author.id[value]=550e8400-e29b-41d4-a716-446655440000
 ```
 
-Nested HTTP relation filters such as `author.username[operator]=eq` are not part of the generated query contract. Use a custom service/controller method when an endpoint needs relation-property filtering by fields other than the related `id`.
+The same syntax works for scalar fields on the related entity:
+
+```
+GET /posts?author.username[operator]=eq&author.username[value]=john_doe
+```
+
+Generated relation filters support one relation level. Relation fields and object fields on the related entity are not generated as nested query filters.
+
+Top-level relation filters such as `author[operator]=eq&author[value]=...` are not part of the generated query contract. Use `author.id[...]` instead.
 
 ```typescript
 // Programmatic filtering by relation

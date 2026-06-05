@@ -1,9 +1,11 @@
 import type { EFilterOperation } from "@enum/filter";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
+import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { FindOptionsWhere } from "typeorm/index";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiPropertyDescribeType } from "@enum/decorator/api";
+import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
 import { ApiControllerGetListTransformOperation } from "./operation.utility";
 
@@ -18,6 +20,7 @@ import { ApiControllerGetListTransformOperation } from "./operation.utility";
  */
 export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>): FindOptionsWhere<E> {
 	const filter: FindOptionsWhere<E> = {};
+	const filterRecord: Record<string, unknown> = filter;
 
 	for (const fullKey of Object.keys(query)) {
 		if (!fullKey.includes("[")) continue;
@@ -35,15 +38,46 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 
 			if (!operation || !key || value === undefined || value === null) continue;
 
-			const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>) => column.name == key);
+			const path: Array<string> = key.split(".");
 
-			// @ts-ignore
-			if (column?.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY].type === EApiPropertyDescribeType.RELATION) {
-				// @ts-ignore
-				filter[key as keyof E] = { id: ApiControllerGetListTransformOperation(operation, value) };
+			if (path.length === 1) {
+				const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>) => column.name == key);
+				const columnMetadata: TApiPropertyDescribeProperties | undefined = column?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
+
+				if (!columnMetadata || columnMetadata.type === EApiPropertyDescribeType.RELATION) continue;
+
+				filterRecord[key] = ApiControllerGetListTransformOperation(operation, value);
 			} else {
-				// @ts-ignore
-				filter[key as keyof E] = ApiControllerGetListTransformOperation(operation, value);
+				// eslint-disable-next-line @elsikora/typescript/no-magic-numbers
+				if (path.length !== 2) continue;
+
+				const [relationName, nestedPropertyName]: Array<string | undefined> = path;
+
+				if (!relationName || !nestedPropertyName) continue;
+
+				const relationColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>) => column.name == relationName);
+				const relationMetadata: TApiPropertyDescribeProperties | undefined = relationColumn?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
+
+				if (relationMetadata?.type !== EApiPropertyDescribeType.RELATION || !relationColumn?.relation?.target) continue;
+
+				let relationEntityMetadata: IApiEntity<unknown>;
+
+				try {
+					relationEntityMetadata = GenerateEntityInformation(relationColumn.relation.target);
+				} catch {
+					continue;
+				}
+
+				const nestedColumn: IApiEntityColumn<unknown> | undefined = relationEntityMetadata.columns.find((column: IApiEntityColumn<unknown>) => column.name == nestedPropertyName);
+				const nestedColumnMetadata: TApiPropertyDescribeProperties | undefined = nestedColumn?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
+
+				if (!nestedColumnMetadata || nestedColumnMetadata.type === EApiPropertyDescribeType.RELATION || nestedColumnMetadata.type === EApiPropertyDescribeType.OBJECT) continue;
+
+				const relationFilter: Record<string, unknown> = (filterRecord[relationName] ?? {}) as Record<string, unknown>;
+
+				relationFilter[nestedPropertyName] = ApiControllerGetListTransformOperation(operation, value);
+
+				filterRecord[relationName] = relationFilter;
 			}
 		}
 	}

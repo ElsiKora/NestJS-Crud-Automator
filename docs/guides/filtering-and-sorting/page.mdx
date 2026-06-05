@@ -206,6 +206,22 @@ GET /users?id[operator]=isnull
 GET /users?id[operator]=notnull
 ```
 
+## Relation Filters
+
+Generated GET_LIST routes filter relations through explicit one-level relation property paths:
+
+```typescript
+// Filter by related entity id
+GET /posts?author.id[operator]=eq&author.id[value]=550e8400-e29b-41d4-a716-446655440000
+
+// Filter by a scalar field on the related entity
+GET /posts?author.username[operator]=eq&author.username[value]=john_doe
+```
+
+Top-level relation filters such as `author[operator]=eq&author[value]=...` are not generated or transformed. Use `author.id[...]` for relation id filters.
+
+Only one relation level is generated. Relation fields and object fields on the related entity are skipped.
+
 ## Multiple Filters
 
 Combine multiple filters to narrow results:
