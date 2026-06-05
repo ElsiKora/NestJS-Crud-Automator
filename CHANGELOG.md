@@ -1,3 +1,9 @@
+# [2.3.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.2.0...v2.3.0) (2026-06-05)
+
+### Features
+
+- **api:** support nested relation list filters ([b0c8427](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/b0c8427d60c993cf742e808f4bf5eea3d3905178))
+
 # [2.2.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.1.2...v2.2.0) (2026-06-05)
 
 ### Bug Fixes
