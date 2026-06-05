@@ -1,3 +1,13 @@
+# [2.2.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.1.2...v2.2.0) (2026-06-05)
+
+### Bug Fixes
+
+- **tooling:** pass files to prettier ([5d744d4](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/5d744d40d3192024bc89d775c4cfcee1107e79fe))
+
+### Features
+
+- **api:** support discriminated custom route dtos ([0d86c7b](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/0d86c7b521f66d21cd516d2fb2d18cccd525c2f4))
+
 ## [2.1.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.1.1...v2.1.2) (2026-05-19)
 
 ### Bug Fixes
