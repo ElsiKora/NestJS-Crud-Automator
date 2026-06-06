@@ -401,6 +401,22 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eFunctionSubscriber.events).toContain("function:before:create:transaction");
 	});
 
+	it("uses configured transactions for generated create routes", async () => {
+		const createResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { id: "generated-transaction", name: "GeneratedTransaction", count: 1, ownerId: E2E_OWNER_ID },
+			url: "/generated-transaction-items",
+		});
+
+		expect(createResponse.statusCode).toBe(201);
+		expect(E2eFunctionSubscriber.events).toContain("function:before:create:transaction");
+		expect(await service.repository.findOne({ where: { id: "generated-transaction" } })).toMatchObject({
+			id: "generated-transaction",
+			name: "fn-GeneratedTransaction",
+		});
+	});
+
 	it("uses declared ApiMethod actions for custom securable routes", async () => {
 		await createItem({ id: "item-promote", name: "Promote", count: 1 });
 

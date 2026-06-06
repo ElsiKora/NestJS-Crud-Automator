@@ -4,12 +4,14 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiPropertyDescribeType } from "@enum/decorator/api";
+import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperation } from "@enum/filter";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
+
+import { OwnerGroupEntity, OwnerMetadata } from "./fixture/owner";
 
 @Entity("owners")
 class OwnerEntity {
@@ -26,6 +28,35 @@ class OwnerEntity {
 	} as TApiPropertyDescribeProperties)
 	@Column({ type: "varchar" })
 	public name!: string;
+
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "hidden owner name",
+		properties: {
+			[EApiRouteType.GET_LIST]: {
+				[EApiDtoType.QUERY]: {
+					isEnabled: false,
+				},
+			},
+		},
+	} as TApiPropertyDescribeProperties)
+	@Column({ type: "varchar" })
+	public hiddenName!: string;
+
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.OBJECT,
+		dataType: OwnerMetadata,
+		description: "owner metadata",
+	} as TApiPropertyDescribeProperties)
+	@Column({ type: "json", nullable: true })
+	public metadata?: OwnerMetadata;
+
+	@ManyToOne(() => OwnerGroupEntity)
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.RELATION,
+		description: "owner group",
+	} as TApiPropertyDescribeProperties)
+	public group!: OwnerGroupEntity;
 }
 
 @Entity("items")
@@ -111,6 +142,22 @@ describe("ApiControllerGetListTransformFilter", () => {
 			"owner.name..deep[value]": "Owner",
 			"owner.name.deep[operator]": EFilterOperation.EQ,
 			"owner.name.deep[value]": "Owner",
+		};
+
+		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);
+
+		expect(filter).not.toHaveProperty("owner");
+	});
+
+	it("ignores related object, relation, and hidden query fields", () => {
+		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
+		const query = {
+			"owner.group[operator]": EFilterOperation.EQ,
+			"owner.group[value]": "group-1",
+			"owner.hiddenName[operator]": EFilterOperation.EQ,
+			"owner.hiddenName[value]": "Hidden",
+			"owner.metadata[operator]": EFilterOperation.EQ,
+			"owner.metadata[value]": "Metadata",
 		};
 
 		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);

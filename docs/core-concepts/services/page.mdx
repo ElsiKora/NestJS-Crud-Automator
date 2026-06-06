@@ -160,6 +160,34 @@ export class UserService extends ApiServiceBase<UserEntity> {
 
 Do not pass `EntityManager` as a public service method argument. Use function `transaction.mode` and nested decorated calls so the framework propagates the active transaction through `ApiFunctionContextStorage`.
 
+Generated CRUD functions can be configured directly on `@ApiService`:
+
+```typescript filename="post.service.ts" copy
+import { ApiService, ApiServiceBase, EApiFunctionTransactionMode, EApiFunctionType } from "@elsikora/nestjs-crud-automator";
+
+@Injectable()
+@ApiService<PostEntity>({
+	entity: PostEntity,
+	functions: {
+		[EApiFunctionType.CREATE]: {
+			transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+		},
+	},
+})
+export class PostService extends ApiServiceBase<PostEntity> {
+	constructor(
+		@InjectRepository(PostEntity)
+		public repository: Repository<PostEntity>,
+	) {
+		super();
+	}
+}
+```
+
+The `functions` map accepts generated function types (`CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, `GET_MANY`). Omitted entries keep the default `SUPPORTS` mode, and `CUSTOM` is configured with `@ApiFunctionCustom` instead.
+
+Custom commands can use `@ApiFunctionCustom` when the operation needs domain-specific method bodies:
+
 ```typescript filename="post.service.ts" copy
 import { ApiFunctionCustom, EApiFunctionTransactionMode } from "@elsikora/nestjs-crud-automator";
 

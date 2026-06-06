@@ -84,6 +84,17 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 				},
 				entity,
 				mode: transactionMode,
+				onPreflightError: async (eventManager: EntityManager | undefined, error: Error): Promise<void> => {
+					const entityInstance: E = new entity();
+
+					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
+						DATA: { criteria, eventManager, repository: this.repository },
+						ENTITY: entityInstance,
+						FUNCTION_TYPE: EApiFunctionType.DELETE,
+					};
+
+					await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.DELETE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, error);
+				},
 				repository: this.repository,
 			});
 		};

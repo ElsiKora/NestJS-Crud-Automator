@@ -2,13 +2,14 @@ import "reflect-metadata";
 
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { ClassConstructor } from "class-transformer";
+import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";
 import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
 import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
-import { EFilterOperationString, EFilterOperationUuid } from "@enum/filter";
+import { EFilterOperation, EFilterOperationString, EFilterOperationUuid } from "@enum/filter";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
@@ -16,6 +17,8 @@ import { instanceToPlain, plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
+
+import { DtoRelatedGroupEntity, DtoRelatedMetaInfo } from "./fixture/dto-related";
 
 enum TestStatus {
 	ACTIVE = "ACTIVE",
@@ -114,6 +117,40 @@ class DtoRelatedEntity {
 		type: EApiPropertyDescribeType.STRING,
 	})
 	public name!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({
+		description: "hidden owner name",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 50,
+		minLength: 1,
+		pattern: "/^.+$/",
+		properties: {
+			[EApiRouteType.GET_LIST]: {
+				[EApiDtoType.QUERY]: {
+					isEnabled: false,
+				},
+			},
+		},
+		type: EApiPropertyDescribeType.STRING,
+	} as TApiPropertyDescribeProperties)
+	public hiddenName!: string;
+
+	@Column({ type: "json", nullable: true })
+	// eslint-disable-next-line @elsikora/typescript/no-explicit-any
+	@ApiPropertyDescribe({
+		dataType: DtoRelatedMetaInfo,
+		description: "owner metadata",
+		type: EApiPropertyDescribeType.OBJECT,
+	} as any)
+	public metadata?: DtoRelatedMetaInfo;
+
+	@ManyToOne(() => DtoRelatedGroupEntity)
+	@ApiPropertyDescribe({
+		description: "owner group",
+		type: EApiPropertyDescribeType.RELATION,
+	})
+	public group!: DtoRelatedGroupEntity;
 }
 
 class MetaInfo {
@@ -328,12 +365,28 @@ describe("DtoGenerate", () => {
 		expect(queryInstance && "owner.name[value]" in queryInstance).toBe(true);
 		expect(queryInstance && "owner.name[values]" in queryInstance).toBe(true);
 		expect(queryInstance && "owner.name[operator]" in queryInstance).toBe(true);
+		expect(queryInstance && "owner.group[value]" in queryInstance).toBe(false);
+		expect(queryInstance && "owner.group[operator]" in queryInstance).toBe(false);
+		expect(queryInstance && "owner.hiddenName[value]" in queryInstance).toBe(false);
+		expect(queryInstance && "owner.hiddenName[operator]" in queryInstance).toBe(false);
+		expect(queryInstance && "owner.metadata[value]" in queryInstance).toBe(false);
+		expect(queryInstance && "owner.metadata[operator]" in queryInstance).toBe(false);
 
 		const ownerIdOperatorMetadata = queryDto ? Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, queryDto.prototype, "owner.id[operator]") : undefined;
 		const ownerNameOperatorMetadata = queryDto ? Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, queryDto.prototype, "owner.name[operator]") : undefined;
 
 		expect(ownerIdOperatorMetadata?.enum).toEqual(Object.values(EFilterOperationUuid));
 		expect(ownerNameOperatorMetadata?.enum).toEqual(Object.values(EFilterOperationString));
+
+		const invalidQuery = queryDto
+			? plainToInstance(queryDto as ClassConstructor<unknown>, {
+					"owner.id[operator]": EFilterOperation.CONT,
+					"owner.id[value]": "owner-1",
+				})
+			: undefined;
+		const invalidQueryErrors = invalidQuery ? validateSync(invalidQuery as object) : [];
+
+		expect(invalidQueryErrors.some((error) => error.property === "owner.id[operator]")).toBe(true);
 	});
 
 	it("serializes nested manual DTOs in response mode without manual isResponse", () => {
