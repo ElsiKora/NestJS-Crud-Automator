@@ -1,3 +1,9 @@
+# [2.4.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.3.0...v2.4.0) (2026-06-06)
+
+### Features
+
+- **api:** configure generated crud transactions ([a5de085](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/a5de08511f56d79b16fc60706580ec38cdcec67d))
+
 # [2.3.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.2.0...v2.3.0) (2026-06-05)
 
 ### Features
