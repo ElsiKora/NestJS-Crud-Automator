@@ -1,3 +1,9 @@
+# [2.6.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.5.0...v2.6.0) (2026-06-06)
+
+### Features
+
+- **api:** align request relation loading with include ([abd3ed7](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/abd3ed7b0583d6ddfffb79c313f6acda14c7a98a))
+
 # [2.5.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.4.0...v2.5.0) (2026-06-06)
 
 ### Features
