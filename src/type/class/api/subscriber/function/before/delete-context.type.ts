@@ -3,4 +3,4 @@ import type { IApiSubscriberFunctionExecutionContextData } from "@interface/clas
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context.interface";
 import type { TApiFunctionDeleteCriteria } from "@type/decorator/api/function";
 
-export type TApiSubscriberFunctionBeforeDeleteContext<E extends IApiBaseEntity> = IApiSubscriberFunctionExecutionContext<E, TApiFunctionDeleteCriteria<E>, IApiSubscriberFunctionExecutionContextData<E>>;
+export type TApiSubscriberFunctionBeforeDeleteContext<E extends IApiBaseEntity, Result extends TApiFunctionDeleteCriteria<E> = TApiFunctionDeleteCriteria<E>> = IApiSubscriberFunctionExecutionContext<E, Result, IApiSubscriberFunctionExecutionContextData<E>>;

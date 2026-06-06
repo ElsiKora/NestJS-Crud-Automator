@@ -193,3 +193,18 @@ export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
 	}
 }
 ```
+
+For a generated create flow with a stricter application-defined service payload, pass it as the second generic to both the base class and before-context helper. Define the payload type yourself; the generic only narrows TypeScript's `context.result` type and does not change validation, transformation, or runtime behavior.
+
+```ts
+type PostCreateInput = {
+	title: string;
+	author: { id: string };
+};
+
+export class PostCreateSubscriber extends ApiFunctionSubscriberBase<PostEntity, PostCreateInput> {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity, PostCreateInput>): Promise<PostCreateInput> {
+		return context.result;
+	}
+}
+```

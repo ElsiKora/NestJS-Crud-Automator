@@ -31,7 +31,7 @@ HTTP list queries use lowercase sort directions: `asc` and `desc`.
 ## Subscriber Context Helpers
 
 ```typescript
-type TApiSubscriberFunctionBeforeCreateContext<E extends IApiBaseEntity> = IApiSubscriberFunctionExecutionContext<E, TApiFunctionCreateProperties<E>, IApiSubscriberFunctionExecutionContextData<E>>;
+type TApiSubscriberFunctionBeforeCreateContext<E extends IApiBaseEntity, Result extends TApiFunctionCreateProperties<E> = TApiFunctionCreateProperties<E>> = IApiSubscriberFunctionExecutionContext<E, Result, IApiSubscriberFunctionExecutionContextData<E>>;
 
 type TApiSubscriberRouteBeforeCreateContext<E extends IApiBaseEntity> = IApiSubscriberRouteExecutionContext<
 	E,
@@ -45,7 +45,7 @@ type TApiSubscriberRouteBeforeCreateContext<E extends IApiBaseEntity> = IApiSubs
 >;
 ```
 
-Prefer the exported helper types over manually spelling every generic parameter.
+Prefer the exported helper types over manually spelling every generic parameter. Before function helpers accept an optional constrained `Result` generic for advanced cases where `context.result` is a stricter application payload. This is type-only and does not change validation, transformation, or runtime behavior.
 
 ## Authorization Types
 

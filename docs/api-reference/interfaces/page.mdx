@@ -181,29 +181,39 @@ interface IApiSubscriberRoute<E> {
 }
 ```
 
-### IApiSubscriberFunction\<E\>
+### IApiSubscriberFunction\<E, ...BeforeResult\>
 
 Interface for function subscribers.
 
 ```typescript
-interface IApiSubscriberFunction<E> {
+interface IApiSubscriberFunction<
+	E extends IApiBaseEntity,
+	BeforeCreateResult extends TApiFunctionCreateProperties<E> = TApiFunctionCreateProperties<E>,
+	BeforeDeleteResult extends TApiFunctionDeleteCriteria<E> = TApiFunctionDeleteCriteria<E>,
+	BeforeGetResult extends TApiFunctionGetProperties<E> = TApiFunctionGetProperties<E>,
+	BeforeGetListResult extends TApiFunctionGetListProperties<E> = TApiFunctionGetListProperties<E>,
+	BeforeGetManyResult extends TApiFunctionGetManyProperties<E> = TApiFunctionGetManyProperties<E>,
+	BeforeUpdateResult extends TApiFunctionUpdateProperties<E> = TApiFunctionUpdateProperties<E>,
+> {
 	onBeforeCustom?(context: IApiSubscriberFunctionExecutionContext<E, unknown, IApiSubscriberFunctionExecutionContextData<E>>): Promise<unknown>;
 	onAfterCustom?(context: IApiSubscriberFunctionExecutionContext<E, unknown, IApiSubscriberFunctionExecutionContextData<E>>): Promise<unknown>;
-	onBeforeCreate?(context: TApiSubscriberFunctionBeforeCreateContext<E>): Promise<TApiFunctionCreateProperties<E> | undefined>;
+	onBeforeCreate?(context: TApiSubscriberFunctionBeforeCreateContext<E, BeforeCreateResult>): Promise<BeforeCreateResult | undefined>;
 	onAfterCreate?(context: TApiSubscriberFunctionAfterCreateContext<E>): Promise<E | undefined>;
-	onBeforeGet?(context: TApiSubscriberFunctionBeforeGetContext<E>): Promise<TApiFunctionGetProperties<E> | undefined>;
+	onBeforeGet?(context: TApiSubscriberFunctionBeforeGetContext<E, BeforeGetResult>): Promise<BeforeGetResult | undefined>;
 	onAfterGet?(context: TApiSubscriberFunctionAfterGetContext<E>): Promise<E | undefined>;
-	onBeforeGetList?(context: TApiSubscriberFunctionBeforeGetListContext<E>): Promise<TApiFunctionGetListProperties<E> | undefined>;
+	onBeforeGetList?(context: TApiSubscriberFunctionBeforeGetListContext<E, BeforeGetListResult>): Promise<BeforeGetListResult | undefined>;
 	onAfterGetList?(context: TApiSubscriberFunctionAfterGetListContext<E>): Promise<IApiGetListResponseResult<E> | undefined>;
-	onBeforeGetMany?(context: TApiSubscriberFunctionBeforeGetManyContext<E>): Promise<TApiFunctionGetManyProperties<E> | undefined>;
+	onBeforeGetMany?(context: TApiSubscriberFunctionBeforeGetManyContext<E, BeforeGetManyResult>): Promise<BeforeGetManyResult | undefined>;
 	onAfterGetMany?(context: TApiSubscriberFunctionAfterGetManyContext<E>): Promise<Array<E> | undefined>;
-	onBeforeUpdate?(context: TApiSubscriberFunctionBeforeUpdateContext<E>): Promise<TApiFunctionUpdateProperties<E> | undefined>;
+	onBeforeUpdate?(context: TApiSubscriberFunctionBeforeUpdateContext<E, BeforeUpdateResult>): Promise<BeforeUpdateResult | undefined>;
 	onAfterUpdate?(context: TApiSubscriberFunctionAfterUpdateContext<E>): Promise<E | undefined>;
-	onBeforeDelete?(context: TApiSubscriberFunctionBeforeDeleteContext<E>): Promise<TApiFunctionDeleteCriteria<E> | undefined>;
+	onBeforeDelete?(context: TApiSubscriberFunctionBeforeDeleteContext<E, BeforeDeleteResult>): Promise<BeforeDeleteResult | undefined>;
 	onAfterDelete?(context: TApiSubscriberFunctionAfterDeleteContext<E>): Promise<E | undefined>;
 	// ... before/after error hooks include CRUD, GET_MANY, and CUSTOM operations.
 }
 ```
+
+The extra before-result generics are optional and type-only. Use them when a function subscriber has a stricter payload type than the default operation payload; they do not infer DTOs or change runtime behavior.
 
 ## Function Context Interfaces
 

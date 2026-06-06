@@ -57,6 +57,25 @@ private generateSlug(title: string): string {
 }
 ```
 
+For generated create flows that have a stricter application-defined service payload than `DeepPartial<E>`, pass that payload as the second generic. Define the payload type yourself to match the service input shape; the generic only narrows TypeScript's `context.result` type and does not change validation, transformation, or runtime behavior.
+
+```typescript
+type PostCreateInput = {
+	title: string;
+	content: string;
+	author: { id: string };
+};
+
+export class PostCreateSubscriber extends ApiFunctionSubscriberBase<PostEntity, PostCreateInput> {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity, PostCreateInput>): Promise<PostCreateInput> {
+		context.result.title; // string
+		context.result.author.id; // string
+
+		return context.result;
+	}
+}
+```
+
 #### `onBeforeUpdate`
 
 ```typescript
@@ -407,7 +426,7 @@ export class VersionHistorySubscriber extends ApiFunctionSubscriberBase<PostEnti
 @ApiFunctionSubscriber({ entity: PostEntity, priority: 100 })
 export class DataValidationSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
 	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>): Promise<TApiFunctionCreateProperties<PostEntity>> {
-		const { body } = context.result;
+		const body = context.result;
 
 		// Validate content length
 		if (body.content && body.content.length < 100) {

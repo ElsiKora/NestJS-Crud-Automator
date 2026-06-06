@@ -113,6 +113,22 @@ Abstract base class for function-level subscribers.
 
 **Location:** `src/class/api/subscriber/function-base.class.ts`
 
+**Generic Parameters:**
+
+```typescript
+ApiFunctionSubscriberBase<
+	E extends IApiBaseEntity,
+	BeforeCreateResult extends TApiFunctionCreateProperties<E> = TApiFunctionCreateProperties<E>,
+	BeforeDeleteResult extends TApiFunctionDeleteCriteria<E> = TApiFunctionDeleteCriteria<E>,
+	BeforeGetResult extends TApiFunctionGetProperties<E> = TApiFunctionGetProperties<E>,
+	BeforeGetListResult extends TApiFunctionGetListProperties<E> = TApiFunctionGetListProperties<E>,
+	BeforeGetManyResult extends TApiFunctionGetManyProperties<E> = TApiFunctionGetManyProperties<E>,
+	BeforeUpdateResult extends TApiFunctionUpdateProperties<E> = TApiFunctionUpdateProperties<E>,
+>
+```
+
+The before-result generics are optional and type-only. Keep the one-generic form for default CRUD payloads, or pass a stricter before-create payload as `ApiFunctionSubscriberBase<Entity, CreateInput>`.
+
 **Hook Methods:**
 
 - `onBeforeCreate`, `onAfterCreate`, `onBeforeErrorCreate`, `onAfterErrorCreate`
