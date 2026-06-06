@@ -114,7 +114,7 @@ function calculateCurrentPage<E extends IApiBaseEntity>(properties: TApiFunction
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListExecutorProperties<E>): Promise<IApiGetListResponseResult<E>> {
 	const { constructor, entity, properties, repository }: IApiFunctionGetListExecutorProperties<E> = options;
-	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.get<E>()?.eventManager;
+	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
 		let items: Array<E>;

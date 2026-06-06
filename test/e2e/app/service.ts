@@ -3,7 +3,7 @@ import type { DataSource, Repository } from "typeorm";
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
 
-import { ApiFunction, ApiFunctionCustom, ApiFunctionTransactionScope, ApiService, ApiServiceBase, ApiServiceObservable, EApiFunctionTransactionMode, EApiFunctionType } from "../../../src/index";
+import { ApiFunction, ApiFunctionCustom, ApiFunctionStep, ApiFunctionTransactionScope, ApiService, ApiServiceBase, ApiServiceObservable, EApiFunctionTransactionMode, EApiFunctionType } from "../../../src/index";
 
 import { E2eEntity } from "./entity";
 
@@ -69,6 +69,50 @@ export class E2eService extends ApiServiceBase<E2eEntity> {
 		return await this.getApiFunctionContext<E2eEntity>().operations.create(body);
 	}
 
+	@ApiFunctionCustom<E2eEntity>({
+		action: "custom.step",
+		entity: E2eEntity,
+		transaction: {
+			mode: EApiFunctionTransactionMode.REQUIRED,
+		},
+	})
+	public async createWithCustomStep(body: Partial<E2eEntity>): Promise<E2eEntity> {
+		return await this.createWithMandatoryStep(body);
+	}
+
+	@ApiFunctionCustom<E2eEntity>({
+		action: "custom.step.rollback",
+		entity: E2eEntity,
+		transaction: {
+			mode: EApiFunctionTransactionMode.REQUIRED,
+		},
+	})
+	public async createWithFailingCustomStep(body: Partial<E2eEntity>): Promise<E2eEntity> {
+		return await this.createWithFailingMandatoryStep(body);
+	}
+
+	@ApiFunctionCustom<E2eEntity>({
+		action: "custom.step.generated",
+		entity: E2eEntity,
+		transaction: {
+			mode: EApiFunctionTransactionMode.REQUIRED,
+		},
+	})
+	public async createWithStepGeneratedFunction(body: Partial<E2eEntity>): Promise<E2eEntity> {
+		return await this.createWithGeneratedFunctionStep(body);
+	}
+
+	@ApiFunctionCustom<E2eEntity>({
+		action: "custom.step.custom",
+		entity: E2eEntity,
+		transaction: {
+			mode: EApiFunctionTransactionMode.REQUIRED,
+		},
+	})
+	public async createWithStepCustomFunction(body: Partial<E2eEntity>): Promise<E2eEntity> {
+		return await this.createWithNestedCustomFunctionStep(body);
+	}
+
 	public async createWithCustomNoneInsideTransaction(body: Partial<E2eEntity>): Promise<E2eEntity> {
 		return await ApiFunctionTransactionScope.runWithDataSource(this.dataSource, async () => await this.createWithCustomNone(body));
 	}
@@ -119,5 +163,67 @@ export class E2eService extends ApiServiceBase<E2eEntity> {
 
 	public async createWithBuiltinNoneInsideTransaction(body: Partial<E2eEntity>): Promise<E2eEntity> {
 		return await ApiFunctionTransactionScope.runWithDataSource(this.dataSource, async () => await this.createWithBuiltinNone(body));
+	}
+
+	@ApiFunctionStep<E2eEntity>({
+		entity: E2eEntity,
+		transaction: {
+			mode: EApiFunctionTransactionMode.MANDATORY,
+		},
+	})
+	private async createWithMandatoryStep(body: Partial<E2eEntity>): Promise<E2eEntity> {
+		const context = this.getApiFunctionStepContext<E2eEntity>();
+
+		if (!context.eventManager) {
+			throw new Error("Step transaction manager is required");
+		}
+
+		return await context.repository.save({
+			...body,
+			name: `step-${body.name ?? ""}`,
+		});
+	}
+
+	@ApiFunctionStep<E2eEntity>({
+		entity: E2eEntity,
+		transaction: {
+			mode: EApiFunctionTransactionMode.MANDATORY,
+		},
+	})
+	private async createWithFailingMandatoryStep(body: Partial<E2eEntity>): Promise<E2eEntity> {
+		const context = this.getApiFunctionStepContext<E2eEntity>();
+
+		await context.repository.save({
+			...body,
+			name: `rollback-${body.name ?? ""}`,
+		});
+
+		throw new Error("Forced function step failure");
+	}
+
+	@ApiFunctionStep<E2eEntity>({
+		entity: E2eEntity,
+		transaction: {
+			mode: EApiFunctionTransactionMode.MANDATORY,
+		},
+	})
+	private async createWithGeneratedFunctionStep(body: Partial<E2eEntity>): Promise<E2eEntity> {
+		return await this.create({
+			...body,
+			name: `generated-step-${body.name ?? ""}`,
+		});
+	}
+
+	@ApiFunctionStep<E2eEntity>({
+		entity: E2eEntity,
+		transaction: {
+			mode: EApiFunctionTransactionMode.MANDATORY,
+		},
+	})
+	private async createWithNestedCustomFunctionStep(body: Partial<E2eEntity>): Promise<E2eEntity> {
+		return await this.createWithCustomMandatory({
+			...body,
+			name: `nested-step-${body.name ?? ""}`,
+		});
 	}
 }

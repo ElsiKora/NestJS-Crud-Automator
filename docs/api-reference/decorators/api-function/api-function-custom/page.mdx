@@ -62,7 +62,13 @@ async checkout(orderId: string): Promise<OrderEntity> {
 | `getRepository` | `<T extends IApiBaseEntity>(entity: new () => T) => Repository<T>`                                                                             |
 | `update`        | `(criteria: TApiFunctionUpdateCriteria<E> \| Array<TApiFunctionUpdateCriteria<E>>, properties: TApiFunctionUpdateProperties<E>) => Promise<E>` |
 
-`this.getApiFunctionContext()` is only available while a decorated function is executing. Calling it outside `@ApiFunction` or `@ApiFunctionCustom` throws.
+`this.getApiFunctionContext()` is only available while a decorated function is executing. Calling it outside `@ApiFunction` or `@ApiFunctionCustom` throws. It is also unavailable inside `@ApiFunctionStep`; use `this.getApiFunctionStepContext()` there.
+
+## Custom Function vs Function Step
+
+Use `@ApiFunctionCustom` for standalone domain actions that need an `action` name, function subscribers, lifecycle hooks, and `context.operations`.
+
+Use `@ApiFunctionStep` for internal helper methods inside custom commands, generated or decorated service flows, or direct helper calls when the selected transaction mode permits and the helper only needs transaction context. Steps do not dispatch subscribers and do not create action, route, Swagger, or authorization metadata.
 
 ## Subscriber example
 

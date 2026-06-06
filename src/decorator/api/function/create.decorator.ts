@@ -101,7 +101,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExecutorProperties<E>): Promise<E> {
 	const { constructor, entity, properties, repository }: IApiFunctionCreateExecutorProperties<E> = options;
-	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.get<E>()?.eventManager;
+	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
 		let result: E;

@@ -49,6 +49,26 @@ export class E2eFunctionController {
 		return await this.service.createWithCustomNoneInsideTransaction(body);
 	}
 
+	@Post("custom-step")
+	public async customStep(@Body() body: Partial<E2eEntity>): Promise<E2eEntity> {
+		return await this.service.createWithCustomStep(body);
+	}
+
+	@Post("custom-step-rollback")
+	public async customStepRollback(@Body() body: Partial<E2eEntity>): Promise<E2eEntity> {
+		return await this.service.createWithFailingCustomStep(body);
+	}
+
+	@Post("custom-step-generated")
+	public async customStepGenerated(@Body() body: Partial<E2eEntity>): Promise<E2eEntity> {
+		return await this.service.createWithStepGeneratedFunction(body);
+	}
+
+	@Post("custom-step-custom")
+	public async customStepCustom(@Body() body: Partial<E2eEntity>): Promise<E2eEntity> {
+		return await this.service.createWithStepCustomFunction(body);
+	}
+
 	@Post("custom-required")
 	public async customRequired(@Body() body: Partial<E2eEntity>): Promise<E2eEntity> {
 		return await this.service.createWithCustomRequired(body);

@@ -556,6 +556,24 @@ async bulkPromote(ids: Array<string>): Promise<Array<UserEntity>> {
 }
 ```
 
+Use `@ApiFunctionStep` for internal helper methods that need ApiFunction transaction semantics and context but should not become standalone custom actions:
+
+```typescript
+import { ApiFunctionStep, EApiFunctionTransactionMode } from "@elsikora/nestjs-crud-automator";
+
+@ApiFunctionStep<UserEntity>({
+	entity: UserEntity,
+	transaction: { mode: EApiFunctionTransactionMode.MANDATORY },
+})
+private async recordPromotionAudit(user: UserEntity): Promise<void> {
+	const context = this.getApiFunctionStepContext<UserEntity>();
+
+	await context.repository.save(user);
+}
+```
+
+Steps do not dispatch function subscribers, create route metadata, or define Swagger/authorization action identities. Step context intentionally exposes only `eventManager`, `repository`, and `getRepository`; use `@ApiFunctionCustom` plus `getApiFunctionContext()` when you need `operations` or lifecycle hooks.
+
 ```typescript
 // app.module.ts
 import type { IApiAuthorizationPrincipal, IApiHookPermissionSource, IApiPolicyAttachmentSource, IApiPolicyDocumentSource, IApiResolvedPolicyAttachments } from "@elsikora/nestjs-crud-automator";

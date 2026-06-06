@@ -13,16 +13,19 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @param {object} options - Transaction execution options.
  * @param {(eventManager: EntityManager | undefined) => Promise<R>} options.callback - Function body to run with the resolved transaction manager.
  * @param {new (...arguments_: Array<unknown>) => E} options.entity - Entity constructor associated with the function.
+ * @param {string} [options.label] - Error message label for the decorated function primitive.
  * @param {EApiFunctionTransactionMode} options.mode - Transaction mode to enforce.
  * @param {(eventManager: EntityManager | undefined, error: Error) => Promise<void>} [options.onPreflightError] - Error hook for transaction mode conflicts before the function body starts.
  * @param {Repository<E>} [options.repository] - Repository used to open new transactions when required.
+ * @param {boolean} [options.shouldBindTransactionScope] - Whether REQUIRED-created transactions should install an ApiFunctionTransactionScope context.
  * @returns {Promise<R>} Callback result.
  */
-export async function ApiFunctionExecuteWithTransaction<E extends IApiBaseEntity, R>(options: { callback: (eventManager: EntityManager | undefined) => Promise<R>; entity: new (...arguments_: Array<unknown>) => E; mode: EApiFunctionTransactionMode; onPreflightError?: (eventManager: EntityManager | undefined, error: Error) => Promise<void>; repository?: Repository<E> }): Promise<R> {
-	const activeEventManager: EntityManager | undefined = ApiFunctionContextStorage.get<E>()?.eventManager;
+export async function ApiFunctionExecuteWithTransaction<E extends IApiBaseEntity, R>(options: { callback: (eventManager: EntityManager | undefined) => Promise<R>; entity: new (...arguments_: Array<unknown>) => E; label?: string; mode: EApiFunctionTransactionMode; onPreflightError?: (eventManager: EntityManager | undefined, error: Error) => Promise<void>; repository?: Repository<E>; shouldBindTransactionScope?: boolean }): Promise<R> {
+	const activeEventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
+	const label: string = options.label ?? "ApiFunction";
 
 	if (options.mode === EApiFunctionTransactionMode.NONE && activeEventManager) {
-		const error: Error = ErrorException("ApiFunction transaction mode NONE cannot run inside an active transaction");
+		const error: Error = ErrorException(`${label} transaction mode NONE cannot run inside an active transaction`);
 
 		await options.onPreflightError?.(activeEventManager, error);
 
@@ -30,7 +33,7 @@ export async function ApiFunctionExecuteWithTransaction<E extends IApiBaseEntity
 	}
 
 	if (options.mode === EApiFunctionTransactionMode.MANDATORY && !activeEventManager) {
-		const error: Error = ErrorException("ApiFunction transaction mode MANDATORY requires an active transaction");
+		const error: Error = ErrorException(`${label} transaction mode MANDATORY requires an active transaction`);
 
 		await options.onPreflightError?.(undefined, error);
 
@@ -48,7 +51,13 @@ export async function ApiFunctionExecuteWithTransaction<E extends IApiBaseEntity
 			throw error;
 		}
 
-		return await options.repository.manager.transaction(async (transactionManager: EntityManager): Promise<R> => await ApiFunctionTransactionScope.runWithEntityManager(transactionManager, async (): Promise<R> => await options.callback(transactionManager)));
+		return await options.repository.manager.transaction(async (transactionManager: EntityManager): Promise<R> => {
+			if (options.shouldBindTransactionScope === false) {
+				return await options.callback(transactionManager);
+			}
+
+			return await ApiFunctionTransactionScope.runWithEntityManager(transactionManager, async (): Promise<R> => await options.callback(transactionManager));
+		});
 	}
 
 	return await options.callback(eventManager);
