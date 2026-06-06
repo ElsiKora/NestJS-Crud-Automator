@@ -1,6 +1,6 @@
 import { BadRequestException, Body, HttpStatus, Inject, Param, RequestMethod } from "@nestjs/common";
 
-import { ApiMethod, EApiAuthenticationType, EApiAuthorizationMode, EApiControllerLoadRelationsStrategy, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiRouteType, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../src/index";
+import { ApiMethod, EApiAuthenticationType, EApiAuthorizationMode, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiRouteType, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../src/index";
 import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../src/index";
 
 import { TestAuthGuard } from "./auth-guard";
@@ -29,9 +29,7 @@ const authentication = {
 			relations: {
 				request: {
 					load: {
-						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						shouldLoad: true,
+						include: { owner: true },
 					},
 					reference: {
 						shape: EApiControllerRelationReferenceShape.SCALAR,
@@ -189,9 +187,7 @@ const authentication = {
 			relations: {
 				request: {
 					load: {
-						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						shouldLoad: true,
+						include: { owner: true },
 					},
 					reference: {
 						key: "id",

@@ -1,6 +1,6 @@
 # Relations
 
-NestJS CRUD Automator supports automatic loading and management of entity relations. Configure relation loading strategies to control how and when related entities are fetched.
+NestJS CRUD Automator supports include-driven request relation hydration and response relation loading. Use `load.include` to select relations and TypeORM `relationLoadStrategy` when you need to control `"join"` vs `"query"` loading.
 
 ## Defining Relations
 
@@ -45,12 +45,12 @@ export class PostEntity {
 
 ## Loading Relations
 
-### Automatic Loading
+### Include-Driven Loading
 
-Configure automatic relation loading in controller routes:
+Configure relation loading in controller routes:
 
 ```typescript filename="post.controller.ts" copy
-import { ApiController, EApiRouteType, EApiControllerLoadRelationsStrategy, EApiControllerRelationReferenceShape } from "@elsikora/nestjs-crud-automator";
+import { ApiController, EApiRouteType, EApiControllerRelationReferenceShape } from "@elsikora/nestjs-crud-automator";
 
 @ApiController<PostEntity>({
 	entity: PostEntity,
@@ -61,14 +61,15 @@ import { ApiController, EApiRouteType, EApiControllerLoadRelationsStrategy, EApi
 				request: {
 					reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
 					load: {
-						shouldLoad: true,
-						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						include: { author: true },
 					},
 				},
 				response: {
 					reference: { shape: EApiControllerRelationReferenceShape.OBJECT, key: "id" },
-					load: { include: { author: true, comments: true } },
+					load: {
+						include: { author: true, comments: true },
+						relationLoadStrategy: "query",
+					},
 				},
 			},
 		},
@@ -90,7 +91,7 @@ export class PostController {
 }
 ```
 
-### Manual Loading
+### Explicit Loading
 
 Specify exactly which relations to load:
 
@@ -101,9 +102,7 @@ routes: {
       request: {
         reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
         load: {
-          shouldLoad: true,
-          relationStrategy: EApiControllerLoadRelationsStrategy.MANUAL,
-          relations: ["author"],
+          include: { author: true },
         },
       },
     },
@@ -111,9 +110,9 @@ routes: {
 }
 ```
 
-### Nested Response Relations
+### Nested Relation Includes
 
-Use nested `response.load.include` objects when a GET/GET_LIST response should include relations of relations. Request-side relation hydration reads direct relation property names from request bodies for CREATE, UPDATE/PARTIAL_UPDATE, and `@ApiRouteCustom` body payloads. It does not hydrate GET/DELETE route parameters.
+Use nested `load.include` objects when request hydration or a GET/GET_LIST response should include relations of relations. Request-side relation hydration reads direct relation property names from request bodies for CREATE, UPDATE/PARTIAL_UPDATE, and `@ApiRouteCustom` body payloads. Nested request include objects are passed to the related service as TypeORM `relations`; they do not recursively hydrate nested request references. Request relation hydration does not hydrate GET/DELETE route parameters.
 
 ```typescript
 routes: {
@@ -128,22 +127,15 @@ routes: {
 }
 ```
 
-## Relation Loading Strategies
+## TypeORM Relation Load Strategy
 
-### `AUTO` Strategy
-
-Automatically detects and loads configured relations:
+Use `relationLoadStrategy` when TypeORM should load configured relations with a specific strategy:
 
 ```typescript
-relationStrategy: EApiControllerLoadRelationsStrategy.AUTO;
-```
-
-### `MANUAL` Strategy
-
-Only loads explicitly specified relations:
-
-```typescript
-relationStrategy: EApiControllerLoadRelationsStrategy.MANUAL;
+load: {
+  include: { author: { profile: true } },
+  relationLoadStrategy: "query", // or "join"
+}
 ```
 
 ## Service Injection for Relations
@@ -160,9 +152,7 @@ Inject related services to enable relation loading:
 				request: {
 					reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
 					load: {
-						shouldLoad: true,
-						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						include: { author: true },
 					},
 				},
 			},
@@ -178,7 +168,7 @@ export class PostController {
 }
 ```
 
-The library uses these injected services to load relations efficiently.
+The library uses these injected services to hydrate request relation references. By default, an included request relation named `author` resolves `authorService` on the controller. Use `relations.request.load.services` only when the controller property name differs, for example `services: { author: "userService" }`.
 
 ## Eager vs Lazy Loading
 
@@ -285,7 +275,7 @@ routes: {
   [EApiRouteType.CREATE]: {
     relations: {
       request: {
-        load: { shouldLoad: true },
+        load: { include: { author: true } },
         reference: {
           key: "code",
           shape: EApiControllerRelationReferenceShape.OBJECT,
@@ -315,7 +305,7 @@ With that configuration, `{ author: { code: "author-001" } }` is validated and h
 	route: { method: RequestMethod.POST, path: ":id/author" },
 	relations: {
 		request: {
-			load: { shouldLoad: true },
+			load: { include: { author: true } },
 			reference: { key: "id", shape: EApiControllerRelationReferenceShape.SCALAR },
 		},
 		response: {
@@ -333,7 +323,7 @@ async assignAuthor(@Body() body: Partial<PostEntity>): Promise<PostEntity> {
 }
 ```
 
-Request relations are hydrated before the handler runs. Response relations can be reloaded and projected for single entities, arrays, and get-list style `{ items }` envelopes. Generated CREATE reloads the created entity with configured response relations; UPDATE and PARTIAL_UPDATE reload only when response relation loading is configured; DELETE returns no response body to project.
+Custom route request relations are hydrated from the method body payload before the handler runs. Response relation reload requires `controller.service` to extend `ApiServiceBase`; response values without an `id` are returned unchanged. Response relations can be reloaded and projected for single entities, arrays, and get-list style `{ items }` envelopes. Generated CREATE reloads the created entity with configured response relations; UPDATE and PARTIAL_UPDATE reload only when response relation loading is configured; DELETE returns no response body to project.
 
 ## Performance Optimization
 

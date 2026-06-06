@@ -1,11 +1,7 @@
-import type { EApiControllerLoadRelationsStrategy } from "@enum/decorator/api";
-import type { FindOptionsRelations } from "typeorm";
+import type { FindOneOptions, FindOptionsRelations } from "typeorm";
 
 export interface IApiControllerPropertiesRouteBaseRelationsRequestLoad<E> {
-	relations?: Array<keyof FindOptionsRelations<E>>;
-	relationStrategy?: EApiControllerLoadRelationsStrategy;
+	include: FindOptionsRelations<E>;
+	relationLoadStrategy?: FindOneOptions<E>["relationLoadStrategy"];
 	services?: Partial<Record<keyof FindOptionsRelations<E>, string>>;
-	serviceStrategy?: EApiControllerLoadRelationsStrategy;
-	shouldForceAllServicesToBeSpecified?: boolean;
-	shouldLoad: boolean;
 }

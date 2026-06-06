@@ -257,7 +257,7 @@ In this example, generated `ArticleEntity` DTOs include `id`, `slug`, and `title
 
 ### Relation Properties
 
-Entity relationships with automatic loading:
+Entity relationship metadata for route-configured loading:
 
 ```typescript
 @ManyToOne(() => UserEntity, user => user.posts)
