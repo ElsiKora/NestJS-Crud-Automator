@@ -6,7 +6,15 @@ import type { IApiSubscriber } from "@interface/class/api/subscriber/interface";
 import type { IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 
-export interface IApiSubscriberFunction<E extends IApiBaseEntity> extends IApiSubscriber {
+export interface IApiSubscriberFunction<
+	E extends IApiBaseEntity,
+	BeforeCreateResult extends TApiFunctionCreateProperties<E> = TApiFunctionCreateProperties<E>,
+	BeforeDeleteResult extends TApiFunctionDeleteCriteria<E> = TApiFunctionDeleteCriteria<E>,
+	BeforeGetResult extends TApiFunctionGetProperties<E> = TApiFunctionGetProperties<E>,
+	BeforeGetListResult extends TApiFunctionGetListProperties<E> = TApiFunctionGetListProperties<E>,
+	BeforeGetManyResult extends TApiFunctionGetManyProperties<E> = TApiFunctionGetManyProperties<E>,
+	BeforeUpdateResult extends TApiFunctionUpdateProperties<E> = TApiFunctionUpdateProperties<E>,
+> extends IApiSubscriber {
 	onAfterCreate?(context: IApiSubscriberFunctionExecutionContext<E, E, IApiSubscriberFunctionExecutionContextData<E>>): Promise<E | undefined>;
 	onAfterCustom?(context: IApiSubscriberFunctionExecutionContext<E, unknown, IApiSubscriberFunctionExecutionContextData<E>>): Promise<unknown>;
 	onAfterDelete?(context: IApiSubscriberFunctionExecutionContext<E, E, IApiSubscriberFunctionExecutionContextData<E>>): Promise<E | undefined>;
@@ -27,9 +35,9 @@ export interface IApiSubscriberFunction<E extends IApiBaseEntity> extends IApiSu
 	onAfterGetMany?(context: IApiSubscriberFunctionExecutionContext<E, Array<E>, IApiSubscriberFunctionExecutionContextData<E>>): Promise<Array<E> | undefined>;
 	onAfterUpdate?(context: IApiSubscriberFunctionExecutionContext<E, E, IApiSubscriberFunctionExecutionContextData<E>>): Promise<E | undefined>;
 
-	onBeforeCreate?(context: IApiSubscriberFunctionExecutionContext<E, TApiFunctionCreateProperties<E>, IApiSubscriberFunctionExecutionContextData<E>>): Promise<TApiFunctionCreateProperties<E> | undefined>;
+	onBeforeCreate?(context: IApiSubscriberFunctionExecutionContext<E, BeforeCreateResult, IApiSubscriberFunctionExecutionContextData<E>>): Promise<BeforeCreateResult | undefined>;
 	onBeforeCustom?(context: IApiSubscriberFunctionExecutionContext<E, unknown, IApiSubscriberFunctionExecutionContextData<E>>): Promise<unknown>;
-	onBeforeDelete?(context: IApiSubscriberFunctionExecutionContext<E, TApiFunctionDeleteCriteria<E>, IApiSubscriberFunctionExecutionContextData<E>>): Promise<TApiFunctionDeleteCriteria<E> | undefined>;
+	onBeforeDelete?(context: IApiSubscriberFunctionExecutionContext<E, BeforeDeleteResult, IApiSubscriberFunctionExecutionContextData<E>>): Promise<BeforeDeleteResult | undefined>;
 	onBeforeErrorCreate?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
 	onBeforeErrorCustom?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
 	onBeforeErrorDelete?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
@@ -37,8 +45,8 @@ export interface IApiSubscriberFunction<E extends IApiBaseEntity> extends IApiSu
 	onBeforeErrorGetList?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
 	onBeforeErrorGetMany?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
 	onBeforeErrorUpdate?(context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, error: Error): Promise<void>;
-	onBeforeGet?(context: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetProperties<E>, IApiSubscriberFunctionExecutionContextData<E>>): Promise<TApiFunctionGetProperties<E> | undefined>;
-	onBeforeGetList?(context: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetListProperties<E>, IApiSubscriberFunctionExecutionContextData<E>>): Promise<TApiFunctionGetListProperties<E> | undefined>;
-	onBeforeGetMany?(context: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetManyProperties<E>, IApiSubscriberFunctionExecutionContextData<E>>): Promise<TApiFunctionGetManyProperties<E> | undefined>;
-	onBeforeUpdate?(context: IApiSubscriberFunctionExecutionContext<E, TApiFunctionUpdateProperties<E>, IApiSubscriberFunctionExecutionContextData<E>>): Promise<TApiFunctionUpdateProperties<E> | undefined>;
+	onBeforeGet?(context: IApiSubscriberFunctionExecutionContext<E, BeforeGetResult, IApiSubscriberFunctionExecutionContextData<E>>): Promise<BeforeGetResult | undefined>;
+	onBeforeGetList?(context: IApiSubscriberFunctionExecutionContext<E, BeforeGetListResult, IApiSubscriberFunctionExecutionContextData<E>>): Promise<BeforeGetListResult | undefined>;
+	onBeforeGetMany?(context: IApiSubscriberFunctionExecutionContext<E, BeforeGetManyResult, IApiSubscriberFunctionExecutionContextData<E>>): Promise<BeforeGetManyResult | undefined>;
+	onBeforeUpdate?(context: IApiSubscriberFunctionExecutionContext<E, BeforeUpdateResult, IApiSubscriberFunctionExecutionContextData<E>>): Promise<BeforeUpdateResult | undefined>;
 }
