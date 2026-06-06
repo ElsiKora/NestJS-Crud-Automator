@@ -318,7 +318,7 @@ export class ApiRouteRuntime {
 
 				const query: TApiControllerGetListQuery<E> = targets.query;
 				const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
-				const filter: TApiFunctionGetListPropertiesWhere<E> = ApiControllerGetListTransformFilter<E>(getListQuery, options.entityMetadata);
+				const filter: TApiFunctionGetListPropertiesWhere<E> = ApiControllerGetListTransformFilter<E>(getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard);
 				const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(filter, authorizationDecision?.scope?.where);
 
 				const requestProperties: TApiFunctionGetListProperties<E> = {

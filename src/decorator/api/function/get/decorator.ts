@@ -71,6 +71,17 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 				},
 				entity,
 				mode: transactionMode,
+				onPreflightError: async (eventManager: EntityManager | undefined, error: Error): Promise<void> => {
+					const entityInstance: E = new entity();
+
+					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
+						DATA: { eventManager, getProperties, repository: this.repository },
+						ENTITY: entityInstance,
+						FUNCTION_TYPE: EApiFunctionType.GET,
+					};
+
+					await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, error);
+				},
 				repository: this.repository,
 			});
 		};

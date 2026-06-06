@@ -7,6 +7,7 @@ export { E2eController } from "./controller";
 export { E2eEntity } from "./entity";
 export { E2eAppModule } from "./module";
 export * from "./function";
+export * from "./generated-transaction";
 export * from "./manual";
 export * from "./owner";
 export { E2ePolicySubscriber } from "./policy";

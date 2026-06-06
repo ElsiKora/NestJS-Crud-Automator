@@ -5,8 +5,13 @@ Extends a provider with CRUD-ready methods (`create`, `update`, `delete`, `get`,
 ## Signature
 
 ```typescript
-@ApiService<E extends IApiBaseEntity>({ entity }: TApiServiceProperties<E>)
+@ApiService<E extends IApiBaseEntity>({ entity, functions }: TApiServiceProperties<E>)
 ```
+
+| Property                           | Type                          | Description                                                                 |
+| ---------------------------------- | ----------------------------- | --------------------------------------------------------------------------- |
+| `entity`                           | `new () => E`                 | Entity constructor for generated CRUD functions.                            |
+| `functions[type].transaction.mode` | `EApiFunctionTransactionMode` | Optional transaction mode for a generated function. Defaults to `SUPPORTS`. |
 
 ## Requirements
 
@@ -28,8 +33,21 @@ Extends a provider with CRUD-ready methods (`create`, `update`, `delete`, `get`,
 ## Example
 
 ```typescript
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { ApiService, ApiServiceBase, EApiFunctionTransactionMode, EApiFunctionType } from "@elsikora/nestjs-crud-automator";
+import { UserEntity } from "./user.entity";
+
 @Injectable()
-@ApiService<UserEntity>({ entity: UserEntity })
+@ApiService<UserEntity>({
+	entity: UserEntity,
+	functions: {
+		[EApiFunctionType.CREATE]: {
+			transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+		},
+	},
+})
 export class UserService extends ApiServiceBase<UserEntity> {
 	constructor(
 		@InjectRepository(UserEntity)
@@ -39,6 +57,8 @@ export class UserService extends ApiServiceBase<UserEntity> {
 	}
 }
 ```
+
+The `functions` map accepts generated function types (`CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, `GET_MANY`). Omitted entries keep the default `SUPPORTS` transaction mode. It does not configure `CUSTOM`; use `@ApiFunctionCustom` for custom service commands.
 
 ## Related resources
 
