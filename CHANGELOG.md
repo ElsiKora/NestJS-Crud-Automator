@@ -1,3 +1,9 @@
+# [2.7.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.6.0...v2.7.0) (2026-06-06)
+
+### Features
+
+- **api:** add transaction-aware function steps ([690a12f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/690a12f098192f0325f89f61b7af322406fca03d))
+
 # [2.6.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.5.0...v2.6.0) (2026-06-06)
 
 ### Features
