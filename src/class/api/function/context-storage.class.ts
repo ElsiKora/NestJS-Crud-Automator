@@ -2,11 +2,10 @@ import type { AsyncLocalStorage } from "node:async_hooks";
 
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiFunctionContext, IApiFunctionStepContext } from "@interface/class/api/function";
+import type { TApiFunctionContextStorageEntry } from "@type/class/api/function/context-storage-entry.type";
 import type { EntityManager } from "typeorm";
 
 import { AsyncLocalStorage as NodeAsyncLocalStorage } from "node:async_hooks";
-
-type TApiFunctionContextStorageEntry<E extends IApiBaseEntity> = { context: IApiFunctionContext<E>; kind: "function" } | { context: IApiFunctionStepContext<E>; kind: "step" };
 
 export class ApiFunctionContextStorage {
 	private static readonly STORAGE: AsyncLocalStorage<TApiFunctionContextStorageEntry<IApiBaseEntity>> = new NodeAsyncLocalStorage<TApiFunctionContextStorageEntry<IApiBaseEntity>>();
@@ -33,5 +32,15 @@ export class ApiFunctionContextStorage {
 
 	public static runStep<E extends IApiBaseEntity, R>(context: IApiFunctionStepContext<E>, callback: () => Promise<R>): Promise<R> {
 		return ApiFunctionContextStorage.STORAGE.run({ context, kind: "step" }, callback);
+	}
+
+	public static runWithoutStepContext<R>(callback: () => Promise<R>): Promise<R> {
+		const entry: TApiFunctionContextStorageEntry<IApiBaseEntity> | undefined = ApiFunctionContextStorage.STORAGE.getStore();
+
+		if (entry?.kind !== "step") {
+			return callback();
+		}
+
+		return ApiFunctionContextStorage.STORAGE.run({ context: { eventManager: entry.context.eventManager }, kind: "transaction" }, callback);
 	}
 }

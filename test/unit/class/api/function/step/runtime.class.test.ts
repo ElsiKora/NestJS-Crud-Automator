@@ -395,6 +395,27 @@ describe("ApiFunctionStepRuntime", () => {
 		expect(errorSubscriberSpy).not.toHaveBeenCalled();
 	});
 
+	it("rethrows REQUIRED step failures from the opened transaction", async () => {
+		const { repository } = createRepository();
+		const error = new Error("required step failed");
+
+		await expect(
+			ApiFunctionStepRuntime.execute({
+				functionArguments: [],
+				originalMethod: async () => {
+					throw error;
+				},
+				properties: {
+					entity: FunctionStepEntity,
+				},
+				target: { repository },
+				transactionMode: EApiFunctionTransactionMode.REQUIRED,
+			}),
+		).rejects.toBe(error);
+
+		expect(repository.manager.transaction).toHaveBeenCalledTimes(1);
+	});
+
 	it("reuses an outer REQUIRED transaction for nested REQUIRED step calls", async () => {
 		const { repository, transactionManager } = createRepository();
 

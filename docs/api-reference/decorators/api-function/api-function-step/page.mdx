@@ -14,10 +14,10 @@ It is not a standalone function action. It does not dispatch function subscriber
 
 ## Options
 
-| Option             | Type                                       | Description                                        |
-| ------------------ | ------------------------------------------ | -------------------------------------------------- |
-| `entity`           | `new (...arguments_: Array<unknown>) => E` | Entity constructor used for repository resolution. |
-| `transaction.mode` | `EApiFunctionTransactionMode`              | Optional transaction mode. Defaults to `SUPPORTS`. |
+| Option             | Type                                       | Description                                                                                                 |
+| ------------------ | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `entity`           | `new (...arguments_: Array<unknown>) => E` | Entity constructor used for repository resolution.                                                          |
+| `transaction.mode` | `EApiFunctionTransactionMode`              | `transaction` is optional. When provided, `mode` is required. Omitted `transaction` defaults to `SUPPORTS`. |
 
 ## Transaction modes
 
