@@ -216,10 +216,10 @@ routes: {
 
 ## Loading Relations
 
-Configure automatic relation loading:
+Configure relation loading:
 
 ```typescript
-import { EApiControllerLoadRelationsStrategy, EApiControllerRelationReferenceShape } from "@elsikora/nestjs-crud-automator";
+import { EApiControllerRelationReferenceShape } from "@elsikora/nestjs-crud-automator";
 
 @ApiController<PostEntity>({
 	entity: PostEntity,
@@ -229,14 +229,15 @@ import { EApiControllerLoadRelationsStrategy, EApiControllerRelationReferenceSha
 				request: {
 					reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
 					load: {
-						shouldLoad: true,
-						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						include: { author: true },
 					},
 				},
 				response: {
 					reference: { shape: EApiControllerRelationReferenceShape.OBJECT, key: "id" },
-					load: { include: { author: true, comments: true } },
+					load: {
+						include: { author: true, comments: true },
+						relationLoadStrategy: "query",
+					},
 				},
 			},
 		},
@@ -251,10 +252,14 @@ export class PostController {
 }
 ```
 
-Strategies:
+Relation loading uses:
 
-- `AUTO` - Automatically detect and load relations
-- `MANUAL` - Explicitly specify which relations to load
+- `load.include` - Select direct relations and nested TypeORM relation preloads.
+- `load.relationLoadStrategy` - Optional TypeORM `"join"` or `"query"` strategy.
+- `relations.request.load.services` - Optional override for direct relation service property names; omitted keys use `${relationName}Service`.
+- Request relation `load` hydrates only direct included relation keys present in the request body. Omitted, `undefined`, and `null` body relation values are left unchanged.
+- Nested request include objects are passed to the direct relation service as TypeORM `relations`; they do not recursively hydrate nested request references.
+- Custom route request relation loading uses the same relation config, but it only hydrates the method `@Body()` argument.
 
 ## Custom DTOs
 

@@ -5,7 +5,7 @@ import type { IApiRouteRuntimeContextData, IApiRouteRuntimeCustomExecutionOption
 import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route/error-execution-context.interface";
 import type { IApiSubscriberRouteExecutionContextData } from "@interface/class/api/subscriber/route/execution/context";
 import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route/execution/context";
-import type { IApiControllerProperties, IApiControllerPropertiesRouteBaseRequestTarget, IApiRouteMetadata, IApiRouteRuntimeProperties } from "@interface/decorator/api";
+import type { IApiControllerProperties, IApiControllerPropertiesRouteBaseRelationsResponseLoad, IApiControllerPropertiesRouteBaseRequestTarget, IApiRouteMetadata, IApiRouteRuntimeProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { IApiControllerPrimaryColumn } from "@interface/utility";
 import type { Type } from "@nestjs/common";
@@ -114,7 +114,7 @@ export class ApiRouteRuntime {
 	}
 
 	public static async executeCustomResponseRelations<E extends IApiBaseEntity, R>(controller: TApiControllerMethod<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: R): Promise<R> {
-		if (!runtimeProperties.relations?.response?.load?.include) {
+		if (!this.hasResponseRelationInclude(runtimeProperties.relations?.response?.load?.include)) {
 			return response;
 		}
 
@@ -278,6 +278,7 @@ export class ApiRouteRuntime {
 				const createResponse: E = await options.controller.service.create((targets.body ?? {}) as never);
 
 				return await options.controller.service.get({
+					relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
 					relations: routeConfig.relations?.response?.load?.include,
 					where: AuthorizationScopeMergeWhere({ [primaryKey.key]: createResponse[primaryKey.key] } as FindOptionsWhere<E>, authorizationDecision?.scope?.where),
 				});
@@ -300,6 +301,7 @@ export class ApiRouteRuntime {
 				const primaryKey: IApiControllerPrimaryColumn<E> = this.resolvePrimaryKey(targets.parameters, options.entityMetadata);
 
 				const requestProperties: TApiFunctionGetProperties<E> = {
+					relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
 					relations: routeConfig.relations?.response?.load?.include,
 					where: AuthorizationScopeMergeWhere({ [primaryKey.key]: primaryKey.value } as FindOptionsWhere<E>, authorizationDecision?.scope?.where),
 				};
@@ -322,6 +324,7 @@ export class ApiRouteRuntime {
 				const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(filter, authorizationDecision?.scope?.where);
 
 				const requestProperties: TApiFunctionGetListProperties<E> = {
+					relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
 					relations: routeConfig.relations?.response?.load?.include,
 					skip: query.limit * (query.page - 1),
 					take: query.limit,
@@ -398,13 +401,15 @@ export class ApiRouteRuntime {
 		const scopedCriteria: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(requestCriteria, authorizationDecision?.scope?.where);
 		markAfterBoundary();
 		const updateResponse: E = await options.controller.service.update(scopedCriteria ?? requestCriteria, (targets.body ?? {}) as never);
+		const responseLoad: IApiControllerPropertiesRouteBaseRelationsResponseLoad<E> | undefined = routeConfig.relations?.response?.load;
 
-		if (!routeConfig.relations?.response?.load?.include) {
+		if (!responseLoad || !this.hasResponseRelationInclude(responseLoad.include)) {
 			return updateResponse;
 		}
 
 		return await options.controller.service.get({
-			relations: routeConfig.relations.response.load.include,
+			relationLoadStrategy: responseLoad.relationLoadStrategy,
+			relations: responseLoad.include,
 			where: AuthorizationScopeMergeWhere({ [primaryKey.key]: updateResponse[primaryKey.key] } as FindOptionsWhere<E>, authorizationDecision?.scope?.where),
 		});
 	}
@@ -425,6 +430,15 @@ export class ApiRouteRuntime {
 		await this.executeDiscriminatedRequestBodyDto(runtimeProperties, request);
 	}
 
+	/**
+	 * Checks whether response relation loading has at least one configured include key.
+	 * @param {unknown} include - Response include map.
+	 * @returns {boolean} Whether response relation loading should run.
+	 */
+	private static hasResponseRelationInclude(include: unknown): boolean {
+		return include !== null && typeof include === "object" && Object.keys(include).length > 0;
+	}
+
 	private static async loadCustomResponseRelations<E extends IApiBaseEntity>(service: ApiServiceBase<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: unknown): Promise<unknown> {
 		if (response === null || typeof response !== "object" || !("id" in response)) {
 			return response;
@@ -437,6 +451,7 @@ export class ApiRouteRuntime {
 		}
 
 		return await service.get({
+			relationLoadStrategy: runtimeProperties.relations?.response?.load?.relationLoadStrategy,
 			relations: runtimeProperties.relations?.response?.load?.include,
 			where: {
 				id: responseId,

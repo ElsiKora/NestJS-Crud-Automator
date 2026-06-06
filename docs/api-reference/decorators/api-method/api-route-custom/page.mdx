@@ -137,7 +137,7 @@ Custom route relations live under `relations.request` and `relations.response`, 
 	route: { method: RequestMethod.POST, path: ":id/author" },
 	relations: {
 		request: {
-			load: { shouldLoad: true },
+			load: { include: { author: true } },
 			reference: {
 				key: "id",
 				shape: EApiControllerRelationReferenceShape.OBJECT,
@@ -162,7 +162,9 @@ async assignAuthor(@Body() body: Partial<PostEntity>): Promise<PostEntity> {
 }
 ```
 
-For response relation loading, the route response must identify the entity so the runtime can reload configured relations before projecting them to the configured reference shape.
+For response relation loading, the route response must identify the entity so the runtime can reload configured relations before projecting them to the configured reference shape. The controller must expose `service` extending `ApiServiceBase`; response items without an `id` are returned unchanged.
+
+Custom route request relation hydration reads only the method body payload. `relations.request.load.include` selects direct body relations, nested include objects are passed to the direct relation service as TypeORM `relations`, and nested request references are not recursively hydrated. Omitted service mappings infer `${relationName}Service`; `relations.request.load.services` only overrides those controller property names. `relationLoadStrategy` is available on both request and response `load` configs.
 
 ## Subscribers
 

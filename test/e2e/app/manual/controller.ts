@@ -1,7 +1,7 @@
 import { Inject } from "@nestjs/common";
 
 import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../../src/index";
-import { EApiAuthenticationType, EApiAuthorizationMode, EApiControllerLoadRelationsStrategy, EApiControllerRelationReferenceShape, EApiRouteType } from "../../../../src/index";
+import { EApiAuthenticationType, EApiAuthorizationMode, EApiControllerRelationReferenceShape, EApiRouteType } from "../../../../src/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eEntity } from "../entity";
@@ -28,13 +28,10 @@ const authentication = {
 			relations: {
 				request: {
 					load: {
-						relationStrategy: EApiControllerLoadRelationsStrategy.MANUAL,
-						relations: ["owner"],
-						serviceStrategy: EApiControllerLoadRelationsStrategy.MANUAL,
+						include: { owner: true },
 						services: {
 							owner: "ownerService",
 						},
-						shouldLoad: true,
 					},
 					reference: {
 						shape: EApiControllerRelationReferenceShape.SCALAR,
