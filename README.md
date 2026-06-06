@@ -556,7 +556,7 @@ async bulkPromote(ids: Array<string>): Promise<Array<UserEntity>> {
 }
 ```
 
-Use `@ApiFunctionStep` for internal helper methods that need ApiFunction transaction semantics and context but should not become standalone custom actions:
+Use `@ApiFunctionStep` for internal helper methods that need ApiFunction transaction semantics and context but should not become standalone custom actions. Steps can also be called directly when the selected transaction mode permits:
 
 ```typescript
 import { ApiFunctionStep, EApiFunctionTransactionMode } from "@elsikora/nestjs-crud-automator";

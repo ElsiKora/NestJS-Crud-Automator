@@ -12,11 +12,11 @@
 
 ## Options
 
-| Option             | Type                          | Description                                                                 |
-| ------------------ | ----------------------------- | --------------------------------------------------------------------------- |
-| `entity`           | `new () => E`                 | Entity constructor used for subscribers, repositories, and context helpers. |
-| `action`           | `string`                      | Custom action name used by function subscriber filters.                     |
-| `transaction.mode` | `EApiFunctionTransactionMode` | Optional transaction mode. Defaults to `SUPPORTS`.                          |
+| Option             | Type                                       | Description                                                                 |
+| ------------------ | ------------------------------------------ | --------------------------------------------------------------------------- |
+| `entity`           | `new (...arguments_: Array<unknown>) => E` | Entity constructor used for subscribers, repositories, and context helpers. |
+| `action`           | `string`                                   | Custom action name used by function subscriber filters.                     |
+| `transaction.mode` | `EApiFunctionTransactionMode`              | Optional transaction mode. Defaults to `SUPPORTS`.                          |
 
 ## Lifecycle
 

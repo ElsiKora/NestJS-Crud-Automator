@@ -1431,9 +1431,11 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(response.statusCode).toBe(201);
 		expect(response.json().name).toBe("custom-after-fn-generated-step-custom-StepGenerated");
-		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:custom.step.generated", "function:before:custom.step.generated:transaction", "function:before:create", "function:before:create:transaction", "function:after:create", "function:after:custom.step.generated"]));
+		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.step.generated", "function:before:custom.step.generated:transaction", "function:priority:before:create", "function:before:create", "function:before:create:transaction", "function:priority:after:create", "function:after:create", "function:after:custom.step.generated"]);
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:step");
 		expect((await service.repository.findOne({ where: { id: "custom-step-generated-1" } }))?.name).toBe("fn-generated-step-custom-StepGenerated");
 	});
 
@@ -1446,9 +1448,11 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(response.statusCode).toBe(201);
 		expect(response.json().name).toBe("custom-after-custom-after-fn-custom-nested-step-custom-StepCustom");
-		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:custom.step.custom", "function:before:custom.step.custom:transaction", "function:before:custom.mandatory", "function:before:custom.mandatory:transaction", "function:before:create:transaction", "function:after:custom.mandatory", "function:after:custom.step.custom"]));
+		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.step.custom", "function:before:custom.step.custom:transaction", "function:before:custom.mandatory", "function:before:custom.mandatory:transaction", "function:priority:before:create", "function:before:create", "function:before:create:transaction", "function:priority:after:create", "function:after:create", "function:after:custom.mandatory", "function:after:custom.step.custom"]);
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:step");
 		expect((await service.repository.findOne({ where: { id: "custom-step-custom-1" } }))?.name).toBe("fn-custom-nested-step-custom-StepCustom");
 	});
 

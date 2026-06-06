@@ -174,6 +174,10 @@ describe("public authorization API (E2E)", () => {
 				SUPPORTS?: unknown;
 			};
 		};
+		const builtCjsPackageEntryPath: string = "../../dist/cjs/index.js";
+		const builtCjsPackageEntry = (await import(builtCjsPackageEntryPath)) as {
+			ApiFunctionStep?: unknown;
+		};
 		const bigintStringDefaults = GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, bigintStringOptions);
 		const resolvedPrincipal: IApiAuthorizationPrincipal = await Promise.resolve(
 			principalResolver.resolve({
@@ -193,6 +197,7 @@ describe("public authorization API (E2E)", () => {
 		expect(stepContext.getRepository(PublicApiUser)).toBe(stepRepository);
 		expect(stepContext.repository).toBe(stepRepository);
 		expect(typeof builtPackageEntry.ApiFunctionStep).toBe("function");
+		expect(typeof builtCjsPackageEntry.ApiFunctionStep).toBe("function");
 		expect(builtPackageEntry.EApiFunctionTransactionMode?.SUPPORTS).toBe(EApiFunctionTransactionMode.SUPPORTS);
 		expect(AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN).toBe("API_AUTHORIZATION_PRINCIPAL_RESOLVER");
 		expect(resolvedPrincipal.id).toBe("user-1");

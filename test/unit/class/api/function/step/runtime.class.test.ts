@@ -242,6 +242,23 @@ describe("ApiFunctionStepRuntime", () => {
 		expect(result).toBe(managerRepository);
 	});
 
+	it("resolves non-transactional getRepository helper from the requested entity", async () => {
+		const { managerRepository, repository } = createRepository();
+
+		const result = await ApiFunctionStepRuntime.execute({
+			functionArguments: [],
+			originalMethod: async () => ApiFunctionContextStorage.getStep<FunctionStepEntity>()?.getRepository(OtherFunctionStepEntity),
+			properties: {
+				entity: FunctionStepEntity,
+			},
+			target: { repository },
+			transactionMode: EApiFunctionTransactionMode.SUPPORTS,
+		});
+
+		expect(repository.manager.getRepository).toHaveBeenCalledWith(OtherFunctionStepEntity);
+		expect(result).toBe(managerRepository);
+	});
+
 	it("resolves getRepository helper from the requested entity inside an active transaction", async () => {
 		const { repository, transactionManager } = createRepository();
 
@@ -309,6 +326,8 @@ describe("ApiFunctionStepRuntime", () => {
 
 	it("fails REQUIRED mode outside a transaction when the service repository is unavailable", async () => {
 		const originalMethod = vi.fn(async () => undefined);
+		const subscriberSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers");
+		const errorSubscriberSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers");
 
 		await expect(
 			ApiFunctionStepRuntime.execute({
@@ -323,10 +342,14 @@ describe("ApiFunctionStepRuntime", () => {
 		).rejects.toThrow("Repository is not available in this context");
 
 		expect(originalMethod).not.toHaveBeenCalled();
+		expect(subscriberSpy).not.toHaveBeenCalled();
+		expect(errorSubscriberSpy).not.toHaveBeenCalled();
 	});
 
 	it("fails before running the step body when non-transactional context repository resolution is unavailable", async () => {
 		const originalMethod = vi.fn(async () => undefined);
+		const subscriberSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers");
+		const errorSubscriberSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers");
 
 		await expect(
 			ApiFunctionStepRuntime.execute({
@@ -341,6 +364,8 @@ describe("ApiFunctionStepRuntime", () => {
 		).rejects.toThrow("Repository is not available in this context");
 
 		expect(originalMethod).not.toHaveBeenCalled();
+		expect(subscriberSpy).not.toHaveBeenCalled();
+		expect(errorSubscriberSpy).not.toHaveBeenCalled();
 	});
 
 	it("rethrows step failures and restores the outer context", async () => {

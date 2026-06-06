@@ -208,10 +208,18 @@ export class E2eService extends ApiServiceBase<E2eEntity> {
 		},
 	})
 	private async createWithGeneratedFunctionStep(body: Partial<E2eEntity>): Promise<E2eEntity> {
-		return await this.create({
+		const beforeContext = this.getApiFunctionStepContext<E2eEntity>();
+		const result = await this.create({
 			...body,
 			name: `generated-step-${body.name ?? ""}`,
 		});
+		const afterContext = this.getApiFunctionStepContext<E2eEntity>();
+
+		if (beforeContext !== afterContext) {
+			throw new Error("Step context was not restored after generated function call");
+		}
+
+		return result;
 	}
 
 	@ApiFunctionStep<E2eEntity>({
@@ -221,9 +229,17 @@ export class E2eService extends ApiServiceBase<E2eEntity> {
 		},
 	})
 	private async createWithNestedCustomFunctionStep(body: Partial<E2eEntity>): Promise<E2eEntity> {
-		return await this.createWithCustomMandatory({
+		const beforeContext = this.getApiFunctionStepContext<E2eEntity>();
+		const result = await this.createWithCustomMandatory({
 			...body,
 			name: `nested-step-${body.name ?? ""}`,
 		});
+		const afterContext = this.getApiFunctionStepContext<E2eEntity>();
+
+		if (beforeContext !== afterContext) {
+			throw new Error("Step context was not restored after custom function call");
+		}
+
+		return result;
 	}
 }

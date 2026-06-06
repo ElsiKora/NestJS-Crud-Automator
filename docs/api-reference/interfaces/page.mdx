@@ -231,6 +231,33 @@ interface IApiFunctionContext<E extends IApiBaseEntity> {
 }
 ```
 
+### IApiFunctionStepContext\<E\>
+
+Narrow transaction-aware context available inside `@ApiFunctionStep`.
+
+```typescript
+interface IApiFunctionStepContext<E extends IApiBaseEntity> {
+	eventManager?: EntityManager;
+	getRepository: <T extends IApiBaseEntity>(entity: new () => T) => Repository<T>;
+	repository: Repository<E>;
+}
+```
+
+Step context intentionally does not expose `operations`; use `IApiFunctionContext` inside `@ApiFunctionCustom` when lifecycle operations are required.
+
+### IApiFunctionStepProperties\<E\>
+
+Configuration accepted by `@ApiFunctionStep`.
+
+```typescript
+interface IApiFunctionStepProperties<E extends IApiBaseEntity> {
+	entity: new (...arguments_: Array<unknown>) => E;
+	transaction?: {
+		mode: EApiFunctionTransactionMode;
+	};
+}
+```
+
 ### IApiFunctionContextOperations\<E\>
 
 Transaction-aware service operations exposed to `@ApiFunctionCustom`.

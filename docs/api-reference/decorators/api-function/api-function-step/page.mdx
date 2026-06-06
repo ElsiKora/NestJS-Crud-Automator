@@ -21,12 +21,12 @@ It is not a standalone function action. It does not dispatch function subscriber
 
 ## Transaction modes
 
-- `SUPPORTS` joins an active function transaction when one exists and otherwise runs without opening one.
+- `SUPPORTS` joins an active transaction context when one exists and otherwise runs without opening one.
 - `REQUIRED` joins an active transaction or opens a new TypeORM transaction from the service repository.
 - `MANDATORY` requires an active transaction and fails before the step body when none exists.
 - `NONE` requires no active transaction and fails before the step body when one exists.
 
-Use `MANDATORY` when a step must only run inside an existing function transaction. Use `REQUIRED` when the step may also be called directly and should create its own transaction.
+Use `MANDATORY` when a step must only run inside an existing transaction context. Use `REQUIRED` when the step may also be called directly and should create its own transaction.
 
 ## Context
 
