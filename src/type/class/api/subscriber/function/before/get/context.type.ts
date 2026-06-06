@@ -3,4 +3,4 @@ import type { IApiSubscriberFunctionExecutionContextData } from "@interface/clas
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context.interface";
 import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
 
-export type TApiSubscriberFunctionBeforeGetContext<E extends IApiBaseEntity> = IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetProperties<E>, IApiSubscriberFunctionExecutionContextData<E>>;
+export type TApiSubscriberFunctionBeforeGetContext<E extends IApiBaseEntity, Result extends TApiFunctionGetProperties<E> = TApiFunctionGetProperties<E>> = IApiSubscriberFunctionExecutionContext<E, Result, IApiSubscriberFunctionExecutionContextData<E>>;

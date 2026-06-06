@@ -1054,6 +1054,24 @@ IApiSubscriberFunctionExecutionContext<User, TApiFunctionCreateProperties<User>,
 TApiSubscriberFunctionBeforeCreateContext<User>;
 ```
 
+Before function helper types also accept an optional `Result` generic for advanced subscribers that work with a stricter application-defined service payload. Define this payload type yourself to match the service input shape; the generic only narrows TypeScript's `context.result` type and does not change validation, transformation, or runtime behavior.
+
+```typescript
+type WithdrawalCreateInput = {
+	amount: string;
+	currency: { id: string };
+};
+
+class WithdrawalSubscriber extends ApiFunctionSubscriberBase<Withdrawal, WithdrawalCreateInput> {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<Withdrawal, WithdrawalCreateInput>): Promise<WithdrawalCreateInput> {
+		context.result.amount; // string
+		context.result.currency.id; // string
+
+		return context.result;
+	}
+}
+```
+
 **Available helper types:**
 
 - Function subscribers: `TApiSubscriberFunctionBeforeCreateContext`, `TApiSubscriberFunctionAfterCreateContext`, etc.

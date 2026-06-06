@@ -25,21 +25,39 @@ async onBeforeCreate(
 }
 ```
 
+Before function helpers default to the operation payload type, and can accept a second constrained `Result` generic when a subscriber needs a stricter payload. Define the payload type yourself to match the service input shape; the generic only narrows TypeScript's `context.result` type and does not change validation, transformation, or runtime behavior.
+
+```typescript
+type PostCreateInput = {
+	title: string;
+	author: { id: string };
+};
+
+async onBeforeCreate(
+  context: TApiSubscriberFunctionBeforeCreateContext<PostEntity, PostCreateInput>
+): Promise<PostCreateInput> {
+  context.result.title; // string
+  context.result.author.id; // string
+
+  return context.result;
+}
+```
+
 ### Available Helper Types
 
 **Function Subscribers:**
 
-- `TApiSubscriberFunctionBeforeCreateContext<E>`
+- `TApiSubscriberFunctionBeforeCreateContext<E, Result = TApiFunctionCreateProperties<E>>`
 - `TApiSubscriberFunctionAfterCreateContext<E>`
-- `TApiSubscriberFunctionBeforeUpdateContext<E>`
+- `TApiSubscriberFunctionBeforeUpdateContext<E, Result = TApiFunctionUpdateProperties<E>>`
 - `TApiSubscriberFunctionAfterUpdateContext<E>`
-- `TApiSubscriberFunctionBeforeGetContext<E>`
+- `TApiSubscriberFunctionBeforeGetContext<E, Result = TApiFunctionGetProperties<E>>`
 - `TApiSubscriberFunctionAfterGetContext<E>`
-- `TApiSubscriberFunctionBeforeGetListContext<E>`
+- `TApiSubscriberFunctionBeforeGetListContext<E, Result = TApiFunctionGetListProperties<E>>`
 - `TApiSubscriberFunctionAfterGetListContext<E>`
-- `TApiSubscriberFunctionBeforeGetManyContext<E>`
+- `TApiSubscriberFunctionBeforeGetManyContext<E, Result = TApiFunctionGetManyProperties<E>>`
 - `TApiSubscriberFunctionAfterGetManyContext<E>`
-- `TApiSubscriberFunctionBeforeDeleteContext<E>`
+- `TApiSubscriberFunctionBeforeDeleteContext<E, Result = TApiFunctionDeleteCriteria<E>>`
 - `TApiSubscriberFunctionAfterDeleteContext<E>`
 
 **Route Subscribers:**
@@ -372,8 +390,11 @@ IApiGetListResponseResult<E>;
 // Get many operation (function + route after)
 Array<E>;
 
-// Delete operation (function)
-E; // The deleted entity
+// Delete before hook (function)
+TApiFunctionDeleteCriteria<E>;
+
+// Delete after hook (function)
+E;
 ```
 
 Route before hooks receive request payloads (`body`, `parameters`, `query`) rather than entities, so their `result` shape is based on the incoming DTO. After/error hooks also receive the last request payload on `context.DATA` (when available).
