@@ -222,6 +222,39 @@ export class PostService extends ApiServiceBase<PostEntity> {
 }
 ```
 
+Use `@ApiFunctionStep` for internal helper methods inside custom commands, generated or decorated service flows, or direct helper calls when the selected transaction mode permits. A step is useful when the helper needs ApiFunction transaction semantics and context but should not become a standalone custom action:
+
+```typescript filename="withdrawal.service.ts" copy
+import { ApiFunctionCustom, ApiFunctionStep, EApiFunctionTransactionMode } from "@elsikora/nestjs-crud-automator";
+
+@Injectable()
+export class WithdrawalService extends ApiServiceBase<WithdrawalEntity> {
+	@ApiFunctionCustom<WithdrawalEntity>({
+		action: "approve",
+		entity: WithdrawalEntity,
+		transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+	})
+	async approve(properties: IWithdrawalApproveProperties): Promise<WithdrawalEntity> {
+		return await this.releaseReservedWithdrawalAmount(properties);
+	}
+
+	@ApiFunctionStep<WithdrawalEntity>({
+		entity: WithdrawalEntity,
+		transaction: { mode: EApiFunctionTransactionMode.MANDATORY },
+	})
+	private async releaseReservedWithdrawalAmount(properties: IWithdrawalApproveProperties): Promise<WithdrawalEntity> {
+		const context = this.getApiFunctionStepContext<WithdrawalEntity>();
+
+		return await context.repository.save({
+			...properties.withdrawal,
+			state: "released",
+		});
+	}
+}
+```
+
+`@ApiFunctionStep` keeps normal method calls and does not require a context argument. It only provides transaction/context handling; it does not register a custom action, dispatch function subscribers, create route metadata, or expose Swagger/authorization metadata. Step context intentionally exposes only `eventManager`, `repository`, and `getRepository`; use `@ApiFunctionCustom` plus `getApiFunctionContext()` when you need `operations`.
+
 ## Observable Services
 
 Enable function-level subscribers by marking the service as observable:

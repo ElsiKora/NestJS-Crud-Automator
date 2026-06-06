@@ -1,6 +1,6 @@
 # Function Decorators
 
-Function decorators wrap repository operations inside services, applying DTO validation, subscriber hooks, transaction boundaries, and standardized error handling for CRUD and custom service actions.
+CRUD and custom function decorators wrap repository operations inside services, applying DTO validation, subscriber hooks, transaction boundaries, and standardized error handling for CRUD and custom service actions. `@ApiFunctionStep` is the lightweight exception: it only wraps an internal helper with transaction context and does not run DTO validation, subscribers, action routing, Swagger, or authorization metadata.
 
 ## Available decorators
 
@@ -13,11 +13,12 @@ Function decorators wrap repository operations inside services, applying DTO val
 | `@ApiFunctionGet`     | Fetches a single entity instance with guard-friendly errors.                                        | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get)           |
 | `@ApiFunctionGetList` | Retrieves paginated collections with filtering, sorting, and projection metadata.                   | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-list](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-list) |
 | `@ApiFunctionGetMany` | Optimized multi-record fetch that returns arrays, including empty results.                          | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-many](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-get-many) |
+| `@ApiFunctionStep`    | Runs an internal transaction-aware service subroutine without action/subscriber/route metadata.     | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-step](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-step)         |
 | `@ApiFunctionUpdate`  | Updates entities with DTO validation, ambient transaction support, and subscribers.                 | [/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-update](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-update)     |
 
 ## Transaction modes
 
-All built-in function decorators and `@ApiFunctionCustom` support `transaction.mode`:
+All built-in function decorators, `@ApiFunctionCustom`, and `@ApiFunctionStep` support `transaction.mode`. Step transaction modes only control transaction context for the helper body; they do not add subscriber, action, route, Swagger, or authorization metadata.
 
 ```typescript
 @ApiFunction<PostEntity>({
@@ -36,6 +37,8 @@ async createPost(properties: TApiFunctionCreateProperties<PostEntity>) {
 - `NONE` requires no active transaction and fails before the operation when one exists.
 
 Transaction managers are no longer public method arguments. Decorated methods keep clean signatures; subscribers receive the active manager on `context.DATA.eventManager`, and custom functions can use `this.getApiFunctionContext()` from `ApiServiceBase` to access `context.operations` and transactional repositories.
+
+Use `@ApiFunctionStep` for private/protected/public helper methods that need ApiFunction transaction semantics and context. A step is not a custom action: it does not create function subscriber hooks, route metadata, Swagger metadata, or authorization action identity. Inside a step, use `this.getApiFunctionStepContext()` for the active `eventManager`, entity `repository`, and `getRepository()`.
 
 ## Usage guidelines
 

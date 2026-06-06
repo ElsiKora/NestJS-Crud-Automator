@@ -1,5 +1,7 @@
 import "reflect-metadata";
 
+import type { Repository } from "typeorm";
+
 import type {
 	IApiAuthorizationPrincipal,
 	IApiAuthorizationPrincipalResolver,
@@ -7,6 +9,9 @@ import type {
 	IApiAuthorizationRequestMetadata,
 	IApiAuthorizationRuleContext,
 	IApiAuthorizationScope,
+	IApiBaseEntity,
+	IApiFunctionStepContext,
+	IApiFunctionStepProperties,
 	IApiHookPermissionSource,
 	TApiAuthorizationPolicyBeforeCreateContext,
 	TApiAuthorizationPolicyBeforeCreateResult,
@@ -20,7 +25,7 @@ import type {
 	TApiRouteDiscriminatedDtoProperties,
 } from "../../src/index";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPropertyStringType, GetDefaultStringFormatProperties } from "../../src/index";
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiFunctionStep, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiFunctionTransactionMode, EApiPropertyStringType, GetDefaultStringFormatProperties } from "../../src/index";
 import { describe, expect, it } from "vitest";
 
 class PublicApiUser {
@@ -32,6 +37,18 @@ class PublicApiUser {
 }
 
 class PublicApiEmailBodyDto {}
+
+class PublicApiStepService {
+	@ApiFunctionStep<PublicApiUser>({
+		entity: PublicApiUser,
+		transaction: {
+			mode: EApiFunctionTransactionMode.SUPPORTS,
+		},
+	})
+	public async step(): Promise<void> {
+		return await Promise.resolve();
+	}
+}
 
 class PublicApiPrincipalResolver implements IApiAuthorizationPrincipalResolver {
 	public resolve(user: unknown): IApiAuthorizationPrincipal {
@@ -141,6 +158,26 @@ describe("public authorization API (E2E)", () => {
 		const bigintStringOptions: TApiGetDefaultStringFormatPropertiesBigIntStringOptions = {
 			sign: "unsigned",
 		};
+		const stepProperties: IApiFunctionStepProperties<PublicApiUser> = {
+			entity: PublicApiUser,
+		};
+		const stepRepository = {} as Repository<PublicApiUser>;
+		const stepContext = {
+			eventManager: undefined,
+			getRepository: <T extends IApiBaseEntity>(_entity: new () => T): Repository<T> => stepRepository as unknown as Repository<T>,
+			repository: stepRepository,
+		} satisfies IApiFunctionStepContext<PublicApiUser>;
+		const builtPackageEntryPath: string = "../../dist/esm/index.js";
+		const builtPackageEntry = (await import(builtPackageEntryPath)) as {
+			ApiFunctionStep?: unknown;
+			EApiFunctionTransactionMode?: {
+				SUPPORTS?: unknown;
+			};
+		};
+		const builtCjsPackageEntryPath: string = "../../dist/cjs/index.js";
+		const builtCjsPackageEntry = (await import(builtCjsPackageEntryPath)) as {
+			ApiFunctionStep?: unknown;
+		};
 		const bigintStringDefaults = GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, bigintStringOptions);
 		const resolvedPrincipal: IApiAuthorizationPrincipal = await Promise.resolve(
 			principalResolver.resolve({
@@ -155,9 +192,17 @@ describe("public authorization API (E2E)", () => {
 		expect(requestMetadata.parameters).toEqual({ id: "user-1" });
 		expect(routeDiscriminatorConfig.discriminator.propertyName).toBe("channel");
 		expect(bigintStringDefaults.pattern).toBe(String.raw`/^(0|[1-9]\d{0,19})$/`);
+		expect(stepProperties.entity).toBe(PublicApiUser);
+		expect(stepContext.eventManager).toBeUndefined();
+		expect(stepContext.getRepository(PublicApiUser)).toBe(stepRepository);
+		expect(stepContext.repository).toBe(stepRepository);
+		expect(typeof builtPackageEntry.ApiFunctionStep).toBe("function");
+		expect(typeof builtCjsPackageEntry.ApiFunctionStep).toBe("function");
+		expect(builtPackageEntry.EApiFunctionTransactionMode?.SUPPORTS).toBe(EApiFunctionTransactionMode.SUPPORTS);
 		expect(AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN).toBe("API_AUTHORIZATION_PRINCIPAL_RESOLVER");
 		expect(resolvedPrincipal.id).toBe("user-1");
 		expect(EApiAuthorizationMode.HOOKS).toBe("hooks");
 		expect(new PublicApiPolicy()).toBeInstanceOf(ApiAuthorizationPolicyBase);
+		expect(new PublicApiStepService()).toBeInstanceOf(PublicApiStepService);
 	});
 });

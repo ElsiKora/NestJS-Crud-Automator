@@ -114,7 +114,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExecutorProperties<E>): Promise<E> {
 	const { constructor, criteria, entity, getFunction, properties, repository }: IApiFunctionUpdateExecutorProperties<E> = options;
-	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.get<E>()?.eventManager;
+	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
 		const existingEntity: E = await getFunction({ where: criteria });

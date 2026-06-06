@@ -112,7 +112,7 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExecutorProperties<E>): Promise<E> {
 	const { constructor, criteria, entity, getFunction, repository }: IApiFunctionDeleteExecutorProperties<E> = options;
-	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.get<E>()?.eventManager;
+	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
 		const existingEntity: E = await getFunction({ where: criteria });

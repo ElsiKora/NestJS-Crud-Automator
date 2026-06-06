@@ -1389,6 +1389,73 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before:custom.supports:transaction");
 	});
 
+	it("runs ApiFunctionStep inside an ApiFunctionCustom transaction through HTTP", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "custom-step-1", name: "Step", ownerId: E2E_OWNER_ID },
+			url: "/function/custom-step",
+		});
+
+		expect(response.statusCode).toBe(201);
+		expect(response.json().name).toBe("custom-after-step-custom-Step");
+		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:custom.step", "function:before:custom.step:transaction", "function:after:custom.step"]));
+		expect(E2eFunctionSubscriber.events).not.toContain("function:before:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:step");
+		expect((await service.repository.findOne({ where: { id: "custom-step-1" } }))?.name).toBe("step-custom-Step");
+	});
+
+	it("rolls back ApiFunctionStep work when the owning custom function fails", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "custom-step-rollback-1", name: "StepRollback", ownerId: E2E_OWNER_ID },
+			url: "/function/custom-step-rollback",
+		});
+
+		expect(response.statusCode).toBe(500);
+		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:custom.step.rollback", "function:before:custom.step.rollback:transaction", "function:after_error:custom.step.rollback"]));
+		expect(E2eFunctionSubscriber.events).not.toContain("function:before:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:step");
+		expect(await service.repository.findOne({ where: { id: "custom-step-rollback-1" } })).toBeNull();
+	});
+
+	it("allows ApiFunctionStep to call a generated function without exposing step subscriber metadata", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "custom-step-generated-1", name: "StepGenerated", ownerId: E2E_OWNER_ID },
+			url: "/function/custom-step-generated",
+		});
+
+		expect(response.statusCode).toBe(201);
+		expect(response.json().name).toBe("custom-after-fn-generated-step-custom-StepGenerated");
+		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.step.generated", "function:before:custom.step.generated:transaction", "function:priority:before:create", "function:before:create", "function:before:create:transaction", "function:priority:after:create", "function:after:create", "function:after:custom.step.generated"]);
+		expect(E2eFunctionSubscriber.events).not.toContain("function:before:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:step");
+		expect((await service.repository.findOne({ where: { id: "custom-step-generated-1" } }))?.name).toBe("fn-generated-step-custom-StepGenerated");
+	});
+
+	it("allows ApiFunctionStep to call a nested custom function without exposing step subscriber metadata", async () => {
+		const response = await fastify.inject({
+			method: "POST",
+			payload: { count: 1, id: "custom-step-custom-1", name: "StepCustom", ownerId: E2E_OWNER_ID },
+			url: "/function/custom-step-custom",
+		});
+
+		expect(response.statusCode).toBe(201);
+		expect(response.json().name).toBe("custom-after-custom-after-fn-custom-nested-step-custom-StepCustom");
+		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.step.custom", "function:before:custom.step.custom:transaction", "function:before:custom.mandatory", "function:before:custom.mandatory:transaction", "function:priority:before:create", "function:before:create", "function:before:create:transaction", "function:priority:after:create", "function:after:create", "function:after:custom.mandatory", "function:after:custom.step.custom"]);
+		expect(E2eFunctionSubscriber.events).not.toContain("function:before:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:step");
+		expect((await service.repository.findOne({ where: { id: "custom-step-custom-1" } }))?.name).toBe("fn-custom-nested-step-custom-StepCustom");
+	});
+
 	it("runs built-in ApiFunction SUPPORTS mode without opening a transaction when none is active", async () => {
 		const response = await fastify.inject({
 			method: "POST",

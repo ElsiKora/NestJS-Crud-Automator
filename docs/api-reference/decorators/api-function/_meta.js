@@ -6,5 +6,6 @@ export default {
 	"api-function-get": "@ApiFunctionGet",
 	"api-function-get-list": "@ApiFunctionGetList",
 	"api-function-get-many": "@ApiFunctionGetMany",
+	"api-function-step": "@ApiFunctionStep",
 	"api-function-update": "@ApiFunctionUpdate",
 };

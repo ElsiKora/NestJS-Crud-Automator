@@ -1,6 +1,6 @@
 /* eslint-disable @elsikora/sonar/void-use */
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiFunctionContext } from "@interface/class/api/function";
+import type { IApiFunctionContext, IApiFunctionStepContext } from "@interface/class/api/function";
 import type { IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 
@@ -54,8 +54,22 @@ export class ApiServiceBase<E> {
 	protected getApiFunctionContext<T extends IApiBaseEntity>(): IApiFunctionContext<T> {
 		const context: IApiFunctionContext<T> | undefined = ApiFunctionContextStorage.get<T>();
 
+		if (!context && ApiFunctionContextStorage.getStep<T>()) {
+			throw ErrorException("Api function context is not available inside a decorated ApiFunctionStep execution");
+		}
+
 		if (!context) {
 			throw ErrorException("Api function context is not available outside a decorated ApiFunction execution");
+		}
+
+		return context;
+	}
+
+	protected getApiFunctionStepContext<T extends IApiBaseEntity>(): IApiFunctionStepContext<T> {
+		const context: IApiFunctionStepContext<T> | undefined = ApiFunctionContextStorage.getStep<T>();
+
+		if (!context) {
+			throw ErrorException("Api function step context is not available outside a decorated ApiFunctionStep execution");
 		}
 
 		return context;
