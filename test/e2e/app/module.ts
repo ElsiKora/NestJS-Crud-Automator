@@ -12,6 +12,7 @@ import { TestAuthGuard } from "./auth-guard";
 import { E2eController } from "./controller";
 import { E2eEntity } from "./entity";
 import { E2eFunctionController } from "./function";
+import { E2eGeneratedTransactionController, E2eGeneratedTransactionService } from "./generated-transaction";
 import { e2eHookPermissionSource } from "./hook-permission-source";
 import { E2eManualController } from "./manual";
 import { E2eOwnerController, E2eOwnerEntity, E2eOwnerPolicySubscriber, E2eOwnerService } from "./owner";
@@ -23,7 +24,7 @@ import { E2eTransformerErrorController } from "./transformer-error";
 import { E2eValidationPipe } from "./validation-pipe";
 
 @Module({
-	controllers: [E2eController, E2eCustomResponseController, E2eCustomItemResponseController, E2eCustomRouteController, E2eFunctionController, E2eBrokenController, E2eCopyController, E2eManualController, E2eTransformerErrorController, E2eOwnerController],
+	controllers: [E2eController, E2eCustomResponseController, E2eCustomItemResponseController, E2eCustomRouteController, E2eFunctionController, E2eGeneratedTransactionController, E2eBrokenController, E2eCopyController, E2eManualController, E2eTransformerErrorController, E2eOwnerController],
 	imports: [
 		TypeOrmModule.forRoot({
 			database: ":memory:",
@@ -46,6 +47,7 @@ import { E2eValidationPipe } from "./validation-pipe";
 			useClass: E2eValidationPipe,
 		},
 		E2eService,
+		E2eGeneratedTransactionService,
 		E2eOwnerService,
 		E2eBrokenService,
 		TestAuthGuard,

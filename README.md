@@ -521,9 +521,27 @@ Declare the discriminator field, such as `channel` or `mode`, on every variant D
 
 Root-level discriminator selection runs before Nest can infer a concrete DTO class, so global `ValidationPipe` options are not applied automatically to the selected variant. Add `validatorOptions` or `transformOptions` to the discriminated body config when a route needs specific validation or transformation settings.
 
-Function decorators support explicit transaction modes without exposing `EntityManager` as a public method argument:
+Generated service functions and explicit function decorators support transaction modes without exposing `EntityManager` as a public method argument:
 
 ```typescript
+import { ApiService, ApiServiceBase, EApiFunctionTransactionMode, EApiFunctionType } from "@elsikora/nestjs-crud-automator";
+
+@ApiService<UserEntity>({
+	entity: UserEntity,
+	functions: {
+		[EApiFunctionType.CREATE]: {
+			transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+		},
+	},
+})
+export class UserService extends ApiServiceBase<UserEntity> {}
+```
+
+The `functions` map accepts generated function types (`CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, `GET_MANY`). Omitted entries keep the default `SUPPORTS` mode. `CUSTOM` is configured separately with `@ApiFunctionCustom`.
+
+```typescript
+import { ApiFunctionCustom, EApiFunctionTransactionMode } from "@elsikora/nestjs-crud-automator";
+
 @ApiFunctionCustom<UserEntity>({
 	action: "bulkPromote",
 	entity: UserEntity,
@@ -1141,7 +1159,7 @@ Yes, the GET_LIST operation automatically includes pagination with limit and pag
 
 ### How is filtering implemented?
 
-Filtering is implemented using a flexible operator-based approach that supports various operations like equals, contains, greater than, less than, between, etc. Filters can be applied to any property of your entity.
+Filtering is implemented using a flexible operator-based approach that supports operations like equals, contains, greater than, less than, and between. Filters apply to generated query fields: scalar entity fields and explicit one-level relation property paths such as `author.id[...]` or `author.username[...]`; hidden query fields, object fields, relation-valued fields, and top-level `author[...]` relation filters are skipped.
 
 ### Can I use this with NestJS microservices?
 

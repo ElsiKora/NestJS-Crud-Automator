@@ -43,6 +43,7 @@ Use local source as the contract:
 - Service/function `get`, `getList`, and `getMany` receive TypeORM options.
 - Generated service/context `delete` is `Promise<void>`; direct decorator internals have a known return-shape inconsistency, so document and test the intended surface before changing it.
 - `@ApiFunctionCustom({ action, entity, transaction })` is for custom service commands that need function lifecycle, subscribers, and transaction context.
+- `@ApiService({ entity, functions })` can configure transaction modes for generated CRUD functions keyed by `EApiFunctionType.CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, and `GET_MANY`; omitted entries default to `SUPPORTS`, and `CUSTOM` belongs to `@ApiFunctionCustom`.
 - Transaction modes are `SUPPORTS`, `REQUIRED`, `MANDATORY`, and `NONE`.
 - Inside decorated service execution, use `this.getApiFunctionContext()` for `operations`, `repository`, `eventManager`, and `getRepository`.
 - `ApiFunctionTransactionScope.runWithDataSource()` and `runWithEntityManager()` provide external transaction scope; CRUD `operations` reject without a decorated service context.

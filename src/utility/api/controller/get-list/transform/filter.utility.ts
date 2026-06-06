@@ -1,10 +1,13 @@
 import type { EFilterOperation } from "@enum/filter";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
+import type { Type } from "@nestjs/common";
+import type { IAuthGuard } from "@nestjs/passport";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { FindOptionsWhere } from "typeorm/index";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
-import { EApiPropertyDescribeType } from "@enum/decorator/api";
+import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
 import { ApiControllerGetListTransformOperation } from "./operation.utility";
@@ -15,10 +18,11 @@ import { ApiControllerGetListTransformOperation } from "./operation.utility";
  * Handles special cases for relation properties.
  * @param {Record<string, unknown>} query - The query parameters from the HTTP request
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
+ * @param {Type<IAuthGuard>} currentGuard - Optional guard used to mirror generated query DTO visibility.
  * @returns {FindOptionsWhere<E>} The TypeORM filter object for the query
  * @template E - The entity type
  */
-export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>): FindOptionsWhere<E> {
+export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>, currentGuard?: Type<IAuthGuard>): FindOptionsWhere<E> {
 	const filter: FindOptionsWhere<E> = {};
 	const filterRecord: Record<string, unknown> = filter;
 
@@ -44,7 +48,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 				const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>) => column.name == key);
 				const columnMetadata: TApiPropertyDescribeProperties | undefined = column?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
 
-				if (!columnMetadata || columnMetadata.type === EApiPropertyDescribeType.RELATION) continue;
+				if (!column || !columnMetadata || !DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, key, columnMetadata, column.isPrimary, currentGuard) || columnMetadata.type === EApiPropertyDescribeType.RELATION) continue;
 
 				filterRecord[key] = ApiControllerGetListTransformOperation(operation, value);
 			} else {
@@ -58,7 +62,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 				const relationColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>) => column.name == relationName);
 				const relationMetadata: TApiPropertyDescribeProperties | undefined = relationColumn?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
 
-				if (relationMetadata?.type !== EApiPropertyDescribeType.RELATION || !relationColumn?.relation?.target) continue;
+				if (!relationColumn || relationMetadata?.type !== EApiPropertyDescribeType.RELATION || !relationColumn.relation?.target || !DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, relationName, relationMetadata, relationColumn.isPrimary, currentGuard)) continue;
 
 				let relationEntityMetadata: IApiEntity<unknown>;
 
@@ -71,7 +75,9 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 				const nestedColumn: IApiEntityColumn<unknown> | undefined = relationEntityMetadata.columns.find((column: IApiEntityColumn<unknown>) => column.name == nestedPropertyName);
 				const nestedColumnMetadata: TApiPropertyDescribeProperties | undefined = nestedColumn?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
 
-				if (!nestedColumnMetadata || nestedColumnMetadata.type === EApiPropertyDescribeType.RELATION || nestedColumnMetadata.type === EApiPropertyDescribeType.OBJECT) continue;
+				if (!nestedColumn || !nestedColumnMetadata || nestedColumnMetadata.type === EApiPropertyDescribeType.RELATION || nestedColumnMetadata.type === EApiPropertyDescribeType.OBJECT) continue;
+
+				if (!nestedColumn.isPrimary && !DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, nestedPropertyName, nestedColumnMetadata, nestedColumn.isPrimary, currentGuard)) continue;
 
 				const relationFilter: Record<string, unknown> = (filterRecord[relationName] ?? {}) as Record<string, unknown>;
 
