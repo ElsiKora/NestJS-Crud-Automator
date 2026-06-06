@@ -29,7 +29,6 @@ import {
 	EApiAuthenticationType,
 	EApiAuthorizationMode,
 	EApiAuthorizationPrincipalType,
-	EApiControllerLoadRelationsStrategy,
 	EApiControllerRelationReferenceShape,
 	EApiPolicyEffect,
 	EApiPolicySourceType,
@@ -321,9 +320,7 @@ const iamConsumerAuthorization = {
 			relations: {
 				request: {
 					load: {
-						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						shouldLoad: true,
+						include: { operator: true },
 					},
 					reference: {
 						shape: EApiControllerRelationReferenceShape.SCALAR,
@@ -358,9 +355,7 @@ const iamConsumerAuthorization = {
 			relations: {
 				request: {
 					load: {
-						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						shouldLoad: true,
+						include: { operator: true },
 					},
 					reference: {
 						shape: EApiControllerRelationReferenceShape.SCALAR,
@@ -373,9 +368,7 @@ const iamConsumerAuthorization = {
 			relations: {
 				request: {
 					load: {
-						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						shouldLoad: true,
+						include: { operator: true },
 					},
 					reference: {
 						shape: EApiControllerRelationReferenceShape.SCALAR,

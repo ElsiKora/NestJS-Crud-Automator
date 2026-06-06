@@ -41,7 +41,7 @@ The core philosophy of this library is built on four pillars: being **Declarativ
 - ✨ **🧩 Type-safe decorators for entity properties with rich metadata support**
 - ✨ **🔒 Authentication and authorization guards integration**
 - ✨ **🔍 Advanced filtering, sorting, and pagination for list operations**
-- ✨ **📚 Support for object relations with automatic loading strategies**
+- ✨ **📚 Support for object relations with include-driven loading**
 - ✨ **⚡ Performance optimized with TypeORM integration for database operations**
 - ✨ **🌐 Full support for TypeScript with strong typing throughout the library**
 - ✨ **Hooks and Subscriber System:** Intercept and extend business logic at both the controller and service level.
@@ -295,10 +295,10 @@ export class UserController {
 
 ### Handling Relations
 
-Automatically load related entities:
+Configure include-driven relation loading:
 
 ```typescript
-import { ApiController, EApiControllerLoadRelationsStrategy, EApiControllerRelationReferenceShape, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { ApiController, EApiControllerRelationReferenceShape, EApiRouteType } from "@elsikora/nestjs-crud-automator";
 
 @ApiController<PostEntity>({
 	entity: PostEntity,
@@ -309,15 +309,15 @@ import { ApiController, EApiControllerLoadRelationsStrategy, EApiControllerRelat
 				request: {
 					reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
 					load: {
-						shouldLoad: true,
-						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						shouldForceAllServicesToBeSpecified: false,
+						include: { author: true },
 					},
 				},
 				response: {
 					reference: { shape: EApiControllerRelationReferenceShape.OBJECT, key: "id" },
-					load: { include: { author: true, comments: true } },
+					load: {
+						include: { author: true, comments: true },
+						relationLoadStrategy: "query",
+					},
 				},
 			},
 		},
@@ -330,6 +330,8 @@ export class PostController {
 	) {}
 }
 ```
+
+Request relation `relations.request.load` enables hydration, and `relations.request.load.include` selects the direct request body relations to hydrate. Omitted service mappings use `${relationName}Service`; `relations.request.load.services` only overrides those controller property names. Nested request include objects are passed to the direct relation service as TypeORM `relations`; nested request references are not recursively hydrated. `load.relationLoadStrategy` can be used on request or response load configs to choose TypeORM `"join"` or `"query"` loading.
 
 ### Custom DTOs
 
@@ -454,7 +456,7 @@ public promote(@Param("id") id: string) {
 
 The same `metadata.resource.action` value is what hooks receive as `context.action` and what IAM turns into a namespaced action such as `admin:user:update.promote`.
 
-Use `@ApiRouteCustom(...)` when a custom controller route should also participate in the custom route runtime: request/response transformers, route subscribers, relation loading/projection, authorization result transforms, and response serialization. `@ApiMethod(...)` remains the low-level metadata/decorator composer.
+Use `@ApiRouteCustom(...)` when a custom controller route should also participate in the custom route runtime: request/response transformers, route subscribers, relation loading/projection, authorization result transforms, and response serialization. Custom route request relation hydration reads the method body payload; response relation reload requires a controller `service` extending `ApiServiceBase` and response values with an `id`. `@ApiMethod(...)` remains the low-level metadata/decorator composer.
 
 ```typescript
 @ApiRouteCustom<UserEntity>({

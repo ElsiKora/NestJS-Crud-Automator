@@ -43,9 +43,9 @@ Route before hooks can use `context.result.body`.
 
 ## Relation Load Config Drift
 
-For AUTO relation loading, omit explicit `relations`; AUTO scans relation columns. Use `relations` only with `relationStrategy: MANUAL`, and use `services` only with `serviceStrategy: MANUAL`.
+Use `relations.request.load.include` to select direct request relations to hydrate. Do not use the old request `relations` array or AUTO/MANUAL strategy flags.
 
-Request relation hydration mutates direct relation references into loaded entities. It does not implement nested request relation paths.
+Request relation hydration mutates direct relation references into loaded entities. Nested include objects preload relations on the direct loaded entity; they do not implement recursive nested request reference hydration.
 
 ## Custom Route Runtime Assumptions
 

@@ -2,6 +2,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerPropertiesRouteBaseRelationsResponse } from "@interface/decorator/api";
 
 import { EApiControllerRelationReferenceShape } from "@enum/decorator/api";
+import { ErrorException } from "@utility/error/exception.utility";
 
 /**
  * Projects loaded relation objects into the configured response reference shape.
@@ -12,40 +13,35 @@ import { EApiControllerRelationReferenceShape } from "@enum/decorator/api";
  * @returns {R} Response value with projected relation references.
  */
 export function ApiRouteProjectRelationResponse<E extends IApiBaseEntity, R>(relationConfig: IApiControllerPropertiesRouteBaseRelationsResponse<E> | undefined, response: R): R {
-	if (!relationConfig?.load?.include) {
+	if (!relationConfig?.load?.include || Object.keys(relationConfig.load.include).length === 0) {
 		return response;
 	}
+
+	validateResponseReferenceConfig(relationConfig.reference);
 
 	const relationNames: Array<string> = Object.keys(relationConfig.load.include);
 	const referenceKey: string = relationConfig.reference.key ?? "id";
 	const responses: Array<Record<string, unknown>> = [];
-	let projectedArray: Array<unknown> | undefined;
 
 	if (Array.isArray(response)) {
-		projectedArray = response.map((item: unknown): unknown => {
+		for (const item of response) {
 			if (item === null || typeof item !== "object") {
-				return item;
+				continue;
 			}
 
-			const projectedItem: Record<string, unknown> = { ...(item as Record<string, unknown>) };
-			responses.push(projectedItem);
-
-			return projectedItem;
-		});
+			responses.push(item as Record<string, unknown>);
+		}
 	} else {
 		const responseValue: unknown = response;
 
 		if (responseValue !== null && typeof responseValue === "object" && "items" in responseValue && Array.isArray((responseValue as { items?: unknown }).items)) {
-			(responseValue as { items: Array<unknown> }).items = (responseValue as { items: Array<unknown> }).items.map((item: unknown): unknown => {
+			for (const item of (responseValue as { items: Array<unknown> }).items) {
 				if (item === null || typeof item !== "object") {
-					return item;
+					continue;
 				}
 
-				const projectedItem: Record<string, unknown> = { ...(item as Record<string, unknown>) };
-				responses.push(projectedItem);
-
-				return projectedItem;
-			});
+				responses.push(item as Record<string, unknown>);
+			}
 		} else if (responseValue !== null && typeof responseValue === "object") {
 			responses.push(responseValue as Record<string, unknown>);
 		}
@@ -64,5 +60,24 @@ export function ApiRouteProjectRelationResponse<E extends IApiBaseEntity, R>(rel
 		}
 	}
 
-	return (projectedArray as R) || response;
+	return response;
+}
+
+/**
+ * Ensures response relation reference settings are valid route configuration.
+ * @param {IApiControllerPropertiesRouteBaseRelationsResponse<IApiBaseEntity>["reference"] | undefined} referenceConfig - Response relation reference config.
+ * @returns {void}
+ */
+function validateResponseReferenceConfig(referenceConfig: IApiControllerPropertiesRouteBaseRelationsResponse<IApiBaseEntity>["reference"] | undefined): void {
+	if (!referenceConfig) {
+		throw ErrorException("Response relation reference config is required when relation loading is configured");
+	}
+
+	if (!Object.values(EApiControllerRelationReferenceShape).includes(referenceConfig.shape)) {
+		throw ErrorException("Response relation reference shape must be OBJECT or SCALAR");
+	}
+
+	if (referenceConfig.key?.length === 0) {
+		throw ErrorException("Response relation reference key must not be empty");
+	}
 }

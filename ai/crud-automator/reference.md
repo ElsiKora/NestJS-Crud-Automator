@@ -57,14 +57,15 @@ routes: {
 			request: {
 				reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
 				load: {
-					shouldLoad: true,
-					relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-					serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+					include: { author: true },
 				},
 			},
 			response: {
 				reference: { shape: EApiControllerRelationReferenceShape.OBJECT, key: "id" },
-				load: { include: { author: true } },
+				load: {
+					include: { author: true },
+					relationLoadStrategy: "query",
+				},
 			},
 		},
 	},
@@ -110,9 +111,10 @@ Custom route caveats:
 
 Generated request relation caveats:
 
-- `relations.request.load.relations` is only a filter for `relationStrategy: MANUAL`; omit it for AUTO examples.
-- `relations.request.load.services` is only read when `serviceStrategy: MANUAL`; AUTO expects `<relationName>Service` properties on the controller.
-- Request relation hydration mutates relation references into loaded entity objects and currently handles direct relation properties only.
+- `relations.request.load.include` selects the direct request body relations to hydrate.
+- `relations.request.load.services` is only an override map; omitted keys use `<relationName>Service` properties on the controller.
+- `relations.request.load.relationLoadStrategy` is passed to the direct relation service get call alongside nested TypeORM `relations` when configured.
+- Request relation hydration mutates direct relation references into loaded entity objects. Nested include objects are passed to the direct relation service as TypeORM `relations`; nested request references are not recursively hydrated.
 - For generated routes, request relation hydration reads relation fields from the request body for CREATE, UPDATE, and PARTIAL_UPDATE. It does not hydrate GET/DELETE route parameters.
 - CREATE reloads the created entity with configured response relations. UPDATE/PARTIAL_UPDATE reload only when response relation loading is configured. DELETE returns no body. GET_LIST maps `limit`/`page` to `take`/`skip` and applies `orderBy` only when present.
 

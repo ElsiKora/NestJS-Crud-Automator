@@ -139,7 +139,7 @@ export class E2eCustomRouteController {
 		relations: {
 			request: {
 				load: {
-					shouldLoad: true,
+					include: { owner: true },
 				},
 				reference: {
 					key: "id",

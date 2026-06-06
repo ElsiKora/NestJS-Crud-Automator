@@ -95,14 +95,15 @@ export class UserController {
 				request: {
 					reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
 					load: {
-						shouldLoad: true,
-						relationStrategy: EApiControllerLoadRelationsStrategy.AUTO,
-						serviceStrategy: EApiControllerLoadRelationsStrategy.AUTO,
+						include: { author: true },
 					},
 				},
 				response: {
 					reference: { shape: EApiControllerRelationReferenceShape.OBJECT, key: "id" },
-					load: { include: { author: true } },
+					load: {
+						include: { author: true },
+						relationLoadStrategy: "query",
+					},
 				},
 			},
 		},

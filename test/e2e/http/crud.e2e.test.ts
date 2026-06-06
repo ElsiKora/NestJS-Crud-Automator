@@ -1490,6 +1490,11 @@ describe("CRUD routes (E2E)", () => {
 		});
 
 		expect(createResponse.statusCode).toBe(400);
+		expect(createResponse.json()).toMatchObject({
+			error: "Bad Request",
+			message: ["owner must be a UUID"],
+			statusCode: 400,
+		});
 	});
 
 	it("validates ApiPropertyCopy body DTOs with class-validator", async () => {
@@ -1511,7 +1516,7 @@ describe("CRUD routes (E2E)", () => {
 		expect(response.json()).toMatchObject({ count: 2, name: "Copied" });
 	});
 
-	it("returns 400 when relation id is invalid", async () => {
+	it("returns 404 when relation id is invalid", async () => {
 		const createResponse = await fastify.inject({
 			headers: adminHeaders,
 			method: "POST",
@@ -1520,6 +1525,11 @@ describe("CRUD routes (E2E)", () => {
 		});
 
 		expect(createResponse.statusCode).toBe(404);
+		expect(createResponse.json()).toMatchObject({
+			error: "Not Found",
+			message: "E2EOWNERENTITY_NOT_FOUND",
+			statusCode: 404,
+		});
 	});
 
 	it("fails when signature header is missing", async () => {

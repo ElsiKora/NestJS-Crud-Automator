@@ -61,12 +61,13 @@ Use local source as the contract:
 ## Relation Model
 
 - Request relation config: `relations.request.reference` and `relations.request.load`.
-- Request load config uses `shouldLoad`, `relationStrategy`, `serviceStrategy`, `relations`, `services`, and `shouldForceAllServicesToBeSpecified`.
-- `relations.request.load.relations` only filters loaded relations when `relationStrategy` is `MANUAL`; `services` is only required when `serviceStrategy` is `MANUAL`.
-- Response relation config: `relations.response.reference` and `relations.response.load.include`.
+- Request load config uses `relations.request.load.include`, optional `relations.request.load.relationLoadStrategy`, and optional `relations.request.load.services` overrides.
+- `relations.request.load.include` is the single source of truth for direct request relations to hydrate. Omitted service keys use `${relationName}Service`.
+- Response relation config: `relations.response.reference` and `relations.response.load.include` with optional `relationLoadStrategy`.
 - HTTP generated relation filters use explicit one-level paths such as `author.id[...]` and `author.username[...]`; top-level `author[...]` is not generated or transformed.
 - Generated relation filters skip relation fields and object fields on the related entity.
-- For nested response relations, use TypeORM relation object maps in `response.load.include`.
+- For nested request or response relations, use TypeORM relation object maps in `load.include`.
+- Nested request include objects are only passed to the direct relation service as TypeORM `relations`; nested request references are not recursively hydrated.
 
 ## Subscriber Model
 
