@@ -1,0 +1,61 @@
+# `@ApiFunctionStep`
+
+`@ApiFunctionStep` wraps an internal service helper with ApiFunction transaction semantics. Use it to decompose a larger `@ApiFunctionCustom` or generated function flow without exposing `EntityManager` in method signatures.
+
+It is not a standalone function action. It does not dispatch function subscribers, register route metadata, generate Swagger metadata, or create an authorization action identity.
+
+## Signature
+
+```typescript
+@ApiFunctionStep<E extends IApiBaseEntity>(
+	properties: IApiFunctionStepProperties<E>
+): (target, propertyKey, descriptor) => PropertyDescriptor
+```
+
+## Options
+
+| Option             | Type                                       | Description                                                                                                 |
+| ------------------ | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `entity`           | `new (...arguments_: Array<unknown>) => E` | Entity constructor used for repository resolution.                                                          |
+| `transaction.mode` | `EApiFunctionTransactionMode`              | `transaction` is optional. When provided, `mode` is required. Omitted `transaction` defaults to `SUPPORTS`. |
+
+## Transaction modes
+
+- `SUPPORTS` joins an active transaction context when one exists and otherwise runs without opening one.
+- `REQUIRED` joins an active transaction or opens a new TypeORM transaction from the service repository.
+- `MANDATORY` requires an active transaction and fails before the step body when none exists.
+- `NONE` requires no active transaction and fails before the step body when one exists.
+
+Use `MANDATORY` when a step must only run inside an existing transaction context. Use `REQUIRED` when the step may also be called directly and should create its own transaction.
+
+## Context
+
+Inside a step, call `this.getApiFunctionStepContext()` from an `ApiServiceBase` subclass:
+
+```typescript
+@ApiFunctionStep<WithdrawalEntity>({
+	entity: WithdrawalEntity,
+	transaction: { mode: EApiFunctionTransactionMode.MANDATORY },
+})
+private async releaseReservedWithdrawalAmount(properties: IReleaseReservedWithdrawalAmountProperties): Promise<WithdrawalEntity> {
+	const context = this.getApiFunctionStepContext<WithdrawalEntity>();
+
+	return await context.repository.save(properties.withdrawal);
+}
+```
+
+The step context intentionally exposes only:
+
+| Property          | Description                                                               |
+| ----------------- | ------------------------------------------------------------------------- |
+| `eventManager`    | Active TypeORM transaction manager, when one is present.                  |
+| `repository`      | Entity repository resolved from the active manager or service repository. |
+| `getRepository()` | Helper for resolving repositories with the active manager when available. |
+
+It does not expose `operations`. Use `@ApiFunctionCustom` and `this.getApiFunctionContext()` when you need function lifecycle operations such as `create`, `update`, `get`, `getList`, `getMany`, or `delete`.
+
+## Related resources
+
+- [Function Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
+- [`@ApiFunctionCustom`](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-custom)
+- [Core Concepts – Services](/docs/nestjs-crud-automator/core-concepts/services)

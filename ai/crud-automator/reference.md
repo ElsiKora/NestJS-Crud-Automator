@@ -6,6 +6,7 @@
 | ----------------------------------------------- | ------------------------------------------------------- |
 | Standard CRUD                                   | `@ApiService()` + `ApiServiceBase` + `@ApiController()` |
 | Custom service command                          | `@ApiFunctionCustom()`                                  |
+| Internal transaction-aware service step         | `@ApiFunctionStep()`                                    |
 | Custom controller command with runtime pipeline | `@ApiRouteCustom()`                                     |
 | Low-level custom method metadata                | `@ApiMethod({ metadata })`                              |
 | Generated DTO field controls                    | `ApiPropertyDescribe({ properties })`                   |
@@ -97,6 +98,8 @@ getMany(properties: FindManyOptions<E>): Promise<Array<E>>;
 Controller GET_LIST query parameters (`limit`, `page`, `orderBy`, `orderDirection`, bracketed filters) are converted to TypeORM `take`, `skip`, `order`, and `where` before the service is called.
 
 `@ApiFunctionDelete` internally removes an entity snapshot, but generated service/controller delete APIs intentionally expose `Promise<void>`. Do not design public delete flows around receiving the removed entity unless the source contract is changed first.
+
+Use `@ApiFunctionStep({ entity, transaction })` for private/protected/public helper methods inside service use-cases when they need the current transaction context. Direct calls are valid when the selected transaction mode permits. In a step, call `this.getApiFunctionStepContext()` for `eventManager`, `repository`, and `getRepository()`. Steps are not custom actions and do not dispatch function subscribers, route metadata, Swagger metadata, or authorization action identities.
 
 ## Custom Route Boundary
 

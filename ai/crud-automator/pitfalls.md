@@ -33,6 +33,12 @@ context.result.body.slug = "hello";
 
 Route before hooks can use `context.result.body`.
 
+## Function Step Overreach
+
+Use `@ApiFunctionStep` only for internal transaction-aware service helpers, including direct helper calls when the selected transaction mode permits. Do not use it as a replacement for `@ApiFunctionCustom` when the operation needs an action name, function subscribers, route metadata, Swagger metadata, or authorization action identity.
+
+Inside a step, prefer `this.getApiFunctionStepContext()` for `eventManager`, `repository`, and `getRepository()`. It intentionally does not expose `operations`; standalone domain actions should remain `@ApiFunctionCustom`.
+
 ## Auto DTO Overreach
 
 `autoDto` is for validators only. It does not control exposure, guard visibility, filters, response serialization, or requiredness. Put those in `ApiPropertyDescribe({ properties })` or use manual `dto`.

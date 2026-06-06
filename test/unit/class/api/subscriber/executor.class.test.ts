@@ -1,6 +1,9 @@
 import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function.interface";
 import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.interface";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { EntityManager, Repository } from "typeorm";
 
+import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
@@ -344,6 +347,56 @@ describe("ApiSubscriberExecutor", () => {
 
 		expect(functionSubscriber.onBeforeGet).toHaveBeenCalledTimes(1);
 		expect(result).toEqual({ id: "original" });
+	});
+
+	it("masks outer step context while executing function subscribers", async () => {
+		class FunctionEntity {
+			public id?: string;
+		}
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const eventManager = {} as EntityManager;
+		const repository = {} as Repository<FunctionEntity>;
+		const observedStorage = vi.fn();
+		const functionSubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onBeforeGet: vi.fn(async () => {
+				observedStorage({
+					eventManager: ApiFunctionContextStorage.getEventManager(),
+					functionContext: ApiFunctionContextStorage.get<FunctionEntity>(),
+					stepContext: ApiFunctionContextStorage.getStep<FunctionEntity>(),
+				});
+
+				return undefined;
+			}),
+		};
+		const stepContext = {
+			eventManager,
+			getRepository: <T extends IApiBaseEntity>() => repository as unknown as Repository<T>,
+			repository,
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 1 }, functionSubscriber);
+
+		await ApiFunctionContextStorage.runStep(stepContext, async () => {
+			await ApiSubscriberExecutor.executeFunctionSubscribers(TestService, new FunctionEntity(), EApiFunctionType.GET, EApiSubscriberOnType.BEFORE, {
+				DATA: {} as never,
+				ENTITY: new FunctionEntity(),
+				FUNCTION_TYPE: EApiFunctionType.GET,
+				result: { id: "original" },
+			});
+
+			expect(ApiFunctionContextStorage.getStep<FunctionEntity>()).toBe(stepContext);
+		});
+
+		expect(functionSubscriber.onBeforeGet).toHaveBeenCalledTimes(1);
+		expect(observedStorage).toHaveBeenCalledWith({
+			eventManager,
+			functionContext: undefined,
+			stepContext: undefined,
+		});
 	});
 
 	it("skips function subscribers when service is not observable", async () => {

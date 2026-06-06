@@ -7,6 +7,7 @@ import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/ap
 import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route/error-execution-context.interface";
 import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route/execution/context";
 
+import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { SERVICE_API_DECORATOR_CONSTANT } from "@constant/decorator/api/service.constant";
 import { EApiFunctionType } from "@enum/decorator/api/function-type.enum";
@@ -26,15 +27,17 @@ export class ApiSubscriberExecutor {
 		const entityName: string = ApiSubscriberExecutor.resolveEntityName(entity, context);
 		const subscribers: Array<IApiSubscriberFunction<IApiBaseEntity>> = apiSubscriberRegistry.getFunctionSubscribers(entityName, functionType, action ?? context.action);
 
-		for (const subscriber of subscribers) {
-			const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, functionType);
-			const hook: unknown = subscriber[hookName as keyof IApiSubscriberFunction<IApiBaseEntity>];
+		await ApiFunctionContextStorage.runWithoutStepContext(async (): Promise<void> => {
+			for (const subscriber of subscribers) {
+				const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, functionType);
+				const hook: unknown = subscriber[hookName as keyof IApiSubscriberFunction<IApiBaseEntity>];
 
-			if (typeof hook === "function") {
-				subscriberLogger.verbose(`Executing function error hook ${hookName} from ${subscriber.constructor.name} for entity ${entityName}`);
-				await hook.call(subscriber, context, error);
+				if (typeof hook === "function") {
+					subscriberLogger.verbose(`Executing function error hook ${hookName} from ${subscriber.constructor.name} for entity ${entityName}`);
+					await hook.call(subscriber, context, error);
+				}
 			}
-		}
+		});
 	}
 
 	public static async executeFunctionSubscribers<E extends IApiBaseEntity, TResult, TInput>(constructor: new (...arguments_: Array<unknown>) => unknown, entity: E, functionType: EApiFunctionType, onType: EApiSubscriberOnType, context: IApiSubscriberFunctionExecutionContext<E, TResult, TInput>, action?: string): Promise<TResult | undefined> {
@@ -46,19 +49,21 @@ export class ApiSubscriberExecutor {
 		const subscribers: Array<IApiSubscriberFunction<IApiBaseEntity>> = apiSubscriberRegistry.getFunctionSubscribers(entityName, functionType, action ?? context.action);
 		let result: TResult | undefined = context.result;
 
-		for (const subscriber of subscribers) {
-			const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, functionType);
-			const hook: unknown = subscriber[hookName as keyof IApiSubscriberFunction<IApiBaseEntity>];
+		await ApiFunctionContextStorage.runWithoutStepContext(async (): Promise<void> => {
+			for (const subscriber of subscribers) {
+				const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, functionType);
+				const hook: unknown = subscriber[hookName as keyof IApiSubscriberFunction<IApiBaseEntity>];
 
-			if (typeof hook === "function") {
-				subscriberLogger.verbose(`Executing function hook ${hookName} from ${subscriber.constructor.name} for entity ${entityName}`);
-				const hookResult: TResult | undefined = (await hook.call(subscriber, { ...context, result })) as TResult | undefined;
+				if (typeof hook === "function") {
+					subscriberLogger.verbose(`Executing function hook ${hookName} from ${subscriber.constructor.name} for entity ${entityName}`);
+					const hookResult: TResult | undefined = (await hook.call(subscriber, { ...context, result })) as TResult | undefined;
 
-				if (hookResult !== undefined) {
-					result = hookResult;
+					if (hookResult !== undefined) {
+						result = hookResult;
+					}
 				}
 			}
-		}
+		});
 
 		return result;
 	}

@@ -11,6 +11,10 @@ class FunctionRuntimeEntity {
 	public id?: string;
 }
 
+class OtherFunctionRuntimeEntity {
+	public id?: string;
+}
+
 const createRepository = () => {
 	const transactionRepository = {} as Repository<FunctionRuntimeEntity>;
 	const transactionManager = {
@@ -53,6 +57,25 @@ describe("ApiFunctionCustomRuntime", () => {
 		expect(result).toBe(transactionManager);
 	});
 
+	it("does not expose function context storage to custom before subscribers when REQUIRED opens a transaction", async () => {
+		const { repository } = createRepository();
+		const beforeContextSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockImplementation(async () => ApiFunctionContextStorage.get<FunctionRuntimeEntity>());
+
+		await ApiFunctionCustomRuntime.execute({
+			functionArguments: [],
+			originalMethod: async () => "handler",
+			properties: {
+				action: "customAction",
+				entity: FunctionRuntimeEntity,
+			},
+			target: { repository },
+			transactionMode: EApiFunctionTransactionMode.REQUIRED,
+		});
+
+		expect(beforeContextSpy).toHaveBeenCalled();
+		await expect(beforeContextSpy.mock.results[0]?.value).resolves.toBeUndefined();
+	});
+
 	it("joins an active transaction for SUPPORTS mode", async () => {
 		const { repository, transactionManager } = createRepository();
 		const originalMethod = vi.fn(async () => ApiFunctionContextStorage.get<FunctionRuntimeEntity>()?.eventManager);
@@ -80,6 +103,29 @@ describe("ApiFunctionCustomRuntime", () => {
 
 		expect(repository.manager.transaction).not.toHaveBeenCalled();
 		expect(result).toBe(transactionManager);
+	});
+
+	it("resolves non-transactional context repository from the configured custom entity", async () => {
+		const { repository } = createRepository();
+		const managerRepository = {} as Repository<OtherFunctionRuntimeEntity>;
+		vi.spyOn(repository.manager, "getRepository").mockReturnValue(managerRepository as never);
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+
+		const result = await ApiFunctionCustomRuntime.execute<OtherFunctionRuntimeEntity>({
+			functionArguments: [],
+			originalMethod: async () => ApiFunctionContextStorage.get<OtherFunctionRuntimeEntity>()?.repository,
+			properties: {
+				action: "customAction",
+				entity: OtherFunctionRuntimeEntity,
+			},
+			target: {
+				repository: repository as unknown as Repository<OtherFunctionRuntimeEntity>,
+			},
+			transactionMode: EApiFunctionTransactionMode.SUPPORTS,
+		});
+
+		expect(repository.manager.getRepository).toHaveBeenCalledWith(OtherFunctionRuntimeEntity);
+		expect(result).toBe(managerRepository);
 	});
 
 	it("fails MANDATORY mode without an active transaction", async () => {

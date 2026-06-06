@@ -82,6 +82,17 @@ const context = this.getApiFunctionContext<PostEntity>();
 await context.operations.update({ id }, { status: "published" });
 ```
 
+#### `protected getApiFunctionStepContext(): IApiFunctionStepContext<T>`
+
+Returns the active transaction-aware step context inside an `@ApiFunctionStep` method. Use it for internal helpers that need `eventManager`, the entity `repository`, or `getRepository()` without exposing `EntityManager` in the method signature.
+
+```typescript
+const context = this.getApiFunctionStepContext<PostEntity>();
+await context.repository.save(post);
+```
+
+`getApiFunctionStepContext()` intentionally omits `operations`. Use `@ApiFunctionCustom` and `getApiFunctionContext()` for standalone custom service actions that need function lifecycle helpers and subscribers.
+
 **Related:**
 
 - [Core Concepts - Services](/docs/nestjs-crud-automator/core-concepts/services)
@@ -231,7 +242,7 @@ Public helper for running code inside an external TypeORM transaction while maki
 - `runWithDataSource(dataSource, callback)` opens a new TypeORM transaction.
 - `runWithEntityManager(entityManager, callback)` reuses an existing `EntityManager`.
 
-Only service-bound `@ApiFunction` execution has real CRUD `operations`; transaction scopes created without a decorated service expose `getRepository` and transaction metadata but reject CRUD operations because there is no owning service context.
+Only service-bound decorated function execution, including generated `@ApiFunction` flows and `@ApiFunctionCustom`, has real CRUD `operations`; transaction scopes created without a decorated service expose `getRepository` and transaction metadata but reject CRUD operations because there is no owning service context.
 
 ## Subscriber Management Classes
 

@@ -100,7 +100,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecutorProperties<E>): Promise<E> {
 	const { constructor, entity, properties, repository }: IApiFunctionGetExecutorProperties<E> = options;
-	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.get<E>()?.eventManager;
+	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
 		let item: E | null;
