@@ -1,3 +1,9 @@
+# [2.5.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.4.0...v2.5.0) (2026-06-06)
+
+### Features
+
+- **api:** type function subscriber before results ([c2057b5](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/c2057b5e39fe978ef1c546e92e3cc1fa14e04607))
+
 # [2.4.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.3.0...v2.4.0) (2026-06-06)
 
 ### Features
