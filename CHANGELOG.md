@@ -1,3 +1,9 @@
+# [2.8.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.7.0...v2.8.0) (2026-06-07)
+
+### Features
+
+- **api:** enforce subscriber transaction expectations ([ab87813](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/ab87813a431bfc6a5a2e6f7710308177c9688c09))
+
 # [2.7.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.6.0...v2.7.0) (2026-06-06)
 
 ### Features
