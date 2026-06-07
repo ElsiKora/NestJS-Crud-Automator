@@ -1,8 +1,8 @@
-import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function.interface";
+import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function";
 import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.interface";
 
 import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
-import { EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
+import { EApiFunctionSubscriberTransactionExpectation, EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
 import { beforeEach, describe, expect, it } from "vitest";
 
 const resetSubscriberRegistry = (): void => {
@@ -90,5 +90,22 @@ describe("ApiSubscriberRegistry", () => {
 
 		expect(subscribers).toEqual(expect.arrayContaining([noFilterSubscriber, typeSubscriber, actionSubscriber]));
 		expect(subscribers).not.toContain(mismatchSubscriber);
+	});
+
+	it("returns registered function subscriber properties for runtime enforcement", () => {
+		class FunctionEntityPropertiesTest {}
+
+		const functionSubscriber = {} as IApiSubscriberFunction<FunctionEntityPropertiesTest>;
+		const properties = {
+			entity: FunctionEntityPropertiesTest,
+			functions: [{ type: EApiFunctionType.GET }],
+			priority: 5,
+			transaction: { expectation: EApiFunctionSubscriberTransactionExpectation.REQUIRED },
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber(properties, functionSubscriber);
+
+		expect(apiSubscriberRegistry.getFunctionSubscriberProperties(functionSubscriber)).toBe(properties);
+		expect(apiSubscriberRegistry.getFunctionSubscriberProperties({} as IApiSubscriberFunction<FunctionEntityPropertiesTest>)).toBeUndefined();
 	});
 });

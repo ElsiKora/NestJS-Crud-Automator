@@ -1,4 +1,4 @@
-import type { EApiFunctionType } from "@enum/decorator/api/function-type.enum";
+import type { EApiFunctionType } from "@enum/decorator/api/function";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberExecutionContext } from "@interface/class/api/subscriber/execution-context.interface";
 

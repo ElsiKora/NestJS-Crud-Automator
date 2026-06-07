@@ -1092,6 +1092,26 @@ class WithdrawalSubscriber extends ApiFunctionSubscriberBase<Withdrawal, Withdra
 }
 ```
 
+Function subscribers that require a transaction manager should declare that expectation on the subscriber metadata and pass the same transaction expectation to the class/context generic. `REQUIRED` and `MANDATORY` narrow `context.DATA.eventManager` to `EntityManager` and fail before the hook runs if no manager is available. `SUPPORTS`, `NONE`, and subscribers without `transaction` metadata keep `eventManager` optional.
+
+```typescript
+import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, EApiFunctionSubscriberTransactionExpectation, TApiSubscriberFunctionBeforeCreateContext } from "@elsikora/nestjs-crud-automator";
+
+@ApiFunctionSubscriber({
+	entity: Withdrawal,
+	transaction: { expectation: EApiFunctionSubscriberTransactionExpectation.REQUIRED },
+})
+class WithdrawalAuditSubscriber extends ApiFunctionSubscriberBase<Withdrawal, WithdrawalCreateInput, EApiFunctionSubscriberTransactionExpectation.REQUIRED> {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<Withdrawal, WithdrawalCreateInput, EApiFunctionSubscriberTransactionExpectation.REQUIRED>): Promise<WithdrawalCreateInput> {
+		await context.DATA.eventManager.save(WithdrawalAudit, {
+			amount: context.result.amount,
+		});
+
+		return context.result;
+	}
+}
+```
+
 **Available helper types:**
 
 - Function subscribers: `TApiSubscriberFunctionBeforeCreateContext`, `TApiSubscriberFunctionAfterCreateContext`, etc.
