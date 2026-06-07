@@ -130,15 +130,18 @@ Abstract base class for function-level subscribers.
 ApiFunctionSubscriberBase<
 	E extends IApiBaseEntity,
 	BeforeCreateResult extends TApiFunctionCreateProperties<E> = TApiFunctionCreateProperties<E>,
-	BeforeDeleteResult extends TApiFunctionDeleteCriteria<E> = TApiFunctionDeleteCriteria<E>,
+	BeforeDeleteResultOrTransactionExpectation extends TApiFunctionDeleteCriteria<E> | EApiFunctionSubscriberTransactionExpectation = TApiFunctionDeleteCriteria<E>,
 	BeforeGetResult extends TApiFunctionGetProperties<E> = TApiFunctionGetProperties<E>,
 	BeforeGetListResult extends TApiFunctionGetListProperties<E> = TApiFunctionGetListProperties<E>,
 	BeforeGetManyResult extends TApiFunctionGetManyProperties<E> = TApiFunctionGetManyProperties<E>,
 	BeforeUpdateResult extends TApiFunctionUpdateProperties<E> = TApiFunctionUpdateProperties<E>,
+	TTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation = TApiSubscriberFunctionBaseTransactionExpectation<BeforeDeleteResultOrTransactionExpectation>,
 >
 ```
 
 The before-result generics are optional and type-only. Keep the one-generic form for default CRUD payloads, or pass a stricter before-create payload as `ApiFunctionSubscriberBase<Entity, CreateInput>`.
+
+The third generic remains the before-delete result when it is a delete criteria type. When it is an `EApiFunctionSubscriberTransactionExpectation`, it declares the subscriber's transaction expectation shorthand, for example `ApiFunctionSubscriberBase<Entity, CreateInput, EApiFunctionSubscriberTransactionExpectation.REQUIRED>`. If you also customize later before-result generics, use the final `TTransactionExpectation` generic. Pair either form with `@ApiFunctionSubscriber({ transaction: { expectation } })` and the same helper context generic to narrow `context.DATA.eventManager`.
 
 **Hook Methods:**
 

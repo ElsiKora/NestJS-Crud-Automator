@@ -43,22 +43,24 @@ async onBeforeCreate(
 }
 ```
 
+Function helpers also accept a transaction expectation generic. Exact `REQUIRED` and `MANDATORY` expectations narrow `context.DATA.eventManager` to `EntityManager`; `SUPPORTS`, `NONE`, mixed unions, widened expectations, and the default keep it optional.
+
 ### Available Helper Types
 
 **Function Subscribers:**
 
-- `TApiSubscriberFunctionBeforeCreateContext<E, Result = TApiFunctionCreateProperties<E>>`
-- `TApiSubscriberFunctionAfterCreateContext<E>`
-- `TApiSubscriberFunctionBeforeUpdateContext<E, Result = TApiFunctionUpdateProperties<E>>`
-- `TApiSubscriberFunctionAfterUpdateContext<E>`
-- `TApiSubscriberFunctionBeforeGetContext<E, Result = TApiFunctionGetProperties<E>>`
-- `TApiSubscriberFunctionAfterGetContext<E>`
-- `TApiSubscriberFunctionBeforeGetListContext<E, Result = TApiFunctionGetListProperties<E>>`
-- `TApiSubscriberFunctionAfterGetListContext<E>`
-- `TApiSubscriberFunctionBeforeGetManyContext<E, Result = TApiFunctionGetManyProperties<E>>`
-- `TApiSubscriberFunctionAfterGetManyContext<E>`
-- `TApiSubscriberFunctionBeforeDeleteContext<E, Result = TApiFunctionDeleteCriteria<E>>`
-- `TApiSubscriberFunctionAfterDeleteContext<E>`
+- `TApiSubscriberFunctionBeforeCreateContext<E, Result = TApiFunctionCreateProperties<E>, TTransactionExpectation = SUPPORTS>`
+- `TApiSubscriberFunctionAfterCreateContext<E, TTransactionExpectation = SUPPORTS>`
+- `TApiSubscriberFunctionBeforeUpdateContext<E, Result = TApiFunctionUpdateProperties<E>, TTransactionExpectation = SUPPORTS>`
+- `TApiSubscriberFunctionAfterUpdateContext<E, TTransactionExpectation = SUPPORTS>`
+- `TApiSubscriberFunctionBeforeGetContext<E, Result = TApiFunctionGetProperties<E>, TTransactionExpectation = SUPPORTS>`
+- `TApiSubscriberFunctionAfterGetContext<E, TTransactionExpectation = SUPPORTS>`
+- `TApiSubscriberFunctionBeforeGetListContext<E, Result = TApiFunctionGetListProperties<E>, TTransactionExpectation = SUPPORTS>`
+- `TApiSubscriberFunctionAfterGetListContext<E, TTransactionExpectation = SUPPORTS>`
+- `TApiSubscriberFunctionBeforeGetManyContext<E, Result = TApiFunctionGetManyProperties<E>, TTransactionExpectation = SUPPORTS>`
+- `TApiSubscriberFunctionAfterGetManyContext<E, TTransactionExpectation = SUPPORTS>`
+- `TApiSubscriberFunctionBeforeDeleteContext<E, Result = TApiFunctionDeleteCriteria<E>, TTransactionExpectation = SUPPORTS>`
+- `TApiSubscriberFunctionAfterDeleteContext<E, TTransactionExpectation = SUPPORTS>`
 
 **Route Subscribers:**
 
@@ -218,6 +220,8 @@ interface IApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity> {
 	readonly getListProperties?: TApiFunctionGetListProperties<E>;
 	readonly getManyProperties?: TApiFunctionGetManyProperties<E>;
 }
+
+type TApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity, TTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation = EApiFunctionSubscriberTransactionExpectation.SUPPORTS> = IApiSubscriberFunctionExecutionContextData<E> & ([TTransactionExpectation] extends [EApiFunctionSubscriberTransactionExpectation.MANDATORY | EApiFunctionSubscriberTransactionExpectation.REQUIRED] ? { eventManager: EntityManager } : { eventManager?: EntityManager });
 ```
 
 ### Accessing Function Context Data
@@ -440,6 +444,26 @@ async onAfterGet(
 
 ### Using Event Manager (Transactions)
 
+By default, `context.DATA.eventManager` is optional. A function subscriber that cannot run without a manager should declare the expectation on both the decorator metadata and the class/context generic:
+
+```typescript
+@ApiFunctionSubscriber({
+	entity: PostEntity,
+	transaction: { expectation: EApiFunctionSubscriberTransactionExpectation.REQUIRED },
+})
+export class PostAuditSubscriber extends ApiFunctionSubscriberBase<PostEntity, TApiFunctionCreateProperties<PostEntity>, EApiFunctionSubscriberTransactionExpectation.REQUIRED> {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity, TApiFunctionCreateProperties<PostEntity>, EApiFunctionSubscriberTransactionExpectation.REQUIRED>): Promise<TApiFunctionCreateProperties<PostEntity>> {
+		await context.DATA.eventManager.save(AuditEntity, {
+			title: context.result.title,
+		});
+
+		return context.result;
+	}
+}
+```
+
+The runtime check is subscriber-declared through `transaction.expectation`. It is not inferred from `@ApiService`, `@ApiFunctionCustom`, or `@ApiFunctionStep` transaction config.
+
 ```typescript
 async onBeforeCreate(
   context: TApiSubscriberFunctionBeforeCreateContext<PostEntity>
@@ -478,7 +502,7 @@ async onAfterErrorCreate(
   // Log with full context
   this.logger.error("Failed to create post", {
     error: error.message,
-    entityId: context.ENTITY.id,
+    entity: context.ENTITY,
     hasTransaction: Boolean(context.DATA.eventManager),
   });
 }

@@ -142,6 +142,12 @@ DeepPartial<E>;
 
 Use `context.DATA.criteria`, `context.DATA.properties`, repository lookups, or TypeORM options when an existing entity or criteria is needed.
 
+Function subscriber transaction expectations are subscriber-declared:
+
+- Use `@ApiFunctionSubscriber({ transaction: { expectation: EApiFunctionSubscriberTransactionExpectation.REQUIRED } })` or `MANDATORY` only when the hook cannot run without `context.DATA.eventManager`.
+- Pass the same expectation to `ApiFunctionSubscriberBase` and helper context generics to narrow `eventManager` to `EntityManager`.
+- Do not infer subscriber transaction requirements from `@ApiService`, `@ApiFunctionCustom`, or `@ApiFunctionStep`; subscribers without metadata keep optional `eventManager`.
+
 For generated CRUD before hooks, `context.result` includes request targets plus `authenticationRequest`, `headers`, and `ip`. For `@ApiRouteCustom`, `context.result` is only `{ body?, parameters?, query? }`; read `authenticationRequest`, `headers`, `ip`, route metadata, and runtime properties from `context.DATA`.
 
 ## Authorization Notes
@@ -152,4 +158,4 @@ For generated CRUD before hooks, `context.result` includes request targets plus 
 - Securable custom methods require authorization mode metadata.
 - `resourceDefinition.resourcePath` may contain placeholders like `{id}`.
 - Policy statement `Resource` values should be concrete strings or wildcard strings such as `gameport:admin:item/*`.
-- `ApiAuthorizationCacheInvalidationService` invalidates policy rule cache; resolver caches must be cleared separately.
+- `ApiAuthorizationCacheInvalidationService.clearAll()` clears policy, IAM attachment/document, and hook permission caches.

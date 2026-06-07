@@ -1,0 +1,3 @@
+import type { EApiFunctionSubscriberTransactionExpectation } from "@enum/decorator/api";
+
+export type TApiSubscriberFunctionBaseTransactionExpectation<BeforeDeleteResultOrTransactionExpectation> = BeforeDeleteResultOrTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation ? BeforeDeleteResultOrTransactionExpectation : EApiFunctionSubscriberTransactionExpectation.SUPPORTS;

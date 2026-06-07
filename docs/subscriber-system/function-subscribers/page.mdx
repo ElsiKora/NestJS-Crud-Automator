@@ -103,12 +103,10 @@ async onBeforeGet(
   // Fully typed access to repository
   const repository = context.DATA.repository;
 
-  // Increment view counter before fetching
-  await repository.increment(
-    { id: context.ENTITY.id },
-    "viewCount",
-    1
-  );
+  // Inspect the requested query before fetching
+  await repository.count({
+    where: context.result.where,
+  });
 
   return context.result;
 }
@@ -122,6 +120,32 @@ async onBeforeDelete(
   return context.result;
 }
 ```
+
+### Transaction Expectations
+
+Function subscribers can declare that they require a transaction manager. This is a subscriber-level expectation and is not inferred from the service or function transaction config.
+
+When `transaction.expectation` is `REQUIRED` or `MANDATORY`, pass the same expectation to `ApiFunctionSubscriberBase` and the helper context type. `context.DATA.eventManager` is then typed as `EntityManager`, and the executor throws before your hook runs if no manager is available. The generic is type-only; decorator metadata is the runtime source of truth.
+
+```typescript
+import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, EApiFunctionSubscriberTransactionExpectation, TApiSubscriberFunctionBeforeCreateContext, TApiFunctionCreateProperties } from "@elsikora/nestjs-crud-automator";
+
+@ApiFunctionSubscriber({
+	entity: PostEntity,
+	transaction: { expectation: EApiFunctionSubscriberTransactionExpectation.REQUIRED },
+})
+export class PostAuditSubscriber extends ApiFunctionSubscriberBase<PostEntity, TApiFunctionCreateProperties<PostEntity>, EApiFunctionSubscriberTransactionExpectation.REQUIRED> {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<PostEntity, TApiFunctionCreateProperties<PostEntity>, EApiFunctionSubscriberTransactionExpectation.REQUIRED>): Promise<TApiFunctionCreateProperties<PostEntity>> {
+		await context.DATA.eventManager.save(AuditEntity, {
+			postTitle: context.result.title,
+		});
+
+		return context.result;
+	}
+}
+```
+
+`SUPPORTS`, `NONE`, and subscribers without `transaction` metadata keep the default `EntityManager | undefined` behavior.
 
 ### After Hooks
 

@@ -31,7 +31,7 @@ HTTP list queries use lowercase sort directions: `asc` and `desc`.
 ## Subscriber Context Helpers
 
 ```typescript
-type TApiSubscriberFunctionBeforeCreateContext<E extends IApiBaseEntity, Result extends TApiFunctionCreateProperties<E> = TApiFunctionCreateProperties<E>> = IApiSubscriberFunctionExecutionContext<E, Result, IApiSubscriberFunctionExecutionContextData<E>>;
+type TApiSubscriberFunctionBeforeCreateContext<E extends IApiBaseEntity, Result extends TApiFunctionCreateProperties<E> = TApiFunctionCreateProperties<E>, TTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation = EApiFunctionSubscriberTransactionExpectation.SUPPORTS> = IApiSubscriberFunctionExecutionContext<E, Result, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>;
 
 type TApiSubscriberRouteBeforeCreateContext<E extends IApiBaseEntity> = IApiSubscriberRouteExecutionContext<
 	E,
@@ -45,7 +45,21 @@ type TApiSubscriberRouteBeforeCreateContext<E extends IApiBaseEntity> = IApiSubs
 >;
 ```
 
-Prefer the exported helper types over manually spelling every generic parameter. Before function helpers accept an optional constrained `Result` generic for advanced cases where `context.result` is a stricter application payload. This is type-only and does not change validation, transformation, or runtime behavior.
+Prefer the exported helper types over manually spelling every generic parameter. Before function helpers accept an optional constrained `Result` generic for advanced cases where `context.result` is a stricter application payload. Function helpers also accept a transaction expectation generic; `REQUIRED` and `MANDATORY` narrow `context.DATA.eventManager` to `EntityManager` only when the expectation is known exactly. These generics are type-only and do not change validation, transformation, or runtime behavior.
+
+## Function Subscriber Transaction Helpers
+
+```typescript
+type TApiSubscriberFunctionBaseBeforeDeleteResult<E, BeforeDeleteResultOrTransactionExpectation> = BeforeDeleteResultOrTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation ? TApiFunctionDeleteCriteria<E> : Extract<BeforeDeleteResultOrTransactionExpectation, TApiFunctionDeleteCriteria<E>>;
+
+type TApiSubscriberFunctionBaseTransactionExpectation<BeforeDeleteResultOrTransactionExpectation> = BeforeDeleteResultOrTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation ? BeforeDeleteResultOrTransactionExpectation : EApiFunctionSubscriberTransactionExpectation.SUPPORTS;
+
+type TApiSubscriberFunctionRequiredTransactionExpectation = EApiFunctionSubscriberTransactionExpectation.MANDATORY | EApiFunctionSubscriberTransactionExpectation.REQUIRED;
+
+type TApiSubscriberFunctionTransactionData<TTransactionExpectation = EApiFunctionSubscriberTransactionExpectation.SUPPORTS> = [TTransactionExpectation] extends [TApiSubscriberFunctionRequiredTransactionExpectation] ? { eventManager: EntityManager } : { eventManager?: EntityManager };
+```
+
+These helper aliases power `ApiFunctionSubscriberBase` shorthand generics and `TApiSubscriberFunctionExecutionContextData`. Most applications should use the context helpers directly.
 
 ## Authorization Types
 
