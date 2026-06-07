@@ -1,6 +1,6 @@
 import type { EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function.interface";
+import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function";
 import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.interface";
 import type { IApiFunctionSubscriberProperties, IApiRouteSubscriberProperties } from "@interface/decorator/api/subscriber";
 
@@ -18,6 +18,18 @@ class ApiSubscriberRegistry {
 	constructor() {
 		this.FUNCTION_SUBSCRIBERS = new Map();
 		this.ROUTE_SUBSCRIBERS = new Map();
+	}
+
+	public getFunctionSubscriberProperties<E extends IApiBaseEntity>(subscriber: IApiSubscriberFunction<E>): IApiFunctionSubscriberProperties<E> | undefined {
+		for (const wrapper of this.FUNCTION_SUBSCRIBERS.values()) {
+			const entry: { properties?: IApiFunctionSubscriberProperties<IApiBaseEntity>; subscriber: IApiSubscriberFunction<IApiBaseEntity> } | undefined = wrapper.subscribers.find((registeredSubscriber: { subscriber: IApiSubscriberFunction<IApiBaseEntity> }) => registeredSubscriber.subscriber === (subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>));
+
+			if (entry) {
+				return entry.properties as IApiFunctionSubscriberProperties<E> | undefined;
+			}
+		}
+
+		return undefined;
 	}
 
 	public getFunctionSubscribers<E extends IApiBaseEntity>(entityName: string, functionType?: EApiFunctionType, action?: string): Array<IApiSubscriberFunction<E>> {

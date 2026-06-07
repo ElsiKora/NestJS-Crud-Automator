@@ -1,7 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function/error-execution-context.interface";
-import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context-data.interface";
-import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context.interface";
+import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context";
+import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context/data";
 import type { IApiFunctionGetListExecutorProperties, IApiFunctionProperties, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiFunctionGetListProperties } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
@@ -43,7 +43,7 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 						result: getListProperties,
 					};
 
-					const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE, executionContext);
+					const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, executionContext);
 
 					if (result) {
 						executionContext.result = result;

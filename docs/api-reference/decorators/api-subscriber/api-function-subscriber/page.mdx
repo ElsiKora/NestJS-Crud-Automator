@@ -9,16 +9,18 @@ Registers a class as a function-level subscriber for a specific entity. Subscrib
 	entity,
 	functions?,
 	priority?,
+	transaction?,
 }: IApiFunctionSubscriberProperties<E>)
 ```
 
 ## Options
 
-| Option      | Description                                                                                                             |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `entity`    | Entity the subscriber listens to. The subscriber is ignored for other entities.                                         |
-| `functions` | Optional filters for function type or custom action. Use this when one subscriber should only observe selected hooks.   |
-| `priority`  | Higher numbers execute first. Defaults to `0`. Use this to enforce deterministic ordering between multiple subscribers. |
+| Option                    | Description                                                                                                                            |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `entity`                  | Entity the subscriber listens to. The subscriber is ignored for other entities.                                                        |
+| `functions`               | Optional filters for function type or custom action. Use this when one subscriber should only observe selected hooks.                  |
+| `priority`                | Higher numbers execute first. Defaults to `0`. Use this to enforce deterministic ordering between multiple subscribers.                |
+| `transaction.expectation` | Optional subscriber-declared transaction expectation. `REQUIRED` and `MANDATORY` require `context.DATA.eventManager` before hooks run. |
 
 ## Usage steps
 
@@ -43,6 +45,8 @@ export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
 	}
 }
 ```
+
+Subscribers without `transaction` metadata keep the default optional `eventManager` behavior. The option is not inferred from `@ApiService`, `@ApiFunctionCustom`, or `@ApiFunctionStep` transaction settings; declare it on the subscriber when the hook itself requires a manager, and pass the same expectation to the class/context generic for TypeScript narrowing. The class/context generic is type-only and does not enable runtime enforcement without matching decorator metadata.
 
 ## Related resources
 

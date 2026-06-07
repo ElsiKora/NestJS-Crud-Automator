@@ -1,6 +1,7 @@
-import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function.interface";
+import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function";
 import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.interface";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
@@ -8,7 +9,7 @@ import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { SERVICE_API_DECORATOR_CONSTANT } from "@constant/decorator/api/service.constant";
-import { EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
+import { EApiFunctionSubscriberTransactionExpectation, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const resetSubscriberRegistry = (): void => {
@@ -347,6 +348,330 @@ describe("ApiSubscriberExecutor", () => {
 
 		expect(functionSubscriber.onBeforeGet).toHaveBeenCalledTimes(1);
 		expect(result).toEqual({ id: "original" });
+	});
+
+	it("keeps default function subscriber metadata compatible with undefined event manager", async () => {
+		class FunctionEntity {
+			public id?: string;
+		}
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const functionSubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onBeforeGet: vi.fn().mockResolvedValue(undefined),
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 1 }, functionSubscriber);
+
+		const result = await ApiSubscriberExecutor.executeFunctionSubscribers(TestService, new FunctionEntity(), EApiFunctionType.GET, EApiSubscriberOnType.BEFORE, {
+			DATA: {} as never,
+			ENTITY: new FunctionEntity(),
+			FUNCTION_TYPE: EApiFunctionType.GET,
+			result: { id: "original" },
+		});
+
+		expect(functionSubscriber.onBeforeGet).toHaveBeenCalledTimes(1);
+		expect(result).toEqual({ id: "original" });
+	});
+
+	it.each([EApiFunctionSubscriberTransactionExpectation.MANDATORY, EApiFunctionSubscriberTransactionExpectation.REQUIRED])("throws before executing %s function subscriber hooks without event manager", async (transactionExpectation) => {
+		class FunctionEntity {
+			public id?: string;
+		}
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const functionSubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onBeforeGet: vi.fn(),
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 1, transaction: { expectation: transactionExpectation } }, functionSubscriber);
+
+		await expect(
+			ApiSubscriberExecutor.executeFunctionSubscribers(TestService, new FunctionEntity(), EApiFunctionType.GET, EApiSubscriberOnType.BEFORE, {
+				DATA: {} as never,
+				ENTITY: new FunctionEntity(),
+				FUNCTION_TYPE: EApiFunctionType.GET,
+				result: { id: "original" },
+			}),
+		).rejects.toThrow(`[NestJS-Crud-Automator] Function subscriber "Object" declares transaction expectation "${transactionExpectation}" but no event manager was provided`);
+		expect(functionSubscriber.onBeforeGet).not.toHaveBeenCalled();
+	});
+
+	it("throws before executing required function subscriber hooks with null event manager", async () => {
+		class FunctionEntity {
+			public id?: string;
+		}
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const functionSubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onBeforeGet: vi.fn(),
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 1, transaction: { expectation: EApiFunctionSubscriberTransactionExpectation.REQUIRED } }, functionSubscriber);
+
+		await expect(
+			ApiSubscriberExecutor.executeFunctionSubscribers(TestService, new FunctionEntity(), EApiFunctionType.GET, EApiSubscriberOnType.BEFORE, {
+				DATA: {
+					eventManager: null,
+				} as never,
+				ENTITY: new FunctionEntity(),
+				FUNCTION_TYPE: EApiFunctionType.GET,
+				result: { id: "original" },
+			}),
+		).rejects.toThrow('[NestJS-Crud-Automator] Function subscriber "Object" declares transaction expectation "REQUIRED" but no event manager was provided');
+		expect(functionSubscriber.onBeforeGet).not.toHaveBeenCalled();
+	});
+
+	it.each([EApiFunctionSubscriberTransactionExpectation.NONE, EApiFunctionSubscriberTransactionExpectation.SUPPORTS])("allows %s function subscriber hooks without event manager", async (transactionExpectation) => {
+		class FunctionEntity {
+			public id?: string;
+		}
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const functionSubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onBeforeGet: vi.fn().mockResolvedValue({ id: "updated" }),
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 1, transaction: { expectation: transactionExpectation } }, functionSubscriber);
+
+		const result = await ApiSubscriberExecutor.executeFunctionSubscribers(TestService, new FunctionEntity(), EApiFunctionType.GET, EApiSubscriberOnType.BEFORE, {
+			DATA: {} as never,
+			ENTITY: new FunctionEntity(),
+			FUNCTION_TYPE: EApiFunctionType.GET,
+			result: { id: "original" },
+		});
+
+		expect(functionSubscriber.onBeforeGet).toHaveBeenCalledTimes(1);
+		expect(result).toEqual({ id: "updated" });
+	});
+
+	it("does not enforce type-only transaction expectation without subscriber metadata", async () => {
+		class FunctionEntity {
+			public id?: string;
+		}
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const functionSubscriber: IApiSubscriberFunction<FunctionEntity, never, never, TApiFunctionGetProperties<FunctionEntity>, never, never, never, EApiFunctionSubscriberTransactionExpectation.REQUIRED> = {
+			onBeforeGet: vi.fn().mockResolvedValue({ where: { id: "updated" } }),
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 1 }, functionSubscriber as unknown as IApiSubscriberFunction<FunctionEntity>);
+
+		const result = await ApiSubscriberExecutor.executeFunctionSubscribers(TestService, new FunctionEntity(), EApiFunctionType.GET, EApiSubscriberOnType.BEFORE, {
+			DATA: {} as never,
+			ENTITY: new FunctionEntity(),
+			FUNCTION_TYPE: EApiFunctionType.GET,
+			result: { where: { id: "original" } },
+		});
+
+		expect(functionSubscriber.onBeforeGet).toHaveBeenCalledTimes(1);
+		expect(result).toEqual({ where: { id: "updated" } });
+	});
+
+	it("dispatches before-error hooks when generated before-subscriber transaction enforcement fails", async () => {
+		class FunctionEntity {
+			public id?: string;
+		}
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const requiredSubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onBeforeGet: vi.fn(),
+		};
+		const errorSubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onBeforeErrorGet: vi.fn(),
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 2, transaction: { expectation: EApiFunctionSubscriberTransactionExpectation.REQUIRED } }, requiredSubscriber);
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 1 }, errorSubscriber);
+
+		await expect(
+			ApiSubscriberExecutor.executeFunctionBeforeSubscribers(TestService, new FunctionEntity(), EApiFunctionType.GET, {
+				DATA: {} as never,
+				ENTITY: new FunctionEntity(),
+				FUNCTION_TYPE: EApiFunctionType.GET,
+				result: { id: "original" },
+			}),
+		).rejects.toThrow('[NestJS-Crud-Automator] Function subscriber "Object" declares transaction expectation "REQUIRED" but no event manager was provided');
+		expect(requiredSubscriber.onBeforeGet).not.toHaveBeenCalled();
+		expect(errorSubscriber.onBeforeErrorGet).toHaveBeenCalledTimes(1);
+	});
+
+	it("runs before hooks and then dispatches before-error hooks before side effects for required after-only function subscribers without event manager", async () => {
+		class FunctionEntity {
+			public id?: string;
+		}
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const beforeSubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onBeforeGet: vi.fn().mockResolvedValue({ id: "before" }),
+		};
+		const afterOnlySubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onAfterGet: vi.fn(),
+		};
+		const errorSubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onBeforeErrorGet: vi.fn(),
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 3 }, beforeSubscriber);
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 2, transaction: { expectation: EApiFunctionSubscriberTransactionExpectation.REQUIRED } }, afterOnlySubscriber);
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 1 }, errorSubscriber);
+
+		await expect(
+			ApiSubscriberExecutor.executeFunctionBeforeSubscribers(TestService, new FunctionEntity(), EApiFunctionType.GET, {
+				DATA: {} as never,
+				ENTITY: new FunctionEntity(),
+				FUNCTION_TYPE: EApiFunctionType.GET,
+				result: { id: "original" },
+			}),
+		).rejects.toThrow('[NestJS-Crud-Automator] Function subscriber "Object" declares transaction expectation "REQUIRED" but no event manager was provided');
+		expect(beforeSubscriber.onBeforeGet).toHaveBeenCalledTimes(1);
+		expect(afterOnlySubscriber.onAfterGet).not.toHaveBeenCalled();
+		expect(errorSubscriber.onBeforeErrorGet).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not preflight-block required error-only function subscribers on successful operations", async () => {
+		class FunctionEntity {
+			public id?: string;
+		}
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const errorOnlySubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onAfterErrorGet: vi.fn(),
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 1, transaction: { expectation: EApiFunctionSubscriberTransactionExpectation.REQUIRED } }, errorOnlySubscriber);
+
+		const result = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(TestService, new FunctionEntity(), EApiFunctionType.GET, {
+			DATA: {} as never,
+			ENTITY: new FunctionEntity(),
+			FUNCTION_TYPE: EApiFunctionType.GET,
+			result: { id: "original" },
+		});
+
+		expect(errorOnlySubscriber.onAfterErrorGet).not.toHaveBeenCalled();
+		expect(result).toEqual({ id: "original" });
+	});
+
+	it.each([EApiFunctionSubscriberTransactionExpectation.MANDATORY, EApiFunctionSubscriberTransactionExpectation.REQUIRED])("invokes %s function subscriber hooks with event manager", async (transactionExpectation) => {
+		class FunctionEntity {
+			public id?: string;
+		}
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const eventManager = {} as EntityManager;
+		const observedEventManager = vi.fn();
+		const functionSubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onAfterGet: vi.fn(async (context) => {
+				observedEventManager(context.DATA.eventManager);
+
+				return { id: "updated" };
+			}),
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 1, transaction: { expectation: transactionExpectation } }, functionSubscriber);
+
+		const result = await ApiSubscriberExecutor.executeFunctionSubscribers(TestService, new FunctionEntity(), EApiFunctionType.GET, EApiSubscriberOnType.AFTER, {
+			DATA: {
+				eventManager,
+			} as never,
+			ENTITY: new FunctionEntity(),
+			FUNCTION_TYPE: EApiFunctionType.GET,
+			result: { id: "original" },
+		});
+
+		expect(functionSubscriber.onAfterGet).toHaveBeenCalledTimes(1);
+		expect(observedEventManager).toHaveBeenCalledWith(eventManager);
+		expect(result).toEqual({ id: "updated" });
+	});
+
+	it("throws before executing required function error subscriber hooks without event manager", async () => {
+		class FunctionEntity {
+			public id?: string;
+		}
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const functionSubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onBeforeErrorGet: vi.fn(),
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 1, transaction: { expectation: EApiFunctionSubscriberTransactionExpectation.REQUIRED } }, functionSubscriber);
+
+		await expect(
+			ApiSubscriberExecutor.executeFunctionErrorSubscribers(
+				TestService,
+				new FunctionEntity(),
+				EApiFunctionType.GET,
+				EApiSubscriberOnType.BEFORE_ERROR,
+				{
+					DATA: {} as never,
+					ENTITY: new FunctionEntity(),
+					FUNCTION_TYPE: EApiFunctionType.GET,
+				},
+				new Error("boom"),
+			),
+		).rejects.toThrow('[NestJS-Crud-Automator] Function subscriber "Object" declares transaction expectation "REQUIRED" but no event manager was provided');
+		expect(functionSubscriber.onBeforeErrorGet).not.toHaveBeenCalled();
+	});
+
+	it("throws before executing required function after-error subscriber hooks without event manager", async () => {
+		class FunctionEntity {
+			public id?: string;
+		}
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const functionSubscriber: IApiSubscriberFunction<FunctionEntity> = {
+			onAfterErrorGet: vi.fn(),
+		};
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntity, priority: 1, transaction: { expectation: EApiFunctionSubscriberTransactionExpectation.REQUIRED } }, functionSubscriber);
+
+		await expect(
+			ApiSubscriberExecutor.executeFunctionErrorSubscribers(
+				TestService,
+				new FunctionEntity(),
+				EApiFunctionType.GET,
+				EApiSubscriberOnType.AFTER_ERROR,
+				{
+					DATA: {} as never,
+					ENTITY: new FunctionEntity(),
+					FUNCTION_TYPE: EApiFunctionType.GET,
+				},
+				new Error("boom"),
+			),
+		).rejects.toThrow('[NestJS-Crud-Automator] Function subscriber "Object" declares transaction expectation "REQUIRED" but no event manager was provided');
+		expect(functionSubscriber.onAfterErrorGet).not.toHaveBeenCalled();
 	});
 
 	it("masks outer step context while executing function subscribers", async () => {

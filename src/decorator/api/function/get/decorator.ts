@@ -1,7 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function/error-execution-context.interface";
-import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context-data.interface";
-import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context.interface";
+import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context";
+import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context/data";
 import type { IApiFunctionGetExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
 import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
 import type { EntityManager, FindOneOptions, Repository } from "typeorm";
@@ -47,7 +47,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 						result: getProperties,
 					};
 
-					const result: FindOneOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.BEFORE, executionContext);
+					const result: FindOneOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET, executionContext);
 
 					if (result) {
 						executionContext.result = result;

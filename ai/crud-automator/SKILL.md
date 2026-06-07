@@ -46,7 +46,7 @@ Use local source as the contract:
 - `@ApiFunctionStep({ entity, transaction })` is for internal service helper methods that need transaction context but are not standalone actions; direct calls are valid when the selected transaction mode permits.
 - Function steps do not create subscriber hooks, route metadata, Swagger metadata, or authorization action identities; do not model them as custom actions.
 - `@ApiService({ entity, functions })` can configure transaction modes for generated CRUD functions keyed by `EApiFunctionType.CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, and `GET_MANY`; omitted entries default to `SUPPORTS`, and `CUSTOM` belongs to `@ApiFunctionCustom`.
-- Transaction modes are `SUPPORTS`, `REQUIRED`, `MANDATORY`, and `NONE`.
+- Function execution transaction modes use `EApiFunctionTransactionMode` with `transaction.mode`; subscriber requirements use `EApiFunctionSubscriberTransactionExpectation` with `transaction.expectation`.
 - Inside decorated service execution, use `this.getApiFunctionContext()` for `operations`, `repository`, `eventManager`, and `getRepository`.
 - Inside `@ApiFunctionStep`, use `this.getApiFunctionStepContext()` for `repository`, `eventManager`, and `getRepository`; it intentionally omits `operations`.
 - `ApiFunctionTransactionScope.runWithDataSource()` and `runWithEntityManager()` provide external transaction scope; CRUD `operations` reject without a decorated service context.
@@ -78,6 +78,7 @@ Use local source as the contract:
 - Route subscribers receive route-shaped results such as `{ body, parameters, query, headers, ip, authenticationRequest }` in before hooks.
 - Custom route subscribers receive `{ body?, parameters?, query? }` in `context.result`; read auth/header/IP data from `context.DATA`.
 - Function subscribers receive service payloads directly; do not use `context.result.body` in function subscribers.
+- Function subscriber transaction expectations are declared on `@ApiFunctionSubscriber({ transaction: { expectation } })`; they are not inferred from service/function config. Use matching class/context generics for `REQUIRED` or `MANDATORY` so `context.DATA.eventManager` narrows to `EntityManager`.
 - Custom hooks are `onBeforeCustom`, `onAfterCustom`, `onBeforeErrorCustom`, and `onAfterErrorCustom`.
 - Higher `priority` runs earlier; returned non-`undefined` hook results flow to later subscribers.
 
@@ -87,7 +88,7 @@ Use local source as the contract:
 - Use IAM mode for policy documents, principal resolution, document sources, attachment sources, and boundaries.
 - Register `@ApiAuthorizationPolicy()` classes as Nest providers.
 - IAM policy document `Resource` values match literally or with wildcards; `{id}` placeholders belong in `resourceDefinition.resourcePath`.
-- Clear resolver caches when backing permission, attachment, or document data changes; `ApiAuthorizationCacheInvalidationService` only clears policy rule cache.
+- Use `ApiAuthorizationCacheInvalidationService` after backing authorization data changes; `clearAll()` clears policy, IAM attachment/document, and hook permission caches.
 
 ## Verification Checklist
 

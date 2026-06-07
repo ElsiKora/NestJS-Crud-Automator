@@ -54,16 +54,8 @@ export class ApiFunctionCustomRuntime {
 			FUNCTION_TYPE: EApiFunctionType.CUSTOM,
 			result: options.functionArguments,
 		};
-		let finalArguments: Array<unknown>;
-
-		try {
-			const beforeResult: Array<unknown> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(options.target.constructor as new (...constructorArguments: Array<unknown>) => unknown, entityInstance, EApiFunctionType.CUSTOM, EApiSubscriberOnType.BEFORE, executionContext, options.properties.action);
-			finalArguments = beforeResult ?? options.functionArguments;
-		} catch (error) {
-			await ApiFunctionCustomRuntime.executeErrorSubscribers(options, options.eventManager, EApiSubscriberOnType.BEFORE_ERROR, error);
-
-			throw error;
-		}
+		const beforeResult: Array<unknown> | undefined = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(options.target.constructor as new (...constructorArguments: Array<unknown>) => unknown, entityInstance, EApiFunctionType.CUSTOM, executionContext, options.properties.action);
+		const finalArguments: Array<unknown> = beforeResult ?? options.functionArguments;
 
 		try {
 			const result: unknown = await ApiFunctionContextStorage.run(context, async (): Promise<unknown> => await options.originalMethod.apply(options.target, finalArguments));

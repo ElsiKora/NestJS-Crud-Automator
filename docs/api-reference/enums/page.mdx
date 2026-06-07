@@ -400,6 +400,21 @@ enum EApiFunctionTransactionMode {
 - `MANDATORY` requires an active transaction.
 - `NONE` requires no active transaction.
 
+### EApiFunctionSubscriberTransactionExpectation
+
+Subscriber-declared transaction expectations for function subscribers.
+
+```typescript
+enum EApiFunctionSubscriberTransactionExpectation {
+	MANDATORY = "MANDATORY",
+	NONE = "NONE",
+	REQUIRED = "REQUIRED",
+	SUPPORTS = "SUPPORTS",
+}
+```
+
+`REQUIRED` and `MANDATORY` require `context.DATA.eventManager` before the subscriber hook runs. `SUPPORTS`, `NONE`, and omitted metadata keep the event manager optional; subscriber expectations do not create or forbid transactions.
+
 ### EApiControllerRequestTransformerType
 
 Request transformer types.

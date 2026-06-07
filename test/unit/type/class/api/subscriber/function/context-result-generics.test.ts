@@ -1,12 +1,14 @@
 import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution";
-import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function.interface";
-import type { TApiSubscriberFunctionBeforeCreateContext, TApiSubscriberFunctionBeforeDeleteContext, TApiSubscriberFunctionBeforeGetContext, TApiSubscriberFunctionBeforeGetListContext, TApiSubscriberFunctionBeforeGetManyContext, TApiSubscriberFunctionBeforeUpdateContext } from "@type/class/api/subscriber/function";
+import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function";
+import type { TApiSubscriberFunctionBeforeCreateContext, TApiSubscriberFunctionBeforeDeleteContext, TApiSubscriberFunctionBeforeGetContext, TApiSubscriberFunctionBeforeGetListContext, TApiSubscriberFunctionBeforeGetManyContext, TApiSubscriberFunctionBeforeUpdateContext, TApiSubscriberFunctionExecutionContextData } from "@type/class/api/subscriber/function";
 import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
-import type { Repository } from "typeorm";
+import type { EntityManager, Repository } from "typeorm";
 
+import { ApiFunctionSubscriberBase } from "@class/api/subscriber/function-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
-import { EApiFunctionType } from "@enum/decorator/api/function-type.enum";
+import { EApiFunctionSubscriberTransactionExpectation } from "@enum/decorator/api";
+import { EApiFunctionType } from "@enum/decorator/api/function";
 import { EApiSubscriberOnType } from "@enum/decorator/api/on-type.enum";
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
@@ -97,6 +99,83 @@ describe("function subscriber result generics", () => {
 
 		expect(invalidCreateContext).toBeUndefined();
 		expect(invalidCreateSubscriber).toBeUndefined();
+	});
+
+	it("should narrow event manager by subscriber transaction expectation", () => {
+		const repository = {} as Repository<SubscriberResultEntity>;
+		const requiredData: TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation.REQUIRED> = {
+			eventManager: {} as EntityManager,
+			repository,
+		};
+		const unionData: TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation.REQUIRED | EApiFunctionSubscriberTransactionExpectation.SUPPORTS> = {
+			repository,
+		};
+		const requiredUnionData: TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation.MANDATORY | EApiFunctionSubscriberTransactionExpectation.REQUIRED> = {
+			eventManager: {} as EntityManager,
+			repository,
+		};
+		const wideExpectationData: TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation> = {
+			repository,
+		};
+		const supportsData: IApiSubscriberFunctionExecutionContextData<SubscriberResultEntity> = {
+			repository,
+		};
+		// @ts-expect-error REQUIRED subscriber DATA must include an event manager.
+		const invalidRequiredData: TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation.REQUIRED> = {
+			repository,
+		};
+		// @ts-expect-error Required-only union modes must include an event manager.
+		const invalidRequiredUnionData: TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation.MANDATORY | EApiFunctionSubscriberTransactionExpectation.REQUIRED> = {
+			repository,
+		};
+
+		expectTypeOf<IApiSubscriberFunctionExecutionContextData<SubscriberResultEntity>["eventManager"]>().toEqualTypeOf<EntityManager | undefined>();
+		expectTypeOf<TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation.NONE>["eventManager"]>().toEqualTypeOf<EntityManager | undefined>();
+		expectTypeOf<TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation.SUPPORTS>["eventManager"]>().toEqualTypeOf<EntityManager | undefined>();
+		expectTypeOf<TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation.MANDATORY>["eventManager"]>().toEqualTypeOf<EntityManager>();
+		expectTypeOf<TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation.REQUIRED>["eventManager"]>().toEqualTypeOf<EntityManager>();
+		expectTypeOf<TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation.MANDATORY | EApiFunctionSubscriberTransactionExpectation.REQUIRED>["eventManager"]>().toEqualTypeOf<EntityManager>();
+		expectTypeOf<TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation.REQUIRED | EApiFunctionSubscriberTransactionExpectation.SUPPORTS>["eventManager"]>().toEqualTypeOf<EntityManager | undefined>();
+		expectTypeOf<TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation>["eventManager"]>().toEqualTypeOf<EntityManager | undefined>();
+		expectTypeOf<TApiSubscriberFunctionBeforeCreateContext<SubscriberResultEntity, TSubscriberResultCreateInput, EApiFunctionSubscriberTransactionExpectation.REQUIRED>["DATA"]["eventManager"]>().toEqualTypeOf<EntityManager>();
+		expect(requiredData.eventManager).toBeDefined();
+		expect(requiredUnionData.eventManager).toBeDefined();
+		expect(unionData.eventManager).toBeUndefined();
+		expect(wideExpectationData.eventManager).toBeUndefined();
+		expect(supportsData.eventManager).toBeUndefined();
+		expect(invalidRequiredData.repository).toBe(repository);
+		expect(invalidRequiredUnionData.repository).toBe(repository);
+	});
+
+	it("should allow ApiFunctionSubscriberBase shorthand transaction expectation as the third generic", async () => {
+		class RequiredTransactionSubscriber extends ApiFunctionSubscriberBase<SubscriberResultEntity, TSubscriberResultCreateInput, EApiFunctionSubscriberTransactionExpectation.REQUIRED> {
+			public async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<SubscriberResultEntity, TSubscriberResultCreateInput, EApiFunctionSubscriberTransactionExpectation.REQUIRED>): Promise<TSubscriberResultCreateInput> {
+				expectTypeOf(context.DATA.eventManager).toEqualTypeOf<EntityManager>();
+
+				return context.result;
+			}
+		}
+
+		const subscriber = new RequiredTransactionSubscriber();
+
+		expectTypeOf(subscriber).toMatchTypeOf<IApiSubscriberFunction<SubscriberResultEntity, TSubscriberResultCreateInput, TApiFunctionDeleteCriteria<SubscriberResultEntity>, TApiFunctionGetProperties<SubscriberResultEntity>, TApiFunctionGetListProperties<SubscriberResultEntity>, TApiFunctionGetManyProperties<SubscriberResultEntity>, TApiFunctionUpdateProperties<SubscriberResultEntity>, EApiFunctionSubscriberTransactionExpectation.REQUIRED>>();
+		expect(await subscriber.onBeforeCreate(createBeforeCreateContext(createCustomPayload()) as TApiSubscriberFunctionBeforeCreateContext<SubscriberResultEntity, TSubscriberResultCreateInput, EApiFunctionSubscriberTransactionExpectation.REQUIRED>)).toEqual(createCustomPayload());
+	});
+
+	it("should allow ApiFunctionSubscriberBase custom delete result with final transaction expectation generic", () => {
+		class RequiredDeleteTransactionSubscriber extends ApiFunctionSubscriberBase<SubscriberResultEntity, TSubscriberResultCreateInput, TSubscriberResultDeleteInput, TApiFunctionGetProperties<SubscriberResultEntity>, TApiFunctionGetListProperties<SubscriberResultEntity>, TApiFunctionGetManyProperties<SubscriberResultEntity>, TSubscriberResultUpdateInput, EApiFunctionSubscriberTransactionExpectation.REQUIRED> {
+			public async onBeforeDelete(context: TApiSubscriberFunctionBeforeDeleteContext<SubscriberResultEntity, TSubscriberResultDeleteInput, EApiFunctionSubscriberTransactionExpectation.REQUIRED>): Promise<TSubscriberResultDeleteInput> {
+				expectTypeOf(context.DATA.eventManager).toEqualTypeOf<EntityManager>();
+				expectTypeOf(context.result).toMatchTypeOf<TSubscriberResultDeleteInput>();
+
+				return context.result;
+			}
+		}
+
+		const subscriber = new RequiredDeleteTransactionSubscriber();
+
+		expectTypeOf(subscriber).toMatchTypeOf<IApiSubscriberFunction<SubscriberResultEntity, TSubscriberResultCreateInput, TSubscriberResultDeleteInput, TApiFunctionGetProperties<SubscriberResultEntity>, TApiFunctionGetListProperties<SubscriberResultEntity>, TApiFunctionGetManyProperties<SubscriberResultEntity>, TSubscriberResultUpdateInput, EApiFunctionSubscriberTransactionExpectation.REQUIRED>>();
+		expect(subscriber).toBeInstanceOf(ApiFunctionSubscriberBase);
 	});
 
 	it("should allow function subscriber contracts to return a custom create result", async () => {

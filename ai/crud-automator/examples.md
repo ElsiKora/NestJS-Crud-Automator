@@ -143,6 +143,25 @@ export class OrderService extends ApiServiceBase<OrderEntity> {
 }
 ```
 
+## Function Subscriber With Transaction Expectation
+
+```ts
+@Injectable()
+@ApiFunctionSubscriber<OrderEntity>({
+	entity: OrderEntity,
+	transaction: { expectation: EApiFunctionSubscriberTransactionExpectation.REQUIRED },
+})
+export class OrderAuditSubscriber extends ApiFunctionSubscriberBase<OrderEntity, DeepPartial<OrderEntity>, EApiFunctionSubscriberTransactionExpectation.REQUIRED> {
+	async onBeforeCreate(context: TApiSubscriberFunctionBeforeCreateContext<OrderEntity, DeepPartial<OrderEntity>, EApiFunctionSubscriberTransactionExpectation.REQUIRED>): Promise<DeepPartial<OrderEntity>> {
+		await context.DATA.eventManager.save(OrderAuditEntity, {
+			action: "create",
+		});
+
+		return context.result;
+	}
+}
+```
+
 ## Custom Route With Runtime
 
 ```ts

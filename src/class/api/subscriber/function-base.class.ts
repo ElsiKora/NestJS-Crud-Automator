@@ -1,5 +1,8 @@
+import type { EApiFunctionSubscriberTransactionExpectation } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function.interface";
+import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function";
+import type { TApiSubscriberFunctionBaseBeforeDeleteResult } from "@type/class/api/subscriber/function/base/before-delete-result.type";
+import type { TApiSubscriberFunctionBaseTransactionExpectation } from "@type/class/api/subscriber/function/base/transaction-expectation.type";
 import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 
 import { ApiSubscriberBase } from "./base.class";
@@ -12,11 +15,12 @@ import { ApiSubscriberBase } from "./base.class";
 export abstract class ApiFunctionSubscriberBase<
 	E extends IApiBaseEntity,
 	BeforeCreateResult extends TApiFunctionCreateProperties<E> = TApiFunctionCreateProperties<E>,
-	BeforeDeleteResult extends TApiFunctionDeleteCriteria<E> = TApiFunctionDeleteCriteria<E>,
+	BeforeDeleteResultOrTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation | TApiFunctionDeleteCriteria<E> = TApiFunctionDeleteCriteria<E>,
 	BeforeGetResult extends TApiFunctionGetProperties<E> = TApiFunctionGetProperties<E>,
 	BeforeGetListResult extends TApiFunctionGetListProperties<E> = TApiFunctionGetListProperties<E>,
 	BeforeGetManyResult extends TApiFunctionGetManyProperties<E> = TApiFunctionGetManyProperties<E>,
 	BeforeUpdateResult extends TApiFunctionUpdateProperties<E> = TApiFunctionUpdateProperties<E>,
+	TTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation = TApiSubscriberFunctionBaseTransactionExpectation<BeforeDeleteResultOrTransactionExpectation>,
 >
 	extends ApiSubscriberBase
-	implements IApiSubscriberFunction<E, BeforeCreateResult, BeforeDeleteResult, BeforeGetResult, BeforeGetListResult, BeforeGetManyResult, BeforeUpdateResult> {}
+	implements IApiSubscriberFunction<E, BeforeCreateResult, TApiSubscriberFunctionBaseBeforeDeleteResult<E, BeforeDeleteResultOrTransactionExpectation>, BeforeGetResult, BeforeGetListResult, BeforeGetManyResult, BeforeUpdateResult, TTransactionExpectation> {}

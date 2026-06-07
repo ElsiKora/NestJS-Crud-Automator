@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import type { Repository } from "typeorm";
+import type { EntityManager, Repository } from "typeorm";
 
 import type {
 	IApiAuthorizationPrincipal,
@@ -13,6 +13,7 @@ import type {
 	IApiFunctionStepContext,
 	IApiFunctionStepProperties,
 	IApiHookPermissionSource,
+	IApiSubscriberFunctionExecutionContextData,
 	TApiAuthorizationPolicyBeforeCreateContext,
 	TApiAuthorizationPolicyBeforeCreateResult,
 	TApiAuthorizationPolicyBeforeGetContext,
@@ -21,11 +22,13 @@ import type {
 	TApiAuthorizationPolicyBeforeGetResult,
 	TApiAuthorizationPolicyBeforePartialUpdateContext,
 	TApiAuthorizationPolicyBeforePartialUpdateResult,
+	TApiSubscriberFunctionBeforeCreateContext,
+	TApiSubscriberFunctionExecutionContextData,
 	TApiGetDefaultStringFormatPropertiesBigIntStringOptions,
 	TApiRouteDiscriminatedDtoProperties,
 } from "../../src/index";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiFunctionStep, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiFunctionTransactionMode, EApiPropertyStringType, GetDefaultStringFormatProperties } from "../../src/index";
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiFunctionStep, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiFunctionSubscriberTransactionExpectation, EApiFunctionTransactionMode, EApiFunctionType, EApiPropertyStringType, GetDefaultStringFormatProperties } from "../../src/index";
 import { describe, expect, it } from "vitest";
 
 class PublicApiUser {
@@ -127,8 +130,8 @@ class PublicApiPolicy extends ApiAuthorizationPolicyBase<PublicApiUser> {
 	}
 }
 
-describe("public authorization API (E2E)", () => {
-	it("keeps payload-aware authorization types available from built dist", async () => {
+describe("public API exports (E2E)", () => {
+	it("keeps payload-aware authorization and subscriber transaction types available from built dist", async () => {
 		const principalResolver: IApiAuthorizationPrincipalResolver = new PublicApiPrincipalResolver();
 		const moduleOptions: IApiAuthorizationModuleOptions = {
 			hookPermissionSources: [publicApiHookPermissionSource],
@@ -162,6 +165,22 @@ describe("public authorization API (E2E)", () => {
 			entity: PublicApiUser,
 		};
 		const stepRepository = {} as Repository<PublicApiUser>;
+		const subscriberRepository = {} as Repository<PublicApiUser>;
+		const subscriberRequiredData = {
+			eventManager: {} as EntityManager,
+			repository: subscriberRepository,
+		} satisfies TApiSubscriberFunctionExecutionContextData<PublicApiUser, EApiFunctionSubscriberTransactionExpectation.REQUIRED>;
+		const subscriberSupportsData = {
+			repository: subscriberRepository,
+		} satisfies IApiSubscriberFunctionExecutionContextData<PublicApiUser>;
+		const subscriberBeforeCreateContext = {
+			DATA: subscriberRequiredData,
+			ENTITY: new PublicApiUser(),
+			FUNCTION_TYPE: EApiFunctionType.CREATE,
+			result: {
+				role: "operator-user",
+			},
+		} satisfies TApiSubscriberFunctionBeforeCreateContext<PublicApiUser, Partial<PublicApiUser>, EApiFunctionSubscriberTransactionExpectation.REQUIRED>;
 		const stepContext = {
 			eventManager: undefined,
 			getRepository: <T extends IApiBaseEntity>(_entity: new () => T): Repository<T> => stepRepository as unknown as Repository<T>,
@@ -172,6 +191,12 @@ describe("public authorization API (E2E)", () => {
 			ApiFunctionStep?: unknown;
 			EApiFunctionTransactionMode?: {
 				SUPPORTS?: unknown;
+			};
+			EApiFunctionSubscriberTransactionExpectation?: {
+				REQUIRED?: unknown;
+			};
+			EApiFunctionType?: {
+				CREATE?: unknown;
 			};
 		};
 		const builtCjsPackageEntryPath: string = "../../dist/cjs/index.js";
@@ -193,12 +218,18 @@ describe("public authorization API (E2E)", () => {
 		expect(routeDiscriminatorConfig.discriminator.propertyName).toBe("channel");
 		expect(bigintStringDefaults.pattern).toBe(String.raw`/^(0|[1-9]\d{0,19})$/`);
 		expect(stepProperties.entity).toBe(PublicApiUser);
+		expect(subscriberRequiredData.eventManager).toBeDefined();
+		expect(subscriberRequiredData.repository).toBe(subscriberRepository);
+		expect(subscriberSupportsData.repository).toBe(subscriberRepository);
+		expect(subscriberBeforeCreateContext.DATA.eventManager).toBe(subscriberRequiredData.eventManager);
 		expect(stepContext.eventManager).toBeUndefined();
 		expect(stepContext.getRepository(PublicApiUser)).toBe(stepRepository);
 		expect(stepContext.repository).toBe(stepRepository);
 		expect(typeof builtPackageEntry.ApiFunctionStep).toBe("function");
 		expect(typeof builtCjsPackageEntry.ApiFunctionStep).toBe("function");
+		expect(builtPackageEntry.EApiFunctionSubscriberTransactionExpectation?.REQUIRED).toBe(EApiFunctionSubscriberTransactionExpectation.REQUIRED);
 		expect(builtPackageEntry.EApiFunctionTransactionMode?.SUPPORTS).toBe(EApiFunctionTransactionMode.SUPPORTS);
+		expect(builtPackageEntry.EApiFunctionType?.CREATE).toBe(EApiFunctionType.CREATE);
 		expect(AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN).toBe("API_AUTHORIZATION_PRINCIPAL_RESOLVER");
 		expect(resolvedPrincipal.id).toBe("user-1");
 		expect(EApiAuthorizationMode.HOOKS).toBe("hooks");
