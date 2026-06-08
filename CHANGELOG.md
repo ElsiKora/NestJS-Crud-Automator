@@ -1,3 +1,9 @@
+# [2.9.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.8.0...v2.9.0) (2026-06-08)
+
+### Features
+
+- **api:** type route subscriber authorization expectations ([4d12d06](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/4d12d0653664cf1660f685ebb9899a07b7f56d6b))
+
 # [2.8.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.7.0...v2.8.0) (2026-06-07)
 
 ### Features
