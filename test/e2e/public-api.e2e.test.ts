@@ -24,11 +24,12 @@ import type {
 	TApiAuthorizationPolicyBeforePartialUpdateResult,
 	TApiSubscriberFunctionBeforeCreateContext,
 	TApiSubscriberFunctionExecutionContextData,
+	TApiSubscriberRouteBeforeCreateContext,
 	TApiGetDefaultStringFormatPropertiesBigIntStringOptions,
 	TApiRouteDiscriminatedDtoProperties,
 } from "../../src/index";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiFunctionStep, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiFunctionSubscriberTransactionExpectation, EApiFunctionTransactionMode, EApiFunctionType, EApiPropertyStringType, GetDefaultStringFormatProperties } from "../../src/index";
+import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiFunctionStep, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiFunctionSubscriberTransactionExpectation, EApiFunctionTransactionMode, EApiFunctionType, EApiPropertyStringType, EApiRouteSubscriberAuthorizationExpectation, EApiRouteType, GetDefaultStringFormatProperties } from "../../src/index";
 import { describe, expect, it } from "vitest";
 
 class PublicApiUser {
@@ -198,6 +199,9 @@ describe("public API exports (E2E)", () => {
 			EApiFunctionType?: {
 				CREATE?: unknown;
 			};
+			EApiRouteSubscriberAuthorizationExpectation?: {
+				REQUIRED?: unknown;
+			};
 		};
 		const builtCjsPackageEntryPath: string = "../../dist/cjs/index.js";
 		const builtCjsPackageEntry = (await import(builtCjsPackageEntryPath)) as {
@@ -210,6 +214,28 @@ describe("public API exports (E2E)", () => {
 				operatorId: "operator-1",
 			}),
 		);
+		const routeSubscriberBeforeCreateContext: TApiSubscriberRouteBeforeCreateContext<PublicApiUser, EApiRouteSubscriberAuthorizationExpectation.REQUIRED> = {
+			DATA: {} as never,
+			ENTITY: new PublicApiUser(),
+			ROUTE_TYPE: EApiRouteType.CREATE,
+			result: {
+				authenticationRequest: {
+					authorizationDecision: {
+						principal: resolvedPrincipal,
+					} as TApiSubscriberRouteBeforeCreateContext<PublicApiUser, EApiRouteSubscriberAuthorizationExpectation.REQUIRED>["result"]["authenticationRequest"]["authorizationDecision"],
+					user: {
+						id: "user-1",
+					},
+				},
+				body: {
+					role: "operator-user",
+				},
+				headers: {
+					"x-request-id": "req-1",
+				},
+				ip: "127.0.0.1",
+			},
+		};
 
 		expect(moduleOptions.principalResolver).toBe(principalResolver);
 		expect(moduleOptions.hookPermissionSources).toEqual([publicApiHookPermissionSource]);
@@ -222,6 +248,7 @@ describe("public API exports (E2E)", () => {
 		expect(subscriberRequiredData.repository).toBe(subscriberRepository);
 		expect(subscriberSupportsData.repository).toBe(subscriberRepository);
 		expect(subscriberBeforeCreateContext.DATA.eventManager).toBe(subscriberRequiredData.eventManager);
+		expect(routeSubscriberBeforeCreateContext.result.authenticationRequest.authorizationDecision.principal).toBe(resolvedPrincipal);
 		expect(stepContext.eventManager).toBeUndefined();
 		expect(stepContext.getRepository(PublicApiUser)).toBe(stepRepository);
 		expect(stepContext.repository).toBe(stepRepository);
@@ -230,6 +257,7 @@ describe("public API exports (E2E)", () => {
 		expect(builtPackageEntry.EApiFunctionSubscriberTransactionExpectation?.REQUIRED).toBe(EApiFunctionSubscriberTransactionExpectation.REQUIRED);
 		expect(builtPackageEntry.EApiFunctionTransactionMode?.SUPPORTS).toBe(EApiFunctionTransactionMode.SUPPORTS);
 		expect(builtPackageEntry.EApiFunctionType?.CREATE).toBe(EApiFunctionType.CREATE);
+		expect(builtPackageEntry.EApiRouteSubscriberAuthorizationExpectation?.REQUIRED).toBe(EApiRouteSubscriberAuthorizationExpectation.REQUIRED);
 		expect(AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN).toBe("API_AUTHORIZATION_PRINCIPAL_RESOLVER");
 		expect(resolvedPrincipal.id).toBe("user-1");
 		expect(EApiAuthorizationMode.HOOKS).toBe("hooks");

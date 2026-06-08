@@ -415,6 +415,19 @@ enum EApiFunctionSubscriberTransactionExpectation {
 
 `REQUIRED` and `MANDATORY` require `context.DATA.eventManager` before the subscriber hook runs. `SUPPORTS`, `NONE`, and omitted metadata keep the event manager optional; subscriber expectations do not create or forbid transactions.
 
+### EApiRouteSubscriberAuthorizationExpectation
+
+Subscriber-declared authorization typing expectations for route subscribers.
+
+```typescript
+enum EApiRouteSubscriberAuthorizationExpectation {
+	OPTIONAL = "OPTIONAL",
+	REQUIRED = "REQUIRED",
+}
+```
+
+`REQUIRED` makes before-route subscriber helper types expose a required `context.result.authenticationRequest.authorizationDecision`. This is type-only metadata and does not add runtime authentication or authorization checks.
+
 ### EApiControllerRequestTransformerType
 
 Request transformer types.

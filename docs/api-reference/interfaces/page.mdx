@@ -164,24 +164,45 @@ type TApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity, TTrans
 Interface for route subscribers.
 
 ```typescript
-interface IApiSubscriberRoute<E> {
+interface IApiSubscriberRoute<E, TAuthorizationExpectation extends EApiRouteSubscriberAuthorizationExpectation = EApiRouteSubscriberAuthorizationExpectation.OPTIONAL> {
 	onBeforeCustom?(context: IApiSubscriberRouteExecutionContext<E, unknown, IApiSubscriberRouteExecutionContextData<E, unknown>>): Promise<unknown>;
 	onAfterCustom?(context: IApiSubscriberRouteExecutionContext<E, unknown, IApiSubscriberRouteExecutionContextDataExtended<E, unknown>>): Promise<unknown>;
-	onBeforeCreate?(context: TApiSubscriberRouteBeforeCreateContext<E>): Promise<TApiSubscriberRouteBeforeCreateContext<E>["result"] | undefined>;
+	onBeforeCreate?(context: TApiSubscriberRouteBeforeCreateContext<E, TAuthorizationExpectation>): Promise<TApiSubscriberRouteBeforeCreateContext<E, TAuthorizationExpectation>["result"] | undefined>;
 	onAfterCreate?(context: TApiSubscriberRouteAfterCreateContext<E>): Promise<E | undefined>;
-	onBeforeGet?(context: TApiSubscriberRouteBeforeGetContext<E>): Promise<TApiSubscriberRouteBeforeGetContext<E>["result"] | undefined>;
+	onBeforeGet?(context: TApiSubscriberRouteBeforeGetContext<E, TAuthorizationExpectation>): Promise<TApiSubscriberRouteBeforeGetContext<E, TAuthorizationExpectation>["result"] | undefined>;
 	onAfterGet?(context: TApiSubscriberRouteAfterGetContext<E>): Promise<E | undefined>;
-	onBeforeGetList?(context: TApiSubscriberRouteBeforeGetListContext<E>): Promise<TApiSubscriberRouteBeforeGetListContext<E>["result"] | undefined>;
+	onBeforeGetList?(context: TApiSubscriberRouteBeforeGetListContext<E, TAuthorizationExpectation>): Promise<TApiSubscriberRouteBeforeGetListContext<E, TAuthorizationExpectation>["result"] | undefined>;
 	onAfterGetList?(context: TApiSubscriberRouteAfterGetListContext<E>): Promise<IApiGetListResponseResult<E> | undefined>;
-	onBeforeUpdate?(context: TApiSubscriberRouteBeforeUpdateContext<E>): Promise<TApiSubscriberRouteBeforeUpdateContext<E>["result"] | undefined>;
+	onBeforeUpdate?(context: TApiSubscriberRouteBeforeUpdateContext<E, TAuthorizationExpectation>): Promise<TApiSubscriberRouteBeforeUpdateContext<E, TAuthorizationExpectation>["result"] | undefined>;
 	onAfterUpdate?(context: TApiSubscriberRouteAfterUpdateContext<E>): Promise<E | undefined>;
-	onBeforePartialUpdate?(context: TApiSubscriberRouteBeforePartialUpdateContext<E>): Promise<TApiSubscriberRouteBeforePartialUpdateContext<E>["result"] | undefined>;
+	onBeforePartialUpdate?(context: TApiSubscriberRouteBeforePartialUpdateContext<E, TAuthorizationExpectation>): Promise<TApiSubscriberRouteBeforePartialUpdateContext<E, TAuthorizationExpectation>["result"] | undefined>;
 	onAfterPartialUpdate?(context: TApiSubscriberRouteAfterPartialUpdateContext<E>): Promise<E | undefined>;
-	onBeforeDelete?(context: TApiSubscriberRouteBeforeDeleteContext<E>): Promise<TApiSubscriberRouteBeforeDeleteContext<E>["result"] | undefined>;
+	onBeforeDelete?(context: TApiSubscriberRouteBeforeDeleteContext<E, TAuthorizationExpectation>): Promise<TApiSubscriberRouteBeforeDeleteContext<E, TAuthorizationExpectation>["result"] | undefined>;
 	onAfterDelete?(context: TApiSubscriberRouteAfterDeleteContext<E>): Promise<Partial<E> | undefined>;
 	// ... error hooks follow the same operation names (onBeforeErrorCreate, onAfterErrorUpdate, etc.)
 }
 ```
+
+The authorization expectation generic is optional and type-only. `REQUIRED` narrows before-hook `context.result.authenticationRequest.authorizationDecision`, while the default `OPTIONAL` preserves optional access.
+
+### IApiRouteSubscriberProperties\<E\>
+
+Configuration accepted by `@ApiRouteSubscriber`.
+
+```typescript
+interface IApiRouteSubscriberProperties<E extends IApiBaseEntity> {
+	actions?: Array<string>;
+	authorization?: {
+		expectation: EApiRouteSubscriberAuthorizationExpectation;
+	};
+	controllers?: Array<(() => new (...arguments_: Array<unknown>) => unknown) | (new (...arguments_: Array<unknown>) => unknown)>;
+	entity: new (...arguments_: Array<unknown>) => E;
+	priority?: number;
+	routes?: Array<EApiRouteType>;
+}
+```
+
+`authorization.expectation` is type-only metadata for route subscriber helper types. It does not add runtime guards.
 
 ### IApiSubscriberFunction\<E, ...BeforeResult\>
 

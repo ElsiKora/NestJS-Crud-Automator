@@ -162,6 +162,29 @@ export class OrderAuditSubscriber extends ApiFunctionSubscriberBase<OrderEntity,
 }
 ```
 
+## Route Subscriber With Authorization Expectation
+
+```ts
+@Injectable()
+@ApiRouteSubscriber<OrderEntity>({
+	entity: OrderEntity,
+	authorization: { expectation: EApiRouteSubscriberAuthorizationExpectation.REQUIRED },
+	routes: [EApiRouteType.CREATE],
+})
+export class OrderRouteAuditSubscriber extends ApiRouteSubscriberBase<OrderEntity, EApiRouteSubscriberAuthorizationExpectation.REQUIRED> {
+	async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<OrderEntity, EApiRouteSubscriberAuthorizationExpectation.REQUIRED>): Promise<TApiSubscriberRouteBeforeCreateContext<OrderEntity, EApiRouteSubscriberAuthorizationExpectation.REQUIRED>["result"]> {
+		const principal = context.result.authenticationRequest.authorizationDecision.principal;
+
+		await this.auditService.record({
+			action: "route-create",
+			principalId: principal.id,
+		});
+
+		return context.result;
+	}
+}
+```
+
 ## Custom Route With Runtime
 
 ```ts

@@ -1013,6 +1013,27 @@ In case of an error at any stage, execution is interrupted, and the correspondin
     }
     ```
 
+    For before-route subscribers that only observe routes guaranteed to be authenticated and authorized, opt into type-only authorization narrowing:
+
+    ```typescript
+    import { ApiRouteSubscriber, ApiRouteSubscriberBase, EApiRouteSubscriberAuthorizationExpectation, TApiSubscriberRouteBeforeCreateContext } from "@elsikora/nestjs-crud-automator";
+
+    @ApiRouteSubscriber({
+    	entity: Post,
+    	authorization: { expectation: EApiRouteSubscriberAuthorizationExpectation.REQUIRED },
+    })
+    export class PostBeforeAuditSubscriber extends ApiRouteSubscriberBase<Post, EApiRouteSubscriberAuthorizationExpectation.REQUIRED> {
+    	async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<Post, EApiRouteSubscriberAuthorizationExpectation.REQUIRED>): Promise<TApiSubscriberRouteBeforeCreateContext<Post, EApiRouteSubscriberAuthorizationExpectation.REQUIRED>["result"]> {
+    		const principal = context.result.authenticationRequest.authorizationDecision.principal;
+    		console.log(`AUDIT: Principal ${principal.id} is creating a post`);
+
+    		return context.result;
+    	}
+    }
+    ```
+
+    This metadata does not add runtime guards; it only narrows `authenticationRequest.authorizationDecision` in the matching route before-context types.
+
 2.  **Register the subscriber:** Add `PostAuditSubscriber` to the `providers` of your module.
 
 #### Example 2: Data Enrichment with `ApiFunctionSubscriberBase`
