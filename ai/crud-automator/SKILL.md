@@ -77,6 +77,7 @@ Use local source as the contract:
 - Import `ApiSubscriberModule`, register subscriber classes as Nest providers, and mark observed controllers/services with `@ApiControllerObservable()` / `@ApiServiceObservable()`.
 - Route subscribers receive route-shaped results such as `{ body, parameters, query, headers, ip, authenticationRequest }` in before hooks.
 - Custom route subscribers receive `{ body?, parameters?, query? }` in `context.result`; read auth/header/IP data from `context.DATA`.
+- Route subscriber authorization expectations are declared on `@ApiRouteSubscriber({ authorization: { expectation } })`; they are type-only. Use matching class/context generics with `EApiRouteSubscriberAuthorizationExpectation.REQUIRED` only when the route contract guarantees `authenticationRequest.authorizationDecision`.
 - Function subscribers receive service payloads directly; do not use `context.result.body` in function subscribers.
 - Function subscriber transaction expectations are declared on `@ApiFunctionSubscriber({ transaction: { expectation } })`; they are not inferred from service/function config. Use matching class/context generics for `REQUIRED` or `MANDATORY` so `context.DATA.eventManager` narrows to `EntityManager`.
 - Custom hooks are `onBeforeCustom`, `onAfterCustom`, `onBeforeErrorCustom`, and `onAfterErrorCustom`.

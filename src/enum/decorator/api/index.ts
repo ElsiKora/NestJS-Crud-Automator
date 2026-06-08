@@ -5,4 +5,4 @@ export * from "./dto-type.enum";
 export * from "./function";
 export * from "./on-type.enum";
 export * from "./property";
-export * from "./route-type.enum";
+export * from "./route";

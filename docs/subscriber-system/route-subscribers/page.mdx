@@ -39,12 +39,37 @@ async onBeforeCreate(
   const method = context.DATA.method;
   const entityMetadata = context.DATA.entityMetadata;
 
-  // Before hooks have route metadata and optional authorizationDecision in DATA
-  // Request payload lives in context.result (body/parameters/query)
+  // Before hooks have route metadata in DATA
+  // Request payload and optional authenticationRequest live in context.result
 
   return context.result;
 }
 ```
+
+### Authorization Expectations
+
+Before route subscribers keep `authenticationRequest` optional by default. If a subscriber is attached only to routes that guarantee authentication and authorization, declare the expectation on both the decorator metadata and the class/context generic:
+
+```typescript
+import { ApiRouteSubscriber, ApiRouteSubscriberBase, EApiRouteSubscriberAuthorizationExpectation, EApiRouteType, TApiSubscriberRouteBeforeCreateContext } from "@elsikora/nestjs-crud-automator";
+
+@ApiRouteSubscriber({
+	entity: PostEntity,
+	authorization: { expectation: EApiRouteSubscriberAuthorizationExpectation.REQUIRED },
+	routes: [EApiRouteType.CREATE],
+})
+export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity, EApiRouteSubscriberAuthorizationExpectation.REQUIRED> {
+	async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PostEntity, EApiRouteSubscriberAuthorizationExpectation.REQUIRED>): Promise<TApiSubscriberRouteBeforeCreateContext<PostEntity, EApiRouteSubscriberAuthorizationExpectation.REQUIRED>["result"]> {
+		const principal = context.result.authenticationRequest.authorizationDecision.principal;
+
+		await this.auditService.record(principal.id, context.result.body);
+
+		return context.result;
+	}
+}
+```
+
+This is type-only metadata. It does not add authentication or authorization guards, and routes without this expectation keep optional access for `authenticationRequest` and `authorizationDecision`.
 
 #### `onBeforeUpdate`
 

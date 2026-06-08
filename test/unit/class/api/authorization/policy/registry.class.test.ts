@@ -6,7 +6,7 @@ import type { IApiAuthorizationPolicySubscriberRule } from "@interface/class/api
 import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
 import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization";
 import { EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
-import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
+import { EApiRouteType } from "@enum/decorator/api/route";
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 

@@ -134,6 +134,8 @@ Route before create result shape:
 }
 ```
 
+When a route subscriber only observes routes that guarantee authorization, use `EApiRouteSubscriberAuthorizationExpectation.REQUIRED` in both `@ApiRouteSubscriber({ authorization: { expectation } })` and the `ApiRouteSubscriberBase`/before-context generics. That narrows `context.result.authenticationRequest.authorizationDecision`; it does not add runtime guards.
+
 Function before create result shape:
 
 ```ts

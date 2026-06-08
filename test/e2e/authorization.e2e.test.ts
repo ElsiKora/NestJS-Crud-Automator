@@ -8,7 +8,7 @@ import { ApiAuthorizationEngine } from "@class/api/authorization/engine.class";
 import { ApiAuthorizationPolicyBase } from "@class/api/authorization/policy/base.class";
 import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
 import { EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
-import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
+import { EApiRouteType } from "@enum/decorator/api/route";
 import { ApiAuthorizationPolicy } from "@decorator/api/authorization-policy.decorator";
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";

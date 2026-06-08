@@ -1,4 +1,4 @@
-import type { EApiRouteType } from "@enum/decorator/api/route-type.enum";
+import type { EApiRouteType } from "@enum/decorator/api/route";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationPolicySubscriberContext } from "@interface/class/api/authorization/policy/subscriber/context";
 import type { IApiSubscriber } from "@interface/class/api/subscriber/interface";

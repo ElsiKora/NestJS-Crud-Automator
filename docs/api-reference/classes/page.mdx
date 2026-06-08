@@ -105,6 +105,12 @@ Abstract base class for route-level subscribers.
 
 **Location:** `src/class/api/subscriber/route-base.class.ts`
 
+```typescript
+abstract class ApiRouteSubscriberBase<E extends IApiBaseEntity, TAuthorizationExpectation extends EApiRouteSubscriberAuthorizationExpectation = EApiRouteSubscriberAuthorizationExpectation.OPTIONAL>
+```
+
+The second generic is optional and type-only. Use `EApiRouteSubscriberAuthorizationExpectation.REQUIRED` when the subscriber only observes routes that guarantee authentication and authorization.
+
 **Hook Methods:**
 
 - `onBeforeCreate`, `onAfterCreate`, `onBeforeErrorCreate`, `onAfterErrorCreate`

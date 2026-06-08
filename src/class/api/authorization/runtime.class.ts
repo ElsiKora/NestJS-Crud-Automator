@@ -7,7 +7,7 @@ import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/auth
 
 import { AUTHORIZATION_AUDIT_SINK_TOKEN, AUTHORIZATION_POLICY_REGISTRY_TOKEN, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN } from "@constant/class/authorization";
 import { EApiAuthorizationMode } from "@enum/class/authorization";
-import { EApiRouteType } from "@enum/decorator/api/route-type.enum";
+import { EApiRouteType } from "@enum/decorator/api/route";
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { AuthorizationResolveDefaultPrincipal } from "@utility/authorization";
 import { ErrorException } from "@utility/error/exception.utility";

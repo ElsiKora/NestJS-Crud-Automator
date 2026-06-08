@@ -7,6 +7,7 @@ Registers a class as a route-level subscriber for a specific entity. Subscribers
 ```typescript
 @ApiRouteSubscriber<E extends IApiBaseEntity>({
 	actions?,
+	authorization?,
 	controllers?,
 	entity,
 	priority?,
@@ -16,13 +17,14 @@ Registers a class as a route-level subscriber for a specific entity. Subscribers
 
 ## Options
 
-| Option        | Description                                                                                             |
-| ------------- | ------------------------------------------------------------------------------------------------------- |
-| `actions`     | Optional custom route action filters. Use with `@ApiRouteCustom`/custom action names.                   |
-| `controllers` | Optional controller class/factory filters when the same entity is served by multiple controllers.       |
-| `entity`      | Entity that the subscriber observes.                                                                    |
-| `priority`    | Execution order (higher runs first). Defaults to `0`.                                                   |
-| `routes`      | Optional generated CRUD route filters such as `EApiRouteType.CREATE` or `EApiRouteType.PARTIAL_UPDATE`. |
+| Option                      | Description                                                                                                                                  |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `actions`                   | Optional custom route action filters. Use with `@ApiRouteCustom`/custom action names.                                                        |
+| `authorization.expectation` | Optional type-only route subscriber authorization expectation. `REQUIRED` narrows before-hook `authenticationRequest.authorizationDecision`. |
+| `controllers`               | Optional controller class/factory filters when the same entity is served by multiple controllers.                                            |
+| `entity`                    | Entity that the subscriber observes.                                                                                                         |
+| `priority`                  | Execution order (higher runs first). Defaults to `0`.                                                                                        |
+| `routes`                    | Optional generated CRUD route filters such as `EApiRouteType.CREATE` or `EApiRouteType.PARTIAL_UPDATE`.                                      |
 
 ## Usage steps
 
@@ -47,6 +49,8 @@ export class PostAuditSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 	}
 }
 ```
+
+Use `authorization.expectation` only when the observed route contract guarantees authentication and authorization. It does not add runtime guards; it only narrows route before-hook helper types when paired with the same `ApiRouteSubscriberBase`/context generic.
 
 ## Related resources
 

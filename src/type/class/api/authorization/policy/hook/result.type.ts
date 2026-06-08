@@ -1,4 +1,4 @@
-import type { EApiRouteType } from "@enum/decorator/api/route-type.enum";
+import type { EApiRouteType } from "@enum/decorator/api/route";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiGetListResponseResult } from "@interface/decorator/api/get-list-response-result.interface";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
