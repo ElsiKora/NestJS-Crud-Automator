@@ -33,6 +33,10 @@ context.result.body.slug = "hello";
 
 Route before hooks can use `context.result.body`.
 
+## Route Authorization Expectation As Guard
+
+`EApiRouteSubscriberAuthorizationExpectation.REQUIRED` narrows before-route subscriber helper types only. It does not authenticate the request or run authorization by itself; the observed route must already guarantee auth through route security/runtime configuration.
+
 ## Function Step Overreach
 
 Use `@ApiFunctionStep` only for internal transaction-aware service helpers, including direct helper calls when the selected transaction mode permits. Do not use it as a replacement for `@ApiFunctionCustom` when the operation needs an action name, function subscribers, route metadata, Swagger metadata, or authorization action identity.

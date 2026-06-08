@@ -1,8 +1,11 @@
-import type { EApiRouteType } from "@enum/decorator/api";
+import type { EApiRouteSubscriberAuthorizationExpectation, EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 
 export interface IApiRouteSubscriberProperties<E extends IApiBaseEntity> {
 	actions?: Array<string>;
+	authorization?: {
+		expectation: EApiRouteSubscriberAuthorizationExpectation;
+	};
 	controllers?: Array<(() => new (...arguments_: Array<unknown>) => unknown) | (new (...arguments_: Array<unknown>) => unknown)>;
 	entity: new (...arguments_: Array<unknown>) => E;
 	priority?: number;

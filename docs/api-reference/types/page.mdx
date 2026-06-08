@@ -33,19 +33,40 @@ HTTP list queries use lowercase sort directions: `asc` and `desc`.
 ```typescript
 type TApiSubscriberFunctionBeforeCreateContext<E extends IApiBaseEntity, Result extends TApiFunctionCreateProperties<E> = TApiFunctionCreateProperties<E>, TTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation = EApiFunctionSubscriberTransactionExpectation.SUPPORTS> = IApiSubscriberFunctionExecutionContext<E, Result, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>;
 
-type TApiSubscriberRouteBeforeCreateContext<E extends IApiBaseEntity> = IApiSubscriberRouteExecutionContext<
+type TApiSubscriberRouteBeforeCreateContext<E extends IApiBaseEntity, TAuthorizationExpectation extends EApiRouteSubscriberAuthorizationExpectation = EApiRouteSubscriberAuthorizationExpectation.OPTIONAL> = IApiSubscriberRouteExecutionContext<
 	E,
-	{
-		authenticationRequest?: IApiAuthenticationRequest;
-		body: DeepPartial<E>;
-		headers: Record<string, string>;
-		ip: string;
-	},
+	TApiSubscriberRouteAuthorizationResult<
+		E,
+		{
+			authenticationRequest?: IApiAuthenticationRequest;
+			body: DeepPartial<E>;
+			headers: Record<string, string>;
+			ip: string;
+		},
+		TAuthorizationExpectation,
+		E
+	>,
 	IApiSubscriberRouteExecutionContextData<E, E>
 >;
 ```
 
-Prefer the exported helper types over manually spelling every generic parameter. Before function helpers accept an optional constrained `Result` generic for advanced cases where `context.result` is a stricter application payload. Function helpers also accept a transaction expectation generic; `REQUIRED` and `MANDATORY` narrow `context.DATA.eventManager` to `EntityManager` only when the expectation is known exactly. These generics are type-only and do not change validation, transformation, or runtime behavior.
+Prefer the exported helper types over manually spelling every generic parameter. Before function helpers accept an optional constrained `Result` generic for advanced cases where `context.result` is a stricter application payload. Function helpers also accept a transaction expectation generic; `REQUIRED` and `MANDATORY` narrow `context.DATA.eventManager` to `EntityManager` only when the expectation is known exactly. Route before helpers accept an authorization expectation generic; `REQUIRED` narrows `context.result.authenticationRequest.authorizationDecision`, while the default `OPTIONAL` preserves optional auth access. These generics are type-only and do not change validation, transformation, or runtime behavior.
+
+## Route Subscriber Authorization Helpers
+
+```typescript
+type TApiSubscriberRouteAuthorizationRequest<E extends IApiBaseEntity, R = TApiAuthorizationRuleTransformPayload<E>> = Omit<IApiAuthenticationRequest, "authorizationDecision"> & {
+	authorizationDecision: IApiAuthorizationDecision<E, R>;
+};
+
+type TApiSubscriberRouteAuthorizationResult<E extends IApiBaseEntity, Result extends { authenticationRequest?: IApiAuthenticationRequest }, TAuthorizationExpectation extends EApiRouteSubscriberAuthorizationExpectation = EApiRouteSubscriberAuthorizationExpectation.OPTIONAL, R = TApiAuthorizationRuleTransformPayload<E>> = [TAuthorizationExpectation] extends [EApiRouteSubscriberAuthorizationExpectation.REQUIRED]
+	? Omit<Result, "authenticationRequest"> & {
+			authenticationRequest: TApiSubscriberRouteAuthorizationRequest<E, R>;
+		}
+	: Result;
+```
+
+These helpers power the generated route before context aliases. Most applications should use the context helpers directly.
 
 ## Function Subscriber Transaction Helpers
 
@@ -73,4 +94,4 @@ Authorization transforms receive the payload produced by the route action and ma
 
 - [Interfaces](/docs/nestjs-crud-automator/api-reference/interfaces)
 - [Function Decorators](/docs/nestjs-crud-automator/api-reference/decorators/api-function)
-- [Subscriber Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context)
+- [Subscriber System](/docs/nestjs-crud-automator/subscriber-system)

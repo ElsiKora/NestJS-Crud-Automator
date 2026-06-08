@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import { SUBSCRIBER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/subscriber.constant";
 import { ApiRouteSubscriber } from "@decorator/api/subscriber/route.decorator";
+import { EApiRouteSubscriberAuthorizationExpectation } from "@enum/decorator/api";
 import { describe, expect, it } from "vitest";
 
 class RouteSubscriberEntity {}
@@ -13,5 +14,13 @@ describe("ApiRouteSubscriber", () => {
 
 		const metadata = Reflect.getMetadata(SUBSCRIBER_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, RouteSubscriber);
 		expect(metadata).toEqual({ entity: RouteSubscriberEntity, priority: 5 });
+	});
+
+	it("stores authorization expectation metadata on subscriber class", () => {
+		@ApiRouteSubscriber({ authorization: { expectation: EApiRouteSubscriberAuthorizationExpectation.REQUIRED }, entity: RouteSubscriberEntity })
+		class RouteSubscriber {}
+
+		const metadata = Reflect.getMetadata(SUBSCRIBER_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, RouteSubscriber);
+		expect(metadata).toEqual({ authorization: { expectation: EApiRouteSubscriberAuthorizationExpectation.REQUIRED }, entity: RouteSubscriberEntity });
 	});
 });
