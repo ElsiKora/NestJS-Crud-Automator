@@ -1,3 +1,9 @@
+# [2.10.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.9.0...v2.10.0) (2026-06-09)
+
+### Features
+
+- **api:** document response headers and grouped security ([cf3bd1f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/cf3bd1f0a73894d1cbf17c4e101db9160597b15c))
+
 # [2.9.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.8.0...v2.9.0) (2026-06-08)
 
 ### Features
