@@ -10,7 +10,7 @@ import { Test } from "@nestjs/testing";
 import { Column, Entity, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiController, ApiMethod, ApiPropertyDescribe, ApiPropertyObject, ApiRouteCustom, ApiServiceBase, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
+import { ApiAuthorizationModule, ApiController, ApiMethod, ApiPropertyDescribe, ApiPropertyObject, ApiRouteCustom, ApiServiceBase, EApiAuthenticationType, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
 
 type TSwaggerMethod = "delete" | "get" | "patch" | "post" | "put";
 type TSwaggerOperation = NonNullable<NonNullable<OpenAPIObject["paths"][string]>[TSwaggerMethod]>;
@@ -141,6 +141,8 @@ class SwaggerNestedDiscriminatorBodyDto {
 	public payload!: SwaggerNestedEmailPayloadDto | SwaggerNestedPhonePayloadDto;
 }
 
+class SwaggerAuthenticationGuard {}
+
 class SwaggerGeneratedService extends ApiServiceBase<SwaggerAutoDtoEntity> {}
 
 class SwaggerGeneratedDefaultControllerBase {
@@ -156,8 +158,31 @@ const SwaggerGeneratedDefaultController = ApiController<SwaggerAutoDtoEntity>({
 	name: "SwaggerAutoDtoResource",
 	path: "swagger-generated-default",
 	routes: {
-		[EApiRouteType.CREATE]: {},
-		[EApiRouteType.DELETE]: {},
+		[EApiRouteType.CREATE]: {
+			security: {
+				authentication: {
+					guard: SwaggerAuthenticationGuard as never,
+					securityRequirements: [
+						{
+							bearerStrategies: ["userAccessToken"],
+						},
+					],
+					type: EApiAuthenticationType.USER,
+				},
+			},
+		},
+		[EApiRouteType.DELETE]: {
+			response: {
+				headers: {
+					"Set-Cookie": {
+						description: "Clears refresh token cookie.",
+						schema: {
+							type: "string",
+						},
+					},
+				},
+			},
+		},
 		[EApiRouteType.GET]: {},
 		[EApiRouteType.GET_LIST]: {},
 		[EApiRouteType.PARTIAL_UPDATE]: {},
@@ -224,12 +249,32 @@ class SwaggerDocumentationController {
 			entity: SwaggerEntity,
 		},
 		response: {
+			headers: {
+				"X-Request-Id": {
+					description: "Request correlation id.",
+					schema: {
+						type: "string",
+					},
+				},
+			},
 			status: HttpStatus.OK,
 			type: undefined,
 		},
 		route: {
 			method: RequestMethod.POST,
 			path: "custom/:id",
+		},
+		security: {
+			authentication: {
+				guard: SwaggerAuthenticationGuard as never,
+				securityRequirements: [
+					{
+						cookieStrategies: ["userRefreshTokenCookie"],
+						securityStrategies: ["userSessionCsrf"],
+					},
+				],
+				type: EApiAuthenticationType.USER,
+			},
 		},
 	})
 	public custom(@Param() parameters: SwaggerParametersDto, @Query() query: SwaggerQueryDto, @Body() body: SwaggerRequestBodyDto): Record<string, unknown> {
@@ -311,6 +356,14 @@ class SwaggerDocumentationController {
 				propertyName: "mode",
 				shouldKeepDiscriminatorProperty: true,
 			},
+			headers: {
+				"X-Discriminated-Response": {
+					description: "Discriminated response marker.",
+					schema: {
+						type: "string",
+					},
+				},
+			},
 			status: HttpStatus.CREATED,
 			type: [SwaggerVerificationResponseDto, SwaggerSessionResponseDto],
 		},
@@ -371,7 +424,28 @@ describe("Swagger request DTO documentation (E2E)", () => {
 		app = moduleReference.createNestApplication(new FastifyAdapter());
 		await app.init();
 
-		document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
+		document = SwaggerModule.createDocument(
+			app,
+			new DocumentBuilder()
+				.addBearerAuth(
+					{
+						bearerFormat: "JWT",
+						scheme: "bearer",
+						type: "http",
+					},
+					"userAccessToken",
+				)
+				.addCookieAuth("refreshToken", undefined, "userRefreshTokenCookie")
+				.addApiKey(
+					{
+						in: "header",
+						name: "x-csrf-token",
+						type: "apiKey",
+					},
+					"userSessionCsrf",
+				)
+				.build(),
+		);
 	});
 
 	afterAll(async () => {
@@ -394,6 +468,26 @@ describe("Swagger request DTO documentation (E2E)", () => {
 		const parameters = getOperation("/swagger/custom/{id}").parameters ?? [];
 
 		expect(parameters).toEqual(expect.arrayContaining([expect.objectContaining({ in: "path", name: "id" }), expect.objectContaining({ in: "query", name: "filter" })]));
+	});
+
+	it("documents custom route response headers and grouped security requirements", () => {
+		const operation = getOperation("/swagger/custom/{id}");
+		const response = operation.responses?.["200"] as { headers?: unknown } | undefined;
+
+		expect(response?.headers).toEqual({
+			"X-Request-Id": {
+				description: "Request correlation id.",
+				schema: {
+					type: "string",
+				},
+			},
+		});
+		expect(operation.security).toEqual([
+			{
+				userRefreshTokenCookie: [],
+				userSessionCsrf: [],
+			},
+		]);
 	});
 
 	it("documents generated autoDto request bodies for ApiRouteCustom", () => {
@@ -434,6 +528,19 @@ describe("Swagger request DTO documentation (E2E)", () => {
 		expect(document.components?.schemas?.SwaggerSessionResponseDto).toBeDefined();
 	});
 
+	it("documents discriminated custom route response headers", () => {
+		const response = getOperation("/swagger/discriminated").responses?.["201"] as { headers?: unknown } | undefined;
+
+		expect(response?.headers).toEqual({
+			"X-Discriminated-Response": {
+				description: "Discriminated response marker.",
+				schema: {
+					type: "string",
+				},
+			},
+		});
+	});
+
 	it("registers nested ApiPropertyObject discriminator variants for custom route body DTOs", () => {
 		const operation = getOperation("/swagger/nested-discriminated");
 		const requestBody = operation.requestBody;
@@ -460,6 +567,26 @@ describe("Swagger request DTO documentation (E2E)", () => {
 		expectGeneratedDocumentation(getOperation("/swagger-generated-default", "get"), "List `SwaggerAutoDtoResources`", "Returns a paginated list of `SwaggerAutoDtoResources` resources.");
 		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "patch"), "Partially update `SwaggerAutoDtoResource`", "Partially updates an existing `SwaggerAutoDtoResource` resource.");
 		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "put"), "Update `SwaggerAutoDtoResource`", "Replaces an existing `SwaggerAutoDtoResource` resource.");
+	});
+
+	it("documents generated route response headers and security requirements", () => {
+		const createOperation = getOperation("/swagger-generated-default");
+		const deleteOperation = getOperation("/swagger-generated-default/{id}", "delete");
+		const deleteResponse = deleteOperation.responses?.["204"] as { headers?: unknown } | undefined;
+
+		expect(createOperation.security).toEqual([
+			{
+				userAccessToken: [],
+			},
+		]);
+		expect(deleteResponse?.headers).toEqual({
+			"Set-Cookie": {
+				description: "Clears refresh token cookie.",
+				schema: {
+					type: "string",
+				},
+			},
+		});
 	});
 
 	it("allows generated route documentation overrides", () => {

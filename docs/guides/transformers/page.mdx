@@ -143,13 +143,19 @@ routes: {
 }
 ```
 
-`@ApiRouteCustom` uses the same target-first response transformer shape. Put response metadata such as `status`, `type`, `errors`, and `serialization` at the top of `response`, and put runtime response transformers under `[EApiControllerResponseTarget.RESPONSE]`:
+`@ApiRouteCustom` uses the same target-first response transformer shape. Put response metadata such as `status`, `type`, `headers`, `errors`, and `serialization` at the top of `response`, and put runtime response transformers under `[EApiControllerResponseTarget.RESPONSE]`:
 
 ```typescript
 @ApiRouteCustom<PostEntity>({
 	resource: { action: "preview", entity: PostEntity },
 	route: { method: RequestMethod.GET, path: ":id/preview" },
 	response: {
+		headers: {
+			"X-Request-Id": {
+				description: "Request correlation id.",
+				schema: { type: "string" },
+			},
+		},
 		status: HttpStatus.OK,
 		type: PreviewPostDTO,
 		serialization: { isEnabled: true },

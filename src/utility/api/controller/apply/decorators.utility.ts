@@ -111,6 +111,7 @@ function createRouteMetadata<E extends IApiBaseEntity>(properties: IApiControlle
 		},
 		response: {
 			errors,
+			headers: routeConfig.response?.headers,
 			serialization: routeConfig.response?.serialization ?? {
 				isEnabled: responseType !== undefined && status !== HttpStatus.NO_CONTENT,
 			},

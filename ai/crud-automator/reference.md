@@ -37,7 +37,11 @@ routes: {
 			authentication: {
 				type: EApiAuthenticationType.USER,
 				guard: JwtAuthGuard,
-				bearerStrategies: ["jwt"],
+				securityRequirements: [
+					{
+						bearerStrategies: ["jwt"],
+					},
+				],
 			},
 			authorization: {
 				mode: EApiAuthorizationMode.HOOKS,
@@ -50,6 +54,12 @@ routes: {
 			},
 		},
 		response: {
+			headers: {
+				"X-Request-Id": {
+					description: "Request correlation id.",
+					schema: { type: "string" },
+				},
+			},
 			[EApiControllerResponseTarget.RESPONSE]: {
 				transformers: [],
 			},
@@ -73,7 +83,7 @@ routes: {
 }
 ```
 
-Do not use old flat fields such as route-level `isEnabled`, `authentication`, `authorization`, `request.transformers`, `response.transformers`, `request.relations`, or `response.relations`.
+Do not use old flat fields such as route-level `isEnabled`, `authentication`, `authorization`, `request.transformers`, `response.transformers`, `request.relations`, or `response.relations`. Do not use removed top-level `authentication.bearerStrategies` or `authentication.securityStrategies`; use `authentication.securityRequirements` groups instead.
 
 ## DTO Rules
 

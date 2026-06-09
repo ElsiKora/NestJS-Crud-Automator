@@ -1,12 +1,14 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiMethodProperties } from "@interface/decorator/api";
+import type { IApiRouteSecurityRequirement } from "@interface/decorator/api/route";
 import type { CanActivate, Type } from "@nestjs/common";
+import type { SecurityRequirementObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiRouteType } from "@enum/decorator/api";
 import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, SetMetadata, UseGuards } from "@nestjs/common";
-import { ApiBadRequestResponse, ApiBearerAuth, ApiConflictResponse, ApiExtraModels, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
+import { ApiBadRequestResponse, ApiConflictResponse, ApiExtraModels, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema } from "@utility/api/route/discriminator";
 import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto";
@@ -77,6 +79,7 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 			ApiExtraModels(...responseDtos),
 			ApiResponse({
 				description: "Success",
+				headers: metadata.response.headers,
 				schema: ApiRouteBuildDiscriminatedDtoOpenApiSchema(
 					{
 						discriminator: metadata.response.discriminator,
@@ -93,6 +96,7 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 		successResponseDecorators.push(
 			ApiResponse({
 				description: "Success",
+				headers: metadata.response?.headers,
 				status: metadata.response?.status,
 				type: responseType,
 			}),
@@ -181,12 +185,10 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 		}
 	}
 
-	for (const strategy of metadata.security?.authentication?.bearerStrategies ?? []) {
-		decorators.push(ApiBearerAuth(strategy));
-	}
+	for (const securityRequirement of metadata.security?.authentication?.securityRequirements ?? []) {
+		const openApiSecurityRequirement: SecurityRequirementObject = buildOpenApiSecurityRequirement(securityRequirement);
 
-	for (const strategy of metadata.security?.authentication?.securityStrategies ?? []) {
-		decorators.push(ApiSecurity(strategy));
+		decorators.push(ApiSecurity(openApiSecurityRequirement));
 	}
 
 	const guards: Array<CanActivate | Type<CanActivate>> = [];
@@ -199,4 +201,19 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 	decorators.push(UseGuards(...guards));
 
 	return applyDecorators(...decorators);
+}
+
+/**
+ * Converts grouped route auth metadata into one OpenAPI security requirement object.
+ * @param {IApiRouteSecurityRequirement} securityRequirement - Route auth requirement group.
+ * @returns {SecurityRequirementObject} OpenAPI security requirement object.
+ */
+function buildOpenApiSecurityRequirement(securityRequirement: IApiRouteSecurityRequirement): SecurityRequirementObject {
+	const openApiSecurityRequirement: SecurityRequirementObject = {};
+
+	for (const strategy of [...(securityRequirement.bearerStrategies ?? []), ...(securityRequirement.cookieStrategies ?? []), ...(securityRequirement.securityStrategies ?? [])]) {
+		openApiSecurityRequirement[strategy] = [];
+	}
+
+	return openApiSecurityRequirement;
 }
