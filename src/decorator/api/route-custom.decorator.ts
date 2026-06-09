@@ -24,6 +24,7 @@ export function ApiRouteCustom<E extends IApiBaseEntity>(properties: IApiRouteCu
 		? {
 				discriminator: properties.response.discriminator,
 				errors: properties.response.errors,
+				headers: properties.response.headers,
 				serialization: properties.response.serialization,
 				status: properties.response.status,
 				type: properties.response.type,

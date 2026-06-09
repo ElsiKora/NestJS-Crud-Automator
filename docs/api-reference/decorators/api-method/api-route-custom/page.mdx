@@ -16,7 +16,7 @@ Use it when a controller method is not standard CRUD but should still behave lik
 
 `@ApiRouteCustom` separates route metadata from runtime properties:
 
-- Metadata fields (`resource`, `route`, `documentation`, `security`, `throttling`, and response `status`, `type`, `errors`, `serialization`) are stored as `IApiRouteMetadata`.
+- Metadata fields (`resource`, `route`, `documentation`, `security`, `throttling`, and response `status`, `type`, `headers`, `errors`, `serialization`) are stored as `IApiRouteMetadata`.
 - Runtime fields (`request`, target-first response transformers, `relations`, `dto`, and `autoDto`) are stored as `IApiRouteRuntimeProperties`.
 - Response target keys such as `[EApiControllerResponseTarget.RESPONSE]` belong only to runtime properties, not method metadata.
 
@@ -38,6 +38,11 @@ Custom routes can use the same target-first request and response configuration a
 		authentication: {
 			type: EApiAuthenticationType.USER,
 			guard: JwtAuthGuard,
+			securityRequirements: [
+				{
+					bearerStrategies: ["jwt"],
+				},
+			],
 		},
 		authorization: {
 			mode: EApiAuthorizationMode.HOOKS,
@@ -56,6 +61,12 @@ Custom routes can use the same target-first request and response configuration a
 		},
 	},
 	response: {
+		headers: {
+			"X-Request-Id": {
+				description: "Request correlation id.",
+				schema: { type: "string" },
+			},
+		},
 		status: HttpStatus.OK,
 		type: PublishPostResponseDto,
 		serialization: { isEnabled: true },

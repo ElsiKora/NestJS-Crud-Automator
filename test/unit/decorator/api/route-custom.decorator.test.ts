@@ -4,6 +4,7 @@ import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiRouteCustom } from "@decorator/api";
 import { EApiControllerRequestTransformerType, EApiControllerResponseTarget } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
+import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { describe, expect, it } from "vitest";
 
 import { RouteCustomController, RouteCustomEmailResponseDto, RouteCustomEntity, RouteCustomPhoneResponseDto } from "./route-custom/fixture";
@@ -29,6 +30,14 @@ describe("ApiRouteCustom", () => {
 						},
 					],
 				},
+				headers: {
+					"Set-Cookie": {
+						description: "Sets refresh token cookie.",
+						schema: {
+							type: "string",
+						},
+					},
+				},
 				serialization: {
 					isEnabled: true,
 				},
@@ -43,9 +52,18 @@ describe("ApiRouteCustom", () => {
 
 		const metadata = (Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, descriptor.value) ?? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, RouteCustomController.prototype.handler) ?? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, RouteCustomController.prototype, "handler")) as Record<string, unknown>;
 		const runtimeProperties = (Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, descriptor.value) ?? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, RouteCustomController.prototype.handler) ?? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, RouteCustomController.prototype, "handler")) as Record<string, unknown>;
+		const responses = (Reflect.getMetadata(DECORATORS.API_RESPONSE, descriptor.value) ?? Reflect.getMetadata(DECORATORS.API_RESPONSE, RouteCustomController.prototype.handler) ?? Reflect.getMetadata(DECORATORS.API_RESPONSE, RouteCustomController.prototype, "handler")) as Record<number, Record<string, unknown>>;
 
 		expect(metadata.response).toEqual({
 			errors: undefined,
+			headers: {
+				"Set-Cookie": {
+					description: "Sets refresh token cookie.",
+					schema: {
+						type: "string",
+					},
+				},
+			},
 			serialization: {
 				isEnabled: true,
 			},
@@ -53,6 +71,14 @@ describe("ApiRouteCustom", () => {
 			type: undefined,
 		});
 		expect(metadata.response).not.toHaveProperty(EApiControllerResponseTarget.RESPONSE);
+		expect(responses[HttpStatus.OK]?.headers).toEqual({
+			"Set-Cookie": {
+				description: "Sets refresh token cookie.",
+				schema: {
+					type: "string",
+				},
+			},
+		});
 		expect(runtimeProperties.response).toEqual({
 			[EApiControllerResponseTarget.RESPONSE]: {
 				transformers: [

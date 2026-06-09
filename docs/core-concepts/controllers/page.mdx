@@ -120,7 +120,11 @@ import { EApiAuthenticationType } from "@elsikora/nestjs-crud-automator";
         authentication: {
           type: EApiAuthenticationType.USER,
           guard: JwtAuthGuard,
-          bearerStrategies: ["jwt"],
+          securityRequirements: [
+            {
+              bearerStrategies: ["jwt"],
+            },
+          ],
         },
       },
     },
@@ -129,7 +133,11 @@ import { EApiAuthenticationType } from "@elsikora/nestjs-crud-automator";
         authentication: {
           type: EApiAuthenticationType.USER,
           guard: JwtAuthGuard,
-          bearerStrategies: ["jwt"],
+          securityRequirements: [
+            {
+              bearerStrategies: ["jwt"],
+            },
+          ],
         },
       },
     },
@@ -138,7 +146,11 @@ import { EApiAuthenticationType } from "@elsikora/nestjs-crud-automator";
         authentication: {
           type: EApiAuthenticationType.USER,
           guard: JwtAuthGuard,
-          bearerStrategies: ["jwt"],
+          securityRequirements: [
+            {
+              bearerStrategies: ["jwt"],
+            },
+          ],
         },
       },
     },

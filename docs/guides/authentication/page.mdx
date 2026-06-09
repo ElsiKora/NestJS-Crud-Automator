@@ -22,7 +22,11 @@ import { UserService } from "./user.service";
 				authentication: {
 					type: EApiAuthenticationType.USER,
 					guard: JwtAuthGuard,
-					bearerStrategies: ["jwt"],
+					securityRequirements: [
+						{
+							bearerStrategies: ["jwt"],
+						},
+					],
 				},
 			},
 		},
@@ -31,7 +35,11 @@ import { UserService } from "./user.service";
 				authentication: {
 					type: EApiAuthenticationType.USER,
 					guard: JwtAuthGuard,
-					bearerStrategies: ["jwt"],
+					securityRequirements: [
+						{
+							bearerStrategies: ["jwt"],
+						},
+					],
 				},
 			},
 		},
@@ -40,7 +48,11 @@ import { UserService } from "./user.service";
 				authentication: {
 					type: EApiAuthenticationType.USER,
 					guard: JwtAuthGuard,
-					bearerStrategies: ["jwt"],
+					securityRequirements: [
+						{
+							bearerStrategies: ["jwt"],
+						},
+					],
 				},
 			},
 		},
@@ -115,9 +127,9 @@ import { JwtStrategy } from "./jwt.strategy";
 export class AuthModule {}
 ```
 
-## Multiple Authentication Strategies
+## Multiple Authentication Requirements
 
-Support multiple authentication methods:
+Use `securityRequirements` to describe route-level OpenAPI security. One object is an AND group; multiple objects are OR alternatives:
 
 ```typescript
 routes: {
@@ -126,13 +138,57 @@ routes: {
       authentication: {
         type: EApiAuthenticationType.USER,
         guard: JwtAuthGuard,
-        bearerStrategies: ["jwt"],
-        securityStrategies: ["api-key"],
+        securityRequirements: [
+          {
+            bearerStrategies: ["jwt"],
+            securityStrategies: ["api-key"],
+          },
+        ],
       },
     },
   },
 }
 ```
+
+This is the only supported route-level Swagger auth shape. Older top-level `authentication.bearerStrategies` and `authentication.securityStrategies` fields are not part of the current API.
+
+For alternatives, use multiple requirement objects:
+
+```typescript
+security: {
+  authentication: {
+    type: EApiAuthenticationType.USER,
+    guard: JwtAuthGuard,
+    securityRequirements: [
+      {
+        bearerStrategies: ["jwt"],
+      },
+      {
+        securityStrategies: ["api-key"],
+      },
+    ],
+  },
+}
+```
+
+For cookie plus CSRF authentication, keep both schemes in the same requirement object:
+
+```typescript
+security: {
+  authentication: {
+    type: EApiAuthenticationType.USER,
+    guard: RefreshSessionCsrfGuard,
+    securityRequirements: [
+      {
+        cookieStrategies: ["userRefreshTokenCookie"],
+        securityStrategies: ["userSessionCsrf"],
+      },
+    ],
+  },
+}
+```
+
+The names in `securityRequirements` must match the names registered on `DocumentBuilder` with `.addBearerAuth(...)`, `.addCookieAuth(...)`, `.addApiKey(...)`, or `.addSecurity(...)`.
 
 ## API Key Authentication
 
@@ -176,7 +232,11 @@ routes: {
       authentication: {
         type: EApiAuthenticationType.USER,
         guard: ApiKeyAuthGuard,
-        securityStrategies: ["api-key"],
+        securityRequirements: [
+          {
+            securityStrategies: ["api-key"],
+          },
+        ],
       },
     },
   },
@@ -230,7 +290,11 @@ const Roles = (...roles: string[]) => SetMetadata("roles", roles);
         authentication: {
           type: EApiAuthenticationType.USER,
           guard: JwtAuthGuard,
-          bearerStrategies: ["jwt"],
+          securityRequirements: [
+            {
+              bearerStrategies: ["jwt"],
+            },
+          ],
         },
       },
       generation: {
@@ -260,7 +324,11 @@ routes: {
       authentication: {
         type: EApiAuthenticationType.USER,
         guard: JwtAuthGuard,
-        bearerStrategies: ["jwt"],
+        securityRequirements: [
+          {
+            bearerStrategies: ["jwt"],
+          },
+        ],
       },
     },
     request: {
@@ -361,22 +429,29 @@ const config = new DocumentBuilder()
 	.setVersion("1.0")
 	.addBearerAuth(
 		{
-			type: "http",
-			scheme: "bearer",
 			bearerFormat: "JWT",
-			name: "JWT",
 			description: "Enter JWT token",
-			in: "header",
+			scheme: "bearer",
+			type: "http",
 		},
-		"JWT-auth",
+		"jwt",
 	)
 	.addApiKey(
 		{
-			type: "apiKey",
-			name: "x-api-key",
 			in: "header",
+			name: "x-api-key",
+			type: "apiKey",
 		},
 		"api-key",
+	)
+	.addCookieAuth("refreshToken", undefined, "userRefreshTokenCookie")
+	.addApiKey(
+		{
+			in: "header",
+			name: "x-csrf-token",
+			type: "apiKey",
+		},
+		"userSessionCsrf",
 	)
 	.build();
 ```
@@ -394,7 +469,11 @@ routes: {
       authentication: {
         type: EApiAuthenticationType.USER,
         guard: JwtAuthGuard,
-        bearerStrategies: ["jwt"],
+        securityRequirements: [
+          {
+            bearerStrategies: ["jwt"],
+          },
+        ],
       },
     },
   },
@@ -403,7 +482,11 @@ routes: {
       authentication: {
         type: EApiAuthenticationType.USER,
         guard: JwtAuthGuard,
-        bearerStrategies: ["jwt"],
+        securityRequirements: [
+          {
+            bearerStrategies: ["jwt"],
+          },
+        ],
       },
     },
   },
@@ -412,7 +495,11 @@ routes: {
       authentication: {
         type: EApiAuthenticationType.USER,
         guard: JwtAuthGuard,
-        bearerStrategies: ["jwt"],
+        securityRequirements: [
+          {
+            bearerStrategies: ["jwt"],
+          },
+        ],
       },
     },
   },

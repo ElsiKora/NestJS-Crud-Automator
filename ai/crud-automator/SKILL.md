@@ -29,8 +29,10 @@ Use local source as the contract:
 - Route controls live under `generation`: `generation.isEnabled`, `generation.shouldWriteToController`, and `generation.decorators`.
 - Route security lives under `security.authentication` and `security.authorization`.
 - `authentication.type` is the principal category (`USER`, `ADMIN`, `ACCOUNT`, `MERCHANT`, or project string), not the bearer/security scheme.
+- Route-level Swagger security schemes use `authentication.securityRequirements`; one object is an AND group and multiple objects are OR alternatives.
 - Request config is target keyed with `EApiControllerRequestTarget.BODY`, `PARAMETERS`, and `QUERY`.
 - Response config is target keyed with `EApiControllerResponseTarget.RESPONSE`.
+- OpenAPI response headers live directly under `response.headers`, not under `EApiControllerResponseTarget.RESPONSE`.
 - `autoDto` is validators-only. Field exposure, requiredness, filters, guards, and response visibility belong to `ApiPropertyDescribe({ properties })`.
 - Manual `dto` and `autoDto` route branches are mutually exclusive.
 - `ApiPropertyDescribe` object metadata uses `dataType`; manual `ApiPropertyObject` uses `type`.

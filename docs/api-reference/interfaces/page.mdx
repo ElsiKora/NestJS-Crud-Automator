@@ -77,12 +77,41 @@ Authentication configuration for routes.
 
 ```typescript
 interface IApiControllerPropertiesRouteAuthentication {
-	bearerStrategies?: Array<string>;
 	guard: Type<IAuthGuard>;
-	securityStrategies?: Array<string>;
+	securityRequirements?: Array<IApiRouteSecurityRequirement>;
 	type: EApiAuthenticationType | string;
 }
 ```
+
+Use `securityRequirements` for route-level Swagger security. Top-level `bearerStrategies` and `securityStrategies` are not part of the current authentication config.
+
+### IApiRouteSecurityRequirement
+
+One OpenAPI route security requirement group.
+
+```typescript
+interface IApiRouteSecurityRequirement {
+	bearerStrategies?: Array<string>;
+	cookieStrategies?: Array<string>;
+	securityStrategies?: Array<string>;
+}
+```
+
+Each `securityRequirements` item is one OpenAPI AND group. Multiple items are OR alternatives. Global scheme declarations remain application-owned.
+
+### IApiControllerPropertiesRouteBaseResponse\<E, R\>
+
+Generated route response configuration.
+
+```typescript
+interface IApiControllerPropertiesRouteBaseResponse<E, R extends EApiRouteType> {
+	[EApiControllerResponseTarget.RESPONSE]?: R extends EApiRouteType.DELETE ? never : IApiControllerPropertiesRouteBaseResponseTarget<E>;
+	headers?: HeadersObject;
+	serialization?: IApiRouteResponseSerializationProperties;
+}
+```
+
+`headers` is Swagger/OpenAPI metadata for the success response. Runtime response body transformers remain under `[EApiControllerResponseTarget.RESPONSE]`.
 
 ## Subscriber Interfaces
 

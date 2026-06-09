@@ -197,7 +197,19 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 				authentication: {
 					type: EApiAuthenticationType.USER,
 					guard: JwtAuthGuard,
-					bearerStrategies: ["jwt"],
+					securityRequirements: [
+						{
+							bearerStrategies: ["jwt"],
+						},
+					],
+				},
+			},
+			response: {
+				headers: {
+					"X-Request-Id": {
+						description: "Request correlation id.",
+						schema: { type: "string" },
+					},
 				},
 			},
 		},
@@ -206,7 +218,11 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 				authentication: {
 					type: EApiAuthenticationType.USER,
 					guard: JwtAuthGuard,
-					bearerStrategies: ["jwt"],
+					securityRequirements: [
+						{
+							bearerStrategies: ["jwt"],
+						},
+					],
 				},
 			},
 		},
@@ -215,7 +231,11 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 				authentication: {
 					type: EApiAuthenticationType.USER,
 					guard: JwtAuthGuard,
-					bearerStrategies: ["jwt"],
+					securityRequirements: [
+						{
+							bearerStrategies: ["jwt"],
+						},
+					],
 				},
 			},
 		},
@@ -228,6 +248,10 @@ export class UserController {
 	constructor(public service: UserService) {}
 }
 ```
+
+Use `response.headers` for Swagger/OpenAPI response header documentation only. Authentication `securityRequirements` map to OpenAPI route requirements: one object means all listed schemes are required together, while multiple objects are alternatives. The scheme names must match the names registered in your app-owned `DocumentBuilder` configuration.
+
+Top-level `authentication.bearerStrategies` and `authentication.securityStrategies` are not supported; put scheme names inside `authentication.securityRequirements`.
 
 ## Advanced Usage
 
@@ -1152,7 +1176,19 @@ import { AppModule } from "./app.module";
 async function bootstrap() {
 	const app = await NestFactory.create(AppModule);
 
-	const config = new DocumentBuilder().setTitle("Your API").setDescription("API description").setVersion("1.0").addBearerAuth().build();
+	const config = new DocumentBuilder()
+		.setTitle("Your API")
+		.setDescription("API description")
+		.setVersion("1.0")
+		.addBearerAuth(
+			{
+				bearerFormat: "JWT",
+				scheme: "bearer",
+				type: "http",
+			},
+			"jwt",
+		)
+		.build();
 
 	const document = SwaggerModule.createDocument(app, config);
 	SwaggerModule.setup("api", app, document);
