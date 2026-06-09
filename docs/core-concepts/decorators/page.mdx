@@ -200,7 +200,11 @@ Decorators can be combined to create sophisticated configurations:
 				authentication: {
 					type: EApiAuthenticationType.USER,
 					guard: JwtAuthGuard,
-					bearerStrategies: ["jwt"],
+					securityRequirements: [
+						{
+							bearerStrategies: ["jwt"],
+						},
+					],
 				},
 			},
 			autoDto: {

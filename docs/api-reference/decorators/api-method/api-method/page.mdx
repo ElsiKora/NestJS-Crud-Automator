@@ -84,13 +84,23 @@ export class UserController {
 			response: {
 				status: HttpStatus.OK,
 				type: ActivateUserResponseDto,
+				headers: {
+					"X-Request-Id": {
+						description: "Request correlation id.",
+						schema: { type: "string" },
+					},
+				},
 				errors: { hasBadRequest: true, hasUnauthorized: true, hasForbidden: true },
 			},
 			security: {
 				authentication: {
 					type: EApiAuthenticationType.USER,
 					guard: JwtAuthGuard,
-					bearerStrategies: ["access-token"],
+					securityRequirements: [
+						{
+							bearerStrategies: ["access-token"],
+						},
+					],
 				},
 				authorization: {
 					mode: EApiAuthorizationMode.HOOKS,

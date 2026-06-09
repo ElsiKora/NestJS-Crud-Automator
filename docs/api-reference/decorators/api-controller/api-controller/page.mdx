@@ -47,7 +47,11 @@ Routes also accept:
 				authentication: {
 					type: EApiAuthenticationType.USER,
 					guard: JwtAuthGuard,
-					bearerStrategies: ["jwt"],
+					securityRequirements: [
+						{
+							bearerStrategies: ["jwt"],
+						},
+					],
 				},
 			},
 		},
@@ -56,6 +60,14 @@ Routes also accept:
 				summary: "List users",
 				description: "Returns a filtered and paginated list of users",
 				operationId: "listUsers",
+			},
+			response: {
+				headers: {
+					"X-Request-Id": {
+						description: "Request correlation id.",
+						schema: { type: "string" },
+					},
+				},
 			},
 			autoDto: {
 				[EApiDtoType.QUERY]: {
