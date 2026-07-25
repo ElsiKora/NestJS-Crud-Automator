@@ -10,6 +10,7 @@ import { DtoGenerateDecorator } from "@utility/dto/generate/decorator.utility";
 import { DtoGetDecoratorConfig } from "@utility/dto/get/decorator-config.utility";
 import { DtoHandleDateProperty } from "@utility/dto/handle-date-property.utility";
 import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed-for-guard.utility";
+import { DtoIsPropertyInfrastructureTimestamp } from "@utility/dto/is/property/infrastructure-timestamp.utility";
 
 /**
  * Creates property decorators for DTOs based on property metadata, entity information, and context.
@@ -42,12 +43,14 @@ export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoT
 		return undefined;
 	}
 
+	const isWriteBody: boolean = dtoType === EApiDtoType.BODY && (method === EApiRouteType.CREATE || method === EApiRouteType.UPDATE || method === EApiRouteType.PARTIAL_UPDATE);
+
+	if (isWriteBody && DtoIsPropertyInfrastructureTimestamp(propertyMetadata)) {
+		return undefined;
+	}
+
 	if (propertyMetadata.type === EApiPropertyDescribeType.DATE) {
 		const dateMetadata: TApiPropertyDescribeDateProperties = propertyMetadata;
-
-		if ((method === EApiRouteType.UPDATE || method === EApiRouteType.PARTIAL_UPDATE) && dtoType === EApiDtoType.BODY) {
-			return undefined;
-		}
 
 		if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
 			const dateProperties: Array<{ identifier: EApiPropertyDateIdentifier; name: string }> = DtoHandleDateProperty(propertyName, dateMetadata.identifier);

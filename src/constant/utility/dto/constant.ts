@@ -10,7 +10,7 @@ import { DtoPropertyFactoryRelation } from "@class/utility/dto/property/factory/
 import { DtoPropertyFactoryString } from "@class/utility/dto/property/factory/string.class";
 import { DtoPropertyFactoryUuid } from "@class/utility/dto/property/factory/uuid.class";
 import { DtoStrategyBody, DtoStrategyQuery, DtoStrategyRequest, DtoStrategyResponse } from "@class/utility/dto/strategy";
-import { EApiDtoType, EApiPropertyDescribeType } from "@enum/decorator/api";
+import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDescribeType } from "@enum/decorator/api";
 
 const DTO_STRATEGIES: Record<EApiDtoType, IDtoStrategy> = {
 	[EApiDtoType.BODY]: new DtoStrategyBody(),
@@ -18,6 +18,8 @@ const DTO_STRATEGIES: Record<EApiDtoType, IDtoStrategy> = {
 	[EApiDtoType.QUERY]: new DtoStrategyQuery(),
 	[EApiDtoType.RESPONSE]: new DtoStrategyResponse(),
 };
+
+const INFRASTRUCTURE_TIMESTAMP_IDENTIFIERS: ReadonlyArray<EApiPropertyDateIdentifier> = [EApiPropertyDateIdentifier.CREATED_AT, EApiPropertyDateIdentifier.RECEIVED_AT, EApiPropertyDateIdentifier.UPDATED_AT];
 
 const PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerateFactory<unknown>> = {
 	[EApiPropertyDescribeType.BOOLEAN]: new DtoPropertyFactoryBoolean(),
@@ -32,8 +34,10 @@ const PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerat
 
 export const DTO_UTILITY_CONSTANT: {
 	readonly DTO_STRATEGIES: Record<EApiDtoType, IDtoStrategy>;
+	readonly INFRASTRUCTURE_TIMESTAMP_IDENTIFIERS: ReadonlyArray<EApiPropertyDateIdentifier>;
 	readonly PROPERTY_DECORATOR_FACTORIES: Record<EApiPropertyDescribeType, IDtoGenerateFactory<unknown>>;
 } = {
 	DTO_STRATEGIES,
+	INFRASTRUCTURE_TIMESTAMP_IDENTIFIERS,
 	PROPERTY_DECORATOR_FACTORIES,
 } as const;

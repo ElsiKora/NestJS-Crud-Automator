@@ -10,6 +10,7 @@ import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperation, EFilterOperationString, EFilterOperationUuid } from "@enum/filter";
+import { ValidationPipe } from "@nestjs/common";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
@@ -315,6 +316,48 @@ class DtoEntity {
 	public owner!: DtoRelatedEntity;
 }
 
+@Entity("timestamp_dto_entities")
+class TimestampDtoEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		description: "id",
+		type: EApiPropertyDescribeType.UUID,
+	})
+	public id!: string;
+
+	@Column({ type: "timestamp" })
+	@ApiPropertyDescribe({
+		format: EApiPropertyDateType.DATE_TIME,
+		identifier: EApiPropertyDateIdentifier.CREATED_AT,
+		type: EApiPropertyDescribeType.DATE,
+	})
+	public insertedOn!: Date;
+
+	@Column({ type: "timestamp" })
+	@ApiPropertyDescribe({
+		format: EApiPropertyDateType.DATE_TIME,
+		identifier: EApiPropertyDateIdentifier.RECEIVED_AT,
+		type: EApiPropertyDescribeType.DATE,
+	})
+	public receivedOn!: Date;
+
+	@Column({ type: "timestamp" })
+	@ApiPropertyDescribe({
+		format: EApiPropertyDateType.DATE_TIME,
+		identifier: EApiPropertyDateIdentifier.UPDATED_AT,
+		type: EApiPropertyDescribeType.DATE,
+	})
+	public modifiedOn!: Date;
+
+	@Column({ type: "timestamp" })
+	@ApiPropertyDescribe({
+		format: EApiPropertyDateType.DATE_TIME,
+		identifier: EApiPropertyDateIdentifier.DATE,
+		type: EApiPropertyDescribeType.DATE,
+	})
+	public createdAt!: Date;
+}
+
 @Entity("manual_nested_policy_entities")
 class ManualNestedPolicyEntity {
 	@PrimaryGeneratedColumn("uuid")
@@ -387,6 +430,98 @@ describe("DtoGenerate", () => {
 		const invalidQueryErrors = invalidQuery ? validateSync(invalidQuery as object) : [];
 
 		expect(invalidQueryErrors.some((error) => error.property === "owner.id[operator]")).toBe(true);
+	});
+
+	it("uses semantic timestamp identifiers for generated write DTO ownership", async () => {
+		const entityMetadata = GenerateEntityInformation<TimestampDtoEntity>(TimestampDtoEntity as unknown as IApiBaseEntity);
+		const createBodyDto = DtoGenerate(TimestampDtoEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY);
+		const updateBodyDto = DtoGenerate(TimestampDtoEntity, entityMetadata, EApiRouteType.UPDATE, EApiDtoType.BODY);
+		const partialUpdateBodyDto = DtoGenerate(TimestampDtoEntity, entityMetadata, EApiRouteType.PARTIAL_UPDATE, EApiDtoType.BODY);
+		const responseDto = DtoGenerate(TimestampDtoEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.RESPONSE);
+
+		expect(createBodyDto).toBeDefined();
+		expect(updateBodyDto).toBeDefined();
+		expect(partialUpdateBodyDto).toBeDefined();
+		expect(responseDto).toBeDefined();
+
+		if (!createBodyDto || !updateBodyDto || !partialUpdateBodyDto || !responseDto) {
+			throw new Error("Expected timestamp DTOs to be generated.");
+		}
+
+		const writeBodyDtos = [createBodyDto, updateBodyDto, partialUpdateBodyDto];
+		const infrastructurePropertyNames = ["insertedOn", "receivedOn", "modifiedOn"];
+
+		for (const writeBodyDto of writeBodyDtos) {
+			const instance = new writeBodyDto() as Record<string, unknown>;
+
+			for (const propertyName of infrastructurePropertyNames) {
+				expect(propertyName in instance).toBe(false);
+				expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, writeBodyDto.prototype, propertyName)).toBeUndefined();
+			}
+
+			expect("createdAt" in instance).toBe(true);
+			expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, writeBodyDto.prototype, "createdAt")).toBeDefined();
+		}
+
+		const validationPipe = new ValidationPipe({
+			forbidNonWhitelisted: true,
+			skipMissingProperties: true,
+			transform: true,
+			whitelist: true,
+		});
+		const createdAt = "2026-07-25T12:00:00.000Z";
+
+		for (const writeBodyDto of writeBodyDtos) {
+			const accepted = (await validationPipe.transform(
+				{ createdAt },
+				{
+					metatype: writeBodyDto,
+					type: "body",
+				},
+			)) as TimestampDtoEntity;
+
+			expect(accepted.createdAt).toBeInstanceOf(Date);
+			await expect(
+				validationPipe.transform(
+					{
+						createdAt,
+						insertedOn: "2026-07-25T09:00:00.000Z",
+						modifiedOn: "2026-07-25T11:00:00.000Z",
+						receivedOn: "2026-07-25T10:00:00.000Z",
+					},
+					{
+						metatype: writeBodyDto,
+						type: "body",
+					},
+				),
+			).rejects.toMatchObject({
+				response: {
+					message: expect.arrayContaining(["property insertedOn should not exist", "property receivedOn should not exist", "property modifiedOn should not exist"]),
+				},
+			});
+		}
+
+		const responseInstance = plainToInstance(
+			responseDto as ClassConstructor<TimestampDtoEntity>,
+			{
+				createdAt,
+				id: "timestamp-1",
+				insertedOn: "2026-07-25T09:00:00.000Z",
+				modifiedOn: "2026-07-25T11:00:00.000Z",
+				receivedOn: "2026-07-25T10:00:00.000Z",
+			},
+			{
+				/* eslint-disable-next-line @elsikora/typescript/naming-convention */
+				excludeExtraneousValues: true,
+				strategy: "excludeAll",
+			},
+		);
+
+		const plainResponse = instanceToPlain(responseInstance);
+
+		for (const propertyName of infrastructurePropertyNames) {
+			expect(plainResponse).toHaveProperty(propertyName);
+		}
 	});
 
 	it("serializes nested manual DTOs in response mode without manual isResponse", () => {
