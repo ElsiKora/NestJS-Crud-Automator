@@ -12,6 +12,7 @@ import type {
 	IApiBaseEntity,
 	IApiFunctionStepContext,
 	IApiFunctionStepProperties,
+	IApiSubscriberFunctionTransactionContext,
 	IApiHookPermissionSource,
 	IApiSubscriberFunctionExecutionContextData,
 	TApiAuthorizationPolicyBeforeCreateContext,
@@ -25,11 +26,36 @@ import type {
 	TApiSubscriberFunctionBeforeCreateContext,
 	TApiSubscriberFunctionExecutionContextData,
 	TApiSubscriberRouteBeforeCreateContext,
+	TApiFunctionTransactionEvent,
+	TApiFunctionTransactionOwner,
 	TApiGetDefaultStringFormatPropertiesBigIntStringOptions,
 	TApiRouteDiscriminatedDtoProperties,
 } from "../../src/index";
 
-import { ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiFunctionStep, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiFunctionSubscriberTransactionExpectation, EApiFunctionTransactionMode, EApiFunctionType, EApiPropertyStringType, EApiRouteSubscriberAuthorizationExpectation, EApiRouteType, GetDefaultStringFormatProperties } from "../../src/index";
+import {
+	ApiAuthorizationPolicy,
+	ApiAuthorizationPolicyBase,
+	ApiFunctionStep,
+	ApiFunctionTransactionCommitUnknownOutcomeException,
+	ApiFunctionTransactionPostCommitException,
+	ApiFunctionTransactionRollbackException,
+	ApiFunctionTransactionScope,
+	AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN,
+	EApiAuthorizationMode,
+	EApiAuthorizationPrincipalType,
+	EApiFunctionContextStorageKind,
+	EApiFunctionSubscriberTransactionExpectation,
+	EApiFunctionTransactionEventStatus,
+	EApiFunctionTransactionMode,
+	EApiFunctionTransactionOutcome,
+	EApiFunctionTransactionOwnerKind,
+	EApiFunctionTransactionTraceType,
+	EApiFunctionType,
+	EApiPropertyStringType,
+	EApiRouteSubscriberAuthorizationExpectation,
+	EApiRouteType,
+	GetDefaultStringFormatProperties,
+} from "../../src/index";
 import { describe, expect, it } from "vitest";
 
 class PublicApiUser {
@@ -187,11 +213,51 @@ describe("public API exports (E2E)", () => {
 			getRepository: <T extends IApiBaseEntity>(_entity: new () => T): Repository<T> => stepRepository as unknown as Repository<T>,
 			repository: stepRepository,
 		} satisfies IApiFunctionStepContext<PublicApiUser>;
+		const transactionOwner: TApiFunctionTransactionOwner = {
+			kind: EApiFunctionTransactionOwnerKind.SCOPE,
+			name: "public-api",
+		};
+		const transactionEvent: TApiFunctionTransactionEvent = {
+			entityName: PublicApiUser.name,
+			functionType: EApiFunctionType.CREATE,
+			methodName: "create",
+			sequence: 1,
+			status: EApiFunctionTransactionEventStatus.SUCCEEDED,
+		};
+		const transactionContext = {
+			DATA: {
+				events: [transactionEvent],
+				matchedEvents: [transactionEvent],
+				transaction: {
+					id: "transaction-id",
+					owner: transactionOwner,
+				},
+			},
+		} satisfies IApiSubscriberFunctionTransactionContext;
 		const builtPackageEntryPath: string = "../../dist/esm/index.js";
 		const builtPackageEntry = (await import(builtPackageEntryPath)) as {
 			ApiFunctionStep?: unknown;
+			ApiFunctionTransactionCommitUnknownOutcomeException?: unknown;
+			ApiFunctionTransactionPostCommitException?: unknown;
+			ApiFunctionTransactionRollbackException?: unknown;
+			ApiFunctionTransactionScope?: unknown;
+			EApiFunctionContextStorageKind?: {
+				TRANSACTION?: unknown;
+			};
+			EApiFunctionTransactionEventStatus?: {
+				SUCCEEDED?: unknown;
+			};
 			EApiFunctionTransactionMode?: {
 				SUPPORTS?: unknown;
+			};
+			EApiFunctionTransactionOutcome?: {
+				UNKNOWN?: unknown;
+			};
+			EApiFunctionTransactionOwnerKind?: {
+				SCOPE?: unknown;
+			};
+			EApiFunctionTransactionTraceType?: {
+				STEP?: unknown;
 			};
 			EApiFunctionSubscriberTransactionExpectation?: {
 				REQUIRED?: unknown;
@@ -206,6 +272,7 @@ describe("public API exports (E2E)", () => {
 		const builtCjsPackageEntryPath: string = "../../dist/cjs/index.js";
 		const builtCjsPackageEntry = (await import(builtCjsPackageEntryPath)) as {
 			ApiFunctionStep?: unknown;
+			ApiFunctionTransactionScope?: unknown;
 		};
 		const bigintStringDefaults = GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, bigintStringOptions);
 		const resolvedPrincipal: IApiAuthorizationPrincipal = await Promise.resolve(
@@ -252,10 +319,29 @@ describe("public API exports (E2E)", () => {
 		expect(stepContext.eventManager).toBeUndefined();
 		expect(stepContext.getRepository(PublicApiUser)).toBe(stepRepository);
 		expect(stepContext.repository).toBe(stepRepository);
+		expect(transactionContext.DATA.events).toEqual([transactionEvent]);
+		expect(transactionContext.DATA.transaction.owner).toBe(transactionOwner);
+		expect(typeof ApiFunctionTransactionCommitUnknownOutcomeException).toBe("function");
+		expect(typeof ApiFunctionTransactionPostCommitException).toBe("function");
+		expect(typeof ApiFunctionTransactionRollbackException).toBe("function");
+		expect(typeof ApiFunctionTransactionScope).toBe("function");
 		expect(typeof builtPackageEntry.ApiFunctionStep).toBe("function");
+		expect(typeof builtPackageEntry.ApiFunctionTransactionCommitUnknownOutcomeException).toBe("function");
+		expect(typeof builtPackageEntry.ApiFunctionTransactionPostCommitException).toBe("function");
+		expect(typeof builtPackageEntry.ApiFunctionTransactionRollbackException).toBe("function");
+		expect(typeof builtPackageEntry.ApiFunctionTransactionScope).toBe("function");
+		expect(builtPackageEntry).not.toHaveProperty("ApiFunctionTransactionLifecycle");
+		expect(builtPackageEntry).not.toHaveProperty("ApiFunctionTransactionRegistry");
+		expect(builtPackageEntry).not.toHaveProperty("ApiFunctionTransactionRuntime");
 		expect(typeof builtCjsPackageEntry.ApiFunctionStep).toBe("function");
+		expect(typeof builtCjsPackageEntry.ApiFunctionTransactionScope).toBe("function");
+		expect(builtPackageEntry.EApiFunctionContextStorageKind?.TRANSACTION).toBe(EApiFunctionContextStorageKind.TRANSACTION);
 		expect(builtPackageEntry.EApiFunctionSubscriberTransactionExpectation?.REQUIRED).toBe(EApiFunctionSubscriberTransactionExpectation.REQUIRED);
+		expect(builtPackageEntry.EApiFunctionTransactionEventStatus?.SUCCEEDED).toBe(EApiFunctionTransactionEventStatus.SUCCEEDED);
 		expect(builtPackageEntry.EApiFunctionTransactionMode?.SUPPORTS).toBe(EApiFunctionTransactionMode.SUPPORTS);
+		expect(builtPackageEntry.EApiFunctionTransactionOutcome?.UNKNOWN).toBe(EApiFunctionTransactionOutcome.UNKNOWN);
+		expect(builtPackageEntry.EApiFunctionTransactionOwnerKind?.SCOPE).toBe(EApiFunctionTransactionOwnerKind.SCOPE);
+		expect(builtPackageEntry.EApiFunctionTransactionTraceType?.STEP).toBe(EApiFunctionTransactionTraceType.STEP);
 		expect(builtPackageEntry.EApiFunctionType?.CREATE).toBe(EApiFunctionType.CREATE);
 		expect(builtPackageEntry.EApiRouteSubscriberAuthorizationExpectation?.REQUIRED).toBe(EApiRouteSubscriberAuthorizationExpectation.REQUIRED);
 		expect(AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN).toBe("API_AUTHORIZATION_PRINCIPAL_RESOLVER");

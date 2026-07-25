@@ -10,19 +10,10 @@ import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
 import { EApiFunctionSubscriberTransactionExpectation } from "@enum/decorator/api";
 import { EApiFunctionType } from "@enum/decorator/api/function";
 import { EApiSubscriberOnType } from "@enum/decorator/api/on-type.enum";
+import { resetApiSubscriberRegistry } from "@test/unit/fixture";
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { SubscriberResultCreateSubscriber, SubscriberResultEntity, SubscriberResultService, type TSubscriberResultCreateInput, type TSubscriberResultDeleteInput, type TSubscriberResultGetInput, type TSubscriberResultGetListInput, type TSubscriberResultGetManyInput, type TSubscriberResultUpdateInput } from "./fixture";
-
-const resetSubscriberRegistry = (): void => {
-	const registry = apiSubscriberRegistry as unknown as {
-		FUNCTION_SUBSCRIBERS: { clear: () => void };
-		ROUTE_SUBSCRIBERS: { clear: () => void };
-	};
-
-	registry.FUNCTION_SUBSCRIBERS.clear();
-	registry.ROUTE_SUBSCRIBERS.clear();
-};
 
 function createBeforeCreateContext<Result extends TApiFunctionCreateProperties<SubscriberResultEntity>>(result: Result): TApiSubscriberFunctionBeforeCreateContext<SubscriberResultEntity, Result> {
 	return {
@@ -55,7 +46,7 @@ function createCustomPayload(): TSubscriberResultCreateInput {
 
 describe("function subscriber result generics", () => {
 	beforeEach(() => {
-		resetSubscriberRegistry();
+		resetApiSubscriberRegistry();
 	});
 
 	it("should keep one-generic create context usage typed as default create properties", () => {

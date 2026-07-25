@@ -8,6 +8,7 @@ import type { DeepPartial, EntityManager, Repository } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
+import { ApiFunctionGet } from "@decorator/api/function/get/decorator";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { EApiExceptionDetailsType } from "@enum/utility/exception-details-type.enum";
@@ -23,8 +24,6 @@ import { ErrorException } from "@utility/error/exception.utility";
 import { ErrorString } from "@utility/error/string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
-import { ApiFunctionGet } from "./get/decorator";
-
 /**
  * Creates a decorator that adds entity update functionality to a service method
  * @template E The entity type
@@ -38,7 +37,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 	const getDecorator: (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity, transaction: properties.transaction });
 	let getFunction: (properties: TApiFunctionGetProperties<E>) => Promise<E>;
 
-	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (this: { repository: Repository<E> }, criteria: TApiFunctionUpdateCriteria<E>, updateProperties: TApiFunctionUpdateProperties<E>): Promise<E> {
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<E> => {
@@ -85,6 +84,8 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria, entity, getFunction, properties: executionContext.result ?? ({} as unknown as TApiFunctionUpdateProperties<E>), repository });
 				},
 				entity,
+				functionType: EApiFunctionType.UPDATE,
+				methodName: propertyKey,
 				mode: transactionMode,
 				onPreflightError: async (eventManager: EntityManager | undefined, error: Error): Promise<void> => {
 					const entityInstance: E = new entity();
@@ -98,6 +99,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 					await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.UPDATE, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, error);
 				},
 				repository: this.repository,
+				serviceConstructor: this.constructor as new (...arguments_: Array<unknown>) => unknown,
 			});
 		};
 

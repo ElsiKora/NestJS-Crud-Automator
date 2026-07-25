@@ -25,6 +25,7 @@
 			"@factory/*": ["./src/factory/*"],
 			"@interceptor/*": ["./src/interceptor/*"],
 			"@interface/*": ["./src/interface/*"],
+			"@test/*": ["./test/*"],
 			"@type/*": ["./src/type/*"],
 			"@utility/*": ["./src/utility/*"],
 			"@validator/*": ["./src/validator/*"],

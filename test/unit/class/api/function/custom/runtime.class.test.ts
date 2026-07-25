@@ -1,11 +1,13 @@
-import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { EntityManager, Repository } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionCustomRuntime } from "@class/api/function/custom-runtime.class";
+import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiSubscriberOnType } from "@enum/decorator/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { createTransactionFixture } from "@test/unit/fixture";
 
 class FunctionRuntimeEntity {
 	public id?: string;
@@ -20,14 +22,16 @@ const createRepository = () => {
 	const transactionManager = {
 		getRepository: vi.fn().mockReturnValue(transactionRepository),
 	} as unknown as EntityManager;
+	const { dataSource } = createTransactionFixture(transactionManager);
 	const repository = {
 		manager: {
+			connection: dataSource,
 			getRepository: vi.fn().mockReturnValue(transactionRepository),
-			transaction: vi.fn(async (callback: (entityManager: EntityManager) => Promise<unknown>) => await callback(transactionManager)),
 		},
 	} as unknown as Repository<FunctionRuntimeEntity>;
 
 	return {
+		dataSource,
 		repository,
 		transactionManager,
 	};
@@ -39,7 +43,7 @@ describe("ApiFunctionCustomRuntime", () => {
 	});
 
 	it("opens a transaction for REQUIRED mode when no transaction is active", async () => {
-		const { repository, transactionManager } = createRepository();
+		const { dataSource, repository, transactionManager } = createRepository();
 		const originalMethod = vi.fn(async () => ApiFunctionContextStorage.get<FunctionRuntimeEntity>()?.eventManager);
 
 		const result = await ApiFunctionCustomRuntime.execute({
@@ -53,7 +57,7 @@ describe("ApiFunctionCustomRuntime", () => {
 			transactionMode: EApiFunctionTransactionMode.REQUIRED,
 		});
 
-		expect(repository.manager.transaction).toHaveBeenCalledTimes(1);
+		expect(dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
 		expect(result).toBe(transactionManager);
 	});
 
@@ -77,17 +81,12 @@ describe("ApiFunctionCustomRuntime", () => {
 	});
 
 	it("joins an active transaction for SUPPORTS mode", async () => {
-		const { repository, transactionManager } = createRepository();
+		const { dataSource, repository, transactionManager } = createRepository();
 		const originalMethod = vi.fn(async () => ApiFunctionContextStorage.get<FunctionRuntimeEntity>()?.eventManager);
 
-		const result = await ApiFunctionContextStorage.run(
-			{
-				entity: FunctionRuntimeEntity,
-				eventManager: transactionManager,
-				getRepository: <T extends IApiBaseEntity>() => repository as unknown as Repository<T>,
-				operations: {} as never,
-				repository,
-			},
+		const result = await ApiFunctionTransactionScope.runWithDataSource(
+			dataSource,
+			{ name: "customSupports" },
 			async () =>
 				await ApiFunctionCustomRuntime.execute({
 					functionArguments: [],
@@ -101,7 +100,7 @@ describe("ApiFunctionCustomRuntime", () => {
 				}),
 		);
 
-		expect(repository.manager.transaction).not.toHaveBeenCalled();
+		expect(dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
 		expect(result).toBe(transactionManager);
 	});
 
@@ -148,18 +147,13 @@ describe("ApiFunctionCustomRuntime", () => {
 	});
 
 	it("fails NONE mode inside an active transaction", async () => {
-		const { repository, transactionManager } = createRepository();
+		const { dataSource, repository } = createRepository();
 		const errorSubscriberSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
 
 		await expect(
-			ApiFunctionContextStorage.run(
-				{
-					entity: FunctionRuntimeEntity,
-					eventManager: transactionManager,
-					getRepository: <T extends IApiBaseEntity>() => repository as unknown as Repository<T>,
-					operations: {} as never,
-					repository,
-				},
+			ApiFunctionTransactionScope.runWithDataSource(
+				dataSource,
+				{ name: "customNone" },
 				async () =>
 					await ApiFunctionCustomRuntime.execute({
 						functionArguments: [],
@@ -173,6 +167,7 @@ describe("ApiFunctionCustomRuntime", () => {
 					}),
 			),
 		).rejects.toThrow("ApiFunctionCustom transaction mode NONE cannot run inside an active transaction");
+		expect(dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
 		expect(errorSubscriberSpy).toHaveBeenCalledWith(expect.any(Function), expect.any(FunctionRuntimeEntity), expect.any(String), EApiSubscriberOnType.BEFORE_ERROR, expect.any(Object), expect.any(Error), "customAction");
 	});
 

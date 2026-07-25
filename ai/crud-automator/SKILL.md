@@ -51,7 +51,9 @@ Use local source as the contract:
 - Function execution transaction modes use `EApiFunctionTransactionMode` with `transaction.mode`; subscriber requirements use `EApiFunctionSubscriberTransactionExpectation` with `transaction.expectation`.
 - Inside decorated service execution, use `this.getApiFunctionContext()` for `operations`, `repository`, `eventManager`, and `getRepository`.
 - Inside `@ApiFunctionStep`, use `this.getApiFunctionStepContext()` for `repository`, `eventManager`, and `getRepository`; it intentionally omits `operations`.
-- `ApiFunctionTransactionScope.runWithDataSource()` and `runWithEntityManager()` provide external transaction scope; CRUD `operations` reject without a decorated service context.
+- `ApiFunctionTransactionScope.runWithDataSource(dataSource, { name }, callback)` owns a named external transaction; `runWithEntityManager()` is join-only and fails without an active Automator owner registry.
+- `onAfterCommit` and `onAfterRollback` run once after the outer transaction ends. Their readonly context exposes transaction owner/id, all ordered events, and subscriber-matched events; STEP is trace-only.
+- Commit/rollback error lifecycle uses `onBeforeErrorCommit`, `onAfterErrorCommit`, `onBeforeErrorRollback`, and `onAfterErrorRollback`. Post-commit failures must remain distinguishable from database rollback.
 
 ## Route Runtime Model
 

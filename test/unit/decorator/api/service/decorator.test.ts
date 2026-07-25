@@ -1,10 +1,12 @@
 import { ApiService } from "@decorator/api/service/decorator";
-import { ApiFunctionTransactionScope } from "@class/api/function/transaction-scope.class";
+import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import type { EntityManager } from "typeorm";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { createTransactionFixture } from "@test/unit/fixture";
 
 class ServiceEntity {
 	public id!: string;
@@ -187,9 +189,6 @@ describe("ApiService", () => {
 
 	it("defines generated methods over ApiServiceBase stubs", async () => {
 		const repository = {
-			manager: {
-				transaction: vi.fn(),
-			},
 			save: vi.fn(async (entity: Partial<ServiceEntity>) => ({ ...entity, id: "generated" }) as ServiceEntity),
 		};
 
@@ -210,9 +209,10 @@ describe("ApiService", () => {
 	});
 
 	it("keeps generated create non-transactional by default", async () => {
+		const transaction = createTransactionFixture();
 		const repository = {
 			manager: {
-				transaction: vi.fn(),
+				connection: transaction.dataSource,
 			},
 			save: vi.fn(async (entity: Partial<ServiceEntity>) => ({ ...entity }) as ServiceEntity),
 		};
@@ -227,8 +227,8 @@ describe("ApiService", () => {
 		const service = new Service(repository) as Service & Record<string, any>;
 		const created = await service.create({ id: "id-1", name: "created", count: 1 });
 
-		expect(repository.manager.transaction).not.toHaveBeenCalled();
 		expect(repository.save).toHaveBeenCalledWith({ id: "id-1", name: "created", count: 1 });
+		expect(transaction.dataSource.createQueryRunner).not.toHaveBeenCalled();
 		expect(created).toMatchObject({ id: "id-1", name: "created" });
 	});
 
@@ -239,9 +239,10 @@ describe("ApiService", () => {
 		const eventManager = {
 			getRepository: vi.fn(() => eventRepository),
 		};
+		const transaction = createTransactionFixture(eventManager as unknown as EntityManager);
 		const repository = {
 			manager: {
-				transaction: vi.fn(async (callback: (manager: typeof eventManager) => Promise<ServiceEntity>) => await callback(eventManager)),
+				connection: transaction.dataSource,
 			},
 			save: vi.fn(async (entity: Partial<ServiceEntity>) => ({ ...entity, id: "repo" }) as ServiceEntity),
 		};
@@ -263,7 +264,11 @@ describe("ApiService", () => {
 		const service = new Service(repository) as Service & Record<string, any>;
 		const created = await service.create({ name: "created", count: 1 });
 
-		expect(repository.manager.transaction).toHaveBeenCalledTimes(1);
+		expect(transaction.dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
+		expect(transaction.queryRunner.connect).toHaveBeenCalledTimes(1);
+		expect(transaction.queryRunner.startTransaction).toHaveBeenCalledTimes(1);
+		expect(transaction.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+		expect(transaction.queryRunner.release).toHaveBeenCalledTimes(1);
 		expect(eventManager.getRepository).toHaveBeenCalledWith(ServiceEntity);
 		expect(eventRepository.save).toHaveBeenCalledWith({ name: "created", count: 1 });
 		expect(repository.save).not.toHaveBeenCalled();
@@ -279,10 +284,11 @@ describe("ApiService", () => {
 		const eventManager = {
 			getRepository: vi.fn(() => eventRepository),
 		};
+		const transaction = createTransactionFixture(eventManager as unknown as EntityManager);
 		const repository = {
 			findOne: vi.fn(async () => existingEntity),
 			manager: {
-				transaction: vi.fn(async (callback: (manager: typeof eventManager) => Promise<ServiceEntity>) => await callback(eventManager)),
+				connection: transaction.dataSource,
 			},
 			save: vi.fn(async (entity: Partial<ServiceEntity>) => ({ ...entity, id: "repo" }) as ServiceEntity),
 		};
@@ -304,7 +310,10 @@ describe("ApiService", () => {
 		const service = new Service(repository) as Service & Record<string, any>;
 		const updated = await service.update({ id: "id-1" }, { name: "updated" });
 
-		expect(repository.manager.transaction).toHaveBeenCalledTimes(1);
+		expect(transaction.dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
+		expect(transaction.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+		expect(transaction.queryRunner.rollbackTransaction).not.toHaveBeenCalled();
+		expect(transaction.queryRunner.release).toHaveBeenCalledTimes(1);
 		expect(eventManager.getRepository).toHaveBeenCalledWith(ServiceEntity);
 		expect(eventRepository.findOne).toHaveBeenCalledWith({ where: { id: "id-1" } });
 		expect(eventRepository.save).toHaveBeenCalledWith(expect.objectContaining({ id: "id-1", name: "updated" }));
@@ -322,10 +331,11 @@ describe("ApiService", () => {
 		const eventManager = {
 			getRepository: vi.fn(() => eventRepository),
 		};
+		const transaction = createTransactionFixture(eventManager as unknown as EntityManager);
 		const repository = {
 			findOne: vi.fn(async () => existingEntity),
 			manager: {
-				transaction: vi.fn(async (callback: (manager: typeof eventManager) => Promise<unknown>) => await callback(eventManager)),
+				connection: transaction.dataSource,
 			},
 			remove: vi.fn(async (entity: ServiceEntity) => entity),
 		};
@@ -347,7 +357,10 @@ describe("ApiService", () => {
 		const service = new Service(repository) as Service & Record<string, any>;
 		const deleted = await service.delete({ id: "id-1" });
 
-		expect(repository.manager.transaction).toHaveBeenCalledTimes(1);
+		expect(transaction.dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
+		expect(transaction.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+		expect(transaction.queryRunner.rollbackTransaction).not.toHaveBeenCalled();
+		expect(transaction.queryRunner.release).toHaveBeenCalledTimes(1);
 		expect(eventManager.getRepository).toHaveBeenCalledWith(ServiceEntity);
 		expect(eventRepository.findOne).toHaveBeenCalledWith({ where: { id: "id-1" } });
 		expect(eventRepository.remove).toHaveBeenCalledWith(existingEntity);
@@ -358,9 +371,6 @@ describe("ApiService", () => {
 
 	it("fires before_error for generated mandatory transaction preflight failures", async () => {
 		const repository = {
-			manager: {
-				transaction: vi.fn(),
-			},
 			save: vi.fn(async (entity: Partial<ServiceEntity>) => ({ ...entity }) as ServiceEntity),
 		};
 		const errorSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
@@ -382,14 +392,10 @@ describe("ApiService", () => {
 		await expect(service.create({ name: "created" })).rejects.toThrow("ApiFunction transaction mode MANDATORY requires an active transaction");
 		expect(errorSpy).toHaveBeenCalledWith(expect.any(Function), expect.any(ServiceEntity), EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, expect.any(Object), expect.any(Error));
 		expect(repository.save).not.toHaveBeenCalled();
-		expect(repository.manager.transaction).not.toHaveBeenCalled();
 	});
 
 	it("fires before_error for generated none transaction preflight failures", async () => {
 		const repository = {
-			manager: {
-				transaction: vi.fn(),
-			},
 			save: vi.fn(async (entity: Partial<ServiceEntity>) => ({ ...entity }) as ServiceEntity),
 		};
 		const errorSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
@@ -411,9 +417,8 @@ describe("ApiService", () => {
 
 		const service = new Service(repository) as Service & Record<string, any>;
 
-		await expect(ApiFunctionTransactionScope.runWithEntityManager(eventManager, async () => await service.create({ name: "created" }))).rejects.toThrow("ApiFunction transaction mode NONE cannot run inside an active transaction");
+		await expect(ApiFunctionTransactionScope.runWithDataSource(createTransactionFixture(eventManager).dataSource, { name: "noneMode" }, async () => await service.create({ name: "created" }))).rejects.toThrow("ApiFunction transaction mode NONE cannot run inside an active transaction");
 		expect(errorSpy).toHaveBeenCalledWith(expect.any(Function), expect.any(ServiceEntity), EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, expect.any(Object), expect.any(Error));
 		expect(repository.save).not.toHaveBeenCalled();
-		expect(repository.manager.transaction).not.toHaveBeenCalled();
 	});
 });

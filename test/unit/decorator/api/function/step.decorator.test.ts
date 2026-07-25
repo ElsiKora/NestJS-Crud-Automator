@@ -4,7 +4,7 @@ import type { IApiFunctionStepContext } from "@interface/class/api/function";
 import type { EntityManager, Repository } from "typeorm";
 
 import { ApiFunctionStepRuntime } from "@class/api/function/step-runtime.class";
-import { ApiFunctionTransactionScope } from "@class/api/function/transaction-scope.class";
+import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { SUBSCRIBER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/subscriber.constant";
@@ -13,6 +13,8 @@ import { EApiFunctionTransactionMode } from "@enum/decorator/api";
 import { GUARDS_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants.js";
 import { DECORATORS } from "@nestjs/swagger/dist/constants.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { createTransactionFixture } from "@test/unit/fixture";
 
 class StepDecoratorEntity {
 	public id?: string;
@@ -76,7 +78,6 @@ const createRepository = () => {
 	const repository = {
 		manager: {
 			getRepository: vi.fn().mockReturnValue({} as Repository<StepDecoratorEntity>),
-			transaction: vi.fn(async (callback: (entityManager: EntityManager) => Promise<unknown>) => await callback(transactionManager)),
 		},
 	} as unknown as Repository<StepDecoratorEntity>;
 
@@ -102,6 +103,7 @@ describe("ApiFunctionStep", () => {
 		expect(result).toBe("runtime-result");
 		expect(executeSpy).toHaveBeenCalledWith({
 			functionArguments: ["input"],
+			methodName: "publicStep",
 			originalMethod: expect.any(Function),
 			properties: {
 				entity: StepDecoratorEntity,
@@ -126,7 +128,7 @@ describe("ApiFunctionStep", () => {
 		const { repository, transactionManager, transactionRepository } = createRepository();
 		const service = new StepDecoratorService(repository);
 
-		const context = await ApiFunctionTransactionScope.runWithEntityManager(transactionManager, async () => await service.callPrivateStep("private"));
+		const context = await ApiFunctionTransactionScope.runWithDataSource(createTransactionFixture(transactionManager).dataSource, { name: "privateStep" }, async () => await service.callPrivateStep("private"));
 
 		expect(context.eventManager).toBe(transactionManager);
 		expect(context.repository).toBe(transactionRepository);
@@ -137,7 +139,7 @@ describe("ApiFunctionStep", () => {
 		const { repository, transactionManager, transactionRepository } = createRepository();
 		const service = new StepDecoratorService(repository);
 
-		const context = await ApiFunctionTransactionScope.runWithEntityManager(transactionManager, async () => await service.callProtectedStep("protected"));
+		const context = await ApiFunctionTransactionScope.runWithDataSource(createTransactionFixture(transactionManager).dataSource, { name: "protectedStep" }, async () => await service.callProtectedStep("protected"));
 
 		expect(context.eventManager).toBe(transactionManager);
 		expect(context.repository).toBe(transactionRepository);

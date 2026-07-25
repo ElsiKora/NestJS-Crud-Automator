@@ -160,6 +160,15 @@ Function subscriber transaction expectations are subscriber-declared:
 - Pass the same expectation to `ApiFunctionSubscriberBase` and helper context generics to narrow `eventManager` to `EntityManager`.
 - Do not infer subscriber transaction requirements from `@ApiService`, `@ApiFunctionCustom`, or `@ApiFunctionStep`; subscribers without metadata keep optional `eventManager`.
 
+Post-transaction function subscriber lifecycle:
+
+- `onAfterCommit` and `onAfterRollback` run once per matching subscriber after the outer owner has completed the database transaction.
+- `context.DATA.transaction` contains the UUID and immutable `FUNCTION`, `ROUTE`, or `SCOPE` owner.
+- `context.DATA.events` contains the full ordered trace; `matchedEvents` contains only events that selected that subscriber.
+- STEP events remain trace-only and never select subscribers.
+- `onBeforeErrorCommit`/`onBeforeErrorRollback` receive raw failures; `onAfterErrorCommit`/`onAfterErrorRollback` receive normalized transaction exceptions.
+- `ApiFunctionTransactionScope.runWithDataSource(dataSource, { name }, callback)` owns a named transaction; `runWithEntityManager` only joins an existing Automator owner.
+
 For generated CRUD before hooks, `context.result` includes request targets plus `authenticationRequest`, `headers`, and `ip`. For `@ApiRouteCustom`, `context.result` is only `{ body?, parameters?, query? }`; read `authenticationRequest`, `headers`, `ip`, route metadata, and runtime properties from `context.DATA`.
 
 ## Authorization Notes

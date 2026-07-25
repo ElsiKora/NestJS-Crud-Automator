@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
-import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, type TApiSubscriberFunctionBeforeCreateContext } from "../../../../src/index";
+import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, type IApiSubscriberFunctionTransactionContext, type TApiSubscriberFunctionBeforeCreateContext } from "../../../../src/index";
 
 import { E2eEntity } from "../entity";
 
@@ -9,8 +9,11 @@ import { E2eEntity } from "../entity";
 export class E2eFunctionSubscriber extends ApiFunctionSubscriberBase<E2eEntity> {
 	public static events: Array<string> = [];
 
+	public static transactionContexts: Array<IApiSubscriberFunctionTransactionContext> = [];
+
 	public static reset(): void {
 		E2eFunctionSubscriber.events = [];
+		E2eFunctionSubscriber.transactionContexts = [];
 	}
 
 	private static record(stage: string, action: string): void {
@@ -47,6 +50,11 @@ export class E2eFunctionSubscriber extends ApiFunctionSubscriberBase<E2eEntity> 
 		}
 
 		return context.result;
+	}
+
+	public async onAfterCommit(context: IApiSubscriberFunctionTransactionContext): Promise<void> {
+		E2eFunctionSubscriber.record("after", "commit");
+		E2eFunctionSubscriber.transactionContexts.push(context);
 	}
 
 	public async onAfterCreate(context: { result: E2eEntity }) {
@@ -115,6 +123,11 @@ export class E2eFunctionSubscriber extends ApiFunctionSubscriberBase<E2eEntity> 
 		E2eFunctionSubscriber.record("after", "getMany");
 
 		return context.result;
+	}
+
+	public async onAfterRollback(context: IApiSubscriberFunctionTransactionContext): Promise<void> {
+		E2eFunctionSubscriber.record("after", "rollback");
+		E2eFunctionSubscriber.transactionContexts.push(context);
 	}
 
 	public async onBeforeUpdate(context: { result: Partial<E2eEntity> }) {

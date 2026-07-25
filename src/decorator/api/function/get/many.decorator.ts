@@ -30,11 +30,9 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 	const { entity }: IApiFunctionProperties<E> = properties;
 	const transactionMode: EApiFunctionTransactionMode = properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 
-	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		// eslint-disable-next-line @elsikora/sonar/void-use
 		void _target;
-		// eslint-disable-next-line @elsikora/sonar/void-use
-		void _propertyKey;
 
 		descriptor.value = async function (this: { repository: Repository<E> }, getManyProperties: TApiFunctionGetManyProperties<E>): Promise<Array<E>> {
 			return await ApiFunctionExecuteWithTransaction({
@@ -71,6 +69,8 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? {}, repository });
 				},
 				entity,
+				functionType: EApiFunctionType.GET_MANY,
+				methodName: propertyKey,
 				mode: transactionMode,
 				onPreflightError: async (eventManager: EntityManager | undefined, error: Error): Promise<void> => {
 					const entityInstance: E = new entity();
@@ -84,6 +84,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 					await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, error);
 				},
 				repository: this.repository,
+				serviceConstructor: this.constructor as new (...arguments_: Array<unknown>) => unknown,
 			});
 		};
 

@@ -598,6 +598,44 @@ private async recordPromotionAudit(user: UserEntity): Promise<void> {
 
 Steps do not dispatch function subscribers, create route metadata, or define Swagger/authorization action identities. Step context intentionally exposes only `eventManager`, `repository`, and `getRepository`; use `@ApiFunctionCustom` plus `getApiFunctionContext()` when you need `operations` or lifecycle hooks.
 
+`REQUIRED` opens one Automator-owned `QueryRunner` transaction when none exists. Nested `REQUIRED`, `MANDATORY`, and transactional `SUPPORTS` calls join the same manager and register ordered transaction events; only the outer owner commits, rolls back, and flushes post-transaction subscribers. `NONE` and nontransactional `SUPPORTS` do not produce post-transaction lifecycle work.
+
+Use a named scope when application code, rather than a decorated function, must own the transaction:
+
+```typescript
+import { ApiFunctionTransactionScope } from "@elsikora/nestjs-crud-automator";
+
+await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "register-user" }, async () => {
+	await userService.create(body);
+	await auditService.create(entry);
+});
+```
+
+The scope name is trimmed and must be non-empty. `runWithEntityManager()` is join-only: it accepts only the manager already bound to an active Automator transaction and never opens a second transaction.
+
+Function subscribers can react once after the outer commit or rollback:
+
+```typescript
+import type { IApiSubscriberFunctionTransactionContext } from "@elsikora/nestjs-crud-automator";
+
+import { ApiFunctionSubscriber, ApiFunctionSubscriberBase } from "@elsikora/nestjs-crud-automator";
+
+@ApiFunctionSubscriber({ entity: UserEntity })
+export class UserSubscriber extends ApiFunctionSubscriberBase<UserEntity> {
+	async onAfterCommit(context: IApiSubscriberFunctionTransactionContext): Promise<void> {
+		await publishCommittedEvents(context.DATA.matchedEvents);
+	}
+
+	async onAfterRollback(context: IApiSubscriberFunctionTransactionContext): Promise<void> {
+		await discardPendingWork(context.DATA.transaction.id);
+	}
+}
+```
+
+`context.DATA` is readonly and contains the transaction UUID, immutable outer owner, all ordered events, and only the events matched by that subscriber. Events contain identity and status only; arguments, request bodies, entities, and results are never retained. Steps appear in `events` with trace type `STEP`, but they do not select or independently invoke subscribers.
+
+Post-commit and post-rollback hooks run sequentially by subscriber priority and registration order. Hook failures do not stop later hooks. A committed transaction with failing hooks throws `ApiFunctionTransactionPostCommitException` with outcome `COMMITTED`; a failed database commit throws `ApiFunctionTransactionCommitUnknownOutcomeException` with outcome `UNKNOWN`; rollback handling failures throw `ApiFunctionTransactionRollbackException` while retaining the original operation error as the cause.
+
 ```typescript
 // app.module.ts
 import type { IApiAuthorizationPrincipal, IApiHookPermissionSource, IApiPolicyAttachmentSource, IApiPolicyDocumentSource, IApiResolvedPolicyAttachments } from "@elsikora/nestjs-crud-automator";

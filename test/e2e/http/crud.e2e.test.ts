@@ -6,7 +6,7 @@ import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiAuthorizationCacheInvalidationService, AUTHORIZATION_POLICY_REGISTRY_TOKEN, CorrelationIDResponseBodyInterceptor, type IApiAuthorizationPolicyRegistry } from "../../../src/index";
+import { ApiAuthorizationCacheInvalidationService, AUTHORIZATION_POLICY_REGISTRY_TOKEN, CorrelationIDResponseBodyInterceptor, EApiFunctionTransactionOwnerKind, EApiFunctionTransactionTraceType, EApiFunctionType, type IApiAuthorizationPolicyRegistry } from "../../../src/index";
 import { E2E_OWNER_ID, E2E_OWNER_ID_OTHER } from "../app/constants";
 import { E2eAppModule, E2eCustomRouteSubscriber, E2eEntity, E2eFunctionSubscriber, E2eOwnerService, E2ePolicySubscriber, E2eRouteSubscriber, E2eService } from "../app";
 
@@ -1360,7 +1360,17 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(response.statusCode).toBe(201);
 		expect(response.json().name).toBe("custom-after-fn-custom-Required");
-		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:custom.required", "function:before:custom.required:transaction", "function:after:custom.required", "function:before:create:transaction"]));
+		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:custom.required", "function:before:custom.required:transaction", "function:after:custom.required", "function:before:create:transaction", "function:after:commit"]));
+		expect(E2eFunctionSubscriber.transactionContexts).toHaveLength(1);
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.transaction.owner).toEqual({
+			action: "custom.required",
+			entityName: E2eEntity.name,
+			functionType: EApiFunctionType.CUSTOM,
+			kind: EApiFunctionTransactionOwnerKind.FUNCTION,
+			methodName: "createWithCustomRequired",
+		});
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.events).toHaveLength(2);
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.matchedEvents).toHaveLength(2);
 		expect((await service.repository.findOne({ where: { id: "custom-required-1" } }))?.name).toBe("fn-custom-Required");
 	});
 
@@ -1372,7 +1382,7 @@ describe("CRUD routes (E2E)", () => {
 		});
 
 		expect(response.statusCode).toBe(201);
-		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:create:transaction", "function:after:create"]));
+		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:create:transaction", "function:after:create", "function:after:commit"]));
 		expect((await service.repository.findOne({ where: { id: "builtin-required-1" } }))?.name).toBe("fn-Required");
 	});
 
@@ -1387,6 +1397,8 @@ describe("CRUD routes (E2E)", () => {
 		expect(response.json().name).toBe("custom-after-fn-custom-Supports");
 		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:custom.supports", "function:after:custom.supports"]));
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before:custom.supports:transaction");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after:commit");
+		expect(E2eFunctionSubscriber.transactionContexts).toHaveLength(0);
 	});
 
 	it("runs ApiFunctionStep inside an ApiFunctionCustom transaction through HTTP", async () => {
@@ -1403,6 +1415,25 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:step");
+		expect(E2eFunctionSubscriber.events).toContain("function:after:commit");
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.events).toEqual([
+			expect.objectContaining({
+				action: "custom.step",
+				functionType: EApiFunctionType.CUSTOM,
+			}),
+			expect.objectContaining({
+				functionType: EApiFunctionTransactionTraceType.STEP,
+				methodName: "createWithMandatoryStep",
+			}),
+		]);
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.matchedEvents).toHaveLength(1);
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.transaction.owner).toEqual({
+			action: "custom.step",
+			entityName: E2eEntity.name,
+			functionType: EApiFunctionType.CUSTOM,
+			kind: EApiFunctionTransactionOwnerKind.FUNCTION,
+			methodName: "createWithCustomStep",
+		});
 		expect((await service.repository.findOne({ where: { id: "custom-step-1" } }))?.name).toBe("step-custom-Step");
 	});
 
@@ -1419,6 +1450,26 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:step");
+		expect(E2eFunctionSubscriber.events).toContain("function:after:rollback");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after:commit");
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.events).toEqual([
+			expect.objectContaining({
+				action: "custom.step.rollback",
+				functionType: EApiFunctionType.CUSTOM,
+			}),
+			expect.objectContaining({
+				functionType: EApiFunctionTransactionTraceType.STEP,
+				methodName: "createWithFailingMandatoryStep",
+			}),
+		]);
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.matchedEvents).toHaveLength(1);
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.transaction.owner).toEqual({
+			action: "custom.step.rollback",
+			entityName: E2eEntity.name,
+			functionType: EApiFunctionType.CUSTOM,
+			kind: EApiFunctionTransactionOwnerKind.FUNCTION,
+			methodName: "createWithFailingCustomStep",
+		});
 		expect(await service.repository.findOne({ where: { id: "custom-step-rollback-1" } })).toBeNull();
 	});
 
@@ -1431,7 +1482,7 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(response.statusCode).toBe(201);
 		expect(response.json().name).toBe("custom-after-fn-generated-step-custom-StepGenerated");
-		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.step.generated", "function:before:custom.step.generated:transaction", "function:priority:before:create", "function:before:create", "function:before:create:transaction", "function:priority:after:create", "function:after:create", "function:after:custom.step.generated"]);
+		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.step.generated", "function:before:custom.step.generated:transaction", "function:priority:before:create", "function:before:create", "function:before:create:transaction", "function:priority:after:create", "function:after:create", "function:after:custom.step.generated", "function:after:commit"]);
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");
@@ -1448,7 +1499,7 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(response.statusCode).toBe(201);
 		expect(response.json().name).toBe("custom-after-custom-after-fn-custom-nested-step-custom-StepCustom");
-		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.step.custom", "function:before:custom.step.custom:transaction", "function:before:custom.mandatory", "function:before:custom.mandatory:transaction", "function:priority:before:create", "function:before:create", "function:before:create:transaction", "function:priority:after:create", "function:after:create", "function:after:custom.mandatory", "function:after:custom.step.custom"]);
+		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.step.custom", "function:before:custom.step.custom:transaction", "function:before:custom.mandatory", "function:before:custom.mandatory:transaction", "function:priority:before:create", "function:before:create", "function:before:create:transaction", "function:priority:after:create", "function:after:create", "function:after:custom.mandatory", "function:after:custom.step.custom", "function:after:commit"]);
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");

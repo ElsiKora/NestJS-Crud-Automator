@@ -22,7 +22,7 @@ export class E2eService extends ApiServiceBase<E2eEntity> {
 	}
 
 	public async createWithTransaction(body: Partial<E2eEntity>): Promise<E2eEntity> {
-		return this.dataSource.transaction(async (entityManager) => ApiFunctionTransactionScope.runWithEntityManager(entityManager, async () => await this.create(body)));
+		return await ApiFunctionTransactionScope.runWithDataSource(this.dataSource, { name: "createWithTransaction" }, async () => await this.create(body));
 	}
 
 	@ApiFunctionCustom<E2eEntity>({
@@ -114,7 +114,7 @@ export class E2eService extends ApiServiceBase<E2eEntity> {
 	}
 
 	public async createWithCustomNoneInsideTransaction(body: Partial<E2eEntity>): Promise<E2eEntity> {
-		return await ApiFunctionTransactionScope.runWithDataSource(this.dataSource, async () => await this.createWithCustomNone(body));
+		return await ApiFunctionTransactionScope.runWithDataSource(this.dataSource, { name: "createWithCustomNoneInsideTransaction" }, async () => await this.createWithCustomNone(body));
 	}
 
 	@ApiFunction<E2eEntity, E2eEntity>({
@@ -162,7 +162,7 @@ export class E2eService extends ApiServiceBase<E2eEntity> {
 	}
 
 	public async createWithBuiltinNoneInsideTransaction(body: Partial<E2eEntity>): Promise<E2eEntity> {
-		return await ApiFunctionTransactionScope.runWithDataSource(this.dataSource, async () => await this.createWithBuiltinNone(body));
+		return await ApiFunctionTransactionScope.runWithDataSource(this.dataSource, { name: "createWithBuiltinNoneInsideTransaction" }, async () => await this.createWithBuiltinNone(body));
 	}
 
 	@ApiFunctionStep<E2eEntity>({
