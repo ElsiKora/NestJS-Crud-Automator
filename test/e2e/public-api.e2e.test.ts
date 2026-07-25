@@ -51,6 +51,7 @@ import {
 	EApiFunctionTransactionOwnerKind,
 	EApiFunctionTransactionTraceType,
 	EApiFunctionType,
+	EApiGetDefaultStringFormatPropertiesBigIntStringSign,
 	EApiPropertyStringType,
 	EApiRouteSubscriberAuthorizationExpectation,
 	EApiRouteType,
@@ -186,7 +187,7 @@ describe("public API exports (E2E)", () => {
 			type: [PublicApiEmailBodyDto],
 		};
 		const bigintStringOptions: TApiGetDefaultStringFormatPropertiesBigIntStringOptions = {
-			sign: "unsigned",
+			sign: EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED,
 		};
 		const stepProperties: IApiFunctionStepProperties<PublicApiUser> = {
 			entity: PublicApiUser,
@@ -265,6 +266,9 @@ describe("public API exports (E2E)", () => {
 			EApiFunctionType?: {
 				CREATE?: unknown;
 			};
+			EApiGetDefaultStringFormatPropertiesBigIntStringSign?: {
+				UNSIGNED?: unknown;
+			};
 			EApiRouteSubscriberAuthorizationExpectation?: {
 				REQUIRED?: unknown;
 			};
@@ -273,6 +277,9 @@ describe("public API exports (E2E)", () => {
 		const builtCjsPackageEntry = (await import(builtCjsPackageEntryPath)) as {
 			ApiFunctionStep?: unknown;
 			ApiFunctionTransactionScope?: unknown;
+			EApiGetDefaultStringFormatPropertiesBigIntStringSign?: {
+				UNSIGNED?: unknown;
+			};
 		};
 		const bigintStringDefaults = GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, bigintStringOptions);
 		const resolvedPrincipal: IApiAuthorizationPrincipal = await Promise.resolve(
@@ -333,8 +340,13 @@ describe("public API exports (E2E)", () => {
 		expect(builtPackageEntry).not.toHaveProperty("ApiFunctionTransactionLifecycle");
 		expect(builtPackageEntry).not.toHaveProperty("ApiFunctionTransactionRegistry");
 		expect(builtPackageEntry).not.toHaveProperty("ApiFunctionTransactionRuntime");
+		expect(builtPackageEntry).not.toHaveProperty("ApplyBigIntStringGetDefaultStringFormatPropertiesOptions");
+		expect(builtPackageEntry).not.toHaveProperty("ApplyGetDefaultStringFormatPropertiesCustomizer");
+		expect(builtPackageEntry).not.toHaveProperty("CUSTOMIZER_MAP_GET_DEFAULT_STRING_FORMAT_PROPERTIES_API_UTILITY_CONSTANT");
+		expect(builtPackageEntry).not.toHaveProperty("MANUAL_PROPERTY_METADATA_DTO_UTILITY_CONSTANT");
 		expect(typeof builtCjsPackageEntry.ApiFunctionStep).toBe("function");
 		expect(typeof builtCjsPackageEntry.ApiFunctionTransactionScope).toBe("function");
+		expect(builtCjsPackageEntry.EApiGetDefaultStringFormatPropertiesBigIntStringSign?.UNSIGNED).toBe(EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED);
 		expect(builtPackageEntry.EApiFunctionContextStorageKind?.TRANSACTION).toBe(EApiFunctionContextStorageKind.TRANSACTION);
 		expect(builtPackageEntry.EApiFunctionSubscriberTransactionExpectation?.REQUIRED).toBe(EApiFunctionSubscriberTransactionExpectation.REQUIRED);
 		expect(builtPackageEntry.EApiFunctionTransactionEventStatus?.SUCCEEDED).toBe(EApiFunctionTransactionEventStatus.SUCCEEDED);
@@ -343,6 +355,7 @@ describe("public API exports (E2E)", () => {
 		expect(builtPackageEntry.EApiFunctionTransactionOwnerKind?.SCOPE).toBe(EApiFunctionTransactionOwnerKind.SCOPE);
 		expect(builtPackageEntry.EApiFunctionTransactionTraceType?.STEP).toBe(EApiFunctionTransactionTraceType.STEP);
 		expect(builtPackageEntry.EApiFunctionType?.CREATE).toBe(EApiFunctionType.CREATE);
+		expect(builtPackageEntry.EApiGetDefaultStringFormatPropertiesBigIntStringSign?.UNSIGNED).toBe(EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED);
 		expect(builtPackageEntry.EApiRouteSubscriberAuthorizationExpectation?.REQUIRED).toBe(EApiRouteSubscriberAuthorizationExpectation.REQUIRED);
 		expect(AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN).toBe("API_AUTHORIZATION_PRINCIPAL_RESOLVER");
 		expect(resolvedPrincipal.id).toBe("user-1");

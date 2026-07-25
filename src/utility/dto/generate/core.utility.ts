@@ -10,6 +10,8 @@ import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { ApiExtraModels } from "@nestjs/swagger";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
+import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoGenerateCacheKey } from "@utility/dto/generate/cache-key.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
@@ -22,9 +24,6 @@ import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { HasPairedCustomSuffixesFieldsValidator } from "@validator/has/paired-custom-suffixes-fields.validator";
 import { Validate } from "class-validator";
-
-import { DtoAutoContextPop } from "../auto/context/pop.utility";
-import { DtoAutoContextPush } from "../auto/context/push.utility";
 
 const dtoGenerateCache: Map<string, Type<unknown>> = new Map<string, Type<unknown>>();
 

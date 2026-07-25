@@ -1,4 +1,4 @@
-import type { IApiRouteThrottlingDefaultProperties } from "./default-properties.interface";
+import type { IApiRouteThrottlingDefaultProperties } from "@interface/decorator/api/route/throttling/default-properties.interface";
 
 export interface IApiRouteThrottlingProperties {
 	default?: IApiRouteThrottlingDefaultProperties;

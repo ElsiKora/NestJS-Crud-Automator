@@ -1,8 +1,7 @@
 import type { EApiDtoType } from "@enum/decorator/api";
 import type { IApiControllerPropertiesRouteGetListResponseDtoConfig } from "@interface/decorator/api/controller/properties/route";
 import type { Type } from "@nestjs/common";
-
-import type { TApiRouteDiscriminatedDtoProperties } from "../discriminated";
+import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route/discriminated-dto-properties.type";
 
 export type TApiRouteCustomDtoProperties = Partial<
 	{

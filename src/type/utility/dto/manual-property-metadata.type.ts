@@ -1,4 +1,4 @@
-import type { EManualDtoPropertyMetadataDecorator } from "@enum/utility/dto/manual/property-metadata/decorator.enum";
+import type { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import type { TApiPropertyBaseProperties, TApiPropertyDateProperties, TApiPropertyEnumProperties, TApiPropertyNumberProperties, TApiPropertyObjectProperties, TApiPropertyStringProperties, TApiPropertyUuidProperties } from "@type/decorator/api/property";
 
 export type TManualDtoPropertyMetadata =

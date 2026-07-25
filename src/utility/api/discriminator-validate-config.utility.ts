@@ -1,5 +1,5 @@
 import type { Type } from "@nestjs/common";
-import type { TApiDiscriminatorValidateConfigProperties } from "@type/utility/api/discriminator";
+import type { TApiDiscriminatorValidateConfigProperties } from "@type/utility/api";
 import type { ClassConstructor } from "class-transformer";
 
 import { DECORATORS } from "@nestjs/swagger/dist/constants.js";

@@ -1,7 +1,6 @@
 import type { EApiControllerRequestTarget, EApiRouteType } from "@enum/decorator/api";
+import type { IApiControllerPropertiesRouteBaseRequestTarget } from "@interface/decorator/api/controller/properties/route/base/request/target.interface";
 import type { TApiControllerAllowedRequestTarget } from "@type/decorator/api/controller";
-
-import type { IApiControllerPropertiesRouteBaseRequestTarget } from "./target.interface";
 
 // eslint-disable-next-line @elsikora/typescript/naming-convention
 export type IApiControllerPropertiesRouteBaseRequest<E, R extends EApiRouteType> = {

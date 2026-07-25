@@ -1,5 +1,6 @@
 import type { InstanceWrapper } from "@nestjs/core/injector/instance-wrapper";
 
+import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
 import { AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
@@ -11,8 +12,6 @@ import { Inject, Injectable, OnApplicationBootstrap, Optional } from "@nestjs/co
 import { DiscoveryService } from "@nestjs/core";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
-
-import { ApiAuthorizationPolicyRegistry } from "./policy/registry.class";
 
 const authorizationBootstrapValidationLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationBootstrapValidationService");
 

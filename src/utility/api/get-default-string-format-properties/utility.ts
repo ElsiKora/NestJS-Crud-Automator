@@ -2,9 +2,8 @@ import type { TApiPropertyDefaultStringFormat, TApiPropertyDefaultStringFormatPr
 import type { TApiGetDefaultStringFormatPropertiesParameters } from "@type/utility/api";
 
 import { DEFAULT_STRING_FORMAT_PROPERTY_API_INTERFACE_CONSTANT } from "@constant/interface/api";
+import { ApplyGetDefaultStringFormatPropertiesCustomizer } from "@utility/api/get-default-string-format-properties/customizer-apply.utility";
 import cloneDeep from "lodash/cloneDeep.js";
-
-import { ApplyGetDefaultStringFormatPropertiesCustomizer } from "./customizer";
 
 /**
  * Returns default format properties for supported string types (EMAIL, IP, URL, UUID).

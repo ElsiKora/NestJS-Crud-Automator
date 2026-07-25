@@ -2,7 +2,7 @@ import type { EApiRouteSubscriberAuthorizationExpectation } from "@enum/decorato
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.interface";
 
-import { ApiSubscriberBase } from "./base.class";
+import { ApiSubscriberBase } from "@class/api/subscriber/base.class";
 
 /**
  * Abstract base class for route-level subscribers.

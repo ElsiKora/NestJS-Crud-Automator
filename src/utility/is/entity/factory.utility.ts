@@ -1,7 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { Type } from "@nestjs/common";
 
-import { IsEntityConstructor } from "./constructor.utility";
+import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
 
 /**
  * Checks whether the candidate is a factory returning an entity reference.

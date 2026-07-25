@@ -1,7 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiFunctionContextOperations } from "@interface/class/api/function/context/operations.interface";
 import type { EntityManager, Repository } from "typeorm";
-
-import type { IApiFunctionContextOperations } from "./operations.interface";
 
 export interface IApiFunctionContext<E extends IApiBaseEntity> {
 	entity: new () => E;

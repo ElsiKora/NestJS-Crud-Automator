@@ -5,6 +5,9 @@ import type { IApiControllerAuthorizationProperties } from "@interface/decorator
 import type { IApiRouteAuthorizationProperties } from "@interface/decorator/api/route";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
+import { ApiAuthorizationEngine } from "@class/api/authorization/engine.class";
+import { ApiAuthorizationHookPermissionResolver } from "@class/api/authorization/hook";
+import { ApiAuthorizationIamAttachmentResolver, ApiAuthorizationIamDocumentResolver, ApiAuthorizationIamEngine } from "@class/api/authorization/iam";
 import { AUTHORIZATION_AUDIT_SINK_TOKEN, AUTHORIZATION_POLICY_REGISTRY_TOKEN, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN } from "@constant/class/authorization";
 import { EApiAuthorizationMode } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api/route";
@@ -12,10 +15,6 @@ import { Inject, Injectable, Optional } from "@nestjs/common";
 import { AuthorizationResolveDefaultPrincipal } from "@utility/authorization";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
-
-import { ApiAuthorizationEngine } from "./engine.class";
-import { ApiAuthorizationHookPermissionResolver } from "./hook";
-import { ApiAuthorizationIamAttachmentResolver, ApiAuthorizationIamDocumentResolver, ApiAuthorizationIamEngine } from "./iam";
 
 const authorizationRuntimeLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationRuntime");
 

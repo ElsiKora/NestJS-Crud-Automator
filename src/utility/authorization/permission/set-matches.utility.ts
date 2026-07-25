@@ -1,6 +1,5 @@
 import { EApiAuthorizationPermissionMatch } from "@enum/class/authorization";
-
-import { AuthorizationPermissionMatches } from "./matches.utility";
+import { AuthorizationPermissionMatches } from "@utility/authorization/permission/matches.utility";
 
 /**
  * Checks whether granted permissions satisfy the required permissions.

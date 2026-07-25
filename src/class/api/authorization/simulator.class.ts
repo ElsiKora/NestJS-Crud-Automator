@@ -3,10 +3,9 @@ import type { IApiAuthorizationDecision, IApiAuthorizationPrincipal, IApiAuthori
 import type { IApiControllerAuthorizationProperties, IApiControllerRouteAuthorizationProperties } from "@interface/decorator/api/controller/properties";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
+import { ApiAuthorizationRuntime } from "@class/api/authorization/runtime.class";
 import { EApiRouteType } from "@enum/decorator/api";
 import { Injectable } from "@nestjs/common";
-
-import { ApiAuthorizationRuntime } from "./runtime.class";
 
 @Injectable()
 export class ApiAuthorizationSimulator {

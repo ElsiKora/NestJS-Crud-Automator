@@ -4,14 +4,13 @@ import type { TApiControllerMethod } from "@type/class/controller-method.type";
 
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
+import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiControllerResponseTarget } from "@enum/decorator/api";
 import { ApiRouteRuntimeInterceptor } from "@interceptor/api-route-runtime.interceptor";
 import { applyDecorators, SetMetadata, UseInterceptors } from "@nestjs/common";
 import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum.js";
 import { ApiRouteApplyDtoMetadata } from "@utility/api/route/apply-dto-metadata.utility";
-
-import { ApiMethod } from "./method.decorator";
 
 /**
  * Creates a custom API route with metadata, runtime properties, and route runtime interception.

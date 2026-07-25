@@ -1,10 +1,9 @@
 import type { IApiAuthorizationPrincipal, IApiPolicyAttachment, IApiPolicyAttachmentSource, IApiResolvedPolicyAttachments } from "@interface/class/api/authorization";
 
+import { ApiAuthorizationIamAttachmentCache } from "@class/api/authorization/iam/attachment/cache.class";
 import { AUTHORIZATION_POLICY_ATTACHMENT_SOURCES_TOKEN } from "@constant/class/authorization";
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { LoggerUtility } from "@utility/logger.utility";
-
-import { ApiAuthorizationIamAttachmentCache } from "./cache.class";
 
 const iamAttachmentResolverLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationIamAttachmentResolver");
 

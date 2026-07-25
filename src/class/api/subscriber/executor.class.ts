@@ -8,14 +8,13 @@ import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/s
 import type { IApiFunctionSubscriberProperties } from "@interface/decorator/api/subscriber";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
+import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { SERVICE_API_DECORATOR_CONSTANT } from "@constant/decorator/api/service.constant";
 import { EApiFunctionSubscriberTransactionExpectation, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
-
-import { apiSubscriberRegistry } from "./registry.class";
 
 const subscriberLogger: LoggerUtility = LoggerUtility.getLogger("ApiSubscriberExecutor");
 

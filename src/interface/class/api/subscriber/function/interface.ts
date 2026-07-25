@@ -6,7 +6,7 @@ import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/ap
 import type { IApiSubscriberFunctionTransactionContext } from "@interface/class/api/subscriber/function/transaction";
 import type { IApiSubscriber } from "@interface/class/api/subscriber/interface";
 import type { IApiGetListResponseResult } from "@interface/decorator/api";
-import type { TApiSubscriberFunctionExecutionContextData } from "@type/class/api/subscriber/function/execution/context";
+import type { TApiSubscriberFunctionExecutionContextData } from "@type/class/api/subscriber/function/execution-context-data.type";
 import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 
 export interface IApiSubscriberFunction<
