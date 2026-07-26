@@ -28,6 +28,20 @@ type TApiControllerGetListQuery<E> = {
 
 HTTP list queries use lowercase sort directions: `asc` and `desc`.
 
+Typed GET_LIST route plans expose metadata-backed helper types:
+
+```typescript
+type TApiControllerGetListQueryFilterPath<E> = TApiControllerGetListQueryDirectScalarPath<E> | TApiControllerGetListQueryOneHopToOneScalarPath<E>;
+
+type TApiControllerGetListQueryOrderPath<E> = TApiControllerGetListQueryDirectScalarPath<E>;
+
+type TApiControllerGetListQueryFilterFields<E> = {
+	[P in TApiControllerGetListQueryFilterPath<E>]?: TApiControllerGetListQueryFilterField<TApiControllerGetListQueryFilterPathValue<E, P>>;
+};
+```
+
+Enabled filter fields require non-empty `allowedOperations`. Their typed `defaultCondition` discriminates scalar `value`, membership/range `values`, and nullary operations. Disabled filter/order fields use the exact `{ isEnabled: false }` shape. TypeScript checks structural paths and broad scalar kinds; controller initialization applies the exact `ApiPropertyDescribe` and TypeORM metadata checks for UUID, enum, nullability, and relation shape.
+
 ## Subscriber Context Helpers
 
 ```typescript

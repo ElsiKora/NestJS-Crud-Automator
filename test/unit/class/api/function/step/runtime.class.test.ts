@@ -4,10 +4,12 @@ import type { EntityManager, Repository } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionStepRuntime } from "@class/api/function/step-runtime.class";
-import { ApiFunctionTransactionScope } from "@class/api/function/transaction-scope.class";
+import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode } from "@enum/decorator/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { createTransactionFixture } from "@test/unit/fixture";
 
 class FunctionStepEntity {
 	public id?: string;
@@ -22,15 +24,17 @@ const createRepository = () => {
 	const transactionManager = {
 		getRepository: vi.fn().mockReturnValue(transactionRepository),
 	} as unknown as EntityManager;
+	const { dataSource } = createTransactionFixture(transactionManager);
 	const managerRepository = {} as Repository<FunctionStepEntity>;
 	const repository = {
 		manager: {
+			connection: dataSource,
 			getRepository: vi.fn().mockReturnValue(managerRepository),
-			transaction: vi.fn(async (callback: (entityManager: EntityManager) => Promise<unknown>) => await callback(transactionManager)),
 		},
 	} as unknown as Repository<FunctionStepEntity>;
 
 	return {
+		dataSource,
 		managerRepository,
 		repository,
 		transactionManager,
@@ -52,7 +56,7 @@ describe("ApiFunctionStepRuntime", () => {
 	});
 
 	it("runs SUPPORTS outside a transaction without opening one", async () => {
-		const { managerRepository, repository } = createRepository();
+		const { dataSource, managerRepository, repository } = createRepository();
 		const target = { repository };
 		const originalMethod = vi.fn(async function (this: typeof target, value: unknown) {
 			const context: IApiFunctionStepContext<FunctionStepEntity> | undefined = ApiFunctionContextStorage.getStep<FunctionStepEntity>();
@@ -76,7 +80,7 @@ describe("ApiFunctionStepRuntime", () => {
 			transactionMode: EApiFunctionTransactionMode.SUPPORTS,
 		});
 
-		expect(repository.manager.transaction).not.toHaveBeenCalled();
+		expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
 		expect(result).toEqual({
 			eventManager: undefined,
 			relatedRepository: managerRepository,
@@ -113,10 +117,11 @@ describe("ApiFunctionStepRuntime", () => {
 	});
 
 	it("joins an active transaction for SUPPORTS mode", async () => {
-		const { repository, transactionManager, transactionRepository } = createRepository();
+		const { dataSource, repository, transactionManager, transactionRepository } = createRepository();
 
-		const result = await ApiFunctionTransactionScope.runWithEntityManager(
-			transactionManager,
+		const result = await ApiFunctionTransactionScope.runWithDataSource(
+			dataSource,
+			{ name: "supports" },
 			async () =>
 				await ApiFunctionStepRuntime.execute({
 					functionArguments: [],
@@ -136,7 +141,7 @@ describe("ApiFunctionStepRuntime", () => {
 				}),
 		);
 
-		expect(repository.manager.transaction).not.toHaveBeenCalled();
+		expect(dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
 		expect(result).toEqual({
 			eventManager: transactionManager,
 			repository: transactionRepository,
@@ -144,7 +149,7 @@ describe("ApiFunctionStepRuntime", () => {
 	});
 
 	it("opens one transaction for REQUIRED mode outside an active transaction", async () => {
-		const { repository, transactionManager, transactionRepository } = createRepository();
+		const { dataSource, repository, transactionManager, transactionRepository } = createRepository();
 
 		const result = await ApiFunctionStepRuntime.execute({
 			functionArguments: [],
@@ -163,7 +168,7 @@ describe("ApiFunctionStepRuntime", () => {
 			transactionMode: EApiFunctionTransactionMode.REQUIRED,
 		});
 
-		expect(repository.manager.transaction).toHaveBeenCalledTimes(1);
+		expect(dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
 		expect(result).toEqual({
 			eventManager: transactionManager,
 			repository: transactionRepository,
@@ -171,10 +176,11 @@ describe("ApiFunctionStepRuntime", () => {
 	});
 
 	it("reuses an active transaction for REQUIRED mode", async () => {
-		const { repository, transactionManager, transactionRepository } = createRepository();
+		const { dataSource, repository, transactionManager, transactionRepository } = createRepository();
 
-		const result = await ApiFunctionTransactionScope.runWithEntityManager(
-			transactionManager,
+		const result = await ApiFunctionTransactionScope.runWithDataSource(
+			dataSource,
+			{ name: "required" },
 			async () =>
 				await ApiFunctionStepRuntime.execute({
 					functionArguments: [],
@@ -187,7 +193,7 @@ describe("ApiFunctionStepRuntime", () => {
 				}),
 		);
 
-		expect(repository.manager.transaction).not.toHaveBeenCalled();
+		expect(dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
 		expect(transactionManager.getRepository).toHaveBeenCalledWith(FunctionStepEntity);
 		expect(result).toBe(transactionManager);
 		expect(ApiFunctionContextStorage.get()).toBeUndefined();
@@ -195,7 +201,7 @@ describe("ApiFunctionStepRuntime", () => {
 	});
 
 	it("runs NONE mode outside a transaction without opening one", async () => {
-		const { managerRepository, repository } = createRepository();
+		const { dataSource, managerRepository, repository } = createRepository();
 
 		const result = await ApiFunctionStepRuntime.execute({
 			functionArguments: [],
@@ -215,7 +221,7 @@ describe("ApiFunctionStepRuntime", () => {
 			transactionMode: EApiFunctionTransactionMode.NONE,
 		});
 
-		expect(repository.manager.transaction).not.toHaveBeenCalled();
+		expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
 		expect(result).toEqual({
 			eventManager: undefined,
 			relatedRepository: managerRepository,
@@ -260,10 +266,11 @@ describe("ApiFunctionStepRuntime", () => {
 	});
 
 	it("resolves getRepository helper from the requested entity inside an active transaction", async () => {
-		const { repository, transactionManager } = createRepository();
+		const { dataSource, repository, transactionManager } = createRepository();
 
-		const result = await ApiFunctionTransactionScope.runWithEntityManager(
-			transactionManager,
+		const result = await ApiFunctionTransactionScope.runWithDataSource(
+			dataSource,
+			{ name: "getRepository" },
 			async () =>
 				await ApiFunctionStepRuntime.execute({
 					functionArguments: [],
@@ -299,14 +306,15 @@ describe("ApiFunctionStepRuntime", () => {
 	});
 
 	it("fails NONE mode inside an active transaction", async () => {
-		const { repository, transactionManager } = createRepository();
+		const { dataSource, repository } = createRepository();
 		const originalMethod = vi.fn(async () => undefined);
 		const subscriberSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers");
 		const errorSubscriberSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers");
 
 		await expect(
-			ApiFunctionContextStorage.run(
-				createContext(repository, transactionManager),
+			ApiFunctionTransactionScope.runWithDataSource(
+				dataSource,
+				{ name: "none" },
 				async () =>
 					await ApiFunctionStepRuntime.execute({
 						functionArguments: [],
@@ -396,7 +404,7 @@ describe("ApiFunctionStepRuntime", () => {
 	});
 
 	it("rethrows REQUIRED step failures from the opened transaction", async () => {
-		const { repository } = createRepository();
+		const { dataSource, repository } = createRepository();
 		const error = new Error("required step failed");
 
 		await expect(
@@ -413,11 +421,11 @@ describe("ApiFunctionStepRuntime", () => {
 			}),
 		).rejects.toBe(error);
 
-		expect(repository.manager.transaction).toHaveBeenCalledTimes(1);
+		expect(dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
 	});
 
 	it("reuses an outer REQUIRED transaction for nested REQUIRED step calls", async () => {
-		const { repository, transactionManager } = createRepository();
+		const { dataSource, repository, transactionManager } = createRepository();
 
 		const result = await ApiFunctionStepRuntime.execute({
 			functionArguments: [],
@@ -445,7 +453,7 @@ describe("ApiFunctionStepRuntime", () => {
 			transactionMode: EApiFunctionTransactionMode.REQUIRED,
 		});
 
-		expect(repository.manager.transaction).toHaveBeenCalledTimes(1);
+		expect(dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
 		expect(result).toEqual({
 			innerEventManager: transactionManager,
 			outerEventManager: transactionManager,
@@ -453,10 +461,11 @@ describe("ApiFunctionStepRuntime", () => {
 	});
 
 	it("reuses the same context for nested step calls", async () => {
-		const { repository, transactionManager } = createRepository();
+		const { dataSource, repository, transactionManager } = createRepository();
 
-		const result = await ApiFunctionTransactionScope.runWithEntityManager(
-			transactionManager,
+		const result = await ApiFunctionTransactionScope.runWithDataSource(
+			dataSource,
+			{ name: "nestedSteps" },
 			async () =>
 				await ApiFunctionStepRuntime.execute({
 					functionArguments: [],
@@ -489,6 +498,7 @@ describe("ApiFunctionStepRuntime", () => {
 			innerEventManager: transactionManager,
 			outerEventManager: transactionManager,
 		});
+		expect(dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not execute function subscribers for steps", async () => {

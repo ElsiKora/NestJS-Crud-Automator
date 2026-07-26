@@ -8,14 +8,13 @@ import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/s
 import type { IApiFunctionSubscriberProperties } from "@interface/decorator/api/subscriber";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
+import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { SERVICE_API_DECORATOR_CONSTANT } from "@constant/decorator/api/service.constant";
 import { EApiFunctionSubscriberTransactionExpectation, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
-
-import { apiSubscriberRegistry } from "./registry.class";
 
 const subscriberLogger: LoggerUtility = LoggerUtility.getLogger("ApiSubscriberExecutor");
 
@@ -52,7 +51,7 @@ export class ApiSubscriberExecutor {
 		await ApiFunctionContextStorage.runWithoutStepContext(async (): Promise<void> => {
 			for (const subscriber of subscribers) {
 				const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, functionType);
-				const hook: unknown = subscriber[hookName as keyof IApiSubscriberFunction<IApiBaseEntity>];
+				const hook: unknown = Reflect.get(subscriber, hookName);
 
 				if (typeof hook === "function") {
 					const properties: IApiFunctionSubscriberProperties<IApiBaseEntity> | undefined = apiSubscriberRegistry.getFunctionSubscriberProperties(subscriber);
@@ -76,7 +75,7 @@ export class ApiSubscriberExecutor {
 		await ApiFunctionContextStorage.runWithoutStepContext(async (): Promise<void> => {
 			for (const subscriber of subscribers) {
 				const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, functionType);
-				const hook: unknown = subscriber[hookName as keyof IApiSubscriberFunction<IApiBaseEntity>];
+				const hook: unknown = Reflect.get(subscriber, hookName);
 
 				if (typeof hook === "function") {
 					const properties: IApiFunctionSubscriberProperties<IApiBaseEntity> | undefined = apiSubscriberRegistry.getFunctionSubscriberProperties(subscriber);
@@ -104,7 +103,7 @@ export class ApiSubscriberExecutor {
 
 		for (const subscriber of subscribers) {
 			const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, routeType);
-			const hook: unknown = subscriber[hookName as keyof IApiSubscriberRoute<IApiBaseEntity>];
+			const hook: unknown = Reflect.get(subscriber, hookName);
 
 			if (typeof hook === "function") {
 				subscriberLogger.verbose(`Executing route error hook ${hookName} from ${subscriber.constructor.name} for entity ${entityName}`);
@@ -124,7 +123,7 @@ export class ApiSubscriberExecutor {
 
 		for (const subscriber of subscribers) {
 			const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, routeType);
-			const hook: unknown = subscriber[hookName as keyof IApiSubscriberRoute<IApiBaseEntity>];
+			const hook: unknown = Reflect.get(subscriber, hookName);
 
 			if (typeof hook === "function") {
 				subscriberLogger.verbose(`Executing route hook ${hookName} from ${subscriber.constructor.name} for entity ${entityName}`);

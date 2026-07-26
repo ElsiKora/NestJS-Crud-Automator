@@ -1,6 +1,10 @@
+import type { IApiAuthorizationModuleOptions } from "@interface/class/api/authorization";
 import type { InstanceWrapper } from "@nestjs/core/injector/instance-wrapper";
 
-import { AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
+import { ApiAuthorizationHookPermissionCache } from "@class/api/authorization/hook";
+import { ApiAuthorizationIamAttachmentCache, ApiAuthorizationIamDocumentCache } from "@class/api/authorization/iam";
+import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
+import { AUTHORIZATION_MODULE_OPTIONS_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { EApiAuthorizationMode } from "@enum/class/authorization";
@@ -12,8 +16,6 @@ import { DiscoveryService } from "@nestjs/core";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
-import { ApiAuthorizationPolicyRegistry } from "./policy/registry.class";
-
 const authorizationBootstrapValidationLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationBootstrapValidationService");
 
 @Injectable()
@@ -21,12 +23,21 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	public constructor(
 		private readonly discoveryService: DiscoveryService,
 		private readonly policyRegistry: ApiAuthorizationPolicyRegistry,
+		private readonly hookPermissionCache: ApiAuthorizationHookPermissionCache,
+		private readonly iamAttachmentCache: ApiAuthorizationIamAttachmentCache,
+		private readonly iamDocumentCache: ApiAuthorizationIamDocumentCache,
 		@Inject(AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN)
 		@Optional()
 		private readonly documentSources: ReadonlyArray<unknown> = [],
+		@Inject(AUTHORIZATION_MODULE_OPTIONS_TOKEN)
+		@Optional()
+		private readonly moduleOptions: IApiAuthorizationModuleOptions = {},
 	) {}
 
 	public onApplicationBootstrap(): void {
+		this.hookPermissionCache.configure(this.moduleOptions.cache);
+		this.iamAttachmentCache.configure(this.moduleOptions.cache);
+		this.iamDocumentCache.configure(this.moduleOptions.cache);
 		const controllerWrappers: Array<InstanceWrapper> = this.discoveryService.getControllers();
 
 		authorizationBootstrapValidationLogger.verbose(`Starting authorization bootstrap validation for ${controllerWrappers.length} controllers.`);

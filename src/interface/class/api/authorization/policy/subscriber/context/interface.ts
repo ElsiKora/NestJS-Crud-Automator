@@ -1,11 +1,10 @@
 import type { EApiRouteType } from "@enum/decorator/api/route";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
+import type { IApiAuthorizationPolicySubscriberContextData } from "@interface/class/api/authorization/policy/subscriber/context/data.interface";
 import type { IApiAuthorizationPrincipal } from "@interface/class/api/authorization/principal";
 import type { IApiAuthorizationRequestMetadata } from "@interface/class/api/authorization/request-metadata.interface";
 import type { IApiEntity } from "@interface/entity/interface";
-
-import type { IApiAuthorizationPolicySubscriberContextData } from "./data.interface";
 
 /**
  * Execution context for authorization policy hooks.

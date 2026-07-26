@@ -14,12 +14,13 @@ import { EApiFunctionTransactionMode } from "@enum/decorator/api";
 export function ApiFunctionStep<E extends IApiBaseEntity>(properties: IApiFunctionStepProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const transactionMode: EApiFunctionTransactionMode = properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 
-	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		const originalMethod: (...arguments_: Array<unknown>) => Promise<unknown> = descriptor.value as (...arguments_: Array<unknown>) => Promise<unknown>;
 
 		descriptor.value = async function (this: { repository?: Repository<E> }, ...functionArguments: Array<unknown>): Promise<unknown> {
 			return await ApiFunctionStepRuntime.execute({
 				functionArguments,
+				methodName: propertyKey,
 				originalMethod,
 				properties,
 				target: this,

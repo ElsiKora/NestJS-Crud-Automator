@@ -1,6 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-
-import type { TApiAuthorizationPolicyContextWithRequestMetadata } from "../../with-request-metadata.type";
+import type { TApiAuthorizationPolicyContextWithRequestMetadata } from "@type/class/api/authorization/policy/context/with-request-metadata.type";
 
 export type TApiAuthorizationPolicyBeforeGetContext<E extends IApiBaseEntity> = TApiAuthorizationPolicyContextWithRequestMetadata<
 	E,

@@ -6,6 +6,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	esbuild: false,
+	logLevel: "error",
 	plugins: [
 		tsconfigPaths(),
 		typescript({
@@ -34,8 +35,10 @@ export default defineConfig({
 		},
 		environment: "node",
 		exclude: ["node_modules/**/*"],
+		fileParallelism: false,
 		globals: true,
 		include: ["test/e2e/**/*.test.ts"],
+		maxWorkers: 1,
 		root: ".",
 		testTimeout: 10_000,
 		watch: false,

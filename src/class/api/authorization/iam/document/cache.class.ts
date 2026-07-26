@@ -1,13 +1,19 @@
 import type { IApiPolicyDocumentRecord } from "@interface/class/api/authorization";
+import type { TApiAuthorizationCacheOptions } from "@type/class/api/authorization";
 
+import { ApiAuthorizationResolverCache } from "@class/api/authorization/resolver";
 import { Injectable } from "@nestjs/common";
 
 @Injectable()
 export class ApiAuthorizationIamDocumentCache {
-	private readonly CACHE: Map<string, ReadonlyArray<IApiPolicyDocumentRecord>> = new Map<string, ReadonlyArray<IApiPolicyDocumentRecord>>();
+	private readonly CACHE: ApiAuthorizationResolverCache<ReadonlyArray<IApiPolicyDocumentRecord>> = new ApiAuthorizationResolverCache<ReadonlyArray<IApiPolicyDocumentRecord>>();
 
 	public clear(): void {
 		this.CACHE.clear();
+	}
+
+	public configure(options?: TApiAuthorizationCacheOptions): void {
+		this.CACHE.configure(options);
 	}
 
 	public get(ids: ReadonlyArray<string>): ReadonlyArray<IApiPolicyDocumentRecord> | undefined {

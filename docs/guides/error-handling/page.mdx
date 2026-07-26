@@ -77,6 +77,27 @@ Automatic validation error handling:
 }
 ```
 
+## Typed GET_LIST Errors
+
+Configured typed GET_LIST plans return stable `400` codes independently of the host application's `ValidationPipe`:
+
+- `FILTER_REQUIRED` when a filter configured with `missingBehavior: REJECT` is absent;
+- `INVALID_FILTER` for an invalid path, operation, operand, value, or cardinality;
+- `INVALID_ORDER` for invalid `orderBy` or `orderDirection`;
+- `INVALID_LIMIT` and `INVALID_PAGE` for invalid pagination.
+
+Unknown or disabled typed-query fields fail closed instead of being silently ignored.
+
+## Transaction Outcome Errors
+
+Transaction completion failures must be handled by outcome:
+
+- `ApiFunctionTransactionPostCommitException` has `outcome: COMMITTED`. Database work succeeded, but a post-commit or commit-error lifecycle hook failed. Do not retry it as if the transaction rolled back.
+- `ApiFunctionTransactionCommitUnknownOutcomeException` has `outcome: UNKNOWN`. The driver did not confirm COMMIT; Automator runs commit-error lifecycle but neither post-commit nor post-rollback hooks.
+- A clean confirmed rollback rethrows the original operation error. `ApiFunctionTransactionRollbackException` is used only when rollback handling adds a database rollback, hook, or error-lifecycle failure; it preserves `operationError` and reports `ROLLED_BACK` after confirmed database rollback or `UNKNOWN` when rollback itself failed.
+
+All three expose the transaction id and immutable owner. Use `onBeforeErrorCommit`, `onAfterErrorCommit`, `onBeforeErrorRollback`, and `onAfterErrorRollback` for subscriber-level transaction error handling.
+
 ## Custom Exceptions
 
 Create custom exceptions for specific errors:

@@ -1,12 +1,11 @@
 import type { IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "@interface/class/api/authorization";
 
+import { ApiAuthorizationIamDocumentCache } from "@class/api/authorization/iam/document/cache.class";
+import { ApiAuthorizationIamDocumentValidator } from "@class/api/authorization/iam/document/validator.class";
 import { AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
-
-import { ApiAuthorizationIamDocumentCache } from "./cache.class";
-import { ApiAuthorizationIamDocumentValidator } from "./validator.class";
 
 const iamDocumentResolverLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationIamDocumentResolver");
 

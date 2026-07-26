@@ -1,5 +1,6 @@
 import type { EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
@@ -21,17 +22,18 @@ import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
  * @param {EApiRouteType} method - The type of route (CREATE, DELETE, GET, etc.)
  * @param {string} methodName - The name of the method being configured
  * @param {TApiControllerPropertiesRoute<E, typeof method>} routeConfig - Route-specific configuration
+ * @param {IApiControllerGetListQueryPlan} [queryPlan] - Normalized plan used to resolve the route-scoped dynamic QUERY DTO.
  * @returns {void}
  * @template E - The entity type
  */
-export function ApiControllerApplyMetadata<E extends IApiBaseEntity>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>): void {
+export function ApiControllerApplyMetadata<E extends IApiBaseEntity>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, queryPlan?: IApiControllerGetListQueryPlan): void {
 	let parameterIndex: number = 0;
 	let routeArgumentsMetadata: unknown = {};
 	const parameterTypes: Array<unknown> = [];
 
-	const requestDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig);
-	const queryDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.QUERY, routeConfig);
-	const bodyDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.BODY, routeConfig);
+	const requestDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, queryPlan);
+	const queryDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.QUERY, routeConfig, queryPlan);
+	const bodyDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.BODY, routeConfig, queryPlan);
 
 	if (requestDto) {
 		routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.PARAM, parameterIndex);

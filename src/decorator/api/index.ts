@@ -1,7 +1,7 @@
-export * from "./authorization-policy.decorator";
+export { ApiAuthorizationPolicy } from "./authorization-policy.decorator";
 export * from "./controller";
 export * from "./function";
-export * from "./method.decorator";
+export { ApiMethod } from "./method.decorator";
 export * from "./property";
 export { ApiRouteCustom } from "./route-custom.decorator";
 export * from "./service";

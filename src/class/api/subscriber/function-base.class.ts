@@ -5,7 +5,7 @@ import type { TApiSubscriberFunctionBaseBeforeDeleteResult } from "@type/class/a
 import type { TApiSubscriberFunctionBaseTransactionExpectation } from "@type/class/api/subscriber/function/base/transaction-expectation.type";
 import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 
-import { ApiSubscriberBase } from "./base.class";
+import { ApiSubscriberBase } from "@class/api/subscriber/base.class";
 
 /**
  * Abstract base class for function-level subscribers.

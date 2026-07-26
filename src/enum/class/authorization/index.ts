@@ -1,3 +1,4 @@
+export { EApiAuthorizationCacheMode } from "./cache-mode.enum";
 export { EApiAuthorizationDecisionType } from "./decision-type.enum";
 export { EApiPolicyEffect } from "./effect.enum";
 export { EApiAuthorizationMode } from "./mode.enum";

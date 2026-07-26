@@ -17,7 +17,7 @@ import type { IApiAuthorizationPrincipal, IApiHookPermissionSource, IApiPolicyAt
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 
-import { ApiAuthorizationModule, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, AuthorizationResolveDefaultPrincipal } from "@elsikora/nestjs-crud-automator";
+import { ApiAuthorizationModule, EApiAuthorizationCacheMode, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, AuthorizationResolveDefaultPrincipal } from "@elsikora/nestjs-crud-automator";
 
 const hookPermissionSource: IApiHookPermissionSource = {
 	async getPermissions(principal: IApiAuthorizationPrincipal): Promise<ReadonlyArray<string>> {
@@ -73,6 +73,9 @@ const iamDocumentSource: IApiPolicyDocumentSource = {
 	imports: [
 		TypeOrmModule.forRoot(/* ... */),
 		ApiAuthorizationModule.forRoot({
+			cache: {
+				mode: EApiAuthorizationCacheMode.SOURCE_FIRST,
+			},
 			hookPermissionSources: [hookPermissionSource],
 			iam: {
 				attachmentSources: [iamAttachmentSource],
@@ -108,6 +111,29 @@ The built-in `AuthorizationResolveDefaultPrincipal()` maps `request.user` into a
 
 - hooks mode resolves permissions through `hookPermissionSources`
 - IAM mode resolves attachments and documents through `iam.attachmentSources` and `iam.documentSources`
+
+### Authorization resolver cache modes
+
+`ApiAuthorizationModule` defaults to `EApiAuthorizationCacheMode.SOURCE_FIRST`. Every authorization evaluation reads hooks permissions, IAM attachments, and requested IAM documents from the configured sources. The resolver caches neither read nor write cross-request entries in this mode, including empty results, so a later source error is propagated instead of falling back to stale data. The explicit `SOURCE_FIRST` setting in the example is optional and documents the intended multi-instance behavior.
+
+Use bounded `MEMORY` mode only as an explicit single-process optimization:
+
+```typescript
+ApiAuthorizationModule.forRoot({
+	cache: {
+		maxEntries: 1_000,
+		mode: EApiAuthorizationCacheMode.MEMORY,
+		ttlMs: 30_000,
+	},
+	// principalResolver and sources...
+});
+```
+
+`ttlMs` and `maxEntries` must be positive safe integers or bootstrap fails. TTL starts when an entry is stored, and the oldest entry is evicted when that resolver cache reaches its limit. Each hooks permission, IAM attachment, and IAM document cache has its own limit. Memory is process-local and requires explicit invalidation when a backing change must become visible before TTL expiry; it does not provide multi-instance consistency.
+
+Do not treat Redis Pub/Sub invalidation around independent process-local maps as a correctness boundary, and do not add an implicit memory fallback when a source fails. Multi-instance correctness requires every resolver to read an authoritative source in `SOURCE_FIRST` or a separately designed shared-cache contract outside Automator.
+
+Hooks policy-rule caching is separate from these resolver modes. It remains disabled by default and is configured through `ApiAuthorizationPolicyRegistry.configureCache()` or a policy's `cache` option.
 
 ### `forRootAsync()` for DI-backed sources
 
@@ -370,9 +396,9 @@ Permission helpers compare required permissions against the permissions returned
 
 If you need custom checks outside a policy class, use `AuthorizationPermissionMatches()` and `AuthorizationPermissionSetMatches()`.
 
-Policy caching remains available in hooks mode through `ApiAuthorizationPolicyRegistry.configureCache()` or per policy with the `cache` option. Leave caching disabled when a policy depends on request-specific data.
+Policy-rule caching remains available in hooks mode through `ApiAuthorizationPolicyRegistry.configureCache()` or per policy with the `cache` option. Leave it disabled when a policy depends on request-specific data.
 
-When policy rule, hook permission, IAM attachment, or IAM document data changes at runtime, inject `ApiAuthorizationCacheInvalidationService`. It is the public facade for clearing automator-owned authorization caches, so application services do not need to inject IAM resolver internals:
+Inject `ApiAuthorizationCacheInvalidationService` when an enabled policy-rule cache must be cleared, or when `MEMORY` resolver entries must reflect hook permission, IAM attachment, or IAM document changes before TTL expiry. It is the public facade for clearing automator-owned authorization caches, so application services do not need to inject IAM resolver internals:
 
 ```typescript
 @Injectable()
@@ -386,7 +412,7 @@ export class PermissionAdminService {
 }
 ```
 
-Use the narrower methods when the backing change is scoped to one cache family: `clearPolicyCache(entity?)`, `clearHookPermissionCache()`, `clearIamAttachmentCache()`, `clearIamDocumentCache()`, or `clearIamCache()`.
+Use the narrower methods when the backing change is scoped to one cache family: `clearPolicyCache(entity?)`, `clearHookPermissionCache()`, `clearIamAttachmentCache()`, `clearIamDocumentCache()`, or `clearIamCache()`. Resolver-cache clear methods are harmless in source-first mode because those maps remain empty.
 
 ## IAM Mode
 
@@ -549,10 +575,13 @@ IAM behavior is intentionally strict:
 - explicit deny wins over allow
 - boundaries intersect the final allow scope
 - the query planner only compiles supported `StringEquals` and `StringEqualsIfExists` conditions on `resource.*` fields marked as `isFilterable`
-- controller filters and authorization scopes are merged with logical `AND`, not overwrite semantics
+- typed client filters, static `USE_DEFAULT` predicates, and authorization scopes are merged once with logical `AND`, not overwrite semantics
+- principal- or tenant-dependent restrictions belong in HOOKS/IAM scope; route query defaults never replace or satisfy authorization scope
 - impossible conflicts collapse to a match-nothing branch instead of rewriting the requested filter
 - unsupported or unsafe query-planning cases result in denial instead of hidden in-memory filtering
 - duplicate document IDs across sources and missing requested documents throw immediately
+
+Automator does not add a separate immutable `baseWhere` controller option. Put fixed, principal-dependent, and tenant-dependent restrictions in HOOKS or IAM scope so they participate in the same fail-closed AND merge.
 
 ## Decision Trace, Audit, and Simulator
 
@@ -595,7 +624,7 @@ if (decision.effect !== EApiPolicyEffect.ALLOW) {
 
 If you need audit logging, provide `AUTHORIZATION_AUDIT_SINK_TOKEN` with an `IApiAuthorizationAuditSink` implementation. The runtime records every final decision through that sink.
 
-The built-in permission, attachment, and document resolvers use simple `Map` caches. Call `clear()` on the relevant resolver when your external permission or policy data changes and you need immediate re-evaluation.
+The built-in permission, attachment, and document resolvers follow the module's cache mode. Source-first mode reads the sources on every evaluation; bounded memory mode uses the configured process-local TTL and entry limit.
 
 ## Bootstrap Validation
 
@@ -605,6 +634,7 @@ The authorization module validates configuration during bootstrap. Common failur
 - controllers with an `authorization` block but no `@ApiControllerSecurable()`
 - hooks mode enabled for an entity with no discovered `@ApiAuthorizationPolicy(...)`
 - IAM mode without `policyNamespace`, `resourceDefinition`, or registered `documentSources`
+- an unknown authorization cache mode or `MEMORY` without positive safe-integer `ttlMs` and `maxEntries`
 - `resourceDefinition.namespace` not matching `policyNamespace`
 - `resourceDefinition.entity` not matching the controller entity
 - invalid `resourceDefinition.fields` entries or duplicate `path` / `queryPath` mappings
@@ -620,5 +650,6 @@ When moving from the older authorization API:
 3. Keep `@ApiControllerSecurable()`, but move mode selection into `@ApiController({ authorization })`.
 4. Use `@ApiAuthorizationPolicy(...)` only for hooks mode.
 5. Use IAM attachment/document sources for declarative IAM evaluation.
+6. Treat source-first resolver reads as the new default. Applications that intentionally need process-local resolver reuse must opt into bounded `MEMORY`, choose finite TTL and entry limits, and own invalidation; the old unbounded, indefinitely retained resolver maps are not preserved.
 
 See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the hooks policy contract and the [controller decorator docs](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) for marker behavior.

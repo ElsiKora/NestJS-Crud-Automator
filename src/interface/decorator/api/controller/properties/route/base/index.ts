@@ -5,3 +5,4 @@ export type * from "./relations";
 export type * from "./request";
 export type * from "./response";
 export { type IApiControllerPropertiesRouteBaseSecurity } from "./security.interface";
+export { type IApiControllerPropertiesRouteBaseTransaction } from "./transaction.interface";

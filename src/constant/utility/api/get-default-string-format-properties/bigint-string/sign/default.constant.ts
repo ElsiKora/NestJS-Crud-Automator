@@ -1,3 +1,3 @@
-import type { TApiGetDefaultStringFormatPropertiesBigIntStringSign } from "@type/utility/api";
+import { EApiGetDefaultStringFormatPropertiesBigIntStringSign } from "@enum/utility/get-default-string-format-properties-bigint-string-sign.enum";
 
-export const DEFAULT_SIGN_BIGINT_STRING_GET_DEFAULT_STRING_FORMAT_PROPERTIES_API_UTILITY_CONSTANT: TApiGetDefaultStringFormatPropertiesBigIntStringSign = "signed";
+export const DEFAULT_SIGN_BIGINT_STRING_GET_DEFAULT_STRING_FORMAT_PROPERTIES_API_UTILITY_CONSTANT: EApiGetDefaultStringFormatPropertiesBigIntStringSign = EApiGetDefaultStringFormatPropertiesBigIntStringSign.SIGNED;

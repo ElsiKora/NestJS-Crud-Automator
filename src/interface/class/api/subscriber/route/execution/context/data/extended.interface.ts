@@ -1,10 +1,9 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
+import type { IApiSubscriberRouteExecutionContextData } from "@interface/class/api/subscriber/route/execution/context/data/interface";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import type { DeepPartial } from "typeorm";
-
-import type { IApiSubscriberRouteExecutionContextData } from "./interface";
 
 /**
  * Extended data container for route subscriber execution context.

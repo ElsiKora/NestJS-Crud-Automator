@@ -10,17 +10,8 @@ import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { SERVICE_API_DECORATOR_CONSTANT } from "@constant/decorator/api/service.constant";
 import { EApiFunctionSubscriberTransactionExpectation, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
+import { resetApiSubscriberRegistry } from "@test/unit/fixture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const resetSubscriberRegistry = (): void => {
-	const registry = apiSubscriberRegistry as unknown as {
-		FUNCTION_SUBSCRIBERS: { clear: () => void };
-		ROUTE_SUBSCRIBERS: { clear: () => void };
-	};
-
-	registry.FUNCTION_SUBSCRIBERS.clear();
-	registry.ROUTE_SUBSCRIBERS.clear();
-};
 
 const routeHookSuffixes: Record<EApiRouteType, string> = {
 	[EApiRouteType.CREATE]: "Create",
@@ -43,7 +34,7 @@ const functionHookSuffixes: Record<EApiFunctionType, string> = {
 
 describe("ApiSubscriberExecutor", () => {
 	beforeEach(() => {
-		resetSubscriberRegistry();
+		resetApiSubscriberRegistry();
 	});
 
 	it.each([

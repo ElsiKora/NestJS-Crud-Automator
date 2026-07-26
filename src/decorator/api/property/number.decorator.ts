@@ -5,11 +5,11 @@ import type { TApiPropertyNumberProperties } from "@type/decorator/api/property"
 
 import { NUMBER_CONSTANT } from "@constant/number.constant";
 import { EApiPropertyDataType, EApiPropertyNumberType } from "@enum/decorator/api";
-import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/dto/manual/property-metadata/decorator.enum";
+import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
-import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata.utility";
+import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { Exclude, Expose, Transform, Type } from "class-transformer";

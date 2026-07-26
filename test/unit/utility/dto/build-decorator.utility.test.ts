@@ -13,6 +13,18 @@ const entity: IApiEntity<{ name?: string }> = {
 	tableName: "build_decorator_entities",
 };
 
+const infrastructureDateMetadata = {
+	format: EApiPropertyDateType.DATE_TIME,
+	identifier: EApiPropertyDateIdentifier.CREATED_AT,
+	type: EApiPropertyDescribeType.DATE,
+} as TApiPropertyDescribeProperties;
+
+const businessDateMetadata = {
+	format: EApiPropertyDateType.DATE_TIME,
+	identifier: EApiPropertyDateIdentifier.DATE,
+	type: EApiPropertyDescribeType.DATE,
+} as TApiPropertyDescribeProperties;
+
 describe("DtoBuildDecorator", () => {
 	it("returns undefined when property is disabled", () => {
 		const metadata = {
@@ -35,16 +47,22 @@ describe("DtoBuildDecorator", () => {
 		expect(result).toBeUndefined();
 	});
 
-	it("skips date fields on update body", () => {
-		const metadata = {
-			format: EApiPropertyDateType.DATE_TIME,
-			identifier: EApiPropertyDateIdentifier.CREATED_AT,
-			type: EApiPropertyDescribeType.DATE,
-		} as TApiPropertyDescribeProperties;
-
-		const result = DtoBuildDecorator(EApiRouteType.UPDATE, metadata, entity, EApiDtoType.BODY, "createdAt");
+	it.each([EApiRouteType.CREATE, EApiRouteType.UPDATE, EApiRouteType.PARTIAL_UPDATE])("skips semantic infrastructure timestamps on %s bodies", (method: EApiRouteType) => {
+		const result = DtoBuildDecorator(method, infrastructureDateMetadata, entity, EApiDtoType.BODY, "insertedOn");
 
 		expect(result).toBeUndefined();
+	});
+
+	it.each([EApiRouteType.CREATE, EApiRouteType.UPDATE, EApiRouteType.PARTIAL_UPDATE])("builds route-owned DATE decorators on %s bodies", (method: EApiRouteType) => {
+		const result = DtoBuildDecorator(method, businessDateMetadata, entity, EApiDtoType.BODY, "createdAt");
+
+		expect(result).toHaveLength(1);
+	});
+
+	it("builds infrastructure timestamp decorators for responses", () => {
+		const result = DtoBuildDecorator(EApiRouteType.CREATE, infrastructureDateMetadata, entity, EApiDtoType.RESPONSE, "insertedOn");
+
+		expect(result).toHaveLength(1);
 	});
 
 	it("expands date fields for get list queries", () => {

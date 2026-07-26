@@ -1,5 +1,6 @@
 import type { EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
@@ -24,10 +25,11 @@ import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dt
  * @param {EApiRouteType} method - The type of route (CREATE, DELETE, GET, etc.)
  * @param {TApiControllerPropertiesRoute<E, typeof method>} routeConfig - Route-specific configuration
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
+ * @param {IApiControllerGetListQueryPlan} [queryPlan] - Route-scoped plan used by dynamic QUERY DTO generation.
  * @returns {void}
  * @template E - The entity type
  */
-export function ApiControllerWriteDtoSwagger<E extends IApiBaseEntity>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, entityMetadata: IApiEntity<E>): void {
+export function ApiControllerWriteDtoSwagger<E extends IApiBaseEntity>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, entityMetadata: IApiEntity<E>, queryPlan?: IApiControllerGetListQueryPlan): void {
 	const swaggerModels: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, target) ?? []) as Array<unknown>;
 	const entityNames: Array<string> = [];
 
@@ -51,10 +53,10 @@ export function ApiControllerWriteDtoSwagger<E extends IApiBaseEntity>(target: o
 		entityNames.push(properties.entity.name);
 	}
 
-	const requestDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig);
-	const queryDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.QUERY, routeConfig);
-	const bodyDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.BODY, routeConfig);
-	const responseDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.RESPONSE, routeConfig);
+	const requestDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, queryPlan);
+	const queryDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.QUERY, routeConfig, queryPlan);
+	const bodyDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.BODY, routeConfig, queryPlan);
+	const responseDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.RESPONSE, routeConfig, queryPlan);
 
 	const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, responseDto];
 

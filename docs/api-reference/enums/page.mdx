@@ -124,6 +124,20 @@ enum EApiPropertyStringType {
 }
 ```
 
+### EApiGetDefaultStringFormatPropertiesBigIntStringSign
+
+Sign modes for `EApiPropertyStringType.BIGINT_STRING` defaults.
+
+```typescript
+enum EApiGetDefaultStringFormatPropertiesBigIntStringSign {
+	NEGATIVE = "negative",
+	SIGNED = "signed",
+	UNSIGNED = "unsigned",
+}
+```
+
+Pass this enum through `GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, { sign })`. It replaces the removed `TApiGetDefaultStringFormatPropertiesBigIntStringSign` string-union export.
+
 ### EApiPropertyNumberType
 
 Number format types.
@@ -168,6 +182,8 @@ enum EApiPropertyDateIdentifier {
 }
 ```
 
+`CREATED_AT`, `RECEIVED_AT`, and `UPDATED_AT` mark server-owned infrastructure timestamps. Generated CREATE, UPDATE, and PARTIAL_UPDATE body DTOs omit those identifiers while response DTOs retain them. `DATE` and the range/business identifiers do not imply write exclusion.
+
 ### EApiPropertyDataType
 
 Combined OpenAPI data type values used by property factories and generated schemas.
@@ -183,6 +199,33 @@ enum EApiPropertyDataType {
 	// Also includes string/date formats such as EMAIL, DATE_TIME, URL, SLUG, and others.
 }
 ```
+
+## GET_LIST Query Plan Enums
+
+### EApiControllerGetListQueryUnlistedFields
+
+Controls whether a configured GET_LIST filter/order section overlays the entity metadata baseline or acts as an allowlist.
+
+```typescript
+enum EApiControllerGetListQueryUnlistedFields {
+	INHERIT = "INHERIT",
+	REJECT = "REJECT",
+}
+```
+
+### EApiControllerGetListQueryFilterMissingBehavior
+
+Controls an enabled typed filter when its complete client group is absent.
+
+```typescript
+enum EApiControllerGetListQueryFilterMissingBehavior {
+	OMIT = "OMIT",
+	REJECT = "REJECT",
+	USE_DEFAULT = "USE_DEFAULT",
+}
+```
+
+`REJECT` produces `400 FILTER_REQUIRED`. `USE_DEFAULT` requires a typed static `defaultCondition`, inserts it only when the client omits that field group, and lets a supplied client group replace the default.
 
 ## Filter Operations
 
@@ -382,9 +425,11 @@ enum EApiDtoType {
 
 Use `PARAMETERS` for path parameters. The old `PARAM` name is not part of the current strict contract.
 
+## Transaction Enums
+
 ### EApiFunctionTransactionMode
 
-Transaction modes for built-in and custom `ApiFunction` decorators.
+Shared transaction modes for generated routes, generated and custom functions, and function steps.
 
 ```typescript
 enum EApiFunctionTransactionMode {
@@ -399,6 +444,44 @@ enum EApiFunctionTransactionMode {
 - `REQUIRED` joins an active transaction or opens a new one.
 - `MANDATORY` requires an active transaction.
 - `NONE` requires no active transaction.
+
+Generated routes use the enum under `routes[routeType].transaction.mode`. Omitted route configuration behaves as `SUPPORTS` and does not open a route transaction.
+
+### EApiFunctionTransactionOutcome
+
+Confirmed and uncertain transaction outcomes exposed by transaction exceptions.
+
+```typescript
+enum EApiFunctionTransactionOutcome {
+	COMMITTED = "COMMITTED",
+	ROLLED_BACK = "ROLLED_BACK",
+	UNKNOWN = "UNKNOWN",
+}
+```
+
+### EApiFunctionTransactionOwnerKind
+
+The outer Automator component that owns a transaction registry.
+
+```typescript
+enum EApiFunctionTransactionOwnerKind {
+	FUNCTION = "FUNCTION",
+	ROUTE = "ROUTE",
+	SCOPE = "SCOPE",
+}
+```
+
+### EApiFunctionTransactionTraceType
+
+Additional trace-only event kinds.
+
+```typescript
+enum EApiFunctionTransactionTraceType {
+	STEP = "step",
+}
+```
+
+`STEP` events appear in the ordered transaction trace but do not independently select function subscribers.
 
 ### EApiFunctionSubscriberTransactionExpectation
 
@@ -489,6 +572,19 @@ enum EApiAuthenticationType {
 }
 ```
 
+### EApiAuthorizationCacheMode
+
+Cross-request resolver cache behavior configured on `ApiAuthorizationModule`.
+
+```typescript
+enum EApiAuthorizationCacheMode {
+	MEMORY = "memory",
+	SOURCE_FIRST = "source-first",
+}
+```
+
+`SOURCE_FIRST` is the default. `MEMORY` requires bounded TTL and entry-limit options.
+
 ### EApiAuthorizationMode
 
 Authorization runtimes accepted by controller defaults and route overrides.
@@ -559,7 +655,6 @@ The package also exports large utility enum families used by generated errors, m
 - `EErrorStringAction`
 - `EErrorStringCompositeAction`
 - `EManualDtoPropertyMetadataDecorator`
-- `EHasPairedCustomSuffixesFieldsArgumentType`
 - `EMastMatchOneOfSchemasValidationErrorType`
 
 ## Subscriber Enums

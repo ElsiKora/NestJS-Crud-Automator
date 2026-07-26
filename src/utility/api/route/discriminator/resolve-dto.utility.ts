@@ -1,9 +1,8 @@
 import type { Type } from "@nestjs/common";
 import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 
+import { ApiRouteValidateDiscriminatedDtoProperties } from "@utility/api/route/discriminator/validate-dto-properties.utility";
 import { ErrorException } from "@utility/error/exception.utility";
-
-import { ApiRouteValidateDiscriminatedDtoProperties } from "./validate-dto-properties.utility";
 
 /**
  * Selects the route DTO class for a payload using the configured discriminator mapping.

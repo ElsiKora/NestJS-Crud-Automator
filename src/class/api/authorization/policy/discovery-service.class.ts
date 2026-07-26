@@ -1,14 +1,13 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscriberProperties } from "@interface/class/api/authorization/policy/subscriber";
 
+import { ApiAuthorizationPolicyBase } from "@class/api/authorization/policy/base.class";
+import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
 import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization";
 import { Injectable, OnModuleInit } from "@nestjs/common";
 import { DiscoveryService } from "@nestjs/core";
 import { InstanceWrapper } from "@nestjs/core/injector/instance-wrapper";
 import { LoggerUtility } from "@utility/logger.utility";
-
-import { ApiAuthorizationPolicyBase } from "./base.class";
-import { ApiAuthorizationPolicyRegistry } from "./registry.class";
 
 const policyDiscoveryLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationPolicyDiscoveryService");
 

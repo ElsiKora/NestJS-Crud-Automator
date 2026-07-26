@@ -1,12 +1,10 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-
-import type { IApiRouteDocumentationProperties } from "../documentation-properties.interface";
-import type { IApiRouteResponseProperties } from "../response";
-import type { IApiRouteSecurityProperties } from "../security";
-import type { IApiRouteThrottlingProperties } from "../throttling";
-
-import type { IApiRouteResourceMetadata } from "./resource.interface";
-import type { IApiRouteRouteMetadata } from "./route.interface";
+import type { IApiRouteDocumentationProperties } from "@interface/decorator/api/route/documentation-properties.interface";
+import type { IApiRouteResourceMetadata } from "@interface/decorator/api/route/metadata/resource.interface";
+import type { IApiRouteRouteMetadata } from "@interface/decorator/api/route/metadata/route.interface";
+import type { IApiRouteResponseProperties } from "@interface/decorator/api/route/response";
+import type { IApiRouteSecurityProperties } from "@interface/decorator/api/route/security";
+import type { IApiRouteThrottlingProperties } from "@interface/decorator/api/route/throttling";
 
 export interface IApiRouteMetadata<E extends IApiBaseEntity> {
 	documentation?: IApiRouteDocumentationProperties;

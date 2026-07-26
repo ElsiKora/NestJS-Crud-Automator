@@ -1,6 +1,6 @@
 # `@ApiFunctionSubscriber`
 
-Registers a class as a function-level subscriber for a specific entity. Subscribers receive hooks whenever observable services execute CRUD functions (`before`, `after`, `error` for create/update/delete/get/getList/getMany).
+Registers a class as a function-level subscriber for a specific entity. Subscribers receive hooks whenever observable services execute CRUD functions (`before`, `after`, and error hooks for create/update/delete/get/getList/getMany) and may observe the confirmed outer transaction result through post-commit or post-rollback hooks.
 
 ## Signature
 
@@ -25,7 +25,7 @@ Registers a class as a function-level subscriber for a specific entity. Subscrib
 ## Usage steps
 
 1. Mark the target service with `@ApiServiceObservable()` so hooks are emitted.
-2. Extend `ApiFunctionSubscriberBase<E>` and override desired lifecycle methods (`onBeforeCreate`, `onAfterUpdate`, `onAfterErrorDelete`, etc.).
+2. Extend `ApiFunctionSubscriberBase<E>` and override desired lifecycle methods (`onBeforeCreate`, `onAfterUpdate`, `onAfterErrorDelete`, `onAfterCommit`, etc.).
 3. Decorate the subscriber class with `@ApiFunctionSubscriber`.
 4. Register the subscriber class as a Nest provider.
 
@@ -47,6 +47,22 @@ export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
 ```
 
 Subscribers without `transaction` metadata keep the default optional `eventManager` behavior. The option is not inferred from `@ApiService`, `@ApiFunctionCustom`, or `@ApiFunctionStep` transaction settings; declare it on the subscriber when the hook itself requires a manager, and pass the same expectation to the class/context generic for TypeScript narrowing. The class/context generic is type-only and does not enable runtime enforcement without matching decorator metadata.
+
+## Post-transaction lifecycle
+
+`onAfterCommit` and `onAfterRollback` run once per matching subscriber after the outer `FUNCTION`, `ROUTE`, or named `SCOPE` owner confirms the database result. Their readonly `IApiSubscriberFunctionTransactionContext` exposes `DATA.transaction`, the complete ordered `DATA.events` trace, and `DATA.matchedEvents` selected for this subscriber.
+
+```typescript
+async onAfterCommit(
+	context: IApiSubscriberFunctionTransactionContext,
+): Promise<void> {
+	await this.metrics.recordCommittedOperations(
+		context.DATA.matchedEvents.length,
+	);
+}
+```
+
+Transaction events contain operation metadata but never arguments, bodies, entities, or results. Keep any outbox payload in application-owned state. These hooks cannot replace an operation result and do not run for nontransactional `SUPPORTS`, `NONE`, or an unknown COMMIT outcome. Error lifecycle methods are `onBeforeErrorCommit`, `onAfterErrorCommit`, `onBeforeErrorRollback`, and `onAfterErrorRollback`.
 
 ## Related resources
 

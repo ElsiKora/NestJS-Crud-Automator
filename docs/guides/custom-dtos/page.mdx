@@ -90,6 +90,8 @@ Use item DTO mode when the framework should own the list wrapper and the app sho
 
 The `name` field is optional and controls the generated Swagger schema name. Without it, the framework derives a stable name from the entity, route, DTO type, and item DTO class name.
 
+A manual GET_LIST response DTO in either mode remains compatible with generated `request[EApiControllerRequestTarget.QUERY].filter` and `order` plans. A manual `dto[EApiDtoType.QUERY]` is mutually exclusive with those generated query sections because the normalized plan owns the runtime DTO, strict parser, and OpenAPI contract.
+
 ## Creating Custom Request DTOs
 
 ### Create DTO

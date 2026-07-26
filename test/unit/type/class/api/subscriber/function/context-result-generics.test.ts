@@ -10,19 +10,10 @@ import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
 import { EApiFunctionSubscriberTransactionExpectation } from "@enum/decorator/api";
 import { EApiFunctionType } from "@enum/decorator/api/function";
 import { EApiSubscriberOnType } from "@enum/decorator/api/on-type.enum";
+import { resetApiSubscriberRegistry } from "@test/unit/fixture";
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { SubscriberResultCreateSubscriber, SubscriberResultEntity, SubscriberResultService, type TSubscriberResultCreateInput, type TSubscriberResultDeleteInput, type TSubscriberResultGetInput, type TSubscriberResultGetListInput, type TSubscriberResultGetManyInput, type TSubscriberResultUpdateInput } from "./fixture";
-
-const resetSubscriberRegistry = (): void => {
-	const registry = apiSubscriberRegistry as unknown as {
-		FUNCTION_SUBSCRIBERS: { clear: () => void };
-		ROUTE_SUBSCRIBERS: { clear: () => void };
-	};
-
-	registry.FUNCTION_SUBSCRIBERS.clear();
-	registry.ROUTE_SUBSCRIBERS.clear();
-};
 
 function createBeforeCreateContext<Result extends TApiFunctionCreateProperties<SubscriberResultEntity>>(result: Result): TApiSubscriberFunctionBeforeCreateContext<SubscriberResultEntity, Result> {
 	return {
@@ -55,7 +46,7 @@ function createCustomPayload(): TSubscriberResultCreateInput {
 
 describe("function subscriber result generics", () => {
 	beforeEach(() => {
-		resetSubscriberRegistry();
+		resetApiSubscriberRegistry();
 	});
 
 	it("should keep one-generic create context usage typed as default create properties", () => {
@@ -89,6 +80,14 @@ describe("function subscriber result generics", () => {
 		expectTypeOf<TApiSubscriberFunctionBeforeGetManyContext<SubscriberResultEntity, TSubscriberResultGetManyInput>["result"]>().toEqualTypeOf<TSubscriberResultGetManyInput>();
 		expectTypeOf<TApiSubscriberFunctionBeforeUpdateContext<SubscriberResultEntity>["result"]>().toEqualTypeOf<TApiFunctionUpdateProperties<SubscriberResultEntity>>();
 		expectTypeOf<TApiSubscriberFunctionBeforeUpdateContext<SubscriberResultEntity, TSubscriberResultUpdateInput>["result"]>().toEqualTypeOf<TSubscriberResultUpdateInput>();
+		expectTypeOf<TApiSubscriberFunctionBeforeUpdateContext<SubscriberResultEntity>["DATA"]["currentEntity"]>().toEqualTypeOf<Readonly<SubscriberResultEntity>>();
+		expectTypeOf<Parameters<NonNullable<IApiSubscriberFunction<SubscriberResultEntity>["onBeforeUpdate"]>>[0]["DATA"]["currentEntity"]>().toEqualTypeOf<Readonly<SubscriberResultEntity>>();
+		const assignCurrentEntity = (context: TApiSubscriberFunctionBeforeUpdateContext<SubscriberResultEntity>): void => {
+			// @ts-expect-error currentEntity cannot be replaced by update subscribers.
+			context.DATA.currentEntity = new SubscriberResultEntity();
+		};
+
+		expectTypeOf(assignCurrentEntity).toBeFunction();
 	});
 
 	it("should reject custom result generics that are not assignable to the operation payload", () => {
@@ -138,6 +137,12 @@ describe("function subscriber result generics", () => {
 		expectTypeOf<TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation.REQUIRED | EApiFunctionSubscriberTransactionExpectation.SUPPORTS>["eventManager"]>().toEqualTypeOf<EntityManager | undefined>();
 		expectTypeOf<TApiSubscriberFunctionExecutionContextData<SubscriberResultEntity, EApiFunctionSubscriberTransactionExpectation>["eventManager"]>().toEqualTypeOf<EntityManager | undefined>();
 		expectTypeOf<TApiSubscriberFunctionBeforeCreateContext<SubscriberResultEntity, TSubscriberResultCreateInput, EApiFunctionSubscriberTransactionExpectation.REQUIRED>["DATA"]["eventManager"]>().toEqualTypeOf<EntityManager>();
+		expectTypeOf<TApiSubscriberFunctionBeforeUpdateContext<SubscriberResultEntity, TApiFunctionUpdateProperties<SubscriberResultEntity>, EApiFunctionSubscriberTransactionExpectation.REQUIRED>["DATA"]["eventManager"]>().toEqualTypeOf<EntityManager>();
+		expectTypeOf<
+			Parameters<
+				NonNullable<IApiSubscriberFunction<SubscriberResultEntity, TApiFunctionCreateProperties<SubscriberResultEntity>, TApiFunctionDeleteCriteria<SubscriberResultEntity>, TApiFunctionGetProperties<SubscriberResultEntity>, TApiFunctionGetListProperties<SubscriberResultEntity>, TApiFunctionGetManyProperties<SubscriberResultEntity>, TApiFunctionUpdateProperties<SubscriberResultEntity>, EApiFunctionSubscriberTransactionExpectation.REQUIRED>["onBeforeUpdate"]>
+			>[0]["DATA"]["eventManager"]
+		>().toEqualTypeOf<EntityManager>();
 		expect(requiredData.eventManager).toBeDefined();
 		expect(requiredUnionData.eventManager).toBeDefined();
 		expect(unionData.eventManager).toBeUndefined();

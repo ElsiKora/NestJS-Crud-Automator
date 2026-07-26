@@ -18,7 +18,7 @@ export class ApiAuthorizationPolicyExecutor {
 
 		if (routeType) {
 			const hookName: string = `on${EApiPolicyOnType.BEFORE}${CamelCaseString(routeType)}`;
-			const hook: unknown = subscriber[hookName as keyof IApiAuthorizationPolicySubscriber<E>];
+			const hook: unknown = Reflect.get(subscriber, hookName);
 
 			if (typeof hook === "function") {
 				policyExecutorLogger.verbose(`Executing authorization policy hook ${hookName} from ${subscriber.constructor.name} for action "${action}"`);

@@ -1,5 +1,23 @@
 # Crud Automator Examples
 
+## Semantic Timestamp Ownership
+
+```ts
+@ApiPropertyDescribe({
+	type: EApiPropertyDescribeType.DATE,
+	identifier: EApiPropertyDateIdentifier.CREATED_AT,
+	format: EApiPropertyDateType.DATE_TIME,
+})
+insertedOn!: Date; // response-visible, omitted from generated write bodies
+
+@ApiPropertyDescribe({
+	type: EApiPropertyDescribeType.DATE,
+	identifier: EApiPropertyDateIdentifier.DATE,
+	format: EApiPropertyDateType.DATE_TIME,
+})
+createdAt!: Date; // writable business date despite the property name
+```
+
 ## Standard CRUD
 
 ```ts
@@ -52,6 +70,56 @@ export class UserController {
 }
 ```
 
+## Typed GET_LIST Query Plan
+
+```ts
+@ApiController<UserEntity>({
+	entity: UserEntity,
+	routes: {
+		[EApiRouteType.GET_LIST]: {
+			dto: {
+				[EApiDtoType.RESPONSE]: {
+					itemType: PublicUserResponseDto,
+				},
+			},
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					filter: {
+						fields: {
+							email: { isEnabled: false },
+							status: {
+								allowedOperations: [EFilterOperation.EQ],
+								isEnabled: true,
+								missingBehavior: EApiControllerGetListQueryFilterMissingBehavior.REJECT,
+							},
+							"team.name": {
+								allowedOperations: [EFilterOperation.EQ, EFilterOperation.CONT],
+								isEnabled: true,
+							},
+						},
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT,
+					},
+					order: {
+						fields: {
+							createdAt: { isEnabled: true },
+							email: { isEnabled: false },
+						},
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+				},
+			},
+		},
+	},
+})
+export class PublicUserController {
+	constructor(public service: UserService) {}
+}
+```
+
+The entity metadata still supplies scalar types, constraints, relation targets, and the dynamic query DTO baseline. This route plan narrows that baseline, requires `status` with EQ only, omits `email`, permits a one-hop `team.name` filter, and limits ordering to `createdAt`. The manual response item DTO is compatible; a manual QUERY DTO would not be.
+
+For `missingBehavior: USE_DEFAULT`, also provide `defaultCondition`. Automator inserts that condition only when the client omits the field group; a client group for the same field replaces the default, and the resulting predicates are AND-merged with authorization scope. `BETWEEN` requires exactly two repeated `[values]`; membership accepts 1–100. Typed failures use `FILTER_REQUIRED`, `INVALID_FILTER`, or `INVALID_ORDER`. Route-before subscribers can rewrite the raw query before Automator performs its strict typed parse.
+
 ## Route Controls And Validators
 
 ```ts
@@ -91,11 +159,17 @@ export class UserController {
 	entity: PostEntity,
 	routes: {
 		[EApiRouteType.CREATE]: {
+			transaction: {
+				mode: EApiFunctionTransactionMode.REQUIRED,
+			},
 			relations: {
 				request: {
 					reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
 					load: {
 						include: { author: true },
+						locks: {
+							author: { mode: "pessimistic_read" },
+						},
 					},
 				},
 				response: {
@@ -117,11 +191,14 @@ export class PostController {
 }
 ```
 
+The route-owned transaction keeps author hydration, create, and response reload on one manager. Relation locks require an active transaction and never fall back to an unlocked read.
+
 ## Custom Service Command
 
 ```ts
 @Injectable()
 @ApiService({ entity: OrderEntity })
+@ApiServiceObservable()
 export class OrderService extends ApiServiceBase<OrderEntity> {
 	@ApiFunctionCustom<OrderEntity>({
 		action: "close-expired",
@@ -143,6 +220,24 @@ export class OrderService extends ApiServiceBase<OrderEntity> {
 }
 ```
 
+## Named Transaction Scope and Post-Commit Hook
+
+```ts
+await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "close-expired-orders" }, async () => {
+	await orderService.closeExpired();
+});
+
+@Injectable()
+@ApiFunctionSubscriber<OrderEntity>({ entity: OrderEntity })
+export class OrderMetricsSubscriber extends ApiFunctionSubscriberBase<OrderEntity> {
+	async onAfterCommit(context: IApiSubscriberFunctionTransactionContext): Promise<void> {
+		await this.metrics.recordCommittedOperations(context.DATA.matchedEvents.length);
+	}
+}
+```
+
+`runWithEntityManager` is join-only in 3.0. Post-commit hooks run after the outer owner confirms COMMIT and cannot replace results. Transaction events are payload-free metadata; keep outbox bodies in application-owned state.
+
 ## Function Subscriber With Transaction Expectation
 
 ```ts
@@ -161,6 +256,28 @@ export class OrderAuditSubscriber extends ApiFunctionSubscriberBase<OrderEntity,
 	}
 }
 ```
+
+## UPDATE `currentEntity`
+
+```ts
+@Injectable()
+@ApiFunctionSubscriber<UserEntity>({ entity: UserEntity })
+export class UserUpdateSubscriber extends ApiFunctionSubscriberBase<UserEntity> {
+	async onBeforeUpdate(context: TApiSubscriberFunctionBeforeUpdateContext<UserEntity>): Promise<TApiFunctionUpdateProperties<UserEntity>> {
+		const currentUser = context.DATA.currentEntity;
+		const repository = context.DATA.repository;
+
+		if (currentUser.status === UserStatus.LOCKED) {
+			throw new ConflictException("USER_LOCKED");
+		}
+
+		await repository.exists({ where: { id: currentUser.id } });
+		return context.result;
+	}
+}
+```
+
+Automator runs one ordinary decorated GET before this hook. `repository` is manager-bound when a transaction exists and otherwise uses the service base repository. `currentEntity` is detached and frozen only at the top level; do not mutate nested values. A missing row skips `onBeforeUpdate` and runs GET then UPDATE error lifecycle.
 
 ## Route Subscriber With Authorization Expectation
 

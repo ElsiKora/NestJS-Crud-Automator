@@ -3,21 +3,12 @@ import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.
 
 import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
 import { EApiFunctionSubscriberTransactionExpectation, EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
+import { resetApiSubscriberRegistry } from "@test/unit/fixture";
 import { beforeEach, describe, expect, it } from "vitest";
-
-const resetSubscriberRegistry = (): void => {
-	const registry = apiSubscriberRegistry as unknown as {
-		FUNCTION_SUBSCRIBERS: { clear: () => void };
-		ROUTE_SUBSCRIBERS: { clear: () => void };
-	};
-
-	registry.FUNCTION_SUBSCRIBERS.clear();
-	registry.ROUTE_SUBSCRIBERS.clear();
-};
 
 describe("ApiSubscriberRegistry", () => {
 	beforeEach(() => {
-		resetSubscriberRegistry();
+		resetApiSubscriberRegistry();
 	});
 
 	it("orders function subscribers by priority", () => {

@@ -1,13 +1,19 @@
 import type { IApiAuthorizationPrincipal, IApiResolvedPolicyAttachments } from "@interface/class/api/authorization";
+import type { TApiAuthorizationCacheOptions } from "@type/class/api/authorization";
 
+import { ApiAuthorizationResolverCache } from "@class/api/authorization/resolver";
 import { Injectable } from "@nestjs/common";
 
 @Injectable()
 export class ApiAuthorizationIamAttachmentCache {
-	private readonly CACHE: Map<string, IApiResolvedPolicyAttachments> = new Map<string, IApiResolvedPolicyAttachments>();
+	private readonly CACHE: ApiAuthorizationResolverCache<IApiResolvedPolicyAttachments> = new ApiAuthorizationResolverCache<IApiResolvedPolicyAttachments>();
 
 	public clear(): void {
 		this.CACHE.clear();
+	}
+
+	public configure(options?: TApiAuthorizationCacheOptions): void {
+		this.CACHE.configure(options);
 	}
 
 	public get(principal: IApiAuthorizationPrincipal): IApiResolvedPolicyAttachments | undefined {

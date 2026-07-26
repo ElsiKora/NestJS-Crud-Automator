@@ -1,4 +1,5 @@
 import { EApiPropertyStringType } from "@enum/decorator/api";
+import { EApiGetDefaultStringFormatPropertiesBigIntStringSign } from "@enum/utility/get-default-string-format-properties-bigint-string-sign.enum";
 import { GetDefaultStringFormatProperties } from "@utility/api";
 import { describe, expect, it } from "vitest";
 
@@ -27,7 +28,7 @@ describe("GetDefaultStringFormatProperties", () => {
 	});
 
 	it("returns negative bigint string properties", () => {
-		const properties = GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, { sign: "negative" });
+		const properties = GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, { sign: EApiGetDefaultStringFormatPropertiesBigIntStringSign.NEGATIVE });
 
 		expect(properties).toMatchObject({
 			description: "negative bigint decimal string",
@@ -40,7 +41,7 @@ describe("GetDefaultStringFormatProperties", () => {
 	});
 
 	it("returns unsigned bigint string properties without mutating defaults", () => {
-		const unsignedProperties = GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, { sign: "unsigned" });
+		const unsignedProperties = GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, { sign: EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED });
 		const defaultProperties = GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING);
 
 		expect(unsignedProperties).toMatchObject({
@@ -56,14 +57,17 @@ describe("GetDefaultStringFormatProperties", () => {
 
 	it("types format-specific options", () => {
 		const assertTypes = (): void => {
-			GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, { sign: "signed" });
+			GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, { sign: EApiGetDefaultStringFormatPropertiesBigIntStringSign.SIGNED });
 			const dynamicFormat: EApiPropertyStringType.BIGINT_STRING | EApiPropertyStringType.EMAIL = EApiPropertyStringType.BIGINT_STRING as EApiPropertyStringType.BIGINT_STRING | EApiPropertyStringType.EMAIL;
 
 			// @ts-expect-error BIGINT_STRING-only options must not be available for EMAIL.
-			GetDefaultStringFormatProperties(EApiPropertyStringType.EMAIL, { sign: "signed" });
+			GetDefaultStringFormatProperties(EApiPropertyStringType.EMAIL, { sign: EApiGetDefaultStringFormatPropertiesBigIntStringSign.SIGNED });
 
 			// @ts-expect-error BIGINT_STRING options require the selected format to be exactly BIGINT_STRING.
-			GetDefaultStringFormatProperties(dynamicFormat, { sign: "signed" });
+			GetDefaultStringFormatProperties(dynamicFormat, { sign: EApiGetDefaultStringFormatPropertiesBigIntStringSign.SIGNED });
+
+			// @ts-expect-error BIGINT_STRING sign requires an enum member rather than a bare string.
+			GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, { sign: "signed" });
 
 			// @ts-expect-error BIGINT_STRING sign only supports signed, unsigned, and negative.
 			GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, { sign: "positive" });

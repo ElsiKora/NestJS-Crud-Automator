@@ -1,11 +1,13 @@
 import type { EntityManager, Repository } from "typeorm";
 
-import { ApiFunctionTransactionScope } from "@class/api/function/transaction-scope.class";
+import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGetList } from "@decorator/api/function/get/list.decorator";
 import type { IApiGetListResponseResult } from "@interface/decorator/api";
 import { HttpStatus } from "@nestjs/common";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { createTransactionFixture } from "@test/unit/fixture";
 
 class GetListEntity {
 	public id?: string;
@@ -58,7 +60,7 @@ describe("ApiFunctionGetList", () => {
 
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
 
-		const result = await ApiFunctionTransactionScope.runWithEntityManager(eventManager, async () => await service.getList({ take: 1 }));
+		const result = await ApiFunctionTransactionScope.runWithDataSource(createTransactionFixture(eventManager).dataSource, { name: "getList" }, async () => await service.getList({ take: 1 }));
 
 		expect(eventManager.getRepository).toHaveBeenCalledWith(GetListEntity);
 		expect(eventRepository.findAndCount).toHaveBeenCalledWith({ take: 1 });

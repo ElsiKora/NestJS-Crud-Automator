@@ -1,7 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { TApiAuthorizationPolicyContextWithRequestMetadata } from "@type/class/api/authorization/policy/context/with-request-metadata.type";
 import type { DeepPartial } from "typeorm";
-
-import type { TApiAuthorizationPolicyContextWithRequestMetadata } from "../with-request-metadata.type";
 
 export type TApiAuthorizationPolicyBeforeUpdateContext<E extends IApiBaseEntity> = TApiAuthorizationPolicyContextWithRequestMetadata<
 	E,

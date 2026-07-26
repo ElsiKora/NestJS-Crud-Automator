@@ -4,21 +4,22 @@ import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties 
 
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed-for-guard.utility";
+import { DtoIsPropertyInfrastructureTimestamp } from "@utility/dto/is/property/infrastructure-timestamp.utility";
 
 /**
  * Determines if a property should be marked for inclusion in a specific DTO type
  * @param {EApiRouteType} method - The API route type (GET, POST, etc.)
  * @param {EApiDtoType} dtoType - The DTO type (request, response, etc.)
- * @param {string} propertyName - The name of the property
+ * @param {string} _propertyName - The name of the property
  * @param {TApiPropertyDescribeProperties} propertyMetadata - The property's metadata
  * @param {boolean} isPrimary - Whether the property is a primary key
  * @param {Type<IAuthGuard>} currentGuard - The current authentication guard
  * @returns {boolean} True if the property should be marked, false otherwise
  */
-export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApiDtoType, propertyName: string, propertyMetadata: TApiPropertyDescribeProperties, isPrimary: boolean, currentGuard?: Type<IAuthGuard>): boolean {
-	const isDateField: boolean = ["createdAt", "receivedAt", "updatedAt"].includes(propertyName);
+export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApiDtoType, _propertyName: string, propertyMetadata: TApiPropertyDescribeProperties, isPrimary: boolean, currentGuard?: Type<IAuthGuard>): boolean {
+	const isWriteBody: boolean = dtoType === EApiDtoType.BODY && (method === EApiRouteType.CREATE || method === EApiRouteType.UPDATE || method === EApiRouteType.PARTIAL_UPDATE);
 
-	if (method === EApiRouteType.CREATE && dtoType === EApiDtoType.BODY && isDateField) {
+	if (isWriteBody && DtoIsPropertyInfrastructureTimestamp(propertyMetadata)) {
 		return false;
 	}
 

@@ -1,10 +1,11 @@
-import type { TApiGetDefaultStringFormatPropertiesBigIntStringSign, TApiGetDefaultStringFormatPropertiesBigIntStringSignProperties } from "@type/utility/api";
+import type { EApiGetDefaultStringFormatPropertiesBigIntStringSign } from "@enum/utility/get-default-string-format-properties-bigint-string-sign.enum";
+import type { TApiGetDefaultStringFormatPropertiesBigIntStringSignProperties } from "@type/utility/api";
 
-import { DEFAULT_SIGN_BIGINT_STRING_GET_DEFAULT_STRING_FORMAT_PROPERTIES_API_UTILITY_CONSTANT, SIGN_PROPERTIES_BIGINT_STRING_GET_DEFAULT_STRING_FORMAT_PROPERTIES_API_UTILITY_CONSTANT } from "./sign";
+import { DEFAULT_SIGN_BIGINT_STRING_GET_DEFAULT_STRING_FORMAT_PROPERTIES_API_UTILITY_CONSTANT, SIGN_PROPERTIES_BIGINT_STRING_GET_DEFAULT_STRING_FORMAT_PROPERTIES_API_UTILITY_CONSTANT } from "@constant/utility/api/get-default-string-format-properties/bigint-string/sign";
 
 export const BIGINT_STRING_GET_DEFAULT_STRING_FORMAT_PROPERTIES_API_UTILITY_CONSTANT: {
-	readonly DEFAULT_SIGN: TApiGetDefaultStringFormatPropertiesBigIntStringSign;
-	readonly SIGN_PROPERTIES: Record<TApiGetDefaultStringFormatPropertiesBigIntStringSign, TApiGetDefaultStringFormatPropertiesBigIntStringSignProperties>;
+	readonly DEFAULT_SIGN: EApiGetDefaultStringFormatPropertiesBigIntStringSign;
+	readonly SIGN_PROPERTIES: Record<EApiGetDefaultStringFormatPropertiesBigIntStringSign, TApiGetDefaultStringFormatPropertiesBigIntStringSignProperties>;
 } = {
 	DEFAULT_SIGN: DEFAULT_SIGN_BIGINT_STRING_GET_DEFAULT_STRING_FORMAT_PROPERTIES_API_UTILITY_CONSTANT,
 	SIGN_PROPERTIES: SIGN_PROPERTIES_BIGINT_STRING_GET_DEFAULT_STRING_FORMAT_PROPERTIES_API_UTILITY_CONSTANT,

@@ -1,7 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function/error-execution-context.interface";
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context";
-import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context/data";
+import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context/data.interface";
 import type { IApiFunctionGetExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
 import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
 import type { EntityManager, FindOneOptions, Repository } from "typeorm";
@@ -29,19 +29,18 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 	const { entity }: IApiFunctionProperties<E> = properties;
 	const transactionMode: EApiFunctionTransactionMode = properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 
-	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		// eslint-disable-next-line @elsikora/sonar/void-use
 		void _target;
-		// eslint-disable-next-line @elsikora/sonar/void-use
-		void _propertyKey;
 
 		descriptor.value = async function (this: { repository: Repository<E> }, getProperties: TApiFunctionGetProperties<E>): Promise<E> {
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<E> => {
 					const entityInstance: E = new entity();
+					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
 
 					const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetProperties<E>> = {
-						DATA: { eventManager, getProperties, repository: this.repository },
+						DATA: { eventManager, getProperties, repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.GET,
 						result: getProperties,
@@ -53,11 +52,9 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 						executionContext.result = result;
 					}
 
-					const repository: Repository<E> = this.repository;
-
 					if (!repository) {
 						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-							DATA: { eventManager, getProperties, repository: this.repository },
+							DATA: { eventManager, getProperties, repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.GET,
 						};
@@ -70,12 +67,15 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? {}, repository });
 				},
 				entity,
+				functionType: EApiFunctionType.GET,
+				methodName: propertyKey,
 				mode: transactionMode,
 				onPreflightError: async (eventManager: EntityManager | undefined, error: Error): Promise<void> => {
 					const entityInstance: E = new entity();
+					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
 
 					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-						DATA: { eventManager, getProperties, repository: this.repository },
+						DATA: { eventManager, getProperties, repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.GET,
 					};
@@ -83,6 +83,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 					await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, error);
 				},
 				repository: this.repository,
+				serviceConstructor: this.constructor as new (...arguments_: Array<unknown>) => unknown,
 			});
 		};
 
@@ -103,14 +104,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
-		let item: E | null;
-
-		if (eventManager) {
-			const eventRepository: Repository<E> = eventManager.getRepository<E>(entity);
-			item = await eventRepository.findOne(properties);
-		} else {
-			item = await repository.findOne(properties);
-		}
+		const item: E | null = await repository.findOne(properties);
 
 		if (!item) {
 			throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));

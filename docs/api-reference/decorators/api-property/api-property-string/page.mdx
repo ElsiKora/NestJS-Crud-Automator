@@ -67,7 +67,7 @@ class AccountDto {
 		entity: AccountEntity,
 		format: EApiPropertyStringType.BIGINT_STRING,
 		...GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, {
-			sign: "unsigned",
+			sign: EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED,
 		}),
 		isRequired: true,
 	})
@@ -75,11 +75,11 @@ class AccountDto {
 }
 ```
 
-Supported `sign` values:
+Supported `sign` members:
 
-- `signed` accepts zero, positive, and negative values. This is the default.
-- `unsigned` accepts zero and positive values.
-- `negative` accepts only negative values.
+- `EApiGetDefaultStringFormatPropertiesBigIntStringSign.SIGNED` accepts zero, positive, and negative values. This is the default.
+- `EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED` accepts zero and positive values.
+- `EApiGetDefaultStringFormatPropertiesBigIntStringSign.NEGATIVE` accepts only negative values.
 
 ## Related resources
 

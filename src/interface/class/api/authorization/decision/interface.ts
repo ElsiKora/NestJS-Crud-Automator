@@ -1,12 +1,10 @@
 import type { EApiAuthorizationMode, EApiPolicyEffect } from "@enum/class/authorization";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiAuthorizationDecisionTrace } from "@interface/class/api/authorization/decision/trace.interface";
+import type { IApiAuthorizationPrincipal } from "@interface/class/api/authorization/principal/interface";
 import type { IApiAuthorizationRule } from "@interface/class/api/authorization/rule/interface";
 import type { IApiAuthorizationScope } from "@interface/class/api/authorization/scope.interface";
 import type { TApiAuthorizationRuleResultTransform } from "@type/class/api/authorization/rule/result-transform.type";
-
-import type { IApiAuthorizationPrincipal } from "../principal/interface";
-
-import type { IApiAuthorizationDecisionTrace } from "./trace.interface";
 
 export interface IApiAuthorizationDecision<E extends IApiBaseEntity, R> {
 	action: string;

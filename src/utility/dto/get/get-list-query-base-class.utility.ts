@@ -1,3 +1,4 @@
+import type { IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanOrderField } from "@interface/class/api/controller/get-list/query";
 import type { Type } from "@nestjs/common";
 import type { ObjectLiteral } from "typeorm/index";
 
@@ -20,10 +21,20 @@ import { Validate } from "class-validator";
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
  * @param {EApiRouteType} method - The API route type (GET_LIST)
  * @param {EApiDtoType} dtoType - The type of DTO (QUERY)
+ * @param {IApiControllerGetListQueryPlan} [queryPlan] - Optional normalized plan that narrows sortable fields.
  * @returns {Type<unknown>} A base class for list query DTOs
  * @template E - The entity type
  */
-export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType): Type<unknown> {
+export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> {
+	const orderBy: Record<string, string> =
+		queryPlan && !queryPlan.order.isLegacy
+			? Object.fromEntries(
+					Object.values(queryPlan.order.fields)
+						.filter((field: IApiControllerGetListQueryPlanOrderField): boolean => field.isEnabled)
+						.map((field: IApiControllerGetListQueryPlanOrderField): [string, string] => [field.path, field.path]),
+				)
+			: FilterOrderByFromEntity(entity, entityMetadata, method, dtoType);
+
 	class BaseQueryDTO {
 		@ApiPropertyNumber({
 			description: "Items per page",
@@ -40,8 +51,8 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 		@ApiPropertyEnum({
 			description: "order by field",
 			entity: entityMetadata,
-			enum: FilterOrderByFromEntity(entity, entityMetadata, method, dtoType),
-			enumName: `E${CapitalizeString(entityMetadata.name ?? "UnknownResource")}FilterOrderBy`,
+			enum: orderBy,
+			enumName: queryPlan ? `${queryPlan.schemaName}OrderBy` : `E${CapitalizeString(entityMetadata.name ?? "UnknownResource")}FilterOrderBy`,
 			isRequired: false,
 		})
 		orderBy?: string;

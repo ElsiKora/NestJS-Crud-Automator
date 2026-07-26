@@ -3,8 +3,7 @@ import type { SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec
 import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 
 import { getSchemaPath } from "@nestjs/swagger";
-
-import { ApiRouteValidateDiscriminatedDtoProperties } from "./validate-dto-properties.utility";
+import { ApiRouteValidateDiscriminatedDtoProperties } from "@utility/api/route/discriminator/validate-dto-properties.utility";
 
 /**
  * Builds an OpenAPI oneOf schema with discriminator metadata for route-level DTO variants.
