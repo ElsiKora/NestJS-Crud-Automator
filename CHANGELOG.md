@@ -1,3 +1,9 @@
+## [3.0.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v3.0.1...v3.0.2) (2026-07-26)
+
+### Bug Fixes
+
+- **transaction:** expose scope entity manager ([2691cbc](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/2691cbcfbd5066dab81d3a4f21637f3c6b6dd364))
+
 ## [3.0.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v3.0.0...v3.0.1) (2026-07-26)
 
 ### Bug Fixes
