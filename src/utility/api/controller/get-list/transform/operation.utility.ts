@@ -1,4 +1,4 @@
-import type { FindOperator } from "typeorm/find-options/FindOperator";
+import type { FindOperator } from "typeorm";
 
 import { EFilterOperation } from "@enum/filter";
 import { Between, Equal, ILike, In, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not } from "typeorm";
