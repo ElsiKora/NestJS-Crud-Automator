@@ -11,17 +11,22 @@ Understanding the execution order of subscribers and operations is crucial for i
 2. Route subscribers: onBeforeCreate (priority: high → low)
 3. Controller transformers (request)
 4. Controller validators
-5. Service method: create() called
-6. Function subscribers: onBeforeCreate (priority: high → low)
-7. Repository: save() executed
-8. Function subscribers: onAfterCreate (priority: high → low)
-9. Service returns result
-10. Controller transformers (response)
-11. Route subscribers: onAfterCreate (priority: high → low)
-12. Authorization result transforms
-13. Relation projection and DTO serialization
-14. HTTP Response sent to client
+5. Resolve the configured generated-route transaction mode
+6. Request relation hydration
+7. Service method: create() called
+8. Function subscribers: onBeforeCreate (priority: high → low)
+9. Repository: save() executed
+10. Function subscribers: onAfterCreate (priority: high → low)
+11. Generated response reload through service.get()
+12. Commit and post-commit lifecycle when the route owns the transaction
+13. Controller transformers (response)
+14. Route subscribers: onAfterCreate (priority: high → low)
+15. Authorization result transforms
+16. Relation projection and DTO serialization
+17. HTTP Response sent to client
 ```
+
+With route `REQUIRED`, steps 6–11 share one transaction manager, and step 12 completes before response handling. Omitted route config and `SUPPORTS` do not open a route transaction; an inner function configured as `REQUIRED` can still own its narrower transaction and commit before the generated response reload.
 
 ### Update Operation
 
@@ -30,42 +35,47 @@ Understanding the execution order of subscribers and operations is crucial for i
 2. Route subscribers: onBeforeUpdate (priority: high → low)
 3. Controller transformers (request)
 4. Controller validators
-5. Service method: update() called
-6. Resolve or join the configured function transaction
-7. Function subscribers: onBeforeGet (priority: high → low)
-8. Repository: findOne() through the resolved repository
-9. Function subscribers: onAfterGet (priority: high → low)
-10. Create detached top-level frozen currentEntity snapshot
-11. Function subscribers: onBeforeUpdate (priority: high → low)
-12. Merge the returned patch into the internal loaded entity
-13. Repository: save() executed with updates
-14. Function subscribers: onAfterUpdate (priority: high → low)
-15. Commit and post-commit lifecycle when UPDATE owns the transaction
-16. Service returns result
-17. Controller transformers (response)
-18. Route subscribers: onAfterUpdate (priority: high → low)
-19. Authorization result transforms
-20. Relation projection and DTO serialization
-21. HTTP Response sent to client
+5. Resolve the configured generated-route transaction mode
+6. Request relation hydration
+7. Service method: update() called
+8. Resolve or join the configured function transaction
+9. Function subscribers: onBeforeGet (priority: high → low)
+10. Repository: findOne() through the resolved repository
+11. Function subscribers: onAfterGet (priority: high → low)
+12. Create detached top-level frozen currentEntity snapshot
+13. Function subscribers: onBeforeUpdate (priority: high → low)
+14. Merge the returned patch into the internal loaded entity
+15. Repository: save() executed with updates
+16. Function subscribers: onAfterUpdate (priority: high → low)
+17. Commit and post-commit lifecycle when UPDATE owns the function transaction
+18. Generated response reload when response relations are configured
+19. Commit and post-commit lifecycle when the route owns the transaction
+20. Controller transformers (response)
+21. Route subscribers: onAfterUpdate (priority: high → low)
+22. Authorization result transforms
+23. Relation projection and DTO serialization
+24. HTTP Response sent to client
 ```
 
-If the decorated GET misses, its GET error lifecycle runs, `onBeforeUpdate` is skipped, and the UPDATE error lifecycle receives the same error.
+When the route owns the transaction, UPDATE joins it and step 17 does not commit; response reload remains inside the route boundary before step 19. With omitted/`SUPPORTS` route config and function `REQUIRED`, step 17 commits the narrower function transaction before response reload. If the decorated GET misses, its GET error lifecycle runs, `onBeforeUpdate` is skipped, and the UPDATE error lifecycle receives the same error.
 
 ### Get Operation
 
 ```
 1. HTTP Request arrives at controller
 2. Route subscribers: onBeforeGet (priority: high → low)
-3. Service method: get() called
-4. Function subscribers: onBeforeGet (priority: high → low)
-5. Repository: findOne() executed
-6. Function subscribers: onAfterGet (priority: high → low)
-7. Service returns result
-8. Controller transformers (response)
-9. Route subscribers: onAfterGet (priority: high → low)
-10. Authorization result transforms
-11. Relation projection and DTO serialization
-12. HTTP Response sent to client
+3. Path parameters transformed and validated
+4. Resolve the configured generated-route transaction mode
+5. Service method: get() called with configured response relation loading
+6. Function subscribers: onBeforeGet (priority: high → low)
+7. Repository: findOne() executed
+8. Function subscribers: onAfterGet (priority: high → low)
+9. Commit and post-commit lifecycle when the route owns the transaction
+10. Controller transformers (response)
+11. Route subscribers: onAfterGet (priority: high → low)
+12. Authorization result transforms
+13. Relation projection and DTO serialization
+14. HTTP Response sent to client
 ```
 
 ### Get List Operation
@@ -74,16 +84,18 @@ If the decorated GET misses, its GET error lifecycle runs, `onBeforeUpdate` is s
 1. HTTP Request arrives at controller
 2. Route subscribers: onBeforeGetList (priority: high → low)
 3. Query parameters parsed and validated
-4. Service method: getList() called
-5. Function subscribers: onBeforeGetList (priority: high → low)
-6. Repository: find() and count() executed
-7. Function subscribers: onAfterGetList (priority: high → low)
-8. Service returns result with pagination metadata
-9. Controller transformers (response)
-10. Route subscribers: onAfterGetList (priority: high → low)
-11. Authorization result transforms
-12. Relation projection and DTO serialization
-13. HTTP Response sent to client
+4. Resolve the configured generated-route transaction mode
+5. Service method: getList() called with configured response relation loading
+6. Function subscribers: onBeforeGetList (priority: high → low)
+7. Repository: find() and count() executed
+8. Function subscribers: onAfterGetList (priority: high → low)
+9. Service returns result with pagination metadata
+10. Commit and post-commit lifecycle when the route owns the transaction
+11. Controller transformers (response)
+12. Route subscribers: onAfterGetList (priority: high → low)
+13. Authorization result transforms
+14. Relation projection and DTO serialization
+15. HTTP Response sent to client
 ```
 
 ### Delete Operation
@@ -91,15 +103,19 @@ If the decorated GET misses, its GET error lifecycle runs, `onBeforeUpdate` is s
 ```
 1. HTTP Request arrives at controller
 2. Route subscribers: onBeforeDelete (priority: high → low)
-3. Service method: delete() called
-4. Function subscribers: onBeforeDelete (priority: high → low)
-5. Repository: findOne() to verify existence
-6. Repository: delete() or softDelete() executed
-7. Function subscribers: onAfterDelete (priority: high → low)
-8. Service returns result
-9. Route subscribers: onAfterDelete (priority: high → low)
-10. HTTP Response sent to client
+3. Path parameters transformed and validated
+4. Resolve the configured generated-route transaction mode
+5. Service method: delete() called
+6. Function subscribers: onBeforeDelete (priority: high → low)
+7. Repository: findOne() to verify existence
+8. Repository: remove() executed
+9. Function subscribers: onAfterDelete (priority: high → low)
+10. Commit and post-commit lifecycle when the route owns the transaction
+11. Route subscribers: onAfterDelete (priority: high → low)
+12. HTTP Response sent to client
 ```
+
+For GET, GET_LIST, and DELETE, omitted route config and `SUPPORTS` open no route transaction. `REQUIRED` encloses the generated service operation and completes commit lifecycle before route-after; `MANDATORY` requires an outer owner, and `NONE` rejects one.
 
 ## Error Flow
 
@@ -114,7 +130,9 @@ Generated route error hooks have explicit boundaries:
    - primary-key resolution
 2. Service, response transformer, after subscriber, authorization result transform, relation projection, and serialization failures run after-error hooks.
 3. Function-level failures dispatch function before-error or after-error hooks according to the same setup/before versus operation/after boundary.
-4. Errors are rethrown after subscribers observe them.
+4. A route-owned transaction rolls back hydration, generated operation, or response reload failures before route error subscribers observe the error.
+5. Route-after failures occur after a route-owned commit and cannot be represented as database rollback.
+6. Errors are rethrown after subscribers observe them.
 ```
 
 ## Priority Execution
@@ -300,6 +318,8 @@ async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PostEntity>
 ```
 
 ## Transaction Boundaries
+
+Generated CRUD routes can reuse `EApiFunctionTransactionMode` under route `transaction.mode`. Omitted configuration and `SUPPORTS` open no route transaction. `REQUIRED` opens a `ROUTE`-owned transaction when no Automator owner exists; `MANDATORY` requires an active owner; `NONE` rejects active execution. Request transformers and validators run before a route-owned transaction. Request relation hydration, the generated service operation, and response relation reload run inside it. Commit and post-commit hooks finish before response transformers and route-after subscribers. Custom routes do not use this route transaction setting.
 
 Function subscribers can participate in transactions when an `eventManager` is provided:
 

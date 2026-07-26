@@ -225,7 +225,7 @@ Factory class for generating controller endpoints.
 
 ### ApiRouteRuntime
 
-Runtime executor for generated and custom controller routes. It handles request target validation/transformation, relation hydration, authorization decision application, subscriber execution, service calls, and response serialization.
+Runtime executor for generated and custom controller routes. It handles request target validation/transformation, relation hydration, authorization decision application, subscriber execution, service calls, and response serialization. Generated routes can also resolve `SUPPORTS`, `REQUIRED`, `MANDATORY`, and `NONE` transaction modes; a route-owned `REQUIRED` transaction encloses request relation hydration, the generated operation, and response relation reload.
 
 **Location:** `src/class/api/route-runtime.class.ts`
 
@@ -233,7 +233,7 @@ Runtime executor for generated and custom controller routes. It handles request 
 
 **Public static methods used by decorators:**
 
-- `executeGenerated(options)` runs the generated CRUD route pipeline.
+- `executeGenerated(options)` runs the generated CRUD route pipeline and opens a `ROUTE`-owned transaction when configured `REQUIRED` and no owner is active.
 - `executeCustom(options)` runs the `@ApiRouteCustom` pipeline around a custom controller operation.
 - `executeCustomRequestRelations(controller, metadata, runtimeProperties, body)` hydrates configured request relations for custom routes.
 - `executeCustomResponseRelations(controller, runtimeProperties, response)` reloads configured response relations for custom routes.
@@ -244,12 +244,12 @@ Runtime executor for generated and custom controller routes. It handles request 
 
 Public helper for running code inside an external TypeORM transaction while making the transaction manager available through `ApiFunctionContextStorage`.
 
-**Location:** `src/class/api/function/transaction-scope.class.ts`
+**Location:** `src/class/api/function/transaction/scope.class.ts`
 
 **Static methods:**
 
-- `runWithDataSource(dataSource, callback)` opens a new TypeORM transaction.
-- `runWithEntityManager(entityManager, callback)` reuses an existing `EntityManager`.
+- `runWithDataSource(dataSource, { name }, callback)` opens a named TypeORM transaction.
+- `runWithEntityManager(entityManager, callback)` joins only the manager already bound to an active Automator transaction.
 
 Only service-bound decorated function execution, including generated `@ApiFunction` flows and `@ApiFunctionCustom`, has real CRUD `operations`; transaction scopes created without a decorated service expose `getRepository` and transaction metadata but reject CRUD operations because there is no owning service context.
 

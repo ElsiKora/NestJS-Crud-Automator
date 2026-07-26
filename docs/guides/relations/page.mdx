@@ -1,6 +1,6 @@
 # Relations
 
-NestJS CRUD Automator supports include-driven request relation hydration and response relation loading. Use `load.include` to select relations and TypeORM `relationLoadStrategy` when you need to control `"join"` vs `"query"` loading.
+NestJS CRUD Automator supports include-driven request relation hydration and response relation loading. Use `load.include` to select relations and TypeORM `relationLoadStrategy` when you need to control `"join"` vs `"query"` loading. Generated routes can place hydration and response reload in one route-owned transaction and apply native locks to independent direct request relations.
 
 ## Defining Relations
 
@@ -50,18 +50,22 @@ export class PostEntity {
 Configure relation loading in controller routes:
 
 ```typescript filename="post.controller.ts" copy
-import { ApiController, EApiRouteType, EApiControllerRelationReferenceShape } from "@elsikora/nestjs-crud-automator";
+import { ApiController, EApiControllerRelationReferenceShape, EApiFunctionTransactionMode, EApiRouteType } from "@elsikora/nestjs-crud-automator";
 
 @ApiController<PostEntity>({
 	entity: PostEntity,
 	path: "posts",
 	routes: {
 		[EApiRouteType.CREATE]: {
+			transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
 			relations: {
 				request: {
 					reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
 					load: {
 						include: { author: true },
+						locks: {
+							author: { mode: "pessimistic_read" },
+						},
 					},
 				},
 				response: {
@@ -137,6 +141,40 @@ load: {
   relationLoadStrategy: "query", // or "join"
 }
 ```
+
+## Transaction-Bound Hydration and Direct Locks
+
+Generated routes accept `transaction: { mode: EApiFunctionTransactionMode }`. Omitted configuration and `SUPPORTS` keep the legacy route behavior without opening a new transaction. `REQUIRED` opens a route-owned transaction when no owner is active, while `MANDATORY` requires an existing Automator transaction and `NONE` rejects one.
+
+For route-owned `REQUIRED`, request transformation and validation finish first. Request relation hydration, the generated service operation, and response relation reload then run through one manager. The database commit and post-commit lifecycle finish before response transformation, route-after subscribers, authorization result handling, and serialization. Hydration, operation, and reload failures roll back together.
+
+Use `relations.request.load.locks` for native locks on independent direct relations:
+
+```typescript
+[EApiRouteType.CREATE]: {
+  transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+  relations: {
+    request: {
+      reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
+      load: {
+        include: {
+          author: {
+            profile: true,
+          },
+        },
+        locks: {
+          author: { mode: "pessimistic_write" },
+        },
+        relationLoadStrategy: "query",
+      },
+    },
+  },
+}
+```
+
+Only `pessimistic_read` and `pessimistic_write` are accepted. Every lock key must be an enabled direct `include` key, and locks are acquired in `include` declaration order. Locks never fall back to an unlocked read when no transaction exists. Automator disables implicit TypeORM eager-relation joins for each locked load so hidden joins cannot widen the lock. Explicit nested includes on a locked direct relation require `"query"` loading: they share the active manager but are not automatically locked. There is no recursive lock DSL.
+
+HTTP scalar references are transformed into entities by controller hydration. `ApiServiceBase.create()` and `update()` remain entity-based contracts; direct service callers must load the entity themselves through their active transaction manager.
 
 ## Service Injection for Relations
 
@@ -323,7 +361,7 @@ async assignAuthor(@Body() body: Partial<PostEntity>): Promise<PostEntity> {
 }
 ```
 
-Custom route request relations are hydrated from the method body payload before the handler runs. Response relation reload requires `controller.service` to extend `ApiServiceBase`; response values without an `id` are returned unchanged. Response relations can be reloaded and projected for single entities, arrays, and get-list style `{ items }` envelopes. Generated CREATE reloads the created entity with configured response relations; UPDATE and PARTIAL_UPDATE reload only when response relation loading is configured; DELETE returns no response body to project.
+Custom route request relations are hydrated from the method body payload before the handler runs. Generated-route `transaction` configuration does not apply to custom routes; custom functions, steps, or named scopes continue to own their transactions. If custom relation config uses `locks`, hydration must already run under an active Automator transaction. Response relation reload requires `controller.service` to extend `ApiServiceBase`; response values without an `id` are returned unchanged. Response relations can be reloaded and projected for single entities, arrays, and get-list style `{ items }` envelopes. Generated CREATE reloads the created entity with configured response relations; UPDATE and PARTIAL_UPDATE reload only when response relation loading is configured; DELETE returns no response body to project.
 
 ## Performance Optimization
 

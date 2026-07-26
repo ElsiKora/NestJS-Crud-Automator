@@ -396,7 +396,7 @@ Use `PARAMETERS` for path parameters. The old `PARAM` name is not part of the cu
 
 ### EApiFunctionTransactionMode
 
-Transaction modes for built-in and custom `ApiFunction` decorators.
+Shared transaction modes for generated routes, generated and custom functions, and function steps.
 
 ```typescript
 enum EApiFunctionTransactionMode {
@@ -411,6 +411,8 @@ enum EApiFunctionTransactionMode {
 - `REQUIRED` joins an active transaction or opens a new one.
 - `MANDATORY` requires an active transaction.
 - `NONE` requires no active transaction.
+
+Generated routes use the enum under `routes[routeType].transaction.mode`. Omitted route configuration behaves as `SUPPORTS` and does not open a route transaction.
 
 ### EApiFunctionSubscriberTransactionExpectation
 

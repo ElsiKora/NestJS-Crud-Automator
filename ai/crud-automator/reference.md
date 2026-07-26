@@ -14,6 +14,8 @@
 | Manual route DTOs                               | `dto: { [EApiDtoType.*]: DTO }`                         |
 | GET_LIST custom item shape                      | `dto: { [EApiDtoType.RESPONSE]: { itemType, name? } }`  |
 | Relation hydration                              | `relations.request`                                     |
+| Generated route transaction                     | `routes[route].transaction`                             |
+| Direct request relation lock                    | `relations.request.load.locks`                          |
 | Relation response loading                       | `relations.response.load.include`                       |
 | HTTP-aware lifecycle logic                      | `ApiRouteSubscriberBase`                                |
 | Persistence-aware lifecycle logic               | `ApiFunctionSubscriberBase`                             |
@@ -28,6 +30,9 @@ Generated route config is nested by responsibility:
 ```ts
 routes: {
 	[EApiRouteType.CREATE]: {
+			transaction: {
+				mode: EApiFunctionTransactionMode.REQUIRED,
+			},
 		generation: {
 			isEnabled: true,
 			shouldWriteToController: true,
@@ -69,6 +74,9 @@ routes: {
 				reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
 				load: {
 					include: { author: true },
+					locks: {
+						author: { mode: "pessimistic_read" },
+					},
 				},
 			},
 			response: {
@@ -84,6 +92,15 @@ routes: {
 ```
 
 Do not use old flat fields such as route-level `isEnabled`, `authentication`, `authorization`, `request.transformers`, `response.transformers`, `request.relations`, or `response.relations`. Do not use removed top-level `authentication.bearerStrategies` or `authentication.securityStrategies`; use `authentication.securityRequirements` groups instead.
+
+Generated route transaction rules:
+
+- Omitted `transaction` and `SUPPORTS` open no route transaction and preserve the legacy route boundary.
+- `REQUIRED` opens a `ROUTE` owner when none exists; `MANDATORY` requires an active owner; `NONE` rejects one.
+- Request transformation and validation stay outside a route-owned transaction.
+- Request relation hydration, generated service execution, and response relation reload share the active manager.
+- Commit lifecycle finishes before response transformation, route-after, authorization result handling, and serialization.
+- Custom routes do not inherit generated route transaction config.
 
 ## DTO Rules
 
@@ -127,7 +144,10 @@ Generated request relation caveats:
 - `relations.request.load.include` selects the direct request body relations to hydrate.
 - `relations.request.load.services` is only an override map; omitted keys use `<relationName>Service` properties on the controller.
 - `relations.request.load.relationLoadStrategy` is passed to the direct relation service get call alongside nested TypeORM `relations` when configured.
+- `relations.request.load.locks` forwards native TypeORM `pessimistic_read` or `pessimistic_write` to enabled direct relation `get()` calls and requires an active Automator transaction.
+- Direct relation locks follow `include` declaration order and disable implicit eager-relation loading. Locked direct relations with explicit nested includes require `relationLoadStrategy: "query"` so nested reads share the manager without receiving an automatic lock.
 - Request relation hydration mutates direct relation references into loaded entity objects. Nested include objects are passed to the direct relation service as TypeORM `relations`; nested request references are not recursively hydrated.
+- Scalar relation values are an HTTP/controller contract; generated service inputs remain entity-based.
 - For generated routes, request relation hydration reads relation fields from the request body for CREATE, UPDATE, and PARTIAL_UPDATE. It does not hydrate GET/DELETE route parameters.
 - CREATE reloads the created entity with configured response relations. UPDATE/PARTIAL_UPDATE reload only when response relation loading is configured. DELETE returns no body. GET_LIST maps `limit`/`page` to `take`/`skip` and applies `orderBy` only when present.
 

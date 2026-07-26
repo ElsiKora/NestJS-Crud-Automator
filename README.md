@@ -322,18 +322,22 @@ export class UserController {
 Configure include-driven relation loading:
 
 ```typescript
-import { ApiController, EApiControllerRelationReferenceShape, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+import { ApiController, EApiControllerRelationReferenceShape, EApiFunctionTransactionMode, EApiRouteType } from "@elsikora/nestjs-crud-automator";
 
 @ApiController<PostEntity>({
 	entity: PostEntity,
 	name: "Posts",
 	routes: {
 		[EApiRouteType.CREATE]: {
+			transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
 			relations: {
 				request: {
 					reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
 					load: {
 						include: { author: true },
+						locks: {
+							author: { mode: "pessimistic_read" },
+						},
 					},
 				},
 				response: {
@@ -356,6 +360,8 @@ export class PostController {
 ```
 
 Request relation `relations.request.load` enables hydration, and `relations.request.load.include` selects the direct request body relations to hydrate. Omitted service mappings use `${relationName}Service`; `relations.request.load.services` only overrides those controller property names. Nested request include objects are passed to the direct relation service as TypeORM `relations`; nested request references are not recursively hydrated. `load.relationLoadStrategy` can be used on request or response load configs to choose TypeORM `"join"` or `"query"` loading.
+
+`relations.request.load.locks` applies native TypeORM `pessimistic_read` or `pessimistic_write` locks to configured direct relation service `get()` calls. Locks require an active Automator transaction and are acquired in `load.include` declaration order. Locked loads disable implicit TypeORM eager-relation joins. A locked direct relation with explicit nested includes must use `relationLoadStrategy: "query"` so the nested loads share the manager without inheriting the row lock. Service inputs remain entity-based: scalar relation references are an HTTP/controller hydration contract, not a widened service method contract.
 
 ### Custom DTOs
 
@@ -547,7 +553,27 @@ Declare the discriminator field, such as `channel` or `mode`, on every variant D
 
 Root-level discriminator selection runs before Nest can infer a concrete DTO class, so global `ValidationPipe` options are not applied automatically to the selected variant. Add `validatorOptions` or `transformOptions` to the discriminated body config when a route needs specific validation or transformation settings.
 
-Generated service functions and explicit function decorators support transaction modes without exposing `EntityManager` as a public method argument:
+Generated routes can opt into a route-owned transaction by reusing `EApiFunctionTransactionMode`:
+
+```typescript
+import { ApiController, EApiFunctionTransactionMode, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+
+@ApiController<UserEntity>({
+	entity: UserEntity,
+	routes: {
+		[EApiRouteType.CREATE]: {
+			transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+		},
+	},
+})
+export class UserController {
+	constructor(public service: UserService) {}
+}
+```
+
+Omitted route transaction config and explicit `SUPPORTS` preserve generated-route behavior without opening a route transaction. `REQUIRED` opens a root transaction through the controller service repository when no Automator transaction is active; `MANDATORY` requires an active owner; `NONE` rejects an active transaction. Request transformation and validation run before a route-owned transaction. Request relation hydration, the generated service operation, and response relation reload then share one manager. Commit and post-commit lifecycle finish before response transformation, route-after subscribers, authorization result handling, and serialization. A hydration, operation, or reload failure rolls back; a later route-after failure cannot roll back an already committed transaction. Custom routes continue to own transactions through custom functions or steps.
+
+Generated service functions and explicit function decorators use the same transaction modes without exposing `EntityManager` as a public method argument:
 
 ```typescript
 import { ApiService, ApiServiceBase, EApiFunctionTransactionMode, EApiFunctionType } from "@elsikora/nestjs-crud-automator";
@@ -598,7 +624,7 @@ private async recordPromotionAudit(user: UserEntity): Promise<void> {
 
 Steps do not dispatch function subscribers, create route metadata, or define Swagger/authorization action identities. Step context intentionally exposes only `eventManager`, `repository`, and `getRepository`; use `@ApiFunctionCustom` plus `getApiFunctionContext()` when you need `operations` or lifecycle hooks.
 
-`REQUIRED` opens one Automator-owned `QueryRunner` transaction when none exists. Nested `REQUIRED`, `MANDATORY`, and transactional `SUPPORTS` calls join the same manager and register ordered transaction events; only the outer owner commits, rolls back, and flushes post-transaction subscribers. `NONE` and nontransactional `SUPPORTS` do not produce post-transaction lifecycle work.
+`REQUIRED` opens one Automator-owned `QueryRunner` transaction when none exists. Nested `REQUIRED`, `MANDATORY`, and transactional `SUPPORTS` calls join the same manager and register ordered transaction events; only the outer route, function, or named scope owner commits, rolls back, and flushes post-transaction subscribers. `NONE` and nontransactional `SUPPORTS` do not produce post-transaction lifecycle work.
 
 Before `onBeforeUpdate` runs, `ApiFunctionUpdate` performs one ordinary decorated GET through the active transaction manager when present. Update subscribers receive the incoming patch in `context.result`, the active manager repository when a transaction exists (otherwise the service base repository) in `context.DATA.repository`, and a top-level detached and frozen snapshot in `context.DATA.currentEntity: Readonly<TEntity>`. The snapshot is shallow: nested relations, arrays, JSON, dates, buffers, and lazy values retain aliases to the internal loaded entity, so mutating them can affect persistence. Automator merges the subscriber-returned patch into its internal loaded entity and does not issue a second explicit GET. A missing row keeps the GET error lifecycle, skips `onBeforeUpdate`, and then enters the UPDATE error lifecycle.
 
@@ -1288,7 +1314,7 @@ The roadmap is aligned with the current source contract rather than older docs-o
 - Request and response relation loading with configurable reference projection
 - Route and function subscribers, including custom route/function hooks and error hooks
 - Hooks-mode authorization policies and IAM-style policy document authorization
-- Function transaction scopes for generated and custom service operations
+- Function, generated-route, and named transaction ownership with direct relation locks
 - Environment-agnostic AI guidance bundle for AI-assisted development
 
 ### Current Focus

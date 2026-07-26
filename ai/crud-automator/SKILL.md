@@ -52,14 +52,18 @@ Use local source as the contract:
 - Inside decorated service execution, use `this.getApiFunctionContext()` for `operations`, `repository`, `eventManager`, and `getRepository`.
 - Inside `@ApiFunctionStep`, use `this.getApiFunctionStepContext()` for `repository`, `eventManager`, and `getRepository`; it intentionally omits `operations`.
 - `ApiFunctionTransactionScope.runWithDataSource(dataSource, { name }, callback)` owns a named external transaction; `runWithEntityManager()` is join-only and fails without an active Automator owner registry.
-- `onAfterCommit` and `onAfterRollback` run once after the outer transaction ends. Their readonly context exposes transaction owner/id, all ordered events, and subscriber-matched events; STEP is trace-only.
+- `onAfterCommit` and `onAfterRollback` run once after the outer transaction ends. Their readonly context exposes the `FUNCTION`, `ROUTE`, or `SCOPE` owner/id, all ordered events, and subscriber-matched events; STEP is trace-only.
 - Commit/rollback error lifecycle uses `onBeforeErrorCommit`, `onAfterErrorCommit`, `onBeforeErrorRollback`, and `onAfterErrorRollback`. Post-commit failures must remain distinguishable from database rollback.
 - `ApiFunctionUpdate` performs one ordinary decorated GET before `onBeforeUpdate`. Read the patch from `context.result`, the active manager repository when a transaction exists (otherwise the service base repository) from `context.DATA.repository`, and the top-level detached and frozen shallow snapshot from `context.DATA.currentEntity`.
 - UPDATE does not deep-clone or deep-freeze `currentEntity`: nested values alias the internal loaded entity and can affect persistence if mutated. It does not reload after before-subscribers, add a row lock, or auto-load entities for custom functions. A missing decorated GET skips update-before hooks and flows through GET then UPDATE error lifecycle.
 
 ## Route Runtime Model
 
+- Generated route base config accepts `transaction: { mode: EApiFunctionTransactionMode }`. Omitted config and `SUPPORTS` open no route transaction; `REQUIRED` opens or joins, `MANDATORY` requires an active owner, and `NONE` rejects an active transaction.
+- When a generated route opens `REQUIRED`, request transformation/validation run first; request relation hydration, the generated service operation, and response relation reload share the route manager; commit lifecycle completes before response transformation, route-after, authorization result handling, and serialization.
+- Hydration, operation, and reload failures roll back a route-owned transaction. Route-after failures happen after commit and must not be reported as rollback.
 - Use `@ApiRouteCustom` for custom controller routes that need runtime behavior: transformers, validators, relation handling, subscribers, authorization result transforms, or serialization.
+- Generated-route `transaction` config does not apply to `@ApiRouteCustom`; custom functions, steps, or named scopes continue to own transactions.
 - Use `@ApiFunctionCustom<Entity>(...)` and `@ApiRouteCustom<Entity>(...)`; response types belong on method return types and response metadata, not decorator generic parameters.
 - Use `@ApiMethod` as the low-level metadata/Nest/Swagger/security/throttling composer.
 - `@ApiMethod` metadata lives under `metadata.resource`, `metadata.route`, `metadata.response`, `metadata.security`, and `metadata.throttling`.
@@ -70,8 +74,10 @@ Use local source as the contract:
 ## Relation Model
 
 - Request relation config: `relations.request.reference` and `relations.request.load`.
-- Request load config uses `relations.request.load.include`, optional `relations.request.load.relationLoadStrategy`, and optional `relations.request.load.services` overrides.
+- Request load config uses `relations.request.load.include`, optional `relations.request.load.relationLoadStrategy`, optional `relations.request.load.services` overrides, and optional direct-relation `relations.request.load.locks`.
 - `relations.request.load.include` is the single source of truth for direct request relations to hydrate. Omitted service keys use `${relationName}Service`.
+- Request locks accept native TypeORM `pessimistic_read` or `pessimistic_write`, require an active Automator transaction, follow direct `include` declaration order, and disable implicit eager-relation loading. A locked direct relation with explicit nested includes requires `relationLoadStrategy: "query"`; nested loads share the manager without automatic locks.
+- HTTP scalar references are controller hydration input. Service `create`/`update` contracts remain entity-based; direct callers load entities through their active manager.
 - Response relation config: `relations.response.reference` and `relations.response.load.include` with optional `relationLoadStrategy`.
 - HTTP generated relation filters use explicit one-level paths such as `author.id[...]` and `author.username[...]`; top-level `author[...]` is not generated or transformed.
 - Generated relation filters skip relation fields and object fields on the related entity.
@@ -105,7 +111,7 @@ Use local source as the contract:
 - Generated Swagger matches request and response contracts.
 - DTO fields are scoped correctly for body/query/parameters/response.
 - GET_LIST uses the intended response mode: full wrapper DTO or `{ itemType, name? }`.
-- Route generation, security, request/response targets, relations, and DTO config type-check.
+- Route generation, transaction mode, security, request/response targets, relation locks, and DTO config type-check.
 - Subscribers fire on the route/function path being exercised.
 - Authorization metadata, policy documents, resource definitions, and cache invalidation match runtime behavior.
 - No wrapper helper was added where a native primitive is already clear.

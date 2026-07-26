@@ -5,7 +5,7 @@ import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiAuthorizationCacheInvalidationService, AUTHORIZATION_POLICY_REGISTRY_TOKEN, CorrelationIDResponseBodyInterceptor, EApiFunctionTransactionOwnerKind, EApiFunctionTransactionTraceType, EApiFunctionType, type IApiAuthorizationPolicyRegistry } from "../../../src/index";
+import { ApiAuthorizationCacheInvalidationService, AUTHORIZATION_POLICY_REGISTRY_TOKEN, CorrelationIDResponseBodyInterceptor, EApiFunctionTransactionOwnerKind, EApiFunctionTransactionTraceType, EApiFunctionType, EApiRouteType, type IApiAuthorizationPolicyRegistry } from "../../../src/index";
 import { E2E_OWNER_ID, E2E_OWNER_ID_OTHER } from "../app/constants";
 import { E2eAppModule, E2eCustomRouteSubscriber, E2eEntity, E2eFunctionSubscriber, E2eOwnerService, E2ePolicySubscriber, E2eRouteSubscriber, E2eService } from "../app";
 
@@ -472,6 +472,14 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(createResponse.statusCode).toBe(201);
 		expect(E2eFunctionSubscriber.events).toContain("function:before:create:transaction");
+		expect(E2eFunctionSubscriber.events).toContain("function:after:commit");
+		expect(E2eFunctionSubscriber.transactionContexts.at(-1)?.DATA.transaction.owner).toEqual({
+			entityName: E2eEntity.name,
+			kind: EApiFunctionTransactionOwnerKind.ROUTE,
+			methodName: "create",
+			routeType: EApiRouteType.CREATE,
+		});
+		expect(E2eFunctionSubscriber.transactionContexts.at(-1)?.DATA.events.map((event) => event.functionType)).toEqual([EApiFunctionType.CREATE, EApiFunctionType.GET]);
 		expect(await service.repository.findOne({ where: { id: "generated-transaction" } })).toMatchObject({
 			id: "generated-transaction",
 			name: "fn-GeneratedTransaction",

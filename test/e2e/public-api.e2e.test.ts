@@ -12,6 +12,8 @@ import type {
 	IApiAuthorizationRuleContext,
 	IApiAuthorizationScope,
 	IApiBaseEntity,
+	IApiControllerPropertiesRouteBase,
+	IApiControllerPropertiesRouteBaseTransaction,
 	IApiFunctionStepContext,
 	IApiFunctionStepProperties,
 	IApiHookPermissionSource,
@@ -49,6 +51,7 @@ import {
 	EApiAuthorizationCacheMode,
 	EApiAuthorizationMode,
 	EApiAuthorizationPrincipalType,
+	EApiControllerRelationReferenceShape,
 	EApiFunctionContextStorageKind,
 	EApiFunctionSubscriberTransactionExpectation,
 	EApiFunctionTransactionEventStatus,
@@ -201,6 +204,29 @@ describe("public API exports (E2E)", () => {
 			},
 			type: [PublicApiEmailBodyDto],
 		};
+		const routeTransaction = {
+			mode: EApiFunctionTransactionMode.REQUIRED,
+		} satisfies IApiControllerPropertiesRouteBaseTransaction;
+		const generatedRouteConfig: IApiControllerPropertiesRouteBase<PublicApiUser, EApiRouteType.CREATE> = {
+			relations: {
+				request: {
+					load: {
+						include: {
+							operator: true,
+						},
+						locks: {
+							operator: {
+								mode: "pessimistic_read",
+							},
+						},
+					},
+					reference: {
+						shape: EApiControllerRelationReferenceShape.SCALAR,
+					},
+				},
+			},
+			transaction: routeTransaction,
+		};
 		const bigintStringOptions: TApiGetDefaultStringFormatPropertiesBigIntStringOptions = {
 			sign: EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED,
 		};
@@ -351,6 +377,8 @@ describe("public API exports (E2E)", () => {
 		expect(requestMetadata.body).toEqual({ role: "operator-user" });
 		expect(requestMetadata.parameters).toEqual({ id: "user-1" });
 		expect(routeDiscriminatorConfig.discriminator.propertyName).toBe("channel");
+		expect(generatedRouteConfig.relations?.request?.load?.locks?.operator?.mode).toBe("pessimistic_read");
+		expect(generatedRouteConfig.transaction?.mode).toBe(EApiFunctionTransactionMode.REQUIRED);
 		expect(bigintStringDefaults.pattern).toBe(String.raw`/^(0|[1-9]\d{0,19})$/`);
 		expect(stepProperties.entity).toBe(PublicApiUser);
 		expect(subscriberRequiredData.eventManager).toBeDefined();

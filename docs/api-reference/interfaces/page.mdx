@@ -68,8 +68,36 @@ interface IApiControllerPropertiesRouteBase<E, R extends EApiRouteType> {
 	request?: IApiControllerPropertiesRouteBaseRequest<E, R>;
 	response?: IApiControllerPropertiesRouteBaseResponse<E, R>;
 	security?: IApiControllerPropertiesRouteBaseSecurity;
+	transaction?: IApiControllerPropertiesRouteBaseTransaction;
 }
 ```
+
+### IApiControllerPropertiesRouteBaseTransaction
+
+Optional transaction configuration for generated CRUD routes.
+
+```typescript
+interface IApiControllerPropertiesRouteBaseTransaction {
+	mode: EApiFunctionTransactionMode;
+}
+```
+
+Omitted configuration and `SUPPORTS` do not open a route transaction. `REQUIRED` opens one through the controller service repository when no Automator transaction is active, `MANDATORY` requires an active owner, and `NONE` rejects active execution. A route that opens the transaction owns the `ROUTE` transaction registry and encloses request relation hydration, the generated service operation, and response relation reload. Request transformation and validation run before the transaction; response transformation, route-after subscribers, authorization result handling, and serialization run after commit.
+
+### IApiControllerPropertiesRouteBaseRelationsRequestLoad\<E\>
+
+Request relation hydration configuration.
+
+```typescript
+interface IApiControllerPropertiesRouteBaseRelationsRequestLoad<E> {
+	include: FindOptionsRelations<E>;
+	locks?: Partial<Record<keyof FindOptionsRelations<E>, NonNullable<FindOneOptions<E>["lock"]>>>;
+	relationLoadStrategy?: FindOneOptions<E>["relationLoadStrategy"];
+	services?: Partial<Record<keyof FindOptionsRelations<E>, string>>;
+}
+```
+
+`locks` is a direct-relation TypeORM lock passthrough. Runtime accepts `pessimistic_read` and `pessimistic_write`, requires an active Automator transaction, and acquires locks in `include` declaration order. Locked loads set `loadEagerRelations: false` to prevent implicit joins from widening the lock. A locked relation with explicit nested includes requires `relationLoadStrategy: "query"`; nested loads use the same manager without receiving an automatic lock. Lock keys must name enabled direct `include` entries.
 
 ### IApiControllerPropertiesRouteAuthentication
 

@@ -57,6 +57,20 @@ Use `relations.request.load.include` to select direct request relations to hydra
 
 Request relation hydration mutates direct relation references into loaded entities. Nested include objects preload relations on the direct loaded entity; they do not implement recursive nested request reference hydration.
 
+## Relation Locks Without a Route Transaction
+
+`relations.request.load.locks` never opens a transaction and never falls back to an unlocked read. Use `pessimistic_read` or `pessimistic_write` only when hydration runs under an active Automator manager, normally through generated route `transaction.mode: REQUIRED`.
+
+Lock keys must be enabled direct `include` keys. Lock acquisition follows `include` declaration order, and locked loads disable implicit eager relations to prevent hidden joins from widening the lock. If a locked direct relation has explicit nested includes, use `relationLoadStrategy: "query"`; do not treat nested includes as a recursive lock DSL.
+
+HTTP scalar references are hydrated by the controller. Do not widen service methods to accept `string | Entity`; direct service callers must load and lock the entity through their own active transaction manager.
+
+## Route Transaction Boundary Drift
+
+For generated route `REQUIRED`, keep request transformation and validation before `BEGIN`, then keep request hydration, generated operation, and response reload inside the route-owned transaction. Commit and post-commit lifecycle must finish before response transformation and route-after subscribers.
+
+Omitted route config and `SUPPORTS` must not add a new `BEGIN`. `MANDATORY` requires an outer Automator owner, `NONE` rejects one, and custom routes remain function/step/scope-owned. A route-after failure occurs after commit and must not be described as rollback.
+
 ## Custom Route Runtime Assumptions
 
 `@ApiRouteCustom` provides runtime behavior, but response relation reload is constrained: the controller needs an `ApiServiceBase` service and response items need `id`.
