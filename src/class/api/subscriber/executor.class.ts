@@ -51,7 +51,7 @@ export class ApiSubscriberExecutor {
 		await ApiFunctionContextStorage.runWithoutStepContext(async (): Promise<void> => {
 			for (const subscriber of subscribers) {
 				const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, functionType);
-				const hook: unknown = subscriber[hookName as keyof IApiSubscriberFunction<IApiBaseEntity>];
+				const hook: unknown = Reflect.get(subscriber, hookName);
 
 				if (typeof hook === "function") {
 					const properties: IApiFunctionSubscriberProperties<IApiBaseEntity> | undefined = apiSubscriberRegistry.getFunctionSubscriberProperties(subscriber);
@@ -75,7 +75,7 @@ export class ApiSubscriberExecutor {
 		await ApiFunctionContextStorage.runWithoutStepContext(async (): Promise<void> => {
 			for (const subscriber of subscribers) {
 				const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, functionType);
-				const hook: unknown = subscriber[hookName as keyof IApiSubscriberFunction<IApiBaseEntity>];
+				const hook: unknown = Reflect.get(subscriber, hookName);
 
 				if (typeof hook === "function") {
 					const properties: IApiFunctionSubscriberProperties<IApiBaseEntity> | undefined = apiSubscriberRegistry.getFunctionSubscriberProperties(subscriber);
@@ -103,7 +103,7 @@ export class ApiSubscriberExecutor {
 
 		for (const subscriber of subscribers) {
 			const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, routeType);
-			const hook: unknown = subscriber[hookName as keyof IApiSubscriberRoute<IApiBaseEntity>];
+			const hook: unknown = Reflect.get(subscriber, hookName);
 
 			if (typeof hook === "function") {
 				subscriberLogger.verbose(`Executing route error hook ${hookName} from ${subscriber.constructor.name} for entity ${entityName}`);
@@ -123,7 +123,7 @@ export class ApiSubscriberExecutor {
 
 		for (const subscriber of subscribers) {
 			const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, routeType);
-			const hook: unknown = subscriber[hookName as keyof IApiSubscriberRoute<IApiBaseEntity>];
+			const hook: unknown = Reflect.get(subscriber, hookName);
 
 			if (typeof hook === "function") {
 				subscriberLogger.verbose(`Executing route hook ${hookName} from ${subscriber.constructor.name} for entity ${entityName}`);

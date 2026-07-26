@@ -3,7 +3,7 @@ import type { IApiAuthorizationModuleOptions } from "@interface/class/api/author
 import type { FactoryProvider, ModuleMetadata, Type } from "@nestjs/common";
 
 export interface IApiAuthorizationModuleAsyncOptions extends Pick<ModuleMetadata, "imports"> {
-	inject?: FactoryProvider["inject"];
+	inject?: NonNullable<FactoryProvider["inject"]>;
 	useClass?: Type<IApiAuthorizationModuleOptionsFactory>;
 	useExisting?: Type<IApiAuthorizationModuleOptionsFactory>;
 	useFactory?: FactoryProvider<IApiAuthorizationModuleOptions>["useFactory"];
