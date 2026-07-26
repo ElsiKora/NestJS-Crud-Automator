@@ -1,0 +1,74 @@
+# Automator 3.0 Release Notes
+
+Automator 3.0 is an unreleased major source contract built on the published 2.10 line. This page records the intended release contents without claiming that a 3.0 package has already been published. The exact prerelease or stable version remains owned by semantic-release.
+
+## Highlights
+
+- Semantic infrastructure timestamp ownership for generated write DTOs.
+- Named transaction owners, an ordered event registry, and post-commit/post-rollback subscriber lifecycle.
+- Manager-bound `currentEntity` for UPDATE before-subscribers.
+- Source-first authorization resolver reads by default with bounded process-local memory as explicit opt-in.
+- Opt-in generated-route transactions and direct request relation locks.
+- Route-owned typed GET_LIST filter and order contracts driven by entity metadata.
+
+## Accepted Changes
+
+### Semantic timestamp ownership
+
+Generated CREATE, UPDATE, and PARTIAL_UPDATE bodies omit only date fields identified as `CREATED_AT`, `UPDATED_AT`, or `RECEIVED_AT`. Property names do not determine ownership, plain `DATE` remains writable, and response DTOs retain infrastructure timestamps.
+
+### Transaction lifecycle
+
+`ApiFunctionTransactionScope.runWithDataSource` now requires `{ name }`. `runWithEntityManager` is join-only. The outer transaction owner records ordered, payload-free events and invokes `onAfterCommit` or `onAfterRollback` once per matching function subscriber. Confirmed commit, unknown commit outcome, and rollback failures use distinct public exceptions.
+
+### UPDATE snapshot
+
+`ApiFunctionUpdate` runs one ordinary decorated GET before `onBeforeUpdate` and exposes the active-manager repository plus a detached top-level frozen shallow `currentEntity`. Missing rows skip update-before hooks and retain GET then UPDATE error lifecycle.
+
+### Source-first authorization
+
+HOOKS permission, IAM attachment, and IAM document resolvers default to `SOURCE_FIRST`. They do not keep cross-request map entries or use stale fallback. Explicit `MEMORY` mode requires finite `ttlMs` and `maxEntries` and remains local to one process.
+
+### Generated-route transactions and locks
+
+Generated routes accept `SUPPORTS`, `REQUIRED`, `MANDATORY`, and `NONE`. A route-owned `REQUIRED` transaction encloses request relation hydration, the generated operation, and response reload, then commits before response transforms and route-after subscribers. Direct request relation includes may use native pessimistic read or write locks under an active manager.
+
+### Typed GET_LIST query plans
+
+A generated GET_LIST QUERY target can define typed `filter` and `order` overlays. Entity and TypeORM metadata remain the dynamic DTO baseline. One normalized plan drives runtime DTO generation, strict parsing, TypeORM predicates, DTO cache identity, and OpenAPI. Invalid input fails with stable `400` codes instead of depending on host whitelist behavior.
+
+## Disposition Summary
+
+| Area                                             | 3.0 disposition                                                                                           |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Infrastructure timestamps                        | Implemented through semantic date identifiers.                                                            |
+| Transaction owner and post-transaction lifecycle | Implemented with named scopes, owners, event traces, hooks, and outcome exceptions.                       |
+| UPDATE `currentEntity`                           | Implemented as a manager-bound top-level frozen shallow snapshot.                                         |
+| Authorization scope                              | Existing HOOKS/IAM scope and recursive AND merge remain authoritative; no `baseWhere` API was added.      |
+| Authorization resolver cache                     | Source-first is the default; bounded process-local memory is explicit opt-in.                             |
+| Relation projection                              | `OBJECT` and `SCALAR` remain the supported destructive projections; `FULL` and `PRESERVE` were not added. |
+| Custom-only controllers                          | No default-disabled mode was added; disable all six generated routes explicitly.                          |
+| Consumer filter builder                          | Deferred; 3.0 adds the server-owned typed query contract, not a client URL builder.                       |
+| Generated route transaction and locks            | Implemented as opt-in route config and direct relation lock config.                                       |
+| Typed GET_LIST filter and order                  | Implemented with entity-driven dynamic DTOs, strict runtime parsing, and OpenAPI.                         |
+
+## Breaking Changes
+
+- Generated write DTO timestamp exclusion is identifier-based and applies to CREATE, UPDATE, and PARTIAL_UPDATE.
+- UPDATE before-subscribers run after an ordinary decorated GET and receive `currentEntity`.
+- `runWithDataSource(dataSource, callback)` becomes `runWithDataSource(dataSource, { name }, callback)`.
+- `runWithEntityManager` no longer establishes an independent Automator transaction context.
+- Authorization resolver caches no longer default to unbounded cross-request memory.
+- `TApiGetDefaultStringFormatPropertiesBigIntStringSign` is replaced by `EApiGetDefaultStringFormatPropertiesBigIntStringSign`.
+- `EHasPairedCustomSuffixesFieldsArgumentType`, `THasPairedCustomSuffixesFieldsOperationConfig`, and `VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT` were removed; `HasPairedCustomSuffixesFieldsValidator` remains public.
+- Configured typed GET_LIST plans reject unknown or incompatible query input with strict `400` responses.
+
+Generated-route transactions and locks are opt-in. Omitting route `transaction`, `filter`, or `order` preserves the corresponding earlier route or metadata-driven behavior.
+
+## Publication Model
+
+Until the next release runs, `package.json` and `CHANGELOG.md` still reflect the latest published 2.10 line. Prereleases on `dev` publish under the beta dist-tag as `-dev.N` versions and update `package.json` only. Consumers should pin the exact published candidate during integration. Stable 3.0 is promoted only after candidate integration passes; an executable change requires another candidate.
+
+The release history must retain a semantic-release major marker (`!` or `BREAKING CHANGE`) so the candidate resolves as 3.0. The official `CHANGELOG.md` entry is generated by semantic-release on `main`, not for prerelease candidates; do not hand-edit a 3.0 release entry. These release notes are the reviewable pre-publication record for the major release.
+
+See [Migrating to 3.0](/docs/nestjs-crud-automator/guides/migrating-to-3-0) for consumer actions and examples.

@@ -1,0 +1,250 @@
+# Migrating to 3.0
+
+Automator 3.0 is the next major contract after the published 2.10 line. The source changes described here are unreleased until an exact 3.0 prerelease or stable version is published. Pin that exact published version during adoption; do not depend on a branch, local tarball, `npm link`, or a deep import.
+
+## Migration Checklist
+
+1. Mark infrastructure timestamps by semantic identifier instead of relying on property names.
+2. Update `onBeforeUpdate` assumptions for the decorated GET and `currentEntity`.
+3. Update external transaction scopes and add post-transaction hooks where needed.
+4. Choose the authorization resolver cache mode explicitly when process-local caching is required.
+5. Opt generated routes into route-owned transactions before configuring relation locks.
+6. Keep HTTP relation references separate from entity-based service inputs.
+7. Adopt route-owned typed GET_LIST contracts or intentionally preserve legacy sections by omission.
+8. Replace the BigInt string sign type alias with its enum.
+9. Remove imports of retired validator configuration internals.
+10. Remove consumer workarounds only when the equivalent native behavior is configured and verified.
+
+## Infrastructure Timestamp Ownership
+
+Generated CREATE, UPDATE, and PARTIAL_UPDATE body DTOs exclude date properties identified as `CREATED_AT`, `UPDATED_AT`, or `RECEIVED_AT`. The rule follows `EApiPropertyDateIdentifier`, not the property name. Responses still include these fields.
+
+```typescript
+@ApiPropertyDescribe({
+	type: EApiPropertyDescribeType.DATE,
+	identifier: EApiPropertyDateIdentifier.CREATED_AT,
+	format: EApiPropertyDateType.DATE_TIME,
+})
+insertedOn!: Date; // excluded from generated write bodies
+
+@ApiPropertyDescribe({
+	type: EApiPropertyDescribeType.DATE,
+	identifier: EApiPropertyDateIdentifier.DATE,
+	format: EApiPropertyDateType.DATE_TIME,
+})
+createdAt!: Date; // remains writable because this is a business date
+```
+
+Do not mark a business completion, expiry, verification, or scheduling date as an infrastructure timestamp merely to obtain a description. Use `DATE`, a range identifier, or the appropriate business identifier.
+
+## UPDATE Lifecycle and `currentEntity`
+
+Automator now resolves the transaction and runs one ordinary decorated GET before `onBeforeUpdate`. The hook receives:
+
+- the mutable patch in `context.result`;
+- `context.DATA.repository`, bound to the active manager when a transaction exists and otherwise to the service base repository;
+- a detached, top-level frozen shallow snapshot in `context.DATA.currentEntity`.
+
+```typescript
+async onBeforeUpdate(
+	context: TApiSubscriberFunctionBeforeUpdateContext<UserEntity>,
+): Promise<TApiFunctionUpdateProperties<UserEntity>> {
+	if (context.DATA.currentEntity.status === UserStatus.LOCKED) {
+		throw new ConflictException("USER_LOCKED");
+	}
+
+	return context.result;
+}
+```
+
+The snapshot is not deeply cloned or frozen. Nested relations, arrays, JSON values, dates, buffers, and lazy values can retain aliases to the internal loaded entity; do not mutate them. A missing row fails through GET error lifecycle, skips `onBeforeUpdate`, and then enters UPDATE error lifecycle.
+
+## Transaction Scopes and Post-Transaction Hooks
+
+The external scope signature is now named:
+
+```typescript
+await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "register-user" }, async () => {
+	await userService.create(properties);
+});
+```
+
+`runWithEntityManager(entityManager, callback)` is join-only. It requires a manager already bound to an active Automator owner registry and no longer establishes an independent transaction context.
+
+Function subscribers may observe the outermost confirmed transaction result:
+
+```typescript
+async onAfterCommit(
+	context: IApiSubscriberFunctionTransactionContext,
+): Promise<void> {
+	await this.metrics.recordCommittedOperations(
+		context.DATA.matchedEvents.length,
+	);
+}
+
+async onAfterRollback(
+	context: IApiSubscriberFunctionTransactionContext,
+): Promise<void> {
+	await this.metrics.recordRollback(context.DATA.transaction.id);
+}
+```
+
+`onAfterCommit` and `onAfterRollback` return `Promise<void>` and cannot replace operation results. Their context contains the immutable transaction id and `FUNCTION`, `ROUTE`, or `SCOPE` owner, the complete ordered event trace, and the events matched to that subscriber. Events contain operation metadata, never arguments, entities, bodies, or results; keep outbox payloads in application-owned state. `STEP` is trace-only.
+
+Handle transaction outcome exceptions distinctly:
+
+- `ApiFunctionTransactionPostCommitException` means the database commit succeeded and a post-commit hook failed. Its outcome is `COMMITTED`; never retry it as a rollback.
+- `ApiFunctionTransactionCommitUnknownOutcomeException` means the driver did not confirm the commit result. Its outcome is `UNKNOWN`; commit-error lifecycle still runs, but post-commit and post-rollback hooks do not.
+- A clean confirmed rollback rethrows the original operation error. `ApiFunctionTransactionRollbackException` is reserved for additional database rollback, post-rollback hook, or rollback-error lifecycle failures and preserves the operation error.
+
+Commit and rollback error lifecycle methods are `onBeforeErrorCommit`, `onAfterErrorCommit`, `onBeforeErrorRollback`, and `onAfterErrorRollback`.
+
+## Authorization Resolver Caching
+
+The default is `SOURCE_FIRST`. Every authorization evaluation reads HOOKS permissions, IAM attachments, and requested IAM documents from authoritative sources without cross-request resolver map reads, writes, or stale fallback.
+
+```typescript
+ApiAuthorizationModule.forRoot({
+	cache: {
+		mode: EApiAuthorizationCacheMode.SOURCE_FIRST,
+	},
+	// principal resolver and authorization sources
+});
+```
+
+Use `MEMORY` only as an explicit process-local optimization with positive safe-integer bounds:
+
+```typescript
+ApiAuthorizationModule.forRoot({
+	cache: {
+		mode: EApiAuthorizationCacheMode.MEMORY,
+		maxEntries: 1_000,
+		ttlMs: 30_000,
+	},
+});
+```
+
+Memory mode requires application-owned invalidation and does not provide multi-instance coherence. Redis Pub/Sub without a shared authoritative cache is not a correctness mechanism, and source errors never fall back to stale memory in `SOURCE_FIRST`.
+
+## Generated Route Transactions and Relation Locks
+
+Generated routes accept `transaction.mode`. Omitted configuration and `SUPPORTS` preserve the earlier route boundary without opening a new transaction. `REQUIRED` opens or joins, `MANDATORY` requires an active owner, and `NONE` rejects one.
+
+```typescript
+[EApiRouteType.CREATE]: {
+	transaction: {
+		mode: EApiFunctionTransactionMode.REQUIRED,
+	},
+	relations: {
+		request: {
+			reference: {
+				shape: EApiControllerRelationReferenceShape.SCALAR,
+			},
+			load: {
+				include: {
+					author: true,
+				},
+				locks: {
+					author: {
+						mode: "pessimistic_read",
+					},
+				},
+			},
+		},
+	},
+}
+```
+
+Request transformation and validation run before a route-owned transaction. Request relation hydration, the generated operation, and response reload share its manager. When the route opens and owns the transaction, commit and post-commit lifecycle finish before response transformation and route-after subscribers. When `REQUIRED` joins an outer owner, that owner commits later.
+
+Locks support independent direct relation includes with native `pessimistic_read` or `pessimistic_write`. They require an active Automator transaction and never fall back to an unlocked read. A locked direct relation with explicit nested includes requires `relationLoadStrategy: "query"`.
+
+## HTTP Relations and Service Inputs
+
+`SCALAR` and `OBJECT` are the supported relation reference projection shapes. The controller may accept a scalar HTTP reference and hydrate it to an entity before calling the service. Generated service `create` and `update` inputs remain entity-based; do not widen them to `string | Entity`.
+
+There is no `FULL` or `PRESERVE` projection mode in 3.0. There is also no custom-only/default-disabled controller mode: disable all six generated routes explicitly with `generation.isEnabled: false` when a controller should expose only custom routes.
+
+## Typed GET_LIST Contracts
+
+Generated GET_LIST routes can add sibling `filter` and `order` sections under `request[EApiControllerRequestTarget.QUERY]`. Entity and TypeORM metadata remain the dynamic DTO baseline; route configuration narrows or overlays it.
+
+```typescript
+[EApiRouteType.GET_LIST]: {
+	request: {
+		[EApiControllerRequestTarget.QUERY]: {
+			filter: {
+				fields: {
+					status: {
+						isEnabled: true,
+						allowedOperations: [EFilterOperation.EQ],
+						missingBehavior:
+							EApiControllerGetListQueryFilterMissingBehavior.REJECT,
+					},
+				},
+				unlistedFields:
+					EApiControllerGetListQueryUnlistedFields.REJECT,
+			},
+			order: {
+				fields: {
+					createdAt: {
+						isEnabled: true,
+					},
+				},
+				unlistedFields:
+					EApiControllerGetListQueryUnlistedFields.REJECT,
+			},
+		},
+	},
+}
+```
+
+Omit `filter` or `order` to preserve legacy metadata-driven behavior for that section. `INHERIT` overlays metadata-enabled fields; `REJECT` creates an allowlist. A manual GET_LIST QUERY DTO is mutually exclusive with generated filter/order configuration, while a manual RESPONSE DTO remains compatible.
+
+The runtime parser rejects invalid input independently of the host `ValidationPipe`:
+
+- `FILTER_REQUIRED` for a missing required filter;
+- `INVALID_FILTER` for an invalid filter path, operation, operand, value, or cardinality;
+- `INVALID_ORDER` for invalid ordering;
+- `INVALID_LIMIT` and `INVALID_PAGE` for invalid pagination.
+
+The package does not provide a consumer-side typed URL/bracket-filter builder in 3.0. Build client query strings in the consumer or retain a local typed helper if required; this does not affect the server-owned typed route contract.
+
+## BigInt Sign and Retired Exports
+
+Replace the removed string-sign type alias:
+
+```typescript
+const defaults = GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, {
+	sign: EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED,
+});
+```
+
+`TApiGetDefaultStringFormatPropertiesBigIntStringSign` was replaced by `EApiGetDefaultStringFormatPropertiesBigIntStringSign`.
+
+The following validator configuration internals were removed from the package:
+
+- `EHasPairedCustomSuffixesFieldsArgumentType`;
+- `THasPairedCustomSuffixesFieldsOperationConfig`;
+- `VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT`.
+
+`HasPairedCustomSuffixesFieldsValidator` remains public. Import supported symbols from `@elsikora/nestjs-crud-automator`; internal file moves are not a supported deep-import contract.
+
+## Consumer Cleanup
+
+Remove local raw bracket-query mutation subscribers, transaction wrappers, cache fallbacks, or duplicate lifecycle subscribers only after the corresponding native route configuration is adopted and covered by integration tests. The general subscriber extension points remain supported.
+
+## Verification
+
+Before adopting the major release:
+
+1. type-check every controller and subscriber;
+2. compare generated Swagger with the intended request and response contracts;
+3. test UPDATE missing-row and `currentEntity` behavior;
+4. test transaction owner, commit, rollback, and post-transaction failures;
+5. test authorization changes across independent application instances;
+6. test typed-query success and strict `400` failures;
+7. test direct relation locks against PostgreSQL when concurrency matters;
+8. install an exact published prerelease in a clean consumer before promoting stable.
+
+See [Automator 3.0 Release Notes](/docs/nestjs-crud-automator/guides/release-notes-3-0) for the complete disposition summary.

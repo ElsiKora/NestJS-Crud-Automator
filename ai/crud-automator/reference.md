@@ -94,13 +94,15 @@ routes: {
 
 Do not use old flat fields such as route-level `isEnabled`, `authentication`, `authorization`, `request.transformers`, `response.transformers`, `request.relations`, or `response.relations`. Do not use removed top-level `authentication.bearerStrategies` or `authentication.securityStrategies`; use `authentication.securityRequirements` groups instead.
 
+Omitted route keys are generated with default configuration. There is no custom-only/default-disabled mode; explicitly disable CREATE, GET, GET_LIST, UPDATE, PARTIAL_UPDATE, and DELETE when only custom routes should be exposed.
+
 Generated route transaction rules:
 
 - Omitted `transaction` and `SUPPORTS` open no route transaction and preserve the legacy route boundary.
 - `REQUIRED` opens a `ROUTE` owner when none exists; `MANDATORY` requires an active owner; `NONE` rejects one.
 - Request transformation and validation stay outside a route-owned transaction.
 - Request relation hydration, generated service execution, and response relation reload share the active manager.
-- Commit lifecycle finishes before response transformation, route-after, authorization result handling, and serialization.
+- When the route opens and owns the transaction, commit lifecycle finishes before response transformation, route-after, authorization result handling, and serialization. A joined outer owner commits later.
 - Custom routes do not inherit generated route transaction config.
 
 ## DTO Rules
@@ -108,9 +110,11 @@ Generated route transaction rules:
 - `EApiDtoType.BODY`, `QUERY`, `PARAMETERS`, and `RESPONSE` are the only DTO keys.
 - `autoDto` supports `validators` only.
 - Use entity `ApiPropertyDescribe.properties` for field enablement, requiredness, response exposure, filters, guards, and route/DTO-specific behavior.
+- Generated CREATE, UPDATE, and PARTIAL_UPDATE bodies omit date fields identified as `CREATED_AT`, `RECEIVED_AT`, or `UPDATED_AT`; responses retain them. Property names do not imply ownership, and `DATE` remains writable.
 - Generated GET_LIST `request[QUERY].filter` and `order` compile with entity/TypeORM metadata into one immutable plan. `INHERIT` overlays metadata; `REJECT` creates an allowlist; route config cannot re-enable a metadata-disabled field.
 - Filter fields use exact disabled `{ isEnabled: false }` or enabled non-empty `allowedOperations` plus optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior. Order fields are direct-scalar enabled/disabled overlays and have no filter-only settings.
 - Manual GET_LIST QUERY DTOs cannot be combined with generated filter/order config. Manual RESPONSE DTOs remain compatible.
+- The package does not include a consumer-side typed URL/bracket-filter builder in 3.0.
 - `isExpose` is response-only and requires `isResponse: true`.
 - Guard-scoped DTO generation depends on the route's configured guard class; it is not a per-request role check.
 - `isUniqueItems` is OpenAPI schema metadata unless source adds explicit runtime uniqueness validation.
@@ -152,8 +156,9 @@ Generated request relation caveats:
 - Direct relation locks follow `include` declaration order and disable implicit eager-relation loading. Locked direct relations with explicit nested includes require `relationLoadStrategy: "query"` so nested reads share the manager without receiving an automatic lock.
 - Request relation hydration mutates direct relation references into loaded entity objects. Nested include objects are passed to the direct relation service as TypeORM `relations`; nested request references are not recursively hydrated.
 - Scalar relation values are an HTTP/controller contract; generated service inputs remain entity-based.
+- Response reference projection supports destructive `OBJECT` and `SCALAR` shapes only; there is no `FULL` or `PRESERVE` mode.
 - For generated routes, request relation hydration reads relation fields from the request body for CREATE, UPDATE, and PARTIAL_UPDATE. It does not hydrate GET/DELETE route parameters.
-- CREATE reloads the created entity with configured response relations. UPDATE/PARTIAL_UPDATE reload only when response relation loading is configured. DELETE returns no body. GET_LIST maps `limit`/`page` to `take`/`skip`, applies `orderBy` only when present, and uses a configured normalized query plan for strict filter/order contracts.
+- CREATE always reloads the created entity through `service.get(...)`, including configured response relations when present. UPDATE/PARTIAL_UPDATE reload only when response relation loading is configured. DELETE returns no body. GET_LIST maps `limit`/`page` to `take`/`skip`, applies `orderBy` only when present, and uses a configured normalized query plan for strict filter/order contracts.
 
 ## Subscriber Contexts
 
@@ -191,9 +196,11 @@ Post-transaction function subscriber lifecycle:
 - `onAfterCommit` and `onAfterRollback` run once per matching subscriber after the outer owner has completed the database transaction.
 - `context.DATA.transaction` contains the UUID and immutable `FUNCTION`, `ROUTE`, or `SCOPE` owner.
 - `context.DATA.events` contains the full ordered trace; `matchedEvents` contains only events that selected that subscriber.
+- Transaction events contain metadata only, never arguments, bodies, entities, or results.
 - STEP events remain trace-only and never select subscribers.
 - `onBeforeErrorCommit`/`onBeforeErrorRollback` receive raw failures; `onAfterErrorCommit`/`onAfterErrorRollback` receive normalized transaction exceptions.
 - `ApiFunctionTransactionScope.runWithDataSource(dataSource, { name }, callback)` owns a named transaction; `runWithEntityManager` only joins an existing Automator owner.
+- `ApiFunctionTransactionPostCommitException` means `COMMITTED`. `ApiFunctionTransactionCommitUnknownOutcomeException` means `UNKNOWN`, still invokes commit-error lifecycle, and invokes neither post-commit nor post-rollback. A clean confirmed rollback rethrows the original operation error; `ApiFunctionTransactionRollbackException` is reserved for additional rollback, hook, or rollback-error lifecycle failures and preserves that operation error.
 
 For generated CRUD before hooks, `context.result` includes request targets plus `authenticationRequest`, `headers`, and `ip`. For `@ApiRouteCustom`, `context.result` is only `{ body?, parameters?, query? }`; read `authenticationRequest`, `headers`, `ip`, route metadata, and runtime properties from `context.DATA`.
 
@@ -209,3 +216,11 @@ For generated CRUD before hooks, `context.result` includes request targets plus 
 - Source-first errors propagate; the resolver never falls back to a previously successful value. Duplicate permissions, attachments, and document IDs are still collapsed inside one resolution.
 - `MEMORY` requires explicit positive safe-integer `ttlMs` and `maxEntries`, is bounded independently per resolver cache, and is local to one process.
 - `ApiAuthorizationCacheInvalidationService.clearAll()` clears policy, IAM attachment/document, and hook permission caches. Resolver entries exist only in memory mode; policy-rule caching is a separate default-disabled option and requires invalidation whenever enabled rules change.
+- There is no separate immutable controller `baseWhere`; fixed and principal-dependent restrictions belong in HOOKS/IAM scope.
+
+## 3.0 Export Migration
+
+- Replace `TApiGetDefaultStringFormatPropertiesBigIntStringSign` with `EApiGetDefaultStringFormatPropertiesBigIntStringSign`.
+- `EHasPairedCustomSuffixesFieldsArgumentType`, `THasPairedCustomSuffixesFieldsOperationConfig`, and `VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT` were removed.
+- `HasPairedCustomSuffixesFieldsValidator` remains public.
+- Import public symbols from `@elsikora/nestjs-crud-automator`; internal file paths are not an export contract.

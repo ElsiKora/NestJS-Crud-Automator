@@ -305,6 +305,8 @@ interface IApiSubscriberFunction<
 	BeforeUpdateResult extends TApiFunctionUpdateProperties<E> = TApiFunctionUpdateProperties<E>,
 	TTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation = EApiFunctionSubscriberTransactionExpectation.SUPPORTS,
 > {
+	onAfterCommit?(context: IApiSubscriberFunctionTransactionContext): Promise<void>;
+	onAfterRollback?(context: IApiSubscriberFunctionTransactionContext): Promise<void>;
 	onBeforeCustom?(context: IApiSubscriberFunctionExecutionContext<E, unknown, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>): Promise<unknown>;
 	onAfterCustom?(context: IApiSubscriberFunctionExecutionContext<E, unknown, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>): Promise<unknown>;
 	onBeforeCreate?(context: TApiSubscriberFunctionBeforeCreateContext<E, BeforeCreateResult, TTransactionExpectation>): Promise<BeforeCreateResult | undefined>;
@@ -319,11 +321,31 @@ interface IApiSubscriberFunction<
 	onAfterUpdate?(context: TApiSubscriberFunctionAfterUpdateContext<E, TTransactionExpectation>): Promise<E | undefined>;
 	onBeforeDelete?(context: TApiSubscriberFunctionBeforeDeleteContext<E, BeforeDeleteResult, TTransactionExpectation>): Promise<BeforeDeleteResult | undefined>;
 	onAfterDelete?(context: TApiSubscriberFunctionAfterDeleteContext<E, TTransactionExpectation>): Promise<E | undefined>;
+	onBeforeErrorCommit?(context: IApiSubscriberFunctionTransactionContext, failures: ReadonlyArray<Readonly<IApiFunctionTransactionFailure>>): Promise<void>;
+	onAfterErrorCommit?(context: IApiSubscriberFunctionTransactionContext, error: Error): Promise<void>;
+	onBeforeErrorRollback?(context: IApiSubscriberFunctionTransactionContext, failures: ReadonlyArray<Readonly<IApiFunctionTransactionFailure>>): Promise<void>;
+	onAfterErrorRollback?(context: IApiSubscriberFunctionTransactionContext, error: Error): Promise<void>;
 	// ... before/after error hooks include CRUD, GET_MANY, and CUSTOM operations.
 }
 ```
 
 The extra before-result generics are optional and type-only. Use them when a function subscriber has a stricter payload type than the default operation payload; they do not infer DTOs or change runtime behavior. The transaction expectation generic should match `@ApiFunctionSubscriber({ transaction: { expectation } })` when a subscriber requires a manager.
+
+### IApiSubscriberFunctionTransactionContext
+
+Readonly context passed to post-transaction and transaction-error lifecycle hooks.
+
+```typescript
+interface IApiSubscriberFunctionTransactionContext {
+	readonly DATA: Readonly<{
+		events: ReadonlyArray<TApiFunctionTransactionEvent>;
+		matchedEvents: ReadonlyArray<TApiFunctionTransactionEvent>;
+		transaction: Readonly<IApiFunctionTransaction>;
+	}>;
+}
+```
+
+`transaction` contains the id and immutable `FUNCTION`, `ROUTE`, or `SCOPE` owner. `events` is the complete ordered trace; `matchedEvents` contains only events that selected the current subscriber. Events contain operation metadata only, never arguments, bodies, entities, or results. Post-commit and post-rollback hooks return `Promise<void>` and cannot replace results.
 
 ### IApiFunctionSubscriberProperties\<E\>
 

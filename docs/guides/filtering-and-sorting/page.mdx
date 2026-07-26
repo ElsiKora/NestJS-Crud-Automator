@@ -83,6 +83,8 @@ Typed-query failures use stable `400` codes:
 
 The same plan emits one OpenAPI deep-object parameter per enabled filter field. Its `oneOf` branches describe the exact operator and `value`, `values`, or nullary operand shape. Disabled fields are omitted from both the generated query DTO contract and OpenAPI.
 
+The 3.0 package owns this server-side route contract but does not ship a consumer-side typed URL/bracket-filter builder. Consumers may keep a local helper or build repeated query parameters directly. Deferring that client utility does not weaken the generated DTO, parser, TypeORM, or OpenAPI contract.
+
 ## Filter Operations
 
 ### String Operations

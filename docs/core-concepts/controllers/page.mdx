@@ -70,6 +70,8 @@ routes: {
 }
 ```
 
+Automator has no custom-only/default-disabled controller mode. To expose only custom routes, explicitly set `generation.isEnabled: false` for CREATE, GET, GET_LIST, UPDATE, PARTIAL_UPDATE, and DELETE. An omitted route key is still generated with default configuration.
+
 ### Swagger Documentation
 
 Generated CRUD routes automatically receive Swagger summaries and descriptions based on the controller `name` option, or the entity name when `name` is omitted. Item routes use a singular resource name, while list routes use a plural one. For example, `name: "User"` produces text such as `Create \`User\``and`List \`Users\``.

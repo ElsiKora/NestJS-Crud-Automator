@@ -56,6 +56,8 @@ Used for request bodies in CREATE and UPDATE operations.
 - `UPDATE` bodies keep required fields required; `PARTIAL_UPDATE` bodies are optional-friendly
 - Validation rules still apply when provided
 
+Generated CREATE, UPDATE, and PARTIAL_UPDATE bodies always omit server-owned date properties identified by `EApiPropertyDateIdentifier.CREATED_AT`, `RECEIVED_AT`, or `UPDATED_AT`. This rule is semantic and independent of the property name. Response DTOs retain these timestamps, while `DATE` and other business/range identifiers remain eligible for write bodies.
+
 ### Query DTOs
 
 Used for filtering and pagination in GET_LIST operations:

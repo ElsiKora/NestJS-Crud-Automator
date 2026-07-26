@@ -323,7 +323,13 @@ async onBeforeCreate(context: TApiSubscriberRouteBeforeCreateContext<PostEntity>
 
 ## Transaction Boundaries
 
-Generated CRUD routes can reuse `EApiFunctionTransactionMode` under route `transaction.mode`. Omitted configuration and `SUPPORTS` open no route transaction. `REQUIRED` opens a `ROUTE`-owned transaction when no Automator owner exists; `MANDATORY` requires an active owner; `NONE` rejects active execution. Request transformers and validators run before a route-owned transaction. Request relation hydration, the generated service operation, and response relation reload run inside it. Commit and post-commit hooks finish before response transformers and route-after subscribers. Custom routes do not use this route transaction setting.
+Generated CRUD routes can reuse `EApiFunctionTransactionMode` under route `transaction.mode`. Omitted configuration and `SUPPORTS` open no route transaction. `REQUIRED` opens a `ROUTE`-owned transaction when no Automator owner exists; `MANDATORY` requires an active owner; `NONE` rejects active execution. Request transformers and validators run before a route-owned transaction. Request relation hydration, the generated service operation, and response relation reload run inside it. When the route opens and owns the transaction, commit and post-commit hooks finish before response transformers and route-after subscribers; a joined outer owner commits later. Custom routes do not use this route transaction setting.
+
+`onAfterCommit` and `onAfterRollback` run once per matching function subscriber only after the outer `FUNCTION`, `ROUTE`, or named `SCOPE` owner confirms the database result. Their readonly context contains the transaction id and owner, the full ordered event trace, and subscriber-matched events. `NONE` and nontransactional `SUPPORTS` produce no post-transaction hooks.
+
+A post-commit hook failure produces `ApiFunctionTransactionPostCommitException` with outcome `COMMITTED`; remaining commit hooks and commit-error lifecycle still run. An unconfirmed database COMMIT produces `ApiFunctionTransactionCommitUnknownOutcomeException` with outcome `UNKNOWN`, invokes commit-error lifecycle, and runs neither post-commit nor post-rollback hooks. Confirmed operation rollback preserves the operation error; additional rollback failures are exposed through `ApiFunctionTransactionRollbackException`.
+
+Transaction error lifecycle methods are `onBeforeErrorCommit`, `onAfterErrorCommit`, `onBeforeErrorRollback`, and `onAfterErrorRollback`. Error-lifecycle failures are collected and do not recursively invoke the same lifecycle.
 
 Function subscribers can participate in transactions when an `eventManager` is provided:
 

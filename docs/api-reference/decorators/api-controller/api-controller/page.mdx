@@ -36,6 +36,8 @@ Routes also accept:
 - `generation.isEnabled: false` – disables a route. Omitting a route key does not disable it; the factory generates omitted routes with default configuration.
 - `generation.shouldWriteToController: false` – keeps the generated method and DTO metadata but skips applying Nest route decorators, so you can expose the method manually.
 
+There is no custom-only/default-disabled controller option. A controller that exposes only custom routes must explicitly disable all six generated route types.
+
 ## Example
 
 ```typescript

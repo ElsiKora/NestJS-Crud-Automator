@@ -136,6 +136,8 @@ enum EApiGetDefaultStringFormatPropertiesBigIntStringSign {
 }
 ```
 
+Pass this enum through `GetDefaultStringFormatProperties(EApiPropertyStringType.BIGINT_STRING, { sign })`. It replaces the removed `TApiGetDefaultStringFormatPropertiesBigIntStringSign` string-union export.
+
 ### EApiPropertyNumberType
 
 Number format types.
@@ -179,6 +181,8 @@ enum EApiPropertyDateIdentifier {
 	UPDATED_AT_TO = "updatedAtTo",
 }
 ```
+
+`CREATED_AT`, `RECEIVED_AT`, and `UPDATED_AT` mark server-owned infrastructure timestamps. Generated CREATE, UPDATE, and PARTIAL_UPDATE body DTOs omit those identifiers while response DTOs retain them. `DATE` and the range/business identifiers do not imply write exclusion.
 
 ### EApiPropertyDataType
 
@@ -443,6 +447,42 @@ enum EApiFunctionTransactionMode {
 
 Generated routes use the enum under `routes[routeType].transaction.mode`. Omitted route configuration behaves as `SUPPORTS` and does not open a route transaction.
 
+### EApiFunctionTransactionOutcome
+
+Confirmed and uncertain transaction outcomes exposed by transaction exceptions.
+
+```typescript
+enum EApiFunctionTransactionOutcome {
+	COMMITTED = "COMMITTED",
+	ROLLED_BACK = "ROLLED_BACK",
+	UNKNOWN = "UNKNOWN",
+}
+```
+
+### EApiFunctionTransactionOwnerKind
+
+The outer Automator component that owns a transaction registry.
+
+```typescript
+enum EApiFunctionTransactionOwnerKind {
+	FUNCTION = "FUNCTION",
+	ROUTE = "ROUTE",
+	SCOPE = "SCOPE",
+}
+```
+
+### EApiFunctionTransactionTraceType
+
+Additional trace-only event kinds.
+
+```typescript
+enum EApiFunctionTransactionTraceType {
+	STEP = "step",
+}
+```
+
+`STEP` events appear in the ordered transaction trace but do not independently select function subscribers.
+
 ### EApiFunctionSubscriberTransactionExpectation
 
 Subscriber-declared transaction expectations for function subscribers.
@@ -615,7 +655,6 @@ The package also exports large utility enum families used by generated errors, m
 - `EErrorStringAction`
 - `EErrorStringCompositeAction`
 - `EManualDtoPropertyMetadataDecorator`
-- `EHasPairedCustomSuffixesFieldsArgumentType`
 - `EMastMatchOneOfSchemasValidationErrorType`
 
 ## Subscriber Enums

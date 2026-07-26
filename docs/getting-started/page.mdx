@@ -13,20 +13,27 @@ This guide will walk you through the basic setup and usage of NestJS CRUD Automa
 	<Tabs.Tab>```bash copy bun install @elsikora/nestjs-crud-automator ```</Tabs.Tab>
 </Tabs>
 
+Plain installation currently resolves the published 2.10 line. This source documentation describes the unreleased 3.0 contract. Pin an exact published 3.0 candidate when it becomes available and follow [Migrating to 3.0](/docs/nestjs-crud-automator/guides/migrating-to-3-0) before adoption.
+
 ## Prerequisites
 
 Make sure you have the following dependencies installed in your NestJS project:
 
-- NestJS (>=11.0.5)
+- `@nestjs/common` and `@nestjs/core` (>=11.1.24)
+- `@nestjs/passport` (>=11.0.5)
+- `@nestjs/platform-fastify` (>=11.1.24)
+- `@nestjs/swagger` (>=11.0.3)
+- `@nestjs/throttler` (>=6.5.0)
 - TypeORM (>=0.3.20)
-- class-validator (>=0.14.1)
+- Fastify (>=5.8.5)
+- class-validator (>=0.15.1)
 - class-transformer (>=0.5.1)
-- @nestjs/swagger (>=11.0.3)
+- Lodash (>=4.18.1)
 
 Install peer dependencies if they are not already in your project:
 
 ```bash copy
-npm install @nestjs/common @nestjs/core @nestjs/swagger @nestjs/throttler typeorm class-transformer class-validator reflect-metadata
+npm install @nestjs/common @nestjs/core @nestjs/passport @nestjs/platform-fastify @nestjs/swagger @nestjs/throttler typeorm class-transformer class-validator fastify lodash
 ```
 
 ## Basic Usage
@@ -89,6 +96,8 @@ export class UserEntity {
 	updatedAt: Date;
 }
 ```
+
+`CREATED_AT`, `UPDATED_AT`, and `RECEIVED_AT` identify server-owned infrastructure timestamps. Generated CREATE, UPDATE, and PARTIAL_UPDATE body DTOs omit them while response DTOs retain them. The rule follows the identifier rather than the property name; use `DATE` for a writable business date.
 
 ### Step 2: Create a Service
 
@@ -255,6 +264,8 @@ bootstrap();
 
 Now that you have a basic setup, explore the following sections:
 
+- [Migrating to 3.0](/docs/nestjs-crud-automator/guides/migrating-to-3-0) - Upgrade from the published 2.10 contract
+- [3.0 Release Notes](/docs/nestjs-crud-automator/guides/release-notes-3-0) - Review the complete unreleased major scope
 - [Core Concepts](/docs/nestjs-crud-automator/core-concepts) - Understand the library architecture
 - [Guides](/docs/nestjs-crud-automator/guides) - Learn filtering, authentication, validation, and more
 - [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Add hooks to extend CRUD operations

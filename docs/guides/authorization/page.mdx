@@ -131,6 +131,8 @@ ApiAuthorizationModule.forRoot({
 
 `ttlMs` and `maxEntries` must be positive safe integers or bootstrap fails. TTL starts when an entry is stored, and the oldest entry is evicted when that resolver cache reaches its limit. Each hooks permission, IAM attachment, and IAM document cache has its own limit. Memory is process-local and requires explicit invalidation when a backing change must become visible before TTL expiry; it does not provide multi-instance consistency.
 
+Do not treat Redis Pub/Sub invalidation around independent process-local maps as a correctness boundary, and do not add an implicit memory fallback when a source fails. Multi-instance correctness requires every resolver to read an authoritative source in `SOURCE_FIRST` or a separately designed shared-cache contract outside Automator.
+
 Hooks policy-rule caching is separate from these resolver modes. It remains disabled by default and is configured through `ApiAuthorizationPolicyRegistry.configureCache()` or a policy's `cache` option.
 
 ### `forRootAsync()` for DI-backed sources
@@ -578,6 +580,8 @@ IAM behavior is intentionally strict:
 - impossible conflicts collapse to a match-nothing branch instead of rewriting the requested filter
 - unsupported or unsafe query-planning cases result in denial instead of hidden in-memory filtering
 - duplicate document IDs across sources and missing requested documents throw immediately
+
+Automator does not add a separate immutable `baseWhere` controller option. Put fixed, principal-dependent, and tenant-dependent restrictions in HOOKS or IAM scope so they participate in the same fail-closed AND merge.
 
 ## Decision Trace, Audit, and Simulator
 

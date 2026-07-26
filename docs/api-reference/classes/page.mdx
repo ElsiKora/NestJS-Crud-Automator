@@ -158,6 +158,10 @@ The third generic remains the before-delete result when it is a delete criteria 
 - `onBeforeGetMany`, `onAfterGetMany`, `onBeforeErrorGetMany`, `onAfterErrorGetMany`
 - `onBeforeDelete`, `onAfterDelete`, `onBeforeErrorDelete`, `onAfterErrorDelete`
 - `onBeforeCustom`, `onAfterCustom`, `onBeforeErrorCustom`, `onAfterErrorCustom`
+- `onAfterCommit`, `onAfterRollback`
+- `onBeforeErrorCommit`, `onAfterErrorCommit`, `onBeforeErrorRollback`, `onAfterErrorRollback`
+
+Post-transaction hooks run only after the outer owner confirms commit or rollback. They return `Promise<void>` and cannot replace operation results.
 
 **Related:**
 
@@ -252,6 +256,20 @@ Public helper for running code inside an external TypeORM transaction while maki
 - `runWithEntityManager(entityManager, callback)` joins only the manager already bound to an active Automator transaction.
 
 Only service-bound decorated function execution, including generated `@ApiFunction` flows and `@ApiFunctionCustom`, has real CRUD `operations`; transaction scopes created without a decorated service expose `getRepository` and transaction metadata but reject CRUD operations because there is no owning service context.
+
+### Transaction Outcome Exceptions
+
+#### ApiFunctionTransactionPostCommitException
+
+The database commit succeeded, but one or more `onAfterCommit` or commit-error lifecycle hooks failed. `outcome` is `COMMITTED`; the exception exposes `transactionId`, `owner`, `hookFailures`, and `errorLifecycleFailures`. Do not report or retry this as a rollback.
+
+#### ApiFunctionTransactionCommitUnknownOutcomeException
+
+The driver did not confirm the result of COMMIT. `outcome` is `UNKNOWN`; the exception exposes the commit failure, optional cleanup failure, error-lifecycle failures, transaction id, and owner. Automator invokes commit-error lifecycle but neither post-commit nor post-rollback hooks for this uncertain outcome.
+
+#### ApiFunctionTransactionRollbackException
+
+The operation failed and rollback handling also produced a database, post-rollback, or rollback-error lifecycle failure. The original `operationError` remains available. `outcome` is `ROLLED_BACK` when the database rollback was confirmed and `UNKNOWN` when the rollback itself failed.
 
 ## Subscriber Management Classes
 

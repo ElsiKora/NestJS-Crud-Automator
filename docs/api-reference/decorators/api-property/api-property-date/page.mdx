@@ -10,12 +10,12 @@ Formats, validates, and serializes date/time fields. Supports ISO date-time stri
 
 ## Key options
 
-| Option                                               | Description                                                                                                                                      |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `identifier`                                         | `EApiPropertyDateIdentifier` describing semantic meaning (createdAt, updatedAt, expiresIn, date filters, etc.). Drives default description text. |
-| `format`                                             | `EApiPropertyDateType.DATE`, `DATE_TIME`, or `TIME`. Controls regex pattern, example value, and expected serializer format.                      |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enables arrays of date values with full validation.                                                                                              |
-| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Same semantics as other property decorators.                                                                                                     |
+| Option                                               | Description                                                                                                                                               |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `identifier`                                         | `EApiPropertyDateIdentifier` describing semantic meaning. It drives default description text and generated write ownership for infrastructure timestamps. |
+| `format`                                             | `EApiPropertyDateType.DATE`, `DATE_TIME`, or `TIME`. Controls regex pattern, example value, and expected serializer format.                               |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enables arrays of date values with full validation.                                                                                                       |
+| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Same semantics as other property decorators.                                                                                                              |
 
 ## Behavior
 
@@ -24,6 +24,7 @@ Formats, validates, and serializes date/time fields. Supports ISO date-time stri
 - Leverages `Transform` to convert ISO strings into `Date` instances (both single values and arrays).
 - Preserves missing optional array values as `undefined`/`null` instead of converting them to an empty array.
 - Adds `ApiResponseProperty` and exposure decorators on response DTOs.
+- Generated CREATE, UPDATE, and PARTIAL_UPDATE bodies omit properties identified as `CREATED_AT`, `RECEIVED_AT`, or `UPDATED_AT`, regardless of property name. Responses retain them; `DATE` and other business/range identifiers remain writable.
 
 ## Example
 

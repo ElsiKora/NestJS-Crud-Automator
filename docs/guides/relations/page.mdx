@@ -95,6 +95,15 @@ export class PostController {
 }
 ```
 
+### Reference Projection Shapes
+
+Automator supports two destructive relation reference projections:
+
+- `SCALAR` replaces a loaded relation with the configured key value;
+- `OBJECT` replaces it with an object containing the configured key.
+
+`FULL` and `PRESERVE` are not 3.0 modes. Any configured `relations.response.load` requires an `OBJECT` or `SCALAR` reference and projects the loaded relation. To retain a complete relation, omit Automator response loading, load it through another application-owned path, and use a manual response DTO or transformer.
+
 ### Explicit Loading
 
 Specify exactly which relations to load:
@@ -363,7 +372,7 @@ async assignAuthor(@Body() body: Partial<PostEntity>): Promise<PostEntity> {
 }
 ```
 
-Custom route request relations are hydrated from the method body payload before the handler runs. Generated-route `transaction` configuration does not apply to custom routes; custom functions, steps, or named scopes continue to own their transactions. If custom relation config uses `locks`, hydration must already run under an active Automator transaction. Response relation reload requires `controller.service` to extend `ApiServiceBase`; response values without an `id` are returned unchanged. Response relations can be reloaded and projected for single entities, arrays, and get-list style `{ items }` envelopes. Generated CREATE reloads the created entity with configured response relations; UPDATE and PARTIAL_UPDATE reload only when response relation loading is configured; DELETE returns no response body to project.
+Custom route request relations are hydrated from the method body payload before the handler runs. Generated-route `transaction` configuration does not apply to custom routes; custom functions, steps, or named scopes continue to own their transactions. If custom relation config uses `locks`, hydration must already run under an active Automator transaction. Response relation reload requires `controller.service` to extend `ApiServiceBase`; response values without an `id` are returned unchanged. Response relations can be reloaded and projected for single entities, arrays, and get-list style `{ items }` envelopes. Generated CREATE always reloads the created entity through `service.get(...)`; configured response relations are included when present. UPDATE and PARTIAL_UPDATE reload only when response relation loading is configured; DELETE returns no response body to project.
 
 ## Performance Optimization
 

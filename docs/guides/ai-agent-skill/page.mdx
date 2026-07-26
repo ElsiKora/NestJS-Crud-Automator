@@ -30,10 +30,13 @@ The skill covers current Crud Automator contracts for:
 - `@ApiController`, route generation, and route config nesting
 - `@ApiService`, `@ApiFunction`, `@ApiFunctionCustom`, and transaction scopes
 - `@ApiRouteCustom` versus low-level `@ApiMethod`
-- `ApiPropertyDescribe`, manual DTO decorators, `autoDto`, GET_LIST item DTOs, and typed generated GET_LIST query plans
+- `ApiPropertyDescribe`, semantic timestamp ownership, manual DTO decorators, `autoDto`, GET_LIST item DTOs, and typed generated GET_LIST query plans
 - request/response transformers and validators
-- relation hydration and response relation loading
-- route and function subscribers, including custom hooks and error hooks
+- relation hydration, response projection/loading, and direct relation locks
+- route and function subscribers, including custom, error, and post-transaction hooks
+- function, route, and named transaction ownership
 - HOOKS/IAM authorization, policy documents, resource definitions, resolver caches, and simulator usage
 
 When the skill and docs disagree with source, use `src/interface/**`, `src/type/**`, exported barrels, and tests as the contract.
+
+For major-version adoption, pair the bundle with [Migrating to 3.0](/docs/nestjs-crud-automator/guides/migrating-to-3-0) and the [3.0 release notes](/docs/nestjs-crud-automator/guides/release-notes-3-0).

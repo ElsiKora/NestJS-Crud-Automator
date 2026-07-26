@@ -1,6 +1,6 @@
 # Function Subscribers
 
-Function subscribers intercept operations at the service level, immediately before and after repository method calls. They operate at the database layer, making them ideal for data transformation and enrichment.
+Function subscribers intercept decorated service execution around persistence work. UPDATE includes an ordinary decorated GET before `onBeforeUpdate`, and transactional execution may also emit post-commit or post-rollback hooks after the outer owner finishes. They are ideal for persistence-aware validation, transformation, enrichment, auditing, and confirmed-transaction side effects.
 
 ## Creating a Function Subscriber
 
@@ -214,6 +214,35 @@ private calculateReadingTime(content: string): number {
   return Math.ceil(words / 200); // 200 words per minute
 }
 ```
+
+### Post-Transaction Hooks
+
+`onAfterCommit` and `onAfterRollback` run once per matching subscriber after the outer transaction owner confirms the database result. They do not run for `NONE`, nontransactional `SUPPORTS`, or an unknown COMMIT outcome.
+
+```typescript
+async onAfterCommit(
+	context: IApiSubscriberFunctionTransactionContext,
+): Promise<void> {
+	await this.metrics.recordCommittedOperations(
+		context.DATA.matchedEvents.length,
+	);
+}
+
+async onAfterRollback(
+	context: IApiSubscriberFunctionTransactionContext,
+): Promise<void> {
+	await this.metrics.recordRollback(context.DATA.transaction.id);
+}
+```
+
+The readonly context exposes the transaction id and `FUNCTION`, `ROUTE`, or `SCOPE` owner, all ordered events, and subscriber-matched events. Events are payload-free operation metadata; outbox bodies and domain payloads must come from application-owned state. `STEP` appears only as a trace event. Post-transaction hooks cannot return a replacement result.
+
+Commit and rollback error lifecycle methods are:
+
+- `onBeforeErrorCommit` and `onBeforeErrorRollback`, which receive raw collected failures;
+- `onAfterErrorCommit` and `onAfterErrorRollback`, which receive the normalized transaction exception.
+
+A post-commit hook failure produces `ApiFunctionTransactionPostCommitException` with outcome `COMMITTED`; the database work must not be represented as rolled back.
 
 ### Error Hooks
 

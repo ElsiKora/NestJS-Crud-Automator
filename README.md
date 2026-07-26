@@ -8,7 +8,7 @@
 <p align="center">
     <a aria-label="ElsiKora logo" href="https://elsikora.com">
   <img src="https://img.shields.io/badge/MADE%20BY%20ElsiKora-333333.svg?style=for-the-badge" alt="ElsiKora">
-</a> <img src="https://img.shields.io/badge/npm-blue.svg?style=for-the-badge&logo=npm&logoColor=white" alt="npm"> <img src="https://img.shields.io/badge/typescript-blue.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="typescript"> <img src="https://img.shields.io/badge/nestjs-red.svg?style=for-the-badge&logo=nestjs&logoColor=white" alt="nestjs"> <img src="https://img.shields.io/badge/swagger-green.svg?style=for-the-badge&logo=swagger&logoColor=white" alt="swagger"> <img src="https://img.shields.io/badge/license-blue.svg?style=for-the-badge&logo=license&logoColor=white" alt="license"> <img src="https://img.shields.io/badge/version-1.24.0-brightgreen.svg?style=for-the-badge&logo=v&logoColor=white" alt="version-1.24.0">
+</a> <img src="https://img.shields.io/badge/npm-blue.svg?style=for-the-badge&logo=npm&logoColor=white" alt="npm"> <img src="https://img.shields.io/badge/typescript-blue.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="typescript"> <img src="https://img.shields.io/badge/nestjs-red.svg?style=for-the-badge&logo=nestjs&logoColor=white" alt="nestjs"> <img src="https://img.shields.io/badge/swagger-green.svg?style=for-the-badge&logo=swagger&logoColor=white" alt="swagger"> <img src="https://img.shields.io/badge/license-blue.svg?style=for-the-badge&logo=license&logoColor=white" alt="license"> <img src="https://img.shields.io/npm/v/@elsikora/nestjs-crud-automator.svg?style=for-the-badge&logo=npm&logoColor=white" alt="npm version">
 </p>
 
 ## 📚 Table of Contents
@@ -21,6 +21,7 @@
   - [Advanced Usage](#advanced-usage)
 - [Subscriber System (Hooks)](#subscriber-system-hooks-intercepting-and-extending-logic)
 - [Swagger Documentation](#swagger-documentation)
+- [Migrating to 3.0](#-migrating-to-30)
 - [Current Status](#-current-status)
 - [AI Agent Skill](#-ai-agent-skill)
 - [FAQ](#-faq)
@@ -66,20 +67,22 @@ yarn add @elsikora/nestjs-crud-automator
 pnpm add @elsikora/nestjs-crud-automator
 ```
 
+Plain installation currently resolves the published 2.10 line. The source-tree examples describe the unreleased 3.0 contract. Do not treat registry `latest` as 3.0 until an exact candidate exists; pin that published version and follow the [3.0 migration guide](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-3-0).
+
 ### Prerequisites
 
 Make sure you have the following dependencies installed in your NestJS project:
 
-- NestJS `@nestjs/common` and `@nestjs/core` `>=11.0.5`
+- NestJS `@nestjs/common` and `@nestjs/core` `>=11.1.24`
 - `@nestjs/passport` `>=11.0.5`
-- `@nestjs/platform-fastify` `>=11.0.5`
+- `@nestjs/platform-fastify` `>=11.1.24`
 - `@nestjs/swagger` `>=11.0.3`
-- `@nestjs/throttler` `>=6.4.0`
+- `@nestjs/throttler` `>=6.5.0`
 - TypeORM `>=0.3.20`
-- Fastify `>=5.0.0`
-- `class-validator` `>=0.14.1`
+- Fastify `>=5.8.5`
+- `class-validator` `>=0.15.1`
 - `class-transformer` `>=0.5.1`
-- `lodash` `>=4.17.21`
+- `lodash` `>=4.18.1`
 
 You might need to install these peer dependencies if they're not already in your project:
 
@@ -146,6 +149,8 @@ export class UserEntity {
 	updatedAt: Date;
 }
 ```
+
+`CREATED_AT`, `UPDATED_AT`, and `RECEIVED_AT` identify server-owned infrastructure timestamps. Generated CREATE, UPDATE, and PARTIAL_UPDATE body DTOs omit them while response DTOs retain them. Exclusion follows the semantic identifier, not the property name; use `DATE` for a writable business date.
 
 ### 2. Create a Service
 
@@ -571,7 +576,7 @@ export class UserController {
 }
 ```
 
-Omitted route transaction config and explicit `SUPPORTS` preserve generated-route behavior without opening a route transaction. `REQUIRED` opens a root transaction through the controller service repository when no Automator transaction is active; `MANDATORY` requires an active owner; `NONE` rejects an active transaction. Request transformation and validation run before a route-owned transaction. Request relation hydration, the generated service operation, and response relation reload then share one manager. Commit and post-commit lifecycle finish before response transformation, route-after subscribers, authorization result handling, and serialization. A hydration, operation, or reload failure rolls back; a later route-after failure cannot roll back an already committed transaction. Custom routes continue to own transactions through custom functions or steps.
+Omitted route transaction config and explicit `SUPPORTS` preserve generated-route behavior without opening a route transaction. `REQUIRED` opens a root transaction through the controller service repository when no Automator transaction is active; `MANDATORY` requires an active owner; `NONE` rejects an active transaction. Request transformation and validation run before a route-owned transaction. Request relation hydration, the generated service operation, and response relation reload then share one manager. When the route opens and owns the transaction, commit and post-commit lifecycle finish before response transformation, route-after subscribers, authorization result handling, and serialization; hydration, operation, or reload failure rolls back, while a later route-after failure cannot roll back the committed work. When `REQUIRED` joins an outer owner, that owner commits later. Custom routes continue to own transactions through custom functions or steps.
 
 Generated service functions and explicit function decorators use the same transaction modes without exposing `EntityManager` as a public method argument:
 
@@ -641,7 +646,7 @@ await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "registe
 
 The scope name is trimmed and must be non-empty. `runWithEntityManager()` is join-only: it accepts only the manager already bound to an active Automator transaction and never opens a second transaction.
 
-Function subscribers can react once after the outer commit or rollback:
+Function subscribers can react once after the outer commit or rollback. The observed service must use `@ApiServiceObservable()`, and the subscriber must be registered as a Nest provider:
 
 ```typescript
 import type { IApiSubscriberFunctionTransactionContext } from "@elsikora/nestjs-crud-automator";
@@ -651,7 +656,7 @@ import { ApiFunctionSubscriber, ApiFunctionSubscriberBase } from "@elsikora/nest
 @ApiFunctionSubscriber({ entity: UserEntity })
 export class UserSubscriber extends ApiFunctionSubscriberBase<UserEntity> {
 	async onAfterCommit(context: IApiSubscriberFunctionTransactionContext): Promise<void> {
-		await publishCommittedEvents(context.DATA.matchedEvents);
+		await recordCommittedEventCount(context.DATA.matchedEvents.length);
 	}
 
 	async onAfterRollback(context: IApiSubscriberFunctionTransactionContext): Promise<void> {
@@ -1073,24 +1078,24 @@ To get the subscriber system working, you need to follow **four mandatory steps*
 There are two types of subscribers that operate at different levels of abstraction:
 
 1.  **`ApiRouteSubscriberBase`** (Controller Level): Intercepts data at the highest level. Ideal for working with the HTTP context: headers, IP address, authenticated user (`request.user`). The hooks of this subscriber are called before and after the main logic of the _controller_.
-2.  **`ApiFunctionSubscriberBase`** (Service Level): Intercepts data immediately before and after calling a repository method (database). Ideal for manipulating data that is to be saved or data that has just been retrieved from the DB.
+2.  **`ApiFunctionSubscriberBase`** (Service Level): Intercepts decorated function execution, including the pre-UPDATE GET lifecycle and post-transaction completion when a transaction owner exists. Ideal for persistence-aware validation, enrichment, auditing, and confirmed-commit side effects.
 
 #### Lifecycle and Execution Order
 
 Understanding the order in which hooks are called is critically important:
 
 1.  **Incoming Request**
-2.  `onBefore...` hooks of **Route** subscribers (executed in `priority` order from highest to lowest).
-3.  Internal controller logic (transformers for `request`, `query`, `body`; validators).
-4.  A service method is called (e.g., `service.create(body)`).
-5.  `onBefore...` hooks of **Function** subscribers (executed in `priority` order).
-6.  The main logic of `@ApiFunction` is executed (e.g., `repository.save(body)`).
-7.  `onAfter...` hooks of **Function** subscribers (executed in `priority` order).
-8.  The result is returned to the controller.
-9.  `onAfter...` hooks of **Route** subscribers (executed in `priority` order).
+2.  Route `onBefore...` hooks.
+3.  Request transformation, validation, and typed GET_LIST parsing.
+4.  Optional generated-route transaction resolution and request relation hydration.
+5.  Decorated function lifecycle: UPDATE first runs one decorated GET and exposes `currentEntity`, then function `onBefore...`, repository work, and function `onAfter...` run.
+6.  If the function opened the transaction, it commits and runs matching `onAfterCommit` before returning. A function that joined a route or scope owner leaves that outer transaction open.
+7.  Generated response reload when applicable; it remains inside the transaction only when the route owns that boundary.
+8.  If the route opened the transaction, it now commits and runs matching `onAfterCommit`. A joined scope owner commits later when its outer callback completes.
+9.  Response transformation, route `onAfter...`, authorization result handling, and serialization.
 10. **The response is sent to the client.**
 
-In case of an error at any stage, execution is interrupted, and the corresponding `on...Error...` hooks are called.
+Operation failures invoke the matching function or route error lifecycle, and an owning boundary performs confirmed rollback plus `onAfterRollback`. A post-commit hook failure is different: the database is already committed and Automator throws `ApiFunctionTransactionPostCommitException` with outcome `COMMITTED`, never a rollback result.
 
 #### Example 1: Auditing with `ApiRouteSubscriberBase`
 
@@ -1298,9 +1303,17 @@ GET_LIST query DTOs remain dynamically generated from entity `ApiPropertyDescrib
 
 Use `INHERIT` to overlay metadata-enabled fields or `REJECT` to create an allowlist. Enabled filters declare a non-empty operation set and optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior; `REJECT` returns `400 FILTER_REQUIRED`. Route plans cannot re-enable metadata-disabled fields. A manual QUERY DTO is mutually exclusive with generated filter/order config, while a manual RESPONSE DTO remains compatible.
 
+## 🧭 Migrating to 3.0
+
+The repository contains the unreleased 3.0 source contract while package versions remain owned by semantic-release. Review the [3.0 release notes](https://elsikora.com/docs/nestjs-crud-automator/guides/release-notes-3-0) for all accepted, rejected, and deferred changes, then follow [Migrating to 3.0](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-3-0) before pinning an exact published candidate.
+
+The major migration covers semantic timestamp ownership, UPDATE `currentEntity`, named transaction scopes and post-transaction hooks, source-first authorization, opt-in generated-route transactions and relation locks, entity-based service relation inputs, typed GET_LIST query plans and strict `400` responses, the BigInt string sign enum, and retired validator configuration exports.
+
+3.0 intentionally adds no immutable controller `baseWhere`, no `FULL` or `PRESERVE` relation projection, and no custom-only/default-disabled controller mode. Existing HOOKS/IAM scope remains the authorization boundary, custom-only controllers disable all six generated routes explicitly, and a consumer-side typed URL/bracket-filter builder remains deferred.
+
 ## 🛣 Current Status
 
-The current public package focuses on NestJS REST controllers backed by TypeORM repositories. Core CRUD generation, DTO generation, Swagger/OpenAPI metadata, request/response transformers, relation loading, pagination, filtering/sorting, subscribers, and hooks/IAM authorization are implemented.
+The latest published package remains on the 2.10 line until release automation publishes an exact 3.0 candidate. The current repository source contains the reviewed 3.0 contract for NestJS REST controllers backed by TypeORM repositories. Core CRUD generation, DTO generation, Swagger/OpenAPI metadata, request/response transformers, relation loading, pagination, filtering/sorting, subscribers, transactions, and HOOKS/IAM authorization are implemented.
 
 MongoDB, GraphQL, soft deletes, bulk operations, general-purpose cache integration, and custom parameter decorators are not part of the current public contract. Authorization supports source-first resolver reads by default, bounded in-process resolver caching as an explicit opt-in, separate policy-rule caching, and explicit cache invalidation.
 
@@ -1308,7 +1321,7 @@ MongoDB, GraphQL, soft deletes, bulk operations, general-purpose cache integrati
 
 The roadmap is aligned with the current source contract rather than older docs-only examples.
 
-### Available Now
+### Available in Current Source
 
 - REST CRUD controller and service generation for TypeORM entities
 - Entity-driven DTO generation for body, query, parameters, and response contracts, including controller-scoped typed GET_LIST query plans
