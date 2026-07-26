@@ -1,7 +1,11 @@
+import type { IApiAuthorizationModuleOptions, IApiPolicyDocumentRecord } from "@interface/class/api/authorization";
+
 import { ApiAuthorizationBootstrapValidationService } from "@class/api/authorization/bootstrap-validation.service.class";
+import { ApiAuthorizationHookPermissionCache } from "@class/api/authorization/hook";
+import { ApiAuthorizationIamAttachmentCache, ApiAuthorizationIamDocumentCache } from "@class/api/authorization/iam";
 import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
-import { EApiAuthorizationMode } from "@enum/class/authorization";
+import { EApiAuthorizationCacheMode, EApiAuthorizationMode, EApiAuthorizationPrincipalType } from "@enum/class/authorization";
 import { RequestMethod } from "@nestjs/common";
 import { DiscoveryService } from "@nestjs/core";
 import { describe, expect, it, vi } from "vitest";
@@ -66,18 +70,122 @@ function defineRouteMetadata(handler: () => void, action: string): void {
 	);
 }
 
-function createService(controller: new () => unknown): ApiAuthorizationBootstrapValidationService {
+function createService(
+	controller?: new () => unknown,
+	moduleOptions: IApiAuthorizationModuleOptions = {},
+	caches: {
+		hookPermission: ApiAuthorizationHookPermissionCache;
+		iamAttachment: ApiAuthorizationIamAttachmentCache;
+		iamDocument: ApiAuthorizationIamDocumentCache;
+	} = {
+		hookPermission: new ApiAuthorizationHookPermissionCache(),
+		iamAttachment: new ApiAuthorizationIamAttachmentCache(),
+		iamDocument: new ApiAuthorizationIamDocumentCache(),
+	},
+): ApiAuthorizationBootstrapValidationService {
 	const discoveryService = {
-		getControllers: vi.fn(() => [{ metatype: controller }]),
+		getControllers: vi.fn(() => (controller ? [{ metatype: controller }] : [])),
 	} as unknown as DiscoveryService;
 	const policyRegistry = {
 		hasSubscriberForEntity: vi.fn(() => true),
 	} as unknown as ApiAuthorizationPolicyRegistry;
 
-	return new ApiAuthorizationBootstrapValidationService(discoveryService, policyRegistry);
+	return new ApiAuthorizationBootstrapValidationService(discoveryService, policyRegistry, caches.hookPermission, caches.iamAttachment, caches.iamDocument, [], moduleOptions);
 }
 
 describe("ApiAuthorizationBootstrapValidationService", () => {
+	it("accepts source-first cache mode by default and when explicit", () => {
+		const caches = {
+			hookPermission: new ApiAuthorizationHookPermissionCache(),
+			iamAttachment: new ApiAuthorizationIamAttachmentCache(),
+			iamDocument: new ApiAuthorizationIamDocumentCache(),
+		};
+		const principal = { attributes: {}, id: "source-first-user", roles: [], type: EApiAuthorizationPrincipalType.USER };
+
+		expect(() => createService(undefined, {}, caches).onApplicationBootstrap()).not.toThrow();
+
+		caches.hookPermission.set(principal, ["read"]);
+		caches.iamAttachment.set(principal, { attachments: [], boundaries: [] });
+		caches.iamDocument.set(["policy-a"], []);
+
+		expect(caches.hookPermission.get(principal)).toBeUndefined();
+		expect(caches.iamAttachment.get(principal)).toBeUndefined();
+		expect(caches.iamDocument.get(["policy-a"])).toBeUndefined();
+		expect(() =>
+			createService(undefined, {
+				cache: {
+					mode: EApiAuthorizationCacheMode.SOURCE_FIRST,
+				},
+			}).onApplicationBootstrap(),
+		).not.toThrow();
+	});
+
+	it("accepts bounded MEMORY cache options", () => {
+		const caches = {
+			hookPermission: new ApiAuthorizationHookPermissionCache(),
+			iamAttachment: new ApiAuthorizationIamAttachmentCache(),
+			iamDocument: new ApiAuthorizationIamDocumentCache(),
+		};
+		const principal = { attributes: {}, id: "memory-user", roles: [], type: EApiAuthorizationPrincipalType.USER };
+		const attachments = { attachments: [], boundaries: [] };
+		const documents: ReadonlyArray<IApiPolicyDocumentRecord> = [];
+		const service = createService(
+			undefined,
+			{
+				cache: {
+					maxEntries: 100,
+					mode: EApiAuthorizationCacheMode.MEMORY,
+					ttlMs: 60_000,
+				},
+			},
+			caches,
+		);
+
+		expect(() => service.onApplicationBootstrap()).not.toThrow();
+
+		caches.hookPermission.set(principal, ["read"]);
+		caches.iamAttachment.set(principal, attachments);
+		caches.iamDocument.set(["policy-a"], documents);
+
+		expect(caches.hookPermission.get(principal)).toEqual(["read"]);
+		expect(caches.iamAttachment.get(principal)).toBe(attachments);
+		expect(caches.iamDocument.get(["policy-a"])).toBe(documents);
+	});
+
+	it("rejects MEMORY cache options without a positive safe maxEntries", () => {
+		const service = createService(undefined, {
+			cache: {
+				maxEntries: 0,
+				mode: EApiAuthorizationCacheMode.MEMORY,
+				ttlMs: 60_000,
+			},
+		});
+
+		expect(() => service.onApplicationBootstrap()).toThrow("maxEntries must be a positive safe integer");
+	});
+
+	it("rejects MEMORY cache options without a positive safe ttlMs", () => {
+		const service = createService(undefined, {
+			cache: {
+				maxEntries: 100,
+				mode: EApiAuthorizationCacheMode.MEMORY,
+				ttlMs: 0,
+			},
+		});
+
+		expect(() => service.onApplicationBootstrap()).toThrow("ttlMs must be a positive safe integer");
+	});
+
+	it("rejects unknown authorization cache modes", () => {
+		const service = createService(undefined, {
+			cache: {
+				mode: "distributed",
+			},
+		} as unknown as IApiAuthorizationModuleOptions);
+
+		expect(() => service.onApplicationBootstrap()).toThrow('Unknown authorization cache mode "distributed"');
+	});
+
 	it("accepts a custom securable handler with only route metadata action", () => {
 		defineSecurableControllerMetadata(ActionOnlyCustomController);
 		defineRouteMetadata(ActionOnlyCustomController.prototype.publish, "update.publish");

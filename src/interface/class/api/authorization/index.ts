@@ -1,4 +1,5 @@
 export { type IApiAuthorizationAuditSink } from "./audit-sink.interface";
+export type * from "./cache";
 export type * from "./decision";
 export { type IApiAuthorizationEngine } from "./engine.interface";
 export { type IApiAuthorizationEngineEvaluateOptions } from "./evaluate-options.interface";

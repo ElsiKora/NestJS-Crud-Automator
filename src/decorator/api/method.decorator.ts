@@ -11,7 +11,7 @@ import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, R
 import { ApiBadRequestResponse, ApiConflictResponse, ApiExtraModels, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema } from "@utility/api/route/discriminator";
-import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto";
+import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
 import { DtoGenerateException } from "@utility/dto/generate/exception.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 

@@ -1,5 +1,6 @@
 import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiControllerPropertiesRouteGetListResponseDtoConfig } from "@interface/decorator/api/controller/properties/route";
 import type { IApiEntity } from "@interface/entity";
@@ -21,11 +22,12 @@ const getListItemResponseDtoCache: Map<string, Type<unknown>> = new Map<string, 
  * @param {R} method - Route type
  * @param {EApiDtoType} dtoType - DTO kind to resolve
  * @param {TApiControllerPropertiesRoute<E, R>} routeConfig - Route-specific configuration
+ * @param {IApiControllerGetListQueryPlan} [queryPlan] - Route-scoped plan for dynamic GET_LIST QUERY DTO generation.
  * @returns {Type<unknown> | undefined} -The resolved DTO class or undefined if no DTO is configured
  * @template E - Entity type
  * @template R - Route type
  */
-export function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>): Type<unknown> | undefined {
+export function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> | undefined {
 	const configuredDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown> | undefined = routeConfig.dto?.[dtoType];
 
 	if (configuredDto) {
@@ -36,7 +38,9 @@ export function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRout
 		return configuredDto as Type<unknown>;
 	}
 
-	return DtoGenerate(properties.entity, entity, method, dtoType, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard);
+	const effectiveQueryPlan: IApiControllerGetListQueryPlan | undefined = method === EApiRouteTypeValue.GET_LIST && dtoType === EApiDtoTypeValue.QUERY ? queryPlan : undefined;
+
+	return DtoGenerate(properties.entity, entity, method, dtoType, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard, effectiveQueryPlan);
 }
 
 /**

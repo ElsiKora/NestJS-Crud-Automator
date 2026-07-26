@@ -56,6 +56,8 @@ Used for request bodies in CREATE and UPDATE operations.
 - `UPDATE` bodies keep required fields required; `PARTIAL_UPDATE` bodies are optional-friendly
 - Validation rules still apply when provided
 
+Generated CREATE, UPDATE, and PARTIAL_UPDATE bodies always omit server-owned date properties identified by `EApiPropertyDateIdentifier.CREATED_AT`, `RECEIVED_AT`, or `UPDATED_AT`. This rule is semantic and independent of the property name. Response DTOs retain these timestamps, while `DATE` and other business/range identifiers remain eligible for write bodies.
+
 ### Query DTOs
 
 Used for filtering and pagination in GET_LIST operations:
@@ -78,6 +80,15 @@ Example usage:
 ```
 GET /users?limit=10&page=1&username[operator]=cont&username[value]=john&orderBy=createdAt&orderDirection=desc
 ```
+
+GET_LIST query DTOs remain dynamically generated from entity metadata. Optional route `request[EApiControllerRequestTarget.QUERY].filter` and `order` configuration narrows or overlays that metadata; it does not replace generation with a hand-written DTO. Automator compiles a normalized immutable plan and uses it for:
+
+- The runtime query DTO and strict query parser.
+- Controller- and plan-scoped DTO cache identity.
+- OpenAPI deep-object `oneOf` filter branches.
+- Typed TypeORM filter values and the direct-scalar order allowlist.
+
+Omitting either section preserves its legacy metadata-driven behavior. A route plan cannot re-enable a field disabled by entity query metadata, and response visibility does not grant query exposure.
 
 ### Response DTOs
 
@@ -216,6 +227,8 @@ Use in controller:
 ```
 
 Manual DTOs can also be nested inside auto-generated DTOs through `@ApiPropertyObject`. When this happens, NestJS CRUD Automator creates context-specific wrapper schemas for each generated path, so the same manual DTO can be reused safely in create body DTOs, update body DTOs, and response DTOs without sharing conflicting Swagger or serialization metadata.
+
+For GET_LIST, a manual `dto[EApiDtoType.QUERY]` and generated `request[QUERY].filter` or `order` configuration are mutually exclusive. Manual response DTOs remain compatible with the generated query plan.
 
 ### Custom GET_LIST item DTOs
 

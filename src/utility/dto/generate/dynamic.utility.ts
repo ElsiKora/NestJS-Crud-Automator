@@ -8,11 +8,10 @@ import type { TDtoGenerateIsAllowedCombination } from "@type/utility";
 import { EApiPropertyDescribeType } from "@enum/decorator/api";
 import { ApiExtraModels } from "@nestjs/swagger";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
+import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed-for-guard.utility";
-
-import { DtoAutoContextPop } from "../auto/context/pop.utility";
-import { DtoAutoContextPush } from "../auto/context/push.utility";
 
 /**
  * Generates dynamic DTOs for object-type properties based on property metadata.

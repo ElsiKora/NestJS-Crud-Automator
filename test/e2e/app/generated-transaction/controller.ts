@@ -1,6 +1,6 @@
 import { Inject } from "@nestjs/common";
 
-import { ApiController, ApiControllerSecurable, EApiAuthenticationType, EApiAuthorizationMode, EApiRouteType } from "../../../../src/index";
+import { ApiController, ApiControllerSecurable, EApiAuthenticationType, EApiAuthorizationMode, EApiFunctionTransactionMode, EApiRouteType } from "../../../../src/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eEntity } from "../entity";
@@ -22,6 +22,9 @@ const authentication = {
 	routes: {
 		[EApiRouteType.CREATE]: {
 			security: { authentication },
+			transaction: {
+				mode: EApiFunctionTransactionMode.REQUIRED,
+			},
 		},
 		[EApiRouteType.DELETE]: {
 			generation: { isEnabled: false },

@@ -1,6 +1,6 @@
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
-import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { describe, expect, it } from "vitest";
 
@@ -14,11 +14,41 @@ const stringMetadata = {
 	type: EApiPropertyDescribeType.STRING,
 } as TApiPropertyDescribeProperties;
 
+const infrastructureDateMetadata = {
+	format: EApiPropertyDateType.DATE_TIME,
+	identifier: EApiPropertyDateIdentifier.CREATED_AT,
+	type: EApiPropertyDescribeType.DATE,
+} as TApiPropertyDescribeProperties;
+
+const businessDateMetadata = {
+	format: EApiPropertyDateType.DATE_TIME,
+	identifier: EApiPropertyDateIdentifier.DATE,
+	type: EApiPropertyDescribeType.DATE,
+} as TApiPropertyDescribeProperties;
+
 describe("DtoIsPropertyShouldBeMarked", () => {
-	it("skips date fields on create body", () => {
-		const result = DtoIsPropertyShouldBeMarked(EApiRouteType.CREATE, EApiDtoType.BODY, "createdAt", stringMetadata, false);
+	it.each([EApiRouteType.CREATE, EApiRouteType.UPDATE, EApiRouteType.PARTIAL_UPDATE])("skips semantic infrastructure timestamps on %s bodies", (method: EApiRouteType) => {
+		const result = DtoIsPropertyShouldBeMarked(method, EApiDtoType.BODY, "insertedOn", infrastructureDateMetadata, false);
 
 		expect(result).toBe(false);
+	});
+
+	it.each([EApiRouteType.CREATE, EApiRouteType.UPDATE, EApiRouteType.PARTIAL_UPDATE])("keeps route-owned DATE properties on %s bodies", (method: EApiRouteType) => {
+		const result = DtoIsPropertyShouldBeMarked(method, EApiDtoType.BODY, "createdAt", businessDateMetadata, false);
+
+		expect(result).toBe(true);
+	});
+
+	it("does not infer timestamp ownership from a property name", () => {
+		const result = DtoIsPropertyShouldBeMarked(EApiRouteType.CREATE, EApiDtoType.BODY, "createdAt", stringMetadata, false);
+
+		expect(result).toBe(true);
+	});
+
+	it("keeps infrastructure timestamps in responses", () => {
+		const result = DtoIsPropertyShouldBeMarked(EApiRouteType.CREATE, EApiDtoType.RESPONSE, "insertedOn", infrastructureDateMetadata, false);
+
+		expect(result).toBe(true);
 	});
 
 	it("skips disabled properties", () => {

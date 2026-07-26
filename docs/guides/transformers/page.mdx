@@ -312,10 +312,17 @@ const responseSourceTarget = {
 
 Transformers execute in the following order:
 
-1. Request target transformers
-2. Request target validation
-3. Service method execution
-4. Response target transformers
+1. Nest guards and host pipes (before controller entry)
+2. Route-before subscribers
+3. Request target transformers
+4. Request target validation
+5. For configured typed GET_LIST queries, authoritative query-plan parsing and defaults (outside the route transaction)
+6. Generated-route transaction resolution
+7. Inside the optional route transaction: predicate compilation, authorization-scope AND-merge, and service method execution
+8. Commit lifecycle when the generated route owns the transaction
+9. Response target transformers
+
+The typed GET_LIST parser therefore sees route-before and request-transformer changes, and does not depend on the host application's query `ValidationPipe`.
 
 ## Performance Considerations
 

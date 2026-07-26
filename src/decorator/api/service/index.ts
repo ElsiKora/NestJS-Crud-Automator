@@ -1,2 +1,2 @@
-export * from "./decorator";
-export * from "./observable.decorator";
+export { ApiService } from "./decorator";
+export { ApiServiceObservable } from "./observable.decorator";

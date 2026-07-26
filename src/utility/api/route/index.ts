@@ -1,5 +1,5 @@
 export { ApiRouteApplyDtoMetadata } from "./apply-dto-metadata.utility";
 export * from "./discriminator";
-export * from "./dto";
+export { ApiRouteCollectDtoWithRegisteredChildren } from "./dto-collect-with-registered-children.utility";
 export * from "./response";
-export * from "./validation";
+export { ApiRouteValidationFlattenErrors } from "./validation-flatten-errors.utility";

@@ -16,6 +16,9 @@ import {
 	ApiAuthorizationCacheInvalidationService,
 	ApiAuthorizationEngine,
 	ApiAuthorizationGuard,
+	ApiAuthorizationHookPermissionCache,
+	ApiAuthorizationIamAttachmentCache,
+	ApiAuthorizationIamDocumentCache,
 	ApiAuthorizationModule,
 	ApiAuthorizationPolicy,
 	ApiAuthorizationPolicyBase,
@@ -31,6 +34,7 @@ import {
 	AUTHORIZATION_POLICY_REGISTRY_TOKEN,
 	AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN,
 	CONTROLLER_API_DECORATOR_CONSTANT,
+	EApiAuthorizationCacheMode,
 	EApiAuthorizationMode,
 	EApiAuthorizationPrincipalType,
 	METHOD_API_DECORATOR_CONSTANT,
@@ -304,6 +308,64 @@ describe("Module metadata (E2E)", () => {
 		app.get(ApiAuthorizationPolicyRegistry).clear();
 		await app.close();
 	});
+
+	it("observes hook permission revoke and grant changes on the next requests in source-first mode", async () => {
+		let permissions: ReadonlyArray<string> = ["admin.item.read"];
+		const hookPermissionSource: IApiHookPermissionSource = {
+			getPermissions: vi.fn(async () => permissions),
+		};
+		@Module({
+			imports: [
+				ApiAuthorizationModule.forRoot({
+					hookPermissionSources: [hookPermissionSource],
+					principalResolver: {
+						resolve: resolveCrossModulePrincipal,
+					},
+				}),
+				CrossModuleFeatureModule,
+			],
+		})
+		class SourceFirstHooksAppModule {}
+
+		const moduleRef = await Test.createTestingModule({
+			imports: [SourceFirstHooksAppModule],
+		}).compile();
+		const app: INestApplication = moduleRef.createNestApplication(new FastifyAdapter());
+		const fastify = app.getHttpAdapter().getInstance() as {
+			inject: (options: { method: string; url: string }) => Promise<{ statusCode: number }>;
+		};
+
+		await app.init();
+
+		const allowedResponse = await fastify.inject({
+			method: "GET",
+			url: "/cross-module-auth",
+		});
+
+		expect(allowedResponse.statusCode).toBe(200);
+
+		permissions = [];
+
+		const revokedResponse = await fastify.inject({
+			method: "GET",
+			url: "/cross-module-auth",
+		});
+
+		expect(revokedResponse.statusCode).toBe(403);
+
+		permissions = ["admin.item.read"];
+
+		const restoredResponse = await fastify.inject({
+			method: "GET",
+			url: "/cross-module-auth",
+		});
+
+		expect(restoredResponse.statusCode).toBe(200);
+		expect(hookPermissionSource.getPermissions).toHaveBeenCalledTimes(3);
+
+		app.get(ApiAuthorizationPolicyRegistry).clear();
+		await app.close();
+	});
 });
 
 describe("Module metadata (E2E)", () => {
@@ -347,6 +409,142 @@ describe("Module metadata (E2E)", () => {
 		expect(dynamicModule.providers?.some((provider: any) => provider?.provide === AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN)).toBe(true);
 		expect(dynamicModule.exports).toEqual(expect.arrayContaining([ApiAuthorizationCacheInvalidationService, AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN, AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN]));
 		expect(dynamicModule.global).toBe(true);
+	});
+
+	it("injects source-first cache behavior by default through ApiAuthorizationModule.forRoot", async () => {
+		const moduleRef = await Test.createTestingModule({
+			imports: [ApiAuthorizationModule.forRoot()],
+		}).compile();
+		await moduleRef.init();
+
+		const hookPermissionCache = moduleRef.get(ApiAuthorizationHookPermissionCache);
+		const iamAttachmentCache = moduleRef.get(ApiAuthorizationIamAttachmentCache);
+		const iamDocumentCache = moduleRef.get(ApiAuthorizationIamDocumentCache);
+		const principal: IApiAuthorizationPrincipal = {
+			attributes: {},
+			id: "source-first-user",
+			roles: [],
+			type: EApiAuthorizationPrincipalType.USER,
+		};
+		const attachments: IApiResolvedPolicyAttachments = { attachments: [], boundaries: [] };
+		const documents: ReadonlyArray<IApiPolicyDocumentRecord> = [];
+
+		hookPermissionCache.set(principal, ["read"]);
+		iamAttachmentCache.set(principal, attachments);
+		iamDocumentCache.set(["policy-a"], documents);
+
+		expect(hookPermissionCache.get(principal)).toBeUndefined();
+		expect(iamAttachmentCache.get(principal)).toBeUndefined();
+		expect(iamDocumentCache.get(["policy-a"])).toBeUndefined();
+
+		await moduleRef.close();
+	});
+
+	it("injects explicit MEMORY cache behavior through ApiAuthorizationModule.forRoot", async () => {
+		const moduleRef = await Test.createTestingModule({
+			imports: [
+				ApiAuthorizationModule.forRoot({
+					cache: {
+						maxEntries: 10,
+						mode: EApiAuthorizationCacheMode.MEMORY,
+						ttlMs: 60_000,
+					},
+				}),
+			],
+		}).compile();
+		await moduleRef.init();
+
+		const hookPermissionCache = moduleRef.get(ApiAuthorizationHookPermissionCache);
+		const iamAttachmentCache = moduleRef.get(ApiAuthorizationIamAttachmentCache);
+		const iamDocumentCache = moduleRef.get(ApiAuthorizationIamDocumentCache);
+		const principal: IApiAuthorizationPrincipal = {
+			attributes: {},
+			id: "sync-memory-user",
+			roles: [],
+			type: EApiAuthorizationPrincipalType.USER,
+		};
+		const attachments: IApiResolvedPolicyAttachments = { attachments: [], boundaries: [] };
+		const documents: ReadonlyArray<IApiPolicyDocumentRecord> = [];
+
+		hookPermissionCache.set(principal, ["read"]);
+		iamAttachmentCache.set(principal, attachments);
+		iamDocumentCache.set(["policy-a"], documents);
+
+		expect(hookPermissionCache.get(principal)).toEqual(["read"]);
+		expect(iamAttachmentCache.get(principal)).toBe(attachments);
+		expect(iamDocumentCache.get(["policy-a"])).toBe(documents);
+
+		await moduleRef.close();
+	});
+
+	it("injects source-first cache behavior by default through ApiAuthorizationModule.forRootAsync", async () => {
+		const moduleRef = await Test.createTestingModule({
+			imports: [
+				ApiAuthorizationModule.forRootAsync({
+					useFactory: () => ({}),
+				}),
+			],
+		}).compile();
+		await moduleRef.init();
+
+		const hookPermissionCache = moduleRef.get(ApiAuthorizationHookPermissionCache);
+		const iamAttachmentCache = moduleRef.get(ApiAuthorizationIamAttachmentCache);
+		const iamDocumentCache = moduleRef.get(ApiAuthorizationIamDocumentCache);
+		const principal: IApiAuthorizationPrincipal = {
+			attributes: {},
+			id: "async-source-first-user",
+			roles: [],
+			type: EApiAuthorizationPrincipalType.USER,
+		};
+
+		hookPermissionCache.set(principal, ["read"]);
+		iamAttachmentCache.set(principal, { attachments: [], boundaries: [] });
+		iamDocumentCache.set(["policy-a"], []);
+
+		expect(hookPermissionCache.get(principal)).toBeUndefined();
+		expect(iamAttachmentCache.get(principal)).toBeUndefined();
+		expect(iamDocumentCache.get(["policy-a"])).toBeUndefined();
+
+		await moduleRef.close();
+	});
+
+	it("injects explicit MEMORY cache behavior through ApiAuthorizationModule.forRootAsync", async () => {
+		const moduleRef = await Test.createTestingModule({
+			imports: [
+				ApiAuthorizationModule.forRootAsync({
+					useFactory: () => ({
+						cache: {
+							maxEntries: 10,
+							mode: EApiAuthorizationCacheMode.MEMORY,
+							ttlMs: 60_000,
+						},
+					}),
+				}),
+			],
+		}).compile();
+		await moduleRef.init();
+
+		const hookPermissionCache = moduleRef.get(ApiAuthorizationHookPermissionCache);
+		const iamAttachmentCache = moduleRef.get(ApiAuthorizationIamAttachmentCache);
+		const iamDocumentCache = moduleRef.get(ApiAuthorizationIamDocumentCache);
+		const principal: IApiAuthorizationPrincipal = {
+			attributes: {},
+			id: "memory-user",
+			roles: [],
+			type: EApiAuthorizationPrincipalType.USER,
+		};
+		const attachments: IApiResolvedPolicyAttachments = { attachments: [], boundaries: [] };
+		const documents: ReadonlyArray<IApiPolicyDocumentRecord> = [];
+
+		hookPermissionCache.set(principal, ["read"]);
+		iamAttachmentCache.set(principal, attachments);
+		iamDocumentCache.set(["policy-a"], documents);
+
+		expect(hookPermissionCache.get(principal)).toEqual(["read"]);
+		expect(iamAttachmentCache.get(principal)).toBe(attachments);
+		expect(iamDocumentCache.get(["policy-a"])).toBe(documents);
+
+		await moduleRef.close();
 	});
 
 	it("registers async authorization providers through ApiAuthorizationModule.forRootAsync", () => {

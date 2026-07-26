@@ -4,20 +4,25 @@ import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/fun
 import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.interface";
 import type { IApiFunctionSubscriberProperties, IApiRouteSubscriberProperties } from "@interface/decorator/api/subscriber";
 
+import { SubscriberWrapper } from "@class/api/subscriber/wrapper.class";
 import { LoggerUtility } from "@utility/logger.utility";
-
-import { SubscriberWrapper } from "./wrapper.class";
 
 const subscriberRegistryLogger: LoggerUtility = LoggerUtility.getLogger("ApiSubscriberRegistry");
 
 class ApiSubscriberRegistry {
+	private readonly FUNCTION_SUBSCRIBER_REGISTRATION_ORDER: WeakMap<IApiSubscriberFunction<IApiBaseEntity>, number>;
+
 	private readonly FUNCTION_SUBSCRIBERS: Map<string, SubscriberWrapper<IApiSubscriberFunction<IApiBaseEntity>>>;
+
+	private nextFunctionSubscriberRegistrationOrder: number;
 
 	private readonly ROUTE_SUBSCRIBERS: Map<string, SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity>>>;
 
 	constructor() {
+		this.FUNCTION_SUBSCRIBER_REGISTRATION_ORDER = new WeakMap();
 		this.FUNCTION_SUBSCRIBERS = new Map();
 		this.ROUTE_SUBSCRIBERS = new Map();
+		this.nextFunctionSubscriberRegistrationOrder = 0;
 	}
 
 	public getFunctionSubscriberProperties<E extends IApiBaseEntity>(subscriber: IApiSubscriberFunction<E>): IApiFunctionSubscriberProperties<E> | undefined {
@@ -30,6 +35,10 @@ class ApiSubscriberRegistry {
 		}
 
 		return undefined;
+	}
+
+	public getFunctionSubscriberRegistrationOrder<E extends IApiBaseEntity>(subscriber: IApiSubscriberFunction<E>): number {
+		return this.FUNCTION_SUBSCRIBER_REGISTRATION_ORDER.get(subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>) ?? Number.MAX_SAFE_INTEGER;
 	}
 
 	public getFunctionSubscribers<E extends IApiBaseEntity>(entityName: string, functionType?: EApiFunctionType, action?: string): Array<IApiSubscriberFunction<E>> {
@@ -47,6 +56,11 @@ class ApiSubscriberRegistry {
 		if (!wrapper) {
 			wrapper = new SubscriberWrapper(entityName);
 			this.FUNCTION_SUBSCRIBERS.set(entityName, wrapper);
+		}
+
+		if (!this.FUNCTION_SUBSCRIBER_REGISTRATION_ORDER.has(subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>)) {
+			this.FUNCTION_SUBSCRIBER_REGISTRATION_ORDER.set(subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>, this.nextFunctionSubscriberRegistrationOrder);
+			this.nextFunctionSubscriberRegistrationOrder += 1;
 		}
 
 		wrapper.addSubscriber(subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>, properties.priority, properties);

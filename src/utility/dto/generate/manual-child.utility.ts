@@ -1,12 +1,12 @@
 import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import type { Type } from "@nestjs/common";
-import type { TManualDtoPropertyMetadata } from "@type/utility/dto/manual/property-metadata.type";
+import type { TManualDtoPropertyMetadata } from "@type/utility/dto/manual-property-metadata.type";
 
 import { CONTEXTUAL_MANUAL_DTO_CONSTANT } from "@constant/dto/contextual-manual.constant";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
 import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
-import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata.utility";
+import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/get.utility";
 
 const contextualManualDtoCache: WeakMap<Type<unknown>, Map<string, Type<unknown>>> = new WeakMap<Type<unknown>, Map<string, Type<unknown>>>();
 

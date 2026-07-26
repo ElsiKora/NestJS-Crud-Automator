@@ -7,10 +7,9 @@ import type { FindOptionsWhere } from "typeorm/index";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { ApiControllerGetListTransformOperation } from "@utility/api/controller/get-list/transform/operation.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
-
-import { ApiControllerGetListTransformOperation } from "./operation.utility";
 
 /**
  * Transforms query parameters into TypeORM FindOptionsWhere filter objects.

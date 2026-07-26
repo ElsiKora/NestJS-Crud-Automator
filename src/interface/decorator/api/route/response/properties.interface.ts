@@ -1,9 +1,8 @@
 import type { IApiResponseType } from "@interface/decorator/api/response-type.interface";
+import type { IApiRouteResponseSerializationProperties } from "@interface/decorator/api/route/response/serialization-properties.interface";
 import type { HttpStatus, Type } from "@nestjs/common";
 import type { HeadersObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 import type { TTypeDiscriminator } from "@type/decorator/api/property";
-
-import type { IApiRouteResponseSerializationProperties } from "./serialization-properties.interface";
 
 export interface IApiRouteResponseProperties {
 	discriminator?: TTypeDiscriminator;

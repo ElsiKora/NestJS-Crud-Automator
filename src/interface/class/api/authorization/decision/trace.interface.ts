@@ -1,10 +1,8 @@
 import type { EApiAuthorizationDecisionType, EApiAuthorizationMode } from "@enum/class/authorization";
-
-import type { IApiPolicyAttachment } from "../policy/attachment/interface";
-import type { IApiPolicyDocumentRecord } from "../policy/document/record.interface";
-
-import type { IApiAuthorizationDecisionRuleTrace } from "./rule-trace.interface";
-import type { IApiAuthorizationDecisionStatementTrace } from "./statement-trace.interface";
+import type { IApiAuthorizationDecisionRuleTrace } from "@interface/class/api/authorization/decision/rule-trace.interface";
+import type { IApiAuthorizationDecisionStatementTrace } from "@interface/class/api/authorization/decision/statement-trace.interface";
+import type { IApiPolicyAttachment } from "@interface/class/api/authorization/policy/attachment/interface";
+import type { IApiPolicyDocumentRecord } from "@interface/class/api/authorization/policy/document/record.interface";
 
 export interface IApiAuthorizationDecisionTrace {
 	attachments?: ReadonlyArray<IApiPolicyAttachment>;

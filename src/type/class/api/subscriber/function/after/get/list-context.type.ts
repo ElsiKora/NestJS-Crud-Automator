@@ -2,6 +2,6 @@ import type { EApiFunctionSubscriberTransactionExpectation } from "@enum/decorat
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context";
 import type { IApiGetListResponseResult } from "@interface/decorator/api";
-import type { TApiSubscriberFunctionExecutionContextData } from "@type/class/api/subscriber/function/execution/context";
+import type { TApiSubscriberFunctionExecutionContextData } from "@type/class/api/subscriber/function/execution-context-data.type";
 
 export type TApiSubscriberFunctionAfterGetListContext<E extends IApiBaseEntity, TTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation = EApiFunctionSubscriberTransactionExpectation.SUPPORTS> = IApiSubscriberFunctionExecutionContext<E, IApiGetListResponseResult<E>, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>;

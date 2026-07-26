@@ -12,7 +12,7 @@ import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum.js";
 import { ApiBody, ApiExtraModels } from "@nestjs/swagger";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema, ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
-import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto";
+import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
 type TApiRouteRequestDto = TApiRouteDiscriminatedDtoProperties | Type<unknown>;

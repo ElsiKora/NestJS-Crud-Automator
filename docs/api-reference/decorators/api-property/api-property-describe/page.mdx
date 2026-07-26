@@ -76,6 +76,7 @@ email!: string;
 ## Best practices
 
 - Apply `@ApiPropertyDescribe` to every persistent column so DTOs remain in sync with the entity model.
+- Use `CREATED_AT`, `RECEIVED_AT`, and `UPDATED_AT` only for server-owned infrastructure timestamps. Generated write DTO exclusion follows these identifiers rather than property names; use `DATE` for writable business dates.
 - Pair it with the property-level decorators (`@ApiPropertyString`, `@ApiPropertyNumber`, etc.) for manual DTOs or overrides.
 - Keep string and number `exampleValue` in sync with `pattern` or range rules to avoid validation errors during bootstrapping.
 

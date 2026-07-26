@@ -33,11 +33,15 @@ Use local source as the contract:
 - Request config is target keyed with `EApiControllerRequestTarget.BODY`, `PARAMETERS`, and `QUERY`.
 - Response config is target keyed with `EApiControllerResponseTarget.RESPONSE`.
 - OpenAPI response headers live directly under `response.headers`, not under `EApiControllerResponseTarget.RESPONSE`.
-- `autoDto` is validators-only. Field exposure, requiredness, filters, guards, and response visibility belong to `ApiPropertyDescribe({ properties })`.
+- `autoDto` is validators-only. Entity `ApiPropertyDescribe({ properties })` remains the capability baseline; generated GET_LIST `request[QUERY].filter` and `order` may narrow or overlay its query exposure.
 - Manual `dto` and `autoDto` route branches are mutually exclusive.
+- A manual GET_LIST QUERY DTO is mutually exclusive with generated filter/order configuration; a manual RESPONSE DTO remains compatible.
 - `ApiPropertyDescribe` object metadata uses `dataType`; manual `ApiPropertyObject` uses `type`.
 - `ApiPropertyDescribe` relation metadata does not currently accept array options.
 - `GetDefaultStringFormatProperties(format)` provides canonical defaults for supported string formats.
+- BigInt string sign options use `EApiGetDefaultStringFormatPropertiesBigIntStringSign`; the old type alias and paired-suffix validator configuration internals were removed. Import supported symbols from the package root.
+- Generated CREATE, UPDATE, and PARTIAL_UPDATE bodies omit date fields identified as `CREATED_AT`, `RECEIVED_AT`, or `UPDATED_AT`; responses retain them. Exclusion follows the semantic identifier rather than property names, and `DATE` remains writable.
+- There is no custom-only/default-disabled controller mode. Disable all six generated routes explicitly when a controller should expose only custom routes.
 
 ## Function And Transaction Model
 
@@ -51,25 +55,40 @@ Use local source as the contract:
 - Function execution transaction modes use `EApiFunctionTransactionMode` with `transaction.mode`; subscriber requirements use `EApiFunctionSubscriberTransactionExpectation` with `transaction.expectation`.
 - Inside decorated service execution, use `this.getApiFunctionContext()` for `operations`, `repository`, `eventManager`, and `getRepository`.
 - Inside `@ApiFunctionStep`, use `this.getApiFunctionStepContext()` for `repository`, `eventManager`, and `getRepository`; it intentionally omits `operations`.
-- `ApiFunctionTransactionScope.runWithDataSource()` and `runWithEntityManager()` provide external transaction scope; CRUD `operations` reject without a decorated service context.
+- `ApiFunctionTransactionScope.runWithDataSource(dataSource, { name }, callback)` owns a named external transaction; `runWithEntityManager()` is join-only and fails without an active Automator owner registry.
+- `onAfterCommit` and `onAfterRollback` run once after the outer transaction ends. Their readonly context exposes the `FUNCTION`, `ROUTE`, or `SCOPE` owner/id, all ordered events, and subscriber-matched events; events contain operation metadata only, never arguments, bodies, entities, or results, and STEP is trace-only.
+- Commit/rollback error lifecycle uses `onBeforeErrorCommit`, `onAfterErrorCommit`, `onBeforeErrorRollback`, and `onAfterErrorRollback`. Post-commit failures must remain distinguishable from database rollback.
+- `ApiFunctionUpdate` performs one ordinary decorated GET before `onBeforeUpdate`. Read the patch from `context.result`, the active manager repository when a transaction exists (otherwise the service base repository) from `context.DATA.repository`, and the top-level detached and frozen shallow snapshot from `context.DATA.currentEntity`.
+- UPDATE does not deep-clone or deep-freeze `currentEntity`: nested values alias the internal loaded entity and can affect persistence if mutated. It does not reload after before-subscribers, add a row lock, or auto-load entities for custom functions. A missing decorated GET skips update-before hooks and flows through GET then UPDATE error lifecycle.
 
 ## Route Runtime Model
 
+- Generated route base config accepts `transaction: { mode: EApiFunctionTransactionMode }`. Omitted config and `SUPPORTS` open no route transaction; `REQUIRED` opens or joins, `MANDATORY` requires an active owner, and `NONE` rejects an active transaction.
+- When a generated route opens and owns `REQUIRED`, request transformation/validation run first; request relation hydration, the generated service operation, and response relation reload share the route manager; commit lifecycle completes before response transformation, route-after, authorization result handling, and serialization. If `REQUIRED` joins an outer owner, that owner commits later.
+- Hydration, operation, and reload failures roll back a route-owned transaction. For a route that opened the transaction, route-after failures happen after commit and must not be reported as rollback.
 - Use `@ApiRouteCustom` for custom controller routes that need runtime behavior: transformers, validators, relation handling, subscribers, authorization result transforms, or serialization.
+- Generated-route `transaction` config does not apply to `@ApiRouteCustom`; custom functions, steps, or named scopes continue to own transactions.
 - Use `@ApiFunctionCustom<Entity>(...)` and `@ApiRouteCustom<Entity>(...)`; response types belong on method return types and response metadata, not decorator generic parameters.
 - Use `@ApiMethod` as the low-level metadata/Nest/Swagger/security/throttling composer.
 - `@ApiMethod` metadata lives under `metadata.resource`, `metadata.route`, `metadata.response`, `metadata.security`, and `metadata.throttling`.
 - Securable custom methods need method-level authorization mode metadata.
 - Custom route response relation reload requires `controller.service` to extend `ApiServiceBase` and response items to have an `id`.
 - For `@ApiRouteCustom`, request relation loading hydrates only the method `@Body()` argument; custom route before-hook auth, headers, IP, metadata, and runtime properties live in `context.DATA`, not `context.result`.
+- Generated GET_LIST `request[EApiControllerRequestTarget.QUERY]` accepts optional sibling `filter` and `order` sections. Omitted sections preserve legacy metadata-driven behavior; configured sections compile into one immutable plan used by dynamic DTO generation, OpenAPI, strict runtime parsing, and TypeORM compilation.
+- Typed query plans support direct and one-hop to-one scalar filter paths, direct-scalar order paths, `INHERIT` overlays or `REJECT` allowlists, exact disabled fields, narrowed operations, and `OMIT`/`REJECT`/`USE_DEFAULT` missing behavior.
+- The authoritative typed parser runs after route-before and request query transforms/validators, applies `USE_DEFAULT` when a field group is absent, and rejects malformed or disallowed input independently of host `ValidationPipe`. The optional route transaction then compiles predicates, AND-merges client/default filters with authorization scope once, and runs the service query.
+- The package does not provide a consumer-side typed URL/bracket-filter builder in 3.0; that deferral does not change the server-owned typed query contract.
 
 ## Relation Model
 
 - Request relation config: `relations.request.reference` and `relations.request.load`.
-- Request load config uses `relations.request.load.include`, optional `relations.request.load.relationLoadStrategy`, and optional `relations.request.load.services` overrides.
+- Request load config uses `relations.request.load.include`, optional `relations.request.load.relationLoadStrategy`, optional `relations.request.load.services` overrides, and optional direct-relation `relations.request.load.locks`.
 - `relations.request.load.include` is the single source of truth for direct request relations to hydrate. Omitted service keys use `${relationName}Service`.
+- Request locks accept native TypeORM `pessimistic_read` or `pessimistic_write`, require an active Automator transaction, follow direct `include` declaration order, and disable implicit eager-relation loading. A locked direct relation with explicit nested includes requires `relationLoadStrategy: "query"`; nested loads share the manager without automatic locks.
+- HTTP scalar references are controller hydration input. Service `create`/`update` contracts remain entity-based; direct callers load entities through their active manager.
 - Response relation config: `relations.response.reference` and `relations.response.load.include` with optional `relationLoadStrategy`.
-- HTTP generated relation filters use explicit one-level paths such as `author.id[...]` and `author.username[...]`; top-level `author[...]` is not generated or transformed.
+- `OBJECT` and `SCALAR` are the supported destructive response reference projections. Do not assume `FULL` or `PRESERVE` modes exist.
+- HTTP generated relation filters use explicit one-level paths such as `author.id[...]` and `author.username[...]`; top-level `author[...]` is not generated or transformed. A typed plan can narrow these paths but cannot enable deeper or to-many paths.
 - Generated relation filters skip relation fields and object fields on the related entity.
 - For nested request or response relations, use TypeORM relation object maps in `load.include`.
 - Nested request include objects are only passed to the direct relation service as TypeORM `relations`; nested request references are not recursively hydrated.
@@ -91,14 +110,18 @@ Use local source as the contract:
 - Use IAM mode for policy documents, principal resolution, document sources, attachment sources, and boundaries.
 - Register `@ApiAuthorizationPolicy()` classes as Nest providers.
 - IAM policy document `Resource` values match literally or with wildcards; `{id}` placeholders belong in `resourceDefinition.resourcePath`.
-- Use `ApiAuthorizationCacheInvalidationService` after backing authorization data changes; `clearAll()` clears policy, IAM attachment/document, and hook permission caches.
+- Authorization resolver caches default to `EApiAuthorizationCacheMode.SOURCE_FIRST`: every evaluation reads hooks permission, IAM attachment, and IAM document sources without cross-request map reads, writes, or stale fallback.
+- `MEMORY` is explicit process-local opt-in and requires positive safe-integer `ttlMs` and `maxEntries`; each resolver cache receives its own bound.
+- In memory mode, use `ApiAuthorizationCacheInvalidationService` when resolver backing data must be visible before TTL expiry.
+- Hooks policy-rule caching is separate, default-disabled, and can still be enabled per registry or policy; clear an enabled rule cache when its rules change regardless of resolver mode. `clearAll()` clears both cache families.
 
 ## Verification Checklist
 
 - Generated Swagger matches request and response contracts.
 - DTO fields are scoped correctly for body/query/parameters/response.
 - GET_LIST uses the intended response mode: full wrapper DTO or `{ itemType, name? }`.
-- Route generation, security, request/response targets, relations, and DTO config type-check.
+- Typed GET_LIST DTO/OpenAPI fields match the normalized plan, two controllers over one entity receive distinct plan-scoped schemas, and strict parsing remains effective with host query whitelist changes.
+- Route generation, transaction mode, security, request/response targets, relation locks, and DTO config type-check.
 - Subscribers fire on the route/function path being exercised.
 - Authorization metadata, policy documents, resource definitions, and cache invalidation match runtime behavior.
 - No wrapper helper was added where a native primitive is already clear.
@@ -108,3 +131,4 @@ Use local source as the contract:
 - For detailed source-aligned guidance, see [reference.md](reference.md).
 - For copyable patterns, see [examples.md](examples.md).
 - For common failure modes, see [pitfalls.md](pitfalls.md).
+- For the 2.10-to-3.0 consumer migration, see [Migrating to 3.0](../../docs/guides/migrating-to-3-0/page.mdx).

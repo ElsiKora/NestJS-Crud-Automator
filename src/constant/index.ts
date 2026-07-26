@@ -6,4 +6,3 @@ export { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "./factory-dto-get-list-quer
 export * from "./interface";
 export { NUMBER_CONSTANT } from "./number.constant";
 export * from "./utility";
-export * from "./validator";

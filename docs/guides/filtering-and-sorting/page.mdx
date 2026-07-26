@@ -12,6 +12,79 @@ GET /users?username[operator]=eq&username[value]=john_doe
 
 This filters users where username equals "john_doe".
 
+## Route-Owned Typed Query Plans
+
+Entity `@ApiPropertyDescribe` and TypeORM metadata remain the source for generated GET_LIST query DTOs. A generated GET_LIST route can optionally add `filter` and `order` under `request[EApiControllerRequestTarget.QUERY]`. Automator compiles the metadata and this route overlay into one immutable plan used by the runtime DTO, strict parser, TypeORM predicates, and OpenAPI.
+
+```typescript filename="user.controller.ts" copy
+@ApiController<UserEntity>({
+	entity: UserEntity,
+	routes: {
+		[EApiRouteType.GET_LIST]: {
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					filter: {
+						fields: {
+							internalNotes: { isEnabled: false },
+							status: {
+								allowedOperations: [EFilterOperation.EQ],
+								defaultCondition: {
+									operator: EFilterOperation.EQ,
+									value: EUserStatus.ACTIVE,
+								},
+								isEnabled: true,
+								missingBehavior: EApiControllerGetListQueryFilterMissingBehavior.USE_DEFAULT,
+							},
+							username: {
+								allowedOperations: [EFilterOperation.EQ, EFilterOperation.CONT],
+								isEnabled: true,
+								missingBehavior: EApiControllerGetListQueryFilterMissingBehavior.REJECT,
+							},
+						},
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT,
+					},
+					order: {
+						fields: {
+							createdAt: { isEnabled: true },
+							internalNotes: { isEnabled: false },
+						},
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+				},
+			},
+		},
+	},
+})
+export class UserController {}
+```
+
+Plan rules:
+
+- Omit `filter` or `order` to preserve legacy metadata-driven behavior for that section.
+- `INHERIT` starts from metadata-enabled fields and applies the listed overlays.
+- `REJECT` is an allowlist containing only listed enabled fields.
+- A disabled field is exactly `{ isEnabled: false }`.
+- An enabled filter requires a non-empty `allowedOperations`; route configuration can narrow metadata capabilities but cannot re-enable a metadata-disabled field.
+- `missingBehavior` is `OMIT` by default, `REJECT` returns `400 FILTER_REQUIRED`, and `USE_DEFAULT` requires a typed static `defaultCondition`.
+- A default is inserted only when that field's client group is absent. A supplied client group replaces the default for the same field; all resulting field predicates are then AND-merged with HOOKS/IAM authorization scope. Principal-dependent restrictions belong in authorization scope, not defaults.
+- Filter paths may be direct scalars or one-hop to-one scalar paths such as `author.id`. Order paths are direct scalars only.
+- Unknown, disabled, malformed, deeper, to-many, and disallowed typed-query input returns `400` independently of the host application's `ValidationPipe`.
+- `BETWEEN` accepts exactly two repeated `[values]`; membership operators accept 1–100 repeated `[values]`.
+- TypeScript narrows operations from the entity property's broad scalar type. At bootstrap, Automator validates the exact `@ApiPropertyDescribe` kind, nullability, enabled state, and configured operation set before exposing the route.
+
+Nest guards and host pipes run before controller entry. Inside Automator's generated runtime, route-before subscribers run first, followed by configured query transforms/validators and typed parsing plus defaults. The optional generated-route transaction then wraps predicate compilation, authorization-scope merge, and the service query. This lets a route-before subscriber intentionally rewrite the raw query before the strict parser sees it, while the final database predicate still includes authorization scope.
+
+Typed-query failures use stable `400` codes:
+
+- `FILTER_REQUIRED` — a field configured with `missingBehavior: REJECT` is absent.
+- `INVALID_FILTER` — a filter path, operator, operand, value, or cardinality violates the compiled plan.
+- `INVALID_ORDER` — `orderBy` or `orderDirection` violates the compiled plan.
+- `INVALID_LIMIT` / `INVALID_PAGE` — `limit` or `page` is missing, non-integer, or outside the generated bounds.
+
+The same plan emits one OpenAPI deep-object parameter per enabled filter field. Its `oneOf` branches describe the exact operator and `value`, `values`, or nullary operand shape. Disabled fields are omitted from both the generated query DTO contract and OpenAPI.
+
+The 3.0 package owns this server-side route contract but does not ship a consumer-side typed URL/bracket-filter builder. Consumers may keep a local helper or build repeated query parameters directly. Deferring that client utility does not weaken the generated DTO, parser, TypeORM, or OpenAPI contract.
+
 ## Filter Operations
 
 ### String Operations
@@ -50,16 +123,16 @@ GET /users?username[operator]=ne&username[value]=john_doe
 GET /users?username[operator]=nel&username[value]=john_doe
 
 // In array
-GET /users?username[operator]=in&username[values]=["john_doe","jane_doe"]
+GET /users?username[operator]=in&username[values]=john_doe&username[values]=jane_doe
 
 // In array (case-insensitive)
-GET /users?username[operator]=inl&username[values]=["john_doe","jane_doe"]
+GET /users?username[operator]=inl&username[values]=john_doe&username[values]=jane_doe
 
 // Not in array
-GET /users?username[operator]=notin&username[values]=["john_doe","jane_doe"]
+GET /users?username[operator]=notin&username[values]=john_doe&username[values]=jane_doe
 
 // Not in array (case-insensitive)
-GET /users?username[operator]=notinl&username[values]=["john_doe","jane_doe"]
+GET /users?username[operator]=notinl&username[values]=john_doe&username[values]=jane_doe
 
 // Is null
 GET /users?middleName[operator]=isnull
@@ -92,13 +165,13 @@ GET /users?age[operator]=lt&age[value]=65
 GET /users?age[operator]=lte&age[value]=65
 
 // Between (inclusive)
-GET /users?age[operator]=between&age[values]=[18,65]
+GET /users?age[operator]=between&age[values]=18&age[values]=65
 
 // In array
-GET /users?age[operator]=in&age[values]=[25,30,35]
+GET /users?age[operator]=in&age[values]=25&age[values]=30&age[values]=35
 
 // Not in array
-GET /users?age[operator]=notin&age[values]=[25,30,35]
+GET /users?age[operator]=notin&age[values]=25&age[values]=30&age[values]=35
 
 // Is null
 GET /users?age[operator]=isnull
@@ -131,7 +204,7 @@ GET /posts?createdAt[operator]=lt&createdAt[value]=2024-12-31
 GET /posts?createdAt[operator]=lte&createdAt[value]=2024-12-31
 
 // Between dates
-GET /posts?createdAt[operator]=between&createdAt[values]=["2024-01-01","2024-12-31"]
+GET /posts?createdAt[operator]=between&createdAt[values]=2024-01-01&createdAt[values]=2024-12-31
 
 // Is null
 GET /posts?deletedAt[operator]=isnull
@@ -152,10 +225,10 @@ GET /users?isActive[operator]=eq&isActive[value]=true
 GET /users?isActive[operator]=ne&isActive[value]=false
 
 // In array
-GET /users?isActive[operator]=in&isActive[values]=[true]
+GET /users?isActive[operator]=in&isActive[values]=true
 
 // Not in array
-GET /users?isActive[operator]=notin&isActive[values]=[false]
+GET /users?isActive[operator]=notin&isActive[values]=false
 
 // Is null
 GET /users?isActive[operator]=isnull
@@ -176,10 +249,10 @@ GET /users?role[operator]=eq&role[value]=admin
 GET /users?role[operator]=ne&role[value]=user
 
 // In array
-GET /users?role[operator]=in&role[values]=["admin","moderator"]
+GET /users?role[operator]=in&role[values]=admin&role[values]=moderator
 
 // Not in array
-GET /users?role[operator]=notin&role[values]=["user"]
+GET /users?role[operator]=notin&role[values]=user
 
 // Is null
 GET /users?role[operator]=isnull
@@ -277,9 +350,9 @@ const users = await userService.getList({
 });
 ```
 
-## Configuring Filters
+## Entity-Level Filter Baseline
 
-Control which properties can be filtered in entity configuration:
+Control the global metadata baseline in entity configuration:
 
 ```typescript filename="user.entity.ts" copy
 @Column()
@@ -303,6 +376,10 @@ Control which properties can be filtered in entity configuration:
 internalNotes: string;
 ```
 
+A route-owned typed plan may disable this field again or narrow its operations, but it cannot re-enable a field disabled by entity metadata. Query exposure is evaluated independently of response visibility.
+
+Do not combine a manual `dto[EApiDtoType.QUERY]` with generated `filter` or `order` configuration. A manual GET_LIST response DTO or `{ itemType }` response configuration remains compatible with a generated typed query.
+
 ## Complex Filter Queries
 
 ### AND Logic
@@ -320,7 +397,7 @@ Returns posts where authorId = 123 AND status = published.
 Use IN operator for OR logic on the same field:
 
 ```
-GET /posts?status[operator]=in&status[values]=["draft","published"]
+GET /posts?status[operator]=in&status[values]=draft&status[values]=published
 ```
 
 Returns posts where status = "draft" OR status = "published".

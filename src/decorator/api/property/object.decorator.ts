@@ -5,14 +5,14 @@ import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiPropertyObjectProperties, TApiPropertyObjectWithDiscriminatorProperties } from "@type/decorator/api/property";
 import type { ClassConstructor } from "class-transformer";
 
-import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/dto/manual/property-metadata/decorator.enum";
+import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
-import { ApiDiscriminatorValidateConfig } from "@utility/api/discriminator";
+import { ApiDiscriminatorValidateConfig } from "@utility/api/discriminator-validate-config.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerateContextualManualDto } from "@utility/dto/generate/manual-child.utility";
-import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata.utility";
+import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GetAutoDtoContext } from "@utility/get/auto-dto-context.utility";
 import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";

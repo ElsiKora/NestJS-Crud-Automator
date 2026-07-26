@@ -1,3 +1,4 @@
+export { type TApiAuthorizationCacheOptions } from "./cache-options.type";
 export { type TApiAuthorizationGuardRequest } from "./guard-request.type";
 export type * from "./policy";
 export type * from "./rule";

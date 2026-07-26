@@ -1,6 +1,6 @@
 import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 
-import { ApiDiscriminatorValidateConfig } from "@utility/api/discriminator";
+import { ApiDiscriminatorValidateConfig } from "@utility/api/discriminator-validate-config.utility";
 
 /**
  * Validates that route-level discriminator config and variant DTO classes are consistent.

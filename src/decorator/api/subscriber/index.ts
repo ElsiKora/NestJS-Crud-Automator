@@ -1,2 +1,2 @@
-export * from "./function.decorator";
-export * from "./route.decorator";
+export { ApiFunctionSubscriber } from "./function.decorator";
+export { ApiRouteSubscriber } from "./route.decorator";

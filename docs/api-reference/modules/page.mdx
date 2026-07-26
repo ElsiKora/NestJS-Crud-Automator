@@ -30,6 +30,9 @@ Wires the authorization runtime, guard, hooks policy discovery, IAM resolvers, s
 @Module({
 	imports: [
 		ApiAuthorizationModule.forRoot({
+			cache: {
+				mode: EApiAuthorizationCacheMode.SOURCE_FIRST,
+			},
 			hookPermissionSources: [hookPermissionSource],
 			principalResolver,
 		}),
@@ -39,6 +42,8 @@ export class AppModule {}
 ```
 
 Use `forRoot(...)` for value-based configuration and `forRootAsync(...)` when principal resolvers, permission sources, IAM attachment sources, or IAM document sources come from Nest providers.
+
+Resolver caching defaults to `SOURCE_FIRST`: hooks permission, IAM attachment, and IAM document sources are read for every evaluation without cross-request map writes. `MEMORY` is an explicit process-local opt-in and requires positive `ttlMs` and `maxEntries` values. Invalid cache configuration fails during application bootstrap.
 
 ## Related resources
 

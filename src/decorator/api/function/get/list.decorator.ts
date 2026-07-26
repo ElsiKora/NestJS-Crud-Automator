@@ -1,7 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function/error-execution-context.interface";
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context";
-import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context/data";
+import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context/data.interface";
 import type { IApiFunctionGetListExecutorProperties, IApiFunctionProperties, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiFunctionGetListProperties } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
@@ -30,7 +30,7 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 	const { entity }: IApiFunctionProperties<E> = properties;
 	const transactionMode: EApiFunctionTransactionMode = properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 
-	return function (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (this: { repository: Repository<E> }, getListProperties: TApiFunctionGetListProperties<E>): Promise<IApiGetListResponseResult<E>> {
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<IApiGetListResponseResult<E>> => {
@@ -66,6 +66,8 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? {}, repository });
 				},
 				entity,
+				functionType: EApiFunctionType.GET_LIST,
+				methodName: propertyKey,
 				mode: transactionMode,
 				onPreflightError: async (eventManager: EntityManager | undefined, error: Error): Promise<void> => {
 					const entityInstance: E = new entity();
@@ -79,6 +81,7 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 					await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, error);
 				},
 				repository: this.repository,
+				serviceConstructor: this.constructor as new (...arguments_: Array<unknown>) => unknown,
 			});
 		};
 

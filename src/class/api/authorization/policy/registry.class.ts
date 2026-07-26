@@ -8,13 +8,12 @@ import type { IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver } f
 import type { IApiEntity } from "@interface/entity/interface";
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
 
+import { ApiAuthorizationPolicyExecutor } from "@class/api/authorization/policy/executor.class";
+import { PolicySubscriberWrapper } from "@class/api/authorization/policy/subscriber-wrapper.class";
 import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization";
 import { AuthorizationResolveDefaultPrincipal } from "@utility/authorization/resolve-default-principal.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { LoggerUtility } from "@utility/logger.utility";
-
-import { ApiAuthorizationPolicyExecutor } from "./executor.class";
-import { PolicySubscriberWrapper } from "./subscriber-wrapper.class";
 
 const policyRegistryLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationPolicyRegistry");
 

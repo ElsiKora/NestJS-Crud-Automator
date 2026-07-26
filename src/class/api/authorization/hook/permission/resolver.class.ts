@@ -1,10 +1,9 @@
 import type { IApiAuthorizationPrincipal, IApiHookPermissionSource } from "@interface/class/api/authorization";
 
+import { ApiAuthorizationHookPermissionCache } from "@class/api/authorization/hook/permission/cache.class";
 import { AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN } from "@constant/class/authorization";
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { LoggerUtility } from "@utility/logger.utility";
-
-import { ApiAuthorizationHookPermissionCache } from "./cache.class";
 
 const hookPermissionResolverLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationHookPermissionResolver");
 

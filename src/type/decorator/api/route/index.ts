@@ -1,2 +1,2 @@
-export type * from "./custom";
-export type * from "./discriminated";
+export { type TApiRouteCustomDtoProperties } from "./custom-dto-properties.type";
+export { type TApiRouteDiscriminatedDtoProperties } from "./discriminated-dto-properties.type";

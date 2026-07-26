@@ -147,10 +147,13 @@ createdAt: Date;
 updatedAt: Date;
 ```
 
-Available date identifiers:
+Date identifiers express semantics rather than property names:
 
-- `CREATED_AT` - Creation timestamp
-- `UPDATED_AT` - Last update timestamp
+- Infrastructure timestamps: `CREATED_AT`, `RECEIVED_AT`, and `UPDATED_AT`.
+- Writable business dates: `DATE`, `EXPIRES_IN`, and `REFRESH_IN`.
+- Range/query identifiers: `CREATED_AT_FROM`, `CREATED_AT_TO`, `RECEIVED_AT_FROM`, `RECEIVED_AT_TO`, `UPDATED_AT_FROM`, and `UPDATED_AT_TO`.
+
+Generated CREATE, UPDATE, and PARTIAL_UPDATE body DTOs omit the three infrastructure identifiers while response DTOs retain them. A property named `createdAt` remains writable when its identifier is `DATE`, and a nonstandard property name such as `insertedOn` is excluded when its identifier is `CREATED_AT`.
 
 ### Enum Properties
 

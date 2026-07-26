@@ -1,2 +1,2 @@
 export * from "./api";
-export * from "./dto";
+export { DTO_GENERATE_CONSTANT, DTO_UTILITY_CONSTANT } from "./dto";

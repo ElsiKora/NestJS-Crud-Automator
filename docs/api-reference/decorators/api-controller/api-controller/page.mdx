@@ -21,7 +21,7 @@ Generates CRUD endpoints, DTOs, Swagger metadata, guards, and request/response p
 
 Each route entry can be described in two ways:
 
-- **Auto DTO mode (`autoDto`)** – Add validators to generated DTOs. Field exposure, requiredness, nullable state, guards, filters, and response visibility belong to entity `@ApiPropertyDescribe({ properties: ... })` metadata.
+- **Auto DTO mode (`autoDto`)** – Add validators to generated DTOs. Entity `@ApiPropertyDescribe({ properties: ... })` metadata remains the capability baseline; GET_LIST `request[QUERY].filter` and `order` may narrow or overlay the generated query contract.
 - **Manual DTO mode (`dto`)** – Supply custom DTO classes when manual control is preferred. The decorator still wires up Swagger and validation.
 
 Routes also accept:
@@ -29,10 +29,14 @@ Routes also accept:
 - `documentation` – per-route Swagger `summary`, `description`, and `operationId` overrides. When omitted, generated CRUD routes receive default summaries and descriptions based on `name` or the entity name, using singular resource names for item routes and plural names for list routes.
 - `security.authentication` – bearer/security schemes and custom guards. `type` is required and may be an `EApiAuthenticationType` value or a project-specific string.
 - `security.authorization` – authorization mode and optional per-route overrides.
-- `request` / `response` – target-scoped pipe and serializer overrides for each CRUD action.
+- `request` / `response` – target-scoped pipe and serializer overrides for each CRUD action. A generated GET_LIST QUERY target also accepts optional `filter` and `order` sections that compile into one immutable DTO/runtime/OpenAPI query plan.
+- `relations` – include-driven request hydration and response loading. `relations.request.load.locks` can apply native `pessimistic_read` or `pessimistic_write` locks to enabled direct relation includes inside an active Automator transaction.
+- `transaction.mode` – generated-route transaction behavior using `EApiFunctionTransactionMode`. Omitted config and `SUPPORTS` open no route transaction; `REQUIRED` opens or joins, `MANDATORY` requires an active owner, and `NONE` rejects one.
 - `generation.decorators` – additional method or property decorators applied after the factory finishes.
 - `generation.isEnabled: false` – disables a route. Omitting a route key does not disable it; the factory generates omitted routes with default configuration.
 - `generation.shouldWriteToController: false` – keeps the generated method and DTO metadata but skips applying Nest route decorators, so you can expose the method manually.
+
+There is no custom-only/default-disabled controller option. A controller that exposes only custom routes must explicitly disable all six generated route types.
 
 ## Example
 
@@ -43,6 +47,19 @@ Routes also accept:
 	path: "users",
 	routes: {
 		[EApiRouteType.CREATE]: {
+			autoDto: {
+				[EApiDtoType.BODY]: {
+					validators: [
+						{
+							constraintClass: AllOrNoneOfListedPropertiesValidator,
+							options: ["firstName", "lastName"],
+						},
+					],
+				},
+			},
+			transaction: {
+				mode: EApiFunctionTransactionMode.REQUIRED,
+			},
 			security: {
 				authentication: {
 					type: EApiAuthenticationType.USER,
@@ -61,22 +78,42 @@ Routes also accept:
 				description: "Returns a filtered and paginated list of users",
 				operationId: "listUsers",
 			},
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					filter: {
+						fields: {
+							email: { isEnabled: false },
+							status: {
+								allowedOperations: [EFilterOperation.EQ],
+								defaultCondition: {
+									operator: EFilterOperation.EQ,
+									value: EUserStatus.ACTIVE,
+								},
+								isEnabled: true,
+								missingBehavior: EApiControllerGetListQueryFilterMissingBehavior.USE_DEFAULT,
+							},
+							username: {
+								allowedOperations: [EFilterOperation.EQ, EFilterOperation.CONT],
+								isEnabled: true,
+								missingBehavior: EApiControllerGetListQueryFilterMissingBehavior.REJECT,
+							},
+						},
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT,
+					},
+					order: {
+						fields: {
+							createdAt: { isEnabled: true },
+						},
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+				},
+			},
 			response: {
 				headers: {
 					"X-Request-Id": {
 						description: "Request correlation id.",
 						schema: { type: "string" },
 					},
-				},
-			},
-			autoDto: {
-				[EApiDtoType.QUERY]: {
-					validators: [
-						{
-							constraintClass: HasAtLeastOnePropertyValidator,
-							options: ["username", "email"],
-						},
-					],
 				},
 			},
 		},
@@ -92,7 +129,12 @@ export class UserController {}
 
 - Combine with `@ApiControllerObservable` to emit route subscriber hooks.
 - Add `@ApiControllerSecurable` when authorization policies should execute before each route.
+- Use route `REQUIRED` when request relation hydration, the generated service operation, and response relation reload must share one manager. Validation remains outside the route transaction, and commit finishes before route-after subscribers.
+- Generated-route `transaction` configuration does not apply to `@ApiRouteCustom`; custom functions, steps, or named scopes own those transactions.
 - Align `routes` with the DTO metadata defined on the entity (`@ApiPropertyDescribe`) for consistent validation.
+- Omit GET_LIST `filter` or `order` to keep its legacy metadata-driven behavior. `INHERIT` overlays the metadata baseline; `REJECT` creates an allowlist. Route config cannot re-enable a metadata-disabled field.
+- `USE_DEFAULT` inserts `defaultCondition` only when the client omits that field group. A supplied client group replaces the field default; authorization scope is always AND-merged afterward.
+- Do not combine a manual GET_LIST QUERY DTO with generated `filter` or `order`. Manual RESPONSE DTOs remain compatible.
 - Leave `routes[routeType].documentation` empty to use generated Swagger text. Set only the fields you need to override; omitted `summary` and `description` fall back to generated text, while omitted `operationId` uses Nest Swagger's default operation ID.
 
 ## Related resources

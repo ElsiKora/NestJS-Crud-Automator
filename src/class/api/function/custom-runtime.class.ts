@@ -11,17 +11,20 @@ import { type EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnTyp
 import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 
 export class ApiFunctionCustomRuntime {
-	public static async execute<E extends IApiBaseEntity>(options: { functionArguments: Array<unknown>; originalMethod: (...arguments_: Array<unknown>) => Promise<unknown>; properties: IApiFunctionCustomProperties<E>; target: { repository: Repository<E> }; transactionMode: EApiFunctionTransactionMode }): Promise<unknown> {
+	public static async execute<E extends IApiBaseEntity>(options: { functionArguments: Array<unknown>; methodName?: string; originalMethod: (...arguments_: Array<unknown>) => Promise<unknown>; properties: IApiFunctionCustomProperties<E>; target: { repository: Repository<E> }; transactionMode: EApiFunctionTransactionMode }): Promise<unknown> {
 		return await ApiFunctionExecuteWithTransaction({
+			action: options.properties.action,
 			callback: async (eventManager: EntityManager | undefined): Promise<unknown> => await ApiFunctionCustomRuntime.executeWithEventManager({ ...options, eventManager }),
 			entity: options.properties.entity,
+			functionType: EApiFunctionType.CUSTOM,
 			label: "ApiFunctionCustom",
+			methodName: options.methodName ?? (options.originalMethod.name || "anonymous"),
 			mode: options.transactionMode,
 			onPreflightError: async (eventManager: EntityManager | undefined, error: Error): Promise<void> => {
 				await ApiFunctionCustomRuntime.executeErrorSubscribers(options, eventManager, EApiSubscriberOnType.BEFORE_ERROR, error);
 			},
 			repository: options.target.repository,
-			shouldBindTransactionScope: false,
+			serviceConstructor: options.target.constructor as new (...arguments_: Array<unknown>) => unknown,
 		});
 	}
 

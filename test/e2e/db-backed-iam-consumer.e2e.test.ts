@@ -537,6 +537,83 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 		expect(app.get(AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN)).toEqual([app.get(IamConsumerPolicyDocumentSource)]);
 	});
 
+	it("observes committed IAM attachment revoke and grant changes on the next requests", async () => {
+		await itemService.repository.save({
+			id: "iam-item-own",
+			name: "Own Item",
+			operatorId: "operator-1",
+		});
+
+		const allowedResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items/iam-item-own",
+		});
+
+		expect(allowedResponse.statusCode).toBe(200);
+
+		await attachmentRepository.delete({ id: "attachment-user-1" });
+
+		const revokedResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items/iam-item-own",
+		});
+
+		expect(revokedResponse.statusCode).toBe(403);
+
+		await attachmentRepository.save({
+			id: "attachment-user-1",
+			isBoundary: false,
+			policyId: "policy-operator-scope",
+			principalId: "user-1",
+			principalType: EApiAuthorizationPrincipalType.USER,
+		});
+
+		const restoredResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items/iam-item-own",
+		});
+
+		expect(restoredResponse.statusCode).toBe(200);
+	});
+
+	it("observes a committed IAM document version change on the next request", async () => {
+		await itemService.repository.save({
+			id: "iam-item-own",
+			name: "Own Item",
+			operatorId: "operator-1",
+		});
+
+		const allowedResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items/iam-item-own",
+		});
+
+		expect(allowedResponse.statusCode).toBe(200);
+
+		await documentRepository.update(
+			{ id: "policy-operator-scope" },
+			{
+				document: {
+					Statement: [],
+					Version: "2026-03-14",
+				},
+				version: "2",
+			},
+		);
+
+		const changedDocumentResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items/iam-item-own",
+		});
+
+		expect(changedDocumentResponse.statusCode).toBe(403);
+	});
+
 	it("lists and reads only operator-scoped resources", async () => {
 		await itemService.repository.save([
 			{ id: "iam-item-own", name: "Own Item", operatorId: "operator-1" },

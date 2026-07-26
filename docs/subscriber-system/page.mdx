@@ -37,12 +37,13 @@ Best for:
 
 ### Function Subscribers (Service Level)
 
-Intercept at the database layer before and after repository methods:
+Intercept decorated service execution around persistence work and confirmed transaction completion:
 
 - Pre-process data before saving
 - Post-process data after retrieval
 - Database-level validations
 - Data enrichment
+- Post-commit and post-rollback side effects
 
 Best for:
 
@@ -180,16 +181,16 @@ Understanding the execution order is critical:
 
 1. **Incoming Request**
 2. Route subscribers `onBefore...` (priority high → low)
-3. Controller logic (transformers, validators)
-4. Service method called
-5. Function subscribers `onBefore...` (priority high → low)
-6. Repository operation
-7. Function subscribers `onAfter...` (priority high → low)
-8. Result returned to controller
-9. Route subscribers `onAfter...` (priority high → low)
-10. **Response sent to client**
+3. Request transformation, validation, and typed query parsing
+4. Optional generated-route transaction and request relation hydration
+5. Decorated service lifecycle: UPDATE's GET, function `onBefore...`, repository work, and function `onAfter...`
+6. A function-owned transaction commits plus `onAfterCommit` before the service returns; a joined route/scope owner remains open
+7. Generated response reload when applicable, inside the boundary only for a route owner
+8. A route-owned transaction commits plus `onAfterCommit`; a joined scope owner commits when its outer callback completes
+9. Response transformation and route `onAfter...`
+10. Authorization result handling, serialization, and **response**
 
-If an error occurs, execution stops and error hooks are called.
+Operation failures invoke matching error hooks. An owning boundary performs confirmed rollback plus `onAfterRollback`; a post-commit hook failure occurs after successful database commit and is reported separately rather than as rollback. See the lifecycle guide for operation-specific branches.
 
 ## Next Steps
 

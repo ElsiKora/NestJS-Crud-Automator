@@ -158,6 +158,10 @@ The third generic remains the before-delete result when it is a delete criteria 
 - `onBeforeGetMany`, `onAfterGetMany`, `onBeforeErrorGetMany`, `onAfterErrorGetMany`
 - `onBeforeDelete`, `onAfterDelete`, `onBeforeErrorDelete`, `onAfterErrorDelete`
 - `onBeforeCustom`, `onAfterCustom`, `onBeforeErrorCustom`, `onAfterErrorCustom`
+- `onAfterCommit`, `onAfterRollback`
+- `onBeforeErrorCommit`, `onAfterErrorCommit`, `onBeforeErrorRollback`, `onAfterErrorRollback`
+
+Post-transaction hooks run only after the outer owner confirms commit or rollback. They return `Promise<void>` and cannot replace operation results.
 
 **Related:**
 
@@ -225,7 +229,7 @@ Factory class for generating controller endpoints.
 
 ### ApiRouteRuntime
 
-Runtime executor for generated and custom controller routes. It handles request target validation/transformation, relation hydration, authorization decision application, subscriber execution, service calls, and response serialization.
+Runtime executor for generated and custom controller routes. It handles request target validation/transformation, relation hydration, authorization decision application, subscriber execution, service calls, and response serialization. Generated routes can also resolve `SUPPORTS`, `REQUIRED`, `MANDATORY`, and `NONE` transaction modes; a route-owned `REQUIRED` transaction encloses request relation hydration, the generated operation, and response relation reload.
 
 **Location:** `src/class/api/route-runtime.class.ts`
 
@@ -233,7 +237,7 @@ Runtime executor for generated and custom controller routes. It handles request 
 
 **Public static methods used by decorators:**
 
-- `executeGenerated(options)` runs the generated CRUD route pipeline.
+- `executeGenerated(options)` runs the generated CRUD route pipeline and opens a `ROUTE`-owned transaction when configured `REQUIRED` and no owner is active.
 - `executeCustom(options)` runs the `@ApiRouteCustom` pipeline around a custom controller operation.
 - `executeCustomRequestRelations(controller, metadata, runtimeProperties, body)` hydrates configured request relations for custom routes.
 - `executeCustomResponseRelations(controller, runtimeProperties, response)` reloads configured response relations for custom routes.
@@ -244,14 +248,28 @@ Runtime executor for generated and custom controller routes. It handles request 
 
 Public helper for running code inside an external TypeORM transaction while making the transaction manager available through `ApiFunctionContextStorage`.
 
-**Location:** `src/class/api/function/transaction-scope.class.ts`
+**Location:** `src/class/api/function/transaction/scope.class.ts`
 
 **Static methods:**
 
-- `runWithDataSource(dataSource, callback)` opens a new TypeORM transaction.
-- `runWithEntityManager(entityManager, callback)` reuses an existing `EntityManager`.
+- `runWithDataSource(dataSource, { name }, callback)` opens a named TypeORM transaction.
+- `runWithEntityManager(entityManager, callback)` joins only the manager already bound to an active Automator transaction.
 
 Only service-bound decorated function execution, including generated `@ApiFunction` flows and `@ApiFunctionCustom`, has real CRUD `operations`; transaction scopes created without a decorated service expose `getRepository` and transaction metadata but reject CRUD operations because there is no owning service context.
+
+### Transaction Outcome Exceptions
+
+#### ApiFunctionTransactionPostCommitException
+
+The database commit succeeded, but one or more `onAfterCommit` or commit-error lifecycle hooks failed. `outcome` is `COMMITTED`; the exception exposes `transactionId`, `owner`, `hookFailures`, and `errorLifecycleFailures`. Do not report or retry this as a rollback.
+
+#### ApiFunctionTransactionCommitUnknownOutcomeException
+
+The driver did not confirm the result of COMMIT. `outcome` is `UNKNOWN`; the exception exposes the commit failure, optional cleanup failure, error-lifecycle failures, transaction id, and owner. Automator invokes commit-error lifecycle but neither post-commit nor post-rollback hooks for this uncertain outcome.
+
+#### ApiFunctionTransactionRollbackException
+
+The operation failed and rollback handling also produced a database, post-rollback, or rollback-error lifecycle failure. The original `operationError` remains available. `outcome` is `ROLLED_BACK` when the database rollback was confirmed and `UNKNOWN` when the rollback itself failed.
 
 ## Subscriber Management Classes
 
@@ -300,7 +318,7 @@ Global module that wires the authorization registry, discovery service, guard, h
 - `forRoot(options?: IApiAuthorizationModuleOptions): DynamicModule` for value-based resolver and source registration
 - `forRootAsync(options: IApiAuthorizationModuleAsyncOptions): DynamicModule` for DI-backed `principalResolver`, `hookPermissionSources`, `iam.attachmentSources`, and `iam.documentSources`
 
-`forRootAsync(...)` supports the standard Nest async module patterns: `imports`, `inject`, `useFactory`, `useClass`, and `useExisting`. Use `IApiAuthorizationModuleOptionsFactory` when you want a dedicated Nest provider class that builds the authorization module options.
+`forRootAsync(...)` supports the standard Nest async module patterns: `imports`, `inject`, `useFactory`, `useClass`, and `useExisting`. Use `IApiAuthorizationModuleOptionsFactory` when you want a dedicated Nest provider class that builds the authorization module options. Module options also select the resolver cache mode: source-first is the default, while bounded memory caching requires explicit TTL and entry-limit values.
 
 ### ApiAuthorizationRuntime
 
@@ -328,37 +346,37 @@ Compiles safe `resource.*` IAM conditions into database scopes for controller qu
 
 ### ApiAuthorizationHookPermissionResolver
 
-Resolves and caches permissions for hooks mode from configured `IApiHookPermissionSource` implementations.
+Resolves permissions for hooks mode from configured `IApiHookPermissionSource` implementations. Source-first mode reads them on every evaluation; memory mode may reuse a bounded process-local entry.
 
 **Location:** `src/class/api/authorization/hook/permission/resolver.class.ts`
 
 ### ApiAuthorizationHookPermissionCache
 
-Stores hook-mode permissions by normalized principal for `ApiAuthorizationHookPermissionResolver` and public invalidation through `ApiAuthorizationCacheInvalidationService`.
+Stores hook-mode permissions by normalized principal only when the module explicitly selects `MEMORY`. It remains empty in default source-first mode and supports public invalidation through `ApiAuthorizationCacheInvalidationService`.
 
 **Location:** `src/class/api/authorization/hook/permission/cache.class.ts`
 
 ### ApiAuthorizationIamAttachmentCache
 
-Stores IAM policy attachments and boundaries by normalized principal for `ApiAuthorizationIamAttachmentResolver` and public invalidation through `ApiAuthorizationCacheInvalidationService`.
+Stores IAM policy attachments and boundaries by normalized principal only in explicit bounded memory mode. Source-first evaluations bypass it.
 
 **Location:** `src/class/api/authorization/iam/attachment/cache.class.ts`
 
 ### ApiAuthorizationIamDocumentCache
 
-Stores IAM policy document records by normalized document id set for `ApiAuthorizationIamDocumentResolver` and public invalidation through `ApiAuthorizationCacheInvalidationService`.
+Stores IAM policy document records by normalized document id set only in explicit bounded memory mode. Source-first evaluations bypass it.
 
 **Location:** `src/class/api/authorization/iam/document/cache.class.ts`
 
 ### ApiAuthorizationBootstrapValidationService
 
-Validates securable controller configuration, mode selection, hooks policy presence, and IAM prerequisites during application bootstrap.
+Applies resolver cache configuration and validates cache bounds, securable controller configuration, authorization mode selection, hooks policy presence, and IAM prerequisites during application bootstrap.
 
 **Location:** `src/class/api/authorization/bootstrap-validation.service.class.ts`
 
 ### ApiAuthorizationCacheInvalidationService
 
-Public Nest injectable facade for clearing authorization policy, hook permission, and IAM resolver caches after policy or permission changes.
+Public Nest injectable facade for clearing authorization policy, hook permission, and IAM resolver caches after policy or permission changes. Resolver-cache invalidation is required for immediate visibility in memory mode and is harmless in source-first mode.
 
 **Location:** `src/class/api/authorization/cache-invalidation.service.class.ts`
 

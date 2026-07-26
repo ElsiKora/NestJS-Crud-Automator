@@ -1,30 +1,34 @@
+import type { EFilterOperation } from "@enum/filter";
+import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerPropertiesRouteAutoDtoConfig } from "@interface/decorator/api";
-import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
+import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { ObjectLiteral } from "typeorm";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { ApiExtraModels } from "@nestjs/swagger";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
+import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoGenerateCacheKey } from "@utility/dto/generate/cache-key.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
 import { DtoGenerateFilterDecorator } from "@utility/dto/generate/filter-decorator.utility";
+import { DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list-query-properties.utility";
 import { DtoGenerateGetListResponse } from "@utility/dto/generate/get-list-response.utility";
 import { DtoGetGetListQueryBaseClass } from "@utility/dto/get/get-list-query-base-class.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "@utility/dto/is/should-be-generated.utility";
 import { ErrorException } from "@utility/error/exception.utility";
-import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { HasPairedCustomSuffixesFieldsValidator } from "@validator/has/paired-custom-suffixes-fields.validator";
+import { Transform } from "class-transformer";
 import { Validate } from "class-validator";
-
-import { DtoAutoContextPop } from "../auto/context/pop.utility";
-import { DtoAutoContextPush } from "../auto/context/push.utility";
 
 const dtoGenerateCache: Map<string, Type<unknown>> = new Map<string, Type<unknown>>();
 
@@ -38,21 +42,24 @@ const dtoGenerateCache: Map<string, Type<unknown>> = new Map<string, Type<unknow
  * @param {EApiDtoType} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
  * @param {IApiControllerPropertiesRouteAutoDtoConfig} [dtoConfig] - Optional configuration for automatic DTO generation
  * @param {Type<IAuthGuard>} [currentGuard] - Optional authentication guard for property visibility control
+ * @param {IApiControllerGetListQueryPlan} [queryPlan] - Normalized route plan that narrows generated GET_LIST query fields.
  * @returns {Type<unknown> | undefined} The generated DTO class or undefined if no DTO should be generated
  * @throws {Error} When primary key metadata is missing
  * @template E - The entity type
  */
-export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>): Type<unknown> | undefined {
+export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
 		return undefined;
 	}
 
 	const cacheKey: string = DtoGenerateCacheKey({
+		controllerName: queryPlan?.controllerName,
 		dtoConfig,
 		dtoType,
 		entityName: String(entityMetadata.name),
 		guardName: currentGuard?.name,
 		method,
+		queryPlanSignature: queryPlan?.signature,
 	});
 
 	const cached: Type<unknown> | undefined = dtoGenerateCache.get(cacheKey);
@@ -85,51 +92,13 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	}
 
 	const queryFilterProperties: Array<{
+		allowedOperations?: ReadonlyArray<EFilterOperation>;
 		entityMetadata: IApiEntity<unknown>;
 		metadata: TApiPropertyDescribeProperties;
 		name: string;
-	}> = [];
-
-	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY) {
-		for (const property of markedProperties) {
-			if (property.metadata.type !== EApiPropertyDescribeType.RELATION) {
-				queryFilterProperties.push({
-					entityMetadata: entityMetadata as IApiEntity<unknown>,
-					metadata: property.metadata,
-					name: property.name as string,
-				});
-
-				continue;
-			}
-
-			const relationColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>): boolean => column.name == property.name);
-
-			if (!relationColumn?.relation?.target) continue;
-
-			let relationEntityMetadata: IApiEntity<unknown>;
-
-			try {
-				relationEntityMetadata = GenerateEntityInformation(relationColumn.relation.target);
-			} catch {
-				continue;
-			}
-
-			for (const relationProperty of relationEntityMetadata.columns) {
-				const relationPropertyMetadata: TApiPropertyDescribeProperties | undefined = relationProperty.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
-
-				if (!relationPropertyMetadata || relationPropertyMetadata.type === EApiPropertyDescribeType.RELATION || relationPropertyMetadata.type === EApiPropertyDescribeType.OBJECT) continue;
-
-				if (!relationProperty.isPrimary && !DtoIsPropertyShouldBeMarked(method, dtoType, relationProperty.name, relationPropertyMetadata, relationProperty.isPrimary, currentGuard)) continue;
-
-				queryFilterProperties.push({
-					entityMetadata: relationEntityMetadata,
-					metadata: relationPropertyMetadata,
-					name: `${property.name as string}.${relationProperty.name as string}`,
-				});
-			}
-		}
-	}
-	const BaseClass: Type = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? DtoGetGetListQueryBaseClass<E>(entity, entityMetadata, method, dtoType) : class {};
+	}> = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? DtoGenerateGetListQueryProperties(entityMetadata, markedProperties, currentGuard, queryPlan) : [];
+	const BaseClass: Type = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? DtoGetGetListQueryBaseClass<E>(entity, entityMetadata, method, dtoType, queryPlan) : class {};
+	const isTypedFilterPlan: boolean = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY && queryPlan !== undefined && !queryPlan.filter.isLegacy;
 
 	class GeneratedDTO extends BaseClass {
 		constructor() {
@@ -184,7 +153,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	}
 
 	Object.defineProperty(GeneratedDTO, "name", {
-		value: `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`,
+		value: queryPlan && method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? queryPlan.schemaName : `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`,
 	});
 
 	DtoAutoContextPush(GeneratedDTO.prototype, method, dtoType);
@@ -197,14 +166,24 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 				if (decorators) {
 					for (const [, decorator] of decorators.entries()) {
 						decorator(GeneratedDTO.prototype, `${property.name}[value]`);
-
-						DtoGenerateFilterDecorator(property.metadata, property.entityMetadata)(GeneratedDTO.prototype, `${property.name}[operator]`);
 					}
 				}
 
-				const metadataArray: TApiPropertyDescribeProperties = { ...property.metadata, isArray: true, isUniqueItems: false, maxItems: DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES, minItems: DTO_GENERATE_CONSTANT.MINIMUM_FILTER_PROPERTIES } as TApiPropertyDescribeProperties;
+				DtoGenerateFilterDecorator(property.metadata, property.entityMetadata, property.allowedOperations, `${queryPlan?.schemaName ?? entityMetadata.name ?? "UnknownResource"}${CamelCaseString(property.name)}FilterOperation`)(GeneratedDTO.prototype, `${property.name}[operator]`);
+
+				const metadataArray: TApiPropertyDescribeProperties = {
+					...property.metadata,
+					isArray: true,
+					isUniqueItems: false,
+					maxItems: DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES,
+					minItems: isTypedFilterPlan ? FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT : DTO_GENERATE_CONSTANT.MINIMUM_FILTER_PROPERTIES,
+				} as TApiPropertyDescribeProperties;
 
 				const decoratorsArray: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, metadataArray, property.entityMetadata, dtoType, property.name, currentGuard);
+
+				if (isTypedFilterPlan) {
+					Transform(({ value }: { value: unknown }): unknown => (value === undefined || Array.isArray(value) ? value : [value]), { toClassOnly: true })(GeneratedDTO.prototype, `${property.name}[values]`);
+				}
 
 				if (decoratorsArray) {
 					for (const [, decorator] of decoratorsArray.entries()) {
@@ -238,6 +217,27 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		}
 	} finally {
 		DtoAutoContextPop(GeneratedDTO.prototype);
+	}
+
+	if (isTypedFilterPlan) {
+		const hiddenSwaggerProperties: Set<string> = new Set<string>();
+
+		for (const property of queryFilterProperties) {
+			for (const suffix of ["operator", "value", "values"]) {
+				const propertyName: string = `${property.name}[${suffix}]`;
+
+				hiddenSwaggerProperties.add(`:${propertyName}`);
+				Reflect.deleteMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, GeneratedDTO.prototype, propertyName);
+			}
+		}
+
+		const swaggerProperties: Array<string> = (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES_ARRAY, GeneratedDTO.prototype) as Array<string> | undefined) ?? [];
+
+		Reflect.defineMetadata(
+			SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES_ARRAY,
+			swaggerProperties.filter((propertyName: string): boolean => !hiddenSwaggerProperties.has(propertyName)),
+			GeneratedDTO.prototype,
+		);
 	}
 
 	if (dtoConfig?.validators) {

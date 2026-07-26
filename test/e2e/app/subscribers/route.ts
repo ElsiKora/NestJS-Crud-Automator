@@ -3,7 +3,7 @@ import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { TApiSubscriberRouteBeforeCreateContext } from "@type/class/api/subscriber/route/before";
 import { Injectable } from "@nestjs/common";
 
-import { ApiRouteSubscriber, ApiRouteSubscriberBase } from "../../../../src/index";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase, EFilterOperation } from "../../../../src/index";
 
 import { E2eEntity } from "../entity";
 
@@ -85,10 +85,16 @@ export class E2eRouteSubscriber extends ApiRouteSubscriberBase<E2eEntity> {
 		E2eRouteSubscriber.maybeDropPrimaryKey(context.result.headers, context.DATA.entityMetadata);
 	}
 
-	public async onBeforeGetList(_context: object) {
+	public async onBeforeGetList(context: { result: { query?: Record<string, unknown> } }) {
 		E2eRouteSubscriber.record("before", "getList");
-		// eslint-disable-next-line @elsikora/sonar/void-use
-		void _context;
+
+		const filterName: unknown = context.result.query?.routeBeforeName;
+
+		if (typeof filterName === "string" && context.result.query) {
+			delete context.result.query.routeBeforeName;
+			context.result.query["name[operator]"] = EFilterOperation.EQ;
+			context.result.query["name[value]"] = filterName;
+		}
 	}
 
 	public async onBeforePartialUpdate(context: { DATA: { entityMetadata: IApiEntity<E2eEntity> }; result: { headers: Record<string, string> } }) {

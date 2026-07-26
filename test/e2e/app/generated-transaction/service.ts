@@ -13,7 +13,7 @@ import { E2eEntity } from "../entity";
 	entity: E2eEntity,
 	functions: {
 		[EApiFunctionType.CREATE]: {
-			transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+			transaction: { mode: EApiFunctionTransactionMode.MANDATORY },
 		},
 	},
 })

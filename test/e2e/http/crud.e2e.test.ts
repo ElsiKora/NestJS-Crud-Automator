@@ -1,12 +1,11 @@
 import "reflect-metadata";
 
-import type { INestApplication } from "@nestjs/common";
-
+import { HttpStatus, type INestApplication } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiAuthorizationCacheInvalidationService, AUTHORIZATION_POLICY_REGISTRY_TOKEN, CorrelationIDResponseBodyInterceptor, type IApiAuthorizationPolicyRegistry } from "../../../src/index";
+import { ApiAuthorizationCacheInvalidationService, AUTHORIZATION_POLICY_REGISTRY_TOKEN, CorrelationIDResponseBodyInterceptor, EApiFunctionTransactionOwnerKind, EApiFunctionTransactionTraceType, EApiFunctionType, EApiRouteType, type IApiAuthorizationPolicyRegistry } from "../../../src/index";
 import { E2E_OWNER_ID, E2E_OWNER_ID_OTHER } from "../app/constants";
 import { E2eAppModule, E2eCustomRouteSubscriber, E2eEntity, E2eFunctionSubscriber, E2eOwnerService, E2ePolicySubscriber, E2eRouteSubscriber, E2eService } from "../app";
 
@@ -199,6 +198,68 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eRouteSubscriber.events).toEqual(expect.arrayContaining(["route:before:create", "route:after:create", "route:before:get", "route:after:get", "route:before:getList", "route:after:getList", "route:before:partialUpdate", "route:after:partialUpdate", "route:before:update", "route:after:update", "route:before:delete", "route:after:delete"]));
 
 		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:create", "function:after:create", "function:before:get", "function:after:get", "function:before:getList", "function:after:getList", "function:before:update", "function:after:update", "function:before:delete", "function:after:delete"]));
+	});
+
+	it("loads one decorated current entity before a database-backed update", async () => {
+		await service.repository.save({ count: 1, id: "current-entity-1", name: "Original", ownerId: E2E_OWNER_ID });
+		E2eFunctionSubscriber.reset();
+		const decoratedGetQueries: Array<string> = [];
+		const persistenceQueries: Array<string> = [];
+		const originalFindOne = service.repository.findOne.bind(service.repository);
+		const originalLogQuery = service.dataSource.logger.logQuery.bind(service.dataSource.logger);
+		let isDecoratedGetActive: boolean = false;
+		const findOneSpy = vi.spyOn(service.repository, "findOne").mockImplementation(async (properties) => {
+			isDecoratedGetActive = true;
+
+			try {
+				return await originalFindOne(properties);
+			} finally {
+				isDecoratedGetActive = false;
+			}
+		});
+		const querySpy = vi.spyOn(service.dataSource.logger, "logQuery").mockImplementation((query, parameters, queryRunner) => {
+			(isDecoratedGetActive ? decoratedGetQueries : persistenceQueries).push(query);
+			originalLogQuery(query, parameters, queryRunner);
+		});
+
+		try {
+			const updated = await service.update({ id: "current-entity-1" }, { name: "Updated" });
+			const decoratedGetSelects: Array<string> = decoratedGetQueries.filter((query) => query.trimStart().startsWith("SELECT") && query.includes('"e2e_entities"'));
+
+			expect(findOneSpy).toHaveBeenCalledTimes(1);
+			expect(findOneSpy).toHaveBeenCalledWith({ where: { id: "current-entity-1" } });
+			expect(decoratedGetSelects).toHaveLength(1);
+			expect(persistenceQueries.some((query) => query.trimStart().startsWith("UPDATE") && query.includes('"e2e_entities"'))).toBe(true);
+			expect(E2eFunctionSubscriber.events).toEqual(["function:before:get", "function:after:get", "function:before:update", "function:after:update"]);
+			expect(E2eFunctionSubscriber.currentEntities).toHaveLength(1);
+			expect(E2eFunctionSubscriber.currentEntities[0]).toMatchObject({ count: 1, id: "current-entity-1", name: "Original" });
+			expect(Object.isFrozen(E2eFunctionSubscriber.currentEntities[0])).toBe(true);
+			expect(updated.name).toBe("fn-Updated");
+		} finally {
+			findOneSpy.mockRestore();
+			querySpy.mockRestore();
+		}
+
+		expect((await service.repository.findOne({ where: { id: "current-entity-1" } }))?.name).toBe("fn-Updated");
+	});
+
+	it("keeps update-before closed when the decorated current-entity lookup misses", async () => {
+		await expect(service.update({ id: "current-entity-missing" }, { name: "Missing" })).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
+
+		expect(E2eFunctionSubscriber.events).toEqual(["function:before:get", "function:after_error:get", "function:after_error:update"]);
+		expect(E2eFunctionSubscriber.currentEntities).toHaveLength(0);
+	});
+
+	it("loads currentEntity through the active manager so uncommitted writes are visible", async () => {
+		await service.repository.save({ count: 1, id: "current-entity-transaction", name: "Original", ownerId: E2E_OWNER_ID });
+		E2eFunctionSubscriber.reset();
+
+		await service.updateAfterUncommittedChange("current-entity-transaction", "Uncommitted");
+
+		expect(E2eFunctionSubscriber.currentEntities).toHaveLength(1);
+		expect(E2eFunctionSubscriber.currentEntities[0]).toMatchObject({ count: 1, id: "current-entity-transaction", name: "Uncommitted" });
+		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.update.current-entity", "function:before:custom.update.current-entity:transaction", "function:before:get", "function:after:get", "function:before:update", "function:after:update", "function:after:custom.update.current-entity", "function:after:commit"]);
+		expect(await service.repository.findOne({ where: { id: "current-entity-transaction" } })).toMatchObject({ count: 2, name: "Uncommitted" });
 	});
 
 	it("uses custom response DTO for create runtime serialization", async () => {
@@ -411,6 +472,14 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(createResponse.statusCode).toBe(201);
 		expect(E2eFunctionSubscriber.events).toContain("function:before:create:transaction");
+		expect(E2eFunctionSubscriber.events).toContain("function:after:commit");
+		expect(E2eFunctionSubscriber.transactionContexts.at(-1)?.DATA.transaction.owner).toEqual({
+			entityName: E2eEntity.name,
+			kind: EApiFunctionTransactionOwnerKind.ROUTE,
+			methodName: "create",
+			routeType: EApiRouteType.CREATE,
+		});
+		expect(E2eFunctionSubscriber.transactionContexts.at(-1)?.DATA.events.map((event) => event.functionType)).toEqual([EApiFunctionType.CREATE, EApiFunctionType.GET]);
 		expect(await service.repository.findOne({ where: { id: "generated-transaction" } })).toMatchObject({
 			id: "generated-transaction",
 			name: "fn-GeneratedTransaction",
@@ -804,6 +873,169 @@ describe("CRUD routes (E2E)", () => {
 				.sort();
 			expect(ids).toEqual([...scenario.expected].sort());
 		}
+	});
+
+	it("applies strict typed GET_LIST filters, relation paths, and ordering", async () => {
+		await createItem({ count: 1, id: "typed-1", name: "Shared" });
+		await createItem({ count: 5, id: "typed-2", name: "Shared" });
+
+		const listResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/typed-items?limit=10&page=1&name[operator]=eq&name[value]=fn-Shared&count[operator]=gt&count[value]=0&owner.name[operator]=eq&owner.name[value]=Owner&orderBy=count&orderDirection=DESC",
+		});
+
+		expect(listResponse.statusCode).toBe(200);
+		expect(listResponse.json().items.map((item: { id: string }) => item.id)).toEqual(["typed-2", "typed-1"]);
+	});
+
+	it("compiles case-insensitive typed membership predicates", async () => {
+		await createItem({ count: 1, id: "typed-inl-1", name: "Alpha" });
+		await createItem({ count: 2, id: "typed-inl-2", name: "Beta" });
+
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/typed-items?limit=10&page=1&name[operator]=inl&name[values]=fn-alpha&name[values]=fn-beta",
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.OK);
+		expect(
+			response
+				.json()
+				.items.map((item: { id: string }) => item.id)
+				.toSorted(),
+		).toEqual(["typed-inl-1", "typed-inl-2"]);
+	});
+
+	it("returns FILTER_REQUIRED when a required typed filter is absent", async () => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/typed-items?limit=10&page=1",
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(JSON.stringify(response.json())).toContain("FILTER_REQUIRED");
+	});
+
+	it("parses typed filters after route-before subscribers", async () => {
+		await createItem({ count: 2, id: "typed-subscriber", name: "Injected" });
+
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/typed-items?limit=10&page=1&routeBeforeName=fn-Injected",
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.OK);
+		expect(response.json().items.map((item: { id: string }) => item.id)).toEqual(["typed-subscriber"]);
+	});
+
+	it("AND-merges typed client filters with authorization scope", async () => {
+		await ownerService.repository.save({ id: E2E_OWNER_ID_OTHER, name: "Other Owner" });
+		await service.repository.save([
+			{
+				count: 5,
+				id: "typed-own-keep",
+				name: "Keep",
+				ownerId: E2E_OWNER_ID,
+			},
+			{
+				count: 6,
+				id: "typed-own-target",
+				name: "Target",
+				ownerId: E2E_OWNER_ID,
+			},
+			{
+				count: 7,
+				id: "typed-other-target",
+				name: "Target",
+				ownerId: E2E_OWNER_ID_OTHER,
+			},
+		]);
+
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/typed-items?limit=10&page=1&name[operator]=eq&name[value]=Target",
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.OK);
+		expect(response.json().items.map((item: { id: string }) => item.id)).toEqual(["typed-own-target"]);
+	});
+
+	it("AND-merges typed defaults with scope and lets a client group replace its field default", async () => {
+		await ownerService.repository.save({ id: E2E_OWNER_ID_OTHER, name: "Other Owner" });
+		await service.repository.save([
+			{
+				count: 5,
+				id: "typed-default-own",
+				name: "Own",
+				ownerId: E2E_OWNER_ID,
+			},
+			{
+				count: 7,
+				id: "typed-default-other",
+				name: "Other",
+				ownerId: E2E_OWNER_ID_OTHER,
+			},
+			{
+				count: 5,
+				id: "typed-default-other-client",
+				name: "Other Client Match",
+				ownerId: E2E_OWNER_ID_OTHER,
+			},
+		]);
+
+		const defaultResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/default-typed-items?limit=10&page=1",
+		});
+		const clientResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/default-typed-items?limit=10&page=1&count[operator]=eq&count[value]=5",
+		});
+
+		expect(defaultResponse.statusCode).toBe(HttpStatus.OK);
+		expect(defaultResponse.json().items).toEqual([]);
+		expect(clientResponse.statusCode).toBe(HttpStatus.OK);
+		expect(clientResponse.json().items.map((item: { id: string }) => item.id)).toEqual(["typed-default-own"]);
+	});
+
+	it.each([
+		["code[operator]=eq&code[value]=code-a&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["owner.name.extra[operator]=eq&owner.name.extra[value]=Owner&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["tags.id[operator]=eq&tags.id[value]=tag-1&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["name[operatr]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["name[operator]=eq&name[value][extra]=fn-Alpha", "INVALID_FILTER"],
+		["name[operator]=gt&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["count[operator]=between&count[values]=1&count[values]=2&count[values]=3&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["count[operator]=eq&count[value]=1.5&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["name[operator]=eq&name[value]=fn-Alpha&orderBy=owner.name&orderDirection=ASC", "INVALID_ORDER"],
+	])("rejects invalid typed query contract input: %s", async (query, errorCode) => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: `/typed-items?limit=10&page=1&${query}`,
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(JSON.stringify(response.json())).toContain(errorCode);
+	});
+
+	it("rejects membership filters above the configured cardinality cap", async () => {
+		const values: string = Array.from({ length: 101 }, (_value: unknown, index: number): string => `name[values]=name-${String(index)}`).join("&");
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: `/typed-items?limit=10&page=1&name[operator]=inl&${values}`,
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(JSON.stringify(response.json())).toContain("INVALID_FILTER");
 	});
 
 	it("sorts list responses by count", async () => {
@@ -1360,7 +1592,17 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(response.statusCode).toBe(201);
 		expect(response.json().name).toBe("custom-after-fn-custom-Required");
-		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:custom.required", "function:before:custom.required:transaction", "function:after:custom.required", "function:before:create:transaction"]));
+		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:custom.required", "function:before:custom.required:transaction", "function:after:custom.required", "function:before:create:transaction", "function:after:commit"]));
+		expect(E2eFunctionSubscriber.transactionContexts).toHaveLength(1);
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.transaction.owner).toEqual({
+			action: "custom.required",
+			entityName: E2eEntity.name,
+			functionType: EApiFunctionType.CUSTOM,
+			kind: EApiFunctionTransactionOwnerKind.FUNCTION,
+			methodName: "createWithCustomRequired",
+		});
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.events).toHaveLength(2);
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.matchedEvents).toHaveLength(2);
 		expect((await service.repository.findOne({ where: { id: "custom-required-1" } }))?.name).toBe("fn-custom-Required");
 	});
 
@@ -1372,7 +1614,7 @@ describe("CRUD routes (E2E)", () => {
 		});
 
 		expect(response.statusCode).toBe(201);
-		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:create:transaction", "function:after:create"]));
+		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:create:transaction", "function:after:create", "function:after:commit"]));
 		expect((await service.repository.findOne({ where: { id: "builtin-required-1" } }))?.name).toBe("fn-Required");
 	});
 
@@ -1387,6 +1629,8 @@ describe("CRUD routes (E2E)", () => {
 		expect(response.json().name).toBe("custom-after-fn-custom-Supports");
 		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:custom.supports", "function:after:custom.supports"]));
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before:custom.supports:transaction");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after:commit");
+		expect(E2eFunctionSubscriber.transactionContexts).toHaveLength(0);
 	});
 
 	it("runs ApiFunctionStep inside an ApiFunctionCustom transaction through HTTP", async () => {
@@ -1403,6 +1647,25 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:step");
+		expect(E2eFunctionSubscriber.events).toContain("function:after:commit");
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.events).toEqual([
+			expect.objectContaining({
+				action: "custom.step",
+				functionType: EApiFunctionType.CUSTOM,
+			}),
+			expect.objectContaining({
+				functionType: EApiFunctionTransactionTraceType.STEP,
+				methodName: "createWithMandatoryStep",
+			}),
+		]);
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.matchedEvents).toHaveLength(1);
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.transaction.owner).toEqual({
+			action: "custom.step",
+			entityName: E2eEntity.name,
+			functionType: EApiFunctionType.CUSTOM,
+			kind: EApiFunctionTransactionOwnerKind.FUNCTION,
+			methodName: "createWithCustomStep",
+		});
 		expect((await service.repository.findOne({ where: { id: "custom-step-1" } }))?.name).toBe("step-custom-Step");
 	});
 
@@ -1419,6 +1682,26 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after_error:step");
+		expect(E2eFunctionSubscriber.events).toContain("function:after:rollback");
+		expect(E2eFunctionSubscriber.events).not.toContain("function:after:commit");
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.events).toEqual([
+			expect.objectContaining({
+				action: "custom.step.rollback",
+				functionType: EApiFunctionType.CUSTOM,
+			}),
+			expect.objectContaining({
+				functionType: EApiFunctionTransactionTraceType.STEP,
+				methodName: "createWithFailingMandatoryStep",
+			}),
+		]);
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.matchedEvents).toHaveLength(1);
+		expect(E2eFunctionSubscriber.transactionContexts[0]?.DATA.transaction.owner).toEqual({
+			action: "custom.step.rollback",
+			entityName: E2eEntity.name,
+			functionType: EApiFunctionType.CUSTOM,
+			kind: EApiFunctionTransactionOwnerKind.FUNCTION,
+			methodName: "createWithFailingCustomStep",
+		});
 		expect(await service.repository.findOne({ where: { id: "custom-step-rollback-1" } })).toBeNull();
 	});
 
@@ -1431,7 +1714,7 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(response.statusCode).toBe(201);
 		expect(response.json().name).toBe("custom-after-fn-generated-step-custom-StepGenerated");
-		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.step.generated", "function:before:custom.step.generated:transaction", "function:priority:before:create", "function:before:create", "function:before:create:transaction", "function:priority:after:create", "function:after:create", "function:after:custom.step.generated"]);
+		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.step.generated", "function:before:custom.step.generated:transaction", "function:priority:before:create", "function:before:create", "function:before:create:transaction", "function:priority:after:create", "function:after:create", "function:after:custom.step.generated", "function:after:commit"]);
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");
@@ -1448,7 +1731,7 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(response.statusCode).toBe(201);
 		expect(response.json().name).toBe("custom-after-custom-after-fn-custom-nested-step-custom-StepCustom");
-		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.step.custom", "function:before:custom.step.custom:transaction", "function:before:custom.mandatory", "function:before:custom.mandatory:transaction", "function:priority:before:create", "function:before:create", "function:before:create:transaction", "function:priority:after:create", "function:after:create", "function:after:custom.mandatory", "function:after:custom.step.custom"]);
+		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.step.custom", "function:before:custom.step.custom:transaction", "function:before:custom.mandatory", "function:before:custom.mandatory:transaction", "function:priority:before:create", "function:before:create", "function:before:create:transaction", "function:priority:after:create", "function:after:create", "function:after:custom.mandatory", "function:after:custom.step.custom", "function:after:commit"]);
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:after:step");
 		expect(E2eFunctionSubscriber.events).not.toContain("function:before_error:step");

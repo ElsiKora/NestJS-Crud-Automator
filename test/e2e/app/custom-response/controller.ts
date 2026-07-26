@@ -1,6 +1,6 @@
 import { Inject } from "@nestjs/common";
 
-import { ApiController, ApiControllerObservable, ApiControllerSecurable, EApiAuthenticationType, EApiAuthorizationMode, EApiRouteType } from "../../../../src/index";
+import { ApiController, ApiControllerObservable, ApiControllerSecurable, EApiAuthenticationType, EApiAuthorizationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiRouteType, EFilterOperation } from "../../../../src/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eEntity } from "../entity";
@@ -35,10 +35,23 @@ const authentication = {
 			},
 		},
 		[EApiRouteType.GET_LIST]: {
-			security: { authentication },
 			dto: {
 				response: E2eCustomResponseListDto,
 			},
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					filter: {
+						fields: {
+							name: {
+								allowedOperations: [EFilterOperation.EQ],
+								isEnabled: true,
+							},
+						},
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+				},
+			},
+			security: { authentication },
 		},
 		[EApiRouteType.PARTIAL_UPDATE]: {
 			security: { authentication },

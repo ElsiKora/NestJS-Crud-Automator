@@ -170,6 +170,8 @@ Use the `cache` option when you want to cache only specific hooks-mode policies:
 export class UserAccessPolicy extends ApiAuthorizationPolicyBase<UserEntity> {}
 ```
 
+This rule cache is separate from `ApiAuthorizationModule` resolver cache mode. Source-first module mode still permits an explicitly enabled policy-rule cache, so leave policy caching disabled for rules that depend on request-specific or mutable source data.
+
 ## Related resources
 
 - [Authorization Decorators overview](/docs/nestjs-crud-automator/api-reference/decorators/api-authorization)

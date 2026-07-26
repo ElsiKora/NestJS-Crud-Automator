@@ -1,13 +1,19 @@
 import type { IApiAuthorizationPrincipal } from "@interface/class/api/authorization";
+import type { TApiAuthorizationCacheOptions } from "@type/class/api/authorization";
 
+import { ApiAuthorizationResolverCache } from "@class/api/authorization/resolver";
 import { Injectable } from "@nestjs/common";
 
 @Injectable()
 export class ApiAuthorizationHookPermissionCache {
-	private readonly CACHE: Map<string, ReadonlyArray<string>> = new Map<string, ReadonlyArray<string>>();
+	private readonly CACHE: ApiAuthorizationResolverCache<ReadonlyArray<string>> = new ApiAuthorizationResolverCache<ReadonlyArray<string>>();
 
 	public clear(): void {
 		this.CACHE.clear();
+	}
+
+	public configure(options?: TApiAuthorizationCacheOptions): void {
+		this.CACHE.configure(options);
 	}
 
 	public get(principal: IApiAuthorizationPrincipal): ReadonlyArray<string> | undefined {

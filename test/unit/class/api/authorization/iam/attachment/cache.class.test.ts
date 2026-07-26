@@ -1,10 +1,15 @@
 import { ApiAuthorizationIamAttachmentCache } from "@class/api/authorization/iam";
-import { EApiAuthorizationPrincipalType } from "@enum/class/authorization";
+import { EApiAuthorizationCacheMode, EApiAuthorizationPrincipalType } from "@enum/class/authorization";
 import { describe, expect, it } from "vitest";
 
 describe("ApiAuthorizationIamAttachmentCache", () => {
 	it("uses stable principal keys", () => {
 		const cache = new ApiAuthorizationIamAttachmentCache();
+		cache.configure({
+			maxEntries: 10,
+			mode: EApiAuthorizationCacheMode.MEMORY,
+			ttlMs: 60_000,
+		});
 		const attachments = {
 			attachments: [{ policyId: "policy-a", principalId: "user-1", principalType: EApiAuthorizationPrincipalType.USER }],
 			boundaries: [],

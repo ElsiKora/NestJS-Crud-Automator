@@ -1,4 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiRouteMetadata } from "@interface/decorator/api";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
@@ -10,6 +11,7 @@ import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { ApiControllerBuildRouteDocumentation } from "@utility/api/controller/build-route-documentation.utility";
+import { ApiControllerGetListQueryOpenApiDecorators } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
@@ -23,11 +25,12 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @param {string} methodName - The name of the method being decorated
  * @param {TApiControllerPropertiesRoute<E, typeof method>} routeConfig - Route-specific configuration
  * @param {Array<MethodDecorator> | Array<PropertyDecorator>} decorators - Additional decorators to apply
+ * @param {IApiControllerGetListQueryPlan} [queryPlan] - Normalized GET_LIST query plan used to emit deep-object filter documentation.
  * @returns {void}
  * @throws {Error} If the method type is not implemented
  * @template E - The entity type
  */
-export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMethod: TApiControllerMethodMap<E>[typeof method], entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>): void {
+export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMethod: TApiControllerMethodMap<E>[typeof method], entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>, queryPlan?: IApiControllerGetListQueryPlan): void {
 	const responseDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.RESPONSE, routeConfig);
 	const customDecorators: Array<MethodDecorator> = [...decorators];
 
@@ -55,6 +58,10 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMet
 		}
 
 		case EApiRouteType.GET_LIST: {
+			if (queryPlan) {
+				customDecorators.push(...ApiControllerGetListQueryOpenApiDecorators(queryPlan));
+			}
+
 			customDecorators.push(
 				ApiMethod({
 					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, "", HttpStatus.OK, responseDto, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }),

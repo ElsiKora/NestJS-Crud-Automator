@@ -4,8 +4,9 @@ import type { TApiControllerMethod } from "@type/class";
 import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
 import type { TApiServiceKeys } from "@type/decorator/api/service";
-import type { DeepPartial, FindOptionsRelations } from "typeorm";
+import type { DeepPartial, FindOneOptions, FindOptionsRelations } from "typeorm";
 
+import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { EApiControllerRelationReferenceShape } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
@@ -43,8 +44,49 @@ export async function ApiControllerHandleRequestRelations<E extends IApiBaseEnti
 
 	const relationNames: Set<string> = new Set<string>(GetEntityColumns<E>({ entity: properties.entity, shouldTakeRelationsOnly: true }).filter((propertyName: keyof E): propertyName is keyof E & string => typeof propertyName === "string"));
 	const parametersRecord: Record<string, unknown> = parameters as Record<string, unknown>;
+	const includedRelationEntries: Array<[string, unknown]> = getIncludedRelationEntries(loadConfig.include);
+	const relationLocks: unknown = loadConfig.locks;
+	let relationLockRecord: Record<string, unknown> | undefined;
 
-	for (const [propertyName, includeValue] of getIncludedRelationEntries(loadConfig.include)) {
+	if (relationLocks !== undefined) {
+		if (relationLocks === null || typeof relationLocks !== "object" || Array.isArray(relationLocks)) {
+			throw ErrorException("Request relation locks must be an object");
+		}
+
+		relationLockRecord = relationLocks as Record<string, unknown>;
+		const includeRecord: Record<string, unknown> = loadConfig.include;
+		const relationLockEntries: Array<[string, unknown]> = Object.entries(relationLockRecord);
+
+		for (const [propertyName, relationLock] of relationLockEntries) {
+			validateIncludedRelationKey(propertyName, relationNames);
+
+			if (!Object.prototype.hasOwnProperty.call(includeRecord, propertyName) || includeRecord[propertyName] === false) {
+				throw ErrorException(`Request relation lock ${propertyName} requires a matching enabled include`);
+			}
+
+			if (relationLock === null || typeof relationLock !== "object" || Array.isArray(relationLock)) {
+				throw ErrorException(`Request relation lock ${propertyName} must be an object`);
+			}
+
+			const relationLockMode: unknown = (relationLock as { mode?: unknown }).mode;
+
+			if (relationLockMode !== "pessimistic_read" && relationLockMode !== "pessimistic_write") {
+				throw ErrorException(`Request relation lock ${propertyName} mode must be pessimistic_read or pessimistic_write`);
+			}
+
+			const includeValue: unknown = includeRecord[propertyName];
+
+			if (includeValue !== true && loadConfig.relationLoadStrategy !== "query") {
+				throw ErrorException(`Request relation lock ${propertyName} with nested relations requires relationLoadStrategy query`);
+			}
+		}
+
+		if (relationLockEntries.length > 0 && (!ApiFunctionContextStorage.getTransactionRegistry() || !ApiFunctionContextStorage.getEventManager())) {
+			throw ErrorException("Request relation locks require an active transaction");
+		}
+	}
+
+	for (const [propertyName, includeValue] of includedRelationEntries) {
 		validateIncludedRelationKey(propertyName, relationNames);
 
 		if (!Object.prototype.hasOwnProperty.call(parametersRecord, propertyName) || parametersRecord[propertyName] === undefined || parametersRecord[propertyName] === null || includeValue === false) {
@@ -78,6 +120,13 @@ export async function ApiControllerHandleRequestRelations<E extends IApiBaseEnti
 
 		if (loadConfig.relationLoadStrategy) {
 			requestProperties.relationLoadStrategy = loadConfig.relationLoadStrategy;
+		}
+
+		const relationLock: NonNullable<FindOneOptions<IApiBaseEntity>["lock"]> | undefined = relationLockRecord?.[propertyName] as NonNullable<FindOneOptions<IApiBaseEntity>["lock"]> | undefined;
+
+		if (relationLock) {
+			requestProperties.lock = relationLock;
+			requestProperties.loadEagerRelations = false;
 		}
 
 		const entity: IApiBaseEntity = await (service as ApiServiceBase<IApiBaseEntity>).get(requestProperties);

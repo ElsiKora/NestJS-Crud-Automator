@@ -68,8 +68,59 @@ interface IApiControllerPropertiesRouteBase<E, R extends EApiRouteType> {
 	request?: IApiControllerPropertiesRouteBaseRequest<E, R>;
 	response?: IApiControllerPropertiesRouteBaseResponse<E, R>;
 	security?: IApiControllerPropertiesRouteBaseSecurity;
+	transaction?: IApiControllerPropertiesRouteBaseTransaction;
 }
 ```
+
+### IApiControllerPropertiesRouteBaseTransaction
+
+Optional transaction configuration for generated CRUD routes.
+
+```typescript
+interface IApiControllerPropertiesRouteBaseTransaction {
+	mode: EApiFunctionTransactionMode;
+}
+```
+
+Omitted configuration and `SUPPORTS` do not open a route transaction. `REQUIRED` opens one through the controller service repository when no Automator transaction is active, `MANDATORY` requires an active owner, and `NONE` rejects active execution. A route that opens the transaction owns the `ROUTE` transaction registry and encloses request relation hydration, the generated service operation, and response relation reload. Request transformation and validation run before the transaction; response transformation, route-after subscribers, authorization result handling, and serialization run after commit.
+
+### IApiControllerPropertiesRouteGetListQueryRequestTarget\<E\>
+
+The generated GET_LIST QUERY target extends ordinary request transformers/validators with optional typed filter and order sections.
+
+```typescript
+interface IApiControllerPropertiesRouteGetListQueryRequestTarget<E> extends IApiControllerPropertiesRouteBaseRequestTarget<E> {
+	filter?: IApiControllerPropertiesRouteGetListQueryFilter<E>;
+	order?: IApiControllerPropertiesRouteGetListQueryOrder<E>;
+}
+
+interface IApiControllerPropertiesRouteGetListQueryFilter<E> {
+	fields: TApiControllerGetListQueryFilterFields<E>;
+	unlistedFields: EApiControllerGetListQueryUnlistedFields;
+}
+
+interface IApiControllerPropertiesRouteGetListQueryOrder<E> {
+	fields: TApiControllerGetListQueryOrderFields<E>;
+	unlistedFields: EApiControllerGetListQueryUnlistedFields;
+}
+```
+
+`INHERIT` overlays metadata-enabled fields; `REJECT` creates an allowlist. Filter fields support direct scalars and one-hop to-one scalar paths, while order fields support direct scalars only. The same immutable plan drives dynamic DTO generation, strict runtime parsing, TypeORM compilation, and OpenAPI. A manual QUERY DTO cannot be combined with these sections; manual RESPONSE DTOs remain compatible.
+
+### IApiControllerPropertiesRouteBaseRelationsRequestLoad\<E\>
+
+Request relation hydration configuration.
+
+```typescript
+interface IApiControllerPropertiesRouteBaseRelationsRequestLoad<E> {
+	include: FindOptionsRelations<E>;
+	locks?: Partial<Record<keyof FindOptionsRelations<E>, NonNullable<FindOneOptions<E>["lock"]>>>;
+	relationLoadStrategy?: FindOneOptions<E>["relationLoadStrategy"];
+	services?: Partial<Record<keyof FindOptionsRelations<E>, string>>;
+}
+```
+
+`locks` is a direct-relation TypeORM lock passthrough. Runtime accepts `pessimistic_read` and `pessimistic_write`, requires an active Automator transaction, and acquires locks in `include` declaration order. Locked loads set `loadEagerRelations: false` to prevent implicit joins from widening the lock. A locked relation with explicit nested includes requires `relationLoadStrategy: "query"`; nested loads use the same manager without receiving an automatic lock. Lock keys must name enabled direct `include` entries.
 
 ### IApiControllerPropertiesRouteAuthentication
 
@@ -182,7 +233,13 @@ interface IApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity> {
 }
 
 type TApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity, TTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation = EApiFunctionSubscriberTransactionExpectation.SUPPORTS> = IApiSubscriberFunctionExecutionContextData<E> & ([TTransactionExpectation] extends [EApiFunctionSubscriberTransactionExpectation.MANDATORY | EApiFunctionSubscriberTransactionExpectation.REQUIRED] ? { eventManager: EntityManager } : { eventManager?: EntityManager });
+
+interface IApiSubscriberFunctionExecutionContextUpdateData<E extends IApiBaseEntity> extends IApiSubscriberFunctionExecutionContextData<E> {
+	readonly currentEntity: Readonly<E>;
+}
 ```
+
+`TApiSubscriberFunctionBeforeUpdateContext` uses `IApiSubscriberFunctionExecutionContextUpdateData`. Only the top-level `currentEntity` object is detached and frozen; nested values retain aliases to the internal loaded entity, so mutating them can affect persistence. `result` remains the patch. The repository is bound to the active transaction manager when one exists.
 
 **Related:**
 
@@ -248,6 +305,8 @@ interface IApiSubscriberFunction<
 	BeforeUpdateResult extends TApiFunctionUpdateProperties<E> = TApiFunctionUpdateProperties<E>,
 	TTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation = EApiFunctionSubscriberTransactionExpectation.SUPPORTS,
 > {
+	onAfterCommit?(context: IApiSubscriberFunctionTransactionContext): Promise<void>;
+	onAfterRollback?(context: IApiSubscriberFunctionTransactionContext): Promise<void>;
 	onBeforeCustom?(context: IApiSubscriberFunctionExecutionContext<E, unknown, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>): Promise<unknown>;
 	onAfterCustom?(context: IApiSubscriberFunctionExecutionContext<E, unknown, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>): Promise<unknown>;
 	onBeforeCreate?(context: TApiSubscriberFunctionBeforeCreateContext<E, BeforeCreateResult, TTransactionExpectation>): Promise<BeforeCreateResult | undefined>;
@@ -262,11 +321,31 @@ interface IApiSubscriberFunction<
 	onAfterUpdate?(context: TApiSubscriberFunctionAfterUpdateContext<E, TTransactionExpectation>): Promise<E | undefined>;
 	onBeforeDelete?(context: TApiSubscriberFunctionBeforeDeleteContext<E, BeforeDeleteResult, TTransactionExpectation>): Promise<BeforeDeleteResult | undefined>;
 	onAfterDelete?(context: TApiSubscriberFunctionAfterDeleteContext<E, TTransactionExpectation>): Promise<E | undefined>;
+	onBeforeErrorCommit?(context: IApiSubscriberFunctionTransactionContext, failures: ReadonlyArray<Readonly<IApiFunctionTransactionFailure>>): Promise<void>;
+	onAfterErrorCommit?(context: IApiSubscriberFunctionTransactionContext, error: Error): Promise<void>;
+	onBeforeErrorRollback?(context: IApiSubscriberFunctionTransactionContext, failures: ReadonlyArray<Readonly<IApiFunctionTransactionFailure>>): Promise<void>;
+	onAfterErrorRollback?(context: IApiSubscriberFunctionTransactionContext, error: Error): Promise<void>;
 	// ... before/after error hooks include CRUD, GET_MANY, and CUSTOM operations.
 }
 ```
 
 The extra before-result generics are optional and type-only. Use them when a function subscriber has a stricter payload type than the default operation payload; they do not infer DTOs or change runtime behavior. The transaction expectation generic should match `@ApiFunctionSubscriber({ transaction: { expectation } })` when a subscriber requires a manager.
+
+### IApiSubscriberFunctionTransactionContext
+
+Readonly context passed to post-transaction and transaction-error lifecycle hooks.
+
+```typescript
+interface IApiSubscriberFunctionTransactionContext {
+	readonly DATA: Readonly<{
+		events: ReadonlyArray<TApiFunctionTransactionEvent>;
+		matchedEvents: ReadonlyArray<TApiFunctionTransactionEvent>;
+		transaction: Readonly<IApiFunctionTransaction>;
+	}>;
+}
+```
+
+`transaction` contains the id and immutable `FUNCTION`, `ROUTE`, or `SCOPE` owner. `events` is the complete ordered trace; `matchedEvents` contains only events that selected the current subscriber. Events contain operation metadata only, never arguments, bodies, entities, or results. Post-commit and post-rollback hooks return `Promise<void>` and cannot replace results.
 
 ### IApiFunctionSubscriberProperties\<E\>
 
@@ -343,6 +422,39 @@ interface IApiFunctionContextOperations<E extends IApiBaseEntity> {
 	update: (criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: TApiFunctionUpdateProperties<E>) => Promise<E>;
 }
 ```
+
+## Authorization Module Interfaces
+
+### IApiAuthorizationModuleOptions
+
+Authorization sources and resolver cache behavior configured by `ApiAuthorizationModule.forRoot(...)` or its async equivalent.
+
+```typescript
+interface IApiAuthorizationModuleOptions {
+	cache?: TApiAuthorizationCacheOptions;
+	hookPermissionSources?: ReadonlyArray<IApiHookPermissionSource>;
+	iam?: IApiAuthorizationIamModuleOptions;
+	principalResolver?: IApiAuthorizationPrincipalResolver;
+}
+```
+
+`TApiAuthorizationCacheOptions` is a union of the source-first and bounded-memory contracts:
+
+```typescript
+interface IApiAuthorizationCacheSourceFirstOptions {
+	mode?: EApiAuthorizationCacheMode.SOURCE_FIRST;
+}
+
+interface IApiAuthorizationCacheMemoryOptions {
+	maxEntries: number;
+	mode: EApiAuthorizationCacheMode.MEMORY;
+	ttlMs: number;
+}
+
+type TApiAuthorizationCacheOptions = IApiAuthorizationCacheMemoryOptions | IApiAuthorizationCacheSourceFirstOptions;
+```
+
+Omitting `cache` or `cache.mode` selects source-first behavior. `MEMORY` must declare positive safe-integer `maxEntries` and `ttlMs`; bootstrap rejects invalid values.
 
 ## Authentication Interface
 
