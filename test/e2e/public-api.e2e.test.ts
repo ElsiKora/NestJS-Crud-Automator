@@ -3,6 +3,8 @@ import "reflect-metadata";
 import type { EntityManager, Repository } from "typeorm";
 
 import type {
+	IApiAuthorizationCacheMemoryOptions,
+	IApiAuthorizationCacheSourceFirstOptions,
 	IApiAuthorizationPrincipal,
 	IApiAuthorizationPrincipalResolver,
 	IApiAuthorizationModuleOptions,
@@ -24,6 +26,7 @@ import type {
 	TApiAuthorizationPolicyBeforeGetResult,
 	TApiAuthorizationPolicyBeforePartialUpdateContext,
 	TApiAuthorizationPolicyBeforePartialUpdateResult,
+	TApiAuthorizationCacheOptions,
 	TApiSubscriberFunctionBeforeCreateContext,
 	TApiSubscriberFunctionBeforeUpdateContext,
 	TApiSubscriberFunctionExecutionContextData,
@@ -43,6 +46,7 @@ import {
 	ApiFunctionTransactionRollbackException,
 	ApiFunctionTransactionScope,
 	AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN,
+	EApiAuthorizationCacheMode,
 	EApiAuthorizationMode,
 	EApiAuthorizationPrincipalType,
 	EApiFunctionContextStorageKind,
@@ -163,7 +167,16 @@ class PublicApiPolicy extends ApiAuthorizationPolicyBase<PublicApiUser> {
 describe("public API exports (E2E)", () => {
 	it("keeps payload-aware authorization and subscriber transaction types available from built dist", async () => {
 		const principalResolver: IApiAuthorizationPrincipalResolver = new PublicApiPrincipalResolver();
+		const sourceFirstCacheOptions = {
+			mode: EApiAuthorizationCacheMode.SOURCE_FIRST,
+		} satisfies IApiAuthorizationCacheSourceFirstOptions;
+		const memoryCacheOptions: TApiAuthorizationCacheOptions = {
+			maxEntries: 100,
+			mode: EApiAuthorizationCacheMode.MEMORY,
+			ttlMs: 60_000,
+		} satisfies IApiAuthorizationCacheMemoryOptions;
 		const moduleOptions: IApiAuthorizationModuleOptions = {
+			cache: sourceFirstCacheOptions,
 			hookPermissionSources: [publicApiHookPermissionSource],
 			principalResolver,
 		};
@@ -328,7 +341,13 @@ describe("public API exports (E2E)", () => {
 		};
 
 		expect(moduleOptions.principalResolver).toBe(principalResolver);
+		expect(moduleOptions.cache).toBe(sourceFirstCacheOptions);
 		expect(moduleOptions.hookPermissionSources).toEqual([publicApiHookPermissionSource]);
+		expect(memoryCacheOptions).toEqual({
+			maxEntries: 100,
+			mode: EApiAuthorizationCacheMode.MEMORY,
+			ttlMs: 60_000,
+		});
 		expect(requestMetadata.body).toEqual({ role: "operator-user" });
 		expect(requestMetadata.parameters).toEqual({ id: "user-1" });
 		expect(routeDiscriminatorConfig.discriminator.propertyName).toBe("channel");

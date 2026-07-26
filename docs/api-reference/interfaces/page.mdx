@@ -350,6 +350,39 @@ interface IApiFunctionContextOperations<E extends IApiBaseEntity> {
 }
 ```
 
+## Authorization Module Interfaces
+
+### IApiAuthorizationModuleOptions
+
+Authorization sources and resolver cache behavior configured by `ApiAuthorizationModule.forRoot(...)` or its async equivalent.
+
+```typescript
+interface IApiAuthorizationModuleOptions {
+	cache?: TApiAuthorizationCacheOptions;
+	hookPermissionSources?: ReadonlyArray<IApiHookPermissionSource>;
+	iam?: IApiAuthorizationIamModuleOptions;
+	principalResolver?: IApiAuthorizationPrincipalResolver;
+}
+```
+
+`TApiAuthorizationCacheOptions` is a union of the source-first and bounded-memory contracts:
+
+```typescript
+interface IApiAuthorizationCacheSourceFirstOptions {
+	mode?: EApiAuthorizationCacheMode.SOURCE_FIRST;
+}
+
+interface IApiAuthorizationCacheMemoryOptions {
+	maxEntries: number;
+	mode: EApiAuthorizationCacheMode.MEMORY;
+	ttlMs: number;
+}
+
+type TApiAuthorizationCacheOptions = IApiAuthorizationCacheMemoryOptions | IApiAuthorizationCacheSourceFirstOptions;
+```
+
+Omitting `cache` or `cache.mode` selects source-first behavior. `MEMORY` must declare positive safe-integer `maxEntries` and `ttlMs`; bootstrap rejects invalid values.
+
 ## Authentication Interface
 
 ### IApiAuthenticationRequest

@@ -181,4 +181,7 @@ For generated CRUD before hooks, `context.result` includes request targets plus 
 - Securable custom methods require authorization mode metadata.
 - `resourceDefinition.resourcePath` may contain placeholders like `{id}`.
 - Policy statement `Resource` values should be concrete strings or wildcard strings such as `gameport:admin:item/*`.
-- `ApiAuthorizationCacheInvalidationService.clearAll()` clears policy, IAM attachment/document, and hook permission caches.
+- Omitted authorization cache configuration means `EApiAuthorizationCacheMode.SOURCE_FIRST`: each evaluation re-reads hooks permissions, IAM attachments, and requested IAM documents, and does not read or populate cross-request resolver maps.
+- Source-first errors propagate; the resolver never falls back to a previously successful value. Duplicate permissions, attachments, and document IDs are still collapsed inside one resolution.
+- `MEMORY` requires explicit positive safe-integer `ttlMs` and `maxEntries`, is bounded independently per resolver cache, and is local to one process.
+- `ApiAuthorizationCacheInvalidationService.clearAll()` clears policy, IAM attachment/document, and hook permission caches. Resolver entries exist only in memory mode; policy-rule caching is a separate default-disabled option and requires invalidation whenever enabled rules change.

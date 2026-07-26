@@ -501,6 +501,19 @@ enum EApiAuthenticationType {
 }
 ```
 
+### EApiAuthorizationCacheMode
+
+Cross-request resolver cache behavior configured on `ApiAuthorizationModule`.
+
+```typescript
+enum EApiAuthorizationCacheMode {
+	MEMORY = "memory",
+	SOURCE_FIRST = "source-first",
+}
+```
+
+`SOURCE_FIRST` is the default. `MEMORY` requires bounded TTL and entry-limit options.
+
 ### EApiAuthorizationMode
 
 Authorization runtimes accepted by controller defaults and route overrides.

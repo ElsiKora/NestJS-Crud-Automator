@@ -95,7 +95,10 @@ Use local source as the contract:
 - Use IAM mode for policy documents, principal resolution, document sources, attachment sources, and boundaries.
 - Register `@ApiAuthorizationPolicy()` classes as Nest providers.
 - IAM policy document `Resource` values match literally or with wildcards; `{id}` placeholders belong in `resourceDefinition.resourcePath`.
-- Use `ApiAuthorizationCacheInvalidationService` after backing authorization data changes; `clearAll()` clears policy, IAM attachment/document, and hook permission caches.
+- Authorization resolver caches default to `EApiAuthorizationCacheMode.SOURCE_FIRST`: every evaluation reads hooks permission, IAM attachment, and IAM document sources without cross-request map reads, writes, or stale fallback.
+- `MEMORY` is explicit process-local opt-in and requires positive safe-integer `ttlMs` and `maxEntries`; each resolver cache receives its own bound.
+- In memory mode, use `ApiAuthorizationCacheInvalidationService` when resolver backing data must be visible before TTL expiry.
+- Hooks policy-rule caching is separate, default-disabled, and can still be enabled per registry or policy; clear an enabled rule cache when its rules change regardless of resolver mode. `clearAll()` clears both cache families.
 
 ## Verification Checklist
 

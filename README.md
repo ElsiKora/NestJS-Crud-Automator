@@ -644,7 +644,7 @@ import type { IApiAuthorizationPrincipal, IApiHookPermissionSource, IApiPolicyAt
 
 import { Module } from "@nestjs/common";
 
-import { ApiAuthorizationModule, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, AuthorizationResolveDefaultPrincipal } from "@elsikora/nestjs-crud-automator";
+import { ApiAuthorizationModule, EApiAuthorizationCacheMode, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType, AuthorizationResolveDefaultPrincipal } from "@elsikora/nestjs-crud-automator";
 
 const hookPermissionSource: IApiHookPermissionSource = {
 	async getPermissions(principal: IApiAuthorizationPrincipal): Promise<ReadonlyArray<string>> {
@@ -699,6 +699,9 @@ const iamDocumentSource: IApiPolicyDocumentSource = {
 @Module({
 	imports: [
 		ApiAuthorizationModule.forRoot({
+			cache: {
+				mode: EApiAuthorizationCacheMode.SOURCE_FIRST,
+			},
 			hookPermissionSources: [hookPermissionSource],
 			iam: {
 				attachmentSources: [iamAttachmentSource],
@@ -729,6 +732,23 @@ const iamDocumentSource: IApiPolicyDocumentSource = {
 })
 export class AppModule {}
 ```
+
+Authorization resolver caches default to `EApiAuthorizationCacheMode.SOURCE_FIRST`, so every hooks permission, IAM attachment, and IAM document evaluation reads its configured authoritative sources. This mode does not read or populate cross-request resolver maps, and source errors propagate without a stale cached fallback. The explicit setting above is optional, but documents the intended multi-instance contract.
+
+`MEMORY` is an explicit single-process optimization. It requires both a positive `ttlMs` and `maxEntries`; the limit applies independently to the hook permission, IAM attachment, and IAM document cache:
+
+```typescript
+ApiAuthorizationModule.forRoot({
+	cache: {
+		maxEntries: 1_000,
+		mode: EApiAuthorizationCacheMode.MEMORY,
+		ttlMs: 30_000,
+	},
+	// sources...
+});
+```
+
+Memory entries expire from insertion time, the oldest entry is evicted at the configured limit, and backing-data changes still require `ApiAuthorizationCacheInvalidationService` when immediate visibility is needed. In-memory mode is local to one application process; it is not a multi-instance consistency mechanism. Hooks policy-rule caching remains a separate, default-disabled `ApiAuthorizationPolicyRegistry` option.
 
 Use `ApiAuthorizationModule.forRootAsync(...)` when the resolver or IAM sources must be real Nest providers with `Repository`, `DataSource`, or service dependencies. The module supports `imports`, `inject`, `useFactory`, `useClass`, and `useExisting`.
 
@@ -1252,7 +1272,7 @@ This query would search for users with "john" in their username and created betw
 
 The current public package focuses on NestJS REST controllers backed by TypeORM repositories. Core CRUD generation, DTO generation, Swagger/OpenAPI metadata, request/response transformers, relation loading, pagination, filtering/sorting, subscribers, and hooks/IAM authorization are implemented.
 
-MongoDB, GraphQL, soft deletes, bulk operations, general-purpose cache integration, and custom parameter decorators are not part of the current public contract. Authorization policy rule caching and explicit authorization cache invalidation are supported.
+MongoDB, GraphQL, soft deletes, bulk operations, general-purpose cache integration, and custom parameter decorators are not part of the current public contract. Authorization supports source-first resolver reads by default, bounded in-process resolver caching as an explicit opt-in, separate policy-rule caching, and explicit cache invalidation.
 
 ## 🛣 Roadmap
 

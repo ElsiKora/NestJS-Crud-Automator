@@ -75,7 +75,9 @@ Generated service/controller `delete` returns `Promise<void>`. The low-level dec
 
 ## Resolver Cache Invalidation
 
-`ApiAuthorizationCacheInvalidationService` clears policy rule cache. Permission, attachment, and document resolver caches must be cleared through their owning resolvers/services.
+Authorization resolver caches are source-first by default, so permission, attachment, and document values are re-read without cross-request map state or stale fallback. Do not add an implicit in-memory fallback for source failures.
+
+If the application explicitly selects `EApiAuthorizationCacheMode.MEMORY`, configure positive `ttlMs` and `maxEntries` and treat the cache as local to one process. Use `ApiAuthorizationCacheInvalidationService` to clear permission, attachment, and document entries when immediate visibility is required; do not inject resolver internals or assume one process invalidates another. Policy-rule caching is separate, and an enabled policy-rule cache still requires `clearPolicyCache()` when its rules change, regardless of resolver cache mode.
 
 ## Guard-Based Field Exposure
 

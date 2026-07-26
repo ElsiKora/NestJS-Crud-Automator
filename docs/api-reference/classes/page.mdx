@@ -300,7 +300,7 @@ Global module that wires the authorization registry, discovery service, guard, h
 - `forRoot(options?: IApiAuthorizationModuleOptions): DynamicModule` for value-based resolver and source registration
 - `forRootAsync(options: IApiAuthorizationModuleAsyncOptions): DynamicModule` for DI-backed `principalResolver`, `hookPermissionSources`, `iam.attachmentSources`, and `iam.documentSources`
 
-`forRootAsync(...)` supports the standard Nest async module patterns: `imports`, `inject`, `useFactory`, `useClass`, and `useExisting`. Use `IApiAuthorizationModuleOptionsFactory` when you want a dedicated Nest provider class that builds the authorization module options.
+`forRootAsync(...)` supports the standard Nest async module patterns: `imports`, `inject`, `useFactory`, `useClass`, and `useExisting`. Use `IApiAuthorizationModuleOptionsFactory` when you want a dedicated Nest provider class that builds the authorization module options. Module options also select the resolver cache mode: source-first is the default, while bounded memory caching requires explicit TTL and entry-limit values.
 
 ### ApiAuthorizationRuntime
 
@@ -328,37 +328,37 @@ Compiles safe `resource.*` IAM conditions into database scopes for controller qu
 
 ### ApiAuthorizationHookPermissionResolver
 
-Resolves and caches permissions for hooks mode from configured `IApiHookPermissionSource` implementations.
+Resolves permissions for hooks mode from configured `IApiHookPermissionSource` implementations. Source-first mode reads them on every evaluation; memory mode may reuse a bounded process-local entry.
 
 **Location:** `src/class/api/authorization/hook/permission/resolver.class.ts`
 
 ### ApiAuthorizationHookPermissionCache
 
-Stores hook-mode permissions by normalized principal for `ApiAuthorizationHookPermissionResolver` and public invalidation through `ApiAuthorizationCacheInvalidationService`.
+Stores hook-mode permissions by normalized principal only when the module explicitly selects `MEMORY`. It remains empty in default source-first mode and supports public invalidation through `ApiAuthorizationCacheInvalidationService`.
 
 **Location:** `src/class/api/authorization/hook/permission/cache.class.ts`
 
 ### ApiAuthorizationIamAttachmentCache
 
-Stores IAM policy attachments and boundaries by normalized principal for `ApiAuthorizationIamAttachmentResolver` and public invalidation through `ApiAuthorizationCacheInvalidationService`.
+Stores IAM policy attachments and boundaries by normalized principal only in explicit bounded memory mode. Source-first evaluations bypass it.
 
 **Location:** `src/class/api/authorization/iam/attachment/cache.class.ts`
 
 ### ApiAuthorizationIamDocumentCache
 
-Stores IAM policy document records by normalized document id set for `ApiAuthorizationIamDocumentResolver` and public invalidation through `ApiAuthorizationCacheInvalidationService`.
+Stores IAM policy document records by normalized document id set only in explicit bounded memory mode. Source-first evaluations bypass it.
 
 **Location:** `src/class/api/authorization/iam/document/cache.class.ts`
 
 ### ApiAuthorizationBootstrapValidationService
 
-Validates securable controller configuration, mode selection, hooks policy presence, and IAM prerequisites during application bootstrap.
+Applies resolver cache configuration and validates cache bounds, securable controller configuration, authorization mode selection, hooks policy presence, and IAM prerequisites during application bootstrap.
 
 **Location:** `src/class/api/authorization/bootstrap-validation.service.class.ts`
 
 ### ApiAuthorizationCacheInvalidationService
 
-Public Nest injectable facade for clearing authorization policy, hook permission, and IAM resolver caches after policy or permission changes.
+Public Nest injectable facade for clearing authorization policy, hook permission, and IAM resolver caches after policy or permission changes. Resolver-cache invalidation is required for immediate visibility in memory mode and is harmless in source-first mode.
 
 **Location:** `src/class/api/authorization/cache-invalidation.service.class.ts`
 
