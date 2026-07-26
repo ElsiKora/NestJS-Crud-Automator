@@ -254,6 +254,8 @@ Generated relation filters support one relation level. Relation fields and objec
 
 Top-level relation filters such as `author[operator]=eq&author[value]=...` are not part of the generated query contract. Use `author.id[...]` instead.
 
+A typed GET_LIST `request[QUERY].filter` plan may narrow or allowlist these one-hop to-one scalar paths. It cannot enable to-many, deeper, object, or bare relation paths; invalid configured paths fail controller initialization, and invalid client paths return `400`.
+
 ```typescript
 // Programmatic filtering by relation
 const posts = await postService.getList({

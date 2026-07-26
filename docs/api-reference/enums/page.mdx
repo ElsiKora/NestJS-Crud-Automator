@@ -196,6 +196,33 @@ enum EApiPropertyDataType {
 }
 ```
 
+## GET_LIST Query Plan Enums
+
+### EApiControllerGetListQueryUnlistedFields
+
+Controls whether a configured GET_LIST filter/order section overlays the entity metadata baseline or acts as an allowlist.
+
+```typescript
+enum EApiControllerGetListQueryUnlistedFields {
+	INHERIT = "INHERIT",
+	REJECT = "REJECT",
+}
+```
+
+### EApiControllerGetListQueryFilterMissingBehavior
+
+Controls an enabled typed filter when its complete client group is absent.
+
+```typescript
+enum EApiControllerGetListQueryFilterMissingBehavior {
+	OMIT = "OMIT",
+	REJECT = "REJECT",
+	USE_DEFAULT = "USE_DEFAULT",
+}
+```
+
+`REJECT` produces `400 FILTER_REQUIRED`. `USE_DEFAULT` requires a typed static `defaultCondition`, inserts it only when the client omits that field group, and lets a supplied client group replace the default.
+
 ## Filter Operations
 
 ### EFilterOperation
@@ -393,6 +420,8 @@ enum EApiDtoType {
 ```
 
 Use `PARAMETERS` for path parameters. The old `PARAM` name is not part of the current strict contract.
+
+## Transaction Enums
 
 ### EApiFunctionTransactionMode
 

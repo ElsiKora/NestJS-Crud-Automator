@@ -1289,10 +1289,14 @@ bootstrap();
 The library provides advanced filtering capabilities for list endpoints:
 
 ```typescript
-// GET /users?username[operator]=cont&username[value]=john&createdAt[operator]=between&createdAt[values]=["2023-01-01","2023-12-31"]
+// GET /users?username[operator]=cont&username[value]=john&createdAt[operator]=between&createdAt[values]=2023-01-01&createdAt[values]=2023-12-31
 ```
 
 This query would search for users with "john" in their username and created between Jan 1 and Dec 31, 2023.
+
+GET_LIST query DTOs remain dynamically generated from entity `ApiPropertyDescribe` and TypeORM metadata. A route can optionally narrow or overlay that baseline through `routes[GET_LIST].request[QUERY].filter` and `order`. The normalized plan drives the generated DTO, strict runtime parser, TypeORM predicates, and OpenAPI deep-object `oneOf` branches. Omitted sections retain legacy metadata-driven behavior.
+
+Use `INHERIT` to overlay metadata-enabled fields or `REJECT` to create an allowlist. Enabled filters declare a non-empty operation set and optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior; `REJECT` returns `400 FILTER_REQUIRED`. Route plans cannot re-enable metadata-disabled fields. A manual QUERY DTO is mutually exclusive with generated filter/order config, while a manual RESPONSE DTO remains compatible.
 
 ## 🛣 Current Status
 
@@ -1307,7 +1311,7 @@ The roadmap is aligned with the current source contract rather than older docs-o
 ### Available Now
 
 - REST CRUD controller and service generation for TypeORM entities
-- Entity-driven DTO generation for body, query, parameters, and response contracts
+- Entity-driven DTO generation for body, query, parameters, and response contracts, including controller-scoped typed GET_LIST query plans
 - Custom DTO support, including nested manual DTOs and GET_LIST item response DTOs
 - Swagger/OpenAPI metadata generation for generated and custom routes
 - Pagination, filtering, sorting, request validators, and request/response transformers
@@ -1360,7 +1364,7 @@ Yes, the GET_LIST operation automatically includes pagination with limit and pag
 
 ### How is filtering implemented?
 
-Filtering is implemented using a flexible operator-based approach that supports operations like equals, contains, greater than, less than, and between. Filters apply to generated query fields: scalar entity fields and explicit one-level relation property paths such as `author.id[...]` or `author.username[...]`; hidden query fields, object fields, relation-valued fields, and top-level `author[...]` relation filters are skipped.
+Filtering uses an operator-based bracket wire format with operations such as equals, contains, comparison, membership, and between. By default, fields come from entity metadata. A generated GET_LIST route may add a typed filter/order plan to narrow or allowlist direct scalar and one-hop to-one scalar paths such as `author.id[...]` or `author.username[...]`. Configured plans reject unknown, disabled, malformed, or disallowed input with `400` independently of the host `ValidationPipe`; omitted plans retain legacy metadata-driven behavior.
 
 ### Can I use this with NestJS microservices?
 

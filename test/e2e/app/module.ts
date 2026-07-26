@@ -21,10 +21,11 @@ import { e2eAuthorizationPrincipalResolver } from "./principal-resolver";
 import { E2eService } from "./service";
 import { E2eFunctionPrioritySubscriber, E2eFunctionSubscriber, E2eRouteOrderSubscriber, E2eRouteSubscriber } from "./subscribers";
 import { E2eTransformerErrorController } from "./transformer-error";
+import { E2eDefaultTypedQueryController, E2eOrderOnlyTypedQueryController, E2eTypedQueryController } from "./typed-query";
 import { E2eValidationPipe } from "./validation-pipe";
 
 @Module({
-	controllers: [E2eController, E2eCustomResponseController, E2eCustomItemResponseController, E2eCustomRouteController, E2eFunctionController, E2eGeneratedTransactionController, E2eBrokenController, E2eCopyController, E2eManualController, E2eTransformerErrorController, E2eOwnerController],
+	controllers: [E2eController, E2eCustomResponseController, E2eCustomItemResponseController, E2eCustomRouteController, E2eFunctionController, E2eGeneratedTransactionController, E2eBrokenController, E2eCopyController, E2eManualController, E2eTransformerErrorController, E2eDefaultTypedQueryController, E2eOrderOnlyTypedQueryController, E2eTypedQueryController, E2eOwnerController],
 	imports: [
 		TypeOrmModule.forRoot({
 			database: ":memory:",

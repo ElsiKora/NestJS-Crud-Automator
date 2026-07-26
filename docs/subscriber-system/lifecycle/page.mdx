@@ -83,20 +83,24 @@ When the route owns the transaction, UPDATE joins it and step 17 does not commit
 ```
 1. HTTP Request arrives at controller
 2. Route subscribers: onBeforeGetList (priority: high → low)
-3. Query parameters parsed and validated
-4. Resolve the configured generated-route transaction mode
-5. Service method: getList() called with configured response relation loading
-6. Function subscribers: onBeforeGetList (priority: high → low)
-7. Repository: find() and count() executed
-8. Function subscribers: onAfterGetList (priority: high → low)
-9. Service returns result with pagination metadata
-10. Commit and post-commit lifecycle when the route owns the transaction
-11. Controller transformers (response)
-12. Route subscribers: onAfterGetList (priority: high → low)
-13. Authorization result transforms
-14. Relation projection and DTO serialization
-15. HTTP Response sent to client
+3. Request QUERY transformers and custom validators run outside the route transaction
+4. A configured typed query plan parses and validates the post-subscriber query into a canonical AST and applies `USE_DEFAULT` conditions when field groups are absent
+5. Resolve the configured generated-route transaction mode
+6. Inside the optional route transaction, client/default predicates are compiled and AND-merged once with authorization scope
+7. Service method: getList() called with configured response relation loading
+8. Function subscribers: onBeforeGetList (priority: high → low)
+9. Repository: find() and count() executed
+10. Function subscribers: onAfterGetList (priority: high → low)
+11. Service returns result with pagination metadata
+12. Commit and post-commit lifecycle when the route owns the transaction
+13. Controller transformers (response)
+14. Route subscribers: onAfterGetList (priority: high → low)
+15. Authorization result transforms
+16. Relation projection and DTO serialization
+17. HTTP Response sent to client
 ```
+
+The typed query parser is authoritative and does not depend on host `ValidationPipe` whitelist behavior. If the route omits typed filter/order configuration, the corresponding legacy metadata-driven parsing behavior remains unchanged.
 
 ### Delete Operation
 

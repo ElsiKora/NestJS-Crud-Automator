@@ -5,3 +5,4 @@ export type * from "./dto";
 export type * from "./error-string";
 export { type TFilterKeys } from "./filter-keys.type";
 export { type TNonDateKeys } from "./non-date-keys.type";
+export { type TNonEmptyReadonlyArray } from "./non-empty-readonly-array.type";

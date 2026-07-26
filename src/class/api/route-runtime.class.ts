@@ -1,6 +1,8 @@
+import type { EFilterOrderDirection } from "@enum/filter";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationDecision } from "@interface/class/api/authorization";
+import type { IApiControllerGetListQueryPlan, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
 import type { IApiRouteRuntimeContextData, IApiRouteRuntimeCustomExecutionOptions, IApiRouteRuntimeGeneratedExecutionOptions, IApiRouteRuntimeGeneratedTargets, IApiRouteRuntimeHttpRequest } from "@interface/class/api/route";
 import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route/error-execution-context.interface";
 import type { IApiSubscriberRouteExecutionContextData } from "@interface/class/api/subscriber/route/execution/context";
@@ -20,6 +22,7 @@ import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
 import type { DeepPartial, EntityManager, FindOptionsOrder, FindOptionsWhere, Repository } from "typeorm";
 
+import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/runtime.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
@@ -28,6 +31,7 @@ import { FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiDtoType } from "@enum/decorator/api";
 import { BadRequestException } from "@nestjs/common";
+import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetPrimaryColumn } from "@utility/api/controller/get/primary-column.utility";
@@ -338,21 +342,28 @@ export class ApiRouteRuntime {
 					throw ErrorException("Query target is required for GET_LIST routes");
 				}
 
+				const queryPlan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName);
+				const runtimeQuery: IApiControllerGetListQueryRuntimeResult | undefined = queryPlan ? ApiControllerGetListQueryRuntime.parse(query, queryPlan) : undefined;
+
 				return await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<unknown> => {
 					const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
-					const filter: TApiFunctionGetListPropertiesWhere<E> = ApiControllerGetListTransformFilter<E>(getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard);
+					const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard);
 					const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(filter, authorizationDecision?.scope?.where);
+					const effectiveLimit: number = runtimeQuery?.limit ?? limit;
+					const effectiveOrderBy: keyof E | string | undefined = runtimeQuery?.orderBy ?? orderBy;
+					const effectiveOrderDirection: EFilterOrderDirection | undefined = runtimeQuery?.orderDirection ?? orderDirection;
+					const effectivePage: number = runtimeQuery?.page ?? page;
 
 					const requestProperties: TApiFunctionGetListProperties<E> = {
 						relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
 						relations: routeConfig.relations?.response?.load?.include,
-						skip: query.limit * (query.page - 1),
-						take: query.limit,
+						skip: effectiveLimit * (effectivePage - 1),
+						take: effectiveLimit,
 						where: scopedFilter ?? filter,
 					};
 
-					if (orderBy) {
-						requestProperties.order = { [orderBy as never as string]: orderDirection ?? FUNCTION_API_DECORATOR_CONSTANT.DEFAULT_FILTER_ORDER_BY_DIRECTION } as FindOptionsOrder<E>;
+					if (effectiveOrderBy) {
+						requestProperties.order = { [effectiveOrderBy as never as string]: effectiveOrderDirection ?? FUNCTION_API_DECORATOR_CONSTANT.DEFAULT_FILTER_ORDER_BY_DIRECTION } as FindOptionsOrder<E>;
 					}
 
 					markAfterBoundary();

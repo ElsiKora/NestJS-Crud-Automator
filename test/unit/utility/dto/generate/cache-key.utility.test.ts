@@ -11,7 +11,7 @@ describe("DtoGenerateCacheKey", () => {
 			method: EApiRouteType.CREATE,
 		});
 
-		expect(key).toBe('TestEntity_create_body_no-guard_{"validators":[]}');
+		expect(key).toBe('no-controller_TestEntity_create_body_no-guard_no-query-plan_{"validators":[]}');
 	});
 
 	it("builds cache key with guard name", () => {
@@ -23,6 +23,18 @@ describe("DtoGenerateCacheKey", () => {
 			method: EApiRouteType.GET,
 		});
 
-		expect(key).toBe("TestEntity_get_response_JwtGuard_{}");
+		expect(key).toBe("no-controller_TestEntity_get_response_JwtGuard_no-query-plan_{}");
+	});
+
+	it("scopes typed query DTOs by controller and normalized plan", () => {
+		const key = DtoGenerateCacheKey({
+			controllerName: "PublicController",
+			dtoType: EApiDtoType.QUERY,
+			entityName: "TestEntity",
+			method: EApiRouteType.GET_LIST,
+			queryPlanSignature: "plan-a",
+		});
+
+		expect(key).toBe("PublicController_TestEntity_getList_query_no-guard_plan-a_{}");
 	});
 });

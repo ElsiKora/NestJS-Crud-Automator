@@ -33,8 +33,9 @@ Use local source as the contract:
 - Request config is target keyed with `EApiControllerRequestTarget.BODY`, `PARAMETERS`, and `QUERY`.
 - Response config is target keyed with `EApiControllerResponseTarget.RESPONSE`.
 - OpenAPI response headers live directly under `response.headers`, not under `EApiControllerResponseTarget.RESPONSE`.
-- `autoDto` is validators-only. Field exposure, requiredness, filters, guards, and response visibility belong to `ApiPropertyDescribe({ properties })`.
+- `autoDto` is validators-only. Entity `ApiPropertyDescribe({ properties })` remains the capability baseline; generated GET_LIST `request[QUERY].filter` and `order` may narrow or overlay its query exposure.
 - Manual `dto` and `autoDto` route branches are mutually exclusive.
+- A manual GET_LIST QUERY DTO is mutually exclusive with generated filter/order configuration; a manual RESPONSE DTO remains compatible.
 - `ApiPropertyDescribe` object metadata uses `dataType`; manual `ApiPropertyObject` uses `type`.
 - `ApiPropertyDescribe` relation metadata does not currently accept array options.
 - `GetDefaultStringFormatProperties(format)` provides canonical defaults for supported string formats.
@@ -70,6 +71,9 @@ Use local source as the contract:
 - Securable custom methods need method-level authorization mode metadata.
 - Custom route response relation reload requires `controller.service` to extend `ApiServiceBase` and response items to have an `id`.
 - For `@ApiRouteCustom`, request relation loading hydrates only the method `@Body()` argument; custom route before-hook auth, headers, IP, metadata, and runtime properties live in `context.DATA`, not `context.result`.
+- Generated GET_LIST `request[EApiControllerRequestTarget.QUERY]` accepts optional sibling `filter` and `order` sections. Omitted sections preserve legacy metadata-driven behavior; configured sections compile into one immutable plan used by dynamic DTO generation, OpenAPI, strict runtime parsing, and TypeORM compilation.
+- Typed query plans support direct and one-hop to-one scalar filter paths, direct-scalar order paths, `INHERIT` overlays or `REJECT` allowlists, exact disabled fields, narrowed operations, and `OMIT`/`REJECT`/`USE_DEFAULT` missing behavior.
+- The authoritative typed parser runs after route-before and request query transforms/validators, applies `USE_DEFAULT` when a field group is absent, and rejects malformed or disallowed input independently of host `ValidationPipe`. The optional route transaction then compiles predicates, AND-merges client/default filters with authorization scope once, and runs the service query.
 
 ## Relation Model
 
@@ -79,7 +83,7 @@ Use local source as the contract:
 - Request locks accept native TypeORM `pessimistic_read` or `pessimistic_write`, require an active Automator transaction, follow direct `include` declaration order, and disable implicit eager-relation loading. A locked direct relation with explicit nested includes requires `relationLoadStrategy: "query"`; nested loads share the manager without automatic locks.
 - HTTP scalar references are controller hydration input. Service `create`/`update` contracts remain entity-based; direct callers load entities through their active manager.
 - Response relation config: `relations.response.reference` and `relations.response.load.include` with optional `relationLoadStrategy`.
-- HTTP generated relation filters use explicit one-level paths such as `author.id[...]` and `author.username[...]`; top-level `author[...]` is not generated or transformed.
+- HTTP generated relation filters use explicit one-level paths such as `author.id[...]` and `author.username[...]`; top-level `author[...]` is not generated or transformed. A typed plan can narrow these paths but cannot enable deeper or to-many paths.
 - Generated relation filters skip relation fields and object fields on the related entity.
 - For nested request or response relations, use TypeORM relation object maps in `load.include`.
 - Nested request include objects are only passed to the direct relation service as TypeORM `relations`; nested request references are not recursively hydrated.
@@ -111,6 +115,7 @@ Use local source as the contract:
 - Generated Swagger matches request and response contracts.
 - DTO fields are scoped correctly for body/query/parameters/response.
 - GET_LIST uses the intended response mode: full wrapper DTO or `{ itemType, name? }`.
+- Typed GET_LIST DTO/OpenAPI fields match the normalized plan, two controllers over one entity receive distinct plan-scoped schemas, and strict parsing remains effective with host query whitelist changes.
 - Route generation, transaction mode, security, request/response targets, relation locks, and DTO config type-check.
 - Subscribers fire on the route/function path being exercised.
 - Authorization metadata, policy documents, resource definitions, and cache invalidation match runtime behavior.

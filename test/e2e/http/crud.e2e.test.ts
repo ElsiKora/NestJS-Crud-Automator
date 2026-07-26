@@ -875,6 +875,169 @@ describe("CRUD routes (E2E)", () => {
 		}
 	});
 
+	it("applies strict typed GET_LIST filters, relation paths, and ordering", async () => {
+		await createItem({ count: 1, id: "typed-1", name: "Shared" });
+		await createItem({ count: 5, id: "typed-2", name: "Shared" });
+
+		const listResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/typed-items?limit=10&page=1&name[operator]=eq&name[value]=fn-Shared&count[operator]=gt&count[value]=0&owner.name[operator]=eq&owner.name[value]=Owner&orderBy=count&orderDirection=DESC",
+		});
+
+		expect(listResponse.statusCode).toBe(200);
+		expect(listResponse.json().items.map((item: { id: string }) => item.id)).toEqual(["typed-2", "typed-1"]);
+	});
+
+	it("compiles case-insensitive typed membership predicates", async () => {
+		await createItem({ count: 1, id: "typed-inl-1", name: "Alpha" });
+		await createItem({ count: 2, id: "typed-inl-2", name: "Beta" });
+
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/typed-items?limit=10&page=1&name[operator]=inl&name[values]=fn-alpha&name[values]=fn-beta",
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.OK);
+		expect(
+			response
+				.json()
+				.items.map((item: { id: string }) => item.id)
+				.toSorted(),
+		).toEqual(["typed-inl-1", "typed-inl-2"]);
+	});
+
+	it("returns FILTER_REQUIRED when a required typed filter is absent", async () => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/typed-items?limit=10&page=1",
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(JSON.stringify(response.json())).toContain("FILTER_REQUIRED");
+	});
+
+	it("parses typed filters after route-before subscribers", async () => {
+		await createItem({ count: 2, id: "typed-subscriber", name: "Injected" });
+
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/typed-items?limit=10&page=1&routeBeforeName=fn-Injected",
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.OK);
+		expect(response.json().items.map((item: { id: string }) => item.id)).toEqual(["typed-subscriber"]);
+	});
+
+	it("AND-merges typed client filters with authorization scope", async () => {
+		await ownerService.repository.save({ id: E2E_OWNER_ID_OTHER, name: "Other Owner" });
+		await service.repository.save([
+			{
+				count: 5,
+				id: "typed-own-keep",
+				name: "Keep",
+				ownerId: E2E_OWNER_ID,
+			},
+			{
+				count: 6,
+				id: "typed-own-target",
+				name: "Target",
+				ownerId: E2E_OWNER_ID,
+			},
+			{
+				count: 7,
+				id: "typed-other-target",
+				name: "Target",
+				ownerId: E2E_OWNER_ID_OTHER,
+			},
+		]);
+
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/typed-items?limit=10&page=1&name[operator]=eq&name[value]=Target",
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.OK);
+		expect(response.json().items.map((item: { id: string }) => item.id)).toEqual(["typed-own-target"]);
+	});
+
+	it("AND-merges typed defaults with scope and lets a client group replace its field default", async () => {
+		await ownerService.repository.save({ id: E2E_OWNER_ID_OTHER, name: "Other Owner" });
+		await service.repository.save([
+			{
+				count: 5,
+				id: "typed-default-own",
+				name: "Own",
+				ownerId: E2E_OWNER_ID,
+			},
+			{
+				count: 7,
+				id: "typed-default-other",
+				name: "Other",
+				ownerId: E2E_OWNER_ID_OTHER,
+			},
+			{
+				count: 5,
+				id: "typed-default-other-client",
+				name: "Other Client Match",
+				ownerId: E2E_OWNER_ID_OTHER,
+			},
+		]);
+
+		const defaultResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/default-typed-items?limit=10&page=1",
+		});
+		const clientResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/default-typed-items?limit=10&page=1&count[operator]=eq&count[value]=5",
+		});
+
+		expect(defaultResponse.statusCode).toBe(HttpStatus.OK);
+		expect(defaultResponse.json().items).toEqual([]);
+		expect(clientResponse.statusCode).toBe(HttpStatus.OK);
+		expect(clientResponse.json().items.map((item: { id: string }) => item.id)).toEqual(["typed-default-own"]);
+	});
+
+	it.each([
+		["code[operator]=eq&code[value]=code-a&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["owner.name.extra[operator]=eq&owner.name.extra[value]=Owner&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["tags.id[operator]=eq&tags.id[value]=tag-1&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["name[operatr]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["name[operator]=eq&name[value][extra]=fn-Alpha", "INVALID_FILTER"],
+		["name[operator]=gt&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["count[operator]=between&count[values]=1&count[values]=2&count[values]=3&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["count[operator]=eq&count[value]=1.5&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
+		["name[operator]=eq&name[value]=fn-Alpha&orderBy=owner.name&orderDirection=ASC", "INVALID_ORDER"],
+	])("rejects invalid typed query contract input: %s", async (query, errorCode) => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: `/typed-items?limit=10&page=1&${query}`,
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(JSON.stringify(response.json())).toContain(errorCode);
+	});
+
+	it("rejects membership filters above the configured cardinality cap", async () => {
+		const values: string = Array.from({ length: 101 }, (_value: unknown, index: number): string => `name[values]=name-${String(index)}`).join("&");
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: `/typed-items?limit=10&page=1&name[operator]=inl&${values}`,
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(JSON.stringify(response.json())).toContain("INVALID_FILTER");
+	});
+
 	it("sorts list responses by count", async () => {
 		await seedFilterItems();
 

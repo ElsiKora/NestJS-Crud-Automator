@@ -14,6 +14,8 @@ import type {
 	IApiBaseEntity,
 	IApiControllerPropertiesRouteBase,
 	IApiControllerPropertiesRouteBaseTransaction,
+	IApiControllerPropertiesRouteGetListQueryFilter,
+	IApiControllerPropertiesRouteGetListQueryOrder,
 	IApiFunctionStepContext,
 	IApiFunctionStepProperties,
 	IApiHookPermissionSource,
@@ -29,6 +31,7 @@ import type {
 	TApiAuthorizationPolicyBeforePartialUpdateContext,
 	TApiAuthorizationPolicyBeforePartialUpdateResult,
 	TApiAuthorizationCacheOptions,
+	TApiControllerPropertiesRoute,
 	TApiSubscriberFunctionBeforeCreateContext,
 	TApiSubscriberFunctionBeforeUpdateContext,
 	TApiSubscriberFunctionExecutionContextData,
@@ -51,6 +54,9 @@ import {
 	EApiAuthorizationCacheMode,
 	EApiAuthorizationMode,
 	EApiAuthorizationPrincipalType,
+	EApiControllerGetListQueryFilterMissingBehavior,
+	EApiControllerGetListQueryUnlistedFields,
+	EApiControllerRequestTarget,
 	EApiControllerRelationReferenceShape,
 	EApiFunctionContextStorageKind,
 	EApiFunctionSubscriberTransactionExpectation,
@@ -64,6 +70,7 @@ import {
 	EApiPropertyStringType,
 	EApiRouteSubscriberAuthorizationExpectation,
 	EApiRouteType,
+	EFilterOperation,
 	GetDefaultStringFormatProperties,
 } from "../../src/index";
 import { describe, expect, it } from "vitest";
@@ -207,6 +214,32 @@ describe("public API exports (E2E)", () => {
 		const routeTransaction = {
 			mode: EApiFunctionTransactionMode.REQUIRED,
 		} satisfies IApiControllerPropertiesRouteBaseTransaction;
+		const typedFilter = {
+			fields: {
+				role: {
+					allowedOperations: [EFilterOperation.EQ],
+					isEnabled: true,
+					missingBehavior: EApiControllerGetListQueryFilterMissingBehavior.REJECT,
+				},
+			},
+			unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+		} satisfies IApiControllerPropertiesRouteGetListQueryFilter<PublicApiUser>;
+		const typedOrder = {
+			fields: {
+				role: {
+					isEnabled: true,
+				},
+			},
+			unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+		} satisfies IApiControllerPropertiesRouteGetListQueryOrder<PublicApiUser>;
+		const typedRoute: TApiControllerPropertiesRoute<PublicApiUser, EApiRouteType.GET_LIST> = {
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					filter: typedFilter,
+					order: typedOrder,
+				},
+			},
+		};
 		const generatedRouteConfig: IApiControllerPropertiesRouteBase<PublicApiUser, EApiRouteType.CREATE> = {
 			relations: {
 				request: {
@@ -318,6 +351,12 @@ describe("public API exports (E2E)", () => {
 			EApiFunctionSubscriberTransactionExpectation?: {
 				REQUIRED?: unknown;
 			};
+			EApiControllerGetListQueryFilterMissingBehavior?: {
+				REJECT?: unknown;
+			};
+			EApiControllerGetListQueryUnlistedFields?: {
+				REJECT?: unknown;
+			};
 			EApiFunctionType?: {
 				CREATE?: unknown;
 			};
@@ -327,11 +366,20 @@ describe("public API exports (E2E)", () => {
 			EApiRouteSubscriberAuthorizationExpectation?: {
 				REQUIRED?: unknown;
 			};
+			EFilterOperation?: {
+				EQ?: unknown;
+			};
 		};
 		const builtCjsPackageEntryPath: string = "../../dist/cjs/index.js";
 		const builtCjsPackageEntry = (await import(builtCjsPackageEntryPath)) as {
 			ApiFunctionStep?: unknown;
 			ApiFunctionTransactionScope?: unknown;
+			EApiControllerGetListQueryFilterMissingBehavior?: {
+				REJECT?: unknown;
+			};
+			EApiControllerGetListQueryUnlistedFields?: {
+				REJECT?: unknown;
+			};
 			EApiGetDefaultStringFormatPropertiesBigIntStringSign?: {
 				UNSIGNED?: unknown;
 			};
@@ -379,6 +427,8 @@ describe("public API exports (E2E)", () => {
 		expect(routeDiscriminatorConfig.discriminator.propertyName).toBe("channel");
 		expect(generatedRouteConfig.relations?.request?.load?.locks?.operator?.mode).toBe("pessimistic_read");
 		expect(generatedRouteConfig.transaction?.mode).toBe(EApiFunctionTransactionMode.REQUIRED);
+		expect(typedRoute.request?.[EApiControllerRequestTarget.QUERY]?.filter).toBe(typedFilter);
+		expect(typedRoute.request?.[EApiControllerRequestTarget.QUERY]?.order).toBe(typedOrder);
 		expect(bigintStringDefaults.pattern).toBe(String.raw`/^(0|[1-9]\d{0,19})$/`);
 		expect(stepProperties.entity).toBe(PublicApiUser);
 		expect(subscriberRequiredData.eventManager).toBeDefined();
@@ -402,16 +452,31 @@ describe("public API exports (E2E)", () => {
 		expect(typeof builtPackageEntry.ApiFunctionTransactionPostCommitException).toBe("function");
 		expect(typeof builtPackageEntry.ApiFunctionTransactionRollbackException).toBe("function");
 		expect(typeof builtPackageEntry.ApiFunctionTransactionScope).toBe("function");
+		expect(builtPackageEntry).not.toHaveProperty("ApiControllerGetListQueryOpenApiDecorators");
+		expect(builtPackageEntry).not.toHaveProperty("ApiControllerGetListQueryPlanCompiler");
+		expect(builtPackageEntry).not.toHaveProperty("ApiControllerGetListQueryPlanGet");
+		expect(builtPackageEntry).not.toHaveProperty("ApiControllerGetListQueryPlanSet");
+		expect(builtPackageEntry).not.toHaveProperty("ApiControllerGetListQueryRuntime");
 		expect(builtPackageEntry).not.toHaveProperty("ApiFunctionTransactionLifecycle");
 		expect(builtPackageEntry).not.toHaveProperty("ApiFunctionTransactionRegistry");
 		expect(builtPackageEntry).not.toHaveProperty("ApiFunctionTransactionRuntime");
 		expect(builtPackageEntry).not.toHaveProperty("ApplyBigIntStringGetDefaultStringFormatPropertiesOptions");
 		expect(builtPackageEntry).not.toHaveProperty("ApplyGetDefaultStringFormatPropertiesCustomizer");
 		expect(builtPackageEntry).not.toHaveProperty("CUSTOMIZER_MAP_GET_DEFAULT_STRING_FORMAT_PROPERTIES_API_UTILITY_CONSTANT");
+		expect(builtPackageEntry).not.toHaveProperty("EFilterOperand");
+		expect(builtPackageEntry).not.toHaveProperty("FILTER_OPERATOR_REGISTRY_CONSTANT");
 		expect(builtPackageEntry).not.toHaveProperty("MANUAL_PROPERTY_METADATA_DTO_UTILITY_CONSTANT");
 		expect(typeof builtCjsPackageEntry.ApiFunctionStep).toBe("function");
 		expect(typeof builtCjsPackageEntry.ApiFunctionTransactionScope).toBe("function");
+		expect(builtCjsPackageEntry).not.toHaveProperty("ApiControllerGetListQueryPlanCompiler");
+		expect(builtCjsPackageEntry).not.toHaveProperty("ApiControllerGetListQueryRuntime");
+		expect(builtCjsPackageEntry).not.toHaveProperty("EFilterOperand");
+		expect(builtCjsPackageEntry).not.toHaveProperty("FILTER_OPERATOR_REGISTRY_CONSTANT");
+		expect(builtCjsPackageEntry.EApiControllerGetListQueryFilterMissingBehavior?.REJECT).toBe(EApiControllerGetListQueryFilterMissingBehavior.REJECT);
+		expect(builtCjsPackageEntry.EApiControllerGetListQueryUnlistedFields?.REJECT).toBe(EApiControllerGetListQueryUnlistedFields.REJECT);
 		expect(builtCjsPackageEntry.EApiGetDefaultStringFormatPropertiesBigIntStringSign?.UNSIGNED).toBe(EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED);
+		expect(builtPackageEntry.EApiControllerGetListQueryFilterMissingBehavior?.REJECT).toBe(EApiControllerGetListQueryFilterMissingBehavior.REJECT);
+		expect(builtPackageEntry.EApiControllerGetListQueryUnlistedFields?.REJECT).toBe(EApiControllerGetListQueryUnlistedFields.REJECT);
 		expect(builtPackageEntry.EApiFunctionContextStorageKind?.TRANSACTION).toBe(EApiFunctionContextStorageKind.TRANSACTION);
 		expect(builtPackageEntry.EApiFunctionSubscriberTransactionExpectation?.REQUIRED).toBe(EApiFunctionSubscriberTransactionExpectation.REQUIRED);
 		expect(builtPackageEntry.EApiFunctionTransactionEventStatus?.SUCCEEDED).toBe(EApiFunctionTransactionEventStatus.SUCCEEDED);
@@ -422,6 +487,7 @@ describe("public API exports (E2E)", () => {
 		expect(builtPackageEntry.EApiFunctionType?.CREATE).toBe(EApiFunctionType.CREATE);
 		expect(builtPackageEntry.EApiGetDefaultStringFormatPropertiesBigIntStringSign?.UNSIGNED).toBe(EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED);
 		expect(builtPackageEntry.EApiRouteSubscriberAuthorizationExpectation?.REQUIRED).toBe(EApiRouteSubscriberAuthorizationExpectation.REQUIRED);
+		expect(builtPackageEntry.EFilterOperation?.EQ).toBe(EFilterOperation.EQ);
 		expect(AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN).toBe("API_AUTHORIZATION_PRINCIPAL_RESOLVER");
 		expect(resolvedPrincipal.id).toBe("user-1");
 		expect(EApiAuthorizationMode.HOOKS).toBe("hooks");

@@ -573,7 +573,8 @@ IAM behavior is intentionally strict:
 - explicit deny wins over allow
 - boundaries intersect the final allow scope
 - the query planner only compiles supported `StringEquals` and `StringEqualsIfExists` conditions on `resource.*` fields marked as `isFilterable`
-- controller filters and authorization scopes are merged with logical `AND`, not overwrite semantics
+- typed client filters, static `USE_DEFAULT` predicates, and authorization scopes are merged once with logical `AND`, not overwrite semantics
+- principal- or tenant-dependent restrictions belong in HOOKS/IAM scope; route query defaults never replace or satisfy authorization scope
 - impossible conflicts collapse to a match-nothing branch instead of rewriting the requested filter
 - unsupported or unsafe query-planning cases result in denial instead of hidden in-memory filtering
 - duplicate document IDs across sources and missing requested documents throw immediately

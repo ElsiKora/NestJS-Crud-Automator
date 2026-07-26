@@ -13,6 +13,7 @@
 | Route-local generated DTO validators            | `autoDto`                                               |
 | Manual route DTOs                               | `dto: { [EApiDtoType.*]: DTO }`                         |
 | GET_LIST custom item shape                      | `dto: { [EApiDtoType.RESPONSE]: { itemType, name? } }`  |
+| Typed GET_LIST filter/order overlay             | `request[EApiControllerRequestTarget.QUERY]`            |
 | Relation hydration                              | `relations.request`                                     |
 | Generated route transaction                     | `routes[route].transaction`                             |
 | Direct request relation lock                    | `relations.request.load.locks`                          |
@@ -107,6 +108,9 @@ Generated route transaction rules:
 - `EApiDtoType.BODY`, `QUERY`, `PARAMETERS`, and `RESPONSE` are the only DTO keys.
 - `autoDto` supports `validators` only.
 - Use entity `ApiPropertyDescribe.properties` for field enablement, requiredness, response exposure, filters, guards, and route/DTO-specific behavior.
+- Generated GET_LIST `request[QUERY].filter` and `order` compile with entity/TypeORM metadata into one immutable plan. `INHERIT` overlays metadata; `REJECT` creates an allowlist; route config cannot re-enable a metadata-disabled field.
+- Filter fields use exact disabled `{ isEnabled: false }` or enabled non-empty `allowedOperations` plus optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior. Order fields are direct-scalar enabled/disabled overlays and have no filter-only settings.
+- Manual GET_LIST QUERY DTOs cannot be combined with generated filter/order config. Manual RESPONSE DTOs remain compatible.
 - `isExpose` is response-only and requires `isResponse: true`.
 - Guard-scoped DTO generation depends on the route's configured guard class; it is not a per-request role check.
 - `isUniqueItems` is OpenAPI schema metadata unless source adds explicit runtime uniqueness validation.
@@ -122,7 +126,7 @@ getList(properties: FindManyOptions<E>): Promise<IApiGetListResponseResult<E>>;
 getMany(properties: FindManyOptions<E>): Promise<Array<E>>;
 ```
 
-Controller GET_LIST query parameters (`limit`, `page`, `orderBy`, `orderDirection`, bracketed filters) are converted to TypeORM `take`, `skip`, `order`, and `where` before the service is called.
+Controller GET_LIST query parameters (`limit`, `page`, `orderBy`, `orderDirection`, bracketed filters) are converted to TypeORM `take`, `skip`, `order`, and `where` before the service is called. With a typed plan, after route-before subscribers and request QUERY transforms/validators, the authoritative parser validates exact paths, operations, cardinality, and scalar values independently of host `ValidationPipe` and applies `USE_DEFAULT` when a field group is absent. The optional route transaction then compiles the AST, AND-merges client/default predicates with authorization scope once, and runs the service query. Omitted filter/order sections retain the corresponding legacy metadata-driven path.
 
 `@ApiFunctionDelete` internally removes an entity snapshot, but generated service/controller delete APIs intentionally expose `Promise<void>`. Do not design public delete flows around receiving the removed entity unless the source contract is changed first.
 
@@ -149,7 +153,7 @@ Generated request relation caveats:
 - Request relation hydration mutates direct relation references into loaded entity objects. Nested include objects are passed to the direct relation service as TypeORM `relations`; nested request references are not recursively hydrated.
 - Scalar relation values are an HTTP/controller contract; generated service inputs remain entity-based.
 - For generated routes, request relation hydration reads relation fields from the request body for CREATE, UPDATE, and PARTIAL_UPDATE. It does not hydrate GET/DELETE route parameters.
-- CREATE reloads the created entity with configured response relations. UPDATE/PARTIAL_UPDATE reload only when response relation loading is configured. DELETE returns no body. GET_LIST maps `limit`/`page` to `take`/`skip` and applies `orderBy` only when present.
+- CREATE reloads the created entity with configured response relations. UPDATE/PARTIAL_UPDATE reload only when response relation loading is configured. DELETE returns no body. GET_LIST maps `limit`/`page` to `take`/`skip`, applies `orderBy` only when present, and uses a configured normalized query plan for strict filter/order contracts.
 
 ## Subscriber Contexts
 

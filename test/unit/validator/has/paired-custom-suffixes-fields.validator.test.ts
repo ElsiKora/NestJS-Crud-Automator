@@ -52,4 +52,38 @@ describe("HasPairedCustomSuffixesFieldsValidator", () => {
 		expect(validator.validate(undefined, args)).toBe(false);
 		expect(validator.defaultMessage(args)).toContain("should not have any values");
 	});
+
+	it("accepts a null operator without a dummy value", () => {
+		const validator = new HasPairedCustomSuffixesFieldsValidator();
+		const args = buildArgs({
+			"flag[operator]": EFilterOperation.ISNULL,
+		});
+
+		expect(validator.validate(undefined, args)).toBe(true);
+	});
+
+	it("accepts one membership value", () => {
+		const validator = new HasPairedCustomSuffixesFieldsValidator();
+		const args = buildArgs({
+			"id[operator]": EFilterOperation.IN,
+			"id[values]": ["id-1"],
+		});
+
+		expect(validator.validate(undefined, args)).toBe(true);
+	});
+
+	it("preserves legacy exclusion array operands", () => {
+		const validator = new HasPairedCustomSuffixesFieldsValidator();
+		const arrayArgs = buildArgs({
+			"name[operator]": EFilterOperation.EXCL,
+			"name[values]": ["blocked"],
+		});
+		const scalarArgs = buildArgs({
+			"name[operator]": EFilterOperation.EXCL,
+			"name[value]": "blocked",
+		});
+
+		expect(validator.validate(undefined, arrayArgs)).toBe(true);
+		expect(validator.validate(undefined, scalarArgs)).toBe(false);
+	});
 });

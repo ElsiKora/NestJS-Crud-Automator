@@ -45,7 +45,7 @@ Inside a step, prefer `this.getApiFunctionStepContext()` for `eventManager`, `re
 
 ## Auto DTO Overreach
 
-`autoDto` is for validators only. It does not control exposure, guard visibility, filters, response serialization, or requiredness. Put those in `ApiPropertyDescribe({ properties })` or use manual `dto`.
+`autoDto` is for validators only. It does not control exposure, guard visibility, response serialization, or requiredness. Put the global capability baseline in `ApiPropertyDescribe({ properties })`; use generated GET_LIST `request[QUERY].filter` and `order` only to narrow or overlay query behavior. Use manual `dto` when generation is not appropriate.
 
 ## Relation Metadata Arrays
 
@@ -99,7 +99,11 @@ DTO guard visibility is based on the route's configured guard class during DTO g
 
 ## Unsupported Generated GET_LIST Features
 
-Generated GET_LIST supports one `orderBy`, one `orderDirection`, `limit`, `page`, and bracketed filters. Relation filters use one-level explicit paths such as `author.id[...]` and `author.username[...]`; use a custom method for multi-sort or deeper relation/object filters.
+Generated GET_LIST supports one `orderBy`, one `orderDirection`, `limit`, `page`, and bracketed filters. Relation filters use one-level to-one scalar paths such as `author.id[...]` and `author.username[...]`; use a custom method for multi-sort, relation sorting, to-many filters, or deeper relation/object filters.
+
+A configured typed filter/order plan is strict: unknown, disabled, malformed, or incompatible input returns `400` instead of being silently ignored. Do not rely on a host `ValidationPipe` whitelist, infer query exposure from response visibility, re-enable metadata-disabled fields, or combine generated filter/order config with a manual QUERY DTO. Omit a section when legacy metadata-driven behavior is intentional.
+
+`missingBehavior: USE_DEFAULT` accepts only static typed defaults. Principal- or tenant-dependent restrictions belong in HOOKS/IAM scope, which is AND-merged once with client/default predicates.
 
 ## Docs Drift
 

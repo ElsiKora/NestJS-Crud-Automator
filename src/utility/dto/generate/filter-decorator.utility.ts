@@ -1,3 +1,4 @@
+import type { EFilterOperation } from "@enum/filter";
 import type { IApiEntity } from "@interface/entity";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
@@ -11,10 +12,18 @@ import { EFilterOperationBoolean, EFilterOperationDate, EFilterOperationEnum, EF
  * corresponding filter operation enums.
  * @param {TApiPropertyDescribeProperties} metadata - Metadata describing the property
  * @param {IApiEntity<E>} entity - The entity metadata
+ * @param {ReadonlyArray<EFilterOperation>} [allowedOperations] - Optional route-plan operation allowlist.
+ * @param {string} [enumName] - Route-scoped Swagger enum component name.
  * @returns {PropertyDecorator} A decorator that adds the appropriate filter operation enum
  * @template E - The entity type
  */
-export function DtoGenerateFilterDecorator<E>(metadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>): PropertyDecorator {
+export function DtoGenerateFilterDecorator<E>(metadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, allowedOperations?: ReadonlyArray<EFilterOperation>, enumName?: string): PropertyDecorator {
+	if (allowedOperations) {
+		const operationEnum: Record<string, EFilterOperation> = Object.fromEntries(allowedOperations.map((operation: EFilterOperation): [string, EFilterOperation] => [operation.toUpperCase(), operation]));
+
+		return ApiPropertyEnum({ description: "description" in metadata ? metadata.description : undefined, entity, enum: operationEnum, enumName: enumName ?? "EFilterOperation", isRequired: false });
+	}
+
 	switch (metadata.type) {
 		case EApiPropertyDescribeType.BOOLEAN: {
 			return ApiPropertyEnum({ description: metadata.description, entity, enum: EFilterOperationBoolean, enumName: "EFilterOperationBoolean", isRequired: false });

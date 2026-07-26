@@ -84,6 +84,29 @@ interface IApiControllerPropertiesRouteBaseTransaction {
 
 Omitted configuration and `SUPPORTS` do not open a route transaction. `REQUIRED` opens one through the controller service repository when no Automator transaction is active, `MANDATORY` requires an active owner, and `NONE` rejects active execution. A route that opens the transaction owns the `ROUTE` transaction registry and encloses request relation hydration, the generated service operation, and response relation reload. Request transformation and validation run before the transaction; response transformation, route-after subscribers, authorization result handling, and serialization run after commit.
 
+### IApiControllerPropertiesRouteGetListQueryRequestTarget\<E\>
+
+The generated GET_LIST QUERY target extends ordinary request transformers/validators with optional typed filter and order sections.
+
+```typescript
+interface IApiControllerPropertiesRouteGetListQueryRequestTarget<E> extends IApiControllerPropertiesRouteBaseRequestTarget<E> {
+	filter?: IApiControllerPropertiesRouteGetListQueryFilter<E>;
+	order?: IApiControllerPropertiesRouteGetListQueryOrder<E>;
+}
+
+interface IApiControllerPropertiesRouteGetListQueryFilter<E> {
+	fields: TApiControllerGetListQueryFilterFields<E>;
+	unlistedFields: EApiControllerGetListQueryUnlistedFields;
+}
+
+interface IApiControllerPropertiesRouteGetListQueryOrder<E> {
+	fields: TApiControllerGetListQueryOrderFields<E>;
+	unlistedFields: EApiControllerGetListQueryUnlistedFields;
+}
+```
+
+`INHERIT` overlays metadata-enabled fields; `REJECT` creates an allowlist. Filter fields support direct scalars and one-hop to-one scalar paths, while order fields support direct scalars only. The same immutable plan drives dynamic DTO generation, strict runtime parsing, TypeORM compilation, and OpenAPI. A manual QUERY DTO cannot be combined with these sections; manual RESPONSE DTOs remain compatible.
+
 ### IApiControllerPropertiesRouteBaseRelationsRequestLoad\<E\>
 
 Request relation hydration configuration.

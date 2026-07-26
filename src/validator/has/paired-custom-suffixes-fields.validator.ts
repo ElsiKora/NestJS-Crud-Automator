@@ -1,7 +1,8 @@
-import { VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT } from "@constant/validator";
-import { EFilterOperation } from "@enum/filter";
-import { EHasPairedCustomSuffixesFieldsArgumentType } from "@enum/validator";
-import { THasPairedCustomSuffixesFieldsOperationConfig, THasPairedCustomSuffixesFieldsValidationContext } from "@type/validator/has-paired-custom-suffixes-fields";
+import type { IApiControllerGetListQueryOperator } from "@interface/class/api/controller/get-list/query";
+
+import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
+import { EFilterOperand, EFilterOperation } from "@enum/filter";
+import { THasPairedCustomSuffixesFieldsValidationContext } from "@type/validator/has-paired-custom-suffixes-fields";
 import { type ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface } from "class-validator";
 
 // eslint-disable-next-line @elsikora/typescript/naming-convention
@@ -27,26 +28,26 @@ export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstrai
 			}
 
 			if (groupSuffixes.has(operatorSuffix)) {
-				if (groupSuffixes.size === 1) {
-					return `group "${baseName}" with operator suffix must have at least one value with suffix [${[...valueSuffixes].join(", ")}]`;
-				}
-
 				const operatorField: string = `${baseName}[${operatorSuffix}]`;
 				const operatorValue: string = indexableObject[operatorField] as string;
 				const operator: EFilterOperation = operatorValue as EFilterOperation;
-				const operatorConfig: THasPairedCustomSuffixesFieldsOperationConfig = VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT.DEFAULT_OPERATION_CONFIGS[operator];
+				const operatorConfig: IApiControllerGetListQueryOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operator];
 
 				if (!operatorConfig) {
 					return `Invalid operator "${operator}" for group "${baseName}"`;
 				}
 
-				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.NULL) {
+				if (operatorConfig.operand === EFilterOperand.NONE) {
 					const valueCount: number = valueSuffixes.filter((suffix: string) => groupSuffixes.has(suffix)).length;
 
 					if (valueCount > 0) {
 						return `group "${baseName}" with ${operator} operation should not have any values`;
 					}
 					continue;
+				}
+
+				if (groupSuffixes.size === 1) {
+					return `group "${baseName}" with operator suffix must have at least one value with suffix [${[...valueSuffixes].join(", ")}]`;
 				}
 
 				const valueFields: Array<string> = valueSuffixes.filter((suffix: string) => groupSuffixes.has(suffix)).map((suffix: string) => `${baseName}[${suffix}]`);
@@ -64,25 +65,21 @@ export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstrai
 				const value: Array<unknown> = indexableObject[valueFields[0]];
 				const isArray: boolean = Array.isArray(value);
 
-				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.ARRAY && !isArray) {
+				if ((operatorConfig.operand === EFilterOperand.PAIR || operatorConfig.operand === EFilterOperand.VALUES) && !isArray) {
 					return `group "${baseName}" with ${operator} operation requires an array value`;
 				}
 
-				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.SINGLE && isArray) {
+				if (operatorConfig.operand === EFilterOperand.VALUE && isArray) {
 					return `group "${baseName}" with ${operator} operation requires a single value, not an array`;
 				}
 
 				if (isArray) {
-					if (operatorConfig.exactLength !== undefined && value.length !== operatorConfig.exactLength) {
-						return `group "${baseName}" with ${operator} operation requires exactly ${String(operatorConfig.exactLength)} values`;
+					if (operatorConfig.operand === EFilterOperand.PAIR && value.length !== FILTER_OPERATOR_REGISTRY_CONSTANT.PAIR_OPERAND_COUNT) {
+						return `group "${baseName}" with ${operator} operation requires exactly ${String(FILTER_OPERATOR_REGISTRY_CONSTANT.PAIR_OPERAND_COUNT)} values`;
 					}
 
-					if (operatorConfig.minLength !== undefined && value.length < operatorConfig.minLength) {
-						return `group "${baseName}" with ${operator} operation requires at least ${String(operatorConfig.minLength)} values`;
-					}
-
-					if (operatorConfig.maxLength !== undefined && value.length > operatorConfig.maxLength) {
-						return `group "${baseName}" with ${operator} operation requires at most ${String(operatorConfig.maxLength)} values`;
+					if (operatorConfig.operand === EFilterOperand.VALUES && value.length < FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT) {
+						return `group "${baseName}" with ${operator} operation requires at least ${String(FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT)} value`;
 					}
 				}
 			}
@@ -137,11 +134,11 @@ export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstrai
 				const operatorField: string = `${baseName}[${operatorSuffix}]`;
 				const operatorValue: string = indexableObject[operatorField] as string;
 				const operator: EFilterOperation = operatorValue as EFilterOperation;
-				const operatorConfig: THasPairedCustomSuffixesFieldsOperationConfig = VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT.DEFAULT_OPERATION_CONFIGS[operator];
+				const operatorConfig: IApiControllerGetListQueryOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operator];
 
 				if (!operatorConfig) return false;
 
-				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.NULL) {
+				if (operatorConfig.operand === EFilterOperand.NONE) {
 					const valueCount: number = valueSuffixes.filter((suffix: string) => groupSuffixes.has(suffix)).length;
 
 					if (valueCount > 0) return false;
@@ -157,16 +154,14 @@ export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstrai
 				const value: Array<unknown> = indexableObject[valueFields[0]];
 				const isArray: boolean = Array.isArray(value);
 
-				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.ARRAY && !isArray) return false;
+				if ((operatorConfig.operand === EFilterOperand.PAIR || operatorConfig.operand === EFilterOperand.VALUES) && !isArray) return false;
 
-				if (operatorConfig.argumentType === EHasPairedCustomSuffixesFieldsArgumentType.SINGLE && isArray) return false;
+				if (operatorConfig.operand === EFilterOperand.VALUE && isArray) return false;
 
 				if (isArray) {
-					if (operatorConfig.exactLength !== undefined && value.length !== operatorConfig.exactLength) return false;
+					if (operatorConfig.operand === EFilterOperand.PAIR && value.length !== FILTER_OPERATOR_REGISTRY_CONSTANT.PAIR_OPERAND_COUNT) return false;
 
-					if (operatorConfig.minLength !== undefined && value.length < operatorConfig.minLength) return false;
-
-					if (operatorConfig.maxLength !== undefined && value.length > operatorConfig.maxLength) return false;
+					if (operatorConfig.operand === EFilterOperand.VALUES && value.length < FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT) return false;
 				}
 			}
 		}
