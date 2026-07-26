@@ -10,7 +10,8 @@ describe("ApiFunctionTransactionScope", () => {
 	it("owns a trimmed named transaction and permits join-only manager scopes", async () => {
 		const { dataSource, entityManager, queryRunner } = createTransactionFixture();
 
-		const result = await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "  registration  " }, async () => {
+		const result = await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "  registration  " }, async (ownerEntityManager) => {
+			expect(ownerEntityManager).toBe(entityManager);
 			expect(ApiFunctionContextStorage.get()?.eventManager).toBe(entityManager);
 			expect(ApiFunctionContextStorage.getTransactionRegistry()?.getTransaction()).toMatchObject({
 				id: expect.any(String),
@@ -20,7 +21,7 @@ describe("ApiFunctionTransactionScope", () => {
 				},
 			});
 
-			return await ApiFunctionTransactionScope.runWithEntityManager(entityManager, async () => {
+			return await ApiFunctionTransactionScope.runWithEntityManager(ownerEntityManager, async () => {
 				expect(ApiFunctionContextStorage.get()?.eventManager).toBe(entityManager);
 
 				return "joined";

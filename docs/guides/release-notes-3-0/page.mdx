@@ -56,7 +56,7 @@ A generated GET_LIST QUERY target can define typed `filter` and `order` overlays
 
 - Generated write DTO timestamp exclusion is identifier-based and applies to CREATE, UPDATE, and PARTIAL_UPDATE.
 - UPDATE before-subscribers run after an ordinary decorated GET and receive `currentEntity`.
-- `runWithDataSource(dataSource, callback)` becomes `runWithDataSource(dataSource, { name }, callback)`.
+- `runWithDataSource(dataSource, callback)` becomes `runWithDataSource(dataSource, { name }, callback)`, whose callback receives the owning `EntityManager`.
 - `runWithEntityManager` no longer establishes an independent Automator transaction context.
 - Authorization resolver caches no longer default to unbounded cross-request memory.
 - `TApiGetDefaultStringFormatPropertiesBigIntStringSign` is replaced by `EApiGetDefaultStringFormatPropertiesBigIntStringSign`.

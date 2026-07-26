@@ -83,7 +83,7 @@ When generated route `REQUIRED` opens and owns the transaction, keep request tra
 
 Omitted route config and `SUPPORTS` must not add a new `BEGIN`. `MANDATORY` requires an outer Automator owner, `NONE` rejects one, and custom routes remain function/step/scope-owned. A route-after failure for a route-owned transaction occurs after commit and must not be described as rollback.
 
-`ApiFunctionTransactionScope.runWithDataSource` requires `(dataSource, { name }, callback)`. Do not use the old two-argument signature or treat `runWithEntityManager` as a context-establishing scope; it only joins an existing Automator owner.
+`ApiFunctionTransactionScope.runWithDataSource` requires `(dataSource, { name }, callback)`, and the callback receives the exact owning `EntityManager`. Do not use the old two-argument signature or treat `runWithEntityManager` as a context-establishing scope; it only joins an existing Automator owner.
 
 ## Custom Route Runtime Assumptions
 

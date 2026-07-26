@@ -199,7 +199,7 @@ Post-transaction function subscriber lifecycle:
 - Transaction events contain metadata only, never arguments, bodies, entities, or results.
 - STEP events remain trace-only and never select subscribers.
 - `onBeforeErrorCommit`/`onBeforeErrorRollback` receive raw failures; `onAfterErrorCommit`/`onAfterErrorRollback` receive normalized transaction exceptions.
-- `ApiFunctionTransactionScope.runWithDataSource(dataSource, { name }, callback)` owns a named transaction; `runWithEntityManager` only joins an existing Automator owner.
+- `ApiFunctionTransactionScope.runWithDataSource(dataSource, { name }, callback)` owns a named transaction and passes its `EntityManager` to the callback; `runWithEntityManager` only joins an existing Automator owner.
 - `ApiFunctionTransactionPostCommitException` means `COMMITTED`. `ApiFunctionTransactionCommitUnknownOutcomeException` means `UNKNOWN`, still invokes commit-error lifecycle, and invokes neither post-commit nor post-rollback. A clean confirmed rollback rethrows the original operation error; `ApiFunctionTransactionRollbackException` is reserved for additional rollback, hook, or rollback-error lifecycle failures and preserves that operation error.
 
 For generated CRUD before hooks, `context.result` includes request targets plus `authenticationRequest`, `headers`, and `ip`. For `@ApiRouteCustom`, `context.result` is only `{ body?, parameters?, query? }`; read `authenticationRequest`, `headers`, `ip`, route metadata, and runtime properties from `context.DATA`.

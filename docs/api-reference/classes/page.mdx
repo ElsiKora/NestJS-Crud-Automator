@@ -252,7 +252,7 @@ Public helper for running code inside an external TypeORM transaction while maki
 
 **Static methods:**
 
-- `runWithDataSource(dataSource, { name }, callback)` opens a named TypeORM transaction.
+- `runWithDataSource(dataSource, { name }, callback)` opens a named TypeORM transaction and passes its owning `EntityManager` to the callback.
 - `runWithEntityManager(entityManager, callback)` joins only the manager already bound to an active Automator transaction.
 
 Only service-bound decorated function execution, including generated `@ApiFunction` flows and `@ApiFunctionCustom`, has real CRUD `operations`; transaction scopes created without a decorated service expose `getRepository` and transaction metadata but reject CRUD operations because there is no owning service context.

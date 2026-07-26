@@ -638,13 +638,13 @@ Use a named scope when application code, rather than a decorated function, must 
 ```typescript
 import { ApiFunctionTransactionScope } from "@elsikora/nestjs-crud-automator";
 
-await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "register-user" }, async () => {
+await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "register-user" }, async (entityManager) => {
 	await userService.create(body);
-	await auditService.create(entry);
+	await entityManager.getRepository(AuditEntity).save(entry);
 });
 ```
 
-The scope name is trimmed and must be non-empty. `runWithEntityManager()` is join-only: it accepts only the manager already bound to an active Automator transaction and never opens a second transaction.
+The callback receives the exact manager owned by the named scope. Decorated operations join it automatically; use the argument for transaction-bound raw repository or migration work. The scope name is trimmed and must be non-empty. `runWithEntityManager()` is join-only: it accepts only the manager already bound to an active Automator transaction and never opens a second transaction.
 
 Function subscribers can react once after the outer commit or rollback. The observed service must use `@ApiServiceObservable()`, and the subscriber must be registered as a Nest provider:
 

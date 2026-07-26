@@ -64,12 +64,13 @@ The snapshot is not deeply cloned or frozen. Nested relations, arrays, JSON valu
 The external scope signature is now named:
 
 ```typescript
-await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "register-user" }, async () => {
+await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "register-user" }, async (entityManager) => {
 	await userService.create(properties);
+	await entityManager.getRepository(RegistrationAuditEntity).save(audit);
 });
 ```
 
-`runWithEntityManager(entityManager, callback)` is join-only. It requires a manager already bound to an active Automator owner registry and no longer establishes an independent transaction context.
+The callback receives the scope-owned `EntityManager`; decorated operations join it automatically, while raw repository or migration work can use it directly. `runWithEntityManager(entityManager, callback)` is join-only. It requires a manager already bound to an active Automator owner registry and no longer establishes an independent transaction context.
 
 Function subscribers may observe the outermost confirmed transaction result:
 
