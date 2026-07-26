@@ -1,3 +1,9 @@
+## [3.0.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v3.0.0...v3.0.1) (2026-07-26)
+
+### Bug Fixes
+
+- **packaging:** emit portable typeorm declarations ([d5082c0](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/d5082c0f54119fd6963901d1ce53c4df60754198))
+
 # [3.0.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.10.0...v3.0.0) (2026-07-26)
 
 - feat(api)!: expose current entity before updates ([90c650b](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/90c650bfe6c89c831a10179f1d96117d1c150b9c))
