@@ -35,6 +35,7 @@
 		"branch": "npx @elsikora/git-branch-lint -b",
 		"prebuild": "rimraf dist",
 		"build": "npm run prebuild && rollup -c",
+		"postbuild": "node scripts/check-declaration-imports.cjs",
 		"commit": "cz",
 		"format": "prettier --check .",
 		"format:fix": "prettier --write .",

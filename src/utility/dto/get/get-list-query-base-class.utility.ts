@@ -1,6 +1,6 @@
 import type { IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanOrderField } from "@interface/class/api/controller/get-list/query";
 import type { Type } from "@nestjs/common";
-import type { ObjectLiteral } from "typeorm/index";
+import type { ObjectLiteral } from "typeorm";
 
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "@constant/factory-dto-get-list-query.constant";
 import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";

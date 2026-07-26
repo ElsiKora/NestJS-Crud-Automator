@@ -1,3 +1,4 @@
-import type { PickKeysByType } from "typeorm/common/PickKeysByType";
-
-export type TDateKeys<E> = PickKeysByType<E, Date>;
+export type TDateKeys<E> = keyof {
+	[P in keyof E as E[P] extends Date ? P : never]: E[P];
+} &
+	string;

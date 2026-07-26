@@ -1,3 +1,3 @@
-import type { PickKeysByType } from "typeorm/common/PickKeysByType";
+import type { TDateKeys } from "@type/utility/date";
 
-export type TNonDateKeys<E> = Omit<E, keyof PickKeysByType<E, Date>>;
+export type TNonDateKeys<E> = Omit<E, keyof TDateKeys<E>>;
