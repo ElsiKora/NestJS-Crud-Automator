@@ -152,7 +152,9 @@ Function before create result shape:
 DeepPartial<E>;
 ```
 
-Use `context.DATA.criteria`, `context.DATA.properties`, repository lookups, or TypeORM options when an existing entity or criteria is needed.
+For `onBeforeUpdate`, use `context.DATA.currentEntity: Readonly<E>` for the existing entity and keep `context.result` as the update patch. Automator resolves the transaction, runs one ordinary decorated GET through the active manager repository when a transaction exists or the service base repository otherwise, creates a top-level detached and frozen shallow snapshot, invokes UPDATE before-hooks, and merges their returned patch into the internal loaded entity without another explicit GET. Nested snapshot values retain aliases to that internal entity and can affect persistence if mutated; no row lock is added. A missing row keeps GET error lifecycle, skips UPDATE before-hooks, and then enters UPDATE error lifecycle.
+
+For other function before-hooks, use `context.DATA.criteria`, `context.DATA.properties`, repository lookups, or TypeORM options when an existing entity or criteria is needed.
 
 Function subscriber transaction expectations are subscriber-declared:
 

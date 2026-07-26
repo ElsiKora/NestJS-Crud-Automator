@@ -31,17 +31,25 @@ Understanding the execution order of subscribers and operations is crucial for i
 3. Controller transformers (request)
 4. Controller validators
 5. Service method: update() called
-6. Function subscribers: onBeforeUpdate (priority: high → low)
-7. Repository: findOne() to get existing entity
-8. Repository: save() executed with updates
-9. Function subscribers: onAfterUpdate (priority: high → low)
-10. Service returns result
-11. Controller transformers (response)
-12. Route subscribers: onAfterUpdate (priority: high → low)
-13. Authorization result transforms
-14. Relation projection and DTO serialization
-15. HTTP Response sent to client
+6. Resolve or join the configured function transaction
+7. Function subscribers: onBeforeGet (priority: high → low)
+8. Repository: findOne() through the resolved repository
+9. Function subscribers: onAfterGet (priority: high → low)
+10. Create detached top-level frozen currentEntity snapshot
+11. Function subscribers: onBeforeUpdate (priority: high → low)
+12. Merge the returned patch into the internal loaded entity
+13. Repository: save() executed with updates
+14. Function subscribers: onAfterUpdate (priority: high → low)
+15. Commit and post-commit lifecycle when UPDATE owns the transaction
+16. Service returns result
+17. Controller transformers (response)
+18. Route subscribers: onAfterUpdate (priority: high → low)
+19. Authorization result transforms
+20. Relation projection and DTO serialization
+21. HTTP Response sent to client
 ```
+
+If the decorated GET misses, its GET error lifecycle runs, `onBeforeUpdate` is skipped, and the UPDATE error lifecycle receives the same error.
 
 ### Get Operation
 

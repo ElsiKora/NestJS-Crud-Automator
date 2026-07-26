@@ -1,7 +1,6 @@
 import "reflect-metadata";
 
-import type { INestApplication } from "@nestjs/common";
-
+import { HttpStatus, type INestApplication } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -199,6 +198,68 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eRouteSubscriber.events).toEqual(expect.arrayContaining(["route:before:create", "route:after:create", "route:before:get", "route:after:get", "route:before:getList", "route:after:getList", "route:before:partialUpdate", "route:after:partialUpdate", "route:before:update", "route:after:update", "route:before:delete", "route:after:delete"]));
 
 		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:create", "function:after:create", "function:before:get", "function:after:get", "function:before:getList", "function:after:getList", "function:before:update", "function:after:update", "function:before:delete", "function:after:delete"]));
+	});
+
+	it("loads one decorated current entity before a database-backed update", async () => {
+		await service.repository.save({ count: 1, id: "current-entity-1", name: "Original", ownerId: E2E_OWNER_ID });
+		E2eFunctionSubscriber.reset();
+		const decoratedGetQueries: Array<string> = [];
+		const persistenceQueries: Array<string> = [];
+		const originalFindOne = service.repository.findOne.bind(service.repository);
+		const originalLogQuery = service.dataSource.logger.logQuery.bind(service.dataSource.logger);
+		let isDecoratedGetActive: boolean = false;
+		const findOneSpy = vi.spyOn(service.repository, "findOne").mockImplementation(async (properties) => {
+			isDecoratedGetActive = true;
+
+			try {
+				return await originalFindOne(properties);
+			} finally {
+				isDecoratedGetActive = false;
+			}
+		});
+		const querySpy = vi.spyOn(service.dataSource.logger, "logQuery").mockImplementation((query, parameters, queryRunner) => {
+			(isDecoratedGetActive ? decoratedGetQueries : persistenceQueries).push(query);
+			originalLogQuery(query, parameters, queryRunner);
+		});
+
+		try {
+			const updated = await service.update({ id: "current-entity-1" }, { name: "Updated" });
+			const decoratedGetSelects: Array<string> = decoratedGetQueries.filter((query) => query.trimStart().startsWith("SELECT") && query.includes('"e2e_entities"'));
+
+			expect(findOneSpy).toHaveBeenCalledTimes(1);
+			expect(findOneSpy).toHaveBeenCalledWith({ where: { id: "current-entity-1" } });
+			expect(decoratedGetSelects).toHaveLength(1);
+			expect(persistenceQueries.some((query) => query.trimStart().startsWith("UPDATE") && query.includes('"e2e_entities"'))).toBe(true);
+			expect(E2eFunctionSubscriber.events).toEqual(["function:before:get", "function:after:get", "function:before:update", "function:after:update"]);
+			expect(E2eFunctionSubscriber.currentEntities).toHaveLength(1);
+			expect(E2eFunctionSubscriber.currentEntities[0]).toMatchObject({ count: 1, id: "current-entity-1", name: "Original" });
+			expect(Object.isFrozen(E2eFunctionSubscriber.currentEntities[0])).toBe(true);
+			expect(updated.name).toBe("fn-Updated");
+		} finally {
+			findOneSpy.mockRestore();
+			querySpy.mockRestore();
+		}
+
+		expect((await service.repository.findOne({ where: { id: "current-entity-1" } }))?.name).toBe("fn-Updated");
+	});
+
+	it("keeps update-before closed when the decorated current-entity lookup misses", async () => {
+		await expect(service.update({ id: "current-entity-missing" }, { name: "Missing" })).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
+
+		expect(E2eFunctionSubscriber.events).toEqual(["function:before:get", "function:after_error:get", "function:after_error:update"]);
+		expect(E2eFunctionSubscriber.currentEntities).toHaveLength(0);
+	});
+
+	it("loads currentEntity through the active manager so uncommitted writes are visible", async () => {
+		await service.repository.save({ count: 1, id: "current-entity-transaction", name: "Original", ownerId: E2E_OWNER_ID });
+		E2eFunctionSubscriber.reset();
+
+		await service.updateAfterUncommittedChange("current-entity-transaction", "Uncommitted");
+
+		expect(E2eFunctionSubscriber.currentEntities).toHaveLength(1);
+		expect(E2eFunctionSubscriber.currentEntities[0]).toMatchObject({ count: 1, id: "current-entity-transaction", name: "Uncommitted" });
+		expect(E2eFunctionSubscriber.events).toEqual(["function:before:custom.update.current-entity", "function:before:custom.update.current-entity:transaction", "function:before:get", "function:after:get", "function:before:update", "function:after:update", "function:after:custom.update.current-entity", "function:after:commit"]);
+		expect(await service.repository.findOne({ where: { id: "current-entity-transaction" } })).toMatchObject({ count: 2, name: "Uncommitted" });
 	});
 
 	it("uses custom response DTO for create runtime serialization", async () => {

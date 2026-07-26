@@ -12,9 +12,10 @@ import type {
 	IApiBaseEntity,
 	IApiFunctionStepContext,
 	IApiFunctionStepProperties,
-	IApiSubscriberFunctionTransactionContext,
 	IApiHookPermissionSource,
 	IApiSubscriberFunctionExecutionContextData,
+	IApiSubscriberFunctionExecutionContextUpdateData,
+	IApiSubscriberFunctionTransactionContext,
 	TApiAuthorizationPolicyBeforeCreateContext,
 	TApiAuthorizationPolicyBeforeCreateResult,
 	TApiAuthorizationPolicyBeforeGetContext,
@@ -24,6 +25,7 @@ import type {
 	TApiAuthorizationPolicyBeforePartialUpdateContext,
 	TApiAuthorizationPolicyBeforePartialUpdateResult,
 	TApiSubscriberFunctionBeforeCreateContext,
+	TApiSubscriberFunctionBeforeUpdateContext,
 	TApiSubscriberFunctionExecutionContextData,
 	TApiSubscriberRouteBeforeCreateContext,
 	TApiFunctionTransactionEvent,
@@ -209,6 +211,20 @@ describe("public API exports (E2E)", () => {
 				role: "operator-user",
 			},
 		} satisfies TApiSubscriberFunctionBeforeCreateContext<PublicApiUser, Partial<PublicApiUser>, EApiFunctionSubscriberTransactionExpectation.REQUIRED>;
+		const currentEntity: Readonly<PublicApiUser> = Object.freeze(Object.assign(new PublicApiUser(), { id: "user-1", role: "operator-user" }));
+		const subscriberUpdateData = {
+			currentEntity,
+			eventManager: subscriberRequiredData.eventManager,
+			repository: subscriberRepository,
+		} satisfies IApiSubscriberFunctionExecutionContextUpdateData<PublicApiUser>;
+		const subscriberBeforeUpdateContext = {
+			DATA: subscriberUpdateData,
+			ENTITY: new PublicApiUser(),
+			FUNCTION_TYPE: EApiFunctionType.UPDATE,
+			result: {
+				role: "updated-operator",
+			},
+		} satisfies TApiSubscriberFunctionBeforeUpdateContext<PublicApiUser, Partial<PublicApiUser>, EApiFunctionSubscriberTransactionExpectation.REQUIRED>;
 		const stepContext = {
 			eventManager: undefined,
 			getRepository: <T extends IApiBaseEntity>(_entity: new () => T): Repository<T> => stepRepository as unknown as Repository<T>,
@@ -322,6 +338,8 @@ describe("public API exports (E2E)", () => {
 		expect(subscriberRequiredData.repository).toBe(subscriberRepository);
 		expect(subscriberSupportsData.repository).toBe(subscriberRepository);
 		expect(subscriberBeforeCreateContext.DATA.eventManager).toBe(subscriberRequiredData.eventManager);
+		expect(subscriberBeforeUpdateContext.DATA.currentEntity).toBe(currentEntity);
+		expect(subscriberBeforeUpdateContext.DATA.eventManager).toBe(subscriberRequiredData.eventManager);
 		expect(routeSubscriberBeforeCreateContext.result.authenticationRequest.authorizationDecision.principal).toBe(resolvedPrincipal);
 		expect(stepContext.eventManager).toBeUndefined();
 		expect(stepContext.getRepository(PublicApiUser)).toBe(stepRepository);

@@ -182,7 +182,13 @@ interface IApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity> {
 }
 
 type TApiSubscriberFunctionExecutionContextData<E extends IApiBaseEntity, TTransactionExpectation extends EApiFunctionSubscriberTransactionExpectation = EApiFunctionSubscriberTransactionExpectation.SUPPORTS> = IApiSubscriberFunctionExecutionContextData<E> & ([TTransactionExpectation] extends [EApiFunctionSubscriberTransactionExpectation.MANDATORY | EApiFunctionSubscriberTransactionExpectation.REQUIRED] ? { eventManager: EntityManager } : { eventManager?: EntityManager });
+
+interface IApiSubscriberFunctionExecutionContextUpdateData<E extends IApiBaseEntity> extends IApiSubscriberFunctionExecutionContextData<E> {
+	readonly currentEntity: Readonly<E>;
+}
 ```
+
+`TApiSubscriberFunctionBeforeUpdateContext` uses `IApiSubscriberFunctionExecutionContextUpdateData`. Only the top-level `currentEntity` object is detached and frozen; nested values retain aliases to the internal loaded entity, so mutating them can affect persistence. `result` remains the patch. The repository is bound to the active transaction manager when one exists.
 
 **Related:**
 

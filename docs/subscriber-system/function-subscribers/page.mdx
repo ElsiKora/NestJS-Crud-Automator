@@ -82,17 +82,21 @@ export class PostCreateSubscriber extends ApiFunctionSubscriberBase<PostEntity, 
 async onBeforeUpdate(
   context: TApiSubscriberFunctionBeforeUpdateContext<PostEntity>
 ): Promise<TApiFunctionUpdateProperties<PostEntity>> {
+  const currentPost = context.DATA.currentEntity; // Readonly<PostEntity>
+
   // Update slug if title changed
   if (context.result.title) {
     context.result.slug = this.generateSlug(context.result.title);
   }
 
   // Track modification count
-  context.result.modificationCount = (context.ENTITY.modificationCount || 0) + 1;
+  context.result.modificationCount = (currentPost.modificationCount || 0) + 1;
 
   return context.result;
 }
 ```
+
+Automator loads `currentEntity` with one ordinary decorated GET before invoking `onBeforeUpdate`. Only the snapshot's top-level object is detached and frozen; nested values retain aliases to the internal loaded entity and can affect persistence if mutated. `context.result` remains the mutable update patch. When a transaction is active, both the GET and `context.DATA.repository` use its manager. A missing entity runs GET error hooks, skips `onBeforeUpdate`, and then runs UPDATE error hooks.
 
 #### `onBeforeGet`, `onBeforeGetList`, `onBeforeGetMany`, `onBeforeDelete`
 

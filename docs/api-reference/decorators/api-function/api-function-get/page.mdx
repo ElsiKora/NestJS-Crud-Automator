@@ -16,6 +16,7 @@ Decorated methods gain the shape `get(properties: TApiFunctionGetProperties<E>):
 
 - Executes `onBeforeGet` subscribers with the incoming `FindOneOptions`. Returning options overrides the query before execution.
 - Queries via `repository.findOne` or the active transaction manager repository.
+- Exposes that same resolved repository at `context.DATA.repository`; transactional GET before, after, and error hooks therefore receive the manager-bound repository.
 - Throws `NotFoundException` with a generated error message if no entity is found.
 - Runs `onAfterGet` subscribers and allows them to swap the returned entity.
 - Emits `onBeforeErrorGet` and `onAfterErrorGet` hooks for HTTP or unexpected errors.

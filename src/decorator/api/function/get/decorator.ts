@@ -37,9 +37,10 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<E> => {
 					const entityInstance: E = new entity();
+					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
 
 					const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetProperties<E>> = {
-						DATA: { eventManager, getProperties, repository: this.repository },
+						DATA: { eventManager, getProperties, repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.GET,
 						result: getProperties,
@@ -51,11 +52,9 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 						executionContext.result = result;
 					}
 
-					const repository: Repository<E> = this.repository;
-
 					if (!repository) {
 						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-							DATA: { eventManager, getProperties, repository: this.repository },
+							DATA: { eventManager, getProperties, repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.GET,
 						};
@@ -73,9 +72,10 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 				mode: transactionMode,
 				onPreflightError: async (eventManager: EntityManager | undefined, error: Error): Promise<void> => {
 					const entityInstance: E = new entity();
+					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
 
 					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-						DATA: { eventManager, getProperties, repository: this.repository },
+						DATA: { eventManager, getProperties, repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.GET,
 					};
@@ -104,14 +104,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
-		let item: E | null;
-
-		if (eventManager) {
-			const eventRepository: Repository<E> = eventManager.getRepository<E>(entity);
-			item = await eventRepository.findOne(properties);
-		} else {
-			item = await repository.findOne(properties);
-		}
+		const item: E | null = await repository.findOne(properties);
 
 		if (!item) {
 			throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));

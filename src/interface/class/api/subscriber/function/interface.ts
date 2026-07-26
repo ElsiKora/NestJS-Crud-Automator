@@ -3,10 +3,12 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiFunctionTransactionFailure } from "@interface/class/api/function";
 import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function/error-execution-context.interface";
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context";
+import type { IApiSubscriberFunctionExecutionContextUpdateData } from "@interface/class/api/subscriber/function/execution/context/update-data.interface";
 import type { IApiSubscriberFunctionTransactionContext } from "@interface/class/api/subscriber/function/transaction";
 import type { IApiSubscriber } from "@interface/class/api/subscriber/interface";
 import type { IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiSubscriberFunctionExecutionContextData } from "@type/class/api/subscriber/function/execution-context-data.type";
+import type { TApiSubscriberFunctionTransactionData } from "@type/class/api/subscriber/function/transaction/data.type";
 import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 
 export interface IApiSubscriberFunction<
@@ -58,5 +60,5 @@ export interface IApiSubscriberFunction<
 	onBeforeGet?(context: IApiSubscriberFunctionExecutionContext<E, BeforeGetResult, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>): Promise<BeforeGetResult | undefined>;
 	onBeforeGetList?(context: IApiSubscriberFunctionExecutionContext<E, BeforeGetListResult, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>): Promise<BeforeGetListResult | undefined>;
 	onBeforeGetMany?(context: IApiSubscriberFunctionExecutionContext<E, BeforeGetManyResult, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>): Promise<BeforeGetManyResult | undefined>;
-	onBeforeUpdate?(context: IApiSubscriberFunctionExecutionContext<E, BeforeUpdateResult, TApiSubscriberFunctionExecutionContextData<E, TTransactionExpectation>>): Promise<BeforeUpdateResult | undefined>;
+	onBeforeUpdate?(context: IApiSubscriberFunctionExecutionContext<E, BeforeUpdateResult, IApiSubscriberFunctionExecutionContextUpdateData<E> & TApiSubscriberFunctionTransactionData<TTransactionExpectation>>): Promise<BeforeUpdateResult | undefined>;
 }

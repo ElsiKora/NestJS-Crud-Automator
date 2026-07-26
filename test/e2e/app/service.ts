@@ -21,6 +21,21 @@ export class E2eService extends ApiServiceBase<E2eEntity> {
 		await this.repository.clear();
 	}
 
+	@ApiFunctionCustom<E2eEntity>({
+		action: "custom.update.current-entity",
+		entity: E2eEntity,
+		transaction: {
+			mode: EApiFunctionTransactionMode.REQUIRED,
+		},
+	})
+	public async updateAfterUncommittedChange(id: string, name: string): Promise<E2eEntity> {
+		const context = this.getApiFunctionContext<E2eEntity>();
+
+		await context.repository.update({ id }, { name });
+
+		return await context.operations.update({ id }, { count: 2 });
+	}
+
 	public async createWithTransaction(body: Partial<E2eEntity>): Promise<E2eEntity> {
 		return await ApiFunctionTransactionScope.runWithDataSource(this.dataSource, { name: "createWithTransaction" }, async () => await this.create(body));
 	}

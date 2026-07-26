@@ -1,17 +1,20 @@
 import { Injectable } from "@nestjs/common";
 
-import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, type IApiSubscriberFunctionTransactionContext, type TApiSubscriberFunctionBeforeCreateContext } from "../../../../src/index";
+import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, type IApiSubscriberFunctionTransactionContext, type TApiSubscriberFunctionBeforeCreateContext, type TApiSubscriberFunctionBeforeUpdateContext } from "../../../../src/index";
 
 import { E2eEntity } from "../entity";
 
 @Injectable()
 @ApiFunctionSubscriber({ entity: E2eEntity, priority: 5 })
 export class E2eFunctionSubscriber extends ApiFunctionSubscriberBase<E2eEntity> {
+	public static currentEntities: Array<Readonly<E2eEntity>> = [];
+
 	public static events: Array<string> = [];
 
 	public static transactionContexts: Array<IApiSubscriberFunctionTransactionContext> = [];
 
 	public static reset(): void {
+		E2eFunctionSubscriber.currentEntities = [];
 		E2eFunctionSubscriber.events = [];
 		E2eFunctionSubscriber.transactionContexts = [];
 	}
@@ -130,8 +133,9 @@ export class E2eFunctionSubscriber extends ApiFunctionSubscriberBase<E2eEntity> 
 		E2eFunctionSubscriber.transactionContexts.push(context);
 	}
 
-	public async onBeforeUpdate(context: { result: Partial<E2eEntity> }) {
+	public async onBeforeUpdate(context: TApiSubscriberFunctionBeforeUpdateContext<E2eEntity>) {
 		E2eFunctionSubscriber.record("before", "update");
+		E2eFunctionSubscriber.currentEntities.push(context.DATA.currentEntity);
 		if (context.result.name) {
 			context.result.name = `fn-${context.result.name}`;
 		}

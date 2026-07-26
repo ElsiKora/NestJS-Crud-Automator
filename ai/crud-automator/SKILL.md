@@ -54,6 +54,8 @@ Use local source as the contract:
 - `ApiFunctionTransactionScope.runWithDataSource(dataSource, { name }, callback)` owns a named external transaction; `runWithEntityManager()` is join-only and fails without an active Automator owner registry.
 - `onAfterCommit` and `onAfterRollback` run once after the outer transaction ends. Their readonly context exposes transaction owner/id, all ordered events, and subscriber-matched events; STEP is trace-only.
 - Commit/rollback error lifecycle uses `onBeforeErrorCommit`, `onAfterErrorCommit`, `onBeforeErrorRollback`, and `onAfterErrorRollback`. Post-commit failures must remain distinguishable from database rollback.
+- `ApiFunctionUpdate` performs one ordinary decorated GET before `onBeforeUpdate`. Read the patch from `context.result`, the active manager repository when a transaction exists (otherwise the service base repository) from `context.DATA.repository`, and the top-level detached and frozen shallow snapshot from `context.DATA.currentEntity`.
+- UPDATE does not deep-clone or deep-freeze `currentEntity`: nested values alias the internal loaded entity and can affect persistence if mutated. It does not reload after before-subscribers, add a row lock, or auto-load entities for custom functions. A missing decorated GET skips update-before hooks and flows through GET then UPDATE error lifecycle.
 
 ## Route Runtime Model
 

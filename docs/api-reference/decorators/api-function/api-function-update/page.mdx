@@ -14,11 +14,14 @@ Decorated methods gain the shape `update(criteria: TApiFunctionUpdateCriteria<E>
 
 ## Behavior
 
-- Runs `onBeforeUpdate` subscribers with the incoming DTO; returning a DTO overrides the update payload.
-- Lazily decorates a helper `get` method (via `@ApiFunctionGet`) to fetch the entity and raise 404 errors if missing.
-- Merges the existing entity with provided properties and saves via the repository or active transaction manager repository.
+- Resolves the configured transaction mode, opening or joining a transaction when required, then performs exactly one ordinary decorated `@ApiFunctionGet` before any UPDATE before-subscriber runs.
+- Runs the complete GET before/get/after lifecycle and raises the native decorated GET `404` when the entity is missing.
+- Gives `onBeforeUpdate` the incoming DTO in `context.result`, the active manager repository when a transaction exists (otherwise the service base repository) in `context.DATA.repository`, and a top-level detached and frozen shallow snapshot in `context.DATA.currentEntity`.
+- Merges the subscriber-returned patch into the internally loaded entity and saves through the same repository without another explicit Automator GET.
 - Executes `onAfterUpdate` subscribers; their return value can replace the final response.
-- Fires `onBeforeErrorUpdate` and `onAfterErrorUpdate` subscribers when repositories or validation fail.
+- Skips `onBeforeUpdate` when the GET misses, preserves the GET error lifecycle, and then invokes the UPDATE error lifecycle with the same error.
+
+`currentEntity` is typed as `Readonly<E>`, but runtime immutability is intentionally shallow. Only the top-level object is detached and frozen. Nested relations, arrays, JSON objects, `Date`, `Buffer`, and lazy values retain aliases to the internal loaded entity, so mutating them can affect persistence. The top-level snapshot itself is never merged or saved, and this feature does not add a row lock.
 
 ## Example
 
