@@ -1,3 +1,23 @@
+# [3.0.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.10.0...v3.0.0) (2026-07-26)
+
+- feat(api)!: expose current entity before updates ([90c650b](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/90c650bfe6c89c831a10179f1d96117d1c150b9c))
+- feat(dto)!: use semantic timestamp ownership ([bed4401](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/bed440175a9349e0cdcbb042c5c06a75ef36e82a))
+- refactor(structure)!: enforce repository conventions ([561ade2](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/561ade2e9d93b3f50a6024af5b8b8f70744560dd))
+
+### Bug Fixes
+
+- **lint:** align dynamic contracts with stricter analysis ([952f8bd](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/952f8bd226e8b82dfbc234b2b0b6950d65ffe868))
+
+### Features
+
+- **transaction:** add generated route transactions ([2f98624](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/2f98624fd4581bac0534489698063d58949b0a79))
+
+### BREAKING CHANGES
+
+- UPDATE before hooks now run after the decorated GET.
+- BIGINT_STRING sign options now require the new sign enum.
+- Write DTO timestamp ownership now follows date identifiers instead of field names.
+
 # [2.10.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v2.9.0...v2.10.0) (2026-06-09)
 
 ### Features
