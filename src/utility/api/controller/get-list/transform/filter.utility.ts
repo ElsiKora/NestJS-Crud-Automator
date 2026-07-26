@@ -3,7 +3,7 @@ import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
-import type { FindOptionsWhere } from "typeorm/index";
+import type { FindOptionsWhere } from "typeorm";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";

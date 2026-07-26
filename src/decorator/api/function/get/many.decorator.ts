@@ -5,7 +5,7 @@ import type { IApiSubscriberFunctionExecutionContextData } from "@interface/clas
 import type { IApiFunctionGetManyExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
 import type { TApiFunctionGetManyProperties } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
-import type { FindManyOptions } from "typeorm/index";
+import type { FindManyOptions } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
