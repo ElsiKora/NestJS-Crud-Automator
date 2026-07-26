@@ -223,8 +223,9 @@ export class OrderService extends ApiServiceBase<OrderEntity> {
 ## Named Transaction Scope and Post-Commit Hook
 
 ```ts
-await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "close-expired-orders" }, async () => {
+await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "close-expired-orders" }, async (entityManager) => {
 	await orderService.closeExpired();
+	await entityManager.getRepository(OrderSweepEntity).save(sweep);
 });
 
 @Injectable()
