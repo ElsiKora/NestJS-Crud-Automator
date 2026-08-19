@@ -1,22 +1,16 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiRequestTransformer } from "@type/api-request-transformer.type";
-import type { TApiControllerGetListQuery, TApiControllerReadParameterTransformer } from "@type/decorator/api/controller";
+import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import type { TApiControllerTransformDataData, TApiControllerTransformDataObjectToTransform, TApiTransformDataIsValidationProperties } from "@type/utility";
+import type { TApiControllerRuntimeTransformer } from "@type/utility/api/controller/transform-data/runtime-transformer.type";
+import type { TApiControllerTransformDataTargets } from "@type/utility/api/controller/transform-data/targets.type";
 
 import { TRANSFORMER_VALUE_DTO_CONSTANT } from "@constant/dto";
 import { EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { InternalServerErrorException } from "@nestjs/common";
 import { ErrorString } from "@utility/error/string.utility";
-
-type TApiControllerRuntimeTransformer<E> = TApiControllerReadParameterTransformer<E> | TApiRequestTransformer<E>;
-type TApiControllerTransformDataTargets<E> = {
-	[EApiControllerRequestTarget.BODY]?: { transformers?: Array<TApiRequestTransformer<E>> };
-	[EApiControllerRequestTarget.PARAMETERS]?: { transformers?: Array<TApiControllerRuntimeTransformer<E>> };
-	[EApiControllerRequestTarget.QUERY]?: { transformers?: Array<TApiRequestTransformer<E>> };
-	[EApiControllerResponseTarget.RESPONSE]?: { transformers?: Array<TApiRequestTransformer<E>> };
-};
 
 /**
  * Transforms data between request/response objects and entity objects.

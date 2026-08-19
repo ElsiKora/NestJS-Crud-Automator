@@ -1,7 +1,7 @@
 import type { IApiAuthorizationDecision } from "@interface/class/api/authorization";
 import type { FindOperator, ValueTransformer } from "typeorm";
 
-import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated-security-snapshot.class";
+import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { Equal, In } from "typeorm";
 import { describe, expect, it } from "vitest";
 

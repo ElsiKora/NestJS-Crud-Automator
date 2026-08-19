@@ -2,20 +2,14 @@ import type { AsyncLocalStorage } from "node:async_hooks";
 
 import type { EApiFunctionType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiControllerGeneratedReadScopeEntry } from "@interface/class/api/controller/generated-read-scope-entry.interface";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 
 import { AsyncLocalStorage as NodeAsyncLocalStorage } from "node:async_hooks";
 
-import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated-security-snapshot.class";
+import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated/security-snapshot.class";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
 import { ErrorException } from "@utility/error/exception.utility";
-
-interface IApiControllerGeneratedReadScopeEntry {
-	functionType: EApiFunctionType.GET | EApiFunctionType.GET_LIST;
-	input: object;
-	isClaimed: boolean;
-	where: TApiAuthorizationScopeWhere<IApiBaseEntity>;
-}
 
 /**
  * Carries the final generated-route read predicate to exactly one decorated service call.

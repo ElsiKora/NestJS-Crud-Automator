@@ -1,4 +1,4 @@
-import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated-read-scope-storage.class";
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
 import { EApiFunctionType } from "@enum/decorator/api";
 import { Equal } from "typeorm";
 import { describe, expect, it } from "vitest";

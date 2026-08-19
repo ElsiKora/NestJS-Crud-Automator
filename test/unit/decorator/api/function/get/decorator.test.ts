@@ -1,6 +1,6 @@
 import type { EntityManager, FindOneOptions, Repository } from "typeorm";
 
-import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated-read-scope-storage.class";
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGet } from "@decorator/api/function/get/decorator";

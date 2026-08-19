@@ -12,7 +12,7 @@ import type { DeepPartial } from "typeorm";
 
 import { ApiControllerGetListQueryPlanCompiler } from "@class/api/controller/get-list/query";
 import { ApiControllerIdentityPlanCompiler } from "@class/api/controller/identity-plan-compiler.class";
-import { ApiControllerReadPlanCompiler } from "@class/api/controller/read";
+import { ApiControllerReadPlanCompiler } from "@class/api/controller/read-plan-compiler.class";
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiRouteType } from "@enum/decorator/api";

@@ -25,8 +25,7 @@ import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
 import type { DeepPartial, EntityManager, FindOptionsOrder, FindOptionsWhere, Repository } from "typeorm";
 
-import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated-read-scope-storage.class";
-import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated-security-snapshot.class";
+import { ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/runtime.class";

@@ -8,7 +8,7 @@ import type { TApiFunctionGetListProperties } from "@type/decorator/api/function
 import type { EntityManager, Repository } from "typeorm";
 import type { FindManyOptions } from "typeorm";
 
-import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated-read-scope-storage.class";
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
