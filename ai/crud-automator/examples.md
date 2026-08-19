@@ -120,6 +120,53 @@ The entity metadata still supplies scalar types, constraints, relation targets, 
 
 For `missingBehavior: USE_DEFAULT`, also provide `defaultCondition`. Automator inserts that condition only when the client omits the field group; a client group for the same field replaces the default, and the resulting predicates are AND-merged with authorization scope. `BETWEEN` requires exactly two repeated `[values]`; membership accepts 1–100. Typed failures use `FILTER_REQUIRED`, `INVALID_FILTER`, or `INVALID_ORDER`. Route-before subscribers can rewrite the raw query before Automator performs its strict typed parse.
 
+## Nested Generated Read With Stable Pagination
+
+```ts
+@ApiController<GameEntity>({
+	entity: GameEntity,
+	path: "providers/:providerKey/games",
+	routes: {
+		[EApiRouteType.GET]: {
+			read: {
+				scope: {
+					parameters: [{ parameter: "providerKey", field: "providerId" }],
+				},
+			},
+		},
+		[EApiRouteType.GET_LIST]: {
+			read: {
+				scope: {
+					parameters: [{ parameter: "providerKey", field: "providerId" }],
+				},
+			},
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					order: {
+						defaultOrder: [
+							{ direction: EFilterOrderDirection.DESC, field: "priority" },
+							{ direction: EFilterOrderDirection.ASC, field: "id" },
+						],
+						fields: {
+							priority: { isEnabled: true },
+						},
+						tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+				},
+			},
+		},
+	},
+})
+export class ProviderGameController {
+	constructor(public service: GameService) {}
+}
+```
+
+The controller path declares one inherited parameter, so both read routes map it exactly once. `providerKey` is the external path name; `providerId` is the described direct scalar entity field. Automator generates its PARAMETERS DTO and Swagger metadata. GET also includes the normal primary identity parameter. Do not add a manual PARAMETERS DTO to either read route.
+
+A GET uses `id AND providerId AND IAM scope`. A GET_LIST uses query predicates `AND providerId AND IAM scope`; incompatible values match nothing instead of overwriting a prior condition. With no client order, the list uses `priority DESC, id ASC` after duplicate removal. A client order replaces the defaults and keeps `id ASC` as a final tie-breaker, making explicit page/limit requests deterministic for an unchanged dataset. `id` remains server-only because it is absent from `fields`.
+
 ## Route Controls And Validators
 
 ```ts
@@ -237,7 +284,7 @@ export class OrderMetricsSubscriber extends ApiFunctionSubscriberBase<OrderEntit
 }
 ```
 
-`runWithEntityManager` is join-only in 3.0. Post-commit hooks run after the outer owner confirms COMMIT and cannot replace results. Transaction events are payload-free metadata; keep outbox bodies in application-owned state.
+`runWithEntityManager` is join-only in the current 3.x contract. Post-commit hooks run after the outer owner confirms COMMIT and cannot replace results. Transaction events are payload-free metadata; keep outbox bodies in application-owned state.
 
 ## Function Subscriber With Transaction Expectation
 

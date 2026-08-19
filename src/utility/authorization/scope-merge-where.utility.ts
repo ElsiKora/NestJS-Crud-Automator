@@ -1,13 +1,11 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
-import type { FindOptionsWhere } from "typeorm";
+import type { FindOperator, FindOptionsWhere } from "typeorm";
 
-import { In } from "typeorm";
+import { ErrorException } from "@utility/error/exception.utility";
+import { And, Equal, In, InstanceChecker } from "typeorm";
 
-interface ITypeormFindOperatorShape {
-	_type: string;
-	_value: unknown;
-}
+const UNSAFE_WHERE_PROPERTY_NAMES: ReadonlySet<string> = new Set<string>([...Object.getOwnPropertyNames(Object.prototype), "prototype"]);
 
 /**
  * Merges two WHERE expressions by building a Cartesian product of OR branches.
@@ -17,8 +15,11 @@ interface ITypeormFindOperatorShape {
  * @returns {TApiAuthorizationScopeWhere<E>} Combined filter.
  */
 export function AuthorizationScopeMergeWhere<E extends IApiBaseEntity>(baseWhere: TApiAuthorizationScopeWhere<E>, scopedWhere: TApiAuthorizationScopeWhere<E>): TApiAuthorizationScopeWhere<E> {
+	validateWhereOperand(baseWhere);
+	validateWhereOperand(scopedWhere);
+
 	if (!baseWhere) {
-		return scopedWhere;
+		return scopedWhere ? normalizeWhereOperand(scopedWhere) : scopedWhere;
 	}
 
 	if (!scopedWhere) {
@@ -35,7 +36,13 @@ export function AuthorizationScopeMergeWhere<E extends IApiBaseEntity>(baseWhere
 		}
 	}
 
-	return mergedVariants.length === 1 ? mergedVariants[0] : mergedVariants;
+	const mergedWhere: Array<FindOptionsWhere<E>> | FindOptionsWhere<E> | undefined = mergedVariants.length === 1 ? mergedVariants[0] : mergedVariants;
+
+	if (!mergedWhere) {
+		throw ErrorException("Authorization scope WHERE merge produced no branches");
+	}
+
+	return normalizeWhereOperand(mergedWhere);
 }
 
 /**
@@ -45,8 +52,12 @@ export function AuthorizationScopeMergeWhere<E extends IApiBaseEntity>(baseWhere
  * @returns {boolean} True when both values represent the same condition.
  */
 function areValuesEquivalent(left: unknown, right: unknown): boolean {
+	if (left instanceof Date || right instanceof Date) {
+		return left instanceof Date && right instanceof Date && left.getTime() === right.getTime();
+	}
+
 	if (isFindOperator(left) && isFindOperator(right)) {
-		return left._type === right._type && areValuesEquivalent(left._value, right._value);
+		return left === right;
 	}
 
 	if (Array.isArray(left) && Array.isArray(right)) {
@@ -72,35 +83,154 @@ function areValuesEquivalent(left: unknown, right: unknown): boolean {
 }
 
 /**
- * Compares two scalar-like values for ordering-sensitive operators.
- * @param {unknown} left - Current value.
- * @param {unknown} right - Operator boundary value.
- * @returns {number} Comparison result suitable for inequality operators.
+ * Builds a TypeORM conjunction without approximating database operator semantics.
+ * @param {unknown} baseValue - Existing scalar or operator.
+ * @param {unknown} scopedValue - Scoped scalar or operator.
+ * @returns {FindOperator<unknown>} TypeORM `And(...)` operator.
  */
-function compareValues(left: unknown, right: unknown): number {
-	const leftDate: number | undefined = normalizeDateValue(left);
-	const rightDate: number | undefined = normalizeDateValue(right);
+function createConjunctionOperator(baseValue: unknown, scopedValue: unknown): FindOperator<unknown> {
+	const baseOperator: FindOperator<unknown> = isFindOperator(baseValue) ? baseValue : Equal(baseValue);
+	const scopedOperator: FindOperator<unknown> = isFindOperator(scopedValue) ? scopedValue : Equal(scopedValue);
 
-	if (leftDate !== undefined && rightDate !== undefined) {
-		return leftDate - rightDate;
-	}
-
-	const leftNumber: number | undefined = normalizeNumberValue(left);
-	const rightNumber: number | undefined = normalizeNumberValue(right);
-
-	if (leftNumber !== undefined && rightNumber !== undefined) {
-		return leftNumber - rightNumber;
-	}
-
-	return toComparableText(left).localeCompare(toComparableText(right));
+	return And(baseOperator, scopedOperator);
 }
 
 /**
  * Builds a match-nothing FindOperator branch for impossible conflicts.
- * @returns {ITypeormFindOperatorShape} TypeORM `In([])` operator.
+ * @returns {FindOperator<unknown>} TypeORM `In([])` operator.
  */
-function createMatchNothingOperator(): ITypeormFindOperatorShape {
-	return In([]) as unknown as ITypeormFindOperatorShape;
+function createMatchNothingOperator(): FindOperator<unknown> {
+	return In([]);
+}
+
+/**
+ * Defines an own enumerable WHERE property without invoking prototype setters.
+ * @param {Record<string, unknown>} target - WHERE branch receiving the property.
+ * @param {string} key - Entity property name.
+ * @param {unknown} value - WHERE condition value.
+ * @returns {void}
+ */
+function defineWhereProperty(target: Record<string, unknown>, key: string, value: unknown): void {
+	Object.defineProperty(target, key, {
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		configurable: true,
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		enumerable: true,
+		value,
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		writable: true,
+	});
+}
+
+/**
+ * Reads a dense array through own data descriptors without invoking accessors.
+ * @param {Array<unknown>} value - Candidate array.
+ * @returns {Array<unknown> | undefined} Stable item values, or undefined for sparse/extended/accessor arrays.
+ */
+function getDenseArrayDataValues(value: Array<unknown>): Array<unknown> | undefined {
+	const ownKeys: Array<PropertyKey> = Reflect.ownKeys(value);
+	const lengthDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(value, "length");
+
+	if (ownKeys.length !== value.length + 1 || !lengthDescriptor || lengthDescriptor.enumerable || !("value" in lengthDescriptor) || lengthDescriptor.value !== value.length) {
+		return undefined;
+	}
+
+	const values: Array<unknown> = [];
+
+	for (let index: number = 0; index < value.length; index++) {
+		const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(value, String(index));
+
+		if (!descriptor?.enumerable || !("value" in descriptor)) {
+			return undefined;
+		}
+
+		values.push(descriptor.value);
+	}
+
+	return values;
+}
+
+/**
+ * Reads enumerable string-keyed data properties without invoking accessors.
+ * @param {Record<string, unknown>} value - Candidate WHERE record.
+ * @returns {Array<[string, unknown]> | undefined} Stable entries, or undefined for hidden, symbol, or accessor properties.
+ */
+function getWhereRecordDataEntries(value: Record<string, unknown>): Array<[string, unknown]> | undefined {
+	const entries: Array<[string, unknown]> = [];
+
+	for (const key of Reflect.ownKeys(value)) {
+		if (typeof key !== "string") {
+			return undefined;
+		}
+
+		const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(value, key);
+
+		if (!descriptor?.enumerable || !("value" in descriptor)) {
+			return undefined;
+		}
+
+		entries.push([key, descriptor.value]);
+	}
+
+	return entries;
+}
+
+/**
+ * Detects whether every declared WHERE property contains a condition TypeORM will not discard.
+ * @param {Record<string, unknown>} branch - Plain WHERE branch.
+ * @returns {boolean} True when the branch is non-empty and every condition is effective.
+ */
+function hasOnlyEffectiveWherePredicates(branch: Record<string, unknown>): boolean {
+	const entries: Array<[string, unknown]> | undefined = getWhereRecordDataEntries(branch);
+
+	if (!entries?.length) {
+		return false;
+	}
+
+	return entries.every(([, value]: [string, unknown]): boolean => {
+		if (value === undefined || value === null) {
+			return false;
+		}
+
+		if (Array.isArray(value)) {
+			const arrayValues: Array<unknown> | undefined = getDenseArrayDataValues(value);
+
+			if (!arrayValues) {
+				return false;
+			}
+
+			if (arrayValues.length === 0) {
+				return true;
+			}
+
+			const objectBranches: Array<boolean> = arrayValues.map((branchValue: unknown): boolean => isWhereBranchObject(branchValue));
+
+			if (objectBranches.every(Boolean)) {
+				return arrayValues.every((branchValue: unknown): boolean => hasOnlyEffectiveWherePredicates(branchValue as Record<string, unknown>));
+			}
+
+			if (objectBranches.some(Boolean)) {
+				return false;
+			}
+
+			return arrayValues.every((scalarValue: unknown): boolean => scalarValue !== undefined && scalarValue !== null && !Array.isArray(scalarValue) && (isAtomicWhereValue(scalarValue) || ["bigint", "boolean", "number", "string"].includes(typeof scalarValue)));
+		}
+
+		if (isWhereBranchObject(value)) {
+			return hasOnlyEffectiveWherePredicates(value);
+		}
+
+		return isAtomicWhereValue(value) || ["bigint", "boolean", "number", "string"].includes(typeof value);
+	});
+}
+
+/**
+ * Detects object-shaped values that the normalizer treats as scalar predicates.
+ * @param {unknown} value - Candidate WHERE value.
+ * @returns {boolean} True for supported atomic object values.
+ */
+function isAtomicWhereValue(value: unknown): boolean {
+	return value instanceof Date || isFindOperator(value) || ArrayBuffer.isView(value);
 }
 
 /**
@@ -108,8 +238,8 @@ function createMatchNothingOperator(): ITypeormFindOperatorShape {
  * @param {unknown} value - Candidate value.
  * @returns {boolean} True when the value looks like a FindOperator.
  */
-function isFindOperator(value: unknown): value is ITypeormFindOperatorShape {
-	return Boolean(value && typeof value === "object" && "_type" in value && "_value" in value);
+function isFindOperator(value: unknown): value is FindOperator<unknown> {
+	return InstanceChecker.isFindOperator(value);
 }
 
 /**
@@ -118,98 +248,22 @@ function isFindOperator(value: unknown): value is ITypeormFindOperatorShape {
  * @returns {boolean} True when the value is a mergeable record.
  */
 function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value) && typeof value === "object" && !Array.isArray(value) && !isFindOperator(value);
-}
-
-/**
- * Checks whether a concrete scalar satisfies a TypeORM FindOperator condition.
- * @param {unknown} value - Concrete value.
- * @param {ITypeormFindOperatorShape} operator - FindOperator to evaluate.
- * @returns {boolean} True when the scalar satisfies the operator.
- */
-function matchesFindOperator(value: unknown, operator: ITypeormFindOperatorShape): boolean {
-	switch (operator._type) {
-		case "between": {
-			const boundaries: Array<unknown> = Array.isArray(operator._value) ? operator._value : [undefined, undefined];
-			const start: unknown = boundaries[0];
-			const end: unknown = boundaries[1];
-
-			return compareValues(value, start) >= 0 && compareValues(value, end) <= 0;
-		}
-
-		case "equal": {
-			return areValuesEquivalent(value, operator._value);
-		}
-
-		case "ilike": {
-			return matchesLike(value, operator._value, true);
-		}
-
-		case "in": {
-			const values: Array<unknown> = Array.isArray(operator._value) ? operator._value : [operator._value];
-
-			return values.some((entry: unknown): boolean => (isFindOperator(entry) ? matchesFindOperator(value, entry) : areValuesEquivalent(value, entry)));
-		}
-
-		case "isnull": {
-			return value === null || value === undefined;
-		}
-
-		case "lessThan": {
-			return compareValues(value, operator._value) < 0;
-		}
-
-		case "lessThanOrEqual": {
-			return compareValues(value, operator._value) <= 0;
-		}
-
-		case "like": {
-			return matchesLike(value, operator._value, false);
-		}
-
-		case "moreThan": {
-			return compareValues(value, operator._value) > 0;
-		}
-
-		case "moreThanOrEqual": {
-			return compareValues(value, operator._value) >= 0;
-		}
-
-		case "not": {
-			return isFindOperator(operator._value) ? !matchesFindOperator(value, operator._value) : !areValuesEquivalent(value, operator._value);
-		}
-
-		default: {
-			return false;
-		}
-	}
-}
-
-/**
- * Evaluates SQL-like wildcard matching against a concrete scalar.
- * @param {unknown} value - Concrete value.
- * @param {unknown} pattern - SQL-like pattern.
- * @param {boolean} isCaseInsensitive - Whether matching should ignore case.
- * @returns {boolean} True when the value matches the pattern.
- */
-function matchesLike(value: unknown, pattern: unknown, isCaseInsensitive: boolean): boolean {
-	if (value === null || value === undefined) {
+	if (!value || typeof value !== "object" || Array.isArray(value) || value instanceof Date || isFindOperator(value)) {
 		return false;
 	}
 
-	const text: string = toComparableText(value);
-	const rawPattern: string = toComparableText(pattern);
-	const needle: string = rawPattern.replaceAll("%", "");
+	const prototype: null | object = Object.getPrototypeOf(value) as null | object;
 
-	if (needle.length === 0) {
-		return true;
-	}
+	return prototype === null || prototype === Object.prototype;
+}
 
-	if (isCaseInsensitive) {
-		return text.toLowerCase().includes(needle.toLowerCase());
-	}
-
-	return text.includes(needle);
+/**
+ * Detects object values that TypeORM may interpret as nested relation criteria.
+ * @param {unknown} value - Candidate nested WHERE value.
+ * @returns {boolean} True when the object must be inspected recursively.
+ */
+function isWhereBranchObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value) && !isAtomicWhereValue(value));
 }
 
 /**
@@ -227,16 +281,16 @@ function mergeRecordValues(baseValue: Record<string, unknown>, scopedValue: Reco
 		const currentScopedValue: unknown = scopedValue[key];
 
 		if (currentBaseValue === undefined) {
-			mergedValue[key] = currentScopedValue;
+			defineWhereProperty(mergedValue, key, currentScopedValue);
 			continue;
 		}
 
 		if (currentScopedValue === undefined) {
-			mergedValue[key] = currentBaseValue;
+			defineWhereProperty(mergedValue, key, currentBaseValue);
 			continue;
 		}
 
-		mergedValue[key] = mergeWhereValue(currentBaseValue, currentScopedValue);
+		defineWhereProperty(mergedValue, key, mergeWhereValue(currentBaseValue, currentScopedValue));
 	}
 
 	return mergedValue;
@@ -257,77 +311,165 @@ function mergeWhereValue(baseValue: unknown, scopedValue: unknown): unknown {
 		return baseValue;
 	}
 
-	if (isFindOperator(baseValue) && !isFindOperator(scopedValue)) {
-		return matchesFindOperator(scopedValue, baseValue) ? scopedValue : createMatchNothingOperator();
-	}
-
-	if (!isFindOperator(baseValue) && isFindOperator(scopedValue)) {
-		return matchesFindOperator(baseValue, scopedValue) ? baseValue : createMatchNothingOperator();
+	if (isFindOperator(baseValue) || isFindOperator(scopedValue)) {
+		return createConjunctionOperator(baseValue, scopedValue);
 	}
 
 	return createMatchNothingOperator();
 }
 
 /**
- * Normalizes date-like values into comparable timestamps.
- * @param {unknown} value - Candidate date-like value.
- * @returns {number | undefined} Timestamp when the value is date-like.
+ * Normalizes a validated WHERE operand before TypeORM receives it.
+ * @template E - Entity type
+ * @param {TApiAuthorizationScopeWhere<E>} value - Validated operand.
+ * @returns {TApiAuthorizationScopeWhere<E>} Operand with scalar leaves represented by exact Equal operators.
  */
-function normalizeDateValue(value: unknown): number | undefined {
-	if (value instanceof Date) {
-		return value.getTime();
+function normalizeWhereOperand<E extends IApiBaseEntity>(value: NonNullable<TApiAuthorizationScopeWhere<E>>): TApiAuthorizationScopeWhere<E> {
+	if (Array.isArray(value)) {
+		return value.map((branch: FindOptionsWhere<E>): FindOptionsWhere<E> => normalizeWhereRecord(branch) as FindOptionsWhere<E>);
 	}
 
-	if (typeof value === "string" || typeof value === "number") {
-		const date: Date = new Date(value);
-		const timestamp: number = date.getTime();
-
-		return Number.isNaN(timestamp) ? undefined : timestamp;
-	}
-
-	return undefined;
+	return normalizeWhereRecord(value) as FindOptionsWhere<E>;
 }
 
 /**
- * Normalizes numeric values and numeric strings into numbers.
- * @param {unknown} value - Candidate numeric value.
- * @returns {number | undefined} Numeric representation when available.
+ * Normalizes every value in a WHERE branch without invoking prototype setters.
+ * @param {Record<string, unknown>} value - Validated WHERE branch.
+ * @returns {Record<string, unknown>} Normalized branch.
  */
-function normalizeNumberValue(value: unknown): number | undefined {
-	if (typeof value === "number") {
-		return value;
+function normalizeWhereRecord(value: Record<string, unknown>): Record<string, unknown> {
+	const normalized: Record<string, unknown> = {};
+	const entries: Array<[string, unknown]> | undefined = getWhereRecordDataEntries(value);
+
+	if (!entries) {
+		throw ErrorException("Authorization scope WHERE object must contain enumerable data properties only");
 	}
 
-	if (typeof value === "bigint") {
-		return Number(value);
+	for (const [key, nestedValue] of entries) {
+		defineWhereProperty(normalized, key, normalizeWhereValue(nestedValue));
 	}
 
-	if (typeof value === "string" && value.trim().length > 0) {
-		const parsedValue: number = Number(value);
-
-		return Number.isNaN(parsedValue) ? undefined : parsedValue;
-	}
-
-	return undefined;
+	return normalized;
 }
 
 /**
- * Converts scalar-like values into safe comparable text.
- * @param {unknown} value - Candidate scalar.
- * @returns {string} Text representation without object default stringification.
+ * Converts scalar leaves to exact TypeORM equality while retaining relation structure.
+ * @param {unknown} value - Validated WHERE value.
+ * @returns {unknown} Normalized TypeORM condition.
  */
-function toComparableText(value: unknown): string {
-	if (typeof value === "string") {
+function normalizeWhereValue(value: unknown): unknown {
+	if (isFindOperator(value)) {
 		return value;
 	}
 
-	if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") {
-		return value.toString();
+	if (Array.isArray(value)) {
+		const arrayValues: Array<unknown> | undefined = getDenseArrayDataValues(value);
+
+		if (!arrayValues) {
+			throw ErrorException("Authorization scope WHERE arrays must contain dense enumerable data items only");
+		}
+
+		if (arrayValues.length === 0) {
+			return Equal(arrayValues);
+		}
+
+		const objectBranches: Array<boolean> = arrayValues.map((branchValue: unknown): boolean => isWhereBranchObject(branchValue));
+
+		return objectBranches.every(Boolean) ? arrayValues.map((branchValue: unknown): Record<string, unknown> => normalizeWhereRecord(branchValue as Record<string, unknown>)) : Equal(arrayValues);
 	}
 
-	if (value instanceof Date) {
-		return value.toISOString();
+	return isWhereBranchObject(value) ? normalizeWhereRecord(value) : Equal(value);
+}
+
+/**
+ * Rejects array-form WHERE expressions that TypeORM would interpret as unconstrained.
+ * @param {unknown} value - Candidate array-form WHERE expression.
+ * @returns {void}
+ */
+function validateWhereArray(value: unknown): void {
+	if (!Array.isArray(value)) {
+		return;
 	}
 
-	return "";
+	const branches: Array<unknown> | undefined = getDenseArrayDataValues(value);
+
+	if (!branches) {
+		throw ErrorException("Authorization scope WHERE array branches must be non-empty plain objects");
+	}
+
+	if (branches.length === 0) {
+		throw ErrorException("Authorization scope WHERE cannot be an empty array");
+	}
+
+	if (branches.some((branch: unknown): boolean => !isRecord(branch) || !hasOnlyEffectiveWherePredicates(branch))) {
+		throw ErrorException("Authorization scope WHERE array branches must be non-empty plain objects");
+	}
+
+	for (const branch of branches as Array<Record<string, unknown>>) {
+		validateWhereRecordKeys(branch);
+	}
+}
+
+/**
+ * Rejects malformed or non-empty but ineffective scalar WHERE expressions.
+ * @param {unknown} value - Candidate WHERE expression.
+ * @returns {void}
+ */
+function validateWhereOperand(value: unknown): void {
+	if (value === undefined) {
+		return;
+	}
+
+	if (Array.isArray(value)) {
+		validateWhereArray(value);
+
+		return;
+	}
+
+	if (!isRecord(value)) {
+		throw ErrorException("Authorization scope WHERE must be undefined, a plain object, or an array of plain objects");
+	}
+
+	const entries: Array<[string, unknown]> | undefined = getWhereRecordDataEntries(value);
+
+	if (!entries || (entries.length > 0 && !hasOnlyEffectiveWherePredicates(value))) {
+		throw ErrorException("Authorization scope WHERE object must contain an effective predicate");
+	}
+
+	validateWhereRecordKeys(value);
+}
+
+/**
+ * Rejects prototype-sensitive entity paths recursively.
+ * @param {Record<string, unknown>} value - WHERE branch to inspect.
+ * @returns {void}
+ */
+function validateWhereRecordKeys(value: Record<string, unknown>): void {
+	const entries: Array<[string, unknown]> | undefined = getWhereRecordDataEntries(value);
+
+	if (!entries) {
+		throw ErrorException("Authorization scope WHERE object must contain enumerable data properties only");
+	}
+
+	for (const [key, nestedValue] of entries) {
+		if (UNSAFE_WHERE_PROPERTY_NAMES.has(key)) {
+			throw ErrorException(`Authorization scope WHERE property "${key}" is not a safe property name`);
+		}
+
+		if (Array.isArray(nestedValue)) {
+			const branches: Array<unknown> | undefined = getDenseArrayDataValues(nestedValue);
+
+			if (!branches) {
+				throw ErrorException("Authorization scope WHERE arrays must contain dense enumerable data items only");
+			}
+
+			for (const branch of branches) {
+				if (isWhereBranchObject(branch)) {
+					validateWhereRecordKeys(branch);
+				}
+			}
+		} else if (isWhereBranchObject(nestedValue)) {
+			validateWhereRecordKeys(nestedValue);
+		}
+	}
 }

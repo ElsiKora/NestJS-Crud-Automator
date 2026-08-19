@@ -64,43 +64,48 @@ When the route owns the transaction, UPDATE joins it and step 17 does not commit
 ```
 1. HTTP Request arrives at controller
 2. Route subscribers: onBeforeGet (priority: high → low)
-3. Path parameters transformed and validated
+3. Generated primary-key and inherited read-scope path parameters are transformed and validated
 4. Resolve the configured generated-route transaction mode
-5. Service method: get() called with configured response relation loading
-6. Function subscribers: onBeforeGet (priority: high → low)
-7. Repository: findOne() executed
-8. Function subscribers: onAfterGet (priority: high → low)
-9. Commit and post-commit lifecycle when the route owns the transaction
-10. Controller transformers (response)
-11. Route subscribers: onAfterGet (priority: high → low)
-12. Authorization result transforms
-13. Relation projection and DTO serialization
-14. HTTP Response sent to client
+5. Inside the optional route transaction, primary identity is AND-merged with path scope and then HOOKS/IAM scope
+6. Service method: get() called with configured response relation loading
+7. Function subscribers: onBeforeGet (priority: high → low)
+8. Repository: findOne() executed
+9. Function subscribers: onAfterGet (priority: high → low)
+10. Commit and post-commit lifecycle when the route owns the transaction
+11. Controller transformers (response)
+12. Route subscribers: onAfterGet (priority: high → low)
+13. Authorization result transforms
+14. Relation projection and DTO serialization
+15. HTTP Response sent to client
 ```
+
+When `read.scope.parameters` is configured, its generated PARAMETERS DTO covers every controller-path parameter exactly once in addition to GET's primary identity. Conflicting identity, path, or IAM conditions become match-nothing criteria; no later layer overwrites an earlier field.
 
 ### Get List Operation
 
 ```
 1. HTTP Request arrives at controller
 2. Route subscribers: onBeforeGetList (priority: high → low)
-3. Request QUERY transformers and custom validators run outside the route transaction
-4. A configured typed query plan parses and validates the post-subscriber query into a canonical AST and applies `USE_DEFAULT` conditions when field groups are absent
-5. Resolve the configured generated-route transaction mode
-6. Inside the optional route transaction, client/default predicates are compiled and AND-merged once with authorization scope
-7. Service method: getList() called with configured response relation loading
-8. Function subscribers: onBeforeGetList (priority: high → low)
-9. Repository: find() and count() executed
-10. Function subscribers: onAfterGetList (priority: high → low)
-11. Service returns result with pagination metadata
-12. Commit and post-commit lifecycle when the route owns the transaction
-13. Controller transformers (response)
-14. Route subscribers: onAfterGetList (priority: high → low)
-15. Authorization result transforms
-16. Relation projection and DTO serialization
-17. HTTP Response sent to client
+3. Configured inherited read-scope PARAMETERS transformers and validators run outside the route transaction
+4. Request QUERY transformers and custom validators run outside the route transaction
+5. A configured typed query plan parses and validates the post-subscriber query into a canonical AST and applies `USE_DEFAULT` conditions when field groups are absent
+6. Resolve the configured generated-route transaction mode
+7. Inside the optional route transaction, query predicates are AND-merged with path scope and then HOOKS/IAM scope
+8. Page/limit and the effective client/default order plus de-duplicated tie-breakers are compiled into TypeORM options
+9. Service method: getList() called with configured response relation loading
+10. Function subscribers: onBeforeGetList (priority: high → low)
+11. Repository: find() and count() executed
+12. Function subscribers: onAfterGetList (priority: high → low)
+13. Service returns result with pagination metadata
+14. Commit and post-commit lifecycle when the route owns the transaction
+15. Controller transformers (response)
+16. Route subscribers: onAfterGetList (priority: high → low)
+17. Authorization result transforms
+18. Relation projection and DTO serialization
+19. HTTP Response sent to client
 ```
 
-The typed query parser is authoritative and does not depend on host `ValidationPipe` whitelist behavior. If the route omits typed filter/order configuration, the corresponding legacy metadata-driven parsing behavior remains unchanged.
+The typed query parser is authoritative and does not depend on host `ValidationPipe` whitelist behavior. If the route omits typed filter/order configuration, the corresponding legacy metadata-driven parsing behavior remains unchanged. A configured read scope uses a generated PARAMETERS DTO and cannot be combined with a manual PARAMETERS DTO. With no client order pair, `defaultOrder` precedes `tieBreakers`; with a client pair, it replaces defaults and still precedes de-duplicated tie-breakers. A unique final tie-breaker makes page/limit ordering deterministic for an unchanged dataset.
 
 ### Delete Operation
 

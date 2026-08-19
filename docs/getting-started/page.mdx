@@ -13,7 +13,7 @@ This guide will walk you through the basic setup and usage of NestJS CRUD Automa
 	<Tabs.Tab>```bash copy bun install @elsikora/nestjs-crud-automator ```</Tabs.Tab>
 </Tabs>
 
-Plain installation currently resolves the published 2.10 line. This source documentation describes the unreleased 3.0 contract. Pin an exact published 3.0 candidate when it becomes available and follow [Migrating to 3.0](/docs/nestjs-crud-automator/guides/migrating-to-3-0) before adoption.
+Version `3.0.2` is the published baseline immediately before the additive generated-read work documented here. Package versions remain owned by release automation, so pin the exact released version your application has verified. Follow [Migrating to 3.0](/docs/nestjs-crud-automator/guides/migrating-to-3-0) when upgrading a pre-3.0 consumer.
 
 ## Prerequisites
 
@@ -226,6 +226,54 @@ With the above setup, the following endpoints are automatically generated:
 - `PATCH /users/:id` - Partially update a user
 - `DELETE /users/:id` - Delete a user
 
+## Nested Generated Reads
+
+When a controller path inherits owner parameters, map every path parameter to a described direct scalar entity field on generated `GET` and `GET_LIST` routes:
+
+```typescript filename="provider-game.controller.ts" copy
+import { ApiController, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiRouteType, EFilterOrderDirection } from "@elsikora/nestjs-crud-automator";
+import { GameEntity } from "./game.entity";
+import { GameService } from "./game.service";
+
+@ApiController<GameEntity>({
+	entity: GameEntity,
+	path: "providers/:providerKey/games",
+	routes: {
+		[EApiRouteType.GET]: {
+			read: {
+				scope: {
+					parameters: [{ parameter: "providerKey", field: "providerId" }],
+				},
+			},
+		},
+		[EApiRouteType.GET_LIST]: {
+			read: {
+				scope: {
+					parameters: [{ parameter: "providerKey", field: "providerId" }],
+				},
+			},
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					order: {
+						defaultOrder: [{ direction: EFilterOrderDirection.ASC, field: "name" }],
+						fields: { name: { isEnabled: true } },
+						tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+				},
+			},
+		},
+	},
+})
+export class ProviderGameController {
+	constructor(public service: GameService) {}
+}
+```
+
+Automator generates the PARAMETERS DTO and Swagger path metadata from the mapped entity field. A manual PARAMETERS DTO cannot be combined with `read.scope.parameters`. GET keeps its generated primary-key parameter in addition to the inherited scope. GET identity or GET_LIST query predicates are AND-merged with path scope and then HOOKS/IAM scope, so later layers cannot overwrite earlier conditions.
+
+For GET_LIST, a client `orderBy` replaces `defaultOrder`; `tieBreakers` are then appended with duplicate fields removed. A UUID `id` can be a server-only final tie-breaker without becoming a client-sort field. Send explicit `page` and `limit` values for the native stable pagination contract.
+
 ## Swagger Documentation
 
 To enable Swagger documentation in your application:
@@ -264,8 +312,8 @@ bootstrap();
 
 Now that you have a basic setup, explore the following sections:
 
-- [Migrating to 3.0](/docs/nestjs-crud-automator/guides/migrating-to-3-0) - Upgrade from the published 2.10 contract
-- [3.0 Release Notes](/docs/nestjs-crud-automator/guides/release-notes-3-0) - Review the complete unreleased major scope
+- [Migrating to 3.0](/docs/nestjs-crud-automator/guides/migrating-to-3-0) - Upgrade a pre-3.0 consumer
+- [3.0 Release Notes](/docs/nestjs-crud-automator/guides/release-notes-3-0) - Review the published major-version scope
 - [Core Concepts](/docs/nestjs-crud-automator/core-concepts) - Understand the library architecture
 - [Guides](/docs/nestjs-crud-automator/guides) - Learn filtering, authentication, validation, and more
 - [Subscriber System](/docs/nestjs-crud-automator/subscriber-system) - Add hooks to extend CRUD operations

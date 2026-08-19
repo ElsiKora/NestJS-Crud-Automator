@@ -42,6 +42,7 @@ The core philosophy of this library is built on four pillars: being **Declarativ
 - ✨ **🧩 Type-safe decorators for entity properties with rich metadata support**
 - ✨ **🔒 Authentication and authorization guards integration**
 - ✨ **🔍 Advanced filtering, sorting, and pagination for list operations**
+- ✨ **🧩 Generated nested GET/GET_LIST reads with owner path scoping and stable server ordering**
 - ✨ **📚 Support for object relations with include-driven loading**
 - ✨ **⚡ Performance optimized with TypeORM integration for database operations**
 - ✨ **🌐 Full support for TypeScript with strong typing throughout the library**
@@ -67,7 +68,7 @@ yarn add @elsikora/nestjs-crud-automator
 pnpm add @elsikora/nestjs-crud-automator
 ```
 
-Plain installation currently resolves the published 2.10 line. The source-tree examples describe the unreleased 3.0 contract. Do not treat registry `latest` as 3.0 until an exact candidate exists; pin that published version and follow the [3.0 migration guide](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-3-0).
+Version `3.0.2` is the published baseline immediately before this additive generated-read change. Package versions remain owned by release automation, so pin the exact released version your application has verified. Consumers upgrading from pre-3.0 releases should follow the [3.0 migration guide](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-3-0).
 
 ### Prerequisites
 
@@ -1303,17 +1304,68 @@ GET_LIST query DTOs remain dynamically generated from entity `ApiPropertyDescrib
 
 Use `INHERIT` to overlay metadata-enabled fields or `REJECT` to create an allowlist. Enabled filters declare a non-empty operation set and optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior; `REJECT` returns `400 FILTER_REQUIRED`. Route plans cannot re-enable metadata-disabled fields. A manual QUERY DTO is mutually exclusive with generated filter/order config, while a manual RESPONSE DTO remains compatible.
 
+### Generated Nested Reads and Stable Ordering
+
+Generated `GET` and `GET_LIST` routes can bind inherited controller path parameters to described direct scalar entity fields. This keeps nested owner/resource reads inside the native generated runtime:
+
+```typescript
+@ApiController<GameEntity>({
+	entity: GameEntity,
+	path: "providers/:providerKey/games",
+	routes: {
+		[EApiRouteType.GET]: {
+			read: {
+				scope: {
+					parameters: [{ parameter: "providerKey", field: "providerId" }],
+				},
+			},
+		},
+		[EApiRouteType.GET_LIST]: {
+			read: {
+				scope: {
+					parameters: [{ parameter: "providerKey", field: "providerId" }],
+				},
+			},
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					order: {
+						defaultOrder: [
+							{ direction: EFilterOrderDirection.DESC, field: "rank" },
+							{ direction: EFilterOrderDirection.ASC, field: "id" },
+						],
+						fields: {
+							rank: { isEnabled: true },
+						},
+						tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+				},
+			},
+		},
+	},
+})
+export class ProviderGameController {
+	constructor(public service: GameService) {}
+}
+```
+
+Every required scalar `:parameter` inherited from the controller `path` must be mapped exactly once. Wildcards and optional/grouped dynamic parameters are not valid read-scope owners and fail at bootstrap. Each mapping targets a described direct scalar field; duplicate parameters, duplicate fields, unknown path parameters, relations, objects, and missing mappings also fail at bootstrap. Automator generates and documents a route-scoped PARAMETERS DTO from the mapped field metadata, while generated `GET` keeps its ordinary primary-key parameter. A manual PARAMETERS DTO and generated read scope are mutually exclusive.
+
+Read criteria are merged conjunctively in a fixed order: GET identity or GET_LIST query predicates, then path scope, then HOOKS/IAM scope. A later layer never overwrites an earlier field; incompatible values become a match-nothing condition. During an additional-scope merge, scalar leaves are emitted as explicit TypeORM `Equal(...)` predicates so relation-shaped paths cannot cause TypeORM to discard them. Wrap object-valued scalar columns such as JSON/JSONB or geometry in `Equal(value)` explicitly; unwrapped objects are interpreted as relation or embedded criteria.
+
+`defaultOrder` applies when the client omits `orderBy`/`orderDirection`. A supplied client order replaces the defaults, after which `tieBreakers` are appended and duplicate fields are removed with the earlier entry winning. These server-owned entries may use any described direct scalar field, including a UUID `id`, without exposing that field in the client `orderBy` allowlist. Use a deterministic final tie-breaker for stable `page`/`limit` pagination.
+
 ## 🧭 Migrating to 3.0
 
-The repository contains the unreleased 3.0 source contract while package versions remain owned by semantic-release. Review the [3.0 release notes](https://elsikora.com/docs/nestjs-crud-automator/guides/release-notes-3-0) for all accepted, rejected, and deferred changes, then follow [Migrating to 3.0](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-3-0) before pinning an exact published candidate.
+The 3.0 line is published, and `3.0.2` is the baseline immediately before the generated nested-read and stable compound-order additions documented here. Review the [3.0 release notes](https://elsikora.com/docs/nestjs-crud-automator/guides/release-notes-3-0) and follow [Migrating to 3.0](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-3-0) when upgrading a pre-3.0 consumer. Release automation owns the exact package version that first publishes these additive capabilities.
 
 The major migration covers semantic timestamp ownership, UPDATE `currentEntity`, named transaction scopes and post-transaction hooks, source-first authorization, opt-in generated-route transactions and relation locks, entity-based service relation inputs, typed GET_LIST query plans and strict `400` responses, the BigInt string sign enum, and retired validator configuration exports.
 
-3.0 intentionally adds no immutable controller `baseWhere`, no `FULL` or `PRESERVE` relation projection, and no custom-only/default-disabled controller mode. Existing HOOKS/IAM scope remains the authorization boundary, custom-only controllers disable all six generated routes explicitly, and a consumer-side typed URL/bracket-filter builder remains deferred.
+The current contract has no arbitrary immutable controller `baseWhere`, no `FULL` or `PRESERVE` relation projection, and no custom-only/default-disabled controller mode. Generated `read.scope.parameters` is specifically a request-bound mapping from inherited path parameters, not a fixed-scope escape hatch. HOOKS/IAM scope remains the authorization boundary, custom-only controllers disable all six generated routes explicitly, and a consumer-side typed URL/bracket-filter builder remains deferred.
 
 ## 🛣 Current Status
 
-The latest published package remains on the 2.10 line until release automation publishes an exact 3.0 candidate. The current repository source contains the reviewed 3.0 contract for NestJS REST controllers backed by TypeORM repositories. Core CRUD generation, DTO generation, Swagger/OpenAPI metadata, request/response transformers, relation loading, pagination, filtering/sorting, subscribers, transactions, and HOOKS/IAM authorization are implemented.
+Version `3.0.2` is the pre-feature published baseline; package versions remain owned by release automation. The repository source adds the reviewed generated-read contract to the established 3.x NestJS/TypeORM API. Core CRUD generation, DTO generation, Swagger/OpenAPI metadata, request/response transformers, relation loading, stable page/limit pagination, filtering/sorting, subscribers, transactions, and HOOKS/IAM authorization are implemented.
 
 MongoDB, GraphQL, soft deletes, bulk operations, general-purpose cache integration, and custom parameter decorators are not part of the current public contract. Authorization supports source-first resolver reads by default, bounded in-process resolver caching as an explicit opt-in, separate policy-rule caching, and explicit cache invalidation.
 
@@ -1324,10 +1376,11 @@ The roadmap is aligned with the current source contract rather than older docs-o
 ### Available in Current Source
 
 - REST CRUD controller and service generation for TypeORM entities
-- Entity-driven DTO generation for body, query, parameters, and response contracts, including controller-scoped typed GET_LIST query plans
+- Entity-driven DTO generation for body, query, parameters, and response contracts, including controller-scoped typed GET_LIST query plans and inherited read-path parameter DTOs
 - Custom DTO support, including nested manual DTOs and GET_LIST item response DTOs
 - Swagger/OpenAPI metadata generation for generated and custom routes
-- Pagination, filtering, sorting, request validators, and request/response transformers
+- Stable page/limit pagination, typed filtering, client ordering plus server defaults/tie-breakers, request validators, and request/response transformers
+- Generated nested GET/GET_LIST owner scoping through exact inherited path-parameter mappings
 - Request and response relation loading with configurable reference projection
 - Route and function subscribers, including custom route/function hooks and error hooks
 - Hooks-mode authorization policies and IAM-style policy document authorization
@@ -1373,7 +1426,7 @@ Yes! The library provides multiple ways to customize your endpoints:
 
 ### Does it support pagination?
 
-Yes, the GET_LIST operation automatically includes pagination with limit and page parameters, and returns count, currentPage, totalCount, and totalPages in the response.
+Yes. Generated GET_LIST requires 1-based `page` and `limit` parameters and returns `count`, `currentPage`, `totalCount`, and `totalPages`. Configure `defaultOrder` plus a unique final `tieBreakers` field such as UUID `id` when consecutive pages must remain deterministic for an unchanged dataset.
 
 ### How is filtering implemented?
 

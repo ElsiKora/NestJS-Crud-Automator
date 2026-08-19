@@ -1,4 +1,4 @@
-import type { IApiControllerGetListQueryAst, IApiControllerGetListQueryAstNode, IApiControllerGetListQueryOperator, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanFilterField, IApiControllerGetListQueryRawGroup, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerGetListQueryAst, IApiControllerGetListQueryAstNode, IApiControllerGetListQueryOperator, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanFilterField, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryRawGroup, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
 import type { TApiFunctionGetListPropertiesWhere } from "@type/decorator/api/function";
 import type { FindOperator } from "typeorm";
 
@@ -62,14 +62,31 @@ export class ApiControllerGetListQueryRuntime {
 
 		const order: { orderBy?: string; orderDirection?: EFilterOrderDirection } = this.parseOrder(query.orderBy, query.orderDirection, plan);
 		const ast: IApiControllerGetListQueryAst | undefined = plan.filter.isLegacy ? undefined : this.parseFilter(filterQuery, plan);
+		const hasCompoundOrder: boolean = plan.order.defaultOrder !== undefined || plan.order.tieBreakers !== undefined;
 
 		return Object.freeze({
 			ast,
 			filterQuery: Object.freeze(filterQuery),
 			limit,
+			...(hasCompoundOrder ? { order: this.compileOrder(order.orderBy, order.orderDirection, plan) } : {}),
 			...order,
 			page,
 		});
+	}
+
+	private static compileOrder(orderBy: string | undefined, orderDirection: EFilterOrderDirection | undefined, plan: IApiControllerGetListQueryPlan): ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> {
+		const configuredEntries: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> = orderBy && orderDirection ? [{ direction: orderDirection, field: orderBy }, ...(plan.order.tieBreakers ?? [])] : [...(plan.order.defaultOrder ?? []), ...(plan.order.tieBreakers ?? [])];
+		const fields: Set<string> = new Set<string>();
+		const entries: Array<IApiControllerGetListQueryPlanOrderEntry> = [];
+
+		for (const entry of configuredEntries) {
+			if (!fields.has(entry.field)) {
+				fields.add(entry.field);
+				entries.push(Object.freeze({ direction: entry.direction, field: entry.field }));
+			}
+		}
+
+		return Object.freeze(entries);
 	}
 
 	private static parseFilter(query: Record<string, unknown>, plan: IApiControllerGetListQueryPlan): IApiControllerGetListQueryAst {

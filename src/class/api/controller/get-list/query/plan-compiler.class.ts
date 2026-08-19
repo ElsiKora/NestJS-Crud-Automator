@@ -1,6 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiControllerGetListQueryOperator, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanCondition, IApiControllerGetListQueryPlanFilter, IApiControllerGetListQueryPlanFilterField, IApiControllerGetListQueryPlanOrder, IApiControllerGetListQueryPlanOrderField } from "@interface/class/api/controller/get-list/query";
-import type { IApiControllerPropertiesRouteGetListQueryFilter, IApiControllerPropertiesRouteGetListQueryOrder, IApiControllerPropertiesRouteGetListQueryRequestTarget } from "@interface/decorator/api";
+import type { IApiControllerGetListQueryOperator, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanCondition, IApiControllerGetListQueryPlanFilter, IApiControllerGetListQueryPlanFilterField, IApiControllerGetListQueryPlanOrder, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryPlanOrderField } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerPropertiesRouteGetListQueryFilter, IApiControllerPropertiesRouteGetListQueryOrder, IApiControllerPropertiesRouteGetListQueryOrderEntry, IApiControllerPropertiesRouteGetListQueryRequestTarget } from "@interface/decorator/api";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
@@ -15,7 +15,7 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
 import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiRouteType } from "@enum/decorator/api";
-import { EFilterOperand, EFilterOperation } from "@enum/filter";
+import { EFilterOperand, EFilterOperation, EFilterOrderDirection } from "@enum/filter";
 import { ApiControllerGetListQueryEnumValues } from "@utility/api/controller/get-list/query/enum-values.utility";
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
@@ -38,8 +38,26 @@ export class ApiControllerGetListQueryPlanCompiler {
 		const currentGuard: Type<IAuthGuard> | undefined = routeConfig.security?.authentication?.guard;
 		const filterBaseline: Readonly<Record<string, IApiControllerGetListQueryPlanFilterField>> = this.buildFilterBaseline(entityMetadata, currentGuard);
 		const orderBaseline: Readonly<Record<string, IApiControllerGetListQueryPlanOrderField>> = this.buildOrderBaseline(entity, entityMetadata);
+		const serverOrderBaseline: ReadonlySet<string> = this.buildServerOrderBaseline(entityMetadata);
 		const filter: IApiControllerGetListQueryPlanFilter = queryTarget.filter ? this.compileFilter(queryTarget.filter, filterBaseline) : Object.freeze({ fields: filterBaseline, isLegacy: true });
-		const order: IApiControllerGetListQueryPlanOrder = queryTarget.order ? this.compileOrder(queryTarget.order, orderBaseline) : Object.freeze({ fields: orderBaseline, isLegacy: true });
+		const order: IApiControllerGetListQueryPlanOrder = queryTarget.order ? this.compileOrder(queryTarget.order, orderBaseline, serverOrderBaseline) : Object.freeze({ fields: orderBaseline, isLegacy: true });
+
+		const normalizedOrder: Record<string, unknown> = {
+			fields: Object.values(order.fields).map((field: IApiControllerGetListQueryPlanOrderField) => ({
+				isEnabled: field.isEnabled,
+				path: field.path,
+			})),
+			isLegacy: order.isLegacy,
+			unlistedFields: order.unlistedFields,
+		};
+
+		if (queryTarget.order?.defaultOrder !== undefined) {
+			normalizedOrder.defaultOrder = order.defaultOrder;
+		}
+
+		if (queryTarget.order?.tieBreakers !== undefined) {
+			normalizedOrder.tieBreakers = order.tieBreakers;
+		}
 
 		const normalizedPlan: object = {
 			filter: {
@@ -53,14 +71,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 				isLegacy: filter.isLegacy,
 				unlistedFields: filter.unlistedFields,
 			},
-			order: {
-				fields: Object.values(order.fields).map((field: IApiControllerGetListQueryPlanOrderField) => ({
-					isEnabled: field.isEnabled,
-					path: field.path,
-				})),
-				isLegacy: order.isLegacy,
-				unlistedFields: order.unlistedFields,
-			},
+			order: normalizedOrder,
 		};
 		const signature: string = createHash("sha256").update(JSON.stringify(normalizedPlan)).digest("hex");
 
@@ -135,6 +146,20 @@ export class ApiControllerGetListQueryPlanCompiler {
 			.map(String)
 			.toSorted((left: string, right: string): number => left.localeCompare(right))) {
 			fields[path] = Object.freeze({ isEnabled: true, path });
+		}
+
+		return Object.freeze(fields);
+	}
+
+	private static buildServerOrderBaseline<E>(entityMetadata: IApiEntity<E>): ReadonlySet<string> {
+		const fields: Set<string> = new Set<string>();
+
+		for (const column of entityMetadata.columns) {
+			const metadata: TApiPropertyDescribeProperties | undefined = this.getPropertyMetadata(column);
+
+			if (!column.relation && metadata && metadata.type !== EApiPropertyDescribeType.OBJECT && metadata.type !== EApiPropertyDescribeType.RELATION) {
+				fields.add(String(column.name));
+			}
 		}
 
 		return Object.freeze(fields);
@@ -267,10 +292,10 @@ export class ApiControllerGetListQueryPlanCompiler {
 		});
 	}
 
-	private static compileOrder<E>(config: IApiControllerPropertiesRouteGetListQueryOrder<E>, baseline: Readonly<Record<string, IApiControllerGetListQueryPlanOrderField>>): IApiControllerGetListQueryPlanOrder {
+	private static compileOrder<E>(config: IApiControllerPropertiesRouteGetListQueryOrder<E>, baseline: Readonly<Record<string, IApiControllerGetListQueryPlanOrderField>>, serverBaseline: ReadonlySet<string>): IApiControllerGetListQueryPlanOrder {
 		const rawConfig: Record<string, unknown> = this.requireRecord(config, "GET_LIST order");
 
-		this.requireExactKeys(rawConfig, ["fields", "unlistedFields"], "GET_LIST order");
+		this.requireAllowedKeys(rawConfig, ["defaultOrder", "fields", "tieBreakers", "unlistedFields"], "GET_LIST order");
 		this.validateUnlistedFields(config.unlistedFields, "order");
 		const configuredFields: Record<string, unknown> = this.requireRecord(config.fields, "GET_LIST order fields");
 		const fields: Record<string, IApiControllerGetListQueryPlanOrderField> = config.unlistedFields === EApiControllerGetListQueryUnlistedFields.INHERIT ? { ...baseline } : {};
@@ -292,12 +317,61 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 			fields[path] = Object.freeze({ ...baselineField, isEnabled: field.isEnabled });
 		}
+		const defaultOrder: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> = this.compileOrderEntries(config.defaultOrder, serverBaseline, "defaultOrder");
+		const tieBreakers: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> = this.compileOrderEntries(config.tieBreakers, serverBaseline, "tieBreakers");
+
+		for (const defaultEntry of defaultOrder) {
+			const tieBreaker: IApiControllerGetListQueryPlanOrderEntry | undefined = tieBreakers.find((entry: IApiControllerGetListQueryPlanOrderEntry): boolean => entry.field === defaultEntry.field);
+
+			if (tieBreaker && tieBreaker.direction !== defaultEntry.direction) {
+				throw ErrorException(`GET_LIST order field "${defaultEntry.field}" has conflicting directions across defaultOrder and tieBreakers`);
+			}
+		}
 
 		return Object.freeze({
+			...(config.defaultOrder === undefined ? {} : { defaultOrder }),
 			fields: Object.freeze(this.sortRecord(fields)),
 			isLegacy: false,
+			...(config.tieBreakers === undefined ? {} : { tieBreakers }),
 			unlistedFields: config.unlistedFields,
 		});
+	}
+
+	private static compileOrderEntries<E>(rawEntries: ReadonlyArray<IApiControllerPropertiesRouteGetListQueryOrderEntry<E>> | undefined, baseline: ReadonlySet<string>, context: string): ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> {
+		if (rawEntries === undefined) {
+			return Object.freeze([]);
+		}
+
+		if (!Array.isArray(rawEntries)) {
+			throw ErrorException(`GET_LIST order ${context} must be an array`);
+		}
+
+		const entries: Array<IApiControllerGetListQueryPlanOrderEntry> = [];
+		const seenFields: Set<string> = new Set<string>();
+
+		for (const [index, rawEntry] of rawEntries.entries()) {
+			const entry: Record<string, unknown> = this.requireRecord(rawEntry, `GET_LIST order ${context}[${index}]`);
+			this.requireExactKeys(entry, ["direction", "field"], `GET_LIST order ${context}[${index}]`);
+			const field: unknown = entry.field;
+			const direction: unknown = entry.direction;
+
+			if (typeof field !== "string" || !baseline.has(field)) {
+				throw ErrorException(`GET_LIST order ${context}[${index}] must target a described direct scalar entity field`);
+			}
+
+			if (direction !== EFilterOrderDirection.ASC && direction !== EFilterOrderDirection.DESC) {
+				throw ErrorException(`GET_LIST order ${context}[${index}] has an invalid direction`);
+			}
+
+			if (seenFields.has(field)) {
+				throw ErrorException(`GET_LIST order ${context} contains duplicate field "${field}"`);
+			}
+
+			seenFields.add(field);
+			entries.push(Object.freeze({ direction, field }));
+		}
+
+		return Object.freeze(entries);
 	}
 
 	private static createFilterField(path: string, metadata: TApiPropertyDescribeProperties, isNullable: boolean): IApiControllerGetListQueryPlanFilterField {

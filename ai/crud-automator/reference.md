@@ -14,6 +14,8 @@
 | Manual route DTOs                               | `dto: { [EApiDtoType.*]: DTO }`                         |
 | GET_LIST custom item shape                      | `dto: { [EApiDtoType.RESPONSE]: { itemType, name? } }`  |
 | Typed GET_LIST filter/order overlay             | `request[EApiControllerRequestTarget.QUERY]`            |
+| Inherited owner path scope for GET/GET_LIST     | `read.scope.parameters`                                 |
+| Stable server list order                        | `order.defaultOrder` + `order.tieBreakers`              |
 | Relation hydration                              | `relations.request`                                     |
 | Generated route transaction                     | `routes[route].transaction`                             |
 | Direct request relation lock                    | `relations.request.load.locks`                          |
@@ -112,9 +114,11 @@ Generated route transaction rules:
 - Use entity `ApiPropertyDescribe.properties` for field enablement, requiredness, response exposure, filters, guards, and route/DTO-specific behavior.
 - Generated CREATE, UPDATE, and PARTIAL_UPDATE bodies omit date fields identified as `CREATED_AT`, `RECEIVED_AT`, or `UPDATED_AT`; responses retain them. Property names do not imply ownership, and `DATE` remains writable.
 - Generated GET_LIST `request[QUERY].filter` and `order` compile with entity/TypeORM metadata into one immutable plan. `INHERIT` overlays metadata; `REJECT` creates an allowlist; route config cannot re-enable a metadata-disabled field.
-- Filter fields use exact disabled `{ isEnabled: false }` or enabled non-empty `allowedOperations` plus optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior. Order fields are direct-scalar enabled/disabled overlays and have no filter-only settings.
+- Filter fields use exact disabled `{ isEnabled: false }` or enabled non-empty `allowedOperations` plus optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior. Client order fields are direct-scalar enabled/disabled overlays and have no filter-only settings.
+- `order.defaultOrder` and `order.tieBreakers` are ordered server-only `{ field, direction }` arrays. They may target any described direct scalar field, including UUID fields excluded from the client order enum. A client order pair replaces defaults, tie-breakers are appended, and duplicate fields retain the earlier entry.
 - Manual GET_LIST QUERY DTOs cannot be combined with generated filter/order config. Manual RESPONSE DTOs remain compatible.
-- The package does not include a consumer-side typed URL/bracket-filter builder in 3.0.
+- Generated GET/GET_LIST `read.scope.parameters` creates the PARAMETERS DTO from inherited controller-path mappings and cannot be combined with a manual PARAMETERS DTO.
+- The package does not include a consumer-side typed URL/bracket-filter builder in the current 3.x contract.
 - `isExpose` is response-only and requires `isResponse: true`.
 - Guard-scoped DTO generation depends on the route's configured guard class; it is not a per-request role check.
 - `isUniqueItems` is OpenAPI schema metadata unless source adds explicit runtime uniqueness validation.
@@ -130,7 +134,32 @@ getList(properties: FindManyOptions<E>): Promise<IApiGetListResponseResult<E>>;
 getMany(properties: FindManyOptions<E>): Promise<Array<E>>;
 ```
 
-Controller GET_LIST query parameters (`limit`, `page`, `orderBy`, `orderDirection`, bracketed filters) are converted to TypeORM `take`, `skip`, `order`, and `where` before the service is called. With a typed plan, after route-before subscribers and request QUERY transforms/validators, the authoritative parser validates exact paths, operations, cardinality, and scalar values independently of host `ValidationPipe` and applies `USE_DEFAULT` when a field group is absent. The optional route transaction then compiles the AST, AND-merges client/default predicates with authorization scope once, and runs the service query. Omitted filter/order sections retain the corresponding legacy metadata-driven path.
+Controller GET_LIST query parameters (`limit`, `page`, `orderBy`, `orderDirection`, bracketed filters) are converted to TypeORM `take`, `skip`, `order`, and `where` before the service is called. With a typed plan, after route-before subscribers and request path/query transforms/validators, the authoritative parser validates exact paths, operations, cardinality, and scalar values independently of host `ValidationPipe` and applies `USE_DEFAULT` when a field group is absent. The optional route transaction then compiles the AST, AND-merges query predicates with generated path scope and then authorization scope, applies the effective defaults/client order plus tie-breakers, and runs the service query. Omitted filter/order sections retain the corresponding legacy metadata-driven path.
+
+## Generated Read Scope
+
+Generated GET and GET_LIST routes accept:
+
+```ts
+read: {
+	scope: {
+		parameters: [
+			{ parameter: "providerKey", field: "providerId" },
+		],
+	},
+}
+```
+
+This contract is intentionally closed:
+
+- It is valid only on GET and GET_LIST.
+- `parameters` must be a non-empty array and every entry has exactly `parameter` and `field`.
+- Every required scalar `:parameter` in the inherited controller `path` must be mapped exactly once; parameters and fields cannot repeat. Wildcards and optional/grouped dynamic parameters fail at bootstrap.
+- `field` must be a described direct scalar column. Relations and objects are rejected.
+- A GET controller path cannot reuse the entity primary-key parameter name because the generated item route owns that identity; read scope does not rename or replace it.
+- A manual `dto[EApiDtoType.PARAMETERS]` is mutually exclusive. `autoDto[PARAMETERS]` validators remain available.
+
+The generated route-local PARAMETERS DTO applies the selected entity field metadata under the external owner-path name and drives Nest parameter metadata plus Swagger. GET includes its unchanged primary-key parameter and the mappings; GET_LIST includes the mappings. Runtime criteria are merged as identity/query → path → HOOKS/IAM with logical AND. Field conflicts become match-nothing criteria, never last-write-wins replacement. Scalar leaves are normalized to explicit TypeORM `Equal(...)` predicates during an additional-scope merge; object-valued scalar columns must already be wrapped in `Equal(value)` because raw objects denote relation or embedded criteria.
 
 `@ApiFunctionDelete` internally removes an entity snapshot, but generated service/controller delete APIs intentionally expose `Promise<void>`. Do not design public delete flows around receiving the removed entity unless the source contract is changed first.
 
@@ -158,7 +187,7 @@ Generated request relation caveats:
 - Scalar relation values are an HTTP/controller contract; generated service inputs remain entity-based.
 - Response reference projection supports destructive `OBJECT` and `SCALAR` shapes only; there is no `FULL` or `PRESERVE` mode.
 - For generated routes, request relation hydration reads relation fields from the request body for CREATE, UPDATE, and PARTIAL_UPDATE. It does not hydrate GET/DELETE route parameters.
-- CREATE always reloads the created entity through `service.get(...)`, including configured response relations when present. UPDATE/PARTIAL_UPDATE reload only when response relation loading is configured. DELETE returns no body. GET_LIST maps `limit`/`page` to `take`/`skip`, applies `orderBy` only when present, and uses a configured normalized query plan for strict filter/order contracts.
+- CREATE always reloads the created entity through `service.get(...)`, including configured response relations when present. UPDATE/PARTIAL_UPDATE reload only when response relation loading is configured. DELETE returns no body. GET_LIST requires `limit`/`page`, maps them to `take`/`skip`, and uses a configured normalized query plan for strict filter/order contracts. Without client order it applies `defaultOrder` plus tie-breakers; with client order it replaces defaults and appends de-duplicated tie-breakers.
 
 ## Subscriber Contexts
 
@@ -216,7 +245,8 @@ For generated CRUD before hooks, `context.result` includes request targets plus 
 - Source-first errors propagate; the resolver never falls back to a previously successful value. Duplicate permissions, attachments, and document IDs are still collapsed inside one resolution.
 - `MEMORY` requires explicit positive safe-integer `ttlMs` and `maxEntries`, is bounded independently per resolver cache, and is local to one process.
 - `ApiAuthorizationCacheInvalidationService.clearAll()` clears policy, IAM attachment/document, and hook permission caches. Resolver entries exist only in memory mode; policy-rule caching is a separate default-disabled option and requires invalidation whenever enabled rules change.
-- There is no separate immutable controller `baseWhere`; fixed and principal-dependent restrictions belong in HOOKS/IAM scope.
+- There is no arbitrary immutable controller `baseWhere`. `read.scope.parameters` is limited to request-bound inherited path values; fixed and principal-dependent restrictions belong in HOOKS/IAM scope.
+- Array-form authorization `where` values are OR branches and must be non-empty arrays of non-empty plain objects. `AuthorizationScopeMergeWhere` rejects `[]` and empty branches before TypeORM instead of treating them as an unconstrained query. It normalizes scalar leaves to exact `Equal(...)` predicates whenever another scope is merged; use an explicit `Equal(value)` for JSON/JSONB, geometry, or another object-valued scalar.
 
 ## 3.0 Export Migration
 

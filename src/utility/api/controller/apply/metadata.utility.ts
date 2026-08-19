@@ -1,6 +1,7 @@
 import type { EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
@@ -10,7 +11,7 @@ import { EApiDtoType } from "@enum/decorator/api";
 import { assignMetadata } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum.js";
-import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetDto, ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
 
 /**
  * Applies metadata for NestJS controller methods to enable proper dependency injection.
@@ -27,11 +28,29 @@ import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
  * @template E - The entity type
  */
 export function ApiControllerApplyMetadata<E extends IApiBaseEntity>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, queryPlan?: IApiControllerGetListQueryPlan): void {
+	ApiControllerApplyMetadataWithReadPlan(target, targetPrototype, entity, properties, method, methodName, routeConfig, queryPlan);
+}
+
+/**
+ * Applies generated route metadata with an internal compiled read plan.
+ * @template E - Entity type
+ * @param {object} target - Controller class receiving Swagger metadata.
+ * @param {object} targetPrototype - Controller prototype receiving Nest route arguments.
+ * @param {IApiEntity<E>} entity - Entity metadata.
+ * @param {IApiControllerProperties<E>} properties - Controller configuration.
+ * @param {EApiRouteType} method - Generated route type.
+ * @param {string} methodName - Generated controller method name.
+ * @param {TApiControllerPropertiesRoute<E, typeof method>} routeConfig - Route configuration.
+ * @param {IApiControllerGetListQueryPlan} [queryPlan] - Internal compiled QUERY plan.
+ * @param {IApiControllerReadPlan} [readPlan] - Internal compiled PARAMETERS plan.
+ * @returns {void}
+ */
+export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan): void {
 	let parameterIndex: number = 0;
 	let routeArgumentsMetadata: unknown = {};
 	const parameterTypes: Array<unknown> = [];
 
-	const requestDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, queryPlan);
+	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, queryPlan, readPlan);
 	const queryDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.QUERY, routeConfig, queryPlan);
 	const bodyDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.BODY, routeConfig, queryPlan);
 

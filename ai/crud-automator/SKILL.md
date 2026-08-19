@@ -36,6 +36,9 @@ Use local source as the contract:
 - `autoDto` is validators-only. Entity `ApiPropertyDescribe({ properties })` remains the capability baseline; generated GET_LIST `request[QUERY].filter` and `order` may narrow or overlay its query exposure.
 - Manual `dto` and `autoDto` route branches are mutually exclusive.
 - A manual GET_LIST QUERY DTO is mutually exclusive with generated filter/order configuration; a manual RESPONSE DTO remains compatible.
+- Generated GET/GET_LIST `read.scope.parameters` is a non-empty array of `{ parameter, field }` mappings. It must exactly cover every required scalar inherited controller-path parameter once, maps only to distinct described direct scalar fields, and is mutually exclusive with a manual PARAMETERS DTO. Wildcard and optional/grouped dynamic path parameters fail at bootstrap.
+- Generated read scope creates a route-scoped PARAMETERS DTO and Swagger contract. GET keeps its primary identity parameter; GET_LIST adds only inherited scope parameters. Identity/query predicates are AND-merged with path scope and then HOOKS/IAM scope without overwrite semantics.
+- GET_LIST order config may declare server-only ordered `defaultOrder` and `tieBreakers` entries. These validate against all described direct scalar fields, including UUID columns that are not client-sortable. A client order pair replaces defaults, tie-breakers are appended, and duplicate fields keep the earlier entry.
 - `ApiPropertyDescribe` object metadata uses `dataType`; manual `ApiPropertyObject` uses `type`.
 - `ApiPropertyDescribe` relation metadata does not currently accept array options.
 - `GetDefaultStringFormatProperties(format)` provides canonical defaults for supported string formats.
@@ -74,10 +77,10 @@ Use local source as the contract:
 - Securable custom methods need method-level authorization mode metadata.
 - Custom route response relation reload requires `controller.service` to extend `ApiServiceBase` and response items to have an `id`.
 - For `@ApiRouteCustom`, request relation loading hydrates only the method `@Body()` argument; custom route before-hook auth, headers, IP, metadata, and runtime properties live in `context.DATA`, not `context.result`.
-- Generated GET_LIST `request[EApiControllerRequestTarget.QUERY]` accepts optional sibling `filter` and `order` sections. Omitted sections preserve legacy metadata-driven behavior; configured sections compile into one immutable plan used by dynamic DTO generation, OpenAPI, strict runtime parsing, and TypeORM compilation.
+- Generated GET_LIST `request[EApiControllerRequestTarget.QUERY]` accepts optional sibling `filter` and `order` sections. Omitted sections preserve legacy metadata-driven behavior; configured sections compile into one immutable plan used by dynamic DTO generation, OpenAPI, strict runtime parsing, and TypeORM compilation. `order.defaultOrder` and `order.tieBreakers` provide deterministic server compound ordering while client input remains one `orderBy`/`orderDirection` pair.
 - Typed query plans support direct and one-hop to-one scalar filter paths, direct-scalar order paths, `INHERIT` overlays or `REJECT` allowlists, exact disabled fields, narrowed operations, and `OMIT`/`REJECT`/`USE_DEFAULT` missing behavior.
-- The authoritative typed parser runs after route-before and request query transforms/validators, applies `USE_DEFAULT` when a field group is absent, and rejects malformed or disallowed input independently of host `ValidationPipe`. The optional route transaction then compiles predicates, AND-merges client/default filters with authorization scope once, and runs the service query.
-- The package does not provide a consumer-side typed URL/bracket-filter builder in 3.0; that deferral does not change the server-owned typed query contract.
+- The authoritative typed parser runs after route-before and request path/query transforms/validators, applies `USE_DEFAULT` when a field group is absent, and rejects malformed or disallowed input independently of host `ValidationPipe`. The optional route transaction then compiles predicates, AND-merges query filters with path scope and then authorization scope, applies stable page/limit ordering, and runs the service query.
+- The package does not provide a consumer-side typed URL/bracket-filter builder in the current 3.x contract; that deferral does not change the server-owned typed query contract.
 
 ## Relation Model
 
@@ -121,6 +124,8 @@ Use local source as the contract:
 - DTO fields are scoped correctly for body/query/parameters/response.
 - GET_LIST uses the intended response mode: full wrapper DTO or `{ itemType, name? }`.
 - Typed GET_LIST DTO/OpenAPI fields match the normalized plan, two controllers over one entity receive distinct plan-scoped schemas, and strict parsing remains effective with host query whitelist changes.
+- Generated read PARAMETERS DTO/OpenAPI fields exactly match inherited path mappings, manual PARAMETERS DTO exclusion holds, and identity/query → path → IAM criteria remain conjunctive on conflicts.
+- GET_LIST defaults/tie-breakers accept described UUID scalars without exposing them to client sort, replace defaults on client order, de-duplicate predictably, and keep page/limit results deterministic for an unchanged dataset.
 - Route generation, transaction mode, security, request/response targets, relation locks, and DTO config type-check.
 - Subscribers fire on the route/function path being exercised.
 - Authorization metadata, policy documents, resource definitions, and cache invalidation match runtime behavior.
@@ -131,4 +136,4 @@ Use local source as the contract:
 - For detailed source-aligned guidance, see [reference.md](reference.md).
 - For copyable patterns, see [examples.md](examples.md).
 - For common failure modes, see [pitfalls.md](pitfalls.md).
-- For the 2.10-to-3.0 consumer migration, see [Migrating to 3.0](../../docs/guides/migrating-to-3-0/page.mdx).
+- For consumers upgrading from a pre-3.0 release, see [Migrating to 3.0](../../docs/guides/migrating-to-3-0/page.mdx). Version 3.0.2 is the published baseline immediately before the additive generated nested-read and stable compound-order work; release automation owns the exact publishing version.

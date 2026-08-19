@@ -382,10 +382,10 @@ describe("IAM authorization (E2E)", () => {
 		});
 
 		expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
-		expect(decision.scope?.where).toEqual({
-			operatorId: "operator-1",
-			status: "active",
-		});
+		const where = decision.scope?.where as Record<string, unknown>;
+
+		expect(where.operatorId).toMatchObject({ _type: "equal", _value: "operator-1" });
+		expect(where.status).toMatchObject({ _type: "equal", _value: "active" });
 		expect(decision.trace.boundaries).toHaveLength(1);
 		expect(decision.trace.documents?.map((document) => document.id)).toEqual(["allow-managed", "boundary-db"]);
 

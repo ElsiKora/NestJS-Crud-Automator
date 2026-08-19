@@ -65,8 +65,8 @@ Used for filtering and pagination in GET_LIST operations:
 ```typescript
 // Generated GetListQueryDto structure
 interface GetListQueryDto {
-	limit?: number;
-	page?: number;
+	limit: number;
+	page: number;
 	orderBy?: string;
 	orderDirection?: "asc" | "desc";
 	"username[operator]"?: EFilterOperation;
@@ -89,6 +89,40 @@ GET_LIST query DTOs remain dynamically generated from entity metadata. Optional 
 - Typed TypeORM filter values and the direct-scalar order allowlist.
 
 Omitting either section preserves its legacy metadata-driven behavior. A route plan cannot re-enable a field disabled by entity query metadata, and response visibility does not grant query exposure.
+
+`limit` and `page` are required integers from 1 through 100. Runtime maps them to TypeORM `take` and `skip`. For a stable page boundary, route order configuration may add `defaultOrder` and `tieBreakers`; these are server-owned direct-scalar entries and do not need to be exposed by the generated `orderBy` enum. A client order pair replaces the defaults, then tie-breakers are appended and duplicate fields are removed.
+
+### Read Scope PARAMETERS DTOs
+
+Generated GET and GET_LIST routes can create path-parameter DTOs for nested owner scopes:
+
+```typescript
+@ApiController<GameEntity>({
+	entity: GameEntity,
+	path: "providers/:providerKey/games",
+	routes: {
+		[EApiRouteType.GET]: {
+			read: {
+				scope: {
+					parameters: [{ parameter: "providerKey", field: "providerId" }],
+				},
+			},
+		},
+		[EApiRouteType.GET_LIST]: {
+			read: {
+				scope: {
+					parameters: [{ parameter: "providerKey", field: "providerId" }],
+				},
+			},
+		},
+	},
+})
+export class ProviderGameController {}
+```
+
+Automator copies validation/transformation and Swagger metadata from the mapped described direct scalar field to the external owner-path name. The generated GET PARAMETERS DTO contains both its unchanged primary-key field and inherited mappings; GET_LIST contains the inherited mappings. DTO/schema identity is route- and mapping-scoped, so controllers over the same entity can use different owner-path parameter names safely.
+
+All inherited `:parameters` must be mapped exactly once. A manual `dto[EApiDtoType.PARAMETERS]` is mutually exclusive with generated read scope; `autoDto[EApiDtoType.PARAMETERS]` validators can still decorate the generated DTO.
 
 ### Response DTOs
 
@@ -228,7 +262,7 @@ Use in controller:
 
 Manual DTOs can also be nested inside auto-generated DTOs through `@ApiPropertyObject`. When this happens, NestJS CRUD Automator creates context-specific wrapper schemas for each generated path, so the same manual DTO can be reused safely in create body DTOs, update body DTOs, and response DTOs without sharing conflicting Swagger or serialization metadata.
 
-For GET_LIST, a manual `dto[EApiDtoType.QUERY]` and generated `request[QUERY].filter` or `order` configuration are mutually exclusive. Manual response DTOs remain compatible with the generated query plan.
+For GET_LIST, a manual `dto[EApiDtoType.QUERY]` and generated `request[QUERY].filter` or `order` configuration are mutually exclusive. For generated GET/GET_LIST read scope, a manual `dto[EApiDtoType.PARAMETERS]` and `read.scope.parameters` are likewise mutually exclusive. Manual response DTOs remain compatible with both generated plans.
 
 ### Custom GET_LIST item DTOs
 

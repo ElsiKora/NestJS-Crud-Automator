@@ -9,6 +9,7 @@ export { E2eAppModule } from "./module";
 export * from "./function";
 export * from "./generated-transaction";
 export * from "./manual";
+export * from "./nested-read";
 export * from "./owner";
 export { E2ePolicySubscriber } from "./policy";
 export { E2eService } from "./service";

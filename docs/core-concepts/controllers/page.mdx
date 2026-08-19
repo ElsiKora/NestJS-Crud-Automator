@@ -105,6 +105,60 @@ Override the default controller path:
 })
 ```
 
+### Nested Generated Read Scope
+
+Use `read.scope.parameters` when the controller path contains an owner or parent identity and generated GET/GET_LIST rows must belong to it:
+
+```typescript filename="provider-game.controller.ts" copy
+import { ApiController, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiRouteType, EFilterOrderDirection } from "@elsikora/nestjs-crud-automator";
+
+@ApiController<GameEntity>({
+	entity: GameEntity,
+	name: "ProviderGames",
+	path: "providers/:providerKey/games",
+	routes: {
+		[EApiRouteType.GET]: {
+			read: {
+				scope: {
+					parameters: [{ parameter: "providerKey", field: "providerId" }],
+				},
+			},
+		},
+		[EApiRouteType.GET_LIST]: {
+			read: {
+				scope: {
+					parameters: [{ parameter: "providerKey", field: "providerId" }],
+				},
+			},
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					order: {
+						defaultOrder: [
+							{ direction: EFilterOrderDirection.DESC, field: "priority" },
+							{ direction: EFilterOrderDirection.ASC, field: "id" },
+						],
+						fields: { priority: { isEnabled: true } },
+						tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+				},
+			},
+		},
+	},
+})
+export class ProviderGameController {
+	constructor(public service: GameService) {}
+}
+```
+
+This generates `GET /providers/:providerKey/games/:id` and `GET /providers/:providerKey/games`. `providerKey` is the external owner-path name; `providerId` is the described direct scalar entity field used in the database predicate. Every required scalar path parameter inherited from `path` must be mapped exactly once; wildcard and optional/grouped dynamic parameters fail at bootstrap. Duplicate/missing parameters, duplicate fields, unknown path names, relations, and objects also fail at bootstrap. On GET, the inherited path must not reuse the generated primary identity parameter name, and the scope mapping does not rename that identity.
+
+The framework generates a route-local PARAMETERS DTO from the mapped field metadata under the external owner-path parameter name and emits matching Swagger metadata. Do not combine this read scope with a manual `dto[EApiDtoType.PARAMETERS]`; use `autoDto[PARAMETERS]` only for validators on the generated DTO.
+
+GET combines primary identity, path scope, and then HOOKS/IAM scope. GET_LIST combines query predicates, path scope, and then HOOKS/IAM scope. Every layer is a logical AND, including when the same field appears more than once; a later layer cannot overwrite an earlier condition.
+
+The list example also provides deterministic page/limit ordering. Server-only `defaultOrder` is used when the client sends no order pair, while `tieBreakers` are appended after either the defaults or the client's selected order. Direct scalar UUID fields such as `id` may be used here even when they are absent from the client order allowlist.
+
 ## Authentication and Authorization
 
 Add authentication guards to specific routes:

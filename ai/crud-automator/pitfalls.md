@@ -4,6 +4,14 @@
 
 Check whether `@ApiController`, `@ApiService`, entity metadata, route DTO overrides, transformers, relation loading, subscribers, or authorization policies already express the behavior.
 
+Nested owner reads are also native generated CRUD. Prefer GET/GET_LIST `read.scope.parameters` over a hand-written controller that parses a parent id and reconstructs the standard list envelope. Map every inherited controller-path parameter exactly once to a distinct described direct scalar field.
+
+Do not treat read scope as an arbitrary callback or fixed `baseWhere`. It is only a closed mapping from request path values. Fixed or principal-dependent restrictions still belong in HOOKS/IAM scope.
+
+Never return `where: []` or an empty object branch from an authorization scope. Array-form `where` represents OR branches and must contain non-empty plain objects; Automator rejects empty arrays and empty branches before TypeORM so an invalid policy cannot become an unconstrained read.
+
+Do not pass a raw object when the intended scope value is an object-valued scalar column such as JSON/JSONB or geometry. Raw objects mean relation or embedded criteria. Use TypeORM `Equal(value)` explicitly for that scalar value; Automator already normalizes primitive, date, byte-view, and scalar-array leaves during an additional-scope merge.
+
 ## Old Route Config Shape
 
 Avoid stale flat fields:
@@ -56,6 +64,8 @@ Inside a step, prefer `this.getApiFunctionStepContext()` for `eventManager`, `re
 ## Auto DTO Overreach
 
 `autoDto` is for validators only. It does not control exposure, guard visibility, response serialization, or requiredness. Put the global capability baseline in `ApiPropertyDescribe({ properties })`; use generated GET_LIST `request[QUERY].filter` and `order` only to narrow or overlay query behavior. Use manual `dto` when generation is not appropriate.
+
+When `read.scope.parameters` is present, Automator owns the generated PARAMETERS DTO and Swagger path contract. Do not combine it with `dto[EApiDtoType.PARAMETERS]`. Use `autoDto[PARAMETERS]` only for validators that belong on the generated DTO.
 
 ## Relation Metadata Arrays
 
@@ -111,15 +121,17 @@ If the application explicitly selects `EApiAuthorizationCacheMode.MEMORY`, confi
 
 DTO guard visibility is based on the route's configured guard class during DTO generation. It is not a per-request role/RBAC decision. Use response transformers, subscribers, manual serialization, or authorization result transforms for user-specific masking.
 
-## Unsupported Generated GET_LIST Features
+## Generated GET_LIST Boundaries
 
-Generated GET_LIST supports one `orderBy`, one `orderDirection`, `limit`, `page`, and bracketed filters. Relation filters use one-level to-one scalar paths such as `author.id[...]` and `author.username[...]`; use a custom method for multi-sort, relation sorting, to-many filters, or deeper relation/object filters.
+Generated GET_LIST supports one client `orderBy`, one `orderDirection`, required `limit`/`page`, and bracketed filters. Route-owned `defaultOrder` and `tieBreakers` can add a deterministic server compound order. Relation filters use one-level to-one scalar paths such as `author.id[...]` and `author.username[...]`; use a custom method for client-selected multi-sort, relation sorting, to-many filters, or deeper relation/object filters.
+
+Do not expose a UUID `id` to client ordering merely to stabilize pages. Server order entries validate against all described direct scalar fields independently of the client allowlist. Use a unique final tie-breaker. A client order replaces defaults; tie-breakers are appended; duplicate fields keep the earlier entry. Duplicate server fields, invalid directions, non-scalar fields, and conflicting default/tie-breaker directions fail at bootstrap.
 
 A configured typed filter/order plan is strict: unknown, disabled, malformed, or incompatible input returns `400` instead of being silently ignored. Do not rely on a host `ValidationPipe` whitelist, infer query exposure from response visibility, re-enable metadata-disabled fields, or combine generated filter/order config with a manual QUERY DTO. Omit a section when legacy metadata-driven behavior is intentional.
 
 `missingBehavior: USE_DEFAULT` accepts only static typed defaults. Principal- or tenant-dependent restrictions belong in HOOKS/IAM scope, which is AND-merged once with client/default predicates.
 
-The package does not ship a consumer-side typed URL/bracket-filter builder in 3.0. Keep that helper in the consumer when needed instead of mistaking the server-owned typed query plan for a client API.
+The package does not ship a consumer-side typed URL/bracket-filter builder in the current 3.x contract. Keep that helper in the consumer when needed instead of mistaking the server-owned typed query plan for a client API.
 
 ## Removed 3.0 Exports
 

@@ -1,0 +1,1013 @@
+import "reflect-metadata";
+
+import type { IApiAuthenticationRequest } from "@interface/api";
+import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
+import type { IApiGetListResponseResult } from "@interface/decorator/api";
+import type { Type } from "@nestjs/common";
+import type { IAuthGuard } from "@nestjs/passport";
+import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
+import type { TApiFunctionGetListProperties, TApiFunctionGetProperties } from "@type/decorator/api/function";
+
+import { ApiServiceBase } from "@class/api";
+import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
+import { ApiController } from "@decorator/api/controller/decorator";
+import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
+import { EApiAuthenticationType, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EErrorStringAction } from "@enum/utility";
+import { EFilterOperation, EFilterOrderDirection } from "@enum/filter";
+import { BadRequestException } from "@nestjs/common";
+import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
+import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
+import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
+import { ApiControllerReadScopeWhere } from "@utility/api/controller/read";
+import { DtoGenerateReadParameters } from "@utility/dto/generate/read-parameters.utility";
+import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
+import { plainToInstance } from "class-transformer";
+import { validate } from "class-validator";
+import { Column, Entity, Equal, Like, ManyToOne, PrimaryColumn } from "typeorm";
+import { describe, expect, it, vi } from "vitest";
+
+const ENTITY_ID: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const EFFECTIVE_AT: string = "2026-08-19T10:00:00.000Z";
+const PATH_TENANT_ID: string = "11111111-1111-4111-8111-111111111111";
+const QUERY_TENANT_ID: string = "22222222-2222-4222-8222-222222222222";
+const SCOPE_TENANT_ID: string = "33333333-3333-4333-8333-333333333333";
+
+class ReadScopeGuardA {}
+class ReadScopeGuardB {}
+
+@Entity("generated_read_contract_owners")
+class GeneratedReadContractOwnerEntity {
+	@PrimaryColumn({ type: "uuid" })
+	@ApiPropertyDescribe({
+		description: "owner id",
+		type: EApiPropertyDescribeType.UUID,
+	})
+	public id!: string;
+}
+
+@Entity("generated_read_contract_entities")
+class GeneratedReadContractEntity {
+	@PrimaryColumn({ type: "uuid" })
+	@ApiPropertyDescribe({
+		description: "id",
+		type: EApiPropertyDescribeType.UUID,
+	})
+	public id!: string;
+
+	@Column({ type: "uuid" })
+	@ApiPropertyDescribe({
+		description: "tenant id",
+		properties: {
+			[EApiRouteType.GET]: {
+				[EApiDtoType.PARAMETERS]: {
+					guard: {
+						guards: ReadScopeGuardA as Type<IAuthGuard>,
+					},
+				},
+			},
+			[EApiRouteType.GET_LIST]: {
+				[EApiDtoType.PARAMETERS]: {
+					guard: {
+						guards: ReadScopeGuardA as Type<IAuthGuard>,
+					},
+				},
+			},
+		},
+		type: EApiPropertyDescribeType.UUID,
+	})
+	public tenantId!: string;
+
+	@Column({ type: "int" })
+	@ApiPropertyDescribe({
+		description: "sequence",
+		exampleValue: 1,
+		format: EApiPropertyNumberType.INTEGER,
+		maximum: 100,
+		minimum: 0,
+		multipleOf: 1,
+		type: EApiPropertyDescribeType.NUMBER,
+	})
+	public sequence!: number;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({
+		description: "label",
+		exampleValue: "label",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 64,
+		minLength: 1,
+		pattern: "/^.+$/",
+		properties: {
+			[EApiRouteType.GET]: {
+				[EApiDtoType.PARAMETERS]: {
+					isEnabled: false,
+				},
+			},
+		},
+		type: EApiPropertyDescribeType.STRING,
+	})
+	public label!: string;
+
+	@Column({ type: "datetime" })
+	@ApiPropertyDescribe({
+		format: EApiPropertyDateType.DATE_TIME,
+		identifier: EApiPropertyDateIdentifier.DATE,
+		type: EApiPropertyDescribeType.DATE,
+	})
+	public effectiveAt!: Date;
+
+	@ManyToOne(() => GeneratedReadContractOwnerEntity)
+	@ApiPropertyDescribe({
+		description: "owner",
+		type: EApiPropertyDescribeType.RELATION,
+	} as never)
+	public owner?: GeneratedReadContractOwnerEntity;
+}
+
+class GeneratedReadContractService extends ApiServiceBase<GeneratedReadContractEntity> {
+	public override get = vi.fn(
+		async (_properties: TApiFunctionGetProperties<GeneratedReadContractEntity>): Promise<GeneratedReadContractEntity> => ({
+			effectiveAt: new Date(EFFECTIVE_AT),
+			id: ENTITY_ID,
+			label: "entity",
+			sequence: 1,
+			tenantId: PATH_TENANT_ID,
+		}),
+	);
+
+	public override getList = vi.fn(
+		async (_properties: TApiFunctionGetListProperties<GeneratedReadContractEntity>): Promise<IApiGetListResponseResult<GeneratedReadContractEntity>> => ({
+			count: 1,
+			currentPage: 1,
+			items: [
+				{
+					effectiveAt: new Date(EFFECTIVE_AT),
+					id: ENTITY_ID,
+					label: "entity",
+					sequence: 1,
+					tenantId: PATH_TENANT_ID,
+				},
+			],
+			totalCount: 1,
+			totalPages: 1,
+		}),
+	);
+}
+
+class ManualGeneratedReadParametersDto {}
+
+interface IGeneratedReadContractController {
+	get: (parameters: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<GeneratedReadContractEntity>;
+	getList: (parameters: Record<string, unknown>, query: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<IApiGetListResponseResult<GeneratedReadContractEntity>>;
+	service: GeneratedReadContractService;
+}
+
+interface ILegacyGeneratedReadContractController {
+	get: (parameters: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<GeneratedReadContractEntity>;
+	getList: (query: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<IApiGetListResponseResult<GeneratedReadContractEntity>>;
+	service: GeneratedReadContractService;
+}
+
+const disabledRoute = { generation: { isEnabled: false } } as const;
+
+function createGeneratedReadController(): { controller: IGeneratedReadContractController; type: object } {
+	class GeneratedReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		name: "GeneratedReadContract",
+		path: "tenant/:tenantId/generated-read-contract",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {
+				read: {
+					scope: {
+						parameters: [{ field: "tenantId", parameter: "tenantId" }],
+					},
+				},
+			},
+			[EApiRouteType.GET_LIST]: {
+				read: {
+					scope: {
+						parameters: [{ field: "tenantId", parameter: "tenantId" }],
+					},
+				},
+				request: {
+					[EApiControllerRequestTarget.QUERY]: {
+						order: {
+							defaultOrder: [
+								{ direction: EFilterOrderDirection.DESC, field: "sequence" },
+								{ direction: EFilterOrderDirection.ASC, field: "label" },
+								{ direction: EFilterOrderDirection.ASC, field: "id" },
+							],
+							fields: {
+								label: { isEnabled: true },
+								sequence: { isEnabled: true },
+							},
+							tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+							unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+						},
+					},
+				},
+			},
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(GeneratedReadControllerBase);
+
+	return {
+		controller: new Controller() as unknown as IGeneratedReadContractController,
+		type: Controller,
+	};
+}
+
+function createLegacyGeneratedReadController(): { controller: ILegacyGeneratedReadContractController; type: object } {
+	class LegacyGeneratedReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		name: "LegacyGeneratedReadContract",
+		path: "legacy-generated-read-contract",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {},
+			[EApiRouteType.GET_LIST]: {},
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(LegacyGeneratedReadControllerBase);
+
+	return {
+		controller: new Controller() as unknown as ILegacyGeneratedReadContractController,
+		type: Controller,
+	};
+}
+
+function compileInvalidReadConfiguration(path: string, read: unknown, hasManualParametersDto: boolean = false, currentGuard?: Type<IAuthGuard>): void {
+	class InvalidGeneratedReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path,
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {
+				...(hasManualParametersDto ? { dto: { [EApiDtoType.PARAMETERS]: ManualGeneratedReadParametersDto } } : {}),
+				read,
+				...(currentGuard
+					? {
+							security: {
+								authentication: {
+									guard: currentGuard,
+									type: EApiAuthenticationType.USER,
+								},
+							},
+						}
+					: {}),
+			} as never,
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(InvalidGeneratedReadControllerBase);
+}
+
+function compileInvalidReadScope(path: string, parameters: unknown): void {
+	compileInvalidReadConfiguration(path, {
+		scope: {
+			parameters,
+		},
+	});
+}
+
+function compileInvalidOrder(defaultOrder: unknown, tieBreakers: unknown): void {
+	class InvalidGeneratedOrderControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "invalid-generated-order",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: disabledRoute,
+			[EApiRouteType.GET_LIST]: {
+				request: {
+					[EApiControllerRequestTarget.QUERY]: {
+						order: {
+							defaultOrder,
+							fields: {
+								label: { isEnabled: true },
+							},
+							tieBreakers,
+							unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+						} as never,
+					},
+				},
+			},
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(InvalidGeneratedOrderControllerBase);
+}
+
+function compileGetListParametersWithoutRead(): void {
+	class ParametersWithoutReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "parameters-without-read",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: disabledRoute,
+			[EApiRouteType.GET_LIST]: {
+				request: {
+					[EApiControllerRequestTarget.PARAMETERS]: {
+						validators: [],
+					},
+				},
+			} as never,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(ParametersWithoutReadControllerBase);
+}
+
+function createCacheIsolationController(controllerName: string): object {
+	class CacheIsolationControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	Object.defineProperty(CacheIsolationControllerBase, "name", { value: controllerName });
+
+	return ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "tenant/:tenantId/cache-isolation",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: disabledRoute,
+			[EApiRouteType.GET_LIST]: {
+				read: {
+					scope: {
+						parameters: [{ field: "tenantId", parameter: "tenantId" }],
+					},
+				},
+			},
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(CacheIsolationControllerBase);
+}
+
+function createFilterOnlyQueryController(): { controller: IGeneratedReadContractController; type: object } {
+	class FilterOnlyQueryControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "tenant/:tenantId/filter-only-query",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: disabledRoute,
+			[EApiRouteType.GET_LIST]: {
+				read: {
+					scope: {
+						parameters: [{ field: "tenantId", parameter: "tenantId" }],
+					},
+				},
+				request: {
+					[EApiControllerRequestTarget.QUERY]: {
+						filter: {
+							fields: {
+								label: {
+									allowedOperations: [EFilterOperation.EQ],
+									isEnabled: true,
+								},
+							},
+							unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+						},
+					},
+				},
+			},
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(FilterOnlyQueryControllerBase);
+
+	return {
+		controller: new Controller() as unknown as IGeneratedReadContractController,
+		type: Controller,
+	};
+}
+
+function createAliasedReadController(parameterValidator: (parameters: Partial<GeneratedReadContractEntity> | TApiControllerGetListQuery<GeneratedReadContractEntity>) => boolean | Promise<boolean>): { controller: IGeneratedReadContractController; type: object } {
+	class AliasedReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "tenant/:tenantAlias/sequence/:sequenceAlias/aliased-read",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {
+				read: {
+					scope: {
+						parameters: [
+							{ field: "tenantId", parameter: "tenantAlias" },
+							{ field: "sequence", parameter: "sequenceAlias" },
+						],
+					},
+				},
+				request: {
+					[EApiControllerRequestTarget.PARAMETERS]: {
+						transformers: [
+							{
+								key: "tenantAlias",
+								type: EApiControllerRequestTransformerType.STATIC,
+								value: PATH_TENANT_ID,
+							},
+						],
+					},
+				},
+			},
+			[EApiRouteType.GET_LIST]: {
+				read: {
+					scope: {
+						parameters: [
+							{ field: "tenantId", parameter: "tenantAlias" },
+							{ field: "sequence", parameter: "sequenceAlias" },
+						],
+					},
+				},
+				request: {
+					[EApiControllerRequestTarget.PARAMETERS]: {
+						transformers: [
+							{
+								key: "tenantAlias",
+								type: EApiControllerRequestTransformerType.STATIC,
+								value: PATH_TENANT_ID,
+							},
+						],
+						validators: [
+							{
+								errorType: EErrorStringAction.BAD_REQUEST,
+								exception: BadRequestException,
+								validationFunction: parameterValidator,
+							},
+						],
+					},
+				},
+			},
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(AliasedReadControllerBase);
+
+	return {
+		controller: new Controller() as unknown as IGeneratedReadContractController,
+		type: Controller,
+	};
+}
+
+function createDateScopedReadController(): { controller: IGeneratedReadContractController; type: object } {
+	class DateScopedReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "effective/:effectiveAt/date-scoped-read",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {
+				read: {
+					scope: {
+						parameters: [{ field: "effectiveAt", parameter: "effectiveAt" }],
+					},
+				},
+			},
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(DateScopedReadControllerBase);
+
+	return {
+		controller: new Controller() as unknown as IGeneratedReadContractController,
+		type: Controller,
+	};
+}
+
+function createAuthenticationRequest(scopeWhere: Record<string, unknown>): IApiAuthenticationRequest {
+	return {
+		authorizationDecision: {
+			scope: { where: scopeWhere },
+			transforms: [],
+		},
+	} as unknown as IApiAuthenticationRequest;
+}
+
+describe("generated read contract", () => {
+	it.each([
+		[
+			"a configured parameter missing from the controller path",
+			"tenant/:tenantId/generated-read-contract",
+			[
+				{ field: "tenantId", parameter: "tenantId" },
+				{ field: "label", parameter: "missingTenantId" },
+			],
+			"not declared by the controller path",
+		],
+		["an inherited owner parameter omitted from the mapping", "tenant/:tenantId/brand/:brandAccountId/generated-read-contract", [{ field: "tenantId", parameter: "tenantId" }], "is not mapped by the generated read scope"],
+		["an inherited primary identity parameter", "tenant/:tenantId/generated-read-contract/:id", [{ field: "tenantId", parameter: "tenantId" }], "conflicts with the generated GET primary identity parameter"],
+		["a non-direct entity path", "tenant/:tenantId/generated-read-contract", [{ field: "owner.id", parameter: "tenantId" }], "described direct scalar entity field"],
+		["a non-scalar entity field", "tenant/:tenantId/generated-read-contract", [{ field: "owner", parameter: "tenantId" }], "described direct scalar entity field"],
+		[
+			"duplicate parameter mappings",
+			"tenant/:tenantId/generated-read-contract",
+			[
+				{ field: "tenantId", parameter: "tenantId" },
+				{ field: "label", parameter: "tenantId" },
+			],
+			"mapped more than once",
+		],
+		[
+			"duplicate entity-field mappings",
+			"tenant/:tenantId/brand/:brandAccountId/generated-read-contract",
+			[
+				{ field: "tenantId", parameter: "tenantId" },
+				{ field: "tenantId", parameter: "brandAccountId" },
+			],
+			"mapped more than once",
+		],
+		["a wildcard inherited path parameter", "tenant/:tenantId/files/*splat", [{ field: "tenantId", parameter: "tenantId" }], 'Controller path wildcard parameter "splat" cannot be used by generated read scope'],
+		["an optional inherited path parameter", "tenant/:tenantId/items{/:optionalId}", [{ field: "tenantId", parameter: "tenantId" }], 'Controller path optional parameter "optionalId" cannot be used by generated read scope'],
+		["an unsafe inherited path parameter", "tenant/:constructor/generated-read-contract", [{ field: "tenantId", parameter: "constructor" }], 'controller path parameter "constructor" is not a safe property name'],
+		["an unsafe mapped entity field", "tenant/:tenantId/generated-read-contract", [{ field: "__proto__", parameter: "tenantId" }], 'entity field "__proto__" is not a safe property name'],
+	])("rejects %s at controller bootstrap", (_label, path, parameters, expectedMessage) => {
+		expect(() => compileInvalidReadScope(path, parameters)).toThrow(expectedMessage);
+	});
+
+	it("accepts a quoted required scalar inherited path parameter", () => {
+		expect(() => compileInvalidReadScope('tenant/:"tenant-id"/generated-read-contract', [{ field: "tenantId", parameter: "tenant-id" }])).not.toThrow();
+	});
+
+	it.each([
+		["a null configuration", null, "Generated read configuration must be an object"],
+		["a false configuration", false, "Generated read configuration must be an object"],
+		["a zero configuration", 0, "Generated read configuration must be an object"],
+		["an empty-string configuration", "", "Generated read configuration must be an object"],
+		["an empty mapping array", { scope: { parameters: [] } }, "Generated read scope parameters must be a non-empty array"],
+		["a non-array mapping", { scope: { parameters: {} } }, "Generated read scope parameters must be a non-empty array"],
+		["an unsupported read key", { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] }, unsupported: true }, "Generated read configuration must contain exactly scope"],
+		["an unsupported scope key", { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }], unsupported: true } }, "Generated read scope must contain exactly parameters"],
+	])("rejects %s in generated read grammar", (_label, read, expectedMessage) => {
+		expect(() => compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", read)).toThrow(expectedMessage);
+	});
+
+	it("rejects generated read scope combined with a manual PARAMETERS DTO", () => {
+		expect(() =>
+			compileInvalidReadConfiguration(
+				"tenant/:tenantId/generated-read-contract",
+				{
+					scope: {
+						parameters: [{ field: "tenantId", parameter: "tenantId" }],
+					},
+				},
+				true,
+			),
+		).toThrow("Generated read scope parameters cannot be combined with a manual PARAMETERS DTO");
+	});
+
+	it.each([
+		["hidden by the route guard", "tenant/:tenantId/generated-read-contract", [{ field: "tenantId", parameter: "tenantId" }], ReadScopeGuardB as Type<IAuthGuard>],
+		["explicitly disabled", "label/:label/generated-read-contract", [{ field: "label", parameter: "label" }], undefined],
+	])("rejects a mapped PARAMETERS field that is %s", (_label, path, parameters, currentGuard) => {
+		expect(() => compileInvalidReadConfiguration(path, { scope: { parameters } }, false, currentGuard)).toThrow("maps to an entity field unavailable for the route PARAMETERS DTO");
+	});
+
+	it("rejects GET_LIST PARAMETERS request configuration without generated read scope", () => {
+		expect(() => compileGetListParametersWithoutRead()).toThrow("GET_LIST PARAMETERS request configuration requires generated read scope");
+	});
+
+	it.each([
+		[
+			"duplicate default-order fields",
+			[
+				{ direction: EFilterOrderDirection.ASC, field: "id" },
+				{ direction: EFilterOrderDirection.ASC, field: "id" },
+			],
+			[],
+			'GET_LIST order defaultOrder contains duplicate field "id"',
+		],
+		[
+			"duplicate tie-breaker fields",
+			[],
+			[
+				{ direction: EFilterOrderDirection.ASC, field: "id" },
+				{ direction: EFilterOrderDirection.ASC, field: "id" },
+			],
+			'GET_LIST order tieBreakers contains duplicate field "id"',
+		],
+		["conflicting directions across defaults and tie-breakers", [{ direction: EFilterOrderDirection.ASC, field: "id" }], [{ direction: EFilterOrderDirection.DESC, field: "id" }], 'GET_LIST order field "id" has conflicting directions across defaultOrder and tieBreakers'],
+		["an unknown server-order field", [{ direction: EFilterOrderDirection.ASC, field: "missing" }], [], "must target a described direct scalar entity field"],
+		["a relation-valued server-order field", [{ direction: EFilterOrderDirection.ASC, field: "owner" }], [], "must target a described direct scalar entity field"],
+		["an invalid server-order direction", [{ direction: "sideways", field: "id" }], [], "has an invalid direction"],
+		["a non-array default order", { direction: EFilterOrderDirection.ASC, field: "id" }, [], "GET_LIST order defaultOrder must be an array"],
+		["an unsupported server-order entry key", [{ direction: EFilterOrderDirection.ASC, field: "id", unsupported: true }], [], "GET_LIST order defaultOrder[0] must contain exactly direction, field"],
+	])("rejects %s at controller bootstrap", (_label, defaultOrder, tieBreakers, expectedMessage) => {
+		expect(() => compileInvalidOrder(defaultOrder, tieBreakers)).toThrow(expectedMessage);
+	});
+
+	it("generates and registers owner PARAMETERS DTOs for GET and GET_LIST", () => {
+		const { type } = createGeneratedReadController();
+		const controllerType = type as { prototype: object };
+		const getTypes = Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "get") as Array<new () => Record<string, unknown>>;
+		const listTypes = Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "getList") as Array<new () => Record<string, unknown>>;
+		const getParametersDto = getTypes[0];
+		const listParametersDto = listTypes[0];
+
+		expect(getTypes).toHaveLength(4);
+		expect(listTypes).toHaveLength(5);
+		expect(getParametersDto).toBeDefined();
+		expect(listParametersDto).toBeDefined();
+		expect(Object.keys(new (getParametersDto as new () => Record<string, unknown>)())).toEqual(expect.arrayContaining(["id", "tenantId"]));
+		expect(Object.keys(new (listParametersDto as new () => Record<string, unknown>)())).toEqual(["tenantId"]);
+		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, getParametersDto?.prototype, "tenantId")).toMatchObject({ format: "uuid", type: "string" });
+		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, listParametersDto?.prototype, "tenantId")).toMatchObject({ format: "uuid", type: "string" });
+
+		const extraModelNames = ((Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, type) ?? []) as Array<{ name?: string }>).map(({ name }: { name?: string }): string | undefined => name);
+
+		expect(extraModelNames).toEqual(expect.arrayContaining([getParametersDto?.name, listParametersDto?.name]));
+	});
+
+	it("writes GET_LIST ROUTE_ARGS in PARAM, QUERY, HEADERS, IP, REQUEST order", () => {
+		const { type } = createGeneratedReadController();
+		const controllerType = type as { prototype: object };
+		const routeArguments = Reflect.getMetadata(ROUTE_ARGS_METADATA, type, "getList") as Record<string, unknown>;
+		const parameterTypes = Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "getList") as Array<unknown>;
+
+		expect(Object.keys(routeArguments)).toEqual([`${RouteParamtypes.PARAM}:0`, `${RouteParamtypes.QUERY}:1`, `${RouteParamtypes.HEADERS}:2`, `${RouteParamtypes.IP}:3`, `${RouteParamtypes.REQUEST}:4`]);
+		expect(parameterTypes).toHaveLength(5);
+		expect(parameterTypes.slice(2)).toEqual([Object, Object, Object]);
+	});
+
+	it("transforms and validates aliased UUID and numeric PARAMETERS before applying read scope", async () => {
+		const parameterValidator = vi.fn((parameters: unknown): boolean => {
+			const record = parameters as Record<string, unknown>;
+
+			return record.tenantAlias === PATH_TENANT_ID && record.sequenceAlias === 7;
+		});
+		const { controller, type } = createAliasedReadController(parameterValidator);
+		const controllerType = type as { prototype: object };
+		const listTypes = Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "getList") as Array<new () => Record<string, unknown>>;
+		const parametersDto = listTypes[0];
+
+		expect(parametersDto).toBeDefined();
+
+		const parameters = plainToInstance(parametersDto as new () => Record<string, unknown>, {
+			sequenceAlias: "7",
+			tenantAlias: QUERY_TENANT_ID,
+		});
+		const invalidParameters = plainToInstance(parametersDto as new () => Record<string, unknown>, {
+			sequenceAlias: "not-a-number",
+			tenantAlias: "not-a-uuid",
+		});
+
+		expect(parameters.sequenceAlias).toBe(7);
+		expect(parameters.tenantAlias).toBe(QUERY_TENANT_ID);
+		expect(await validate(parameters)).toHaveLength(0);
+		expect((await validate(invalidParameters)).length).toBeGreaterThan(0);
+
+		await controller.getList(parameters, { limit: 10, page: 1 }, {}, "127.0.0.1");
+
+		expect(parameterValidator).toHaveBeenCalledOnce();
+		expect(parameters.tenantAlias).toBe(PATH_TENANT_ID);
+		const where = controller.service.getList.mock.calls[0]?.[0].where as Record<string, unknown>;
+
+		expect(where.sequence).toMatchObject({ _type: "equal", _value: 7 });
+		expect(where.tenantId).toMatchObject({ _type: "equal", _value: PATH_TENANT_ID });
+	});
+
+	it("applies configured-read alias transformers to generated GET scope", async () => {
+		const parameterValidator = vi.fn((): boolean => true);
+		const { controller } = createAliasedReadController(parameterValidator);
+		const parameters: Record<string, unknown> = {
+			id: ENTITY_ID,
+			sequenceAlias: 7,
+			tenantAlias: QUERY_TENANT_ID,
+		};
+
+		await controller.get(parameters, {}, "127.0.0.1");
+
+		expect(parameters.tenantAlias).toBe(PATH_TENANT_ID);
+		const where = controller.service.get.mock.calls[0]?.[0].where as Record<string, unknown>;
+
+		expect(where.id).toMatchObject({ _type: "equal", _value: ENTITY_ID });
+		expect(where.sequence).toMatchObject({ _type: "equal", _value: 7 });
+		expect(where.tenantId).toMatchObject({ _type: "equal", _value: PATH_TENANT_ID });
+	});
+
+	it("ANDs generated Date scope with IAM Equal(Date) without allowing conflicts", async () => {
+		const { controller, type } = createDateScopedReadController();
+		const controllerType = type as { prototype: object };
+		const getTypes = Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "get") as Array<new () => Record<string, unknown>>;
+		const parametersDto = getTypes[0];
+		const parameters = plainToInstance(parametersDto as new () => Record<string, unknown>, {
+			effectiveAt: EFFECTIVE_AT,
+			id: ENTITY_ID,
+		});
+
+		expect(parameters.effectiveAt).toBeInstanceOf(Date);
+		expect(await validate(parameters)).toHaveLength(0);
+
+		await controller.get(parameters, {}, "127.0.0.1", createAuthenticationRequest({ effectiveAt: Equal(new Date(EFFECTIVE_AT)) }));
+
+		const equalWhere = controller.service.get.mock.calls[0]?.[0].where as Record<string, unknown>;
+
+		expect(equalWhere.id).toMatchObject({ _type: "equal", _value: ENTITY_ID });
+		expect(equalWhere.effectiveAt).toMatchObject({
+			_type: "and",
+			_value: [
+				{ _type: "equal", _value: new Date(EFFECTIVE_AT) },
+				{ _type: "equal", _value: new Date(EFFECTIVE_AT) },
+			],
+		});
+
+		controller.service.get.mockClear();
+		await controller.get(parameters, {}, "127.0.0.1", createAuthenticationRequest({ effectiveAt: Equal(new Date("2026-08-20T10:00:00.000Z")) }));
+
+		const conflictingWhere = controller.service.get.mock.calls[0]?.[0].where as Record<string, unknown>;
+
+		expect(conflictingWhere.id).toMatchObject({ _type: "equal", _value: ENTITY_ID });
+		expect(conflictingWhere.effectiveAt).toMatchObject({
+			_type: "and",
+			_value: [
+				{ _type: "equal", _value: new Date(EFFECTIVE_AT) },
+				{ _type: "equal", _value: new Date("2026-08-20T10:00:00.000Z") },
+			],
+		});
+	});
+
+	it("requires hostile inherited parameter names to be own properties at runtime", () => {
+		const readPlan: IApiControllerReadPlan = Object.freeze({
+			controllerName: "HostileReadScopeController",
+			parameters: Object.freeze([Object.freeze({ field: "tenantId", parameter: "constructor" })]),
+			schemaName: "HostileReadScopeControllerParametersDTO",
+			signature: "hostile-read-scope-plan",
+		});
+
+		expect(() => ApiControllerReadScopeWhere({}, readPlan)).toThrow("INVALID_PARAMETERS");
+	});
+
+	it("isolates generated PARAMETERS DTO cache entries by controller name", () => {
+		const firstType = createCacheIsolationController("ReadCacheIsolationAlpha") as { prototype: object };
+		const secondType = createCacheIsolationController("ReadCacheIsolationBeta") as { prototype: object };
+		const firstParametersDto = (Reflect.getMetadata(PARAMTYPES_METADATA, firstType.prototype, "getList") as Array<new () => Record<string, unknown>>)[0];
+		const secondParametersDto = (Reflect.getMetadata(PARAMTYPES_METADATA, secondType.prototype, "getList") as Array<new () => Record<string, unknown>>)[0];
+
+		expect(firstParametersDto).toBeDefined();
+		expect(secondParametersDto).toBeDefined();
+		expect(firstParametersDto).not.toBe(secondParametersDto);
+		expect(firstParametersDto?.name).toContain("ReadCacheIsolationAlpha");
+		expect(secondParametersDto?.name).toContain("ReadCacheIsolationBeta");
+		expect(Object.keys(new (firstParametersDto as new () => Record<string, unknown>)())).toEqual(["tenantId"]);
+		expect(Object.keys(new (secondParametersDto as new () => Record<string, unknown>)())).toEqual(["tenantId"]);
+	});
+
+	it("isolates generated PARAMETERS DTO decorators by route guard", () => {
+		const entityMetadata = GenerateEntityInformation<GeneratedReadContractEntity>(GeneratedReadContractEntity);
+		const readPlan: IApiControllerReadPlan = Object.freeze({
+			controllerName: "GuardSensitiveReadController",
+			parameters: Object.freeze([Object.freeze({ field: "tenantId", parameter: "tenantAlias" })]),
+			schemaName: "GuardSensitiveReadControllerParametersDTO",
+			signature: "guard-sensitive-read-plan",
+		});
+		const dtoConfig = {};
+		const allowedDto = DtoGenerateReadParameters(entityMetadata, EApiRouteType.GET_LIST, readPlan, dtoConfig, ReadScopeGuardA as Type<IAuthGuard>);
+		const cachedAllowedDto = DtoGenerateReadParameters(entityMetadata, EApiRouteType.GET_LIST, readPlan, dtoConfig, ReadScopeGuardA as Type<IAuthGuard>);
+		const deniedDto = DtoGenerateReadParameters(entityMetadata, EApiRouteType.GET_LIST, readPlan, dtoConfig, ReadScopeGuardB as Type<IAuthGuard>);
+
+		expect(cachedAllowedDto).toBe(allowedDto);
+		expect(deniedDto).not.toBe(allowedDto);
+		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, allowedDto.prototype, "tenantAlias")).toMatchObject({ format: "uuid", type: "string" });
+		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, deniedDto.prototype, "tenantAlias")).toBeUndefined();
+	});
+
+	it("preserves the exact legacy order shape for a filter-only query plan", async () => {
+		const { controller, type } = createFilterOnlyQueryController();
+		const controllerType = type as { prototype: object };
+		const plan = ApiControllerGetListQueryPlanGet(controllerType.prototype, "getList");
+
+		expect(plan).toBeDefined();
+		expect(plan?.order.isLegacy).toBe(true);
+		expect(Object.hasOwn(plan?.order ?? {}, "defaultOrder")).toBe(false);
+		expect(Object.hasOwn(plan?.order ?? {}, "tieBreakers")).toBe(false);
+
+		if (!plan) {
+			throw new Error("Expected generated GET_LIST query plan");
+		}
+
+		const runtime = ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1 }, plan);
+
+		expect(Object.hasOwn(runtime, "order")).toBe(false);
+
+		await controller.getList({ tenantId: PATH_TENANT_ID }, { limit: 10, page: 1 }, {}, "127.0.0.1");
+
+		const request = controller.service.getList.mock.calls[0]?.[0];
+
+		expect(Object.hasOwn(request ?? {}, "order")).toBe(false);
+	});
+
+	it("AND-merges owner scope with IAM for GET and fails closed on collision", async () => {
+		const { controller } = createGeneratedReadController();
+
+		await controller.get({ id: ENTITY_ID, tenantId: PATH_TENANT_ID }, {}, "127.0.0.1", createAuthenticationRequest({ tenantId: SCOPE_TENANT_ID }));
+
+		const request = controller.service.get.mock.calls[0]?.[0];
+		const where = request?.where as Record<string, unknown>;
+
+		expect(where.id).toMatchObject({ _type: "equal", _value: ENTITY_ID });
+		expect(where.tenantId).toMatchObject({
+			_type: "and",
+			_value: [
+				{ _type: "equal", _value: PATH_TENANT_ID },
+				{ _type: "equal", _value: SCOPE_TENANT_ID },
+			],
+		});
+	});
+
+	it("AND-merges owner, query, and IAM scope for GET_LIST and fails closed on collisions", async () => {
+		const { controller } = createGeneratedReadController();
+
+		await controller.getList(
+			{ tenantId: PATH_TENANT_ID },
+			{
+				limit: 10,
+				page: 1,
+				"tenantId[operator]": EFilterOperation.EQ,
+				"tenantId[value]": QUERY_TENANT_ID,
+			},
+			{},
+			"127.0.0.1",
+			createAuthenticationRequest({ tenantId: SCOPE_TENANT_ID }),
+		);
+
+		const request = controller.service.getList.mock.calls[0]?.[0];
+		const where = request?.where as Record<string, unknown>;
+
+		expect(where.tenantId).toMatchObject({
+			_type: "and",
+			_value: [
+				{
+					_type: "and",
+					_value: [
+						{ _type: "equal", _value: QUERY_TENANT_ID },
+						{ _type: "equal", _value: PATH_TENANT_ID },
+					],
+				},
+				{ _type: "equal", _value: SCOPE_TENANT_ID },
+			],
+		});
+	});
+
+	it("rejects an empty authorization WHERE before scoped GET_LIST service I/O", async () => {
+		const { controller } = createGeneratedReadController();
+		const authenticationRequest: IApiAuthenticationRequest = createAuthenticationRequest([] as unknown as Record<string, unknown>);
+
+		await expect(controller.getList({ tenantId: PATH_TENANT_ID }, { limit: 10, page: 1 }, {}, "127.0.0.1", authenticationRequest)).rejects.toThrow("Authorization scope WHERE cannot be an empty array");
+		expect(controller.service.getList).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["undefined", undefined],
+		["null", null],
+	])("rejects a partially ineffective authorization WHERE containing %s before scoped GET_LIST service I/O", async (_label: string, ineffectiveTenantId: null | undefined) => {
+		const { controller } = createGeneratedReadController();
+		const authenticationRequest: IApiAuthenticationRequest = createAuthenticationRequest({
+			status: "active",
+			tenantId: ineffectiveTenantId,
+		});
+
+		await expect(controller.getList({ tenantId: PATH_TENANT_ID }, { limit: 10, page: 1 }, {}, "127.0.0.1", authenticationRequest)).rejects.toThrow("Authorization scope WHERE object must contain an effective predicate");
+		expect(controller.service.getList).not.toHaveBeenCalled();
+	});
+
+	it("retains owner scope and IAM LIKE as an exact database conjunction", async () => {
+		const { controller } = createGeneratedReadController();
+
+		await controller.getList({ tenantId: "foobar" }, { limit: 10, page: 1 }, {}, "127.0.0.1", createAuthenticationRequest({ tenantId: Like("%foo") }));
+
+		const where = controller.service.getList.mock.calls[0]?.[0].where as Record<string, unknown>;
+
+		expect(where.tenantId).toMatchObject({
+			_type: "and",
+			_value: [
+				{ _type: "equal", _value: "foobar" },
+				{ _type: "like", _value: "%foo" },
+			],
+		});
+	});
+
+	it("applies compound defaults and keeps UUID server tie-breakers deduplicated", async () => {
+		const { controller, type } = createGeneratedReadController();
+
+		await controller.getList({ tenantId: PATH_TENANT_ID }, { limit: 10, page: 1 }, {}, "127.0.0.1");
+
+		const request = controller.service.getList.mock.calls[0]?.[0];
+		const controllerType = type as { prototype: object };
+		const listTypes = Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "getList") as Array<new () => Record<string, unknown>>;
+		const queryDto = listTypes[1];
+		const clientOrderByMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, queryDto?.prototype, "orderBy") as { enum?: Record<string, string> } | undefined;
+		const clientOrderFields = Object.values(clientOrderByMetadata?.enum ?? {});
+
+		expect(clientOrderFields).toEqual(expect.arrayContaining(["label", "sequence"]));
+		expect(clientOrderFields).not.toContain("id");
+		expect(Object.entries(request?.order ?? {})).toEqual([
+			["sequence", EFilterOrderDirection.DESC],
+			["label", EFilterOrderDirection.ASC],
+			["id", EFilterOrderDirection.ASC],
+		]);
+	});
+
+	it("uses client order first and appends one UUID tie-breaker", async () => {
+		const { controller } = createGeneratedReadController();
+
+		await controller.getList(
+			{ tenantId: PATH_TENANT_ID },
+			{
+				limit: 10,
+				orderBy: "label",
+				orderDirection: EFilterOrderDirection.DESC,
+				page: 1,
+			},
+			{},
+			"127.0.0.1",
+		);
+
+		const request = controller.service.getList.mock.calls[0]?.[0];
+
+		expect(Object.entries(request?.order ?? {})).toEqual([
+			["label", EFilterOrderDirection.DESC],
+			["id", EFilterOrderDirection.ASC],
+		]);
+	});
+
+	it("preserves exact generated GET and GET_LIST behavior without read config", async () => {
+		const { controller, type } = createLegacyGeneratedReadController();
+
+		await controller.get({ id: ENTITY_ID }, {}, "127.0.0.1");
+		await controller.getList(
+			{
+				limit: 10,
+				orderBy: "sequence",
+				orderDirection: EFilterOrderDirection.DESC,
+				page: 2,
+			},
+			{},
+			"127.0.0.1",
+		);
+
+		expect(controller.service.get).toHaveBeenCalledWith({
+			relationLoadStrategy: undefined,
+			relations: undefined,
+			where: { id: ENTITY_ID },
+		});
+		expect(controller.service.getList).toHaveBeenCalledWith({
+			order: { sequence: EFilterOrderDirection.DESC },
+			relationLoadStrategy: undefined,
+			relations: undefined,
+			skip: 10,
+			take: 10,
+			where: {},
+		});
+
+		const controllerType = type as { prototype: object };
+		const listArguments = Reflect.getMetadata(ROUTE_ARGS_METADATA, type, "getList") as Record<string, unknown>;
+		const listTypes = Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "getList") as Array<unknown>;
+
+		expect(Object.keys(listArguments)).toEqual([`${RouteParamtypes.QUERY}:0`, `${RouteParamtypes.HEADERS}:1`, `${RouteParamtypes.IP}:2`, `${RouteParamtypes.REQUEST}:3`]);
+		expect(listTypes.slice(1)).toEqual([Object, Object, Object]);
+	});
+});

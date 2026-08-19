@@ -2,7 +2,8 @@ import type { EFilterOrderDirection } from "@enum/filter";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationDecision } from "@interface/class/api/authorization";
-import type { IApiControllerGetListQueryPlan, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiRouteRuntimeContextData, IApiRouteRuntimeCustomExecutionOptions, IApiRouteRuntimeGeneratedExecutionOptions, IApiRouteRuntimeGeneratedTargets, IApiRouteRuntimeHttpRequest } from "@interface/class/api/route";
 import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route/error-execution-context.interface";
 import type { IApiSubscriberRouteExecutionContextData } from "@interface/class/api/subscriber/route/execution/context";
@@ -11,6 +12,7 @@ import type { IApiControllerProperties, IApiControllerPropertiesRouteBaseRelatio
 import type { IApiEntity } from "@interface/entity";
 import type { IApiControllerPrimaryColumn } from "@interface/utility";
 import type { Type } from "@nestjs/common";
+import type { TApiRequestTransformer } from "@type/api-request-transformer.type";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiControllerMethod } from "@type/class/controller-method.type";
@@ -36,6 +38,7 @@ import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetPrimaryColumn } from "@utility/api/controller/get/primary-column.utility";
 import { ApiControllerHandleRequestRelations } from "@utility/api/controller/handle-request-relations.utility";
+import { ApiControllerReadPlanGet, ApiControllerReadScopeWhere } from "@utility/api/controller/read";
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
 import { ApiControllerTransformData } from "@utility/api/controller/transform-data.utility";
 import { ApiControllerValidateRequest } from "@utility/api/controller/validate-request.utility";
@@ -320,11 +323,14 @@ export class ApiRouteRuntime {
 
 				return await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<E> => {
 					const primaryKey: IApiControllerPrimaryColumn<E> = this.resolvePrimaryKey(targets.parameters, options.entityMetadata);
+					const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName);
+					const identityWhere: FindOptionsWhere<E> = { [primaryKey.key]: primaryKey.value } as FindOptionsWhere<E>;
+					const routeScopedWhere: TApiAuthorizationScopeWhere<E> = readPlan ? AuthorizationScopeMergeWhere(identityWhere, ApiControllerReadScopeWhere(targets.parameters, readPlan)) : identityWhere;
 
 					const requestProperties: TApiFunctionGetProperties<E> = {
 						relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
 						relations: routeConfig.relations?.response?.load?.include,
-						where: AuthorizationScopeMergeWhere({ [primaryKey.key]: primaryKey.value } as FindOptionsWhere<E>, authorizationDecision?.scope?.where),
+						where: AuthorizationScopeMergeWhere(routeScopedWhere, authorizationDecision?.scope?.where),
 					};
 
 					markAfterBoundary();
@@ -334,7 +340,8 @@ export class ApiRouteRuntime {
 			}
 
 			case EApiRouteType.GET_LIST: {
-				await this.executeGeneratedRequestPipeline(options, targets, [EApiControllerRequestTarget.QUERY]);
+				const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName);
+				await this.executeGeneratedRequestPipeline(options, targets, readPlan ? [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.QUERY] : [EApiControllerRequestTarget.QUERY]);
 
 				const query: TApiControllerGetListQuery<E> | undefined = targets.query;
 
@@ -348,7 +355,8 @@ export class ApiRouteRuntime {
 				return await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<unknown> => {
 					const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
 					const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard);
-					const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(filter, authorizationDecision?.scope?.where);
+					const routeScopedFilter: TApiAuthorizationScopeWhere<E> = readPlan ? AuthorizationScopeMergeWhere(filter, ApiControllerReadScopeWhere(targets.parameters, readPlan)) : filter;
+					const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(routeScopedFilter, authorizationDecision?.scope?.where);
 					const effectiveLimit: number = runtimeQuery?.limit ?? limit;
 					const effectiveOrderBy: keyof E | string | undefined = runtimeQuery?.orderBy ?? orderBy;
 					const effectiveOrderDirection: EFilterOrderDirection | undefined = runtimeQuery?.orderDirection ?? orderDirection;
@@ -366,6 +374,10 @@ export class ApiRouteRuntime {
 						requestProperties.order = { [effectiveOrderBy as never as string]: effectiveOrderDirection ?? FUNCTION_API_DECORATOR_CONSTANT.DEFAULT_FILTER_ORDER_BY_DIRECTION } as FindOptionsOrder<E>;
 					}
 
+					if (runtimeQuery?.order?.length) {
+						requestProperties.order = Object.fromEntries(runtimeQuery.order.map((entry: IApiControllerGetListQueryPlanOrderEntry): [string, EFilterOrderDirection] => [entry.field, entry.direction])) as FindOptionsOrder<E>;
+					}
+
 					markAfterBoundary();
 
 					return await options.controller.service.getList(requestProperties);
@@ -377,20 +389,21 @@ export class ApiRouteRuntime {
 	private static async executeGeneratedRequestPipeline<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, targetOrder: Array<EApiControllerRequestTarget>): Promise<void> {
 		const routeConfig: TApiControllerPropertiesRoute<E, R> = options.properties.routes[options.method] ?? {};
 		const requestTargets: Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E>>> | undefined = routeConfig.request;
+		const transformTargets: Partial<Record<EApiControllerRequestTarget, { transformers?: Array<TApiRequestTransformer<E>> }>> | undefined = routeConfig.request;
 
 		for (const target of targetOrder) {
 			if (target === EApiControllerRequestTarget.PARAMETERS) {
-				ApiControllerTransformData<E>(routeConfig.request, options.properties, { parameters: targets.parameters }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
+				ApiControllerTransformData<E>(transformTargets, options.properties, { parameters: targets.parameters }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
 				await ApiControllerValidateRequest<E>(requestTargets?.[target], options.properties, targets.parameters ?? {});
 			}
 
 			if (target === EApiControllerRequestTarget.QUERY) {
-				ApiControllerTransformData<E>(routeConfig.request, options.properties, { query: targets.query }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
+				ApiControllerTransformData<E>(transformTargets, options.properties, { query: targets.query }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
 				await ApiControllerValidateRequest<E>(requestTargets?.[target], options.properties, targets.query ?? {});
 			}
 
 			if (target === EApiControllerRequestTarget.BODY) {
-				ApiControllerTransformData<E>(routeConfig.request, options.properties, { body: targets.body }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
+				ApiControllerTransformData<E>(transformTargets, options.properties, { body: targets.body }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
 				await ApiControllerValidateRequest<E>(requestTargets?.[target], options.properties, (targets.body ?? {}) as Partial<E>);
 			}
 		}

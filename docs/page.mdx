@@ -18,6 +18,7 @@ This library provides a comprehensive suite of decorators, utilities, and valida
 - Type-safe decorators for entity properties
 - Authentication and authorization guards integration
 - Advanced filtering, sorting, and pagination
+- Generated nested GET/GET_LIST owner scoping with deterministic server ordering
 - Support for object relations with include-driven loading
 - Subscriber system for intercepting and extending business logic
 - Request tracing with CorrelationID interceptor
@@ -30,6 +31,6 @@ This library provides a comprehensive suite of decorators, utilities, and valida
 - **Subscriber System**: Intercept and extend CRUD operations with hooks
 - **API Reference**: Detailed reference for all decorators, classes, interfaces, and utilities
 
-## Automator 3.0
+## Current 3.x Contract
 
-The repository contains the unreleased 3.0 source contract while the package version remains owned by release automation. Read the [3.0 release notes](/docs/nestjs-crud-automator/guides/release-notes-3-0) for the complete scope and [Migrating to 3.0](/docs/nestjs-crud-automator/guides/migrating-to-3-0) before adopting an exact published candidate.
+Version `3.0.2` is the published baseline immediately before this additive generated-read work: inherited path parameters can scope generated GET/GET_LIST routes, and GET_LIST can apply stable server defaults and tie-breakers while retaining the native page/limit response contract. Package versions remain owned by release automation. Use the [3.0 release notes](/docs/nestjs-crud-automator/guides/release-notes-3-0) and [Migrating to 3.0](/docs/nestjs-crud-automator/guides/migrating-to-3-0) when upgrading a pre-3.0 consumer.

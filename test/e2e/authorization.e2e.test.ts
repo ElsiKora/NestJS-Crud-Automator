@@ -104,7 +104,10 @@ describe("Authorization policy registry (E2E)", () => {
 		});
 
 		expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
-		expect(decision.scope?.where).toEqual({ id: "entity-1", ownerId: "owner-2" });
+		const where = decision.scope?.where as Record<string, unknown>;
+
+		expect(where.id).toMatchObject({ _type: "equal", _value: "entity-1" });
+		expect(where.ownerId).toMatchObject({ _type: "equal", _value: "owner-2" });
 	});
 
 	it("denies access when no permission-based allow matches", async () => {

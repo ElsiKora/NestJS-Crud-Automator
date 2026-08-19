@@ -15,6 +15,7 @@ import { E2eFunctionController } from "./function";
 import { E2eGeneratedTransactionController, E2eGeneratedTransactionService } from "./generated-transaction";
 import { e2eHookPermissionSource } from "./hook-permission-source";
 import { E2eManualController } from "./manual";
+import { E2eNestedOwnerReadController } from "./nested-read";
 import { E2eOwnerController, E2eOwnerEntity, E2eOwnerPolicySubscriber, E2eOwnerService } from "./owner";
 import { E2ePolicySubscriber } from "./policy";
 import { e2eAuthorizationPrincipalResolver } from "./principal-resolver";
@@ -25,7 +26,7 @@ import { E2eDefaultTypedQueryController, E2eOrderOnlyTypedQueryController, E2eTy
 import { E2eValidationPipe } from "./validation-pipe";
 
 @Module({
-	controllers: [E2eController, E2eCustomResponseController, E2eCustomItemResponseController, E2eCustomRouteController, E2eFunctionController, E2eGeneratedTransactionController, E2eBrokenController, E2eCopyController, E2eManualController, E2eTransformerErrorController, E2eDefaultTypedQueryController, E2eOrderOnlyTypedQueryController, E2eTypedQueryController, E2eOwnerController],
+	controllers: [E2eController, E2eCustomResponseController, E2eCustomItemResponseController, E2eCustomRouteController, E2eFunctionController, E2eGeneratedTransactionController, E2eBrokenController, E2eCopyController, E2eManualController, E2eTransformerErrorController, E2eDefaultTypedQueryController, E2eOrderOnlyTypedQueryController, E2eTypedQueryController, E2eOwnerController, E2eNestedOwnerReadController],
 	imports: [
 		TypeOrmModule.forRoot({
 			database: ":memory:",

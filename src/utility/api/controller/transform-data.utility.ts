@@ -1,7 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiRequestTransformer } from "@type/api-request-transformer.type";
-import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
+import type { TApiControllerGetListQuery, TApiControllerReadParameterTransformer } from "@type/decorator/api/controller";
 import type { TApiControllerTransformDataData, TApiControllerTransformDataObjectToTransform, TApiTransformDataIsValidationProperties } from "@type/utility";
 
 import { TRANSFORMER_VALUE_DTO_CONSTANT } from "@constant/dto";
@@ -9,6 +9,14 @@ import { EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApi
 import { EErrorStringAction } from "@enum/utility";
 import { InternalServerErrorException } from "@nestjs/common";
 import { ErrorString } from "@utility/error/string.utility";
+
+type TApiControllerRuntimeTransformer<E> = TApiControllerReadParameterTransformer<E> | TApiRequestTransformer<E>;
+type TApiControllerTransformDataTargets<E> = {
+	[EApiControllerRequestTarget.BODY]?: { transformers?: Array<TApiRequestTransformer<E>> };
+	[EApiControllerRequestTarget.PARAMETERS]?: { transformers?: Array<TApiControllerRuntimeTransformer<E>> };
+	[EApiControllerRequestTarget.QUERY]?: { transformers?: Array<TApiRequestTransformer<E>> };
+	[EApiControllerResponseTarget.RESPONSE]?: { transformers?: Array<TApiRequestTransformer<E>> };
+};
 
 /**
  * Transforms data between request/response objects and entity objects.
@@ -21,28 +29,30 @@ import { ErrorString } from "@utility/error/string.utility";
  * @returns {void}
  */
 export function ApiControllerTransformData<E extends IApiBaseEntity>(targets: Partial<Record<EApiControllerRequestTarget | EApiControllerResponseTarget, { transformers?: Array<TApiRequestTransformer<E>> }>> | undefined, properties: IApiControllerProperties<E>, objectToTransform: TApiControllerTransformDataObjectToTransform<E>, data: TApiControllerTransformDataData): void {
-	if (!targets) return;
+	const runtimeTargets: TApiControllerTransformDataTargets<E> | undefined = targets;
 
-	if (EApiControllerRequestTarget.BODY in targets && targets[EApiControllerRequestTarget.BODY]?.transformers) {
-		for (const transformer of targets[EApiControllerRequestTarget.BODY].transformers) {
+	if (!runtimeTargets) return;
+
+	if (EApiControllerRequestTarget.BODY in runtimeTargets && runtimeTargets[EApiControllerRequestTarget.BODY]?.transformers) {
+		for (const transformer of runtimeTargets[EApiControllerRequestTarget.BODY].transformers) {
 			if (objectToTransform.body) processTransformer(transformer, objectToTransform.body as TApiTransformDataIsValidationProperties<E>, properties, data);
 		}
 	}
 
-	if (EApiControllerRequestTarget.QUERY in targets && targets[EApiControllerRequestTarget.QUERY]?.transformers) {
-		for (const transformer of targets[EApiControllerRequestTarget.QUERY].transformers) {
+	if (EApiControllerRequestTarget.QUERY in runtimeTargets && runtimeTargets[EApiControllerRequestTarget.QUERY]?.transformers) {
+		for (const transformer of runtimeTargets[EApiControllerRequestTarget.QUERY].transformers) {
 			if (objectToTransform.query) processTransformer(transformer, objectToTransform.query, properties, data);
 		}
 	}
 
-	if (EApiControllerRequestTarget.PARAMETERS in targets && targets[EApiControllerRequestTarget.PARAMETERS]?.transformers) {
-		for (const transformer of targets[EApiControllerRequestTarget.PARAMETERS].transformers) {
+	if (EApiControllerRequestTarget.PARAMETERS in runtimeTargets && runtimeTargets[EApiControllerRequestTarget.PARAMETERS]?.transformers) {
+		for (const transformer of runtimeTargets[EApiControllerRequestTarget.PARAMETERS].transformers) {
 			if (objectToTransform.parameters) processTransformer(transformer, objectToTransform.parameters, properties, data);
 		}
 	}
 
-	if (EApiControllerResponseTarget.RESPONSE in targets && targets[EApiControllerResponseTarget.RESPONSE]?.transformers) {
-		for (const transformer of targets[EApiControllerResponseTarget.RESPONSE].transformers) {
+	if (EApiControllerResponseTarget.RESPONSE in runtimeTargets && runtimeTargets[EApiControllerResponseTarget.RESPONSE]?.transformers) {
+		for (const transformer of runtimeTargets[EApiControllerResponseTarget.RESPONSE].transformers) {
 			if (objectToTransform.response) processTransformer(transformer, objectToTransform.response, properties, data);
 		}
 	}
@@ -51,7 +61,7 @@ export function ApiControllerTransformData<E extends IApiBaseEntity>(targets: Pa
 /**
  * Handles transformation of object properties, setting values with appropriate type handling.
  * @param {TApiTransformDataIsValidationProperties<E>} object - The object to transform
- * @param {keyof E | keyof IApiGetListResponseResult<E> | keyof TApiControllerGetListQuery<E>} key - The property key
+ * @param {PropertyKey} key - The property key
  * @param {unknown} value - The value to set
  * @param {IApiBaseEntity} entity - The entity metadata
  * @param {boolean} [shouldSetValueEvenIfMissing] - Whether to set the value even if the key is missing
@@ -59,7 +69,7 @@ export function ApiControllerTransformData<E extends IApiBaseEntity>(targets: Pa
  * @throws {InternalServerErrorException} When key not found in object and not forced
  * @private
  */
-function handleTransformation<E>(object: TApiTransformDataIsValidationProperties<E>, key: keyof E | keyof IApiGetListResponseResult<E> | keyof TApiControllerGetListQuery<E>, value: unknown, entity: IApiBaseEntity, shouldSetValueEvenIfMissing: boolean = false): void {
+function handleTransformation<E>(object: TApiTransformDataIsValidationProperties<E>, key: PropertyKey, value: unknown, entity: IApiBaseEntity, shouldSetValueEvenIfMissing: boolean = false): void {
 	if (isApiGetListResponseResult(object)) {
 		if (key in object) {
 			(object[key as keyof IApiGetListResponseResult<E>] as unknown) = value;
@@ -123,7 +133,7 @@ function isPartialE<E>(object: TApiTransformDataIsValidationProperties<E>): obje
  * @throws {InternalServerErrorException} When required data for transformation is missing
  * @private
  */
-function processTransformer<E extends IApiBaseEntity>(transformer: TApiRequestTransformer<E>, objectToTransform: TApiTransformDataIsValidationProperties<E>, properties: IApiControllerProperties<E>, data: TApiControllerTransformDataData): void {
+function processTransformer<E extends IApiBaseEntity>(transformer: TApiControllerRuntimeTransformer<E>, objectToTransform: TApiTransformDataIsValidationProperties<E>, properties: IApiControllerProperties<E>, data: TApiControllerTransformDataData): void {
 	switch (transformer.type) {
 		case EApiControllerRequestTransformerType.DYNAMIC: {
 			if (Object.values(TRANSFORMER_VALUE_DTO_CONSTANT).includes(transformer.value)) {

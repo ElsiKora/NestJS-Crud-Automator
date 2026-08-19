@@ -7,10 +7,12 @@ NestJS CRUD Automator provides powerful filtering and sorting capabilities for l
 Filter results using the GET_LIST endpoint with query parameters:
 
 ```
-GET /users?username[operator]=eq&username[value]=john_doe
+GET /users?limit=20&page=1&username[operator]=eq&username[value]=john_doe
 ```
 
 This filters users where username equals "john_doe".
+
+Generated GET_LIST routes require `limit` and `page`. Later filter fragments omit those two parameters only to keep the operator examples readable.
 
 ## Route-Owned Typed Query Plans
 
@@ -44,10 +46,15 @@ Entity `@ApiPropertyDescribe` and TypeORM metadata remain the source for generat
 						unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT,
 					},
 					order: {
+						defaultOrder: [
+							{ direction: EFilterOrderDirection.DESC, field: "createdAt" },
+							{ direction: EFilterOrderDirection.ASC, field: "id" },
+						],
 						fields: {
 							createdAt: { isEnabled: true },
 							internalNotes: { isEnabled: false },
 						},
+						tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
 						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
 					},
 				},
@@ -68,11 +75,14 @@ Plan rules:
 - `missingBehavior` is `OMIT` by default, `REJECT` returns `400 FILTER_REQUIRED`, and `USE_DEFAULT` requires a typed static `defaultCondition`.
 - A default is inserted only when that field's client group is absent. A supplied client group replaces the default for the same field; all resulting field predicates are then AND-merged with HOOKS/IAM authorization scope. Principal-dependent restrictions belong in authorization scope, not defaults.
 - Filter paths may be direct scalars or one-hop to-one scalar paths such as `author.id`. Order paths are direct scalars only.
+- Client-sort `fields` and server-sort entries have different exposure rules: `fields` controls the generated `orderBy` enum, while `defaultOrder` and `tieBreakers` may use any described direct scalar entity field, including a UUID primary key that is not client-sortable.
+- With no client order pair, runtime applies `defaultOrder` followed by `tieBreakers`. A client pair replaces defaults, then tie-breakers are appended. Duplicate fields are removed in first-entry order, so the client entry wins over a duplicate tie-breaker.
+- Duplicate fields within one server list, invalid directions, unknown/non-scalar fields, or conflicting directions for the same field across defaults and tie-breakers fail at bootstrap.
 - Unknown, disabled, malformed, deeper, to-many, and disallowed typed-query input returns `400` independently of the host application's `ValidationPipe`.
 - `BETWEEN` accepts exactly two repeated `[values]`; membership operators accept 1–100 repeated `[values]`.
 - TypeScript narrows operations from the entity property's broad scalar type. At bootstrap, Automator validates the exact `@ApiPropertyDescribe` kind, nullability, enabled state, and configured operation set before exposing the route.
 
-Nest guards and host pipes run before controller entry. Inside Automator's generated runtime, route-before subscribers run first, followed by configured query transforms/validators and typed parsing plus defaults. The optional generated-route transaction then wraps predicate compilation, authorization-scope merge, and the service query. This lets a route-before subscriber intentionally rewrite the raw query before the strict parser sees it, while the final database predicate still includes authorization scope.
+Nest guards and host pipes run before controller entry. Inside Automator's generated runtime, route-before subscribers run first, followed by configured path/query transforms and validators, then typed query parsing plus defaults. The optional generated-route transaction wraps predicate compilation, read-scope merge, authorization-scope merge, and the service query. For a nested GET_LIST, query predicates are AND-merged with path scope and then HOOKS/IAM scope; conflicts become match-nothing conditions instead of key overwrites. This lets a route-before subscriber intentionally rewrite the raw query before the strict parser sees it while retaining every final scope.
 
 Typed-query failures use stable `400` codes:
 
@@ -83,7 +93,7 @@ Typed-query failures use stable `400` codes:
 
 The same plan emits one OpenAPI deep-object parameter per enabled filter field. Its `oneOf` branches describe the exact operator and `value`, `values`, or nullary operand shape. Disabled fields are omitted from both the generated query DTO contract and OpenAPI.
 
-The 3.0 package owns this server-side route contract but does not ship a consumer-side typed URL/bracket-filter builder. Consumers may keep a local helper or build repeated query parameters directly. Deferring that client utility does not weaken the generated DTO, parser, TypeORM, or OpenAPI contract.
+The current 3.x package owns this server-side route contract but does not ship a consumer-side typed URL/bracket-filter builder. Consumers may keep a local helper or build repeated query parameters directly. Deferring that client utility does not weaken the generated DTO, parser, TypeORM, or OpenAPI contract.
 
 ## Filter Operations
 
@@ -320,15 +330,29 @@ Available directions:
 - `asc` - Ascending order
 - `desc` - Descending order
 
-### Multiple Field Sort
+### Stable Server Compound Order
 
-Generated GET_LIST routes accept one `orderBy` field and one `orderDirection` value. Comma-separated multi-sort is not part of the current public contract.
+Generated GET_LIST routes accept one client `orderBy` field and one `orderDirection` value. Comma-separated client multi-sort is not part of the current public contract. Route-owned `defaultOrder` and `tieBreakers` provide a server-defined compound order:
 
+```typescript
+order: {
+	defaultOrder: [
+		{ direction: EFilterOrderDirection.DESC, field: "createdAt" },
+		{ direction: EFilterOrderDirection.ASC, field: "id" },
+	],
+	fields: {
+		createdAt: { isEnabled: true },
+	},
+	tieBreakers: [
+		{ direction: EFilterOrderDirection.ASC, field: "id" },
+	],
+	unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+}
 ```
-GET /users?orderBy=createdAt&orderDirection=desc
-```
 
-Use a custom service method when an endpoint needs multi-column ordering.
+Without client ordering this produces `createdAt DESC, id ASC`. With `?orderBy=createdAt&orderDirection=asc`, the client selection replaces the defaults and produces `createdAt ASC, id ASC` after duplicate removal. Keeping a unique final tie-breaker makes page/limit pagination deterministic for an unchanged dataset. UUID `id` is valid as a server-only direct scalar even if it is not exposed in `fields`.
+
+Use a custom service method only when the client itself must choose multiple arbitrary order fields or when ordering needs relations, expressions, or deeper database-specific behavior.
 
 ## Programmatic Usage
 

@@ -3,7 +3,7 @@ import typescript from "@rollup/plugin-typescript";
 import generatePackageJson from "rollup-plugin-generate-package-json";
 import dts from "unplugin-dts/rollup";
 
-const external = ["@elsikora/pluralizer", "@nestjs/common", "@nestjs/core", "@nestjs/swagger", "dotenv", "@nestjs/throttler", "node:crypto", "rxjs/operators", "typeorm", "class-transformer", "reflect-metadata", "class-validator", "lodash/cloneDeep.js", "lodash/random.js", "@nestjs/common/constants.js", "@nestjs/common/enums/route-paramtypes.enum.js", "@nestjs/swagger/dist/constants.js"];
+const external = ["@elsikora/pluralizer", "@nestjs/common", "@nestjs/core", "@nestjs/swagger", "dotenv", "@nestjs/throttler", "node:crypto", "path-to-regexp", "rxjs/operators", "typeorm", "class-transformer", "reflect-metadata", "class-validator", "lodash/cloneDeep.js", "lodash/random.js", "@nestjs/common/constants.js", "@nestjs/common/enums/route-paramtypes.enum.js", "@nestjs/swagger/dist/constants.js"];
 
 export default [
 	{

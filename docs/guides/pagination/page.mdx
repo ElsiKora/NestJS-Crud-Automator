@@ -1,6 +1,6 @@
 # Pagination
 
-All GET_LIST endpoints in NestJS CRUD Automator automatically support pagination with configurable limits and page numbers.
+All generated GET_LIST endpoints in NestJS CRUD Automator use a page/limit contract. Both values are required integers from 1 through 100, and the standard response includes page and total-count metadata.
 
 ## Basic Pagination
 
@@ -16,18 +16,18 @@ This returns the first 10 users.
 
 ### `limit`
 
-Number of items per page (default: 10, max: typically 100):
+Required number of items per page (minimum 1, maximum 100):
 
 ```
-GET /users?limit=20
+GET /users?limit=20&page=1
 ```
 
 ### `page`
 
-Page number (1-based indexing):
+Required page number (1-based indexing, maximum 100):
 
 ```
-GET /users?page=2
+GET /users?limit=20&page=2
 ```
 
 ## Response Structure
@@ -77,6 +77,35 @@ GET /users?limit=20&page=2&username[operator]=cont&username[value]=john&orderBy=
 
 This returns page 2 of users with "john" in username, sorted by creation date descending, 20 items per page.
 
+For stable consecutive pages over an unchanged dataset, configure a deterministic server order with a unique final tie-breaker:
+
+```typescript filename="user.controller.ts" copy
+@ApiController<UserEntity>({
+	entity: UserEntity,
+	routes: {
+		[EApiRouteType.GET_LIST]: {
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					order: {
+						defaultOrder: [{ direction: EFilterOrderDirection.DESC, field: "createdAt" }],
+						fields: {
+							createdAt: { isEnabled: true },
+						},
+						tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+				},
+			},
+		},
+	},
+})
+export class UserController {
+	constructor(public service: UserService) {}
+}
+```
+
+If the request omits `orderBy` and `orderDirection`, runtime applies `createdAt DESC, id ASC`. If the client supplies that pair, it replaces `defaultOrder`; `id ASC` is still appended. Duplicate order fields are removed with the earlier entry winning. Server-owned order entries are validated against all described direct scalar fields, so a UUID `id` can remain a hidden tie-breaker instead of appearing in the client order enum.
+
 ## Programmatic Usage
 
 Use pagination in service calls:
@@ -116,44 +145,7 @@ export class UserReportService {
 
 ## Pagination Limits
 
-Generated GET_LIST routes read `limit` and `page` from the query DTO and pass them to the service as TypeORM `take` and `skip`. There is no route-level `pagination` config in the current public contract; enforce project-specific defaults or maximums with request validators, interceptors, or a custom route/service method.
-
-## Cursor-Based Pagination
-
-For large datasets, implement cursor-based pagination using custom methods:
-
-```typescript filename="user.service.ts" copy
-import { Injectable } from "@nestjs/common";
-import { ApiService, ApiServiceBase } from "@elsikora/nestjs-crud-automator";
-import { UserEntity } from "./user.entity";
-import { MoreThan } from "typeorm";
-
-@Injectable()
-@ApiService<UserEntity>({
-	entity: UserEntity,
-})
-export class UserService extends ApiServiceBase<UserEntity> {
-	// ... constructor
-
-	async getUsersAfter(cursor: string, limit: number = 20): Promise<{ items: UserEntity[]; nextCursor: string | null }> {
-		const users = await this.repository.find({
-			where: {
-				id: MoreThan(cursor),
-			},
-			order: {
-				id: "ASC",
-			},
-			take: limit + 1, // Fetch one extra to check if more exist
-		});
-
-		const hasMore = users.length > limit;
-		const items = hasMore ? users.slice(0, limit) : users;
-		const nextCursor = hasMore ? items[items.length - 1].id : null;
-
-		return { items, nextCursor };
-	}
-}
-```
+Generated GET_LIST routes parse `limit` and `page`, then pass `take = limit` and `skip = limit * (page - 1)` to the service. There is no route-level pagination-default configuration in the current public contract. Clients must send both values. Use a custom route/service contract only when an application genuinely needs a different pagination model.
 
 ## Infinite Scroll
 
@@ -187,19 +179,9 @@ class UserListComponent {
 
 ## Performance Considerations
 
-### Offset vs Cursor Pagination
+### Offset Pagination
 
-**Offset Pagination (default)**:
-
-- Pros: Simple to implement, supports jumping to any page
-- Cons: Performance degrades with large offsets
-- Best for: Small to medium datasets, when page jumping is needed
-
-**Cursor Pagination**:
-
-- Pros: Consistent performance regardless of position
-- Cons: Cannot jump to arbitrary pages
-- Best for: Large datasets, infinite scroll, real-time data
+The generated route uses TypeORM offset pagination. It supports jumping to a page and keeps the standard count envelope, but large offsets can become expensive. A unique final order tie-breaker prevents rows with equal primary sort values from changing relative position for an unchanged dataset; it cannot freeze a dataset while concurrent inserts or updates occur.
 
 ### Counting Performance
 
@@ -256,7 +238,7 @@ Ensure pagination queries are fast with proper indexes:
 
 ```typescript
 @Entity("users")
-@Index(["createdAt", "id"]) // Composite index for pagination with sorting
+@Index(["createdAt", "id"]) // Matches defaultOrder + tieBreakers
 export class UserEntity {
 	@PrimaryGeneratedColumn("uuid")
 	id: string;

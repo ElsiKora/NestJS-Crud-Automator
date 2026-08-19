@@ -318,7 +318,7 @@ Projects configured response relations to scalar or object references.
 - `AuthorizationDecisionResolveFromRequest` reads an authorization decision from the authentication request.
 - `AuthorizationPermissionMatches` and `AuthorizationPermissionSetMatches` compare permission strings and sets.
 - `AuthorizationResolveDefaultPrincipal` resolves the default principal from an authentication request.
-- `AuthorizationScopeMergeWhere` merges authorization scopes into TypeORM `where` options.
+- `AuthorizationScopeMergeWhere` merges authorization scopes into TypeORM `where` options. Array-form OR scopes must contain at least one non-empty plain-object branch; empty arrays and empty branches fail closed instead of reaching TypeORM as an unconstrained query. When an additional scope is present, scalar leaves are normalized to explicit `Equal(...)` operators before TypeORM receives them. Wrap object-valued scalar columns such as JSON/JSONB or geometry in `Equal(value)` explicitly; raw objects remain relation or embedded criteria.
 
 ## Database Utilities
 

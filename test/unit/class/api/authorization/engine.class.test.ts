@@ -110,10 +110,10 @@ describe("ApiAuthorizationEngine", () => {
 		expect(decision.effect).toBe(EApiPolicyEffect.ALLOW);
 		expect(decision.appliedRules).toHaveLength(2);
 		expect(decision.trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_ALLOW);
-		expect(decision.scope?.where).toEqual({
-			id: "1",
-			status: "active",
-		});
+		const where = decision.scope?.where as Record<string, unknown>;
+
+		expect(where.id).toMatchObject({ _type: "equal", _value: "1" });
+		expect(where.status).toMatchObject({ _type: "equal", _value: "active" });
 		expect(decision.transforms).toHaveLength(2);
 	});
 
