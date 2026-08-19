@@ -1,8 +1,10 @@
-import type { EntityManager, Repository } from "typeorm";
+import type { EntityManager, FindManyOptions, Repository } from "typeorm";
 
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated-read-scope-storage.class";
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGetList } from "@decorator/api/function/get/list.decorator";
+import { EApiFunctionType } from "@enum/decorator/api";
 import type { IApiGetListResponseResult } from "@interface/decorator/api";
 import { HttpStatus } from "@nestjs/common";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -18,7 +20,7 @@ class GetListService {
 	public constructor(public repository: Repository<GetListEntity>) {}
 
 	@ApiFunctionGetList({ entity: GetListEntity })
-	public async getList(properties: { take?: number; skip?: number }): Promise<IApiGetListResponseResult<GetListEntity>> {
+	public async getList(properties: { skip?: number; take?: number; where?: Partial<GetListEntity> }): Promise<IApiGetListResponseResult<GetListEntity>> {
 		void properties;
 
 		return { count: 0, currentPage: 0, items: [], totalCount: 0, totalPages: 0 };
@@ -44,6 +46,35 @@ describe("ApiFunctionGetList", () => {
 		expect(result.totalCount).toBe(5);
 		expect(result.currentPage).toBe(2);
 		expect(result.totalPages).toBe(3);
+	});
+
+	it("reapplies generated-route criteria after a before-subscriber replaces GET_LIST options", async () => {
+		const findAndCount = vi.fn(async (_options?: FindManyOptions<GetListEntity>) => [[], 0] as [Array<GetListEntity>, number]);
+		const repository = {
+			findAndCount,
+		} as unknown as Repository<GetListEntity>;
+		const service = new GetListService(repository);
+		const request = { take: 10, where: { name: "required" } };
+
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockImplementation(async () => ({ take: 1, where: { name: "foreign" } }));
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+
+		await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET_LIST, request, request.where, async () => await service.getList(request));
+
+		const protectedWhere = findAndCount.mock.calls[0]?.[0]?.where as Record<string, unknown>;
+
+		expect(protectedWhere.name).toMatchObject({
+			_type: "and",
+			_value: [
+				{ _type: "equal", _value: "foreign" },
+				{ _type: "equal", _value: "required" },
+			],
+		});
+
+		findAndCount.mockClear();
+		await service.getList({ take: 5 });
+
+		expect(findAndCount).toHaveBeenCalledWith({ take: 1, where: { name: "foreign" } });
 	});
 
 	it("uses event manager repository when provided", async () => {

@@ -340,6 +340,31 @@ function createRawIdentityRouteController(path: string, routeConfig: unknown): {
 	};
 }
 
+function createRawReadRouteController(path: string, routeConfig: unknown): { controller: IGeneratedReadContractController; type: object } {
+	class RawReadRouteControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		name: "RawReadRouteGeneratedReadContract",
+		path,
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: routeConfig as never,
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(RawReadRouteControllerBase);
+
+	return {
+		controller: new Controller() as unknown as IGeneratedReadContractController,
+		type: Controller,
+	};
+}
+
 function createIdentityInheritanceControllers(): {
 	aliased: { controller: IGeneratedReadContractController; type: object };
 	canonicalDerived: { controller: IGeneratedReadContractController; type: object };
@@ -905,6 +930,91 @@ describe("generated read contract", () => {
 		["an unsupported scope key", { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }], unsupported: true } }, "Generated read scope must contain exactly parameters"],
 	])("rejects %s in generated read grammar", (_label, read, expectedMessage) => {
 		expect(() => compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", read)).toThrow(expectedMessage);
+	});
+
+	it("rejects hostile nested read records and arrays without invoking accessors", () => {
+		const scopeGetter = vi.fn(() => ({ parameters: [{ field: "tenantId", parameter: "tenantId" }] }));
+		const scopeAccessor: Record<string, unknown> = {};
+		const parametersGetter = vi.fn(() => [{ field: "tenantId", parameter: "tenantId" }]);
+		const parametersAccessor: Record<string, unknown> = {};
+		const mappingGetter = vi.fn(() => "tenantId");
+		const accessorMapping: Record<string, unknown> = { field: "tenantId" };
+		const accessorArray: Array<unknown> = [{ field: "tenantId", parameter: "tenantId" }];
+		const arrayGetter = vi.fn(() => ({ field: "tenantId", parameter: "tenantId" }));
+		const sparseArray: Array<unknown> = new Array<unknown>(1);
+		const extendedArray = [{ field: "tenantId", parameter: "tenantId" }] as Array<unknown> & { extra?: boolean };
+		const customPrototypeRead = Object.create({ inherited: true }) as Record<string, unknown>;
+
+		Object.defineProperty(scopeAccessor, "scope", { enumerable: true, get: scopeGetter });
+		Object.defineProperty(parametersAccessor, "parameters", { enumerable: true, get: parametersGetter });
+		Object.defineProperty(accessorMapping, "parameter", { enumerable: true, get: mappingGetter });
+		Object.defineProperty(accessorArray, "0", { enumerable: true, get: arrayGetter });
+		extendedArray.extra = true;
+		customPrototypeRead.scope = { parameters: [{ field: "tenantId", parameter: "tenantId" }] };
+
+		expect(() => compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", scopeAccessor)).toThrow("Generated read configuration must contain enumerable data properties only");
+		expect(() => compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", { scope: parametersAccessor })).toThrow("Generated read scope must contain enumerable data properties only");
+		expect(() => compileInvalidReadScope("tenant/:tenantId/generated-read-contract", [accessorMapping])).toThrow("Generated read scope parameters[0] must contain enumerable data properties only");
+		expect(() => compileInvalidReadScope("tenant/:tenantId/generated-read-contract", accessorArray)).toThrow("Generated read scope parameters must be a non-empty dense array of data properties");
+		expect(() => compileInvalidReadScope("tenant/:tenantId/generated-read-contract", sparseArray)).toThrow("Generated read scope parameters must be a non-empty dense array of data properties");
+		expect(() => compileInvalidReadScope("tenant/:tenantId/generated-read-contract", extendedArray)).toThrow("Generated read scope parameters must be a non-empty dense array of data properties");
+		expect(() => compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", customPrototypeRead)).toThrow("Generated read configuration must be a plain object");
+		expect(scopeGetter).not.toHaveBeenCalled();
+		expect(parametersGetter).not.toHaveBeenCalled();
+		expect(mappingGetter).not.toHaveBeenCalled();
+		expect(arrayGetter).not.toHaveBeenCalled();
+	});
+
+	it("reads top-level read only from an own enumerable data descriptor without invoking accessors", () => {
+		const inheritedGetter = vi.fn(() => ({ scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } }));
+		const inheritedPrototype: Record<string, unknown> = {};
+		const inheritedRoute = Object.create(inheritedPrototype) as Record<PropertyKey, unknown>;
+		const nonEnumerableRoute: Record<string, unknown> = {};
+		const accessorGetter = vi.fn(() => ({ scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } }));
+		const accessorRoute: Record<string, unknown> = {};
+		const symbolRoute: Record<PropertyKey, unknown> = { read: { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } } };
+		const customPrototypeRoute = Object.create({ custom: true }) as Record<string, unknown>;
+		const nullPrototypeRoute = Object.assign(Object.create(null) as Record<string, unknown>, { read: { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } } });
+
+		Object.defineProperty(inheritedPrototype, "read", { enumerable: true, get: inheritedGetter });
+		Object.defineProperty(nonEnumerableRoute, "read", { enumerable: false, value: { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } } });
+		Object.defineProperty(accessorRoute, "read", { enumerable: true, get: accessorGetter });
+		symbolRoute[Symbol("extra")] = true;
+		customPrototypeRoute.read = { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } };
+
+		expect(() => createRawReadRouteController("tenant/:tenantId/null-prototype-read-route", nullPrototypeRoute)).not.toThrow();
+		expect(() => createRawReadRouteController("tenant/:tenantId/inherited-read-route", inheritedRoute)).toThrow("Generated read must be an own property on the route configuration");
+		expect(() => createRawReadRouteController("tenant/:tenantId/non-enumerable-read-route", nonEnumerableRoute)).toThrow("Generated read must be an enumerable data property on the route configuration");
+		expect(() => createRawReadRouteController("tenant/:tenantId/accessor-read-route", accessorRoute)).toThrow("Generated read must be an enumerable data property on the route configuration");
+		expect(() => createRawReadRouteController("tenant/:tenantId/symbol-read-route", symbolRoute)).toThrow("Generated read route configuration must not contain symbol keys");
+		expect(() => createRawReadRouteController("tenant/:tenantId/custom-prototype-read-route", customPrototypeRoute)).toThrow("Generated read route configuration must be a plain object");
+		expect(inheritedGetter).not.toHaveBeenCalled();
+		expect(accessorGetter).not.toHaveBeenCalled();
+	});
+
+	it("does not treat an own undefined top-level read descriptor as absent", () => {
+		expect(() => createRawReadRouteController("undefined-read-route", { read: undefined })).toThrow("Generated read configuration must be an object");
+	});
+
+	it("fails closed when legacy low-level controller facades receive an uncompiled read scope", () => {
+		const entityMetadata = GenerateEntityInformation(GeneratedReadContractEntity);
+		const routeConfig = { read: { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } } } as never;
+		const properties = {
+			entity: GeneratedReadContractEntity,
+			routes: { [EApiRouteType.GET]: routeConfig },
+		} as never;
+		class LowLevelReadController {}
+		const handler = function get() {};
+		const invocations: Array<() => unknown> = [
+			() => ApiControllerApplyDecorators(handler as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, []),
+			() => ApiControllerApplyMetadata(LowLevelReadController, LowLevelReadController.prototype, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig),
+			() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET, EApiDtoType.PARAMETERS, routeConfig),
+			() => ApiControllerWriteDtoSwagger(LowLevelReadController, entityMetadata, properties, EApiRouteType.GET, routeConfig, entityMetadata),
+		];
+
+		for (const invoke of invocations) {
+			expect(invoke).toThrow("Generated read configuration requires compilation by the @ApiController factory");
+		}
 	});
 
 	it("rejects generated read scope combined with a manual PARAMETERS DTO", () => {

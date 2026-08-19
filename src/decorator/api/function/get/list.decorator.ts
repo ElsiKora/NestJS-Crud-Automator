@@ -3,10 +3,12 @@ import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/cla
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context";
 import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context/data.interface";
 import type { IApiFunctionGetListExecutorProperties, IApiFunctionProperties, IApiGetListResponseResult } from "@interface/decorator/api";
+import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiFunctionGetListProperties } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
 import type { FindManyOptions } from "typeorm";
 
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated-read-scope-storage.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
@@ -32,6 +34,8 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (this: { repository: Repository<E> }, getListProperties: TApiFunctionGetListProperties<E>): Promise<IApiGetListResponseResult<E>> {
+			const mandatoryWhere: TApiAuthorizationScopeWhere<E> | undefined = ApiControllerGeneratedReadScopeStorage.claim<E>(EApiFunctionType.GET_LIST, getListProperties);
+
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<IApiGetListResponseResult<E>> => {
 					const entityInstance: E = new entity();
@@ -63,7 +67,10 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 						throw ErrorException("Repository is not available in this context");
 					}
 
-					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? {}, repository });
+					const subscriberProperties: TApiFunctionGetListProperties<E> = executionContext.result ?? {};
+					const finalProperties: TApiFunctionGetListProperties<E> = mandatoryWhere ? ApiControllerGeneratedReadScopeStorage.protect(subscriberProperties, mandatoryWhere) : subscriberProperties;
+
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: finalProperties, repository });
 				},
 				entity,
 				functionType: EApiFunctionType.GET_LIST,

@@ -2,11 +2,16 @@ import { Injectable } from "@nestjs/common";
 
 import { ApiFunctionSubscriber, ApiFunctionSubscriberBase, type IApiSubscriberFunctionTransactionContext, type TApiSubscriberFunctionBeforeCreateContext, type TApiSubscriberFunctionBeforeUpdateContext } from "../../../../src/index";
 
+import { E2E_OWNER_ID_OTHER } from "../constants";
 import { E2eEntity } from "../entity";
 
 @Injectable()
 @ApiFunctionSubscriber({ entity: E2eEntity, priority: 5 })
 export class E2eFunctionSubscriber extends ApiFunctionSubscriberBase<E2eEntity> {
+	public static shouldReplaceGetOptions: boolean = false;
+
+	public static shouldReplaceGetListOptions: boolean = false;
+
 	public static currentEntities: Array<Readonly<E2eEntity>> = [];
 
 	public static events: Array<string> = [];
@@ -16,6 +21,8 @@ export class E2eFunctionSubscriber extends ApiFunctionSubscriberBase<E2eEntity> 
 	public static reset(): void {
 		E2eFunctionSubscriber.currentEntities = [];
 		E2eFunctionSubscriber.events = [];
+		E2eFunctionSubscriber.shouldReplaceGetListOptions = false;
+		E2eFunctionSubscriber.shouldReplaceGetOptions = false;
 		E2eFunctionSubscriber.transactionContexts = [];
 	}
 
@@ -94,8 +101,15 @@ export class E2eFunctionSubscriber extends ApiFunctionSubscriberBase<E2eEntity> 
 
 	public async onBeforeGet(_context: object) {
 		E2eFunctionSubscriber.record("before", "get");
+
+		if (E2eFunctionSubscriber.shouldReplaceGetOptions) {
+			return Object.freeze({ where: Object.freeze({ id: "nested-foreign" }) });
+		}
+
 		// eslint-disable-next-line @elsikora/sonar/void-use
 		void _context;
+
+		return undefined;
 	}
 
 	public async onAfterGet(context: { result: E2eEntity }) {
@@ -106,8 +120,15 @@ export class E2eFunctionSubscriber extends ApiFunctionSubscriberBase<E2eEntity> 
 
 	public async onBeforeGetList(_context: object) {
 		E2eFunctionSubscriber.record("before", "getList");
+
+		if (E2eFunctionSubscriber.shouldReplaceGetListOptions) {
+			return Object.freeze({ where: Object.freeze({ ownerId: E2E_OWNER_ID_OTHER }) });
+		}
+
 		// eslint-disable-next-line @elsikora/sonar/void-use
 		void _context;
+
+		return undefined;
 	}
 
 	public async onAfterGetList(context: { result: { items: Array<E2eEntity> } }) {

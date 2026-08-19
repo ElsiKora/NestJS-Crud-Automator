@@ -34,6 +34,8 @@ interface IPublicGeneratedReadResponse {
 	ok: boolean;
 }
 
+type TTypeEqual<L, R> = (<T>() => T extends L ? 1 : 2) extends <T>() => T extends R ? 1 : 2 ? true : false;
+
 class PublicGeneratedReadParametersDto {}
 class PublicGeneratedReadQueryDto {}
 class PublicGeneratedReadResponseDto {}
@@ -369,6 +371,12 @@ describe("public generated read type contract", () => {
 		};
 
 		expect(sourceCompatibilityProbe).toBeTypeOf("function");
+	});
+
+	it("preserves the exact 3.0.2 low-level facade arities", () => {
+		const exactArities: [TTypeEqual<Parameters<typeof ApiControllerApplyDecorators>["length"], 7 | 8>, TTypeEqual<Parameters<typeof ApiControllerApplyMetadata>["length"], 7 | 8>, TTypeEqual<Parameters<typeof ApiControllerGetDto>["length"], 5 | 6>, TTypeEqual<Parameters<typeof ApiControllerWriteDtoSwagger>["length"], 6 | 7>] = [true, true, true, true];
+
+		expect(exactArities).toEqual([true, true, true, true]);
 	});
 
 	it("preserves the exact 3.0.2 public controller metadata key set", () => {

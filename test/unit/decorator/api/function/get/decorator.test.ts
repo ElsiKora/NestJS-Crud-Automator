@@ -1,8 +1,10 @@
-import type { EntityManager, Repository } from "typeorm";
+import type { EntityManager, FindOneOptions, Repository } from "typeorm";
 
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated-read-scope-storage.class";
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGet } from "@decorator/api/function/get/decorator";
+import { EApiFunctionType } from "@enum/decorator/api";
 import { HttpStatus } from "@nestjs/common";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -40,6 +42,35 @@ describe("ApiFunctionGet", () => {
 		const result = await service.get({ where: { id: "id-1" } });
 
 		expect(result).toMatchObject({ id: "id-1", name: "found" });
+	});
+
+	it("reapplies generated-route criteria after a before-subscriber replaces GET options", async () => {
+		const findOne = vi.fn(async (_options: FindOneOptions<GetEntity>) => ({ id: "id-required", name: "found" }));
+		const repository = {
+			findOne,
+		} as unknown as Repository<GetEntity>;
+		const service = new GetService(repository);
+		const request = { where: { id: "id-required" } };
+
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockImplementation(async () => ({ where: { id: "id-foreign" } }));
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+
+		await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, request, request.where, async () => await service.get(request));
+
+		const protectedWhere = findOne.mock.calls[0]?.[0].where as Record<string, unknown>;
+
+		expect(protectedWhere.id).toMatchObject({
+			_type: "and",
+			_value: [
+				{ _type: "equal", _value: "id-foreign" },
+				{ _type: "equal", _value: "id-required" },
+			],
+		});
+
+		findOne.mockClear();
+		await service.get({ where: { id: "id-direct" } });
+
+		expect(findOne).toHaveBeenCalledWith({ where: { id: "id-foreign" } });
 	});
 
 	it("uses event manager repository when provided", async () => {

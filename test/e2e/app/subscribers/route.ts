@@ -5,6 +5,7 @@ import { Injectable } from "@nestjs/common";
 
 import { ApiRouteSubscriber, ApiRouteSubscriberBase, EFilterOperation } from "../../../../src/index";
 
+import { E2E_OWNER_ID_OTHER } from "../constants";
 import { E2eEntity } from "../entity";
 
 @Injectable()
@@ -40,8 +41,14 @@ export class E2eRouteSubscriber extends ApiRouteSubscriberBase<E2eEntity> {
 		return context.result;
 	}
 
-	public async onAfterGet(context: { result: E2eEntity }) {
+	public async onAfterGet(context: { DATA: { authenticationRequest?: { authorizationDecision?: { transforms?: Array<unknown> } }; authorizationDecision?: { transforms?: Array<unknown> }; headers: Record<string, string> }; result: E2eEntity }) {
 		E2eRouteSubscriber.record("after", "get");
+
+		if (context.DATA.headers["x-clear-after-transforms"] === "true") {
+			context.DATA.authorizationDecision?.transforms?.splice(0);
+			context.DATA.authenticationRequest?.authorizationDecision?.transforms?.splice(0);
+		}
+
 		return this.withRoutePrefix(context.result);
 	}
 
@@ -80,9 +87,52 @@ export class E2eRouteSubscriber extends ApiRouteSubscriberBase<E2eEntity> {
 		E2eRouteSubscriber.maybeDropPrimaryKey(context.result.headers, context.DATA.entityMetadata);
 	}
 
-	public async onBeforeGet(context: { DATA: { entityMetadata: IApiEntity<E2eEntity> }; result: { headers: Record<string, string> } }) {
+	public async onBeforeGet(context: { DATA: { authorizationDecision?: Record<string, unknown>; entityMetadata: IApiEntity<E2eEntity> }; result: { authenticationRequest?: { user?: unknown }; headers: Record<string, string> } }) {
 		E2eRouteSubscriber.record("before", "get");
 		E2eRouteSubscriber.maybeDropPrimaryKey(context.result.headers, context.DATA.entityMetadata);
+
+		if (context.result.headers["x-clear-data-scope"] === "true" && context.DATA.authorizationDecision) {
+			context.DATA.authorizationDecision.scope = undefined;
+		}
+
+		if (context.result.headers["x-mutate-data-scope-where"] === "true") {
+			const decision = context.DATA.authorizationDecision as { scope?: { where?: { ownerId?: string } } } | undefined;
+
+			if (decision?.scope?.where) {
+				decision.scope.where.ownerId = E2E_OWNER_ID_OTHER;
+			}
+		}
+
+		if (context.result.headers["x-mutate-auth-scope-where"] === "true") {
+			const authenticationRequest = context.result.authenticationRequest as { authorizationDecision?: { scope?: { where?: { ownerId?: string } } } } | undefined;
+
+			if (authenticationRequest?.authorizationDecision?.scope?.where) {
+				authenticationRequest.authorizationDecision.scope.where.ownerId = E2E_OWNER_ID_OTHER;
+			}
+		}
+
+		if (context.result.headers["x-drop-auth"] === "true") {
+			const replacement = { ...context.result };
+
+			Reflect.deleteProperty(replacement, "authenticationRequest");
+
+			return replacement;
+		}
+
+		if (context.result.headers["x-replace-auth"] === "true") {
+			return {
+				...context.result,
+				authenticationRequest: {
+					authorizationDecision: {
+						...context.DATA.authorizationDecision,
+						scope: undefined,
+					},
+					user: context.result.authenticationRequest?.user,
+				} as never,
+			};
+		}
+
+		return context.result;
 	}
 
 	public async onBeforeGetList(context: { result: { query?: Record<string, unknown> } }) {

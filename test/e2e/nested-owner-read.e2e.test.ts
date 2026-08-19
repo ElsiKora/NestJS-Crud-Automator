@@ -9,7 +9,7 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { E2eAppModule, E2eOwnerService, E2eService } from "./app";
+import { E2eAppModule, E2eFunctionSubscriber, E2eOwnerService, E2eService } from "./app";
 import { E2E_OWNER_ID, E2E_OWNER_ID_OTHER } from "./app/constants";
 
 describe("nested-owner generated read contract (E2E)", () => {
@@ -39,6 +39,7 @@ describe("nested-owner generated read contract (E2E)", () => {
 	});
 
 	beforeEach(async () => {
+		E2eFunctionSubscriber.reset();
 		await service.reset();
 		await ownerService.reset();
 		await ownerService.repository.save([
@@ -76,6 +77,66 @@ describe("nested-owner generated read contract (E2E)", () => {
 		expect(foreignGet.statusCode).toBe(HttpStatus.NOT_FOUND);
 		expect(list.statusCode).toBe(HttpStatus.OK);
 		expect((list.json() as { items: Array<{ id: string }> }).items.map(({ id }: { id: string }): string => id)).toEqual(["nested-owned-alpha", "nested-owned-beta", "nested-owned-low"]);
+	});
+
+	it("keeps generated GET and GET_LIST scope after function subscribers replace frozen options", async () => {
+		E2eFunctionSubscriber.shouldReplaceGetOptions = true;
+		const getResponse = await fastify.inject({
+			method: "GET",
+			url: `/nested-owner/${E2E_OWNER_ID}/items/nested-owned-alpha`,
+		});
+
+		E2eFunctionSubscriber.shouldReplaceGetOptions = false;
+		E2eFunctionSubscriber.shouldReplaceGetListOptions = true;
+		const listResponse = await fastify.inject({
+			method: "GET",
+			url: `/nested-owner/${E2E_OWNER_ID}/items?limit=10&page=1`,
+		});
+
+		expect(getResponse.statusCode).toBe(HttpStatus.NOT_FOUND);
+		expect(listResponse.statusCode).toBe(HttpStatus.OK);
+		expect((listResponse.json() as { items: Array<unknown> }).items).toEqual([]);
+	});
+
+	it.each(["x-drop-auth", "x-replace-auth"])("pins the guard authorization decision when a route subscriber supplies %s", async (attackHeader: string) => {
+		const response = await fastify.inject({
+			headers: {
+				...adminHeaders,
+				[attackHeader]: "true",
+			},
+			method: "GET",
+			url: `/secure-identity-alias/${E2E_OWNER_ID_OTHER}/items/nested-foreign`,
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.NOT_FOUND);
+	});
+
+	it.each(["x-clear-data-scope", "x-mutate-data-scope-where", "x-mutate-auth-scope-where"])("keeps the canonical guard scope when a route subscriber attacks it through %s", async (attackHeader: string) => {
+		const response = await fastify.inject({
+			headers: {
+				...adminHeaders,
+				[attackHeader]: "true",
+			},
+			method: "GET",
+			url: `/secure-identity-alias/${E2E_OWNER_ID_OTHER}/items/nested-foreign`,
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.NOT_FOUND);
+	});
+
+	it("applies the canonical result transforms after an after-subscriber clears its decision view", async () => {
+		const response = await fastify.inject({
+			headers: {
+				...adminHeaders,
+				"x-clear-after-transforms": "true",
+				"x-policy-transform": "true",
+			},
+			method: "GET",
+			url: `/secure-identity-alias/${E2E_OWNER_ID}/items/nested-owned-alpha`,
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.OK);
+		expect((response.json() as { policyPrincipalId?: string }).policyPrincipalId).toBe(E2E_OWNER_ID);
 	});
 
 	it("documents inherited owner parameters for generated GET and GET_LIST", () => {

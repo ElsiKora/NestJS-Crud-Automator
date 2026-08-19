@@ -1,11 +1,13 @@
 import type { IApiRouteRuntimeHttpRequest } from "@interface/class/api/route";
 import type { ExecutionContext } from "@nestjs/common";
+import type { FindOperator, ValueTransformer } from "typeorm";
 
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { ApiRouteProjectRelationResponse } from "@utility/api/route/response/project-relation.utility";
+import { In } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
 import { RuntimeRouteEmailBodyDTO, RuntimeRouteEntity, RuntimeRouteExposedEmailBodyDTO, RuntimeRouteExposedPhoneBodyDTO, RuntimeRoutePhoneBodyDTO, RuntimeRouteResponseDTO, RuntimeRouteSessionResponseDTO, RuntimeRouteVerificationResponseDTO } from "./runtime/fixture";
@@ -752,6 +754,59 @@ describe("ApiRouteRuntime", () => {
 				id: "response-1",
 			},
 		});
+	});
+
+	it("passes a detached mutable authorization operator to generated GET persistence", async () => {
+		const scopeOperator = In(["owner-a", "owner-b"]);
+		const transformer: ValueTransformer = {
+			from: (value: unknown): unknown => value,
+			to: (value: unknown): unknown => `db:${String(value)}`,
+		};
+		const service = new ApiServiceBase<RuntimeRouteEntity>();
+		const get = vi.spyOn(service, "get").mockImplementation(async (properties) => {
+			const persistenceOperator = (properties.where as { ownerId: FindOperator<Array<string>> }).ownerId;
+
+			expect(Object.isFrozen(persistenceOperator)).toBe(false);
+			expect(() => persistenceOperator.transformValue(transformer)).not.toThrow();
+			expect(persistenceOperator.value).toEqual(["db:owner-a", "db:owner-b"]);
+
+			return { id: "response-1" };
+		});
+
+		await ApiRouteRuntime.executeGenerated({
+			controller: { service } as never,
+			entityMetadata: {
+				columns: [{ isPrimary: true, name: "id", type: "varchar" }],
+				primaryKey: { isPrimary: true, name: "id", type: "varchar" },
+				tableName: "runtime_route_entities",
+			},
+			method: EApiRouteType.GET,
+			methodName: "get",
+			properties: {
+				entity: RuntimeRouteEntity,
+				routes: {
+					[EApiRouteType.GET]: {
+						dto: { [EApiDtoType.RESPONSE]: RuntimeRouteResponseDTO },
+						response: { serialization: { isEnabled: false } },
+					},
+				},
+			},
+			targets: {
+				authenticationRequest: {
+					authorizationDecision: {
+						scope: { where: { ownerId: scopeOperator } },
+						transforms: [],
+					} as never,
+					user: {},
+				},
+				headers: {},
+				ip: "127.0.0.1",
+				parameters: { id: "response-1" },
+			},
+		});
+
+		expect(get).toHaveBeenCalledOnce();
+		expect(scopeOperator.value).toEqual(["owner-a", "owner-b"]);
 	});
 
 	it("passes response relation load strategy to generated GET_LIST relation loading", async () => {

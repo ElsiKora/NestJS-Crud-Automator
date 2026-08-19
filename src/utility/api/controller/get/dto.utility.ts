@@ -12,6 +12,7 @@ import type { ObjectLiteral } from "typeorm";
 
 import { EApiDtoType as EApiDtoTypeValue, EApiRouteType as EApiRouteTypeValue } from "@enum/decorator/api";
 import { ApiControllerIdentityPlanAssert } from "@utility/api/controller/identity";
+import { ApiControllerReadPlanAssert } from "@utility/api/controller/read";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerate, DtoGenerateGetListResponse } from "@utility/dto";
 import { DtoGenerateIdentityReadParameters } from "@utility/dto/generate/identity-read-parameters.utility";
@@ -33,6 +34,8 @@ const getListItemResponseDtoCache: Map<string, Type<unknown>> = new Map<string, 
  * @template R - Route type
  */
 export function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> | undefined {
+	ApiControllerReadPlanAssert(routeConfig);
+
 	return ApiControllerGetDtoWithReadPlan(properties, entity, method, dtoType, routeConfig, queryPlan);
 }
 
@@ -52,6 +55,10 @@ export function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRout
  */
 export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan): Type<unknown> | undefined {
 	ApiControllerIdentityPlanAssert(routeConfig, identityPlan);
+
+	if (dtoType === EApiDtoTypeValue.PARAMETERS) {
+		ApiControllerReadPlanAssert(routeConfig, readPlan);
+	}
 
 	const configuredDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown> | undefined = routeConfig.dto?.[dtoType];
 

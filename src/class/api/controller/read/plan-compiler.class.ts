@@ -19,16 +19,22 @@ const UNSAFE_SCOPE_PROPERTY_NAMES: ReadonlySet<string> = new Set<string>([...Obj
 
 export class ApiControllerReadPlanCompiler {
 	public static compile<E extends IApiBaseEntity, R extends EApiRouteType>(controller: Type<unknown>, controllerPath: string | undefined, entityMetadata: IApiEntity<E>, method: R, routeConfig: TApiControllerPropertiesRoute<E, R>): IApiControllerReadPlan | undefined {
-		const readConfig: unknown = "read" in routeConfig ? routeConfig.read : undefined;
+		const readDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(routeConfig, "read");
 		const requestConfig: Partial<Record<EApiControllerRequestTarget, unknown>> | undefined = routeConfig.request;
 
-		if (readConfig === undefined) {
+		if (!readDescriptor) {
+			if (Reflect.has(routeConfig, "read")) {
+				throw ErrorException("Generated read must be an own property on the route configuration");
+			}
+
 			if (method === EApiRouteType.GET_LIST && requestConfig?.[EApiControllerRequestTarget.PARAMETERS] !== undefined) {
 				throw ErrorException("GET_LIST PARAMETERS request configuration requires generated read scope");
 			}
 
 			return undefined;
 		}
+
+		const readConfig: unknown = this.readTopLevelRead(routeConfig, readDescriptor);
 
 		if (method !== EApiRouteType.GET && method !== EApiRouteType.GET_LIST) {
 			throw ErrorException("Generated read configuration is supported only for GET and GET_LIST routes");
@@ -40,13 +46,9 @@ export class ApiControllerReadPlanCompiler {
 
 		const rawReadConfig: Record<string, unknown> = this.requireRecord(readConfig, "Generated read configuration");
 		this.requireExactKeys(rawReadConfig, ["scope"], "Generated read configuration");
-		const rawScope: Record<string, unknown> = this.requireRecord(rawReadConfig.scope, "Generated read scope");
+		const rawScope: Record<string, unknown> = this.requireRecord(this.readDataProperty(rawReadConfig, "scope", "Generated read configuration"), "Generated read scope");
 		this.requireExactKeys(rawScope, ["parameters"], "Generated read scope");
-		const rawParameters: unknown = rawScope.parameters;
-
-		if (!Array.isArray(rawParameters) || rawParameters.length === 0) {
-			throw ErrorException("Generated read scope parameters must be a non-empty array");
-		}
+		const rawParameters: Array<unknown> = this.readDenseArray(this.readDataProperty(rawScope, "parameters", "Generated read scope"), "Generated read scope parameters");
 
 		const inheritedParameters: Array<string> = this.extractPathParameters(controllerPath ?? "");
 		const inheritedParameterSet: Set<string> = new Set<string>(inheritedParameters);
@@ -63,8 +65,8 @@ export class ApiControllerReadPlanCompiler {
 		for (const [index, rawMapping] of rawParameters.entries()) {
 			const mapping: Record<string, unknown> = this.requireRecord(rawMapping, `Generated read scope parameters[${index}]`);
 			this.requireExactKeys(mapping, ["field", "parameter"], `Generated read scope parameters[${index}]`);
-			const rawParameter: unknown = mapping.parameter;
-			const rawField: unknown = mapping.field;
+			const rawParameter: unknown = this.readDataProperty(mapping, "parameter", `Generated read scope parameters[${index}]`);
+			const rawField: unknown = this.readDataProperty(mapping, "field", `Generated read scope parameters[${index}]`);
 
 			if (typeof rawParameter !== "string" || rawParameter.length === 0) {
 				throw ErrorException(`Generated read scope parameters[${index}] must declare a path parameter`);
@@ -179,8 +181,69 @@ export class ApiControllerReadPlanCompiler {
 		return parameters;
 	}
 
+	private static readDataProperty(value: object, key: string, context: string): unknown {
+		const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(value, key);
+
+		if (!descriptor?.enumerable || !("value" in descriptor)) {
+			throw ErrorException(`${context} property "${key}" must be an enumerable data property`);
+		}
+
+		return descriptor.value;
+	}
+
+	private static readDenseArray(value: unknown, context: string): Array<unknown> {
+		if (!Array.isArray(value)) {
+			throw ErrorException(`${context} must be a non-empty array`);
+		}
+
+		const lengthDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(value, "length");
+		const length: unknown = lengthDescriptor && "value" in lengthDescriptor ? lengthDescriptor.value : undefined;
+
+		if (length === 0) {
+			throw ErrorException(`${context} must be a non-empty array`);
+		}
+
+		if (!Number.isSafeInteger(length) || (length as number) < 0 || Reflect.ownKeys(value).length !== (length as number) + 1) {
+			throw ErrorException(`${context} must be a non-empty dense array of data properties`);
+		}
+
+		const items: Array<unknown> = [];
+
+		for (let index: number = 0; index < (length as number); index++) {
+			const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(value, String(index));
+
+			if (!descriptor?.enumerable || !("value" in descriptor)) {
+				throw ErrorException(`${context} must be a non-empty dense array of data properties`);
+			}
+
+			items.push(descriptor.value);
+		}
+
+		return items;
+	}
+
+	private static readTopLevelRead(routeConfig: object, descriptor: PropertyDescriptor): unknown {
+		const prototype: null | object = Object.getPrototypeOf(routeConfig) as null | object;
+
+		if (prototype !== null && prototype !== Object.prototype) {
+			throw ErrorException("Generated read route configuration must be a plain object");
+		}
+
+		if (Reflect.ownKeys(routeConfig).some((key: PropertyKey): boolean => typeof key === "symbol")) {
+			throw ErrorException("Generated read route configuration must not contain symbol keys");
+		}
+
+		if (!descriptor.enumerable || !("value" in descriptor)) {
+			throw ErrorException("Generated read must be an enumerable data property on the route configuration");
+		}
+
+		return descriptor.value;
+	}
+
 	private static requireExactKeys(value: Record<string, unknown>, expectedKeys: ReadonlyArray<string>, context: string): void {
-		const actualKeys: Array<string> = Object.keys(value).toSorted((left: string, right: string): number => left.localeCompare(right));
+		const actualKeys: Array<string> = Reflect.ownKeys(value)
+			.filter((key: PropertyKey): key is string => typeof key === "string")
+			.toSorted((left: string, right: string): number => left.localeCompare(right));
 		const normalizedExpectedKeys: Array<string> = expectedKeys.toSorted((left: string, right: string): number => left.localeCompare(right));
 
 		if (actualKeys.length !== normalizedExpectedKeys.length || actualKeys.some((key: string, index: number): boolean => key !== normalizedExpectedKeys[index])) {
@@ -191,6 +254,24 @@ export class ApiControllerReadPlanCompiler {
 	private static requireRecord(value: unknown, context: string): Record<string, unknown> {
 		if (!value || typeof value !== "object" || Array.isArray(value)) {
 			throw ErrorException(`${context} must be an object`);
+		}
+
+		const prototype: null | object = Object.getPrototypeOf(value) as null | object;
+
+		if (prototype !== null && prototype !== Object.prototype) {
+			throw ErrorException(`${context} must be a plain object`);
+		}
+
+		for (const key of Reflect.ownKeys(value)) {
+			if (typeof key !== "string") {
+				throw ErrorException(`${context} must contain string keys only`);
+			}
+
+			const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(value, key);
+
+			if (!descriptor?.enumerable || !("value" in descriptor)) {
+				throw ErrorException(`${context} must contain enumerable data properties only`);
+			}
 		}
 
 		return value as Record<string, unknown>;

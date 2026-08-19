@@ -25,13 +25,15 @@ import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
 import type { DeepPartial, EntityManager, FindOptionsOrder, FindOptionsWhere, Repository } from "typeorm";
 
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated-read-scope-storage.class";
+import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated-security-snapshot.class";
 import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/runtime.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
-import { EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
+import { EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiDtoType } from "@enum/decorator/api";
 import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
@@ -151,10 +153,10 @@ export class ApiRouteRuntime {
 
 	public static async executeGenerated<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>): Promise<unknown> {
 		const entityInstance: E = new (options.properties.entity as new () => E)();
-		let authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined = AuthorizationDecisionResolveFromRequest(options.targets.authenticationRequest);
+		const authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined = ApiControllerGeneratedSecuritySnapshot.create(AuthorizationDecisionResolveFromRequest(options.targets.authenticationRequest));
 
 		const beforeContext: IApiSubscriberRouteExecutionContext<E, IApiRouteRuntimeGeneratedTargets<E>, IApiSubscriberRouteExecutionContextData<E>> = {
-			DATA: { authorizationDecision, entityMetadata: options.entityMetadata, method: options.method, methodName: options.methodName, properties: options.properties },
+			DATA: { authorizationDecision: ApiControllerGeneratedSecuritySnapshot.createSubscriberView(authorizationDecision), entityMetadata: options.entityMetadata, method: options.method, methodName: options.methodName, properties: options.properties },
 			ENTITY: entityInstance,
 			result: options.targets,
 			ROUTE_TYPE: options.method,
@@ -169,10 +171,6 @@ export class ApiRouteRuntime {
 			throw error;
 		}
 		const targets: IApiRouteRuntimeGeneratedTargets<E> = beforeResult ?? options.targets;
-
-		if (beforeResult) {
-			authorizationDecision = AuthorizationDecisionResolveFromRequest(targets.authenticationRequest);
-		}
 
 		let errorBoundary: EApiSubscriberOnType.AFTER_ERROR | EApiSubscriberOnType.BEFORE_ERROR = EApiSubscriberOnType.BEFORE_ERROR;
 
@@ -269,7 +267,7 @@ export class ApiRouteRuntime {
 		error: unknown,
 	): Promise<void> {
 		const errorContext: IApiSubscriberRouteErrorExecutionContext<E> = {
-			DATA: { ...(baseData as object), authenticationRequest: targets.authenticationRequest, authorizationDecision, body: targets.body, headers: targets.headers, ip: targets.ip, parameters: targets.parameters, query: targets.query },
+			DATA: { ...(baseData as object), authenticationRequest: targets.authenticationRequest, authorizationDecision: ApiControllerGeneratedSecuritySnapshot.createSubscriberView(authorizationDecision), body: targets.body, headers: targets.headers, ip: targets.ip, parameters: targets.parameters, query: targets.query },
 			ENTITY: entityInstance,
 			ROUTE_TYPE: options.method,
 		};
@@ -300,7 +298,7 @@ export class ApiRouteRuntime {
 					return await options.controller.service.get({
 						relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
 						relations: routeConfig.relations?.response?.load?.include,
-						where: AuthorizationScopeMergeWhere({ [primaryKey.key]: createResponse[primaryKey.key] } as FindOptionsWhere<E>, authorizationDecision?.scope?.where),
+						where: AuthorizationScopeMergeWhere({ [primaryKey.key]: createResponse[primaryKey.key] } as FindOptionsWhere<E>, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
 					});
 				});
 			}
@@ -311,7 +309,7 @@ export class ApiRouteRuntime {
 				await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<void> => {
 					const primaryKey: IApiControllerPrimaryColumn<E> = this.resolvePrimaryKey(targets.parameters, options.entityMetadata);
 					const requestCriteria: TApiFunctionDeleteCriteria<E> = { [primaryKey.key]: primaryKey.value } as TApiFunctionDeleteCriteria<E>;
-					const scopedCriteria: Array<TApiFunctionDeleteCriteria<E>> | TApiFunctionDeleteCriteria<E> | undefined = AuthorizationScopeMergeWhere(requestCriteria, authorizationDecision?.scope?.where);
+					const scopedCriteria: Array<TApiFunctionDeleteCriteria<E>> | TApiFunctionDeleteCriteria<E> | undefined = AuthorizationScopeMergeWhere(requestCriteria, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
 
 					markAfterBoundary();
 					await options.controller.service.delete(scopedCriteria ?? requestCriteria);
@@ -333,12 +331,12 @@ export class ApiRouteRuntime {
 					const requestProperties: TApiFunctionGetProperties<E> = {
 						relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
 						relations: routeConfig.relations?.response?.load?.include,
-						where: AuthorizationScopeMergeWhere(routeScopedWhere, authorizationDecision?.scope?.where),
+						where: AuthorizationScopeMergeWhere(routeScopedWhere, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
 					};
 
 					markAfterBoundary();
 
-					return await options.controller.service.get(requestProperties);
+					return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => await options.controller.service.get(requestProperties));
 				});
 			}
 
@@ -359,7 +357,7 @@ export class ApiRouteRuntime {
 					const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
 					const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard);
 					const routeScopedFilter: TApiAuthorizationScopeWhere<E> = readPlan ? AuthorizationScopeMergeWhere(filter, ApiControllerReadScopeWhere(targets.parameters, readPlan)) : filter;
-					const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(routeScopedFilter, authorizationDecision?.scope?.where);
+					const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(routeScopedFilter, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
 					const effectiveLimit: number = runtimeQuery?.limit ?? limit;
 					const effectiveOrderBy: keyof E | string | undefined = runtimeQuery?.orderBy ?? orderBy;
 					const effectiveOrderDirection: EFilterOrderDirection | undefined = runtimeQuery?.orderDirection ?? orderDirection;
@@ -383,7 +381,7 @@ export class ApiRouteRuntime {
 
 					markAfterBoundary();
 
-					return await options.controller.service.getList(requestProperties);
+					return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET_LIST, requestProperties, requestProperties.where, async (): Promise<unknown> => await options.controller.service.getList(requestProperties));
 				});
 			}
 		}
@@ -415,19 +413,19 @@ export class ApiRouteRuntime {
 	private static async executeGeneratedResponse<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, entityInstance: E, baseData: IApiSubscriberRouteExecutionContextData<E>, authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined, result: unknown): Promise<unknown> {
 		const routeConfig: TApiControllerPropertiesRoute<E, R> = options.properties.routes[options.method] ?? {};
 		const responseTarget: TApiControllerTransformDataObjectToTransform<E> = { response: result as Partial<E> };
+		const responseResource: E | undefined = responseTarget.response as E | undefined;
 
-		authorizationDecision = AuthorizationDecisionAttachResource(authorizationDecision as never, responseTarget.response as never) as IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined;
 		ApiControllerTransformData<E>(routeConfig.response, options.properties, responseTarget, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
 
 		const afterContext: IApiSubscriberRouteExecutionContext<E> = {
-			DATA: { ...(baseData as object), authenticationRequest: targets.authenticationRequest, authorizationDecision, body: targets.body, headers: targets.headers, ip: targets.ip, parameters: targets.parameters, query: targets.query },
+			DATA: { ...(baseData as object), authenticationRequest: targets.authenticationRequest, authorizationDecision: ApiControllerGeneratedSecuritySnapshot.createSubscriberView(authorizationDecision, responseResource), body: targets.body, headers: targets.headers, ip: targets.ip, parameters: targets.parameters, query: targets.query },
 			ENTITY: responseTarget.response as E,
 			result: responseTarget.response,
 			ROUTE_TYPE: options.method,
 		};
 		const afterResult: unknown = await ApiSubscriberExecutor.executeRouteSubscribers(options.controller.constructor as new (...arguments_: Array<unknown>) => unknown, (responseTarget.response ?? entityInstance) as E, options.method, EApiSubscriberOnType.AFTER, afterContext);
 		const finalResponse: unknown = afterResult ?? responseTarget.response;
-		const transformedResponse: unknown = await AuthorizationDecisionApplyResult(AuthorizationDecisionAttachResource(authorizationDecision as never, finalResponse as never) as never, finalResponse as never);
+		const transformedResponse: unknown = await AuthorizationDecisionApplyResult(ApiControllerGeneratedSecuritySnapshot.withResource(authorizationDecision, finalResponse as E) as never, finalResponse as never);
 		const identityPlan: IApiControllerIdentityPlan | undefined = this.resolveIdentityPlan(options.controller, options.methodName);
 		const dto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(options.properties, options.entityMetadata, options.method, EApiDtoType.RESPONSE, routeConfig, undefined, undefined, identityPlan);
 
@@ -472,7 +470,7 @@ export class ApiRouteRuntime {
 		await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {});
 		const primaryKey: IApiControllerPrimaryColumn<E> = this.resolvePrimaryKey(targets.parameters, options.entityMetadata);
 		const requestCriteria: TApiFunctionUpdateCriteria<E> = { [primaryKey.key]: primaryKey.value } as TApiFunctionUpdateCriteria<E>;
-		const scopedCriteria: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(requestCriteria, authorizationDecision?.scope?.where);
+		const scopedCriteria: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(requestCriteria, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
 		markAfterBoundary();
 		const updateResponse: E = await options.controller.service.update(scopedCriteria ?? requestCriteria, (targets.body ?? {}) as never);
 		const responseLoad: IApiControllerPropertiesRouteBaseRelationsResponseLoad<E> | undefined = routeConfig.relations?.response?.load;
@@ -484,7 +482,7 @@ export class ApiRouteRuntime {
 		return await options.controller.service.get({
 			relationLoadStrategy: responseLoad.relationLoadStrategy,
 			relations: responseLoad.include,
-			where: AuthorizationScopeMergeWhere({ [primaryKey.key]: updateResponse[primaryKey.key] } as FindOptionsWhere<E>, authorizationDecision?.scope?.where),
+			where: AuthorizationScopeMergeWhere({ [primaryKey.key]: updateResponse[primaryKey.key] } as FindOptionsWhere<E>, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
 		});
 	}
 

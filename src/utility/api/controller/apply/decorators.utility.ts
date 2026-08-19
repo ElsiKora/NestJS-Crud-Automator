@@ -14,6 +14,7 @@ import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { ApiControllerBuildRouteDocumentation } from "@utility/api/controller/build-route-documentation.utility";
 import { ApiControllerGetListQueryOpenApiDecorators } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerReadPlanAssert } from "@utility/api/controller/read";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
@@ -32,6 +33,8 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @template E - The entity type
  */
 export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMethod: TApiControllerMethodMap<E>[typeof method], entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>, queryPlan?: IApiControllerGetListQueryPlan): void {
+	ApiControllerReadPlanAssert(routeConfig);
+
 	ApiControllerApplyDecoratorsWithIdentityPlan(targetMethod, entity, properties, method, methodName, routeConfig, decorators, queryPlan);
 }
 
