@@ -332,6 +332,7 @@ const iamConsumerAuthorization = {
 			generation: { isEnabled: false },
 		},
 		[EApiRouteType.GET]: {
+			identity: { parameter: "gameId" },
 			security: { authentication: iamConsumerAuthentication },
 			relations: {
 				response: {
@@ -487,6 +488,17 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 						},
 						Effect: EApiPolicyEffect.ALLOW,
 						Resource: ["gameport:admin:item/*"],
+					},
+					{
+						Action: ["admin:item:read"],
+						Condition: {
+							StringEquals: {
+								"request.parameters.gameId": "iam-item-denied",
+								"request.parameters.id": "iam-item-denied",
+							},
+						},
+						Effect: EApiPolicyEffect.DENY,
+						Resource: ["gameport:admin:item/iam-item-denied"],
 					},
 				],
 				Version: "2026-03-14",
@@ -663,6 +675,29 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 		});
 
 		expect(foreignGetResponse.statusCode).toBe(404);
+	});
+
+	it("gives an exact aliased GET id DENY precedence over wildcard IAM allows", async () => {
+		await itemService.repository.save([
+			{ id: "iam-item-own", name: "Own Item", operatorId: "operator-1" },
+			{ id: "iam-item-denied", name: "Denied Item", operatorId: "operator-1" },
+		]);
+
+		const allowedResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items/iam-item-own",
+		});
+		const deniedResponse = await fastify.inject({
+			headers: principalHeaders({
+				"x-user-scoped-item-id": "iam-item-denied",
+			}),
+			method: "GET",
+			url: "/iam-consumer-items/iam-item-denied",
+		});
+
+		expect(allowedResponse.statusCode).toBe(200);
+		expect(deniedResponse.statusCode).toBe(403);
 	});
 
 	it("allows create and evaluates update conditions when request.body.operator matches the principal operator id", async () => {

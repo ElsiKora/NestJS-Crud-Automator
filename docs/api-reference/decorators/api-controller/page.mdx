@@ -16,6 +16,8 @@ Controller decorators configure generated CRUD controllers, observability, and a
 2. Add `@ApiControllerObservable` when route subscribers should intercept the lifecycle.
 3. Add `@ApiControllerSecurable` if authorization policies or custom guards must be enforced before CRUD actions.
 
+Generated GET routes may declare a top-level `identity: { parameter: "gameId" }` to rename only the primary-key path parameter. See the [`@ApiController` route reference](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller#get-primary-identity-alias) for its DTO, nested-path, and authorization rules.
+
 ## Related resources
 
 - [Core Concepts – Controllers](/docs/nestjs-crud-automator/core-concepts/controllers)

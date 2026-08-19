@@ -1,5 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiRouteMetadata } from "@interface/decorator/api";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
@@ -12,7 +13,7 @@ import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { ApiControllerBuildRouteDocumentation } from "@utility/api/controller/build-route-documentation.utility";
 import { ApiControllerGetListQueryOpenApiDecorators } from "@utility/api/controller/get-list/query";
-import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
@@ -31,7 +32,25 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @template E - The entity type
  */
 export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMethod: TApiControllerMethodMap<E>[typeof method], entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>, queryPlan?: IApiControllerGetListQueryPlan): void {
-	const responseDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.RESPONSE, routeConfig);
+	ApiControllerApplyDecoratorsWithIdentityPlan(targetMethod, entity, properties, method, methodName, routeConfig, decorators, queryPlan);
+}
+
+/**
+ * Applies generated route decorators with an internal compiled identity plan.
+ * @template E - Entity type owned by the generated route.
+ * @param {TApiControllerMethodMap<E>[typeof method]} targetMethod - Generated controller method.
+ * @param {IApiEntity<E>} entity - Entity metadata.
+ * @param {IApiControllerProperties<E>} properties - Controller configuration.
+ * @param {EApiRouteType} method - Generated route type.
+ * @param {string} methodName - Generated controller method name.
+ * @param {TApiControllerPropertiesRoute<E, typeof method>} routeConfig - Route configuration.
+ * @param {Array<MethodDecorator> | Array<PropertyDecorator>} decorators - Additional decorators.
+ * @param {IApiControllerGetListQueryPlan} [queryPlan] - Internal compiled GET_LIST query plan.
+ * @param {IApiControllerIdentityPlan} [identityPlan] - Internal compiled GET identity alias plan.
+ * @returns {void}
+ */
+export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseEntity>(targetMethod: TApiControllerMethodMap<E>[typeof method], entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>, queryPlan?: IApiControllerGetListQueryPlan, identityPlan?: IApiControllerIdentityPlan): void {
+	const responseDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.RESPONSE, routeConfig, queryPlan, undefined, identityPlan);
 	const customDecorators: Array<MethodDecorator> = [...decorators];
 
 	switch (method) {
@@ -48,9 +67,11 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMet
 		}
 
 		case EApiRouteType.GET: {
+			const path: string = `:${identityPlan?.parameter ?? String(entity.primaryKey?.name)}`;
+
 			customDecorators.push(
 				ApiMethod({
-					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }),
+					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, path, HttpStatus.OK, responseDto, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }),
 				}),
 			);
 

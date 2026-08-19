@@ -16,11 +16,16 @@ import { EApiAuthenticationType, EApiControllerGetListQueryUnlistedFields, EApiC
 import { EErrorStringAction } from "@enum/utility";
 import { EFilterOperation, EFilterOrderDirection } from "@enum/filter";
 import { BadRequestException } from "@nestjs/common";
-import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
+import { PARAMTYPES_METADATA, PATH_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { ApiControllerApplyDecorators } from "@utility/api/controller/apply/decorators.utility";
+import { ApiControllerApplyMetadata } from "@utility/api/controller/apply/metadata.utility";
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
-import { ApiControllerReadScopeWhere } from "@utility/api/controller/read";
+import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
+import { ApiControllerReadPlanGet, ApiControllerReadScopeWhere } from "@utility/api/controller/read";
+import { ApiControllerWriteDtoSwagger } from "@utility/api/controller/write/dto-swagger.utility";
 import { DtoGenerateReadParameters } from "@utility/dto/generate/read-parameters.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { plainToInstance } from "class-transformer";
@@ -251,6 +256,173 @@ function createLegacyGeneratedReadController(): { controller: ILegacyGeneratedRe
 	};
 }
 
+function createIdentityAliasController(hasOwnerScope: boolean = false, identityParameter: string = "gameId"): { controller: IGeneratedReadContractController; type: object } {
+	class IdentityAliasControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		name: "IdentityAliasGeneratedReadContract",
+		path: hasOwnerScope ? "tenant/:tenantId/identity-alias" : "identity-alias",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {
+				identity: { parameter: identityParameter },
+				...(hasOwnerScope
+					? {
+							read: {
+								scope: {
+									parameters: [{ field: "tenantId", parameter: "tenantId" }],
+								},
+							},
+						}
+					: {}),
+			},
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(IdentityAliasControllerBase);
+
+	return {
+		controller: new Controller() as unknown as IGeneratedReadContractController,
+		type: Controller,
+	};
+}
+
+function compileInvalidIdentityConfiguration(path: string, identity: unknown, hasManualParametersDto: boolean = false, read?: unknown): void {
+	class InvalidGeneratedIdentityControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path,
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {
+				...(hasManualParametersDto ? { dto: { [EApiDtoType.PARAMETERS]: ManualGeneratedReadParametersDto } } : {}),
+				identity,
+				...(read === undefined ? {} : { read }),
+			} as never,
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(InvalidGeneratedIdentityControllerBase);
+}
+
+function createRawIdentityRouteController(path: string, routeConfig: unknown): { controller: IGeneratedReadContractController; type: object } {
+	class RawIdentityRouteControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		name: "RawIdentityRouteGeneratedReadContract",
+		path,
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: routeConfig as never,
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(RawIdentityRouteControllerBase);
+
+	return {
+		controller: new Controller() as unknown as IGeneratedReadContractController,
+		type: Controller,
+	};
+}
+
+function createIdentityInheritanceControllers(): {
+	aliased: { controller: IGeneratedReadContractController; type: object };
+	canonicalDerived: { controller: IGeneratedReadContractController; type: object };
+	differentAliasDerived: { controller: IGeneratedReadContractController; type: object };
+} {
+	class AliasedBaseControllerTarget {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const AliasedController = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		name: "IdentityInheritanceAliasedBase",
+		path: "identity-inheritance-aliased",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: { identity: { parameter: "gameId" } },
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(AliasedBaseControllerTarget);
+
+	class CanonicalDerivedControllerTarget extends AliasedController {}
+
+	Object.defineProperty(CanonicalDerivedControllerTarget.prototype, "get", {
+		configurable: true,
+		value: undefined,
+		writable: true,
+	});
+
+	const CanonicalDerivedController = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		name: "IdentityInheritanceCanonicalDerived",
+		path: "identity-inheritance-canonical",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {},
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(CanonicalDerivedControllerTarget);
+
+	class DifferentAliasDerivedControllerTarget extends AliasedController {}
+
+	Object.defineProperty(DifferentAliasDerivedControllerTarget.prototype, "get", {
+		configurable: true,
+		value: undefined,
+		writable: true,
+	});
+
+	const DifferentAliasDerivedController = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		name: "IdentityInheritanceDifferentAliasDerived",
+		path: "identity-inheritance-different",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: { identity: { parameter: "itemId" } },
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(DifferentAliasDerivedControllerTarget);
+
+	return {
+		aliased: {
+			controller: new AliasedController() as unknown as IGeneratedReadContractController,
+			type: AliasedController,
+		},
+		canonicalDerived: {
+			controller: new CanonicalDerivedController() as unknown as IGeneratedReadContractController,
+			type: CanonicalDerivedController,
+		},
+		differentAliasDerived: {
+			controller: new DifferentAliasDerivedController() as unknown as IGeneratedReadContractController,
+			type: DifferentAliasDerivedController,
+		},
+	};
+}
+
 function compileInvalidReadConfiguration(path: string, read: unknown, hasManualParametersDto: boolean = false, currentGuard?: Type<IAuthGuard>): void {
 	class InvalidGeneratedReadControllerBase {
 		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
@@ -289,6 +461,25 @@ function compileInvalidReadScope(path: string, parameters: unknown): void {
 			parameters,
 		},
 	});
+}
+
+function compileInvalidGetListIdentityConfiguration(identity: unknown): void {
+	class InvalidGetListReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "invalid-get-list-read",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: disabledRoute,
+			[EApiRouteType.GET_LIST]: { identity } as never,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(InvalidGetListReadControllerBase);
 }
 
 function compileInvalidOrder(defaultOrder: unknown, tieBreakers: unknown): void {
@@ -574,10 +765,140 @@ describe("generated read contract", () => {
 	});
 
 	it.each([
+		["a null identity", null, "Generated identity configuration must be a plain object"],
+		["a non-object identity", "gameId", "Generated identity configuration must be a plain object"],
+		["an empty identity parameter", { parameter: "" }, "Generated identity parameter must be a safe simple identifier"],
+		["a non-string identity parameter", { parameter: 1 }, "Generated identity parameter must be a safe simple identifier"],
+		["an identity parameter with surrounding whitespace", { parameter: " gameId " }, "Generated identity parameter must be a safe simple identifier"],
+		["an identity parameter containing a slash", { parameter: "game/id" }, "Generated identity parameter must be a safe simple identifier"],
+		["an identity parameter containing a control character", { parameter: "game\nid" }, "Generated identity parameter must be a safe simple identifier"],
+		["a non-identifier identity parameter", { parameter: "game-id" }, "Generated identity parameter must be a safe simple identifier"],
+		["an unsupported identity key", { parameter: "gameId", unsupported: true }, "Generated identity configuration must contain exactly one string key: parameter"],
+		["an unsafe identity parameter", { parameter: "constructor" }, "Generated identity parameter must be a safe simple identifier"],
+	])("rejects %s at controller bootstrap", (_label, identity, expectedMessage) => {
+		expect(() => compileInvalidIdentityConfiguration("identity-alias", identity)).toThrow(expectedMessage);
+	});
+
+	it("rejects a generated GET identity that collides with an inherited path parameter", () => {
+		expect(() =>
+			compileInvalidIdentityConfiguration("tenant/:gameId/identity-alias", { parameter: "gameId" }, false, {
+				scope: {
+					parameters: [{ field: "tenantId", parameter: "gameId" }],
+				},
+			}),
+		).toThrow('Generated identity parameter "gameId" conflicts with an inherited controller path parameter');
+	});
+
+	it("rejects an inherited primary field when GET uses a different identity alias", () => {
+		expect(() =>
+			compileInvalidIdentityConfiguration("tenant/:id/identity-alias", { parameter: "gameId" }, false, {
+				scope: {
+					parameters: [{ field: "tenantId", parameter: "id" }],
+				},
+			}),
+		).toThrow('Inherited controller path parameter "id" conflicts with the generated GET primary identity parameter');
+	});
+
+	it("requires read scope mappings whenever an identity route inherits controller path parameters", () => {
+		expect(() => compileInvalidIdentityConfiguration("tenant/:tenantId/identity-alias", { parameter: "gameId" })).toThrow("Generated identity on a controller path with inherited parameters requires generated read scope mappings");
+		expect(() =>
+			compileInvalidIdentityConfiguration("tenant/:tenantId/identity-alias", { parameter: "gameId" }, false, {
+				scope: {
+					parameters: [{ field: "tenantId", parameter: "tenantId" }],
+				},
+			}),
+		).not.toThrow();
+	});
+
+	it("rejects generated identity grammar on GET_LIST", () => {
+		expect(() => compileInvalidGetListIdentityConfiguration({ parameter: "gameId" })).toThrow("Generated identity configuration is supported only for GET routes");
+	});
+
+	it("accepts a null-prototype identity record", () => {
+		const identity = Object.assign(Object.create(null) as Record<string, unknown>, { parameter: "gameId" });
+
+		expect(() => compileInvalidIdentityConfiguration("identity-alias", identity)).not.toThrow();
+	});
+
+	it("rejects identity symbols, non-enumerable fields, accessors, and custom prototypes without invoking getters", () => {
+		const symbolIdentity: Record<PropertyKey, unknown> = { parameter: "gameId" };
+		const nonEnumerableIdentity: Record<string, unknown> = {};
+		const getter = vi.fn((): string => "gameId");
+		const accessorIdentity: Record<string, unknown> = {};
+		const customPrototypeIdentity = Object.create({ inherited: true }) as Record<string, unknown>;
+
+		symbolIdentity[Symbol("extra")] = true;
+		Object.defineProperty(nonEnumerableIdentity, "parameter", { enumerable: false, value: "gameId" });
+		Object.defineProperty(accessorIdentity, "parameter", { enumerable: true, get: getter });
+		customPrototypeIdentity.parameter = "gameId";
+
+		expect(() => compileInvalidIdentityConfiguration("identity-alias", symbolIdentity)).toThrow("Generated identity configuration must contain exactly one string key: parameter");
+		expect(() => compileInvalidIdentityConfiguration("identity-alias", nonEnumerableIdentity)).toThrow("Generated identity parameter must be an enumerable data property");
+		expect(() => compileInvalidIdentityConfiguration("identity-alias", accessorIdentity)).toThrow("Generated identity parameter must be an enumerable data property");
+		expect(() => compileInvalidIdentityConfiguration("identity-alias", customPrototypeIdentity)).toThrow("Generated identity configuration must be a plain object");
+		expect(getter).not.toHaveBeenCalled();
+	});
+
+	it("reads top-level identity only from an own enumerable data descriptor without invoking accessors", () => {
+		const inheritedGetter = vi.fn((): { parameter: string } => ({ parameter: "inheritedGameId" }));
+		const inheritedPrototype: Record<string, unknown> = {};
+		const inheritedRoute = Object.create(inheritedPrototype) as Record<PropertyKey, unknown>;
+		const nonEnumerableRoute: Record<string, unknown> = {};
+		const accessorGetter = vi.fn((): { parameter: string } => ({ parameter: "accessorGameId" }));
+		const accessorRoute: Record<string, unknown> = {};
+		const symbolRoute: Record<PropertyKey, unknown> = { identity: { parameter: "gameId" } };
+		const customPrototypeRoute = Object.create({ custom: true }) as Record<string, unknown>;
+		const nullPrototypeRoute = Object.assign(Object.create(null) as Record<string, unknown>, { identity: { parameter: "gameId" } });
+
+		Object.defineProperty(inheritedPrototype, "identity", { enumerable: true, get: inheritedGetter });
+		Object.defineProperty(nonEnumerableRoute, "identity", { enumerable: false, value: { parameter: "gameId" } });
+		Object.defineProperty(accessorRoute, "identity", { enumerable: true, get: accessorGetter });
+		symbolRoute[Symbol("extra")] = true;
+		customPrototypeRoute.identity = { parameter: "gameId" };
+
+		const nullPrototypeController = createRawIdentityRouteController("null-prototype-identity-route", nullPrototypeRoute).type as { prototype: { get: object } };
+
+		expect(Reflect.getMetadata(PATH_METADATA, nullPrototypeController.prototype.get)).toBe(":gameId");
+		expect(() => createRawIdentityRouteController("inherited-identity-route", inheritedRoute)).toThrow("Generated identity must be an own property on the route configuration");
+		expect(() => createRawIdentityRouteController("non-enumerable-identity-route", nonEnumerableRoute)).toThrow("Generated identity must be an enumerable data property on the route configuration");
+		expect(() => createRawIdentityRouteController("accessor-identity-route", accessorRoute)).toThrow("Generated identity must be an enumerable data property on the route configuration");
+		expect(() => createRawIdentityRouteController("symbol-identity-route", symbolRoute)).toThrow("Generated identity route configuration must not contain symbol keys");
+		expect(() => createRawIdentityRouteController("custom-prototype-identity-route", customPrototypeRoute)).toThrow("Generated identity route configuration must be a plain object");
+		expect(inheritedGetter).not.toHaveBeenCalled();
+		expect(accessorGetter).not.toHaveBeenCalled();
+	});
+
+	it("does not treat an own undefined top-level identity descriptor as absent", () => {
+		expect(() => createRawIdentityRouteController("undefined-identity-route", { identity: undefined })).toThrow("Generated identity configuration must be a plain object");
+	});
+
+	it("fails closed when legacy low-level controller facades receive an uncompiled identity", () => {
+		const entityMetadata = GenerateEntityInformation(GeneratedReadContractEntity);
+		const routeConfig = { identity: { parameter: "gameId" } } as never;
+		const properties = {
+			entity: GeneratedReadContractEntity,
+			routes: { [EApiRouteType.GET]: routeConfig },
+		} as never;
+		class LowLevelIdentityController {}
+		const handler = function get() {};
+		const invocations: Array<() => unknown> = [
+			() => ApiControllerApplyDecorators(handler as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, []),
+			() => ApiControllerApplyMetadata(LowLevelIdentityController, LowLevelIdentityController.prototype, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig),
+			() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET, EApiDtoType.PARAMETERS, routeConfig),
+			() => ApiControllerWriteDtoSwagger(LowLevelIdentityController, entityMetadata, properties, EApiRouteType.GET, routeConfig, entityMetadata),
+		];
+
+		for (const invoke of invocations) {
+			expect(invoke).toThrow("Generated identity configuration requires compilation by the @ApiController factory");
+		}
+	});
+
+	it.each([
 		["a null configuration", null, "Generated read configuration must be an object"],
 		["a false configuration", false, "Generated read configuration must be an object"],
 		["a zero configuration", 0, "Generated read configuration must be an object"],
 		["an empty-string configuration", "", "Generated read configuration must be an object"],
+		["an empty GET read configuration", {}, "Generated read configuration must contain exactly scope"],
 		["an empty mapping array", { scope: { parameters: [] } }, "Generated read scope parameters must be a non-empty array"],
 		["a non-array mapping", { scope: { parameters: {} } }, "Generated read scope parameters must be a non-empty array"],
 		["an unsupported read key", { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] }, unsupported: true }, "Generated read configuration must contain exactly scope"],
@@ -598,6 +919,10 @@ describe("generated read contract", () => {
 				true,
 			),
 		).toThrow("Generated read scope parameters cannot be combined with a manual PARAMETERS DTO");
+	});
+
+	it("rejects generated identity combined with a manual PARAMETERS DTO", () => {
+		expect(() => compileInvalidIdentityConfiguration("identity-alias", { parameter: "gameId" }, true)).toThrow("Generated identity cannot be combined with a manual PARAMETERS DTO");
 	});
 
 	it.each([
@@ -660,6 +985,119 @@ describe("generated read contract", () => {
 		const extraModelNames = ((Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, type) ?? []) as Array<{ name?: string }>).map(({ name }: { name?: string }): string | undefined => name);
 
 		expect(extraModelNames).toEqual(expect.arrayContaining([getParametersDto?.name, listParametersDto?.name]));
+	});
+
+	it("generates a validated GET identity alias and maps it to the primary entity field", async () => {
+		const { controller, type } = createIdentityAliasController();
+		const controllerType = type as { prototype: { get: object } };
+		const getTypes = Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "get") as Array<new () => Record<string, unknown>>;
+		const parametersDto = getTypes[0];
+
+		expect(Reflect.getMetadata(PATH_METADATA, controllerType.prototype.get)).toBe(":gameId");
+		expect(ApiControllerReadPlanGet(controllerType.prototype, "get")).toBeUndefined();
+		expect(ApiControllerIdentityPlanGet(controllerType.prototype.get)).toMatchObject({ field: "id", parameter: "gameId" });
+		expect(parametersDto).toBeDefined();
+		expect(Object.keys(new (parametersDto as new () => Record<string, unknown>)())).toEqual(["gameId"]);
+		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, parametersDto?.prototype, "gameId")).toMatchObject({ format: "uuid", type: "string" });
+
+		const parameters = plainToInstance(parametersDto as new () => Record<string, unknown>, { gameId: ENTITY_ID });
+		const invalidParameters = plainToInstance(parametersDto as new () => Record<string, unknown>, { gameId: "not-a-uuid" });
+
+		expect(await validate(parameters)).toHaveLength(0);
+		expect((await validate(invalidParameters)).length).toBeGreaterThan(0);
+
+		await controller.get(parameters, {}, "127.0.0.1");
+
+		expect(controller.service.get).toHaveBeenCalledWith({
+			relationLoadStrategy: undefined,
+			relations: undefined,
+			where: { id: ENTITY_ID },
+		});
+	});
+
+	it("binds identity plans to exact generated handlers across controller inheritance", async () => {
+		const controllers = createIdentityInheritanceControllers();
+		const cases: Array<{
+			controller: IGeneratedReadContractController;
+			parameter: string;
+			planParameter?: string;
+			type: object;
+		}> = [
+			{ ...controllers.aliased, parameter: "gameId", planParameter: "gameId" },
+			{ ...controllers.canonicalDerived, parameter: "id" },
+			{ ...controllers.differentAliasDerived, parameter: "itemId", planParameter: "itemId" },
+		];
+
+		for (const { controller, parameter, planParameter, type } of cases) {
+			const controllerType = type as { prototype: { get: object } };
+			const handler = controllerType.prototype.get;
+			const parameterTypes = Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "get") as Array<new () => Record<string, unknown>>;
+			const parametersDto = parameterTypes[0];
+
+			expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe(`:${parameter}`);
+			expect(Object.keys(new (parametersDto as new () => Record<string, unknown>)())).toEqual([parameter]);
+			expect(ApiControllerIdentityPlanGet(handler)?.parameter).toBe(planParameter);
+
+			await controller.get({ [parameter]: ENTITY_ID }, {}, "127.0.0.1");
+
+			expect(controller.service.get).toHaveBeenCalledWith({
+				relationLoadStrategy: undefined,
+				relations: undefined,
+				where: { id: ENTITY_ID },
+			});
+		}
+	});
+
+	it("AND-merges an aliased GET identity with inherited owner and IAM scopes", async () => {
+		const { controller, type } = createIdentityAliasController(true);
+		const controllerType = type as { prototype: { get: object } };
+		const parametersDto = (Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "get") as Array<new () => Record<string, unknown>>)[0];
+		const parameters = plainToInstance(parametersDto as new () => Record<string, unknown>, {
+			gameId: ENTITY_ID,
+			tenantId: PATH_TENANT_ID,
+		});
+
+		expect(Object.keys(parameters)).toEqual(["gameId", "tenantId"]);
+		expect(await validate(parameters)).toHaveLength(0);
+
+		await controller.get(parameters, {}, "127.0.0.1", createAuthenticationRequest({ id: Equal(ENTITY_ID), tenantId: Equal(SCOPE_TENANT_ID) }));
+
+		const where = controller.service.get.mock.calls[0]?.[0].where as Record<string, unknown>;
+
+		expect(where.id).toMatchObject({
+			_type: "and",
+			_value: [
+				{ _type: "equal", _value: ENTITY_ID },
+				{ _type: "equal", _value: ENTITY_ID },
+			],
+		});
+		expect(where.tenantId).toMatchObject({
+			_type: "and",
+			_value: [
+				{ _type: "equal", _value: PATH_TENANT_ID },
+				{ _type: "equal", _value: SCOPE_TENANT_ID },
+			],
+		});
+	});
+
+	it("requires an aliased GET identity to be an own request property before service I/O", async () => {
+		const { controller } = createIdentityAliasController();
+		const inheritedIdentity = Object.create({ gameId: ENTITY_ID }) as Record<string, unknown>;
+
+		await expect(controller.get(inheritedIdentity, {}, "127.0.0.1")).rejects.toThrow("INVALID_PARAMETERS");
+		expect(controller.service.get).not.toHaveBeenCalled();
+	});
+
+	it("preserves existing scope-only read-plan signatures", () => {
+		const { type } = createGeneratedReadController();
+		const controllerType = type as { prototype: object };
+		const getPlan = ApiControllerReadPlanGet(controllerType.prototype, "get");
+		const listPlan = ApiControllerReadPlanGet(controllerType.prototype, "getList");
+
+		expect(getPlan?.signature).toBe("e31e589d778ba173858dd23247d250aec4e2a9efe42300268a6d1f107becb144");
+		expect(listPlan?.signature).toBe("0e5e2d061c2c719eb813268a3e7fcff81cdf63f531ab92a980f207dc3ed8aee4");
+		expect(Object.hasOwn(getPlan ?? {}, "identity")).toBe(false);
+		expect(Object.hasOwn(listPlan ?? {}, "identity")).toBe(false);
 	});
 
 	it("writes GET_LIST ROUTE_ARGS in PARAM, QUERY, HEADERS, IP, REQUEST order", () => {

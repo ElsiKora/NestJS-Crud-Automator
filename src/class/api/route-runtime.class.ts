@@ -3,6 +3,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationDecision } from "@interface/class/api/authorization";
 import type { IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiRouteRuntimeContextData, IApiRouteRuntimeCustomExecutionOptions, IApiRouteRuntimeGeneratedExecutionOptions, IApiRouteRuntimeGeneratedTargets, IApiRouteRuntimeHttpRequest } from "@interface/class/api/route";
 import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route/error-execution-context.interface";
@@ -35,9 +36,10 @@ import { EApiDtoType } from "@enum/decorator/api";
 import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
-import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetPrimaryColumn } from "@utility/api/controller/get/primary-column.utility";
 import { ApiControllerHandleRequestRelations } from "@utility/api/controller/handle-request-relations.utility";
+import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ApiControllerReadPlanGet, ApiControllerReadScopeWhere } from "@utility/api/controller/read";
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
 import { ApiControllerTransformData } from "@utility/api/controller/transform-data.utility";
@@ -322,8 +324,9 @@ export class ApiRouteRuntime {
 				await this.executeGeneratedRequestPipeline(options, targets, [EApiControllerRequestTarget.PARAMETERS]);
 
 				return await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<E> => {
-					const primaryKey: IApiControllerPrimaryColumn<E> = this.resolvePrimaryKey(targets.parameters, options.entityMetadata);
 					const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName);
+					const identityPlan: IApiControllerIdentityPlan | undefined = this.resolveIdentityPlan(options.controller, options.methodName);
+					const primaryKey: IApiControllerPrimaryColumn<E> = this.resolveReadIdentity(targets.parameters, options.entityMetadata, identityPlan);
 					const identityWhere: FindOptionsWhere<E> = { [primaryKey.key]: primaryKey.value } as FindOptionsWhere<E>;
 					const routeScopedWhere: TApiAuthorizationScopeWhere<E> = readPlan ? AuthorizationScopeMergeWhere(identityWhere, ApiControllerReadScopeWhere(targets.parameters, readPlan)) : identityWhere;
 
@@ -425,7 +428,8 @@ export class ApiRouteRuntime {
 		const afterResult: unknown = await ApiSubscriberExecutor.executeRouteSubscribers(options.controller.constructor as new (...arguments_: Array<unknown>) => unknown, (responseTarget.response ?? entityInstance) as E, options.method, EApiSubscriberOnType.AFTER, afterContext);
 		const finalResponse: unknown = afterResult ?? responseTarget.response;
 		const transformedResponse: unknown = await AuthorizationDecisionApplyResult(AuthorizationDecisionAttachResource(authorizationDecision as never, finalResponse as never) as never, finalResponse as never);
-		const dto: Type<unknown> | undefined = ApiControllerGetDto(options.properties, options.entityMetadata, options.method, EApiDtoType.RESPONSE, routeConfig);
+		const identityPlan: IApiControllerIdentityPlan | undefined = this.resolveIdentityPlan(options.controller, options.methodName);
+		const dto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(options.properties, options.entityMetadata, options.method, EApiDtoType.RESPONSE, routeConfig, undefined, undefined, identityPlan);
 
 		return ApiControllerSerializeRouteResponse(routeConfig, dto, ApiRouteProjectRelationResponse(routeConfig.relations?.response, transformedResponse));
 	}
@@ -529,6 +533,12 @@ export class ApiRouteRuntime {
 		});
 	}
 
+	private static resolveIdentityPlan(controller: object, methodName: string): IApiControllerIdentityPlan | undefined {
+		const handler: unknown = Reflect.get(controller, methodName);
+
+		return typeof handler === "function" ? ApiControllerIdentityPlanGet(handler) : undefined;
+	}
+
 	private static resolvePrimaryKey<E extends IApiBaseEntity>(source: DeepPartial<E> | Partial<E> | undefined, entityMetadata: IApiEntity<E>): IApiControllerPrimaryColumn<E> {
 		const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(source ?? {}, entityMetadata);
 
@@ -537,5 +547,28 @@ export class ApiRouteRuntime {
 		}
 
 		return primaryKey;
+	}
+
+	private static resolveReadIdentity<E extends IApiBaseEntity>(source: DeepPartial<E> | Partial<E> | undefined, entityMetadata: IApiEntity<E>, identityPlan: IApiControllerIdentityPlan | undefined): IApiControllerPrimaryColumn<E> {
+		if (!identityPlan) {
+			return this.resolvePrimaryKey(source, entityMetadata);
+		}
+
+		const parameters: Record<string, unknown> | undefined = source as Record<string, unknown> | undefined;
+
+		if (!parameters || !Object.hasOwn(parameters, identityPlan.parameter)) {
+			throw new BadRequestException("INVALID_PARAMETERS");
+		}
+
+		const value: unknown = parameters[identityPlan.parameter];
+
+		if (value === undefined || value === null) {
+			throw new BadRequestException("INVALID_PARAMETERS");
+		}
+
+		return {
+			key: identityPlan.field,
+			value: value as string,
+		};
 	}
 }

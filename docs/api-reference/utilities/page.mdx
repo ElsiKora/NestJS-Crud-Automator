@@ -271,6 +271,10 @@ Writes controller methods.
 
 **Internal Use:** Used by controller factory.
 
+### Generated GET identity ownership
+
+Top-level GET `identity` configuration is owned by the `@ApiController` factory because one private compiled plan must drive the path, PARAMETERS DTO, runtime primary-key lookup, and authorization canonicalization. The legacy low-level `ApiControllerApplyDecorators`, `ApiControllerApplyMetadata`, `ApiControllerGetDto`, and `ApiControllerWriteDtoSwagger` signatures do not accept that plan and fail closed when passed a route containing `identity`. Use `@ApiController` for identity-aliased generated GET routes; the low-level helpers remain compatible with route configurations that do not contain `identity`.
+
 ## Filter Utilities
 
 ### ApiControllerGetListTransformFilter

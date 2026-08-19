@@ -92,7 +92,7 @@ Omitting either section preserves its legacy metadata-driven behavior. A route p
 
 `limit` and `page` are required integers from 1 through 100. Runtime maps them to TypeORM `take` and `skip`. For a stable page boundary, route order configuration may add `defaultOrder` and `tieBreakers`; these are server-owned direct-scalar entries and do not need to be exposed by the generated `orderBy` enum. A client order pair replaces the defaults, then tie-breakers are appended and duplicate fields are removed.
 
-### Read Scope PARAMETERS DTOs
+### Read PARAMETERS DTOs
 
 Generated GET and GET_LIST routes can create path-parameter DTOs for nested owner scopes:
 
@@ -102,6 +102,7 @@ Generated GET and GET_LIST routes can create path-parameter DTOs for nested owne
 	path: "providers/:providerKey/games",
 	routes: {
 		[EApiRouteType.GET]: {
+			identity: { parameter: "gameId" },
 			read: {
 				scope: {
 					parameters: [{ parameter: "providerKey", field: "providerId" }],
@@ -120,9 +121,33 @@ Generated GET and GET_LIST routes can create path-parameter DTOs for nested owne
 export class ProviderGameController {}
 ```
 
-Automator copies validation/transformation and Swagger metadata from the mapped described direct scalar field to the external owner-path name. The generated GET PARAMETERS DTO contains both its unchanged primary-key field and inherited mappings; GET_LIST contains the inherited mappings. DTO/schema identity is route- and mapping-scoped, so controllers over the same entity can use different owner-path parameter names safely.
+Automator copies validation/transformation and Swagger metadata from the primary or mapped described direct scalar field to each external parameter name. In the example, the GET PARAMETERS DTO contains `gameId` and `providerKey`; the TypeORM identity predicate still targets the actual primary column. GET_LIST contains only the inherited mapping. Omit `identity` to keep the primary-column name, and use identity without scope only when the controller path has no inherited parameters. DTO/schema identity is route- and mapping-scoped, so controllers over the same entity can use different external names safely.
 
-All inherited `:parameters` must be mapped exactly once. A manual `dto[EApiDtoType.PARAMETERS]` is mutually exclusive with generated read scope; `autoDto[EApiDtoType.PARAMETERS]` validators can still decorate the generated DTO.
+All inherited `:parameters` must be mapped exactly once. A manual `dto[EApiDtoType.PARAMETERS]` is mutually exclusive with configured read identity or scope; `autoDto[EApiDtoType.PARAMETERS]` validators can still decorate the generated DTO.
+
+Identity aliases do not rename response fields. A manual response DTO can use the standard `class-transformer` alias when its wire contract needs `gameId` for an entity value named `id`:
+
+```typescript
+import { Expose } from "class-transformer";
+
+export class PublicGameResponseDto {
+	@Expose({ name: "id" })
+	@ApiPropertyString({
+		description: "Public game identifier",
+		entity: () => PublicGameResponseDto,
+		exampleValue: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+		format: EApiPropertyStringType.UUID,
+		isRequired: true,
+		isResponse: true,
+		maxLength: 36,
+		minLength: 36,
+		pattern: "/^[0-9a-f-]{36}$/",
+	})
+	gameId!: string;
+}
+```
+
+Keep `@Expose({ name: "id" })` above the Automator property decorator so the explicit class-transformer alias is applied last.
 
 ### Response DTOs
 

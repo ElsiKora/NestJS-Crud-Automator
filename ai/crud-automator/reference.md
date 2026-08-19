@@ -14,6 +14,7 @@
 | Manual route DTOs                               | `dto: { [EApiDtoType.*]: DTO }`                         |
 | GET_LIST custom item shape                      | `dto: { [EApiDtoType.RESPONSE]: { itemType, name? } }`  |
 | Typed GET_LIST filter/order overlay             | `request[EApiControllerRequestTarget.QUERY]`            |
+| External GET primary path name                  | `routes[GET].identity`                                  |
 | Inherited owner path scope for GET/GET_LIST     | `read.scope.parameters`                                 |
 | Stable server list order                        | `order.defaultOrder` + `order.tieBreakers`              |
 | Relation hydration                              | `relations.request`                                     |
@@ -138,6 +139,20 @@ Controller GET_LIST query parameters (`limit`, `page`, `orderBy`, `orderDirectio
 
 ## Generated Read Scope
 
+Generated GET may expose its actual primary column under a different wire parameter with top-level route configuration:
+
+```ts
+routes: {
+	[EApiRouteType.GET]: {
+		identity: { parameter: "gameId" },
+	},
+}
+```
+
+This changes the generated path and PARAMETERS DTO to `:gameId`; it does not select another lookup field or rename response properties. Runtime service criteria still target the actual primary column. Before HOOKS/IAM evaluation, authorization receives both the external alias and the canonical primary-field key, so primary placeholders such as `{id}` and canonical conditions keep their normal meaning. `identity` is GET-only and cannot be combined with a manual PARAMETERS DTO.
+
+An identity-only GET is valid only when the controller path has no inherited dynamic parameters. If the controller path contains any `:parameter`, the same GET must also configure `read.scope.parameters` and map every inherited parameter exactly once.
+
 Generated GET and GET_LIST routes accept:
 
 ```ts
@@ -156,10 +171,10 @@ This contract is intentionally closed:
 - `parameters` must be a non-empty array and every entry has exactly `parameter` and `field`.
 - Every required scalar `:parameter` in the inherited controller `path` must be mapped exactly once; parameters and fields cannot repeat. Wildcards and optional/grouped dynamic parameters fail at bootstrap.
 - `field` must be a described direct scalar column. Relations and objects are rejected.
-- A GET controller path cannot reuse the entity primary-key parameter name because the generated item route owns that identity; read scope does not rename or replace it.
+- A GET controller path cannot reuse the effective generated identity parameter or, when an alias differs, inherit the actual primary-field name. Read scope does not rename or replace GET identity.
 - A manual `dto[EApiDtoType.PARAMETERS]` is mutually exclusive. `autoDto[PARAMETERS]` validators remain available.
 
-The generated route-local PARAMETERS DTO applies the selected entity field metadata under the external owner-path name and drives Nest parameter metadata plus Swagger. GET includes its unchanged primary-key parameter and the mappings; GET_LIST includes the mappings. Runtime criteria are merged as identity/query → path → HOOKS/IAM with logical AND. Field conflicts become match-nothing criteria, never last-write-wins replacement. Scalar leaves are normalized to explicit TypeORM `Equal(...)` predicates during an additional-scope merge; object-valued scalar columns must already be wrapped in `Equal(value)` because raw objects denote relation or embedded criteria.
+The generated route-local PARAMETERS DTO applies selected entity field metadata under each external path name and drives Nest parameter metadata plus Swagger. GET includes its configured identity alias (or the ordinary primary-field parameter when no alias is configured) and the mappings; GET_LIST includes the mappings. Runtime criteria are merged as identity/query → path → HOOKS/IAM with logical AND. Field conflicts become match-nothing criteria, never last-write-wins replacement. Scalar leaves are normalized to explicit TypeORM `Equal(...)` predicates during an additional-scope merge; object-valued scalar columns must already be wrapped in `Equal(value)` because raw objects denote relation or embedded criteria.
 
 `@ApiFunctionDelete` internally removes an entity snapshot, but generated service/controller delete APIs intentionally expose `Promise<void>`. Do not design public delete flows around receiving the removed entity unless the source contract is changed first.
 

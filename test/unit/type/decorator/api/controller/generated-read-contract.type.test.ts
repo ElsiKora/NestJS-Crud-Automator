@@ -1,4 +1,4 @@
-import type { IApiBaseEntity, IApiControllerProperties, IApiControllerPropertiesRouteGetListQueryOrderEntry, IApiControllerPropertiesRouteReadScope, IApiControllerPropertiesRouteWithAutoDto, IApiEntity, TApiControllerMethodMap, TApiControllerPropertiesRoute, TApiControllerTransformDataData, TApiControllerTransformDataObjectToTransform, TApiPropertyDescribeProperties, TApiRequestTransformer } from "../../../../../../src";
+import type { IApiBaseEntity, IApiControllerProperties, IApiControllerPropertiesRouteGetListQueryOrderEntry, IApiControllerPropertiesRouteIdentity, IApiControllerPropertiesRouteReadScope, IApiControllerPropertiesRouteWithAutoDto, IApiEntity, TApiControllerMethodMap, TApiControllerPropertiesRoute, TApiControllerTransformDataData, TApiControllerTransformDataObjectToTransform, TApiPropertyDescribeProperties, TApiRequestTransformer } from "../../../../../../src";
 
 import {
 	ApiControllerApplyDecorators,
@@ -74,8 +74,89 @@ describe("public generated read type contract", () => {
 			},
 		};
 
-		expect(getRoute.read?.scope.parameters).toEqual([{ field: "ownerId", parameter: "ownerId" }]);
+		expect(getRoute.read?.scope?.parameters).toEqual([{ field: "ownerId", parameter: "ownerId" }]);
 		expect(getListRoute.request?.[EApiControllerRequestTarget.QUERY]?.order?.defaultOrder).toHaveLength(2);
+	});
+
+	it("accepts a GET primary identity alias with or without inherited scope", () => {
+		const identity: IApiControllerPropertiesRouteIdentity = { parameter: "gameId" };
+		const identityOnlyRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
+			identity,
+		};
+		const identityAndScopeRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
+			identity,
+			read: {
+				scope: {
+					parameters: [{ field: "ownerId", parameter: "ownerId" }],
+				},
+			},
+			request: {
+				[EApiControllerRequestTarget.PARAMETERS]: {
+					transformers: [
+						{
+							key: "gameId",
+							type: EApiControllerRequestTransformerType.STATIC,
+							value: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+						},
+					],
+				},
+			},
+		};
+
+		expect(identityOnlyRoute.identity?.parameter).toBe("gameId");
+		expect(identityAndScopeRoute.read?.scope?.parameters).toEqual([{ field: "ownerId", parameter: "ownerId" }]);
+	});
+
+	it("rejects GET identity grammar on GET_LIST for fresh and non-fresh values", () => {
+		const freshRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = {
+			// @ts-expect-error -- GET_LIST has no primary identity path segment to alias.
+			identity: { parameter: "gameId" },
+			read: {
+				scope: {
+					parameters: [{ field: "ownerId", parameter: "ownerId" }],
+				},
+			},
+		};
+		const nonFreshRouteValue = {
+			identity: { parameter: "gameId" },
+			read: {
+				scope: {
+					parameters: [{ field: "ownerId", parameter: "ownerId" }],
+				},
+			},
+		} as const;
+		// @ts-expect-error -- Non-fresh values cannot add identity grammar to GET_LIST.
+		const nonFreshRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = nonFreshRouteValue;
+
+		expect(freshRoute).toBeDefined();
+		expect(nonFreshRoute).toBeDefined();
+	});
+
+	it("rejects manual PARAMETERS DTO ownership on an identity-aliased GET", () => {
+		// @ts-expect-error -- Generated read identity owns the route PARAMETERS DTO.
+		const route: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
+			dto: {
+				[EApiDtoType.PARAMETERS]: PublicGeneratedReadParametersDto,
+			},
+			identity: { parameter: "gameId" },
+		};
+
+		expect(route).toBeDefined();
+	});
+
+	it("rejects invalid identity grammar and manual PARAMETERS DTOs from non-fresh GET values", () => {
+		const invalidIdentityValue = { identity: { parameter: 1 } } as const;
+		const manualParametersValue = {
+			dto: { [EApiDtoType.PARAMETERS]: PublicGeneratedReadParametersDto },
+			identity: { parameter: "gameId" },
+		} as const;
+		// @ts-expect-error -- Non-fresh identity grammar still requires a string parameter.
+		const invalidIdentityRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = invalidIdentityValue;
+		// @ts-expect-error -- Non-fresh identity routes still cannot own a manual PARAMETERS DTO.
+		const manualParametersRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = manualParametersValue;
+
+		expect(invalidIdentityRoute).toBeDefined();
+		expect(manualParametersRoute).toBeDefined();
 	});
 
 	it("accepts aliased GET_LIST PARAMETERS transformers and property metadata", () => {
@@ -348,6 +429,29 @@ describe("public generated read type contract", () => {
 
 		expect(createRoute).toBeDefined();
 		expect(deleteRoute).toBeDefined();
+	});
+
+	it("rejects generated identity aliases on every non-GET route", () => {
+		const createRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.CREATE> = {
+			// @ts-expect-error -- Only generated GET owns an identity path alias.
+			identity: { parameter: "gameId" },
+		};
+		const deleteRouteValue = { identity: { parameter: "gameId" } } as const;
+		// @ts-expect-error -- Non-fresh values cannot add identity grammar to DELETE.
+		const deleteRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.DELETE> = deleteRouteValue;
+		const partialUpdateRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.PARTIAL_UPDATE> = {
+			// @ts-expect-error -- Only generated GET owns an identity path alias.
+			identity: { parameter: "gameId" },
+		};
+		const updateRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.UPDATE> = {
+			// @ts-expect-error -- Only generated GET owns an identity path alias.
+			identity: { parameter: "gameId" },
+		};
+
+		expect(createRoute).toBeDefined();
+		expect(deleteRoute).toBeDefined();
+		expect(partialUpdateRoute).toBeDefined();
+		expect(updateRoute).toBeDefined();
 	});
 
 	it("rejects relation-valued read scope fields", () => {

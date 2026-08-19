@@ -1,6 +1,7 @@
 import type { EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
@@ -11,7 +12,7 @@ import { EApiDtoType } from "@enum/decorator/api";
 import { assignMetadata } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum.js";
-import { ApiControllerGetDto, ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
 
 /**
  * Applies metadata for NestJS controller methods to enable proper dependency injection.
@@ -43,16 +44,17 @@ export function ApiControllerApplyMetadata<E extends IApiBaseEntity>(target: obj
  * @param {TApiControllerPropertiesRoute<E, typeof method>} routeConfig - Route configuration.
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Internal compiled QUERY plan.
  * @param {IApiControllerReadPlan} [readPlan] - Internal compiled PARAMETERS plan.
+ * @param {IApiControllerIdentityPlan} [identityPlan] - Internal GET identity alias plan.
  * @returns {void}
  */
-export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan): void {
+export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan): void {
 	let parameterIndex: number = 0;
 	let routeArgumentsMetadata: unknown = {};
 	const parameterTypes: Array<unknown> = [];
 
-	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, queryPlan, readPlan);
-	const queryDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.QUERY, routeConfig, queryPlan);
-	const bodyDto: Type<unknown> | undefined = ApiControllerGetDto(properties, entity, method, EApiDtoType.BODY, routeConfig, queryPlan);
+	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, queryPlan, readPlan, identityPlan);
+	const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.QUERY, routeConfig, queryPlan, readPlan, identityPlan);
+	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, queryPlan, readPlan, identityPlan);
 
 	if (requestDto) {
 		routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.PARAM, parameterIndex);

@@ -6,6 +6,7 @@ import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from
 import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api";
 import { ForbiddenException, RequestMethod } from "@nestjs/common";
+import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
 import { describe, expect, it, vi } from "vitest";
 
 class GuardEntity {
@@ -32,7 +33,7 @@ const createExecutionContext = (controller: object, handler: () => void, request
 		}),
 	}) as unknown as ExecutionContext;
 
-const defineRouteMetadata = (handler: () => void, action: string, routeType?: EApiRouteType): void => {
+const defineRouteMetadata = (handler: () => void, action: string, routeType?: EApiRouteType, authorizationMode: EApiAuthorizationMode = EApiAuthorizationMode.HOOKS): void => {
 	Reflect.defineMetadata(
 		METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
 		{
@@ -47,7 +48,7 @@ const defineRouteMetadata = (handler: () => void, action: string, routeType?: EA
 			},
 			security: {
 				authorization: {
-					mode: EApiAuthorizationMode.HOOKS,
+					mode: authorizationMode,
 				},
 			},
 		},
@@ -275,6 +276,162 @@ describe("ApiAuthorizationGuard", () => {
 				},
 			}),
 		);
+	});
+
+	it.each([EApiAuthorizationMode.HOOKS, EApiAuthorizationMode.IAM])("canonicalizes an identity alias for %s authorization without mutating raw request params", async (mode) => {
+		const decision = {
+			action: "get",
+			appliedRules: [],
+			effect: EApiPolicyEffect.ALLOW,
+			mode,
+			permissions: ["admin.item.read"],
+			policyId: "policy",
+			policyIds: ["policy"],
+			principal: { attributes: {}, id: "user", roles: [], type: EApiAuthorizationPrincipalType.USER },
+			resourceType: "GuardEntity",
+			trace: { decisionType: EApiAuthorizationDecisionType.EXPLICIT_ALLOW, mode, permissions: ["admin.item.read"] },
+			transforms: [],
+		};
+		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
+		const guard = new ApiAuthorizationGuard(runtime as never);
+		const handler = function get() {};
+		const controller = class {};
+		const rawParameters = { gameId: "entity-1", ownerId: "owner-1" };
+		const request: Record<string, unknown> = { params: rawParameters };
+
+		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
+		Reflect.defineMetadata(
+			CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY,
+			{
+				authorization: { defaultMode: mode },
+				entity: GuardEntity,
+				routes: { get: { authorization: { mode } } },
+			},
+			controller,
+		);
+		ApiControllerIdentityPlanSet(handler, {
+			controllerName: "GuardIdentityController",
+			field: "id",
+			parameter: "gameId",
+			schemaName: "GuardIdentityControllerGetIdentityDTO",
+			signature: "guard-identity",
+		});
+		defineRouteMetadata(handler, "get", EApiRouteType.GET, mode);
+
+		const context = createExecutionContext(controller, handler, request);
+		await expect(guard.canActivate(context)).resolves.toBe(true);
+
+		expect(runtime.evaluate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				requestMetadata: expect.objectContaining({
+					parameters: {
+						gameId: "entity-1",
+						id: "entity-1",
+						ownerId: "owner-1",
+					},
+				}),
+			}),
+		);
+		expect(request.params).toBe(rawParameters);
+		expect(rawParameters).toEqual({ gameId: "entity-1", ownerId: "owner-1" });
+		expect(Object.hasOwn(rawParameters, "id")).toBe(false);
+	});
+
+	it("uses only the exact inherited controller handler identity plan", async () => {
+		const decision = {
+			action: "get",
+			appliedRules: [],
+			effect: EApiPolicyEffect.ALLOW,
+			mode: EApiAuthorizationMode.HOOKS,
+			permissions: ["admin.item.read"],
+			policyId: "policy",
+			policyIds: ["policy"],
+			principal: { attributes: {}, id: "user", roles: [], type: EApiAuthorizationPrincipalType.USER },
+			resourceType: "GuardEntity",
+			trace: { decisionType: EApiAuthorizationDecisionType.EXPLICIT_ALLOW, mode: EApiAuthorizationMode.HOOKS, permissions: ["admin.item.read"] },
+			transforms: [],
+		};
+		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
+		const guard = new ApiAuthorizationGuard(runtime as never);
+
+		class AliasedBaseController {
+			public get(): void {}
+		}
+
+		class CanonicalDerivedController extends AliasedBaseController {
+			public override get(): void {}
+		}
+
+		class DifferentAliasDerivedController extends AliasedBaseController {
+			public override get(): void {}
+		}
+
+		const aliasedHandler = AliasedBaseController.prototype.get;
+		const canonicalHandler = CanonicalDerivedController.prototype.get;
+		const differentAliasHandler = DifferentAliasDerivedController.prototype.get;
+
+		ApiControllerIdentityPlanSet(aliasedHandler, {
+			controllerName: "AliasedBaseController",
+			field: "id",
+			parameter: "gameId",
+			schemaName: "AliasedBaseControllerGetIdentityDTO",
+			signature: "aliased-base",
+		});
+		ApiControllerIdentityPlanSet(differentAliasHandler, {
+			controllerName: "DifferentAliasDerivedController",
+			field: "id",
+			parameter: "itemId",
+			schemaName: "DifferentAliasDerivedControllerGetIdentityDTO",
+			signature: "different-alias-derived",
+		});
+
+		const cases: Array<{
+			controller: object;
+			expectedParameters: Record<string, string>;
+			handler: () => void;
+			rawParameters: Record<string, string>;
+		}> = [
+			{
+				controller: AliasedBaseController,
+				expectedParameters: { gameId: "base-id", id: "base-id" },
+				handler: aliasedHandler,
+				rawParameters: { gameId: "base-id" },
+			},
+			{
+				controller: CanonicalDerivedController,
+				expectedParameters: { gameId: "must-not-replace-canonical-id", id: "canonical-id" },
+				handler: canonicalHandler,
+				rawParameters: { gameId: "must-not-replace-canonical-id", id: "canonical-id" },
+			},
+			{
+				controller: DifferentAliasDerivedController,
+				expectedParameters: { id: "different-id", itemId: "different-id" },
+				handler: differentAliasHandler,
+				rawParameters: { itemId: "different-id" },
+			},
+		];
+
+		for (const { controller, expectedParameters, handler, rawParameters } of cases) {
+			Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
+			Reflect.defineMetadata(
+				CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY,
+				{
+					authorization: { defaultMode: EApiAuthorizationMode.HOOKS },
+					entity: GuardEntity,
+					routes: { get: { authorization: { mode: EApiAuthorizationMode.HOOKS } } },
+				},
+				controller,
+			);
+			defineRouteMetadata(handler, "get", EApiRouteType.GET);
+
+			await expect(guard.canActivate(createExecutionContext(controller, handler, { params: rawParameters }))).resolves.toBe(true);
+
+			expect(runtime.evaluate).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					requestMetadata: expect.objectContaining({ parameters: expectedParameters }),
+				}),
+			);
+		}
 	});
 
 	it("prefers explicit authorization metadata over the custom handler name", async () => {

@@ -30,6 +30,7 @@ Routes also accept:
 - `security.authentication` – bearer/security schemes and custom guards. `type` is required and may be an `EApiAuthenticationType` value or a project-specific string.
 - `security.authorization` – authorization mode and optional per-route overrides.
 - `request` / `response` – target-scoped pipe and serializer overrides for each CRUD action. A generated GET_LIST QUERY target also accepts optional `filter` and `order` sections that compile into one immutable DTO/runtime/OpenAPI query plan.
+- `identity` – GET-only top-level `{ parameter }` configuration for exposing the entity primary key under a different safe path-parameter name. It remains a primary-key lookup and does not rename the response.
 - `relations` – include-driven request hydration and response loading. `relations.request.load.locks` can apply native `pessimistic_read` or `pessimistic_write` locks to enabled direct relation includes inside an active Automator transaction.
 - `transaction.mode` – generated-route transaction behavior using `EApiFunctionTransactionMode`. Omitted config and `SUPPORTS` open no route transaction; `REQUIRED` opens or joins, `MANDATORY` requires an active owner, and `NONE` rejects one.
 - `generation.decorators` – additional method or property decorators applied after the factory finishes.
@@ -37,6 +38,25 @@ Routes also accept:
 - `generation.shouldWriteToController: false` – keeps the generated method and DTO metadata but skips applying Nest route decorators, so you can expose the method manually.
 
 There is no custom-only/default-disabled controller option. A controller that exposes only custom routes must explicitly disable all six generated route types.
+
+### GET primary identity alias
+
+```typescript
+@ApiController<GameEntity>({
+	entity: GameEntity,
+	path: "games",
+	routes: {
+		[EApiRouteType.GET]: {
+			identity: { parameter: "gameId" },
+		},
+	},
+})
+export class GameController {}
+```
+
+This generates `GET /games/:gameId`, but the generated service predicate and authorization resource still target the actual entity primary field, such as `id`. `parameter` must be a safe simple JavaScript identifier. A manual PARAMETERS DTO is not allowed because the factory owns the aliased DTO and OpenAPI schema.
+
+Identity-only configuration is valid only when `path` has no inherited dynamic parameters. For a nested path such as `providers/:providerKey/games`, add `read.scope.parameters` to the same GET route and map every inherited path parameter. GET_LIST has no item identity segment and rejects `identity`.
 
 ## Example
 
@@ -135,6 +155,7 @@ export class UserController {}
 - Omit GET_LIST `filter` or `order` to keep its legacy metadata-driven behavior. `INHERIT` overlays the metadata baseline; `REJECT` creates an allowlist. Route config cannot re-enable a metadata-disabled field.
 - `USE_DEFAULT` inserts `defaultCondition` only when the client omits that field group. A supplied client group replaces the field default; authorization scope is always AND-merged afterward.
 - Do not combine a manual GET_LIST QUERY DTO with generated `filter` or `order`. Manual RESPONSE DTOs remain compatible.
+- Configure a generated GET identity only through `@ApiController`; its private compiled plan is shared by routing, DTO generation, runtime lookup, and authorization.
 - Leave `routes[routeType].documentation` empty to use generated Swagger text. Set only the fields you need to override; omitted `summary` and `description` fall back to generated text, while omitted `operationId` uses Nest Swagger's default operation ID.
 
 ## Related resources

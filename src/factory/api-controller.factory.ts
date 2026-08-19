@@ -1,6 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiControllerProperties, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
@@ -10,15 +11,18 @@ import type { TApiControllerMethodMap, TApiControllerMethodName, TApiControllerM
 import type { DeepPartial } from "typeorm";
 
 import { ApiControllerGetListQueryPlanCompiler } from "@class/api/controller/get-list/query";
+import { ApiControllerIdentityPlanCompiler } from "@class/api/controller/identity-plan-compiler.class";
 import { ApiControllerReadPlanCompiler } from "@class/api/controller/read";
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiRouteType } from "@enum/decorator/api";
 import { Controller } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { ApiControllerApplyDecorators, ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/api";
+import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/api";
+import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/controller/apply/decorators.utility";
 import { ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/apply/metadata.utility";
 import { ApiControllerGetListQueryPlanGet, ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
+import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
 import { ApiControllerReadPlanGet, ApiControllerReadPlanSet } from "@utility/api/controller/read";
 import { ApiControllerWriteDtoSwaggerWithReadPlan } from "@utility/api/controller/write/dto-swagger.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -55,6 +59,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 			const methodName: TApiControllerMethodNameMap[typeof method] = ApiControllerGetMethodName(method) as TApiControllerMethodNameMap[typeof method];
 			let queryPlan: IApiControllerGetListQueryPlan | undefined;
 			const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanCompiler.compile(this.target, this.properties.path, this.ENTITY, method, routeConfig);
+			const identityPlan: IApiControllerIdentityPlan | undefined = ApiControllerIdentityPlanCompiler.compile(this.target, this.properties.path, this.ENTITY, method, routeConfig, readPlan);
 
 			if (readPlan) {
 				ApiControllerReadPlanSet(this.targetPrototype, methodName, readPlan);
@@ -71,13 +76,18 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 			}
 
 			const targetMethod: TApiControllerMethodMap<E>[typeof method] = this.targetPrototype[methodName] as TApiControllerMethodMap<E>[typeof method];
-			ApiControllerApplyMetadataWithReadPlan(this.target, this.targetPrototype, this.ENTITY, this.properties, method, methodName, routeConfig, queryPlan, readPlan);
 
-			if (this.properties.routes[method]?.generation?.shouldWriteToController !== false) {
-				ApiControllerApplyDecorators(targetMethod, this.ENTITY, this.properties, method, methodName, routeConfig, routeDecorators, queryPlan);
+			if (identityPlan) {
+				ApiControllerIdentityPlanSet(targetMethod, identityPlan);
 			}
 
-			ApiControllerWriteDtoSwaggerWithReadPlan(this.target, this.ENTITY, this.properties, method, routeConfig, this.ENTITY, queryPlan, readPlan);
+			ApiControllerApplyMetadataWithReadPlan(this.target, this.targetPrototype, this.ENTITY, this.properties, method, methodName, routeConfig, queryPlan, readPlan, identityPlan);
+
+			if (this.properties.routes[method]?.generation?.shouldWriteToController !== false) {
+				ApiControllerApplyDecoratorsWithIdentityPlan(targetMethod, this.ENTITY, this.properties, method, methodName, routeConfig, routeDecorators, queryPlan, identityPlan);
+			}
+
+			ApiControllerWriteDtoSwaggerWithReadPlan(this.target, this.ENTITY, this.properties, method, routeConfig, this.ENTITY, queryPlan, readPlan, identityPlan);
 		}
 	}
 

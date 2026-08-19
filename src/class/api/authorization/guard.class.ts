@@ -1,6 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationRequestMetadata } from "@interface/class/api/authorization/request-metadata.interface";
+import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorator/api";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
@@ -12,6 +13,7 @@ import { IApiAuthorizationDecision } from "@interface/class/api/authorization";
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
 import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
 import { TApiControllerGetListQuery } from "@type/decorator/api/controller";
+import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { DeepPartial } from "typeorm";
@@ -44,7 +46,8 @@ export class ApiAuthorizationGuard implements CanActivate {
 
 		const request: TApiAuthorizationGuardRequest = context.switchToHttp().getRequest<TApiAuthorizationGuardRequest>();
 		const authenticationRequest: IApiAuthenticationRequest = request as unknown as IApiAuthenticationRequest;
-		const requestMetadata: IApiAuthorizationRequestMetadata<IApiBaseEntity> = this.resolveRequestMetadata<IApiBaseEntity>(request);
+		const identityPlan: IApiControllerIdentityPlan | undefined = ApiControllerIdentityPlanGet(context.getHandler());
+		const requestMetadata: IApiAuthorizationRequestMetadata<IApiBaseEntity> = this.resolveRequestMetadata<IApiBaseEntity>(request, identityPlan);
 
 		const decision: IApiAuthorizationDecision<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>> = await this.runtime.evaluate({
 			action,
@@ -107,12 +110,54 @@ export class ApiAuthorizationGuard implements CanActivate {
 		return resolvedHeaders;
 	}
 
-	private resolveRequestMetadata<E extends IApiBaseEntity>(request: TApiAuthorizationGuardRequest): IApiAuthorizationRequestMetadata<E> {
+	private resolveIdentityParameters<E extends IApiBaseEntity>(parameters: TApiAuthorizationGuardRequest["params"], identityPlan: IApiControllerIdentityPlan): Partial<E> | undefined {
+		if (!parameters || typeof parameters !== "object") {
+			return undefined;
+		}
+
+		const resolvedParameters: Record<PropertyKey, unknown> = {};
+
+		for (const key of Reflect.ownKeys(parameters)) {
+			const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(parameters, key);
+
+			if (!descriptor?.enumerable || !("value" in descriptor)) {
+				continue;
+			}
+
+			Object.defineProperty(resolvedParameters, key, {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				configurable: true,
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				enumerable: true,
+				value: descriptor.value,
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				writable: true,
+			});
+		}
+
+		const identityDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(resolvedParameters, identityPlan.parameter);
+
+		if (identityDescriptor && "value" in identityDescriptor) {
+			Object.defineProperty(resolvedParameters, identityPlan.field, {
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				configurable: true,
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				enumerable: true,
+				value: identityDescriptor.value,
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				writable: true,
+			});
+		}
+
+		return resolvedParameters as Partial<E>;
+	}
+
+	private resolveRequestMetadata<E extends IApiBaseEntity>(request: TApiAuthorizationGuardRequest, identityPlan?: IApiControllerIdentityPlan): IApiAuthorizationRequestMetadata<E> {
 		return {
 			body: request.body as DeepPartial<E> | undefined,
 			headers: this.resolveHeaders(request.headers),
 			ip: typeof request.ip === "string" ? request.ip : undefined,
-			parameters: request.params as Partial<E> | undefined,
+			parameters: identityPlan ? this.resolveIdentityParameters<E>(request.params, identityPlan) : (request.params as Partial<E> | undefined),
 			query: request.query as TApiControllerGetListQuery<E> | undefined,
 		};
 	}

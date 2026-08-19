@@ -36,8 +36,9 @@ Use local source as the contract:
 - `autoDto` is validators-only. Entity `ApiPropertyDescribe({ properties })` remains the capability baseline; generated GET_LIST `request[QUERY].filter` and `order` may narrow or overlay its query exposure.
 - Manual `dto` and `autoDto` route branches are mutually exclusive.
 - A manual GET_LIST QUERY DTO is mutually exclusive with generated filter/order configuration; a manual RESPONSE DTO remains compatible.
+- Generated GET accepts top-level `identity: { parameter: "gameId" }` to rename only its primary-key wire parameter. The service predicate and HOOKS/IAM canonical identity still use the actual primary field, while the response shape is unchanged. Identity-only GET is valid only when the controller path has no inherited dynamic parameters; otherwise the same route needs a complete `read.scope.parameters` mapping.
 - Generated GET/GET_LIST `read.scope.parameters` is a non-empty array of `{ parameter, field }` mappings. It must exactly cover every required scalar inherited controller-path parameter once, maps only to distinct described direct scalar fields, and is mutually exclusive with a manual PARAMETERS DTO. Wildcard and optional/grouped dynamic path parameters fail at bootstrap.
-- Generated read scope creates a route-scoped PARAMETERS DTO and Swagger contract. GET keeps its primary identity parameter; GET_LIST adds only inherited scope parameters. Identity/query predicates are AND-merged with path scope and then HOOKS/IAM scope without overwrite semantics.
+- Generated read scope creates a route-scoped PARAMETERS DTO and Swagger contract. GET includes its primary identity under the configured alias or the ordinary primary-field name; GET_LIST adds only inherited scope parameters. Identity/query predicates are AND-merged with path scope and then HOOKS/IAM scope without overwrite semantics.
 - GET_LIST order config may declare server-only ordered `defaultOrder` and `tieBreakers` entries. These validate against all described direct scalar fields, including UUID columns that are not client-sortable. A client order pair replaces defaults, tie-breakers are appended, and duplicate fields keep the earlier entry.
 - `ApiPropertyDescribe` object metadata uses `dataType`; manual `ApiPropertyObject` uses `type`.
 - `ApiPropertyDescribe` relation metadata does not currently accept array options.
@@ -124,7 +125,7 @@ Use local source as the contract:
 - DTO fields are scoped correctly for body/query/parameters/response.
 - GET_LIST uses the intended response mode: full wrapper DTO or `{ itemType, name? }`.
 - Typed GET_LIST DTO/OpenAPI fields match the normalized plan, two controllers over one entity receive distinct plan-scoped schemas, and strict parsing remains effective with host query whitelist changes.
-- Generated read PARAMETERS DTO/OpenAPI fields exactly match inherited path mappings, manual PARAMETERS DTO exclusion holds, and identity/query → path → IAM criteria remain conjunctive on conflicts.
+- Generated read PARAMETERS DTO/OpenAPI fields exactly match the configured GET identity alias and inherited path mappings, manual PARAMETERS DTO exclusion holds, authorization receives the canonical primary field, and identity/query → path → IAM criteria remain conjunctive on conflicts.
 - GET_LIST defaults/tie-breakers accept described UUID scalars without exposing them to client sort, replace defaults on client order, de-duplicate predictably, and keep page/limit results deterministic for an unchanged dataset.
 - Route generation, transaction mode, security, request/response targets, relation locks, and DTO config type-check.
 - Subscribers fire on the route/function path being exercised.

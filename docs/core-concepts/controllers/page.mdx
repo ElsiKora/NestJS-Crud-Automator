@@ -118,6 +118,7 @@ import { ApiController, EApiControllerGetListQueryUnlistedFields, EApiController
 	path: "providers/:providerKey/games",
 	routes: {
 		[EApiRouteType.GET]: {
+			identity: { parameter: "gameId" },
 			read: {
 				scope: {
 					parameters: [{ parameter: "providerKey", field: "providerId" }],
@@ -151,9 +152,11 @@ export class ProviderGameController {
 }
 ```
 
-This generates `GET /providers/:providerKey/games/:id` and `GET /providers/:providerKey/games`. `providerKey` is the external owner-path name; `providerId` is the described direct scalar entity field used in the database predicate. Every required scalar path parameter inherited from `path` must be mapped exactly once; wildcard and optional/grouped dynamic parameters fail at bootstrap. Duplicate/missing parameters, duplicate fields, unknown path names, relations, and objects also fail at bootstrap. On GET, the inherited path must not reuse the generated primary identity parameter name, and the scope mapping does not rename that identity.
+This generates `GET /providers/:providerKey/games/:gameId` and `GET /providers/:providerKey/games`. `providerKey` is the external owner-path name; `providerId` is the described direct scalar entity field used in the database predicate. `gameId` is only the external GET identity name: Automator still queries the entity's actual primary column. Omit `identity` to retain the ordinary primary-column parameter name, or use identity without scope when the controller path has no inherited parameters. GET_LIST rejects identity because it has no primary-identity path segment. Identity aliases must be safe simple identifiers such as `gameId`; whitespace, slashes, punctuation, control characters, unsafe object-property names, and inherited-path collisions fail at bootstrap.
 
-The framework generates a route-local PARAMETERS DTO from the mapped field metadata under the external owner-path parameter name and emits matching Swagger metadata. Do not combine this read scope with a manual `dto[EApiDtoType.PARAMETERS]`; use `autoDto[PARAMETERS]` only for validators on the generated DTO.
+Every required scalar path parameter inherited from `path` must be mapped exactly once; wildcard and optional/grouped dynamic parameters fail at bootstrap. Duplicate/missing parameters, duplicate fields, unknown path names, relations, and objects also fail at bootstrap. On GET, the inherited path must not reuse the effective generated identity parameter name.
+
+The framework generates a route-local PARAMETERS DTO from primary and mapped field metadata under their external parameter names and emits matching Swagger metadata. Do not combine configured read identity or scope with a manual `dto[EApiDtoType.PARAMETERS]`; use `autoDto[PARAMETERS]` only for validators on the generated DTO.
 
 GET combines primary identity, path scope, and then HOOKS/IAM scope. GET_LIST combines query predicates, path scope, and then HOOKS/IAM scope. Every layer is a logical AND, including when the same field appears more than once; a later layer cannot overwrite an earlier condition.
 

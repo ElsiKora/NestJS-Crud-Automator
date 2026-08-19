@@ -18,7 +18,11 @@ describe("nested-owner generated read contract (E2E)", () => {
 	let ownerService: E2eOwnerService;
 	let service: E2eService;
 	let fastify: {
-		inject: (options: { method: string; url: string }) => Promise<{ json: () => unknown; statusCode: number }>;
+		inject: (options: { headers?: Record<string, string>; method: string; url: string }) => Promise<{ json: () => unknown; statusCode: number }>;
+	};
+	const adminHeaders: Record<string, string> = {
+		"x-role": "admin",
+		"x-user-id": E2E_OWNER_ID,
 	};
 
 	beforeAll(async () => {
@@ -81,5 +85,49 @@ describe("nested-owner generated read contract (E2E)", () => {
 
 		expect(parameterNames(getParameters)).toEqual(expect.arrayContaining(["id", "ownerId"]));
 		expect(parameterNames(listParameters)).toEqual(expect.arrayContaining(["ownerId"]));
+	});
+
+	it("maps an external GET identity alias to the entity primary field", async () => {
+		const response = await fastify.inject({
+			method: "GET",
+			url: "/identity-alias/items/nested-owned-alpha",
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.OK);
+		expect((response.json() as { id: string }).id).toBe("nested-owned-alpha");
+	});
+
+	it("documents the external GET identity alias instead of the entity primary field name", () => {
+		const parameters = document.paths["/identity-alias/items/{gameId}"]?.get?.parameters ?? [];
+		const parameterNames = parameters.flatMap((parameter): Array<string> => ("name" in parameter ? [parameter.name] : []));
+
+		expect(parameterNames).toContain("gameId");
+		expect(parameterNames).not.toContain("id");
+		expect(document.paths["/identity-alias/items/{id}"]).toBeUndefined();
+	});
+
+	it("gives HOOKS canonical id conditions while retaining aliased GET owner scope", async () => {
+		await service.repository.save({ count: 1, id: "payload-denied-get", name: "Policy Denied", ownerId: E2E_OWNER_ID });
+
+		const allowed = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: `/secure-identity-alias/${E2E_OWNER_ID}/items/nested-owned-alpha`,
+		});
+		const deniedByCanonicalId = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: `/secure-identity-alias/${E2E_OWNER_ID}/items/payload-denied-get`,
+		});
+		const deniedByOwnerAndPolicyScope = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: `/secure-identity-alias/${E2E_OWNER_ID}/items/nested-foreign`,
+		});
+
+		expect(allowed.statusCode).toBe(HttpStatus.OK);
+		expect((allowed.json() as { id: string }).id).toBe("nested-owned-alpha");
+		expect(deniedByCanonicalId.statusCode).toBe(HttpStatus.FORBIDDEN);
+		expect(deniedByOwnerAndPolicyScope.statusCode).toBe(HttpStatus.NOT_FOUND);
 	});
 });

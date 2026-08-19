@@ -1,6 +1,7 @@
 import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiControllerPropertiesRouteGetListResponseDtoConfig } from "@interface/decorator/api/controller/properties/route";
@@ -10,8 +11,10 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 import type { ObjectLiteral } from "typeorm";
 
 import { EApiDtoType as EApiDtoTypeValue, EApiRouteType as EApiRouteTypeValue } from "@enum/decorator/api";
+import { ApiControllerIdentityPlanAssert } from "@utility/api/controller/identity";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerate, DtoGenerateGetListResponse } from "@utility/dto";
+import { DtoGenerateIdentityReadParameters } from "@utility/dto/generate/identity-read-parameters.utility";
 import { DtoGenerateReadParameters } from "@utility/dto/generate/read-parameters.utility";
 
 const getListItemResponseDtoCache: Map<string, Type<unknown>> = new Map<string, Type<unknown>>();
@@ -44,9 +47,12 @@ export function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRout
  * @param {TApiControllerPropertiesRoute<E, R>} routeConfig - Route-specific configuration
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Route-scoped GET_LIST QUERY plan.
  * @param {IApiControllerReadPlan} [readPlan] - Internal route-scoped PARAMETERS plan.
+ * @param {IApiControllerIdentityPlan} [identityPlan] - Internal GET identity alias plan.
  * @returns {Type<unknown> | undefined} Resolved DTO class or undefined.
  */
-export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan): Type<unknown> | undefined {
+export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan): Type<unknown> | undefined {
+	ApiControllerIdentityPlanAssert(routeConfig, identityPlan);
+
 	const configuredDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown> | undefined = routeConfig.dto?.[dtoType];
 
 	if (configuredDto) {
@@ -57,8 +63,14 @@ export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R exte
 		return configuredDto as Type<unknown>;
 	}
 
-	if (dtoType === EApiDtoTypeValue.PARAMETERS && readPlan) {
-		return DtoGenerateReadParameters(entity, method, readPlan, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard);
+	if (dtoType === EApiDtoTypeValue.PARAMETERS) {
+		if (identityPlan) {
+			return DtoGenerateIdentityReadParameters(entity, identityPlan, readPlan, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard);
+		}
+
+		if (readPlan) {
+			return DtoGenerateReadParameters(entity, method, readPlan, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard);
+		}
 	}
 
 	const effectiveQueryPlan: IApiControllerGetListQueryPlan | undefined = method === EApiRouteTypeValue.GET_LIST && dtoType === EApiDtoTypeValue.QUERY ? queryPlan : undefined;

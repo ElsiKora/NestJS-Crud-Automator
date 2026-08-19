@@ -1314,6 +1314,7 @@ Generated `GET` and `GET_LIST` routes can bind inherited controller path paramet
 	path: "providers/:providerKey/games",
 	routes: {
 		[EApiRouteType.GET]: {
+			identity: { parameter: "gameId" },
 			read: {
 				scope: {
 					parameters: [{ parameter: "providerKey", field: "providerId" }],
@@ -1349,7 +1350,9 @@ export class ProviderGameController {
 }
 ```
 
-Every required scalar `:parameter` inherited from the controller `path` must be mapped exactly once. Wildcards and optional/grouped dynamic parameters are not valid read-scope owners and fail at bootstrap. Each mapping targets a described direct scalar field; duplicate parameters, duplicate fields, unknown path parameters, relations, objects, and missing mappings also fail at bootstrap. Automator generates and documents a route-scoped PARAMETERS DTO from the mapped field metadata, while generated `GET` keeps its ordinary primary-key parameter. A manual PARAMETERS DTO and generated read scope are mutually exclusive.
+`identity.parameter` gives generated `GET` an external primary-identity name without changing the entity field: the example exposes `:gameId` while its TypeORM predicate still targets the entity primary column. The identity config is GET-only. It may be used by itself only when the controller path has no inherited dynamic parameters; any inherited path parameter requires `read.scope.parameters` on the same GET, with every inherited parameter mapped. Its value must be a safe simple identifier such as `gameId`; whitespace, slashes, control characters, punctuation, inherited-path collisions, and unsafe object-property names fail at bootstrap. It does not select an arbitrary lookup field and it does not rename response properties.
+
+Every required scalar `:parameter` inherited from the controller `path` must be mapped exactly once. Wildcards and optional/grouped dynamic parameters are not valid read-scope owners and fail at bootstrap. Each mapping targets a described direct scalar field; duplicate parameters, duplicate fields, unknown path parameters, relations, objects, and missing mappings also fail at bootstrap. Automator generates and documents a route-scoped PARAMETERS DTO from the mapped field metadata and the configured external GET identity. A manual PARAMETERS DTO and generated read configuration are mutually exclusive.
 
 Read criteria are merged conjunctively in a fixed order: GET identity or GET_LIST query predicates, then path scope, then HOOKS/IAM scope. A later layer never overwrites an earlier field; incompatible values become a match-nothing condition. During an additional-scope merge, scalar leaves are emitted as explicit TypeORM `Equal(...)` predicates so relation-shaped paths cannot cause TypeORM to discard them. Wrap object-valued scalar columns such as JSON/JSONB or geometry in `Equal(value)` explicitly; unwrapped objects are interpreted as relation or embedded criteria.
 
@@ -1361,7 +1364,7 @@ The 3.0 line is published, and `3.0.2` is the baseline immediately before the ge
 
 The major migration covers semantic timestamp ownership, UPDATE `currentEntity`, named transaction scopes and post-transaction hooks, source-first authorization, opt-in generated-route transactions and relation locks, entity-based service relation inputs, typed GET_LIST query plans and strict `400` responses, the BigInt string sign enum, and retired validator configuration exports.
 
-The current contract has no arbitrary immutable controller `baseWhere`, no `FULL` or `PRESERVE` relation projection, and no custom-only/default-disabled controller mode. Generated `read.scope.parameters` is specifically a request-bound mapping from inherited path parameters, not a fixed-scope escape hatch. HOOKS/IAM scope remains the authorization boundary, custom-only controllers disable all six generated routes explicitly, and a consumer-side typed URL/bracket-filter builder remains deferred.
+The current contract has no arbitrary immutable controller `baseWhere`, no `FULL` or `PRESERVE` relation projection, and no custom-only/default-disabled controller mode. Generated `read.scope.parameters` is specifically a request-bound mapping from inherited path parameters, while GET-only `identity.parameter` names the wire parameter for the actual primary column; neither is a fixed-scope escape hatch. HOOKS/IAM scope remains the authorization boundary, custom-only controllers disable all six generated routes explicitly, and a consumer-side typed URL/bracket-filter builder remains deferred.
 
 ## 🛣 Current Status
 

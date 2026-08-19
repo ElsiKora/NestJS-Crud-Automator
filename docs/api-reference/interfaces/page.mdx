@@ -73,6 +73,24 @@ interface IApiControllerPropertiesRouteBase<E, R extends EApiRouteType> {
 }
 ```
 
+Generated GET routes additionally accept `identity` as a top-level route property. It is separate from `read`, because it names the primary item segment while `read.scope` maps controller-path owner segments.
+
+### IApiControllerPropertiesRouteIdentity
+
+```typescript
+interface IApiControllerPropertiesRouteIdentity {
+	parameter: string;
+}
+
+const getRoute: TApiControllerPropertiesRoute<GameEntity, EApiRouteType.GET> = {
+	identity: { parameter: "gameId" },
+};
+```
+
+`identity.parameter` changes the generated GET wire path from the entity primary field (for example `:id`) to a safe simple identifier such as `:gameId`. It does not select another entity field and does not rename the response: DTO generation, runtime lookup, authorization resource expansion, and service criteria still use the actual primary column. `identity` is rejected on GET_LIST and every write route, and it cannot be combined with a manual `dto[EApiDtoType.PARAMETERS]`.
+
+An identity-only GET is valid when the controller `path` has no dynamic parameters. If the controller path contains any inherited `:parameter`, the same GET must also provide `read.scope.parameters`, with every inherited parameter mapped exactly once. The identity alias cannot collide with an inherited parameter or with the primary field name inherited from the controller path.
+
 ### IApiControllerPropertiesRouteBaseRead\<E\>
 
 Generated GET and GET_LIST routes may scope reads through parameters inherited from the controller `path`:
