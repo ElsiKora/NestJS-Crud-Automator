@@ -12,6 +12,7 @@ import type { FindManyOptions, FindOperator } from "typeorm";
 
 import { ApiControllerGetListCursorRuntime as ApiControllerGetListCursorRuntimeBase } from "@class/api/controller/get-list/cursor/runtime.class";
 import { ApiControllerGetListQueryPlanCompiler, ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
 import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
@@ -32,6 +33,7 @@ const CURSOR_ID_B: string = "00000000-0000-0000-0000-000000000002";
 const CURSOR_ID_C: string = "00000000-0000-0000-0000-000000000003";
 const CURSOR_ID_D: string = "00000000-0000-0000-0000-000000000004";
 const CURSOR_ID_E: string = "00000000-0000-0000-0000-000000000005";
+const PRIMARY_FILTER_ID: string = "123e4567-e89b-12d3-a456-426614174000";
 const ApiControllerGetListCursorRuntime = {
 	createContextHash: ApiControllerGetListCursorRuntimeBase.createContextHash.bind(ApiControllerGetListCursorRuntimeBase),
 	execute: <E extends IApiBaseEntity>(options: Omit<TApiControllerGetListCursorExecutionOptions<E>, "validateStorageValue">) =>
@@ -122,7 +124,133 @@ function compileCursorStoragePlan(defaultField: keyof CursorStorageQueryEntity):
 	return plan as TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR>;
 }
 
+function compileUuidPrimaryFilterPlan(mode: EApiControllerGetListQueryPaginationMode, metadata: IApiEntity<CursorQueryEntity> = GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity)): IApiControllerGetListQueryPlan {
+	const isCursor: boolean = mode === EApiControllerGetListQueryPaginationMode.CURSOR;
+	const routeConfig = {
+		request: {
+			[EApiControllerRequestTarget.QUERY]: {
+				filter: {
+					fields: {
+						id: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
+					},
+					unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+				},
+				order: {
+					fields: { rank: { isEnabled: true } },
+					...(isCursor
+						? {
+								defaultOrder: [{ direction: EFilterOrderDirection.ASC, field: "rank" }],
+								tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+							}
+						: {}),
+					unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+				},
+				pagination: { mode },
+			},
+		},
+	} as unknown as TApiControllerPropertiesRoute<CursorQueryEntity, EApiRouteType.GET_LIST>;
+	const plan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanCompiler.compile(CursorQueryController, CursorQueryEntity, metadata, routeConfig);
+
+	if (!plan) {
+		throw new Error("Expected a UUID primary filter plan");
+	}
+
+	return plan;
+}
+
 describe("typed GET_LIST query plan and runtime", () => {
+	it.each([EApiControllerGetListQueryPaginationMode.PAGE, EApiControllerGetListQueryPaginationMode.CURSOR])("supports an exact UUID primary filter plan in %s mode without exposing primary client order", async (mode: EApiControllerGetListQueryPaginationMode) => {
+		const plan: IApiControllerGetListQueryPlan = compileUuidPrimaryFilterPlan(mode);
+		const queryDto = DtoGenerate(CursorQueryEntity, GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity), EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, undefined, plan);
+
+		expect(Object.keys(plan.filter.fields)).toEqual(["id"]);
+		expect(plan.filter.fields.id).toMatchObject({
+			allowedOperations: [EFilterOperation.EQ],
+			isEnabled: true,
+			type: EApiPropertyDescribeType.UUID,
+		});
+		expect(Object.keys(plan.order.fields)).toEqual(["rank"]);
+		expect(plan.order.fields.id).toBeUndefined();
+
+		if (mode === EApiControllerGetListQueryPaginationMode.CURSOR) {
+			expect(plan.order.tieBreakers).toEqual([{ direction: EFilterOrderDirection.ASC, field: "id" }]);
+		}
+
+		if (!queryDto) {
+			throw new Error("Expected a generated UUID primary filter DTO");
+		}
+
+		const query: Record<string, unknown> = {
+			"id[operator]": EFilterOperation.EQ,
+			"id[value]": PRIMARY_FILTER_ID,
+			limit: 10,
+			...(mode === EApiControllerGetListQueryPaginationMode.PAGE ? { page: 1 } : {}),
+		};
+		const instance: Record<string, unknown> = Object.assign(new queryDto() as Record<string, unknown>, query);
+
+		expect(Object.keys(instance)).toEqual(expect.arrayContaining(["id[operator]", "id[value]", "id[values]"]));
+		expect(instance).not.toHaveProperty("name[operator]");
+		expect(instance).not.toHaveProperty("rank[operator]");
+		expect(await validate(instance)).toEqual([]);
+
+		const result = ApiControllerGetListQueryRuntime.parse(query, plan);
+
+		expect(result.ast?.nodes).toEqual([{ operation: EFilterOperation.EQ, path: "id", value: PRIMARY_FILTER_ID }]);
+		expect((ApiControllerGetListQueryRuntime.compileWhere<CursorQueryEntity>(result.ast!).id as FindOperator<string>).value).toBe(PRIMARY_FILTER_ID);
+
+		const invalidQuery: Record<string, unknown> = { ...query, "id[value]": "not-a-uuid" };
+		const invalidInstance: Record<string, unknown> = Object.assign(new queryDto() as Record<string, unknown>, invalidQuery);
+
+		expect((await validate(invalidInstance)).some((error): boolean => error.property === "id[value]")).toBe(true);
+		expect(() => ApiControllerGetListQueryRuntime.parse(invalidQuery, plan)).toThrow("INVALID_FILTER");
+	});
+
+	it("does not let primary filter eligibility bypass query visibility", () => {
+		const metadata: IApiEntity<CursorQueryEntity> = GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity);
+		const restrictedMetadata = {
+			...metadata,
+			columns: metadata.columns.map((column) => {
+				if (column.name !== "id") {
+					return column;
+				}
+
+				const propertyMetadata = column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties;
+
+				return {
+					...column,
+					metadata: {
+						...column.metadata,
+						[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]: {
+							...propertyMetadata,
+							properties: {
+								...propertyMetadata.properties,
+								[EApiRouteType.GET_LIST]: {
+									...propertyMetadata.properties?.[EApiRouteType.GET_LIST],
+									[EApiDtoType.QUERY]: { isEnabled: false },
+								},
+							},
+						},
+					},
+				};
+			}),
+		} as IApiEntity<CursorQueryEntity>;
+
+		expect(() => compileUuidPrimaryFilterPlan(EApiControllerGetListQueryPaginationMode.PAGE, restrictedMetadata)).toThrow('GET_LIST filter field "id" is not an enabled direct scalar or one-hop to-one scalar path');
+	});
+
+	it("keeps primary identity out of legacy query and mutation body DTOs", () => {
+		const metadata: IApiEntity<CursorQueryEntity> = GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity);
+		const legacyQueryDto = DtoGenerate(CursorQueryEntity, metadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY);
+		const createBodyDto = DtoGenerate(CursorQueryEntity, metadata, EApiRouteType.CREATE, EApiDtoType.BODY);
+
+		if (!legacyQueryDto || !createBodyDto) {
+			throw new Error("Expected generated safety-boundary DTOs");
+		}
+
+		expect(new legacyQueryDto()).not.toHaveProperty("id[operator]");
+		expect(new createBodyDto()).not.toHaveProperty("id");
+	});
+
 	it("compiles and freezes a metadata overlay", () => {
 		const plan = compilePlan({
 			code: { isEnabled: false },

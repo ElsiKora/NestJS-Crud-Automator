@@ -178,7 +178,8 @@ export class ApiControllerGetListQueryPlanCompiler {
 			}
 
 			if (metadata.type !== EApiPropertyDescribeType.RELATION) {
-				if (!DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, path, metadata, column.isPrimary, currentGuard)) {
+				// Direct scalar filter eligibility is independent of identity status; ordinary DTO visibility and guard checks still apply.
+				if (!DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, path, metadata, false, currentGuard)) {
 					continue;
 				}
 
