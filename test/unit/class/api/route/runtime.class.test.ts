@@ -4,7 +4,9 @@ import type { FindOperator, ValueTransformer } from "typeorm";
 
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
-import { EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
+import { EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { ApiRouteProjectRelationResponse } from "@utility/api/route/response/project-relation.utility";
 import { In } from "typeorm";
@@ -681,9 +683,14 @@ describe("ApiRouteRuntime", () => {
 
 	it("passes response relation load strategy to generated GET relation loading", async () => {
 		const service = new ApiServiceBase<RuntimeRouteEntity>();
-		const get = vi.spyOn(service, "get").mockResolvedValue({
-			id: "response-1",
+		const get = vi.spyOn(service, "get").mockImplementation(async (properties) => {
+			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
+
+			return {
+				id: "response-1",
+			};
 		});
+		ApiControllerGeneratedFunctionCapability.mark(get, EApiFunctionType.GET, RuntimeRouteEntity);
 		const controller = {
 			service,
 		};
@@ -764,6 +771,7 @@ describe("ApiRouteRuntime", () => {
 		};
 		const service = new ApiServiceBase<RuntimeRouteEntity>();
 		const get = vi.spyOn(service, "get").mockImplementation(async (properties) => {
+			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
 			const persistenceOperator = (properties.where as { ownerId: FindOperator<Array<string>> }).ownerId;
 
 			expect(Object.isFrozen(persistenceOperator)).toBe(false);
@@ -772,6 +780,7 @@ describe("ApiRouteRuntime", () => {
 
 			return { id: "response-1" };
 		});
+		ApiControllerGeneratedFunctionCapability.mark(get, EApiFunctionType.GET, RuntimeRouteEntity);
 
 		await ApiRouteRuntime.executeGenerated({
 			controller: { service } as never,
@@ -811,13 +820,18 @@ describe("ApiRouteRuntime", () => {
 
 	it("passes response relation load strategy to generated GET_LIST relation loading", async () => {
 		const service = new ApiServiceBase<RuntimeRouteEntity>();
-		const getList = vi.spyOn(service, "getList").mockResolvedValue({
-			count: 0,
-			currentPage: 1,
-			items: [],
-			totalCount: 0,
-			totalPages: 0,
+		const getList = vi.spyOn(service, "getList").mockImplementation(async (properties) => {
+			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET_LIST, properties);
+
+			return {
+				count: 0,
+				currentPage: 1,
+				items: [],
+				totalCount: 0,
+				totalPages: 0,
+			};
 		});
+		ApiControllerGeneratedFunctionCapability.mark(getList, EApiFunctionType.GET_LIST, RuntimeRouteEntity);
 		const controller = {
 			service,
 		};

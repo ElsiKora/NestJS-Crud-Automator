@@ -3,10 +3,13 @@ import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/cla
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context";
 import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context/data.interface";
 import type { IApiFunctionProperties, IApiFunctionUpdateExecutorProperties } from "@interface/decorator/api/function";
+import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiSubscriberFunctionBeforeUpdateContext } from "@type/class/api/subscriber/function/before/update-context.type";
 import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 import type { DeepPartial, EntityManager, Repository } from "typeorm";
 
+import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGet } from "@decorator/api/function/get/decorator";
@@ -40,6 +43,8 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (this: { repository: Repository<E> }, criteria: TApiFunctionUpdateCriteria<E>, updateProperties: TApiFunctionUpdateProperties<E>): Promise<E> {
+			const mandatoryWhere: TApiAuthorizationScopeWhere<E> | undefined = ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.UPDATE, criteria);
+
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<E> => {
 					const entityInstance: E = new entity();
@@ -71,7 +76,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 					let existingEntity: E;
 
 					try {
-						existingEntity = await getFunction.call(this, { where: criteria });
+						existingEntity = await executeProtectedGet(this, getFunction, criteria, mandatoryWhere);
 					} catch (caughtError) {
 						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
 							DATA: { criteria, eventManager, properties: updateProperties, repository },
@@ -122,8 +127,26 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 			});
 		};
 
+		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.UPDATE, entity);
+
 		return descriptor;
 	};
+}
+
+/**
+ * Loads the generated update target through the protected decorated GET lifecycle.
+ * @template E The entity type
+ * @param {object} service - Service that owns the decorated GET implementation
+ * @param {Repository<E>} service.repository - Entity repository
+ * @param {(properties: TApiFunctionGetProperties<E>) => Promise<E>} getFunction - Decorated GET implementation
+ * @param {TApiFunctionUpdateCriteria<E>} criteria - Update criteria passed to the generated service function
+ * @param {TApiAuthorizationScopeWhere<E>} [mandatoryWhere] - Generated route scope that the internal GET must preserve
+ * @returns {Promise<E>} The entity loaded within the generated route scope
+ */
+async function executeProtectedGet<E extends IApiBaseEntity>(service: { repository: Repository<E> }, getFunction: (this: { repository: Repository<E> }, properties: TApiFunctionGetProperties<E>) => Promise<E>, criteria: TApiFunctionUpdateCriteria<E>, mandatoryWhere?: TApiAuthorizationScopeWhere<E>): Promise<E> {
+	const getProperties: TApiFunctionGetProperties<E> = { where: criteria };
+
+	return mandatoryWhere ? await ApiControllerGeneratedReadScopeStorage.runWriteHydration(getProperties, mandatoryWhere, async (): Promise<E> => await Reflect.apply(getFunction, service, [getProperties])) : await Reflect.apply(getFunction, service, [getProperties]);
 }
 
 /**

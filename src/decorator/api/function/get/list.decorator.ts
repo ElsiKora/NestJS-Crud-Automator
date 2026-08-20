@@ -9,6 +9,8 @@ import type { EntityManager, Repository } from "typeorm";
 import type { FindManyOptions } from "typeorm";
 
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
+import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGeneratedRelationCacheContract } from "@class/api/controller/generated/relation-cache-contract.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
@@ -39,36 +41,46 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<IApiGetListResponseResult<E>> => {
 					const entityInstance: E = new entity();
+					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
+					let finalProperties: TApiFunctionGetListProperties<E>;
 
-					const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetListProperties<E>> = {
-						DATA: { eventManager, getListProperties, repository: this.repository },
-						ENTITY: entityInstance,
-						FUNCTION_TYPE: EApiFunctionType.GET_LIST,
-						result: getListProperties,
-					};
-
-					const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, executionContext);
-
-					if (result) {
-						executionContext.result = result;
-					}
-
-					const repository: Repository<E> = this.repository;
-
-					if (!repository) {
-						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-							DATA: { eventManager, getListProperties, repository: this.repository },
+					try {
+						const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetListProperties<E>> = {
+							DATA: { eventManager, getListProperties, repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.GET_LIST,
+							result: getListProperties,
 						};
 
-						await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Repository is not available in this context"));
+						const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, executionContext);
 
-						throw ErrorException("Repository is not available in this context");
+						if (result) {
+							executionContext.result = result;
+						}
+
+						if (!repository) {
+							throw ErrorException("Repository is not available in this context");
+						}
+
+						const subscriberProperties: TApiFunctionGetListProperties<E> = executionContext.result ?? {};
+						finalProperties = mandatoryWhere ? ApiControllerGeneratedReadScopeStorage.protect(subscriberProperties, mandatoryWhere) : subscriberProperties;
+
+						if (mandatoryWhere) {
+							ApiControllerGeneratedRelationCacheContract.assertSafe(repository, finalProperties);
+						}
+					} catch (caughtError) {
+						if (mandatoryWhere || !repository) {
+							const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
+								DATA: { eventManager, getListProperties, repository },
+								ENTITY: entityInstance,
+								FUNCTION_TYPE: EApiFunctionType.GET_LIST,
+							};
+
+							await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_LIST, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, caughtError as Error);
+						}
+
+						throw caughtError;
 					}
-
-					const subscriberProperties: TApiFunctionGetListProperties<E> = executionContext.result ?? {};
-					const finalProperties: TApiFunctionGetListProperties<E> = mandatoryWhere ? ApiControllerGeneratedReadScopeStorage.protect(subscriberProperties, mandatoryWhere) : subscriberProperties;
 
 					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: finalProperties, repository });
 				},
@@ -78,9 +90,10 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 				mode: transactionMode,
 				onPreflightError: async (eventManager: EntityManager | undefined, error: Error): Promise<void> => {
 					const entityInstance: E = new entity();
+					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
 
 					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-						DATA: { eventManager, getListProperties, repository: this.repository },
+						DATA: { eventManager, getListProperties, repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.GET_LIST,
 					};
@@ -91,6 +104,8 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 				serviceConstructor: this.constructor as new (...arguments_: Array<unknown>) => unknown,
 			});
 		};
+
+		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.GET_LIST, entity);
 
 		return descriptor;
 	};
@@ -127,15 +142,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListEx
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
-		let items: Array<E>;
-		let totalCount: number;
-
-		if (eventManager) {
-			const eventRepository: Repository<E> = eventManager.getRepository<E>(entity);
-			[items, totalCount] = await eventRepository.findAndCount(properties);
-		} else {
-			[items, totalCount] = await repository.findAndCount(properties);
-		}
+		const [items, totalCount]: [Array<E>, number] = await repository.findAndCount(properties);
 
 		const result: IApiGetListResponseResult<E> = {
 			count: items.length,

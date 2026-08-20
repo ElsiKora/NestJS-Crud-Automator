@@ -3,12 +3,14 @@ import "reflect-metadata";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 
 import { ApiServiceBase } from "@class/api";
+import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiControllerObservable } from "@decorator/api/controller/observable.decorator";
 import { ApiControllerSecurable } from "@decorator/api/controller/securable.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EApiFunctionType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
@@ -48,16 +50,38 @@ class FactoryEntity {
 
 class FactoryService extends ApiServiceBase<FactoryEntity> {
 	public override create = vi.fn(async (properties: Partial<FactoryEntity>) => ({ id: properties.id ?? "id-1", name: properties.name ?? "created", count: 1 }) as FactoryEntity);
-	public override get = vi.fn(async (properties: { where?: Partial<FactoryEntity> }) => ({ id: properties.where?.id ?? "id-1", name: "found", count: 2 }) as FactoryEntity);
-	public override update = vi.fn(async (criteria: Partial<FactoryEntity>, properties: Partial<FactoryEntity>) => ({ id: criteria.id ?? "id-1", name: properties.name ?? "updated", count: 3 }) as FactoryEntity);
-	public override delete = vi.fn(async () => undefined);
-	public override getList = vi.fn(async () => ({
-		count: 1,
-		currentPage: 1,
-		items: [{ id: "id-1", name: "item", count: 1 }],
-		totalCount: 1,
-		totalPages: 1,
-	}));
+	public override get = vi.fn(async (properties: { where?: Partial<FactoryEntity> }) => {
+		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
+
+		return { id: properties.where?.id ?? "id-1", name: "found", count: 2 } as FactoryEntity;
+	});
+	public override update = vi.fn(async (criteria: Partial<FactoryEntity>, properties: Partial<FactoryEntity>) => {
+		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.UPDATE, criteria);
+
+		return { id: criteria.id ?? "id-1", name: properties.name ?? "updated", count: 3 } as FactoryEntity;
+	});
+	public override delete = vi.fn(async (criteria: Partial<FactoryEntity>) => {
+		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.DELETE, criteria);
+	});
+	public override getList = vi.fn(async (properties: object) => {
+		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET_LIST, properties);
+
+		return {
+			count: 1,
+			currentPage: 1,
+			items: [{ id: "id-1", name: "item", count: 1 }],
+			totalCount: 1,
+			totalPages: 1,
+		};
+	});
+
+	public constructor() {
+		super();
+		ApiControllerGeneratedFunctionCapability.mark(this.get, EApiFunctionType.GET, FactoryEntity);
+		ApiControllerGeneratedFunctionCapability.mark(this.getList, EApiFunctionType.GET_LIST, FactoryEntity);
+		ApiControllerGeneratedFunctionCapability.mark(this.update, EApiFunctionType.UPDATE, FactoryEntity);
+		ApiControllerGeneratedFunctionCapability.mark(this.delete, EApiFunctionType.DELETE, FactoryEntity);
+	}
 }
 
 class FactoryController {

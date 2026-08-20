@@ -38,6 +38,8 @@ async createPost(properties: TApiFunctionCreateProperties<PostEntity>) {
 
 Transaction managers are no longer public method arguments. Decorated methods keep clean signatures; subscribers receive the active manager on `context.DATA.eventManager`, and custom functions can use `this.getApiFunctionContext()` from `ApiServiceBase` to access `context.operations` and transactional repositories.
 
+Generated controller routes preflight exact function capability for GET, GET_LIST, UPDATE, and DELETE. Generated CREATE also preflights its protected post-create GET, and UPDATE preflights a protected reload GET when configured. The bound method must come from the matching built-in decorator for the same entity; arbitrary same-named overrides, accessors, and instance shadows are rejected before the Automator-managed route transaction or repository I/O. Direct service calls are not capability-gated. GET_MANY is capability-marked for a later generated runtime consumer but is not invoked by the current generated route runtime. This is the intentional 4.0 migration boundary documented in [Migrating to 4.0](/docs/nestjs-crud-automator/guides/migrating-to-4-0).
+
 Use `@ApiFunctionStep` for private/protected/public helper methods that need ApiFunction transaction semantics and context. A step is not a custom action: it does not create function subscriber hooks, route metadata, Swagger metadata, or authorization action identity. Inside a step, use `this.getApiFunctionStepContext()` for the active `eventManager`, entity `repository`, and `getRepository()`.
 
 ## Usage guidelines

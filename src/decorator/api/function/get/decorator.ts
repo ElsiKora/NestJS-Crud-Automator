@@ -8,6 +8,9 @@ import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
 import type { EntityManager, FindOneOptions, Repository } from "typeorm";
 
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
+import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGeneratedRelationCacheContract } from "@class/api/controller/generated/relation-cache-contract.class";
+import { ApiControllerGeneratedWriteHydrationContract } from "@class/api/controller/generated/write-hydration-contract.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
@@ -37,41 +40,53 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 
 		descriptor.value = async function (this: { repository: Repository<E> }, getProperties: TApiFunctionGetProperties<E>): Promise<E> {
 			const mandatoryWhere: TApiAuthorizationScopeWhere<E> | undefined = ApiControllerGeneratedReadScopeStorage.claim<E>(EApiFunctionType.GET, getProperties);
+			const isWriteHydration: boolean = mandatoryWhere ? ApiControllerGeneratedReadScopeStorage.isWriteHydration(EApiFunctionType.GET, getProperties) : false;
 
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<E> => {
 					const entityInstance: E = new entity();
 					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
+					let finalProperties: TApiFunctionGetProperties<E>;
 
-					const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetProperties<E>> = {
-						DATA: { eventManager, getProperties, repository },
-						ENTITY: entityInstance,
-						FUNCTION_TYPE: EApiFunctionType.GET,
-						result: getProperties,
-					};
-
-					const result: FindOneOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET, executionContext);
-
-					if (result) {
-						executionContext.result = result;
-					}
-
-					if (!repository) {
-						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
+					try {
+						const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetProperties<E>> = {
 							DATA: { eventManager, getProperties, repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.GET,
+							result: getProperties,
 						};
 
-						await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Repository is not available in this context"));
+						const result: FindOneOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET, executionContext);
 
-						throw ErrorException("Repository is not available in this context");
+						if (result) {
+							executionContext.result = result;
+						}
+
+						if (!repository) {
+							throw ErrorException("Repository is not available in this context");
+						}
+
+						const subscriberProperties: TApiFunctionGetProperties<E> = executionContext.result ?? {};
+						finalProperties = mandatoryWhere ? ApiControllerGeneratedReadScopeStorage.protect(subscriberProperties, mandatoryWhere) : subscriberProperties;
+
+						if (mandatoryWhere) {
+							ApiControllerGeneratedRelationCacheContract.assertSafe(repository, finalProperties);
+						}
+					} catch (caughtError) {
+						if (mandatoryWhere || !repository) {
+							const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
+								DATA: { eventManager, getProperties, repository },
+								ENTITY: entityInstance,
+								FUNCTION_TYPE: EApiFunctionType.GET,
+							};
+
+							await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, caughtError as Error);
+						}
+
+						throw caughtError;
 					}
 
-					const subscriberProperties: TApiFunctionGetProperties<E> = executionContext.result ?? {};
-					const finalProperties: TApiFunctionGetProperties<E> = mandatoryWhere ? ApiControllerGeneratedReadScopeStorage.protect(subscriberProperties, mandatoryWhere) : subscriberProperties;
-
-					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: finalProperties, repository });
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: finalProperties, repository }, isWriteHydration);
 				},
 				entity,
 				functionType: EApiFunctionType.GET,
@@ -94,6 +109,8 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 			});
 		};
 
+		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.GET, entity);
+
 		return descriptor;
 	};
 }
@@ -102,11 +119,12 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
  * Executes the single entity retrieval operation with error handling
  * @template E The entity type
  * @param {IApiFunctionGetExecutorProperties<E>} options - Properties required for entity retrieval
+ * @param {boolean} isWriteHydration - Whether the GET hydrates a generated mutation target
  * @returns {Promise<E>} The retrieved entity instance
  * @throws {NotFoundException} If the entity is not found
  * @throws {InternalServerErrorException} If the retrieval operation fails
  */
-async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecutorProperties<E>): Promise<E> {
+async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecutorProperties<E>, isWriteHydration: boolean): Promise<E> {
 	const { constructor, entity, properties, repository }: IApiFunctionGetExecutorProperties<E> = options;
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
@@ -117,14 +135,27 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 			throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));
 		}
 
+		const repositoryMetadata: Repository<E>["metadata"] | undefined = (repository as Partial<Pick<Repository<E>, "metadata">>).metadata;
+		const relationMetadata: Array<{ isLazy: boolean; propertyName: string }> = repositoryMetadata?.relations ?? [];
+		const allowedHydrationAccessors: ReadonlySet<PropertyKey> = new Set<PropertyKey>(isWriteHydration ? relationMetadata.filter((relation: { isLazy: boolean; propertyName: string }): boolean => relation.isLazy).map((relation: { isLazy: boolean; propertyName: string }): string => relation.propertyName) : []);
+		const rawHydrationSnapshot: E | undefined = isWriteHydration ? ApiControllerGeneratedWriteHydrationContract.createSnapshot(item, allowedHydrationAccessors) : undefined;
+		const subscriberItem: E = isWriteHydration ? ApiControllerGeneratedWriteHydrationContract.createSnapshot(item, allowedHydrationAccessors) : item;
+		const subscriberHydrationSnapshot: E | undefined = isWriteHydration ? ApiControllerGeneratedWriteHydrationContract.createSnapshot(subscriberItem, allowedHydrationAccessors) : undefined;
+
 		const executionContext: IApiSubscriberFunctionExecutionContext<E, E> = {
 			DATA: { eventManager, properties, repository },
-			ENTITY: item,
+			ENTITY: subscriberItem,
 			FUNCTION_TYPE: EApiFunctionType.GET,
-			result: item,
+			result: subscriberItem,
 		};
 
-		const afterResult: E | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, item, EApiFunctionType.GET, EApiSubscriberOnType.AFTER, executionContext);
+		const afterResult: E | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, subscriberItem, EApiFunctionType.GET, EApiSubscriberOnType.AFTER, executionContext);
+
+		if (isWriteHydration && rawHydrationSnapshot && subscriberHydrationSnapshot) {
+			ApiControllerGeneratedWriteHydrationContract.assertUnchanged(item, rawHydrationSnapshot, subscriberItem, subscriberHydrationSnapshot, afterResult, allowedHydrationAccessors);
+
+			return item;
+		}
 
 		if (afterResult) {
 			return afterResult;

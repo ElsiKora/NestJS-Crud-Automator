@@ -9,10 +9,12 @@ import type { TApiControllerGetListQuery } from "@type/decorator/api/controller"
 import type { TApiFunctionGetListProperties, TApiFunctionGetProperties } from "@type/decorator/api/function";
 
 import { ApiServiceBase } from "@class/api";
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
+import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
 import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiAuthenticationType, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EApiAuthenticationType, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiDtoType, EApiFunctionType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { EFilterOperation, EFilterOrderDirection } from "@enum/filter";
 import { BadRequestException } from "@nestjs/common";
@@ -132,18 +134,28 @@ class GeneratedReadContractEntity {
 }
 
 class GeneratedReadContractService extends ApiServiceBase<GeneratedReadContractEntity> {
-	public override get = vi.fn(
-		async (_properties: TApiFunctionGetProperties<GeneratedReadContractEntity>): Promise<GeneratedReadContractEntity> => ({
+	public constructor() {
+		super();
+		ApiControllerGeneratedFunctionCapability.mark(this.get, EApiFunctionType.GET, GeneratedReadContractEntity);
+		ApiControllerGeneratedFunctionCapability.mark(this.getList, EApiFunctionType.GET_LIST, GeneratedReadContractEntity);
+	}
+
+	public override get = vi.fn(async (properties: TApiFunctionGetProperties<GeneratedReadContractEntity>): Promise<GeneratedReadContractEntity> => {
+		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
+
+		return {
 			effectiveAt: new Date(EFFECTIVE_AT),
 			id: ENTITY_ID,
 			label: "entity",
 			sequence: 1,
 			tenantId: PATH_TENANT_ID,
-		}),
-	);
+		};
+	});
 
-	public override getList = vi.fn(
-		async (_properties: TApiFunctionGetListProperties<GeneratedReadContractEntity>): Promise<IApiGetListResponseResult<GeneratedReadContractEntity>> => ({
+	public override getList = vi.fn(async (properties: TApiFunctionGetListProperties<GeneratedReadContractEntity>): Promise<IApiGetListResponseResult<GeneratedReadContractEntity>> => {
+		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET_LIST, properties);
+
+		return {
 			count: 1,
 			currentPage: 1,
 			items: [
@@ -157,8 +169,8 @@ class GeneratedReadContractService extends ApiServiceBase<GeneratedReadContractE
 			],
 			totalCount: 1,
 			totalPages: 1,
-		}),
-	);
+		};
+	});
 }
 
 class ManualGeneratedReadParametersDto {}

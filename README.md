@@ -21,6 +21,7 @@
   - [Advanced Usage](#advanced-usage)
 - [Subscriber System (Hooks)](#subscriber-system-hooks-intercepting-and-extending-logic)
 - [Swagger Documentation](#swagger-documentation)
+- [Migrating to 4.0](#-migrating-to-40)
 - [Migrating to 3.0](#-migrating-to-30)
 - [Current Status](#-current-status)
 - [AI Agent Skill](#-ai-agent-skill)
@@ -68,7 +69,7 @@ yarn add @elsikora/nestjs-crud-automator
 pnpm add @elsikora/nestjs-crud-automator
 ```
 
-Version `3.0.2` is the published baseline immediately before this additive generated-read change. Package versions remain owned by release automation, so pin the exact released version your application has verified. Consumers upgrading from pre-3.0 releases should follow the [3.0 migration guide](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-3-0).
+Version `3.0.2` is the published baseline before the current generated-route work. The source now includes an intentional breaking capability boundary for generated service calls and must be released as a new major; package versions remain owned by release automation. Pin the exact released version your application has verified and review [Migrating to 4.0](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-4-0).
 
 ### Prerequisites
 
@@ -1358,9 +1359,21 @@ Read criteria are merged conjunctively in a fixed order: GET identity or GET_LIS
 
 `defaultOrder` applies when the client omits `orderBy`/`orderDirection`. A supplied client order replaces the defaults, after which `tieBreakers` are appended and duplicate fields are removed with the earlier entry winning. These server-owned entries may use any described direct scalar field, including a UUID `id`, without exposing that field in the client `orderBy` allowlist. Use a deterministic final tie-breaker for stable `page`/`limit` pagination.
 
+Generated mandatory reads bypass explicit, inherited, and globally enabled TypeORM query caches. Requested relations with effective `relationLoadStrategy: "query"` and a data-source cache configured with `alwaysEnabled: true` cannot inherit the root `cache: false` guarantee, so Automator rejects that combination before repository I/O; use join loading or disable the global always-on cache.
+
+## 🧭 Migrating to 4.0
+
+Generated controller routes now resolve and capture the exact service function before the Automator-managed route transaction or repository I/O. GET, GET_LIST, UPDATE, and DELETE accept only a function produced for the same entity and function type by `@ApiService` or the matching built-in `@ApiFunctionGet`, `@ApiFunctionGetList`, `@ApiFunctionUpdate`, or `@ApiFunctionDelete` decorator. Undecorated overrides, instance shadows, accessors, and wrong-entity/type decorators fail closed at that boundary. Generated CREATE also preflights the protected GET needed for its post-create read, and generated UPDATE preflights a protected GET when response relation loading requires a reload.
+
+`@ApiFunctionGetMany` and the `getMany` installed by `@ApiService` receive the same internal capability marker, but the current generated route runtime does not invoke GET_MANY; that marker is reserved for a later generated runtime consumer.
+
+This intentionally breaks the former generated-route selective-override behavior. Remove a reserved override and use the `@ApiService` implementation, apply the matching built-in decorator knowing that it owns the resulting CRUD implementation, or move domain behavior to subscribers, `@ApiFunctionCustom`, or a custom route. Direct service calls remain outside this route capability check. CREATE is not capability-gated in the same way, but a generated CREATE route preflights the protected GET needed for its post-create read. See the full [4.0 migration guide](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-4-0).
+
+The release commit must use `feat!:` or a `BREAKING CHANGE:` footer so semantic-release publishes a major version.
+
 ## 🧭 Migrating to 3.0
 
-The 3.0 line is published, and `3.0.2` is the baseline immediately before the generated nested-read and stable compound-order additions documented here. Review the [3.0 release notes](https://elsikora.com/docs/nestjs-crud-automator/guides/release-notes-3-0) and follow [Migrating to 3.0](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-3-0) when upgrading a pre-3.0 consumer. Release automation owns the exact package version that first publishes these additive capabilities.
+The 3.0 line is published, and `3.0.2` is the baseline before the current source work. Review the [3.0 release notes](https://elsikora.com/docs/nestjs-crud-automator/guides/release-notes-3-0) and follow [Migrating to 3.0](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-3-0) when upgrading a pre-3.0 consumer. The separate generated-route capability boundary above requires a later major release.
 
 The major migration covers semantic timestamp ownership, UPDATE `currentEntity`, named transaction scopes and post-transaction hooks, source-first authorization, opt-in generated-route transactions and relation locks, entity-based service relation inputs, typed GET_LIST query plans and strict `400` responses, the BigInt string sign enum, and retired validator configuration exports.
 
@@ -1368,7 +1381,7 @@ The current contract has no arbitrary immutable controller `baseWhere`, no `FULL
 
 ## 🛣 Current Status
 
-Version `3.0.2` is the pre-feature published baseline; package versions remain owned by release automation. The repository source adds the reviewed generated-read contract to the established 3.x NestJS/TypeORM API. Core CRUD generation, DTO generation, Swagger/OpenAPI metadata, request/response transformers, relation loading, stable page/limit pagination, filtering/sorting, subscribers, transactions, and HOOKS/IAM authorization are implemented.
+Version `3.0.2` is the published baseline before the current source; package versions remain owned by release automation. The generated-route service capability boundary requires a new major release. Core CRUD generation, DTO generation, Swagger/OpenAPI metadata, request/response transformers, relation loading, stable page/limit pagination, filtering/sorting, subscribers, transactions, and HOOKS/IAM authorization are implemented.
 
 MongoDB, GraphQL, soft deletes, bulk operations, general-purpose cache integration, and custom parameter decorators are not part of the current public contract. Authorization supports source-first resolver reads by default, bounded in-process resolver caching as an explicit opt-in, separate policy-rule caching, and explicit cache invalidation.
 

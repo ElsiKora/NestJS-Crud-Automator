@@ -1,0 +1,30 @@
+# Migrating To 4.0
+
+Version `3.0.2` is the published baseline before the generated-route capability boundary described here. The current source requires a major release; release automation owns the eventual package version and changelog entry.
+
+## Generated Service Overrides
+
+Generated controller routes no longer invoke an arbitrary method merely because it is named `get`, `getList`, `update`, or `delete`. After route-before subscribers and the request pipeline, but before opening the Automator-managed route transaction or performing repository I/O, Automator resolves the exact service function once and verifies that it was produced for the same entity and function type by the matching built-in decorator.
+
+| Generated service method | Required capability decorator |
+| ------------------------ | ----------------------------- |
+| `get`                    | `@ApiFunctionGet`             |
+| `getList`                | `@ApiFunctionGetList`         |
+| `update`                 | `@ApiFunctionUpdate`          |
+| `delete`                 | `@ApiFunctionDelete`          |
+
+The ordinary methods installed by `@ApiService` already satisfy this requirement. An inherited decorated method and a correctly decorated override also satisfy it. An undecorated override, instance shadow, accessor, wrong-entity decorator, or wrong-function decorator fails before the Automator-managed route transaction or repository I/O. Route-before subscribers and request transformers/validators execute earlier and retain their normal application-owned side-effect contract.
+
+`@ApiFunctionGetMany` and the `getMany` installed by `@ApiService` receive the same internal capability marker, but the current generated route runtime does not invoke GET_MANY. The marker is reserved for a later generated runtime consumer.
+
+This changes the old selective-override behavior for generated routes. Migrate a reserved CRUD method in one of these ways:
+
+1. Remove the override and use the implementation installed by `@ApiService`.
+2. Apply the matching built-in `@ApiFunction*` decorator for the same entity. The decorator owns the resulting CRUD implementation and lifecycle; do not rely on the original method body remaining authoritative.
+3. Move domain-specific behavior into function subscribers, `@ApiFunctionCustom`, or a custom controller route instead of replacing a generated CRUD primitive.
+
+`create` is not capability-gated in the same way, but a generated CREATE route preflights its protected post-create `get` before invoking `create`. Generated UPDATE also preflights any required protected response reload. Direct service calls remain outside the generated-route capability check, although the decorators still determine their own runtime behavior.
+
+## Release Commit
+
+The release commit must carry a Conventional Commit major marker such as `feat!:` or a `BREAKING CHANGE:` footer so semantic-release publishes the capability boundary as a major version.

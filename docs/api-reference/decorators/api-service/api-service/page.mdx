@@ -17,7 +17,9 @@ Extends a provider with CRUD-ready methods (`create`, `update`, `delete`, `get`,
 
 - The decorated class must expose a `repository: Repository<E>` property (the decorator does not inject it automatically).
 - Each generated method accepts the DTO created by the controller factory. Transaction scope is resolved internally through `ApiFunctionContextStorage`.
-- Methods are defined only if the class does not already provide an implementation, allowing selective overrides.
+- Methods are defined only if the class does not already provide an implementation. For `get`, `getList`, `update`, and `delete`, however, a generated controller route accepts only the exact same-entity function produced by `@ApiService` or the matching built-in `@ApiFunction*` decorator. An undecorated selective override remains callable directly but is rejected before the Automator-managed route transaction or repository I/O. `getMany` receives the same internal capability marker but has no current generated-route runtime consumer.
+
+This capability boundary is a 4.0 breaking change. To customize a reserved generated-route operation, remove the override and use subscribers, apply the matching built-in decorator knowing that it owns the resulting CRUD implementation, or expose domain-specific behavior through `@ApiFunctionCustom`/a custom route. CREATE remains special, but generated CREATE preflights the protected `get` required for its post-create read. See [Migrating to 4.0](/docs/nestjs-crud-automator/guides/migrating-to-4-0).
 
 ## Generated methods
 

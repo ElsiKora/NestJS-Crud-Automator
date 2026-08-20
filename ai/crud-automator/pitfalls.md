@@ -12,6 +12,10 @@ Never return `where: []` or an empty object branch from an authorization scope. 
 
 Do not pass a raw object when the intended scope value is an object-valued scalar column such as JSON/JSONB or geometry. Raw objects mean relation or embedded criteria. Use TypeORM `Equal(value)` explicitly for that scalar value; Automator already normalizes primitive, date, byte-view, and scalar-array leaves during an additional-scope merge.
 
+## Undecorated Generated-Service Overrides
+
+Do not expect a generated route to invoke an arbitrary `get`, `getList`, `update`, or `delete` override. The 4.0 capability boundary accepts only the exact same-entity/type function installed by `@ApiService` or the matching built-in `@ApiFunction*` decorator, and rejects other functions before the Automator-managed route transaction or repository I/O. Such an override may still be called directly. For generated-route customization, use subscribers; for distinct business behavior, use `@ApiFunctionCustom` or a custom route. A matching built-in decorator owns the resulting CRUD implementation, so the original override body is not an extension hook. GET_MANY receives the internal marker for a later generated runtime consumer but is not invoked by the current generated route runtime.
+
 ## Old Route Config Shape
 
 Avoid stale flat fields:
@@ -128,6 +132,8 @@ Generated GET_LIST supports one client `orderBy`, one `orderDirection`, required
 Do not expose a UUID `id` to client ordering merely to stabilize pages. Server order entries validate against all described direct scalar fields independently of the client allowlist. Use a unique final tie-breaker. A client order replaces defaults; tie-breakers are appended; duplicate fields keep the earlier entry. Duplicate server fields, invalid directions, non-scalar fields, and conflicting default/tie-breaker directions fail at bootstrap.
 
 A configured typed filter/order plan is strict: unknown, disabled, malformed, or incompatible input returns `400` instead of being silently ignored. Do not rely on a host `ValidationPipe` whitelist, infer query exposure from response visibility, re-enable metadata-disabled fields, or combine generated filter/order config with a manual QUERY DTO. Omit a section when legacy metadata-driven behavior is intentional.
+
+Do not combine requested relations, effective TypeORM `relationLoadStrategy: "query"`, and a data-source query cache with `alwaysEnabled: true` on a generated mandatory read. Relation subqueries cannot inherit the required root `cache: false`, so Automator fails before repository I/O. Use join relation loading or disable the global always-on query cache.
 
 `missingBehavior: USE_DEFAULT` accepts only static typed defaults. Principal- or tenant-dependent restrictions belong in HOOKS/IAM scope, which is AND-merged once with client/default predicates.
 

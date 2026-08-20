@@ -3,6 +3,7 @@ import type { IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiFunctionCreateProperties, TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 import type { TApiServiceProperties } from "@type/decorator/api/service";
 
+import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiFunction } from "@decorator/api/function";
 import { EApiFunctionType } from "@enum/decorator/api";
@@ -68,6 +69,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
+					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.GET_LIST, EApiFunctionType.GET_LIST, entity);
 				}
 
 				if (ApiServiceShouldDefineFunction(this, originalConstructor.prototype, EApiFunctionType.GET)) {
@@ -109,6 +111,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
+					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.GET, EApiFunctionType.GET, entity);
 				}
 
 				if (ApiServiceShouldDefineFunction(this, originalConstructor.prototype, EApiFunctionType.GET_MANY)) {
@@ -150,6 +153,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
+					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.GET_MANY, EApiFunctionType.GET_MANY, entity);
 				}
 
 				if (ApiServiceShouldDefineFunction(this, originalConstructor.prototype, EApiFunctionType.CREATE)) {
@@ -232,6 +236,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
+					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.UPDATE, EApiFunctionType.UPDATE, entity);
 				}
 
 				if (ApiServiceShouldDefineFunction(this, originalConstructor.prototype, EApiFunctionType.DELETE)) {
@@ -273,6 +278,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
+					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.DELETE, EApiFunctionType.DELETE, entity);
 				}
 			}
 		};

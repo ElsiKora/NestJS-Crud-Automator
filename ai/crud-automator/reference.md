@@ -27,6 +27,8 @@
 | Policy-document auth                            | IAM mode with sources/resolvers                         |
 | External transaction scope                      | `ApiFunctionTransactionScope`                           |
 
+Generated controller routes accept GET, GET_LIST, UPDATE, and DELETE only from the exact same-entity matching built-in capability installed by `@ApiService` or `@ApiFunction*`. Generated CREATE also preflights its protected post-create GET, and UPDATE preflights a protected reload GET when configured. An undecorated same-named override remains directly callable but is not a generated-route implementation. GET_MANY is capability-marked but has no current generated-route runtime consumer. Use subscribers or custom functions/routes for domain-specific behavior; see the 4.0 migration guide.
+
 ## Route Config Shape
 
 Generated route config is nested by responsibility:
@@ -201,6 +203,7 @@ Generated request relation caveats:
 - Request relation hydration mutates direct relation references into loaded entity objects. Nested include objects are passed to the direct relation service as TypeORM `relations`; nested request references are not recursively hydrated.
 - Scalar relation values are an HTTP/controller contract; generated service inputs remain entity-based.
 - Response reference projection supports destructive `OBJECT` and `SCALAR` shapes only; there is no `FULL` or `PRESERVE` mode.
+- Mandatory generated reads force an own `cache: false`. If requested relations use effective TypeORM `relationLoadStrategy: "query"` while the data-source query cache has `alwaysEnabled: true`, the call fails before repository I/O because relation subqueries cannot inherit that root cache bypass. Use join loading or disable the global always-on cache.
 - For generated routes, request relation hydration reads relation fields from the request body for CREATE, UPDATE, and PARTIAL_UPDATE. It does not hydrate GET/DELETE route parameters.
 - CREATE always reloads the created entity through `service.get(...)`, including configured response relations when present. UPDATE/PARTIAL_UPDATE reload only when response relation loading is configured. DELETE returns no body. GET_LIST requires `limit`/`page`, maps them to `take`/`skip`, and uses a configured normalized query plan for strict filter/order contracts. Without client order it applies `defaultOrder` plus tie-breakers; with client order it replaces defaults and appends de-duplicated tie-breakers.
 

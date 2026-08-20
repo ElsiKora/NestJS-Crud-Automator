@@ -3,9 +3,12 @@ import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/cla
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context";
 import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context/data.interface";
 import type { IApiFunctionDeleteExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
+import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiFunctionDeleteCriteria, TApiFunctionGetProperties } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
 
+import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGet } from "@decorator/api/function/get/decorator";
@@ -33,16 +36,19 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 	const { entity }: IApiFunctionProperties<E> = properties;
 	const transactionMode: EApiFunctionTransactionMode = properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 	const getDecorator: (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunctionGet<E>({ entity, transaction: properties.transaction });
-	let getFunction: (properties: TApiFunctionGetProperties<E>) => Promise<E>;
+	let getFunction: (this: { repository: Repository<E> }, properties: TApiFunctionGetProperties<E>) => Promise<E>;
 
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (this: { repository: Repository<E> }, criteria: TApiFunctionDeleteCriteria<E>): Promise<E> {
+			const mandatoryWhere: TApiAuthorizationScopeWhere<E> | undefined = ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.DELETE, criteria);
+
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<E> => {
 					const entityInstance: E = new entity();
+					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
 
 					const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionDeleteCriteria<E>> = {
-						DATA: { criteria, eventManager, repository: this.repository },
+						DATA: { criteria, eventManager, repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.DELETE,
 						result: criteria,
@@ -54,11 +60,9 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 						executionContext.result = result;
 					}
 
-					const repository: Repository<E> = this.repository;
-
 					if (!repository) {
 						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-							DATA: { criteria, eventManager, repository: this.repository },
+							DATA: { criteria, eventManager, repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.DELETE,
 						};
@@ -69,17 +73,20 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 					}
 
 					if (!getFunction) {
-						const getDescriptor: TypedPropertyDescriptor<(properties: TApiFunctionGetProperties<E>) => Promise<E>> = {};
+						const getDescriptor: TypedPropertyDescriptor<(this: { repository: Repository<E> }, properties: TApiFunctionGetProperties<E>) => Promise<E>> = {};
 						getDecorator(this, "get", getDescriptor);
 
 						if (getDescriptor.value) {
-							getFunction = getDescriptor.value.bind(this);
+							getFunction = getDescriptor.value;
 						} else {
 							throw ErrorException("Get function is not properly decorated");
 						}
 					}
 
-					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria: executionContext.result ?? {}, entity, getFunction, repository });
+					const subscriberCriteria: TApiFunctionDeleteCriteria<E> = executionContext.result ?? {};
+					const protectedCriteria: TApiAuthorizationScopeWhere<E> = mandatoryWhere ? (ApiControllerGeneratedReadScopeStorage.protect({ where: subscriberCriteria }, mandatoryWhere).where ?? mandatoryWhere) : subscriberCriteria;
+
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria: protectedCriteria, entity, getFunction, repository }, mandatoryWhere ? protectedCriteria : undefined, this);
 				},
 				entity,
 				functionType: EApiFunctionType.DELETE,
@@ -101,6 +108,8 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 			});
 		};
 
+		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.DELETE, entity);
+
 		return descriptor;
 	};
 }
@@ -109,15 +118,22 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
  * Executes the entity deletion operation with error handling
  * @template E The entity type
  * @param {IApiFunctionDeleteExecutorProperties<E>} options - Properties required for entity deletion
+ * @param {TApiAuthorizationScopeWhere<E>} [mandatoryWhere] - Generated route scope that the internal GET must preserve
+ * @param {object} [service] - Current service instance that owns the internal GET
+ * @param {Repository<E>} [service.repository] - Current service repository
  * @returns {Promise<E>} The deleted entity instance
  * @throws {InternalServerErrorException} If the deletion operation fails
  */
-async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExecutorProperties<E>): Promise<E> {
+async function executor<E extends IApiBaseEntity>(options: IApiFunctionDeleteExecutorProperties<E>, mandatoryWhere?: TApiAuthorizationScopeWhere<E>, service?: { repository: Repository<E> }): Promise<E> {
 	const { constructor, criteria, entity, getFunction, repository }: IApiFunctionDeleteExecutorProperties<E> = options;
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
-		const existingEntity: E = await getFunction({ where: criteria });
+		const getProperties: TApiFunctionGetProperties<E> = { where: criteria };
+
+		const currentService: { repository: Repository<E> } = service ?? { repository };
+
+		const existingEntity: E = mandatoryWhere ? await ApiControllerGeneratedReadScopeStorage.runWriteHydration(getProperties, mandatoryWhere, async (): Promise<E> => await Reflect.apply(getFunction, currentService, [getProperties])) : await Reflect.apply(getFunction, currentService, [getProperties]);
 
 		let result: E;
 

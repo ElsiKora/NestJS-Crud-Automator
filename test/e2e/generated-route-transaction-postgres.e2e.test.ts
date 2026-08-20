@@ -11,7 +11,7 @@ import { ApiService } from "@decorator/api/service/decorator";
 import { EApiControllerRelationReferenceShape, EApiDtoType, EApiFunctionTransactionMode, EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Column, DataSource, Entity, ManyToOne, PrimaryColumn, QueryRunner, Repository } from "typeorm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 @Entity("route_transaction_profiles")
 class RouteTransactionProfileEntity {
@@ -75,6 +75,11 @@ class RouteTransactionOwnerService extends ApiServiceBase<RouteTransactionOwnerE
 				mode: EApiFunctionTransactionMode.MANDATORY,
 			},
 		},
+		[EApiFunctionType.GET_LIST]: {
+			transaction: {
+				mode: EApiFunctionTransactionMode.MANDATORY,
+			},
+		},
 	},
 })
 class RouteTransactionItemService extends ApiServiceBase<RouteTransactionItemEntity> {
@@ -84,9 +89,12 @@ class RouteTransactionItemService extends ApiServiceBase<RouteTransactionItemEnt
 }
 
 class RouteTransactionQueryLogger implements Logger {
+	public readonly executions: Array<{ isTransactionActive: boolean; query: string; queryRunner: QueryRunner | undefined }> = [];
+
 	public readonly queries: Array<string> = [];
 
 	public clear(): void {
+		this.executions.length = 0;
 		this.queries.length = 0;
 	}
 
@@ -94,7 +102,8 @@ class RouteTransactionQueryLogger implements Logger {
 
 	public logMigration(): void {}
 
-	public logQuery(query: string): void {
+	public logQuery(query: string, _parameters?: Array<unknown>, queryRunner?: QueryRunner): void {
+		this.executions.push({ isTransactionActive: Boolean(queryRunner?.isTransactionActive), query, queryRunner });
 		this.queries.push(query);
 	}
 
@@ -202,6 +211,62 @@ function createGeneratedCreateOptions(itemService: RouteTransactionItemService, 
 	};
 }
 
+function createGeneratedGetListOptions(itemService: RouteTransactionItemService): IApiRouteRuntimeGeneratedExecutionOptions<RouteTransactionItemEntity, EApiRouteType.GET_LIST> {
+	return {
+		controller: {
+			service: itemService,
+		} as never,
+		entityMetadata: {
+			columns: [
+				{
+					isPrimary: true,
+					name: "id",
+					type: "uuid",
+				},
+				{
+					isPrimary: false,
+					name: "name",
+					type: "varchar",
+				},
+			],
+			primaryKey: {
+				isPrimary: true,
+				name: "id",
+				type: "uuid",
+			},
+			tableName: "route_transaction_items",
+		},
+		method: EApiRouteType.GET_LIST,
+		methodName: "getList",
+		properties: {
+			entity: RouteTransactionItemEntity,
+			routes: {
+				[EApiRouteType.GET_LIST]: {
+					dto: {
+						[EApiDtoType.RESPONSE]: RouteTransactionItemEntity,
+					},
+					response: {
+						serialization: {
+							isEnabled: false,
+						},
+					},
+					transaction: {
+						mode: EApiFunctionTransactionMode.REQUIRED,
+					},
+				},
+			},
+		},
+		targets: {
+			headers: {},
+			ip: "127.0.0.1",
+			query: {
+				limit: 10,
+				page: 1,
+			},
+		},
+	};
+}
+
 describe("generated route transactions with PostgreSQL", () => {
 	const queryLogger = new RouteTransactionQueryLogger();
 	let container: StartedPostgreSqlContainer;
@@ -260,32 +325,24 @@ describe("generated route transactions with PostgreSQL", () => {
 		const itemService = new RouteTransactionItemService(dataSource.getRepository(RouteTransactionItemEntity));
 		const ownerService = new RouteTransactionOwnerService(dataSource.getRepository(RouteTransactionOwnerEntity));
 		const managers: Array<unknown> = [];
-		const create = itemService.create.bind(itemService);
-		const getItem = itemService.get.bind(itemService);
-		const getOwner = ownerService.get.bind(ownerService);
+		const getEventManager = ApiFunctionContextStorage.getEventManager.bind(ApiFunctionContextStorage);
+		const eventManagerSpy = vi.spyOn(ApiFunctionContextStorage, "getEventManager").mockImplementation(() => {
+			const manager = getEventManager();
 
-		itemService.create = async (properties): Promise<RouteTransactionItemEntity> => {
-			managers.push(ApiFunctionContextStorage.getEventManager());
+			if (manager) {
+				managers.push(manager);
+			}
 
-			return await create(properties);
-		};
-		itemService.get = async (properties): Promise<RouteTransactionItemEntity> => {
-			managers.push(ApiFunctionContextStorage.getEventManager());
-
-			return await getItem(properties);
-		};
-		ownerService.get = async (properties): Promise<RouteTransactionOwnerEntity> => {
-			managers.push(ApiFunctionContextStorage.getEventManager());
-
-			return await getOwner(properties);
-		};
+			return manager;
+		});
 		const result = await ApiRouteRuntime.executeGenerated(createGeneratedCreateOptions(itemService, ownerService, `30000000-0000-4000-8000-00000000000${lock.mode === "pessimistic_read" ? "1" : "2"}`, lock));
 		const lockedOwnerQueries: Array<string> = queryLogger.queries.filter((query: string): boolean => query.includes('"route_transaction_owners"') && lockPattern.test(query));
 		const nestedProfileQueries: Array<string> = queryLogger.queries.filter((query: string): boolean => query.includes('"route_transaction_profiles"'));
 
-		expect(managers).toHaveLength(3);
+		expect(managers.length).toBeGreaterThanOrEqual(3);
 		expect(managers.every((manager: unknown): boolean => manager === managers[0])).toBe(true);
 		expect(ApiFunctionContextStorage.getEventManager()).toBeUndefined();
+		eventManagerSpy.mockRestore();
 		expect(lockedOwnerQueries).toHaveLength(1);
 		expect(lockedOwnerQueries[0]).not.toContain('"route_transaction_profiles"');
 		expect(nestedProfileQueries.length).toBeGreaterThan(0);
@@ -295,6 +352,27 @@ describe("generated route transactions with PostgreSQL", () => {
 		});
 		expect(await dataSource.getRepository(RouteTransactionItemEntity).findOneByOrFail({ id: (result as RouteTransactionItemEntity).id })).toMatchObject({
 			name: expect.stringContaining("Item"),
+		});
+	});
+
+	it("executes generated GET_LIST queries on the route-owned PostgreSQL query runner", async () => {
+		const itemId: string = "30000000-0000-4000-8000-000000000003";
+		const itemRepository: Repository<RouteTransactionItemEntity> = dataSource.getRepository(RouteTransactionItemEntity);
+		const owner: RouteTransactionOwnerEntity = await dataSource.getRepository(RouteTransactionOwnerEntity).findOneByOrFail({ id: OWNER_ID });
+
+		await itemRepository.save({ id: itemId, name: "Listed item", owner });
+		queryLogger.clear();
+
+		const result: unknown = await ApiRouteRuntime.executeGenerated(createGeneratedGetListOptions(new RouteTransactionItemService(itemRepository)));
+		const transactionStart = queryLogger.executions.find(({ query }: { query: string }): boolean => query === "START TRANSACTION");
+		const listSelects = queryLogger.executions.filter(({ query }: { query: string }): boolean => query.startsWith("SELECT") && query.includes('"route_transaction_items"'));
+
+		expect(transactionStart?.queryRunner).toBeDefined();
+		expect(listSelects.length).toBeGreaterThan(0);
+		expect(listSelects.every(({ isTransactionActive, queryRunner }): boolean => isTransactionActive && queryRunner === transactionStart?.queryRunner)).toBe(true);
+		expect(result).toMatchObject({
+			items: [expect.objectContaining({ id: itemId, name: "Listed item" })],
+			totalCount: 1,
 		});
 	});
 

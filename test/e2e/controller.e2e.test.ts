@@ -1,10 +1,12 @@
 import "reflect-metadata";
 
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { Repository } from "typeorm";
 
 import { ApiServiceBase } from "@class/api";
 import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
+import { ApiService } from "@decorator/api/service/decorator";
 import { EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
@@ -43,39 +45,15 @@ class ControllerEntity {
 	public count!: number;
 }
 
+@ApiService({ entity: ControllerEntity })
 class ControllerService extends ApiServiceBase<ControllerEntity> {
-	public override create = vi.fn(
-		async (properties: Partial<ControllerEntity>) =>
-			({
-				id: properties.id ?? "id-1",
-				name: properties.name ?? "created",
-				count: 1,
-			}) as ControllerEntity,
-	);
-	public override get = vi.fn(
-		async (properties: { where?: Partial<ControllerEntity> }) =>
-			({
-				id: properties.where?.id ?? "id-1",
-				name: "found",
-				count: 2,
-			}) as ControllerEntity,
-	);
-	public override update = vi.fn(
-		async (criteria: Partial<ControllerEntity>, properties: Partial<ControllerEntity>) =>
-			({
-				id: criteria.id ?? "id-1",
-				name: properties.name ?? "updated",
-				count: 3,
-			}) as ControllerEntity,
-	);
-	public override delete = vi.fn(async () => undefined);
-	public override getList = vi.fn(async () => ({
-		count: 1,
-		currentPage: 1,
-		items: [{ id: "id-1", name: "item", count: 1 }],
-		totalCount: 1,
-		totalPages: 1,
-	}));
+	public readonly repository = {
+		findAndCount: vi.fn(async (): Promise<[Array<ControllerEntity>, number]> => [[{ count: 1, id: "id-1", name: "item" }], 1]),
+		findOne: vi.fn(async (): Promise<ControllerEntity> => ({ count: 2, id: "id-1", name: "found" })),
+		metadata: { relations: [] },
+		remove: vi.fn(async (entity: ControllerEntity): Promise<ControllerEntity> => entity),
+		save: vi.fn(async (entity: Partial<ControllerEntity>): Promise<ControllerEntity> => ({ count: entity.count ?? 1, id: entity.id ?? "id-1", name: entity.name ?? "saved" })),
+	} as unknown as Repository<ControllerEntity>;
 }
 
 class ControllerClass {
@@ -111,10 +89,9 @@ describe("ApiController (E2E)", () => {
 		await controller.partialUpdate({ id: "id-1" }, { name: "patched" }, headers, ip);
 		await controller.delete({ id: "id-1" }, headers, ip);
 
-		expect(controller.service.create).toHaveBeenCalled();
-		expect(controller.service.get).toHaveBeenCalled();
-		expect(controller.service.getList).toHaveBeenCalled();
-		expect(controller.service.update).toHaveBeenCalled();
-		expect(controller.service.delete).toHaveBeenCalled();
+		expect(controller.service.repository.save).toHaveBeenCalled();
+		expect(controller.service.repository.findOne).toHaveBeenCalled();
+		expect(controller.service.repository.findAndCount).toHaveBeenCalled();
+		expect(controller.service.repository.remove).toHaveBeenCalled();
 	});
 });

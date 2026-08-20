@@ -7,6 +7,7 @@ import type { TApiFunctionGetManyProperties } from "@type/decorator/api/function
 import type { EntityManager, Repository } from "typeorm";
 import type { FindManyOptions } from "typeorm";
 
+import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
@@ -87,6 +88,8 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 				serviceConstructor: this.constructor as new (...arguments_: Array<unknown>) => unknown,
 			});
 		};
+
+		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.GET_MANY, entity);
 
 		return descriptor;
 	};

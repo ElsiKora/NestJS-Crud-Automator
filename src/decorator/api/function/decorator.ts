@@ -2,6 +2,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { TApiFunctionProperties } from "@type/decorator/api/function";
 import type { Repository } from "typeorm";
 
+import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiFunctionCreate } from "@decorator/api/function/create.decorator";
 import { ApiFunctionCustom } from "@decorator/api/function/custom.decorator";
 import { ApiFunctionDelete } from "@decorator/api/function/delete.decorator";
@@ -84,6 +85,10 @@ export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctio
 
 			return modifiedMethod.apply(this, arguments_);
 		};
+
+		if (type !== EApiFunctionType.CREATE && type !== EApiFunctionType.CUSTOM) {
+			ApiControllerGeneratedFunctionCapability.mark(descriptor.value, type, entity);
+		}
 
 		return descriptor;
 	};

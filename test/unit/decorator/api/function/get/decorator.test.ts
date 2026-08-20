@@ -1,10 +1,11 @@
 import type { EntityManager, FindOneOptions, Repository } from "typeorm";
 
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
+import { ApiControllerGeneratedRelationCacheContract } from "@class/api/controller/generated/relation-cache-contract.class";
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGet } from "@decorator/api/function/get/decorator";
-import { EApiFunctionType } from "@enum/decorator/api";
+import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { HttpStatus } from "@nestjs/common";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -51,8 +52,9 @@ describe("ApiFunctionGet", () => {
 		} as unknown as Repository<GetEntity>;
 		const service = new GetService(repository);
 		const request = { where: { id: "id-required" } };
+		const subscriberResult = Object.assign(Object.create({ cache: { id: "shared-generated-read" } }) as FindOneOptions<GetEntity>, { where: { id: "id-foreign" } });
 
-		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockImplementation(async () => ({ where: { id: "id-foreign" } }));
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockResolvedValue(subscriberResult);
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
 
 		await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, request, request.where, async () => await service.get(request));
@@ -66,11 +68,31 @@ describe("ApiFunctionGet", () => {
 				{ _type: "equal", _value: "id-required" },
 			],
 		});
+		expect(findOne.mock.calls[0]?.[0].cache).toBe(false);
+		expect(Object.hasOwn(findOne.mock.calls[0]?.[0] ?? {}, "cache")).toBe(true);
 
 		findOne.mockClear();
 		await service.get({ where: { id: "id-direct" } });
 
-		expect(findOne).toHaveBeenCalledWith({ where: { id: "id-foreign" } });
+		expect(findOne.mock.calls[0]?.[0].cache).toEqual({ id: "shared-generated-read" });
+		expect(findOne.mock.calls[0]?.[0].where).toEqual({ id: "id-foreign" });
+	});
+
+	it("dispatches protected GET setup failures exactly once through BEFORE_ERROR", async () => {
+		const findOne = vi.fn(async () => ({ id: "id-required", name: "found" }));
+		const repository = { findOne } as unknown as Repository<GetEntity>;
+		const service = new GetService(repository);
+		const request = { where: { id: "id-required" } };
+		const errorSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+
+		vi.spyOn(ApiControllerGeneratedRelationCacheContract, "assertSafe").mockImplementation(() => {
+			throw new Error("generated GET setup failed");
+		});
+
+		await expect(ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, request, request.where, async () => await service.get(request))).rejects.toThrow("generated GET setup failed");
+		expect(errorSpy).toHaveBeenCalledTimes(1);
+		expect(errorSpy.mock.calls[0]?.[3]).toBe(EApiSubscriberOnType.BEFORE_ERROR);
+		expect(findOne).not.toHaveBeenCalled();
 	});
 
 	it("uses event manager repository when provided", async () => {
@@ -93,6 +115,69 @@ describe("ApiFunctionGet", () => {
 		expect(eventRepository.findOne).toHaveBeenCalledWith({ where: { id: "id-2" } });
 		expect(repository.findOne).not.toHaveBeenCalled();
 		expect(result).toMatchObject({ id: "id-2", name: "event" });
+	});
+
+	it("allows metadata-proven TypeORM lazy relation accessors during protected mutation hydration", async () => {
+		const item: GetEntity = { id: "id-1", name: "found" };
+		Object.defineProperty(item, "owner", {
+			configurable: true,
+			enumerable: false,
+			get: (): Promise<GetEntity> => Promise.resolve({ id: "owner-1" }),
+			set: (): void => undefined,
+		});
+		const repository = {
+			findOne: vi.fn(async () => item),
+			metadata: {
+				relations: [{ isLazy: true, propertyName: "owner" }],
+			},
+		} as unknown as Repository<GetEntity>;
+		const service = new GetService(repository);
+		const request = { where: { id: "id-1" } };
+
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+
+		await expect(ApiControllerGeneratedReadScopeStorage.runWriteHydration(request, request.where, async () => await service.get(request))).resolves.toBe(item);
+	});
+
+	it("rejects unproven accessors and raw alias mutations during protected mutation hydration", async () => {
+		const item: GetEntity = { id: "id-1", name: "found" };
+		Object.defineProperty(item, "computed", {
+			configurable: true,
+			enumerable: false,
+			get: (): string => "unsafe",
+		});
+		const repository = {
+			findOne: vi.fn(async () => item),
+			metadata: {
+				relations: [],
+			},
+		} as unknown as Repository<GetEntity>;
+		const service = new GetService(repository);
+		const request = { where: { id: "id-1" } };
+		const afterSubscriber = vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+
+		await expect(ApiControllerGeneratedReadScopeStorage.runWriteHydration(request, request.where, async () => await service.get(request))).rejects.toMatchObject({
+			cause: {
+				message: expect.stringContaining("must contain data properties only"),
+			},
+		});
+		expect(afterSubscriber.mock.calls.some((call): boolean => call[3] === EApiSubscriberOnType.AFTER)).toBe(false);
+
+		Reflect.deleteProperty(item, "computed");
+		afterSubscriber.mockClear();
+		afterSubscriber.mockImplementation(async (...arguments_) => {
+			if (arguments_[3] === EApiSubscriberOnType.AFTER) {
+				item.id = "foreign";
+			}
+
+			return undefined;
+		});
+
+		await expect(ApiControllerGeneratedReadScopeStorage.runWriteHydration(request, request.where, async () => await service.get(request))).rejects.toMatchObject({
+			cause: {
+				message: expect.stringContaining("changed the protected hydration entity"),
+			},
+		});
 	});
 
 	it("throws not found when entity is missing", async () => {

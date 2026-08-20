@@ -5,6 +5,8 @@ import type { DataSource, Repository } from "typeorm";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionLifecycle } from "@class/api/function/transaction/lifecycle.class";
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
+import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
@@ -188,10 +190,38 @@ function createRouteService(dataSource?: DataSource): ApiServiceBase<RuntimeRout
 	}
 
 	vi.spyOn(service, "create").mockImplementation(async (properties: Partial<RuntimeRouteEntity>): Promise<RuntimeRouteEntity> => properties as RuntimeRouteEntity);
-	vi.spyOn(service, "get").mockResolvedValue({
-		id: "route-transaction-1",
-		source: "response",
+	vi.spyOn(service, "get").mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
+		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
+
+		return {
+			id: "route-transaction-1",
+			source: "response",
+		};
 	});
+	vi.spyOn(service, "getList").mockImplementation(async (properties) => {
+		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET_LIST, properties);
+
+		return {
+			count: 0,
+			currentPage: 1,
+			items: [],
+			totalCount: 0,
+			totalPages: 0,
+		};
+	});
+	vi.spyOn(service, "update").mockImplementation(async (criteria, properties): Promise<RuntimeRouteEntity> => {
+		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.UPDATE, criteria);
+
+		return { id: "route-transaction-1", ...properties };
+	});
+	vi.spyOn(service, "delete").mockImplementation(async (criteria): Promise<void> => {
+		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.DELETE, criteria);
+	});
+
+	ApiControllerGeneratedFunctionCapability.mark(service.get, EApiFunctionType.GET, RuntimeRouteEntity);
+	ApiControllerGeneratedFunctionCapability.mark(service.getList, EApiFunctionType.GET_LIST, RuntimeRouteEntity);
+	ApiControllerGeneratedFunctionCapability.mark(service.update, EApiFunctionType.UPDATE, RuntimeRouteEntity);
+	ApiControllerGeneratedFunctionCapability.mark(service.delete, EApiFunctionType.DELETE, RuntimeRouteEntity);
 
 	return service;
 }
@@ -202,6 +232,74 @@ afterEach(() => {
 });
 
 describe("ApiRouteRuntime generated transactions", () => {
+	it("rejects an own undecorated UPDATE before invoking it", async () => {
+		const service: ApiServiceBase<RuntimeRouteEntity> = new ApiServiceBase<RuntimeRouteEntity>();
+		const update = vi.spyOn(service, "update");
+
+		await expect(ApiRouteRuntime.executeGenerated(createGeneratedUpdateOptions(service, EApiRouteType.UPDATE))).rejects.toThrow("Generated update service function is not protected by its built-in decorator");
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	it("rejects an inherited undecorated DELETE before invoking it", async () => {
+		const inheritedDelete = vi.fn();
+		const servicePrototype: object = Object.create(ApiServiceBase.prototype) as object;
+		Object.defineProperty(servicePrototype, EApiFunctionType.DELETE, { configurable: true, value: inheritedDelete, writable: true });
+		const service: ApiServiceBase<RuntimeRouteEntity> = Object.create(servicePrototype) as ApiServiceBase<RuntimeRouteEntity>;
+		const options = createGeneratedReadOrDeleteOptions(service, EApiRouteType.DELETE);
+
+		(options.properties.routes[EApiRouteType.DELETE] as TApiControllerPropertiesRoute<RuntimeRouteEntity, EApiRouteType.DELETE>).transaction = { mode: EApiFunctionTransactionMode.SUPPORTS };
+
+		await expect(ApiRouteRuntime.executeGenerated(options)).rejects.toThrow("Generated delete service function is not protected by its built-in decorator");
+		expect(inheritedDelete).not.toHaveBeenCalled();
+	});
+
+	it("rejects an unmarked CREATE reload before opening a transaction or creating", async () => {
+		const transaction = createTransactionFixture();
+		const service: ApiServiceBase<RuntimeRouteEntity> = new ApiServiceBase<RuntimeRouteEntity>();
+		const create = vi.spyOn(service, "create");
+		const get = vi.spyOn(service, "get");
+
+		Object.defineProperty(service, "repository", {
+			value: {
+				manager: {
+					connection: transaction.dataSource,
+				},
+			} as Repository<RuntimeRouteEntity>,
+		});
+
+		await expect(ApiRouteRuntime.executeGenerated(createGeneratedCreateOptions(service, { transaction: { mode: EApiFunctionTransactionMode.REQUIRED } }))).rejects.toThrow("Generated get service function is not protected by its built-in decorator");
+		expect(transaction.dataSource.createQueryRunner).not.toHaveBeenCalled();
+		expect(create).not.toHaveBeenCalled();
+		expect(get).not.toHaveBeenCalled();
+	});
+
+	it("rejects an unmarked UPDATE response reload before updating", async () => {
+		const service: ApiServiceBase<RuntimeRouteEntity> = new ApiServiceBase<RuntimeRouteEntity>();
+		const update = vi.spyOn(service, "update").mockImplementation(async (criteria): Promise<RuntimeRouteEntity> => {
+			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.UPDATE, criteria);
+
+			return { id: "route-transaction-1" };
+		});
+		const get = vi.spyOn(service, "get");
+
+		ApiControllerGeneratedFunctionCapability.mark(update, EApiFunctionType.UPDATE, RuntimeRouteEntity);
+
+		await expect(
+			ApiRouteRuntime.executeGenerated(
+				createGeneratedUpdateOptions(service, EApiRouteType.UPDATE, {
+					relations: {
+						response: {
+							load: { include: { relation: true } },
+							reference: { shape: EApiControllerRelationReferenceShape.SCALAR },
+						},
+					},
+				} as never),
+			),
+		).rejects.toThrow("Generated get service function is not protected by its built-in decorator");
+		expect(update).not.toHaveBeenCalled();
+		expect(get).not.toHaveBeenCalled();
+	});
+
 	it("keeps validation outside REQUIRED and commits before route after", async () => {
 		const order: Array<string> = [];
 		const transaction = createTransactionFixture();
@@ -223,7 +321,8 @@ describe("ApiRouteRuntime generated transactions", () => {
 
 			return properties as RuntimeRouteEntity;
 		});
-		vi.spyOn(service, "get").mockImplementation(async (): Promise<RuntimeRouteEntity> => {
+		vi.spyOn(service, "get").mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
+			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
 			expect(ApiFunctionContextStorage.getEventManager()).toBe(transaction.entityManager);
 			order.push("reload");
 
@@ -333,7 +432,8 @@ describe("ApiRouteRuntime generated transactions", () => {
 				id: "request",
 			};
 		});
-		vi.spyOn(service, "update").mockImplementation(async (_criteria, properties): Promise<RuntimeRouteEntity> => {
+		vi.spyOn(service, "update").mockImplementation(async (criteria, properties): Promise<RuntimeRouteEntity> => {
+			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.UPDATE, criteria);
 			expect(ApiFunctionContextStorage.getEventManager()).toBe(transaction.entityManager);
 			order.push("operation");
 
@@ -342,7 +442,8 @@ describe("ApiRouteRuntime generated transactions", () => {
 				...properties,
 			};
 		});
-		vi.spyOn(service, "get").mockImplementation(async (): Promise<RuntimeRouteEntity> => {
+		vi.spyOn(service, "get").mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
+			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
 			expect(ApiFunctionContextStorage.getEventManager()).toBe(transaction.entityManager);
 			order.push("reload");
 
@@ -413,11 +514,19 @@ describe("ApiRouteRuntime generated transactions", () => {
 		const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
 		const reloadError: Error = new Error("update reload failed");
 
-		vi.spyOn(service, "update").mockResolvedValue({
-			id: "route-transaction-1",
-			source: "updated",
+		vi.spyOn(service, "update").mockImplementation(async (criteria): Promise<RuntimeRouteEntity> => {
+			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.UPDATE, criteria);
+
+			return {
+				id: "route-transaction-1",
+				source: "updated",
+			};
 		});
-		vi.spyOn(service, "get").mockRejectedValue(reloadError);
+		vi.spyOn(service, "get").mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
+			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
+
+			throw reloadError;
+		});
 
 		await expect(
 			ApiRouteRuntime.executeGenerated(
@@ -452,11 +561,13 @@ describe("ApiRouteRuntime generated transactions", () => {
 		};
 
 		if (method === EApiRouteType.DELETE) {
-			vi.spyOn(service, "delete").mockImplementation(async (): Promise<void> => {
+			vi.spyOn(service, "delete").mockImplementation(async (criteria): Promise<void> => {
+				ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.DELETE, criteria);
 				assertActiveManager();
 			});
 		} else if (method === EApiRouteType.GET) {
-			vi.spyOn(service, "get").mockImplementation(async (): Promise<RuntimeRouteEntity> => {
+			vi.spyOn(service, "get").mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
+				ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
 				assertActiveManager();
 
 				return {
@@ -464,7 +575,8 @@ describe("ApiRouteRuntime generated transactions", () => {
 				};
 			});
 		} else {
-			vi.spyOn(service, "getList").mockImplementation(async () => {
+			vi.spyOn(service, "getList").mockImplementation(async (properties) => {
+				ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET_LIST, properties);
 				assertActiveManager();
 
 				return {
@@ -700,7 +812,11 @@ describe("ApiRouteRuntime generated transactions", () => {
 		const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
 		const reloadError: Error = new Error("reload failed");
 
-		vi.spyOn(service, "get").mockRejectedValue(reloadError);
+		vi.spyOn(service, "get").mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
+			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
+
+			throw reloadError;
+		});
 
 		await expect(
 			ApiRouteRuntime.executeGenerated(

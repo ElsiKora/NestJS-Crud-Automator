@@ -1,10 +1,11 @@
 import type { EntityManager, FindManyOptions, Repository } from "typeorm";
 
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
+import { ApiControllerGeneratedRelationCacheContract } from "@class/api/controller/generated/relation-cache-contract.class";
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGetList } from "@decorator/api/function/get/list.decorator";
-import { EApiFunctionType } from "@enum/decorator/api";
+import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import type { IApiGetListResponseResult } from "@interface/decorator/api";
 import { HttpStatus } from "@nestjs/common";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -55,8 +56,9 @@ describe("ApiFunctionGetList", () => {
 		} as unknown as Repository<GetListEntity>;
 		const service = new GetListService(repository);
 		const request = { take: 10, where: { name: "required" } };
+		const subscriberResult = Object.assign(Object.create({ cache: { id: "shared-generated-list" } }) as FindManyOptions<GetListEntity>, { take: 1, where: { name: "foreign" } });
 
-		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockImplementation(async () => ({ take: 1, where: { name: "foreign" } }));
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockResolvedValue(subscriberResult);
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
 
 		await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET_LIST, request, request.where, async () => await service.getList(request));
@@ -70,11 +72,31 @@ describe("ApiFunctionGetList", () => {
 				{ _type: "equal", _value: "required" },
 			],
 		});
+		expect(findAndCount.mock.calls[0]?.[0]?.cache).toBe(false);
+		expect(Object.hasOwn(findAndCount.mock.calls[0]?.[0] ?? {}, "cache")).toBe(true);
 
 		findAndCount.mockClear();
 		await service.getList({ take: 5 });
 
-		expect(findAndCount).toHaveBeenCalledWith({ take: 1, where: { name: "foreign" } });
+		expect(findAndCount.mock.calls[0]?.[0]?.cache).toEqual({ id: "shared-generated-list" });
+		expect(findAndCount.mock.calls[0]?.[0]).toMatchObject({ take: 1, where: { name: "foreign" } });
+	});
+
+	it("dispatches protected GET_LIST setup failures exactly once through BEFORE_ERROR", async () => {
+		const findAndCount = vi.fn(async () => [[], 0] as [Array<GetListEntity>, number]);
+		const repository = { findAndCount } as unknown as Repository<GetListEntity>;
+		const service = new GetListService(repository);
+		const request = { take: 10, where: { name: "required" } };
+		const errorSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+
+		vi.spyOn(ApiControllerGeneratedRelationCacheContract, "assertSafe").mockImplementation(() => {
+			throw new Error("generated GET_LIST setup failed");
+		});
+
+		await expect(ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET_LIST, request, request.where, async () => await service.getList(request))).rejects.toThrow("generated GET_LIST setup failed");
+		expect(errorSpy).toHaveBeenCalledTimes(1);
+		expect(errorSpy.mock.calls[0]?.[3]).toBe(EApiSubscriberOnType.BEFORE_ERROR);
+		expect(findAndCount).not.toHaveBeenCalled();
 	});
 
 	it("uses event manager repository when provided", async () => {
@@ -89,13 +111,18 @@ describe("ApiFunctionGetList", () => {
 		} as unknown as EntityManager;
 		const service = new GetListService(repository);
 
-		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+		const before = vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockResolvedValue(undefined);
+		const after = vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
 
 		const result = await ApiFunctionTransactionScope.runWithDataSource(createTransactionFixture(eventManager).dataSource, { name: "getList" }, async () => await service.getList({ take: 1 }));
+		const beforeContext = before.mock.calls[0]?.[3] as { DATA: { repository: Repository<GetListEntity> } } | undefined;
+		const afterContext = after.mock.calls[0]?.[4] as { DATA: { repository: Repository<GetListEntity> } } | undefined;
 
 		expect(eventManager.getRepository).toHaveBeenCalledWith(GetListEntity);
 		expect(eventRepository.findAndCount).toHaveBeenCalledWith({ take: 1 });
 		expect(repository.findAndCount).not.toHaveBeenCalled();
+		expect(beforeContext?.DATA.repository).toBe(eventRepository);
+		expect(afterContext?.DATA.repository).toBe(eventRepository);
 		expect(result.items[0]).toMatchObject({ id: "id-2" });
 		expect(result.totalCount).toBe(2);
 	});

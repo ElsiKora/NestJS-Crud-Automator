@@ -2,6 +2,8 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationDecision } from "@interface/class/api/authorization";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 
+import { Buffer } from "node:buffer";
+
 /**
  * Owns the generated-route authorization decision used after guard execution.
  * Subscriber-facing decisions are detached views and can never mutate this snapshot.
@@ -81,6 +83,10 @@ function cloneValueWithReferences<T>(value: T, references: WeakMap<object, objec
 
 	if (value instanceof RegExp) {
 		return new RegExp(value.source, value.flags) as T;
+	}
+
+	if (Buffer.isBuffer(value)) {
+		return Buffer.from(value) as T;
 	}
 
 	if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {

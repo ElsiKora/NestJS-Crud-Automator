@@ -117,6 +117,8 @@ await userService.delete({
 
 ## Custom Methods
 
+Use names other than `get`, `getList`, `update`, and `delete` for ordinary domain methods. Starting with the 4.0 capability boundary, generated controller routes invoke those reserved operations only when the exact function was produced for the same entity and function type by `@ApiService` or the matching built-in `@ApiFunction*` decorator. Undecorated overrides can still be called directly, but generated routes reject them before the Automator-managed route transaction or repository I/O. `getMany` is marked for the same capability model but is not invoked by the current generated route runtime. Prefer subscribers for generated CRUD lifecycle changes and `@ApiFunctionCustom` or a custom route for a distinct operation. See [Migrating to 4.0](/docs/nestjs-crud-automator/guides/migrating-to-4-0).
+
 Add custom business logic beyond CRUD operations:
 
 ```typescript filename="user.service.ts" copy
