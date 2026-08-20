@@ -1,3 +1,10 @@
+## [4.0.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.0.0...v4.0.1) (2026-08-20)
+
+### Bug Fixes
+
+- **query:** allow primary scalar filter plans ([daefe1f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/daefe1fa178082b2c4e86333b0b6d07ef91879a8))
+- **release:** promote primary scalar filters ([e14078d](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/e14078d5c2eb9eac01aeaf99305ac4e5f20e44c8))
+
 # [4.0.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v3.0.2...v4.0.0) (2026-08-20)
 
 - feat(controller)!: enforce generated service capabilities ([17cd27a](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/17cd27a6238872a609e3330889b565490c7630c5))
