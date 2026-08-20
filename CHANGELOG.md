@@ -1,3 +1,23 @@
+# [4.0.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v3.0.2...v4.0.0) (2026-08-20)
+
+- feat(controller)!: enforce generated service capabilities ([17cd27a](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/17cd27a6238872a609e3330889b565490c7630c5))
+
+### Bug Fixes
+
+- **controller:** preserve generated read security boundaries ([e790eaa](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/e790eaa99ae136c4df73123d79bd7dc40f2f255b))
+- **release:** promote automator 4 stable ([bfb448a](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/bfb448a345ae7abe09b18986302d3785c483be50))
+- **release:** retry npm publication ([f2f6c12](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/f2f6c12d84433acd6685bb420bce7ede6ee4e5bd))
+
+### Features
+
+- **controller:** add bidirectional cursor pagination ([ee37f52](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/ee37f52d363ec27dfe768b382419fa8c6db71408))
+- **controller:** add generated primary identity aliases ([8b524fb](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/8b524fb4e4b5c42e163403edadc61d28ae6c6b28))
+- **controller:** add scoped generated reads and deterministic ordering ([b6e3d54](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/b6e3d5483b2344757428118b47df71ddf980955a))
+
+### BREAKING CHANGES
+
+- Generated routes now reject undecorated reserved CRUD service overrides and require the exact same-entity function produced by @ApiService or the matching @ApiFunction* before transaction or I/O.
+
 ## [3.0.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v3.0.1...v3.0.2) (2026-07-26)
 
 ### Bug Fixes
