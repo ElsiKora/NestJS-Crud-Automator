@@ -167,6 +167,63 @@ The controller path declares one inherited parameter, so both read routes map it
 
 A GET uses `id AND providerId AND IAM scope`. A GET_LIST uses query predicates `AND providerId AND IAM scope`; incompatible values match nothing instead of overwriting a prior condition. With no client order, the list uses `priority DESC, id ASC` after duplicate removal. A client order replaces the defaults and keeps `id ASC` as a final tie-breaker, making explicit page/limit requests deterministic for an unchanged dataset. `id` remains server-only because it is absent from `fields`.
 
+## Generated Cursor Pagination
+
+```ts
+@ApiController<GameEntity>({
+	entity: GameEntity,
+	path: "brands/:brandId/games",
+	routes: {
+		[EApiRouteType.GET_LIST]: {
+			read: {
+				scope: {
+					parameters: [{ parameter: "brandId", field: "brandId" }],
+				},
+			},
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					order: {
+						defaultOrder: [{ direction: EFilterOrderDirection.DESC, field: "position" }],
+						fields: {
+							isFeatured: { isEnabled: true },
+							position: { isEnabled: true },
+						},
+						tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+					pagination: {
+						mode: EApiControllerGetListQueryPaginationMode.CURSOR,
+					},
+				},
+			},
+		},
+	},
+})
+export class BrandGameController {
+	constructor(public service: GameService) {}
+}
+```
+
+The first request is `GET /brands/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/games?limit=1`. Its response is always flat:
+
+```json
+{
+	"items": [
+		{
+			"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+			"name": "Example Game",
+			"position": 42
+		}
+	],
+	"nextCursor": "eyJ2IjoxLCJjIjoiMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsInZhbHVlcyI6WzQyLCJhYWFhYWFhYS1hYWFhLTRhYWEtOGFhYS1hYWFhYWFhYWFhYWEiXX0",
+	"previousCursor": null
+}
+```
+
+Use `after=<nextCursor>` to continue and `before=<previousCursor>` to go back. Do not send `page`, and do not send both cursor directions. The generated route uses `GameService.getMany`; it stores nothing in the database. Each token is valid only for the same controller route, UUID `brandId`, normalized filters, and effective order. Current HOOKS/IAM scope is recalculated for every request. The response keeps `position` because it participates in the protected raw order tuple.
+
+CURSOR v1 is PostgreSQL-only. Its TypeORM order declarations may be `boolean`; signed `smallint` or `integer`, including increment-generated columns whose PostgreSQL DDL uses `SMALLSERIAL`/`SERIAL`; numeric enums stored as `smallint`/`integer`; signed `bigint`, including increment-generated `BIGSERIAL` DDL, exposed as canonical decimal `BIGINT_STRING`; or native `uuid`. The SERIAL-family names are DDL forms, not TypeORM column type literals. CURSOR requires standard PostgreSQL text parsers. Every other storage type or driver fails closed for CURSOR, while PAGE behavior is unchanged.
+
 ## Route Controls And Validators
 
 ```ts

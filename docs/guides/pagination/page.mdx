@@ -1,269 +1,235 @@
 # Pagination
 
-All generated GET_LIST endpoints in NestJS CRUD Automator use a page/limit contract. Both values are required integers from 1 through 100, and the standard response includes page and total-count metadata.
+Generated GET_LIST routes support page and cursor pagination. Page mode remains the default, so existing controllers and request/response types keep their current contract.
 
-## Basic Pagination
+## Page Mode
 
-Paginate results using query parameters:
+Omit `pagination` or select it explicitly:
 
-```
-GET /users?limit=10&page=1
-```
-
-This returns the first 10 users.
-
-## Pagination Parameters
-
-### `limit`
-
-Required number of items per page (minimum 1, maximum 100):
-
-```
-GET /users?limit=20&page=1
+```typescript filename="user.controller.ts" copy
+[EApiRouteType.GET_LIST]: {
+	request: {
+		[EApiControllerRequestTarget.QUERY]: {
+			pagination: {
+				mode: EApiControllerGetListQueryPaginationMode.PAGE,
+			},
+		},
+	},
+}
 ```
 
-### `page`
+Both `limit` and the 1-based `page` are required integers from 1 through 100:
 
-Required page number (1-based indexing, maximum 100):
-
-```
+```http
 GET /users?limit=20&page=2
 ```
 
-## Response Structure
-
-Paginated responses include metadata:
+The response includes the ordinary count envelope. For example, the exported generic resolves to a concrete user response as follows:
 
 ```typescript
-{
-  count: number,       // Number of items on the current page
-  currentPage: number, // Current page number
-  items: UserEntity[], // Array of results
-  totalCount: number,  // Total count of all matching items
-  totalPages: number   // Total number of pages
-}
+type UserPageResponse = IApiGetListResponseResult<UserEntity>;
 ```
 
-Example response:
+It contains `count`, `currentPage`, `items: Array<UserEntity>`, `totalCount`, and `totalPages`.
 
-```json
-{
-	"count": 2,
-	"currentPage": 1,
-	"items": [
-		{
-			"id": "uuid-1",
-			"username": "john_doe",
-			"email": "john@example.com"
-		},
-		{
-			"id": "uuid-2",
-			"username": "jane_doe",
-			"email": "jane@example.com"
-		}
-	],
-	"totalCount": 50,
-	"totalPages": 5
-}
-```
+Page mode calls the existing decorated `service.getList(...)` with `take = limit` and `skip = limit * (page - 1)`. It is the right choice when a client must jump directly to an arbitrary numbered page or display totals.
 
-## Combining with Filters and Sorting
+## Cursor Mode
 
-Pagination works seamlessly with filtering and sorting:
+Select cursor pagination on the generated GET_LIST query target and provide an explicit stable order:
 
-```
-GET /users?limit=20&page=2&username[operator]=cont&username[value]=john&orderBy=createdAt&orderDirection=desc
-```
-
-This returns page 2 of users with "john" in username, sorted by creation date descending, 20 items per page.
-
-For stable consecutive pages over an unchanged dataset, configure a deterministic server order with a unique final tie-breaker:
-
-```typescript filename="user.controller.ts" copy
-@ApiController<UserEntity>({
-	entity: UserEntity,
+```typescript filename="game.controller.ts" copy
+@ApiController<GameEntity>({
+	entity: GameEntity,
+	path: "brands/:brandId/games",
 	routes: {
 		[EApiRouteType.GET_LIST]: {
+			read: {
+				scope: {
+					parameters: [{ parameter: "brandId", field: "brandId" }],
+				},
+			},
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
 					order: {
-						defaultOrder: [{ direction: EFilterOrderDirection.DESC, field: "createdAt" }],
+						defaultOrder: [{ direction: EFilterOrderDirection.DESC, field: "position" }],
 						fields: {
-							createdAt: { isEnabled: true },
+							isFeatured: { isEnabled: true },
+							position: { isEnabled: true },
 						},
 						tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
 						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+					pagination: {
+						mode: EApiControllerGetListQueryPaginationMode.CURSOR,
 					},
 				},
 			},
 		},
 	},
 })
-export class UserController {
-	constructor(public service: UserService) {}
+export class BrandGameController {
+	constructor(public service: GameService) {}
 }
 ```
 
-If the request omits `orderBy` and `orderDirection`, runtime applies `createdAt DESC, id ASC`. If the client supplies that pair, it replaces `defaultOrder`; `id ASC` is still appended. Duplicate order fields are removed with the earlier entry winning. Server-owned order entries are validated against all described direct scalar fields, so a UUID `id` can remain a hidden tie-breaker instead of appearing in the client order enum.
+The entity must have exactly one primary column. Every possible default or client-selected order field must be a described, non-null, direct scalar. The primary column must appear once, only as the final explicit tie-breaker, and it must not be enabled in the client `fields` map.
 
-## Programmatic Usage
+### First Window
 
-Use pagination in service calls:
+`limit` is required; `page` is not part of this mode:
 
-```typescript filename="user.controller.ts" copy
-import { Injectable } from "@nestjs/common";
-import { UserService } from "./user.service";
-import { IApiGetListResponseResult } from "@elsikora/nestjs-crud-automator";
-import { UserEntity } from "./user.entity";
-
-@Injectable()
-export class UserReportService {
-	constructor(private readonly userService: UserService) {}
-
-	async getAllUsers(): Promise<UserEntity[]> {
-		const allUsers: UserEntity[] = [];
-		let page = 1;
-		const limit = 100;
-		let hasMore = true;
-
-		while (hasMore) {
-			const result: IApiGetListResponseResult<UserEntity> = await this.userService.getList({
-				where: {},
-				take: limit,
-				skip: (page - 1) * limit,
-			});
-
-			allUsers.push(...result.items);
-			hasMore = result.currentPage < result.totalPages;
-			page++;
-		}
-
-		return allUsers;
-	}
-}
+```http
+GET /brands/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/games?limit=1
 ```
 
-## Pagination Limits
-
-Generated GET_LIST routes parse `limit` and `page`, then pass `take = limit` and `skip = limit * (page - 1)` to the service. There is no route-level pagination-default configuration in the current public contract. Clients must send both values. Use a custom route/service contract only when an application genuinely needs a different pagination model.
-
-## Infinite Scroll
-
-Implement infinite scroll patterns:
-
-```typescript filename="frontend-example.ts" copy
-class UserListComponent {
-	users: UserEntity[] = [];
-	page = 1;
-	limit = 20;
-	loading = false;
-	hasMore = true;
-
-	async loadMore(): Promise<void> {
-		if (this.loading || !this.hasMore) return;
-
-		this.loading = true;
-		try {
-			const response = await fetch(`/users?limit=${this.limit}&page=${this.page}`);
-			const data = await response.json();
-
-			this.users.push(...data.items);
-			this.hasMore = data.currentPage < data.totalPages;
-			this.page++;
-		} finally {
-			this.loading = false;
-		}
-	}
-}
-```
-
-## Performance Considerations
-
-### Offset Pagination
-
-The generated route uses TypeORM offset pagination. It supports jumping to a page and keeps the standard count envelope, but large offsets can become expensive. A unique final order tie-breaker prevents rows with equal primary sort values from changing relative position for an unchanged dataset; it cannot freeze a dataset while concurrent inserts or updates occur.
-
-### Counting Performance
-
-Total counts can be expensive on large tables. Consider:
-
-1. **Caching counts**:
+The generated response is always the flat cursor envelope. It has no `pageInfo`, booleans, counts, or totals:
 
 ```typescript
-@Injectable()
-export class UserService extends ApiServiceBase<UserEntity> {
-	private countCache: { value: number; timestamp: number } | null = null;
-	private readonly CACHE_TTL = 60000; // 1 minute
+type GameCursorResponse = IApiGetListCursorResponseResult<GameEntity>;
+```
 
-	async getList(properties) {
-		const now = Date.now();
-		if (!this.countCache || now - this.countCache.timestamp > this.CACHE_TTL) {
-			const total = await this.repository.count();
-			this.countCache = { value: total, timestamp: now };
+```json
+{
+	"items": [
+		{
+			"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+			"name": "Example Game",
+			"position": 42
 		}
-
-		// Use cached count
-		const items = await this.repository.find({
-			relations: properties.relations,
-			skip: properties.skip,
-			take: properties.take,
-		});
-
-		return {
-			count: items.length,
-			currentPage: properties.skip && properties.take ? Math.floor(properties.skip / properties.take) + 1 : 1,
-			items,
-			totalCount: this.countCache.value,
-			totalPages: Math.ceil(this.countCache.value / (properties.take ?? 1)),
-		};
-	}
+	],
+	"nextCursor": "eyJ2IjoxLCJjIjoiMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsInZhbHVlcyI6WzQyLCJhYWFhYWFhYS1hYWFhLTRhYWEtOGFhYS1hYWFhYWFhYWFhYWEiXX0",
+	"previousCursor": null
 }
 ```
 
-2. **Approximate counts** for very large tables:
+### Forward And Backward Windows
 
-```typescript
-// PostgreSQL approximate count
-const result = await this.repository.query(`
-  SELECT reltuples::bigint AS estimate
-  FROM pg_class
-  WHERE relname = 'users'
-`);
-const approximateTotal = result[0].estimate;
+Use the returned cursors without decoding or modifying them:
+
+```http
+GET /brands/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/games?limit=1&after=<nextCursor>
+GET /brands/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/games?limit=1&before=<previousCursor>
 ```
 
-### Index Optimization
+`after` and `before` are optional but mutually exclusive. Sending both, an empty cursor, a non-canonical cursor, or `page` returns `400 INVALID_CURSOR`. A client may change `limit` between windows.
 
-Ensure pagination queries are fast with proper indexes:
+The first window performs one `service.getMany(...)` query with `take = limit + 1`. A request containing a cursor performs that window query and exactly one opposite-direction `take: 1` probe. No cursor rows, read model, provider, extra service, or signing keys are required.
+
+The HTTP route remains a generated GET_LIST route, so route authorization still uses the existing GET_LIST action and `onBeforeGetList` policy hook. Only the service/function lifecycle uses GET_MANY for each window or probe.
+
+For one CURSOR HTTP request, Automator runs the GET_MANY BEFORE subscriber chain exactly once against a detached copy of the base options. It captures only the candidate `where` and `withDeleted` decision and reuses that same snapshot for the main window and the opposite probe. Candidate predicates are AND-merged with the mandatory query/path/IAM scope and the framework's cursor-window predicate; executable or unstable candidates such as `Raw(...)` and function-backed values fail before either query.
+
+The framework owns each generated window predicate, `order`, and `take`. It also forces an own `cache: false`, shadows `select` and `skip`, and does not permit subscriber `join` or `lock` options. GET_MANY AFTER subscribers still run for each actual query and may redact unrelated fields, but changing item cardinality, sequence, or the raw primary/order tuple fails closed. Later route, authorization, relation, DTO, and serialization work must also preserve the exact flat envelope, both cursors, and protected tuples. Direct `service.getMany(...)` calls do not use this generated-route contract: their BEFORE subscribers run per call and retain the ordinary option/result replacement behavior.
+
+Generated mandatory reads set `cache: false` even when cache configuration is inherited, supplied by a subscriber, or globally enabled. One TypeORM combination cannot honor that guarantee: requested `relations` with an effective `relationLoadStrategy: "query"` while the data source query cache has `alwaysEnabled: true`. Automator rejects that combination before repository I/O; use join relation loading or disable the global always-on query cache.
+
+### Token Context And Authorization
+
+Cursor tokens are strict canonical, unsigned Base64URL values. They contain a version, a context hash, and the typed effective-order values. The context binds:
+
+- generated route;
+- inherited path values such as `brandId`;
+- normalized query-plan signature;
+- normalized actual filter AST, including applied static defaults;
+- effective default or client order plus tie-breakers.
+
+It intentionally excludes `limit` and HOOKS/IAM scope. Path scope, filters, and current HOOKS/IAM authorization are recalculated and AND-merged on every request, including the opposite probe. A token is a navigation position, not an authorization credential.
+
+The token is reversible and contains the typed effective-order values. Automator therefore accepts only potential order/tie fields that are already selected and unconditionally raw-exposed in the GET_LIST response; do not treat cursor contents as secret.
+
+### Protected Order Values
+
+Every potential default, client-selected, or tie-breaker field must survive the database, entity, and response pipelines as the same exact raw scalar value. CURSOR therefore requires a selected, persisted, non-null direct column with compatible `ApiPropertyDescribe` metadata and rejects TypeORM value transformers, array values, and accessor-backed fields. It also rejects entity `@AfterLoad` listeners at bootstrap and fails before query I/O when an active TypeORM subscriber with `afterLoad` can apply to the cursor entity. These hooks could otherwise rewrite a protected tuple after the database comparison. Automator snapshots each active subscriber's `listenTo()` target once; subscriber implementations are trusted TypeORM extension code, so `listenTo()` must be deterministic.
+
+CURSOR v1 deliberately supports only PostgreSQL with the standard text result parsers. The complete supported order-storage matrix is:
+
+- PostgreSQL `boolean` exposed as JavaScript `boolean`;
+- signed PostgreSQL `smallint` and `integer` TypeORM declarations exposed as safe JavaScript integers, including increment-generated columns whose DDL uses `SMALLSERIAL` or `SERIAL`;
+- numeric TypeScript enums backed by PostgreSQL `smallint` or `integer`;
+- signed PostgreSQL `bigint` TypeORM declarations exposed as canonical decimal `BIGINT_STRING` without conversion through `Number`, including increment-generated columns whose DDL uses `BIGSERIAL`;
+- native PostgreSQL `uuid` exposed as a canonical UUID string.
+
+`smallserial`, `serial`, and `bigserial` are PostgreSQL DDL forms, not TypeORM column type literals. Declare increment generation over the corresponding supported `smallint`, `integer`, or `bigint` type.
+
+PostgreSQL binary mode, custom `extra.types` parser configuration, every other PostgreSQL storage type, and every other database driver fail closed before CURSOR query I/O. This restriction applies only to protected CURSOR order/tie-breaker fields. It does not change PAGE behavior or PAGE's existing driver support.
+
+A cursor is an opaque seek boundary, not ordinary request-field input. `ApiPropertyDescribe` still proves the primitive wire category and raw response exposure, but request-only minimum/maximum, length, pattern, and `multipleOf` constraints do not restrict the boundary. Generated tokens and incoming tokens are capped at 8,192 Base64URL characters, and bootstrap rejects a physical order tuple whose worst-case encoding cannot fit that bound.
+
+Custom item DTOs must declare protected fields under the same names with compatible Automator response decorators. Accessor aliases, `toPlainOnly` transforms, response transformers, authorization transforms, or subscribers may change unrelated fields but cannot conceal or rewrite the protected tuple.
+
+## Filters And Client Sorting
+
+Both modes use the same generated filters and optional paired `orderBy`/`orderDirection` input. In cursor mode, changing filters or effective order invalidates an earlier token:
+
+```http
+GET /brands/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/games?limit=20&orderBy=position&orderDirection=desc
+GET /brands/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/games?limit=20&after=<cursor>&orderBy=position&orderDirection=desc
+```
+
+If the client supplies the pair, it replaces `defaultOrder`; server `tieBreakers` are still appended. Duplicate fields retain the earlier occurrence.
+
+When `order.fields` enables no client fields, the generated CURSOR query DTO and OpenAPI schema omit `orderBy` and `orderDirection`, requests containing either control are rejected, and the server default/tie-breaker order remains fixed. The broad TypeScript query helper remains entity-shaped like its PAGE counterpart; generated route metadata is the exact per-route request contract.
+
+## Choosing A Mode
+
+Use PAGE when the UI needs page numbers, random access, or totals. Use CURSOR for next/previous navigation, feeds, and large ordered collections where avoiding large offsets is useful. Cursor mode cannot jump to an arbitrary page because it navigates from a known order position.
+
+For either mode, add a database index matching the common effective order and scope/filter prefix. For example:
 
 ```typescript
-@Entity("users")
-@Index(["createdAt", "id"]) // Matches defaultOrder + tieBreakers
-export class UserEntity {
-	@PrimaryGeneratedColumn("uuid")
-	id: string;
+@Entity("games")
+@Index(["brandId", "position", "id"])
+export class GameEntity {
+	@PrimaryColumn("uuid")
+	@ApiPropertyDescribe({ type: EApiPropertyDescribeType.UUID })
+	id!: string;
 
-	@Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
-	createdAt: Date;
+	@Column({ type: "uuid" })
+	@ApiPropertyDescribe({ type: EApiPropertyDescribeType.UUID })
+	brandId!: string;
+
+	@Column({ nullable: false, type: "varchar" })
+	@ApiPropertyDescribe({
+		description: "Game name",
+		exampleValue: "Example Game",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 200,
+		minLength: 1,
+		pattern: "/^.+$/",
+		type: EApiPropertyDescribeType.STRING,
+	})
+	name!: string;
+
+	@Column({ nullable: false, type: "integer" })
+	@ApiPropertyDescribe({
+		format: EApiPropertyNumberType.INTEGER,
+		type: EApiPropertyDescribeType.NUMBER,
+	})
+	position!: number;
+
+	@Column({ default: false, nullable: false, type: "boolean" })
+	@ApiPropertyDescribe({ type: EApiPropertyDescribeType.BOOLEAN })
+	isFeatured!: boolean;
 }
 ```
 
 ## Empty Results
 
-Handle empty result sets gracefully:
+Page mode returns its ordinary zero-count envelope. Cursor mode keeps all three fields present:
 
-```typescript
+```json
 {
-  "count": 0,
-  "currentPage": 0,
-  "items": [],
-  "totalCount": 0,
-  "totalPages": 0
+	"items": [],
+	"nextCursor": null,
+	"previousCursor": null
 }
 ```
 
+At an empty cursor edge, the cursor pointing back toward an existing window remains available while the exhausted direction is `null`.
+
 ## Next Steps
 
-- [Filtering and Sorting](/docs/nestjs-crud-automator/guides/filtering-and-sorting) - Filter paginated results
-- [Relations](/docs/nestjs-crud-automator/guides/relations) - Paginate with related entities
-- [Core Concepts - DTOs](/docs/nestjs-crud-automator/core-concepts/dtos) - Pagination DTO structure
+- [Filtering and Sorting](/docs/nestjs-crud-automator/guides/filtering-and-sorting) - Filter and order list windows
+- [Authorization](/docs/nestjs-crud-automator/guides/authorization) - Apply current request scope
+- [Relations](/docs/nestjs-crud-automator/guides/relations) - Load related entities in list responses

@@ -194,10 +194,10 @@ describe("public generated read type contract", () => {
 		};
 		const queryTransformerRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = {
 			request: {
+				// @ts-expect-error -- Aliased string transformer keys are scoped to inherited PARAMETERS.
 				[EApiControllerRequestTarget.QUERY]: {
 					transformers: [
 						{
-							// @ts-expect-error -- Aliased string transformer keys are scoped to inherited PARAMETERS.
 							key: "ownerAlias",
 							type: EApiControllerRequestTransformerType.STATIC,
 							value: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -483,8 +483,8 @@ describe("public generated read type contract", () => {
 	it("rejects relation and nested paths in compound server order", () => {
 		const relationDefaultRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = {
 			request: {
+				// @ts-expect-error -- Compound server default order accepts only direct scalar fields.
 				[EApiControllerRequestTarget.QUERY]: {
-					// @ts-expect-error -- Compound server default order accepts only direct scalar fields.
 					order: {
 						defaultOrder: [
 							{
@@ -500,8 +500,8 @@ describe("public generated read type contract", () => {
 		};
 		const nestedTieBreakerRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = {
 			request: {
+				// @ts-expect-error -- Compound server tie-breakers reject nested paths.
 				[EApiControllerRequestTarget.QUERY]: {
-					// @ts-expect-error -- Compound server tie-breakers reject nested paths.
 					order: {
 						fields: {},
 						tieBreakers: [

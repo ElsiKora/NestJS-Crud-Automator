@@ -1,4 +1,4 @@
-import type { EApiRouteSubscriberAuthorizationExpectation } from "@enum/decorator/api";
+import type { EApiControllerGetListQueryPaginationMode, EApiRouteSubscriberAuthorizationExpectation } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.interface";
 
@@ -9,4 +9,4 @@ import { ApiSubscriberBase } from "@class/api/subscriber/base.class";
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/classes#apiroutesubscriberbase | API Reference - ApiRouteSubscriberBase}
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/subscriber-system/route-subscribers | Subscriber System - Route Subscribers}
  */
-export abstract class ApiRouteSubscriberBase<E extends IApiBaseEntity, TAuthorizationExpectation extends EApiRouteSubscriberAuthorizationExpectation = EApiRouteSubscriberAuthorizationExpectation.OPTIONAL> extends ApiSubscriberBase implements IApiSubscriberRoute<E, TAuthorizationExpectation> {}
+export abstract class ApiRouteSubscriberBase<E extends IApiBaseEntity, TAuthorizationExpectation extends EApiRouteSubscriberAuthorizationExpectation = EApiRouteSubscriberAuthorizationExpectation.OPTIONAL, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> extends ApiSubscriberBase implements IApiSubscriberRoute<E, TAuthorizationExpectation, M> {}

@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiAuthorizationScope, IApiPolicyStatement } from "@interface/class/api/authorization";
 import type { FindOptionsWhere } from "typeorm";
@@ -9,7 +10,7 @@ const iamQueryPlannerLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthori
 
 @Injectable()
 export class ApiAuthorizationIamQueryPlanner {
-	public plan<E extends IApiBaseEntity>(options: { principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E>; statements: ReadonlyArray<IApiPolicyStatement> }): { isFullyCompilable: boolean; scope?: IApiAuthorizationScope<E> } {
+	public plan<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(options: { principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E>; statements: ReadonlyArray<IApiPolicyStatement> }): { isFullyCompilable: boolean; scope?: IApiAuthorizationScope<E> } {
 		iamQueryPlannerLogger.verbose(`Planning IAM query scope for resource type "${options.resourceDefinition.resourceType}" using ${options.statements.length} statements.`);
 
 		const branches: Array<FindOptionsWhere<E>> = [];
@@ -82,7 +83,7 @@ export class ApiAuthorizationIamQueryPlanner {
 		currentValue[lastSegment] = value;
 	}
 
-	private compileStatementWhere<E extends IApiBaseEntity>(options: { condition?: Record<string, Record<string, unknown>>; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E> }): { isCompilable: boolean; where?: FindOptionsWhere<E> } {
+	private compileStatementWhere<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: { condition?: Record<string, Record<string, unknown>>; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E> }): { isCompilable: boolean; where?: FindOptionsWhere<E> } {
 		if (!options.condition) {
 			return {
 				isCompilable: true,

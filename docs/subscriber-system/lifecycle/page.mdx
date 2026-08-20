@@ -91,21 +91,20 @@ When `read.scope.parameters` is configured, its generated PARAMETERS DTO covers 
 5. A configured typed query plan parses and validates the post-subscriber query into a canonical AST and applies `USE_DEFAULT` conditions when field groups are absent
 6. Resolve the configured generated-route transaction mode
 7. Inside the optional route transaction, query predicates are AND-merged with path scope and then HOOKS/IAM scope
-8. Page/limit and the effective client/default order plus de-duplicated tie-breakers are compiled into TypeORM options
-9. Service method: getList() called with configured response relation loading
-10. Function subscribers: onBeforeGetList (priority: high → low)
-11. Repository: find() and count() executed
-12. Function subscribers: onAfterGetList (priority: high → low)
-13. Service returns result with pagination metadata
-14. Commit and post-commit lifecycle when the route owns the transaction
-15. Controller transformers (response)
-16. Route subscribers: onAfterGetList (priority: high → low)
-17. Authorization result transforms
-18. Relation projection and DTO serialization
-19. HTTP Response sent to client
+8. Pagination mode and the effective client/default order plus de-duplicated tie-breakers are compiled into TypeORM options
+9. PAGE calls getList(), dispatches GET_LIST function subscribers, and runs find/count; CURSOR evaluates one GET_MANY BEFORE chain, reuses its candidate `where`/`withDeleted`, then calls getMany() for one `limit + 1` window and, when a cursor is present, one opposite `take: 1` probe; GET_MANY AFTER subscribers run for each actual query
+10. The generated route returns the PAGE count envelope or constructs the flat CURSOR envelope
+11. Commit and post-commit lifecycle when the route owns the transaction
+12. Controller transformers (response)
+13. Route subscribers: onAfterGetList (priority: high → low)
+14. Authorization result transforms
+15. Relation projection and DTO serialization
+16. HTTP Response sent to client
 ```
 
-The typed query parser is authoritative and does not depend on host `ValidationPipe` whitelist behavior. If the route omits typed filter/order configuration, the corresponding legacy metadata-driven parsing behavior remains unchanged. A configured read scope uses a generated PARAMETERS DTO and cannot be combined with a manual PARAMETERS DTO. With no client order pair, `defaultOrder` precedes `tieBreakers`; with a client pair, it replaces defaults and still precedes de-duplicated tie-breakers. A unique final tie-breaker makes page/limit ordering deterministic for an unchanged dataset.
+The typed query parser is authoritative and does not depend on host `ValidationPipe` whitelist behavior. If a PAGE route omits typed filter/order configuration, the corresponding legacy metadata-driven parsing behavior remains unchanged. A configured read scope uses a generated PARAMETERS DTO and cannot be combined with a manual PARAMETERS DTO. With no client order pair, `defaultOrder` precedes `tieBreakers`; with a client pair, it replaces defaults and still precedes de-duplicated tie-breakers. CURSOR requires the sole primary column only as its final explicit tie-breaker, and both its window and probe keep query, path, and recalculated HOOKS/IAM predicates.
+
+CURSOR does not introduce a second route authorization action: the route still runs the existing GET_LIST policy/`onBeforeGetList` hook. Its generated service execution runs GET_MANY BEFORE once per HTTP request, then reuses the detached candidate `where` and `withDeleted` for both queries. It re-protects mandatory scope/window predicates and framework-owned `order`/`take`, forces `cache: false`, shadows `select`/`skip`, and fails closed if later function, route, authorization, relation, or serialization work changes the protected row sequence/raw order tuple or flat cursor envelope. Direct GET_MANY service calls are unchanged and continue to run their ordinary subscriber lifecycle per call.
 
 ### Delete Operation
 

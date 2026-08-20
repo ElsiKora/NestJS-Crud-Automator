@@ -17,7 +17,7 @@ This library provides a comprehensive suite of decorators, utilities, and valida
 - Data transformation with class-transformer
 - Type-safe decorators for entity properties
 - Authentication and authorization guards integration
-- Advanced filtering, sorting, and pagination
+- Advanced filtering, sorting, and generated PAGE/CURSOR pagination
 - Generated GET primary-identity aliases and nested GET/GET_LIST owner scoping with deterministic server ordering
 - Support for object relations with include-driven loading
 - Subscriber system for intercepting and extending business logic
@@ -33,4 +33,4 @@ This library provides a comprehensive suite of decorators, utilities, and valida
 
 ## Current Source Contract
 
-Version `3.0.2` is the published baseline before the current generated-route work. The source includes an intentional breaking capability boundary for generated service calls and therefore requires a new major release; package versions remain owned by release automation. Review [Migrating to 4.0](/docs/nestjs-crud-automator/guides/migrating-to-4-0) before adopting the current source.
+Version `3.0.2` is the published baseline before the current generated-route work. The source includes an intentional breaking capability boundary for generated service calls and therefore requires a new major release; package versions remain owned by release automation. PAGE compatibility remains the default, while CURSOR is opt-in. Review [Migrating to 4.0](/docs/nestjs-crud-automator/guides/migrating-to-4-0) before adopting the current source.

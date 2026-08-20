@@ -60,7 +60,7 @@ Generated CREATE, UPDATE, and PARTIAL_UPDATE bodies always omit server-owned dat
 
 ### Query DTOs
 
-Used for filtering and pagination in GET_LIST operations:
+Used for filtering, sorting, and PAGE/CURSOR pagination in GET_LIST operations. PAGE remains the default:
 
 ```typescript
 // Generated GetListQueryDto structure
@@ -81,16 +81,18 @@ Example usage:
 GET /users?limit=10&page=1&username[operator]=cont&username[value]=john&orderBy=createdAt&orderDirection=desc
 ```
 
-GET_LIST query DTOs remain dynamically generated from entity metadata. Optional route `request[EApiControllerRequestTarget.QUERY].filter` and `order` configuration narrows or overlays that metadata; it does not replace generation with a hand-written DTO. Automator compiles a normalized immutable plan and uses it for:
+CURSOR mode replaces `page` with optional mutually exclusive `after`/`before` while keeping `limit` and filters. The optional paired `orderBy`/`orderDirection` controls are present only when `order.fields` enables at least one client-order field.
+
+GET_LIST query DTOs remain dynamically generated from entity metadata. Optional route `request[EApiControllerRequestTarget.QUERY].filter`, `order`, and `pagination` configuration narrows or overlays that metadata and selects the envelope; it does not replace generation with a hand-written DTO. Automator compiles a normalized immutable plan and uses it for:
 
 - The runtime query DTO and strict query parser.
 - Controller- and plan-scoped DTO cache identity.
 - OpenAPI deep-object `oneOf` filter branches.
 - Typed TypeORM filter values and the direct-scalar order allowlist.
 
-Omitting either section preserves its legacy metadata-driven behavior. A route plan cannot re-enable a field disabled by entity query metadata, and response visibility does not grant query exposure.
+Omitting `filter` or `order` preserves that section's legacy metadata-driven behavior in PAGE mode; omitting `pagination` selects PAGE. A route plan cannot re-enable a field disabled by entity query metadata, and response visibility does not grant query exposure.
 
-`limit` and `page` are required integers from 1 through 100. Runtime maps them to TypeORM `take` and `skip`. For a stable page boundary, route order configuration may add `defaultOrder` and `tieBreakers`; these are server-owned direct-scalar entries and do not need to be exposed by the generated `orderBy` enum. A client order pair replaces the defaults, then tie-breakers are appended and duplicate fields are removed.
+PAGE requires `limit` and `page` integers from 1 through 100 and maps them to TypeORM `take` and `skip`. CURSOR requires `limit`, rejects `page`, and generates the flat `{ items, nextCursor, previousCursor }` response. Its explicit order must end with the sole primary column as a server-only tie-breaker, and all possible order fields must be described non-null direct scalars from the PostgreSQL-only v1 storage matrix in [Pagination](/docs/nestjs-crud-automator/guides/pagination). A client order pair replaces the defaults in either mode, then tie-breakers are appended and duplicate fields are removed. PAGE is unchanged.
 
 ### Read PARAMETERS DTOs
 
@@ -287,14 +289,14 @@ Use in controller:
 
 Manual DTOs can also be nested inside auto-generated DTOs through `@ApiPropertyObject`. When this happens, NestJS CRUD Automator creates context-specific wrapper schemas for each generated path, so the same manual DTO can be reused safely in create body DTOs, update body DTOs, and response DTOs without sharing conflicting Swagger or serialization metadata.
 
-For GET_LIST, a manual `dto[EApiDtoType.QUERY]` and generated `request[QUERY].filter` or `order` configuration are mutually exclusive. For generated GET/GET_LIST read scope, a manual `dto[EApiDtoType.PARAMETERS]` and `read.scope.parameters` are likewise mutually exclusive. Manual response DTOs remain compatible with both generated plans.
+For GET_LIST, a manual `dto[EApiDtoType.QUERY]` and generated `request[QUERY].filter`, `order`, or `pagination` configuration are mutually exclusive. For generated GET/GET_LIST read scope, a manual `dto[EApiDtoType.PARAMETERS]` and `read.scope.parameters` are likewise mutually exclusive. Manual response DTOs remain compatible with both generated plans.
 
 ### Custom GET_LIST item DTOs
 
 `GET_LIST` response DTOs support two explicit modes:
 
 - Full wrapper mode: `dto[EApiDtoType.RESPONSE]` is a class that describes the whole list response.
-- Item DTO mode: `dto[EApiDtoType.RESPONSE]` is `{ itemType }`, and the framework generates the list wrapper.
+- Item DTO mode: `dto[EApiDtoType.RESPONSE]` is `{ itemType }`, and the framework generates the PAGE count wrapper or CURSOR flat wrapper selected by the route plan.
 
 Use item DTO mode when a route only needs custom serialization for each item:
 
@@ -323,7 +325,9 @@ class PublicUserResponseDto {
 export class UserController {}
 ```
 
-Both modes use the same runtime list result shape: `count`, `currentPage`, `items`, `totalCount`, and `totalPages`.
+The wrapper follows the route pagination plan. PAGE uses `count`, `currentPage`, `items`, `totalCount`, and `totalPages`; CURSOR uses exactly `items`, `nextCursor`, and `previousCursor`.
+
+The example above is PAGE because it omits pagination configuration. In CURSOR mode, a custom item DTO must use compatible Automator response metadata to prove every protected order/primary field under the same name; a custom full wrapper must additionally prove the exact three-field flat envelope. A class-transformer-only item such as the abbreviated PAGE example is not sufficient proof for CURSOR.
 
 ## DTO Validation
 

@@ -187,6 +187,20 @@ async onAfterGetList(
 }
 ```
 
+The default remains PAGE. A subscriber dedicated to CURSOR routes declares the mode on the base class and context helper:
+
+```typescript
+export class PostCursorAuditSubscriber extends ApiRouteSubscriberBase<PostEntity, EApiRouteSubscriberAuthorizationExpectation.OPTIONAL, EApiControllerGetListQueryPaginationMode.CURSOR> {
+	async onAfterGetList(context: TApiSubscriberRouteAfterGetListContext<PostEntity, EApiControllerGetListQueryPaginationMode.CURSOR>): Promise<IApiGetListCursorResponseResult<PostEntity> | undefined> {
+		console.log(context.result.nextCursor, context.DATA.query?.after);
+
+		return context.result;
+	}
+}
+```
+
+Generated CURSOR calls allow unrelated item redaction, but route subscribers must preserve the flat envelope, both cursors, item cardinality/order, and every raw effective-order/primary tuple. Violations fail closed before the response is emitted.
+
 ### Error Hooks
 
 Called when an operation fails:

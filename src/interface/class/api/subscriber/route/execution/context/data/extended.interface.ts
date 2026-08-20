@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiSubscriberRouteExecutionContextData } from "@interface/class/api/subscriber/route/execution/context/data/interface";
@@ -9,7 +10,7 @@ import type { DeepPartial } from "typeorm";
  * Extended data container for route subscriber execution context.
  * Includes request context in addition to base route data.
  */
-export interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R = TApiAuthorizationRuleTransformPayload<E>> extends IApiSubscriberRouteExecutionContextData<E, R> {
+export interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R = TApiAuthorizationRuleTransformPayload<E>, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> extends IApiSubscriberRouteExecutionContextData<E, R> {
 	/**
 	 * Authentication request information.
 	 */
@@ -38,5 +39,5 @@ export interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiB
 	/**
 	 * Query payload for get list routes.
 	 */
-	query?: TApiControllerGetListQuery<E>;
+	query?: TApiControllerGetListQuery<E, M>;
 }

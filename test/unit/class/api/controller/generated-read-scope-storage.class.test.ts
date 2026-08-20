@@ -1,4 +1,5 @@
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
+import { ApiControllerGeneratedGetManyContract } from "@class/api/controller/generated/get-many-contract.class";
 import { EApiFunctionType } from "@enum/decorator/api";
 import type { FindManyOptions, FindOneOptions } from "typeorm";
 
@@ -69,7 +70,7 @@ describe("ApiControllerGeneratedReadScopeStorage", () => {
 		).rejects.toBe(serviceError);
 	});
 
-	it("bypasses explicit, inherited, and globally enabled query caches for mandatory GET and PAGE reads", async () => {
+	it("bypasses explicit, inherited, and globally enabled query caches for every mandatory generated read", async () => {
 		const dataSource = new DataSource({
 			cache: {
 				alwaysEnabled: true,
@@ -88,17 +89,21 @@ describe("ApiControllerGeneratedReadScopeStorage", () => {
 			const requiredWhere = { tenantId: "tenant-a" };
 			const getOptions: FindOneOptions<GeneratedReadScopeEntity> = { where: { id: "get-item", ...requiredWhere } };
 			const listOptions: FindManyOptions<GeneratedReadScopeEntity> = { order: { id: "ASC" }, where: requiredWhere };
+			const cursorOptions: FindManyOptions<GeneratedReadScopeEntity> = { order: { id: "ASC" }, take: 2, where: requiredWhere };
 
 			await repository.save([
+				{ id: "cursor-item", tenantId: "tenant-a" },
 				{ id: "get-item", tenantId: "tenant-a" },
 				{ id: "page-item", tenantId: "tenant-a" },
 			]);
 			await repository.findOne(getOptions);
 			await repository.findAndCount(listOptions);
+			await repository.find(cursorOptions);
 			await dataSource.query('UPDATE "generated_read_scope_cache" SET "tenantId" = ?', ["tenant-b"]);
 
 			expect(await repository.findOne(getOptions)).toMatchObject({ id: "get-item", tenantId: "tenant-a" });
-			expect((await repository.findAndCount(listOptions))[0]).toHaveLength(2);
+			expect((await repository.findAndCount(listOptions))[0]).toHaveLength(3);
+			expect(await repository.find(cursorOptions)).toHaveLength(2);
 
 			const inheritedCacheGetter = (): never => {
 				throw new Error("inherited cache accessor must not run");
@@ -129,9 +134,19 @@ describe("ApiControllerGeneratedReadScopeStorage", () => {
 
 				return repository.findAndCount(properties);
 			});
+			const protectedCursor = await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET_MANY, cursorOptions, cursorOptions.where!, async () => {
+				const mandatoryWhere = ApiControllerGeneratedReadScopeStorage.claim<GeneratedReadScopeEntity>(EApiFunctionType.GET_MANY, cursorOptions)!;
+				const readProperties = ApiControllerGeneratedReadScopeStorage.protect(createSubscriberOptions(cursorOptions), mandatoryWhere);
+				const properties = ApiControllerGeneratedGetManyContract.protect(readProperties, ApiControllerGeneratedGetManyContract.createSnapshot(cursorOptions));
+
+				expect(properties.cache).toBe(false);
+
+				return repository.find(properties);
+			});
 
 			expect(protectedGet).toBeNull();
 			expect(protectedPage).toEqual([[], 0]);
+			expect(protectedCursor).toEqual([]);
 		} finally {
 			await dataSource.destroy();
 		}

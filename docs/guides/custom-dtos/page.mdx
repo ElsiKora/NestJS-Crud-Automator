@@ -88,9 +88,11 @@ Use item DTO mode when the framework should own the list wrapper and the app sho
 })
 ```
 
-The `name` field is optional and controls the generated Swagger schema name. Without it, the framework derives a stable name from the entity, route, DTO type, and item DTO class name.
+The `name` field is optional and controls the generated Swagger schema name. Without it, the framework derives a stable name from the entity, route, DTO type, item DTO class name, and pagination mode. PAGE wraps items in the count envelope. A route that selects CURSOR uses `{ items, nextCursor, previousCursor }` only when the item or full-wrapper DTO satisfies the additional proof below.
 
-A manual GET_LIST response DTO in either mode remains compatible with generated `request[EApiControllerRequestTarget.QUERY].filter` and `order` plans. A manual `dto[EApiDtoType.QUERY]` is mutually exclusive with those generated query sections because the normalized plan owns the runtime DTO, strict parser, and OpenAPI contract.
+A manual GET_LIST response DTO in either mode remains compatible with generated `request[EApiControllerRequestTarget.QUERY].filter`, `order`, and `pagination` plans. A manual `dto[EApiDtoType.QUERY]` is mutually exclusive with those generated query sections because the normalized plan owns the runtime DTO, strict parser, and OpenAPI contract.
+
+CURSOR additionally proves that every possible order field and final primary tie-breaker remains visible in the wire response. An `{ itemType }` DTO must declare each protected field under the same name with the compatible Automator `ApiProperty*` decorator, `isResponse: true`, `isRequired: true`, non-null scalar shape, and no accessor. A full wrapper DTO must prove exactly `items`, `nextCursor`, and `previousCursor` through the same Automator metadata. Aliases and `toPlainOnly` transforms that change protected values are rejected before a response is emitted; unrelated fields may still be hidden or transformed. PAGE custom DTO behavior is unchanged.
 
 ## Creating Custom Request DTOs
 

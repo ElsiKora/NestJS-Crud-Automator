@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
@@ -32,7 +33,16 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @throws {Error} If the method type is not implemented
  * @template E - The entity type
  */
-export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMethod: TApiControllerMethodMap<E>[typeof method], entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>, queryPlan?: IApiControllerGetListQueryPlan): void {
+export function ApiControllerApplyDecorators<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(
+	targetMethod: TApiControllerMethodMap<E, M>[typeof method],
+	entity: IApiEntity<E>,
+	properties: IApiControllerProperties<E>,
+	method: EApiRouteType,
+	methodName: string,
+	routeConfig: TApiControllerPropertiesRoute<E, typeof method>,
+	decorators: Array<MethodDecorator> | Array<PropertyDecorator>,
+	queryPlan?: IApiControllerGetListQueryPlan,
+): void {
 	ApiControllerReadPlanAssert(routeConfig);
 
 	ApiControllerApplyDecoratorsWithIdentityPlan(targetMethod, entity, properties, method, methodName, routeConfig, decorators, queryPlan);
@@ -52,7 +62,17 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity>(targetMet
  * @param {IApiControllerIdentityPlan} [identityPlan] - Internal compiled GET identity alias plan.
  * @returns {void}
  */
-export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseEntity>(targetMethod: TApiControllerMethodMap<E>[typeof method], entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, decorators: Array<MethodDecorator> | Array<PropertyDecorator>, queryPlan?: IApiControllerGetListQueryPlan, identityPlan?: IApiControllerIdentityPlan): void {
+export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(
+	targetMethod: TApiControllerMethodMap<E, M>[typeof method],
+	entity: IApiEntity<E>,
+	properties: IApiControllerProperties<E>,
+	method: EApiRouteType,
+	methodName: string,
+	routeConfig: TApiControllerPropertiesRoute<E, typeof method>,
+	decorators: Array<MethodDecorator> | Array<PropertyDecorator>,
+	queryPlan?: IApiControllerGetListQueryPlan,
+	identityPlan?: IApiControllerIdentityPlan,
+): void {
 	const responseDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.RESPONSE, routeConfig, queryPlan, undefined, identityPlan);
 	const customDecorators: Array<MethodDecorator> = [...decorators];
 

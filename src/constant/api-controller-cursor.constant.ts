@@ -1,0 +1,1 @@
+export const API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH: number = 8192;

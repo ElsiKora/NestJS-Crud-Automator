@@ -1,6 +1,7 @@
 import "reflect-metadata";
 
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { ClassConstructor } from "class-transformer";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
@@ -15,7 +16,7 @@ import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { instanceToPlain, plainToInstance } from "class-transformer";
-import { validateSync } from "class-validator";
+import { getMetadataStorage, validateSync } from "class-validator";
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
@@ -397,7 +398,17 @@ describe("DtoGenerate", () => {
 		expect(responseDto?.name).toBe("DtoEntityGetListResponseItemsDTO");
 
 		const queryInstance = queryDto ? (new queryDto() as Record<string, unknown>) : undefined;
+		const querySwaggerProperties: ReadonlyArray<string> | undefined = queryDto ? Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES_ARRAY, queryDto.prototype) : undefined;
+		const queryValidationProperties: ReadonlyArray<string> = queryDto
+			? getMetadataStorage()
+					.getTargetValidationMetadatas(queryDto, "", true, false)
+					.map((metadata): string => metadata.propertyName)
+			: [];
 		expect(queryInstance).toBeDefined();
+		expect(Object.getOwnPropertyDescriptor(queryInstance, "page")).toMatchObject({ enumerable: true, value: undefined, writable: true });
+		expect(Object.keys(queryInstance ?? {}).slice(0, 4)).toEqual(["limit", "orderBy", "orderDirection", "page"]);
+		expect(querySwaggerProperties?.slice(0, 4)).toEqual([":limit", ":orderBy", ":orderDirection", ":page"]);
+		expect(queryValidationProperties.indexOf("object")).toBeLessThan(queryValidationProperties.indexOf("page"));
 		expect(queryInstance && "name[value]" in queryInstance).toBe(true);
 		expect(queryInstance && "name[operator]" in queryInstance).toBe(true);
 		expect(queryInstance && "owner[value]" in queryInstance).toBe(false);
@@ -430,6 +441,27 @@ describe("DtoGenerate", () => {
 		const invalidQueryErrors = invalidQuery ? validateSync(invalidQuery as object) : [];
 
 		expect(invalidQueryErrors.some((error) => error.property === "owner.id[operator]")).toBe(true);
+	});
+
+	it("preserves PAGE response constructor identity isolation across query plans", () => {
+		const entityMetadata = GenerateEntityInformation<DtoEntity>(DtoEntity as unknown as IApiBaseEntity);
+		const firstPlan: IApiControllerGetListQueryPlan = {
+			controllerName: "FirstPageController",
+			filter: { fields: {}, isLegacy: false },
+			order: { fields: {}, isLegacy: false },
+			schemaName: "FirstPageQueryDTO",
+			signature: "first-page-plan",
+		};
+		const secondPlan: IApiControllerGetListQueryPlan = {
+			...firstPlan,
+			controllerName: "SecondPageController",
+			schemaName: "SecondPageQueryDTO",
+			signature: "second-page-plan",
+		};
+		const firstResponse = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, undefined, undefined, firstPlan);
+		const secondResponse = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, undefined, undefined, secondPlan);
+
+		expect(firstResponse).not.toBe(secondResponse);
 	});
 
 	it("uses semantic timestamp identifiers for generated write DTO ownership", async () => {

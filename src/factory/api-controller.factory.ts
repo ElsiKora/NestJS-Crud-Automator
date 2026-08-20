@@ -1,12 +1,13 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
-import type { IApiControllerProperties, IApiGetListResponseResult } from "@interface/decorator/api";
+import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { TApiControllerMethod } from "@type/class";
-import type { TApiControllerGetListQuery, TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
+import type { TApiControllerGetListQuery, TApiControllerGetListResponse, TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { TApiControllerMethodMap, TApiControllerMethodName, TApiControllerMethodNameMap, TApiControllerTargetMethod } from "@type/factory/api/controller";
 import type { DeepPartial } from "typeorm";
 
@@ -28,7 +29,7 @@ import { ApiControllerWriteDtoSwaggerWithReadPlan } from "@utility/api/controlle
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
-export class ApiControllerFactory<E extends IApiBaseEntity> {
+export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> {
 	protected get targetPrototype(): InstanceType<typeof this.target> {
 		return this.target.prototype as InstanceType<typeof this.target>;
 	}
@@ -36,7 +37,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 	private readonly ENTITY!: IApiEntity<E>;
 
 	constructor(
-		protected target: TApiControllerTargetMethod<E>,
+		protected target: TApiControllerTargetMethod<E, M>,
 		private readonly properties: IApiControllerProperties<E>,
 	) {
 		this.ENTITY = GenerateEntityInformation<E>(properties.entity);
@@ -75,7 +76,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 				}
 			}
 
-			const targetMethod: TApiControllerMethodMap<E>[typeof method] = this.targetPrototype[methodName] as TApiControllerMethodMap<E>[typeof method];
+			const targetMethod: TApiControllerMethodMap<E, M>[typeof method] = this.targetPrototype[methodName] as TApiControllerMethodMap<E, M>[typeof method];
 
 			if (identityPlan) {
 				ApiControllerIdentityPlanSet(targetMethod, identityPlan);
@@ -132,29 +133,29 @@ export class ApiControllerFactory<E extends IApiBaseEntity> {
 
 		if (readPlan) {
 			this.targetPrototype[methodName] = Object.defineProperty(
-				async function (this: TApiControllerMethod<E>, parameters: Partial<E>, query: TApiControllerGetListQuery<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<IApiGetListResponseResult<E>> {
+				async function (this: TApiControllerMethod<E>, parameters: Partial<E>, query: TApiControllerGetListQuery<E, M>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<TApiControllerGetListResponse<E, M>> {
 					const requestQueryValue: unknown = authenticationRequest && "query" in authenticationRequest ? authenticationRequest.query : undefined;
-					const requestQuery: TApiControllerGetListQuery<E> | undefined = requestQueryValue && typeof requestQueryValue === "object" && !Array.isArray(requestQueryValue) ? (requestQueryValue as TApiControllerGetListQuery<E>) : undefined;
+					const requestQuery: TApiControllerGetListQuery<E, M> | undefined = requestQueryValue && typeof requestQueryValue === "object" && !Array.isArray(requestQueryValue) ? (requestQueryValue as TApiControllerGetListQuery<E, M>) : undefined;
 					const queryPlan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanGet(Object.getPrototypeOf(this) as object, methodName);
-					const runtimeQuery: TApiControllerGetListQuery<E> = queryPlan && !queryPlan.filter.isLegacy && requestQuery ? requestQuery : query;
+					const runtimeQuery: TApiControllerGetListQuery<E, M> = queryPlan && !queryPlan.filter.isLegacy && requestQuery ? requestQuery : query;
 
-					return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, targets: { authenticationRequest, headers, ip, parameters, query: runtimeQuery } })) as IApiGetListResponseResult<E>;
+					return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, targets: { authenticationRequest, headers, ip, parameters, query: runtimeQuery as TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> } })) as TApiControllerGetListResponse<E, M>;
 				},
 				"name",
 				{ value: methodName },
-			) as unknown as TApiControllerMethodMap<E>[EApiRouteType.GET_LIST];
+			) as unknown as TApiControllerMethodMap<E, M>[EApiRouteType.GET_LIST];
 
 			return;
 		}
 
 		this.targetPrototype[methodName] = Object.defineProperty(
-			async function (this: TApiControllerMethod<E>, query: TApiControllerGetListQuery<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<IApiGetListResponseResult<E>> {
+			async function (this: TApiControllerMethod<E>, query: TApiControllerGetListQuery<E, M>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<TApiControllerGetListResponse<E, M>> {
 				const requestQueryValue: unknown = authenticationRequest && "query" in authenticationRequest ? authenticationRequest.query : undefined;
-				const requestQuery: TApiControllerGetListQuery<E> | undefined = requestQueryValue && typeof requestQueryValue === "object" && !Array.isArray(requestQueryValue) ? (requestQueryValue as TApiControllerGetListQuery<E>) : undefined;
+				const requestQuery: TApiControllerGetListQuery<E, M> | undefined = requestQueryValue && typeof requestQueryValue === "object" && !Array.isArray(requestQueryValue) ? (requestQueryValue as TApiControllerGetListQuery<E, M>) : undefined;
 				const queryPlan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanGet(Object.getPrototypeOf(this) as object, methodName);
-				const runtimeQuery: TApiControllerGetListQuery<E> = queryPlan && !queryPlan.filter.isLegacy && requestQuery ? requestQuery : query;
+				const runtimeQuery: TApiControllerGetListQuery<E, M> = queryPlan && !queryPlan.filter.isLegacy && requestQuery ? requestQuery : query;
 
-				return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, targets: { authenticationRequest, headers, ip, query: runtimeQuery } })) as IApiGetListResponseResult<E>;
+				return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, targets: { authenticationRequest, headers, ip, query: runtimeQuery as TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> } })) as TApiControllerGetListResponse<E, M>;
 			},
 			"name",
 			{ value: methodName },

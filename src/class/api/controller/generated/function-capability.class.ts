@@ -3,6 +3,7 @@ import type { TApiControllerGeneratedFunction } from "@type/class/api/controller
 import type { TApiControllerGeneratedScopeFunctionType } from "@type/class/api/controller/generated/scope-function-type.type";
 
 import { ErrorException } from "@utility/error/exception.utility";
+import { ObjectFindPropertyDescriptor } from "@utility/object-find-property-descriptor.utility";
 
 /**
  * Tracks exact built-in decorated service function identities used by generated mandatory calls.
@@ -35,29 +36,23 @@ export class ApiControllerGeneratedFunctionCapability {
 		}
 
 		const entityConstructor: new () => IApiBaseEntity = entity as new () => IApiBaseEntity;
-		let current: null | object = service;
+		const descriptor: PropertyDescriptor | undefined = ObjectFindPropertyDescriptor(service, propertyKey);
 
-		while (current) {
-			const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(current, propertyKey);
-
-			if (descriptor) {
-				if (!("value" in descriptor) || typeof descriptor.value !== "function") {
-					throw ErrorException(`Generated ${functionType} service capability must be a data function`);
-				}
-
-				const implementation: TApiControllerGeneratedFunction = descriptor.value as TApiControllerGeneratedFunction;
-				const capability: { entity: new () => IApiBaseEntity; functionType: TApiControllerGeneratedScopeFunctionType } | undefined = this.REGISTRY.get(implementation);
-
-				if (capability?.entity !== entityConstructor || capability.functionType !== functionType) {
-					throw ErrorException(`Generated ${functionType} service function is not protected by its built-in decorator`);
-				}
-
-				return implementation as T;
-			}
-
-			current = Object.getPrototypeOf(current) as null | object;
+		if (!descriptor) {
+			throw ErrorException(`Generated ${functionType} service function is not available`);
 		}
 
-		throw ErrorException(`Generated ${functionType} service function is not available`);
+		if (!("value" in descriptor) || typeof descriptor.value !== "function") {
+			throw ErrorException(`Generated ${functionType} service capability must be a data function`);
+		}
+
+		const implementation: TApiControllerGeneratedFunction = descriptor.value as TApiControllerGeneratedFunction;
+		const capability: { entity: new () => IApiBaseEntity; functionType: TApiControllerGeneratedScopeFunctionType } | undefined = this.REGISTRY.get(implementation);
+
+		if (capability?.entity !== entityConstructor || capability.functionType !== functionType) {
+			throw ErrorException(`Generated ${functionType} service function is not protected by its built-in decorator`);
+		}
+
+		return implementation as T;
 	}
 }

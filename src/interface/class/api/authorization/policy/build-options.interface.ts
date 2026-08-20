@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { EApiRouteType } from "@enum/decorator/api/route";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
@@ -8,11 +9,11 @@ import type { IApiAuthorizationRequestMetadata } from "@interface/class/api/auth
  * Optional inputs for policy building.
  * Used to enrich policy hook context.
  */
-export interface IApiAuthorizationPolicyBuildOptions<E extends IApiBaseEntity = IApiBaseEntity> {
+export interface IApiAuthorizationPolicyBuildOptions<E extends IApiBaseEntity = IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> {
 	authenticationRequest?: IApiAuthenticationRequest;
 	permissions?: ReadonlyArray<string>;
 	principal?: IApiAuthorizationPrincipal;
 	principalResolver?: IApiAuthorizationPrincipalResolver;
-	requestMetadata?: IApiAuthorizationRequestMetadata<E>;
+	requestMetadata?: IApiAuthorizationRequestMetadata<E, M>;
 	routeType?: EApiRouteType;
 }

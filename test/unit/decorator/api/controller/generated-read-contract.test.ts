@@ -1,22 +1,22 @@
-import "reflect-metadata";
-
 import type { IApiAuthenticationRequest } from "@interface/api";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
-import type { IApiGetListResponseResult } from "@interface/decorator/api";
+import type { IApiGetListCursorResponseResult, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
 import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
-import type { TApiFunctionGetListProperties, TApiFunctionGetProperties } from "@type/decorator/api/function";
+import type { TApiFunctionGetListProperties, TApiFunctionGetManyProperties, TApiFunctionGetProperties } from "@type/decorator/api/function";
+import type { Repository } from "typeorm";
 
 import { ApiServiceBase } from "@class/api";
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
+import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiAuthenticationType, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiDtoType, EApiFunctionType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
-import { EErrorStringAction } from "@enum/utility";
+import { EApiAuthenticationType, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiFunctionType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EFilterOperation, EFilterOrderDirection } from "@enum/filter";
+import { EErrorStringAction } from "@enum/utility";
 import { BadRequestException } from "@nestjs/common";
 import { PARAMTYPES_METADATA, PATH_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
@@ -35,35 +35,104 @@ import { validate } from "class-validator";
 import { Column, Entity, Equal, Like, ManyToOne, PrimaryColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
+import { GeneratedCursorAliasedItemDto } from "./fixture/generated-cursor-aliased-item.dto";
+import { GeneratedCursorItemDto } from "./fixture/generated-cursor-item.dto";
+import { GeneratedCursorResponseDto } from "./fixture/generated-cursor-response.dto";
+import { GeneratedCursorTransformedItemDto } from "./fixture/generated-cursor-transformed-item.dto";
+
+import "reflect-metadata";
+
 const ENTITY_ID: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const SECOND_ENTITY_ID: string = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const EFFECTIVE_AT: string = "2026-08-19T10:00:00.000Z";
 const PATH_TENANT_ID: string = "11111111-1111-4111-8111-111111111111";
 const QUERY_TENANT_ID: string = "22222222-2222-4222-8222-222222222222";
 const SCOPE_TENANT_ID: string = "33333333-3333-4333-8333-333333333333";
+const SECOND_SCOPE_TENANT_ID: string = "44444444-4444-4444-8444-444444444444";
 
-class ReadScopeGuardA {}
-class ReadScopeGuardB {}
+interface IGeneratedCursorReadContractController {
+	getList: (parameters: Record<string, unknown>, query: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<IApiGetListCursorResponseResult<GeneratedReadContractEntity>>;
+	service: GeneratedReadContractService;
+}
+interface IGeneratedReadContractController {
+	get: (parameters: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<GeneratedReadContractEntity>;
+	getList: (parameters: Record<string, unknown>, query: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<IApiGetListResponseResult<GeneratedReadContractEntity>>;
+	service: GeneratedReadContractService;
+}
+
+interface ILegacyGeneratedReadContractController {
+	get: (parameters: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<GeneratedReadContractEntity>;
+	getList: (query: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<IApiGetListResponseResult<GeneratedReadContractEntity>>;
+	service: GeneratedReadContractService;
+}
 
 @Entity("generated_read_contract_owners")
 class GeneratedReadContractOwnerEntity {
-	@PrimaryColumn({ type: "uuid" })
 	@ApiPropertyDescribe({
 		description: "owner id",
 		type: EApiPropertyDescribeType.UUID,
 	})
+	@PrimaryColumn({ type: "uuid" })
 	public id!: string;
 }
 
+class ReadScopeGuardA {}
+
 @Entity("generated_read_contract_entities")
 class GeneratedReadContractEntity {
-	@PrimaryColumn({ type: "uuid" })
+	@ApiPropertyDescribe({
+		format: EApiPropertyDateType.DATE_TIME,
+		identifier: EApiPropertyDateIdentifier.DATE,
+		type: EApiPropertyDescribeType.DATE,
+	})
+	@Column({ type: "datetime" })
+	public effectiveAt!: Date;
+
 	@ApiPropertyDescribe({
 		description: "id",
 		type: EApiPropertyDescribeType.UUID,
 	})
+	@PrimaryColumn({ type: "uuid" })
 	public id!: string;
 
-	@Column({ type: "uuid" })
+	@ApiPropertyDescribe({
+		description: "label",
+		exampleValue: "label",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 64,
+		minLength: 1,
+		pattern: "/^.+$/",
+		properties: {
+			[EApiRouteType.GET]: {
+				[EApiDtoType.PARAMETERS]: {
+					isEnabled: false,
+				},
+			},
+		},
+		type: EApiPropertyDescribeType.STRING,
+	})
+	@Column({ type: "varchar" })
+	public label!: string;
+
+	@ApiPropertyDescribe({
+		description: "owner",
+		type: EApiPropertyDescribeType.RELATION,
+	} as never)
+	@ManyToOne(() => GeneratedReadContractOwnerEntity)
+	public owner?: GeneratedReadContractOwnerEntity;
+
+	@ApiPropertyDescribe({
+		description: "sequence",
+		exampleValue: 1,
+		format: EApiPropertyNumberType.INTEGER,
+		maximum: 100,
+		minimum: 0,
+		multipleOf: 1,
+		type: EApiPropertyDescribeType.NUMBER,
+	})
+	@Column({ type: "int" })
+	public sequence!: number;
+
 	@ApiPropertyDescribe({
 		description: "tenant id",
 		properties: {
@@ -84,60 +153,47 @@ class GeneratedReadContractEntity {
 		},
 		type: EApiPropertyDescribeType.UUID,
 	})
+	@Column({ type: "uuid" })
 	public tenantId!: string;
-
-	@Column({ type: "int" })
-	@ApiPropertyDescribe({
-		description: "sequence",
-		exampleValue: 1,
-		format: EApiPropertyNumberType.INTEGER,
-		maximum: 100,
-		minimum: 0,
-		multipleOf: 1,
-		type: EApiPropertyDescribeType.NUMBER,
-	})
-	public sequence!: number;
-
-	@Column({ type: "varchar" })
-	@ApiPropertyDescribe({
-		description: "label",
-		exampleValue: "label",
-		format: EApiPropertyStringType.STRING,
-		maxLength: 64,
-		minLength: 1,
-		pattern: "/^.+$/",
-		properties: {
-			[EApiRouteType.GET]: {
-				[EApiDtoType.PARAMETERS]: {
-					isEnabled: false,
-				},
-			},
-		},
-		type: EApiPropertyDescribeType.STRING,
-	})
-	public label!: string;
-
-	@Column({ type: "datetime" })
-	@ApiPropertyDescribe({
-		format: EApiPropertyDateType.DATE_TIME,
-		identifier: EApiPropertyDateIdentifier.DATE,
-		type: EApiPropertyDescribeType.DATE,
-	})
-	public effectiveAt!: Date;
-
-	@ManyToOne(() => GeneratedReadContractOwnerEntity)
-	@ApiPropertyDescribe({
-		description: "owner",
-		type: EApiPropertyDescribeType.RELATION,
-	} as never)
-	public owner?: GeneratedReadContractOwnerEntity;
 }
 
 class GeneratedReadContractService extends ApiServiceBase<GeneratedReadContractEntity> {
+	public readonly repository: Repository<GeneratedReadContractEntity> = {
+		manager: {
+			connection: {
+				driver: {
+					normalizeType: (column: { type?: unknown }): string => (column.type === "int" ? "integer" : String(column.type ?? "")),
+					postgres: {
+						types: {
+							getTypeParser: (oid: number): ((value: string) => boolean | number | string) => {
+								if (oid === 16) return (value: string): boolean => value === "t";
+								if (oid === 21 || oid === 23) return (value: string): number => Number(value);
+
+								return (value: string): string => value;
+							},
+						},
+					},
+				},
+				options: { type: "postgres" },
+				subscribers: [],
+			},
+		},
+		metadata: {
+			afterLoadListeners: [],
+			columns: [
+				{ isArray: false, isNullable: false, isSelect: true, isVirtual: false, isVirtualProperty: false, length: "", precision: undefined, propertyPath: "id", scale: undefined, transformer: undefined, type: "uuid", unsigned: false },
+				{ isArray: false, isNullable: false, isSelect: true, isVirtual: false, isVirtualProperty: false, length: "", precision: undefined, propertyPath: "sequence", scale: undefined, transformer: undefined, type: "int", unsigned: false },
+			],
+			primaryColumns: [{ propertyPath: "id" }],
+			target: GeneratedReadContractEntity,
+		},
+	} as unknown as Repository<GeneratedReadContractEntity>;
+
 	public constructor() {
 		super();
 		ApiControllerGeneratedFunctionCapability.mark(this.get, EApiFunctionType.GET, GeneratedReadContractEntity);
 		ApiControllerGeneratedFunctionCapability.mark(this.getList, EApiFunctionType.GET_LIST, GeneratedReadContractEntity);
+		ApiControllerGeneratedFunctionCapability.mark(this.getMany, EApiFunctionType.GET_MANY, GeneratedReadContractEntity);
 	}
 
 	public override get = vi.fn(async (properties: TApiFunctionGetProperties<GeneratedReadContractEntity>): Promise<GeneratedReadContractEntity> => {
@@ -171,24 +227,472 @@ class GeneratedReadContractService extends ApiServiceBase<GeneratedReadContractE
 			totalPages: 1,
 		};
 	});
+
+	public override getMany = vi.fn(async (properties: TApiFunctionGetManyProperties<GeneratedReadContractEntity>): Promise<Array<GeneratedReadContractEntity>> => {
+		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET_MANY, properties);
+
+		return [
+			{
+				effectiveAt: new Date(EFFECTIVE_AT),
+				id: ENTITY_ID,
+				label: "entity-a",
+				sequence: 1,
+				tenantId: PATH_TENANT_ID,
+			},
+			{
+				effectiveAt: new Date(EFFECTIVE_AT),
+				id: SECOND_ENTITY_ID,
+				label: "entity-b",
+				sequence: 2,
+				tenantId: PATH_TENANT_ID,
+			},
+		];
+	});
 }
 
 class ManualGeneratedReadParametersDto {}
 
-interface IGeneratedReadContractController {
-	get: (parameters: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<GeneratedReadContractEntity>;
-	getList: (parameters: Record<string, unknown>, query: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<IApiGetListResponseResult<GeneratedReadContractEntity>>;
-	service: GeneratedReadContractService;
-}
-
-interface ILegacyGeneratedReadContractController {
-	get: (parameters: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<GeneratedReadContractEntity>;
-	getList: (query: Record<string, unknown>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<IApiGetListResponseResult<GeneratedReadContractEntity>>;
-	service: GeneratedReadContractService;
-}
+class ReadScopeGuardB {}
 
 const disabledRoute = { generation: { isEnabled: false } } as const;
 
+/**
+ *
+ */
+function compileGetListParametersWithoutRead(): void {
+	class ParametersWithoutReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "parameters-without-read",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: disabledRoute,
+			[EApiRouteType.GET_LIST]: {
+				request: {
+					[EApiControllerRequestTarget.PARAMETERS]: {
+						validators: [],
+					},
+				},
+			} as never,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(ParametersWithoutReadControllerBase);
+}
+
+/**
+ *
+ * @param identity
+ */
+function compileInvalidGetListIdentityConfiguration(identity: unknown): void {
+	class InvalidGetListReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "invalid-get-list-read",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: disabledRoute,
+			[EApiRouteType.GET_LIST]: { identity } as never,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(InvalidGetListReadControllerBase);
+}
+
+/**
+ *
+ * @param path
+ * @param identity
+ * @param hasManualParametersDto
+ * @param read
+ */
+function compileInvalidIdentityConfiguration(path: string, identity: unknown, hasManualParametersDto: boolean = false, read?: unknown): void {
+	class InvalidGeneratedIdentityControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path,
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {
+				...(hasManualParametersDto ? { dto: { [EApiDtoType.PARAMETERS]: ManualGeneratedReadParametersDto } } : {}),
+				identity,
+				...(read === undefined ? {} : { read }),
+			} as never,
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(InvalidGeneratedIdentityControllerBase);
+}
+
+/**
+ *
+ * @param defaultOrder
+ * @param tieBreakers
+ */
+function compileInvalidOrder(defaultOrder: unknown, tieBreakers: unknown): void {
+	class InvalidGeneratedOrderControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "invalid-generated-order",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: disabledRoute,
+			[EApiRouteType.GET_LIST]: {
+				request: {
+					[EApiControllerRequestTarget.QUERY]: {
+						order: {
+							defaultOrder,
+							fields: {
+								label: { isEnabled: true },
+							},
+							tieBreakers,
+							unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+						} as never,
+					},
+				},
+			},
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(InvalidGeneratedOrderControllerBase);
+}
+
+/**
+ *
+ * @param path
+ * @param read
+ * @param hasManualParametersDto
+ * @param currentGuard
+ */
+function compileInvalidReadConfiguration(path: string, read: unknown, hasManualParametersDto: boolean = false, currentGuard?: Type<IAuthGuard>): void {
+	class InvalidGeneratedReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path,
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {
+				...(hasManualParametersDto ? { dto: { [EApiDtoType.PARAMETERS]: ManualGeneratedReadParametersDto } } : {}),
+				read,
+				...(currentGuard
+					? {
+							security: {
+								authentication: {
+									guard: currentGuard,
+									type: EApiAuthenticationType.USER,
+								},
+							},
+						}
+					: {}),
+			} as never,
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(InvalidGeneratedReadControllerBase);
+}
+
+/**
+ *
+ * @param path
+ * @param parameters
+ */
+function compileInvalidReadScope(path: string, parameters: unknown): void {
+	compileInvalidReadConfiguration(path, {
+		scope: {
+			parameters,
+		},
+	});
+}
+
+/**
+ *
+ * @param parameterValidator
+ */
+function createAliasedReadController(parameterValidator: (parameters: Partial<GeneratedReadContractEntity> | TApiControllerGetListQuery<GeneratedReadContractEntity>) => boolean | Promise<boolean>): { controller: IGeneratedReadContractController; type: object } {
+	class AliasedReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "tenant/:tenantAlias/sequence/:sequenceAlias/aliased-read",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {
+				read: {
+					scope: {
+						parameters: [
+							{ field: "tenantId", parameter: "tenantAlias" },
+							{ field: "sequence", parameter: "sequenceAlias" },
+						],
+					},
+				},
+				request: {
+					[EApiControllerRequestTarget.PARAMETERS]: {
+						transformers: [
+							{
+								key: "tenantAlias",
+								type: EApiControllerRequestTransformerType.STATIC,
+								value: PATH_TENANT_ID,
+							},
+						],
+					},
+				},
+			},
+			[EApiRouteType.GET_LIST]: {
+				read: {
+					scope: {
+						parameters: [
+							{ field: "tenantId", parameter: "tenantAlias" },
+							{ field: "sequence", parameter: "sequenceAlias" },
+						],
+					},
+				},
+				request: {
+					[EApiControllerRequestTarget.PARAMETERS]: {
+						transformers: [
+							{
+								key: "tenantAlias",
+								type: EApiControllerRequestTransformerType.STATIC,
+								value: PATH_TENANT_ID,
+							},
+						],
+						validators: [
+							{
+								errorType: EErrorStringAction.BAD_REQUEST,
+								exception: BadRequestException,
+								validationFunction: parameterValidator,
+							},
+						],
+					},
+				},
+			},
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(AliasedReadControllerBase);
+
+	return {
+		controller: new Controller() as unknown as IGeneratedReadContractController,
+		type: Controller,
+	};
+}
+
+/**
+ *
+ * @param scopeWhere
+ * @param transform
+ */
+function createAuthenticationRequest(scopeWhere: Record<string, unknown>, transform?: (result: unknown) => Promise<unknown> | unknown): IApiAuthenticationRequest {
+	return {
+		authorizationDecision: {
+			scope: { where: scopeWhere },
+			transforms: transform ? [transform] : [],
+		},
+	} as unknown as IApiAuthenticationRequest;
+}
+
+/**
+ *
+ * @param controllerName
+ */
+function createCacheIsolationController(controllerName: string): object {
+	class CacheIsolationControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	Object.defineProperty(CacheIsolationControllerBase, "name", { value: controllerName });
+
+	return ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "tenant/:tenantId/cache-isolation",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: disabledRoute,
+			[EApiRouteType.GET_LIST]: {
+				read: {
+					scope: {
+						parameters: [{ field: "tenantId", parameter: "tenantId" }],
+					},
+				},
+			},
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(CacheIsolationControllerBase);
+}
+
+/**
+ *
+ */
+function createDateScopedReadController(): { controller: IGeneratedReadContractController; type: object } {
+	class DateScopedReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "effective/:effectiveAt/date-scoped-read",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {
+				read: {
+					scope: {
+						parameters: [{ field: "effectiveAt", parameter: "effectiveAt" }],
+					},
+				},
+			},
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(DateScopedReadControllerBase);
+
+	return {
+		controller: new Controller() as unknown as IGeneratedReadContractController,
+		type: Controller,
+	};
+}
+
+/**
+ *
+ */
+function createFilterOnlyQueryController(): { controller: IGeneratedReadContractController; type: object } {
+	class FilterOnlyQueryControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "tenant/:tenantId/filter-only-query",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: disabledRoute,
+			[EApiRouteType.GET_LIST]: {
+				read: {
+					scope: {
+						parameters: [{ field: "tenantId", parameter: "tenantId" }],
+					},
+				},
+				request: {
+					[EApiControllerRequestTarget.QUERY]: {
+						filter: {
+							fields: {
+								label: {
+									allowedOperations: [EFilterOperation.EQ],
+									isEnabled: true,
+								},
+							},
+							unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+						},
+					},
+				},
+			},
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(FilterOnlyQueryControllerBase);
+
+	return {
+		controller: new Controller() as unknown as IGeneratedReadContractController,
+		type: Controller,
+	};
+}
+
+/**
+ *
+ * @param options
+ * @param options.responseDto
+ * @param options.responseTransformer
+ * @param options.responseTransformer.key
+ * @param options.responseTransformer.value
+ */
+function createGeneratedCursorReadController(options?: { responseDto?: { itemType: Type<unknown> } | Type<unknown>; responseTransformer?: { key: "nextCursor" | "previousCursor"; value: string } }): { controller: IGeneratedCursorReadContractController; type: object } {
+	class GeneratedCursorReadControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		name: "GeneratedCursorReadContract",
+		path: "tenant/:tenantId/generated-cursor-read-contract",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: disabledRoute,
+			[EApiRouteType.GET_LIST]: {
+				dto: options?.responseDto === undefined ? undefined : { [EApiDtoType.RESPONSE]: options.responseDto },
+				read: {
+					scope: {
+						parameters: [{ field: "tenantId", parameter: "tenantId" }],
+					},
+				},
+				request: {
+					[EApiControllerRequestTarget.QUERY]: {
+						filter: {
+							fields: {
+								tenantId: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
+							},
+							unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+						},
+						order: {
+							defaultOrder: [{ direction: EFilterOrderDirection.ASC, field: "sequence" }],
+							fields: { sequence: { isEnabled: true } },
+							tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+							unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+						},
+						pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR },
+					},
+				},
+				response:
+					options?.responseTransformer === undefined
+						? undefined
+						: {
+								[EApiControllerResponseTarget.RESPONSE]: {
+									transformers: [{ key: options.responseTransformer.key, type: EApiControllerRequestTransformerType.STATIC, value: options.responseTransformer.value }],
+								},
+							},
+			},
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(GeneratedCursorReadControllerBase);
+
+	return {
+		controller: new Controller() as unknown as IGeneratedCursorReadContractController,
+		type: Controller,
+	};
+}
+
+/**
+ *
+ */
 function createGeneratedReadController(): { controller: IGeneratedReadContractController; type: object } {
 	class GeneratedReadControllerBase {
 		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
@@ -243,31 +747,11 @@ function createGeneratedReadController(): { controller: IGeneratedReadContractCo
 	};
 }
 
-function createLegacyGeneratedReadController(): { controller: ILegacyGeneratedReadContractController; type: object } {
-	class LegacyGeneratedReadControllerBase {
-		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
-	}
-
-	const Controller = ApiController<GeneratedReadContractEntity>({
-		entity: GeneratedReadContractEntity,
-		name: "LegacyGeneratedReadContract",
-		path: "legacy-generated-read-contract",
-		routes: {
-			[EApiRouteType.CREATE]: disabledRoute,
-			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: {},
-			[EApiRouteType.GET_LIST]: {},
-			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
-			[EApiRouteType.UPDATE]: disabledRoute,
-		},
-	})(LegacyGeneratedReadControllerBase);
-
-	return {
-		controller: new Controller() as unknown as ILegacyGeneratedReadContractController,
-		type: Controller,
-	};
-}
-
+/**
+ *
+ * @param hasOwnerScope
+ * @param identityParameter
+ */
 function createIdentityAliasController(hasOwnerScope: boolean = false, identityParameter: string = "gameId"): { controller: IGeneratedReadContractController; type: object } {
 	class IdentityAliasControllerBase {
 		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
@@ -304,79 +788,9 @@ function createIdentityAliasController(hasOwnerScope: boolean = false, identityP
 	};
 }
 
-function compileInvalidIdentityConfiguration(path: string, identity: unknown, hasManualParametersDto: boolean = false, read?: unknown): void {
-	class InvalidGeneratedIdentityControllerBase {
-		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
-	}
-
-	ApiController<GeneratedReadContractEntity>({
-		entity: GeneratedReadContractEntity,
-		path,
-		routes: {
-			[EApiRouteType.CREATE]: disabledRoute,
-			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: {
-				...(hasManualParametersDto ? { dto: { [EApiDtoType.PARAMETERS]: ManualGeneratedReadParametersDto } } : {}),
-				identity,
-				...(read === undefined ? {} : { read }),
-			} as never,
-			[EApiRouteType.GET_LIST]: disabledRoute,
-			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
-			[EApiRouteType.UPDATE]: disabledRoute,
-		},
-	})(InvalidGeneratedIdentityControllerBase);
-}
-
-function createRawIdentityRouteController(path: string, routeConfig: unknown): { controller: IGeneratedReadContractController; type: object } {
-	class RawIdentityRouteControllerBase {
-		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
-	}
-
-	const Controller = ApiController<GeneratedReadContractEntity>({
-		entity: GeneratedReadContractEntity,
-		name: "RawIdentityRouteGeneratedReadContract",
-		path,
-		routes: {
-			[EApiRouteType.CREATE]: disabledRoute,
-			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: routeConfig as never,
-			[EApiRouteType.GET_LIST]: disabledRoute,
-			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
-			[EApiRouteType.UPDATE]: disabledRoute,
-		},
-	})(RawIdentityRouteControllerBase);
-
-	return {
-		controller: new Controller() as unknown as IGeneratedReadContractController,
-		type: Controller,
-	};
-}
-
-function createRawReadRouteController(path: string, routeConfig: unknown): { controller: IGeneratedReadContractController; type: object } {
-	class RawReadRouteControllerBase {
-		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
-	}
-
-	const Controller = ApiController<GeneratedReadContractEntity>({
-		entity: GeneratedReadContractEntity,
-		name: "RawReadRouteGeneratedReadContract",
-		path,
-		routes: {
-			[EApiRouteType.CREATE]: disabledRoute,
-			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: routeConfig as never,
-			[EApiRouteType.GET_LIST]: disabledRoute,
-			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
-			[EApiRouteType.UPDATE]: disabledRoute,
-		},
-	})(RawReadRouteControllerBase);
-
-	return {
-		controller: new Controller() as unknown as IGeneratedReadContractController,
-		type: Controller,
-	};
-}
-
+/**
+ *
+ */
 function createIdentityInheritanceControllers(): {
 	aliased: { controller: IGeneratedReadContractController; type: object };
 	canonicalDerived: { controller: IGeneratedReadContractController; type: object };
@@ -460,185 +874,57 @@ function createIdentityInheritanceControllers(): {
 	};
 }
 
-function compileInvalidReadConfiguration(path: string, read: unknown, hasManualParametersDto: boolean = false, currentGuard?: Type<IAuthGuard>): void {
-	class InvalidGeneratedReadControllerBase {
+/**
+ *
+ */
+function createLegacyGeneratedReadController(): { controller: ILegacyGeneratedReadContractController; type: object } {
+	class LegacyGeneratedReadControllerBase {
 		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
 	}
 
-	ApiController<GeneratedReadContractEntity>({
+	const Controller = ApiController<GeneratedReadContractEntity>({
 		entity: GeneratedReadContractEntity,
+		name: "LegacyGeneratedReadContract",
+		path: "legacy-generated-read-contract",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: {},
+			[EApiRouteType.GET_LIST]: {},
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(LegacyGeneratedReadControllerBase);
+
+	return {
+		controller: new Controller() as unknown as ILegacyGeneratedReadContractController,
+		type: Controller,
+	};
+}
+
+/**
+ *
+ * @param path
+ * @param routeConfig
+ */
+function createRawIdentityRouteController(path: string, routeConfig: unknown): { controller: IGeneratedReadContractController; type: object } {
+	class RawIdentityRouteControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	const Controller = ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		name: "RawIdentityRouteGeneratedReadContract",
 		path,
 		routes: {
 			[EApiRouteType.CREATE]: disabledRoute,
 			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: {
-				...(hasManualParametersDto ? { dto: { [EApiDtoType.PARAMETERS]: ManualGeneratedReadParametersDto } } : {}),
-				read,
-				...(currentGuard
-					? {
-							security: {
-								authentication: {
-									guard: currentGuard,
-									type: EApiAuthenticationType.USER,
-								},
-							},
-						}
-					: {}),
-			} as never,
+			[EApiRouteType.GET]: routeConfig as never,
 			[EApiRouteType.GET_LIST]: disabledRoute,
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(InvalidGeneratedReadControllerBase);
-}
-
-function compileInvalidReadScope(path: string, parameters: unknown): void {
-	compileInvalidReadConfiguration(path, {
-		scope: {
-			parameters,
-		},
-	});
-}
-
-function compileInvalidGetListIdentityConfiguration(identity: unknown): void {
-	class InvalidGetListReadControllerBase {
-		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
-	}
-
-	ApiController<GeneratedReadContractEntity>({
-		entity: GeneratedReadContractEntity,
-		path: "invalid-get-list-read",
-		routes: {
-			[EApiRouteType.CREATE]: disabledRoute,
-			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: disabledRoute,
-			[EApiRouteType.GET_LIST]: { identity } as never,
-			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
-			[EApiRouteType.UPDATE]: disabledRoute,
-		},
-	})(InvalidGetListReadControllerBase);
-}
-
-function compileInvalidOrder(defaultOrder: unknown, tieBreakers: unknown): void {
-	class InvalidGeneratedOrderControllerBase {
-		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
-	}
-
-	ApiController<GeneratedReadContractEntity>({
-		entity: GeneratedReadContractEntity,
-		path: "invalid-generated-order",
-		routes: {
-			[EApiRouteType.CREATE]: disabledRoute,
-			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: disabledRoute,
-			[EApiRouteType.GET_LIST]: {
-				request: {
-					[EApiControllerRequestTarget.QUERY]: {
-						order: {
-							defaultOrder,
-							fields: {
-								label: { isEnabled: true },
-							},
-							tieBreakers,
-							unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
-						} as never,
-					},
-				},
-			},
-			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
-			[EApiRouteType.UPDATE]: disabledRoute,
-		},
-	})(InvalidGeneratedOrderControllerBase);
-}
-
-function compileGetListParametersWithoutRead(): void {
-	class ParametersWithoutReadControllerBase {
-		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
-	}
-
-	ApiController<GeneratedReadContractEntity>({
-		entity: GeneratedReadContractEntity,
-		path: "parameters-without-read",
-		routes: {
-			[EApiRouteType.CREATE]: disabledRoute,
-			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: disabledRoute,
-			[EApiRouteType.GET_LIST]: {
-				request: {
-					[EApiControllerRequestTarget.PARAMETERS]: {
-						validators: [],
-					},
-				},
-			} as never,
-			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
-			[EApiRouteType.UPDATE]: disabledRoute,
-		},
-	})(ParametersWithoutReadControllerBase);
-}
-
-function createCacheIsolationController(controllerName: string): object {
-	class CacheIsolationControllerBase {
-		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
-	}
-
-	Object.defineProperty(CacheIsolationControllerBase, "name", { value: controllerName });
-
-	return ApiController<GeneratedReadContractEntity>({
-		entity: GeneratedReadContractEntity,
-		path: "tenant/:tenantId/cache-isolation",
-		routes: {
-			[EApiRouteType.CREATE]: disabledRoute,
-			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: disabledRoute,
-			[EApiRouteType.GET_LIST]: {
-				read: {
-					scope: {
-						parameters: [{ field: "tenantId", parameter: "tenantId" }],
-					},
-				},
-			},
-			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
-			[EApiRouteType.UPDATE]: disabledRoute,
-		},
-	})(CacheIsolationControllerBase);
-}
-
-function createFilterOnlyQueryController(): { controller: IGeneratedReadContractController; type: object } {
-	class FilterOnlyQueryControllerBase {
-		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
-	}
-
-	const Controller = ApiController<GeneratedReadContractEntity>({
-		entity: GeneratedReadContractEntity,
-		path: "tenant/:tenantId/filter-only-query",
-		routes: {
-			[EApiRouteType.CREATE]: disabledRoute,
-			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: disabledRoute,
-			[EApiRouteType.GET_LIST]: {
-				read: {
-					scope: {
-						parameters: [{ field: "tenantId", parameter: "tenantId" }],
-					},
-				},
-				request: {
-					[EApiControllerRequestTarget.QUERY]: {
-						filter: {
-							fields: {
-								label: {
-									allowedOperations: [EFilterOperation.EQ],
-									isEnabled: true,
-								},
-							},
-							unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
-						},
-					},
-				},
-			},
-			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
-			[EApiRouteType.UPDATE]: disabledRoute,
-		},
-	})(FilterOnlyQueryControllerBase);
+	})(RawIdentityRouteControllerBase);
 
 	return {
 		controller: new Controller() as unknown as IGeneratedReadContractController,
@@ -646,114 +932,34 @@ function createFilterOnlyQueryController(): { controller: IGeneratedReadContract
 	};
 }
 
-function createAliasedReadController(parameterValidator: (parameters: Partial<GeneratedReadContractEntity> | TApiControllerGetListQuery<GeneratedReadContractEntity>) => boolean | Promise<boolean>): { controller: IGeneratedReadContractController; type: object } {
-	class AliasedReadControllerBase {
+/**
+ *
+ * @param path
+ * @param routeConfig
+ */
+function createRawReadRouteController(path: string, routeConfig: unknown): { controller: IGeneratedReadContractController; type: object } {
+	class RawReadRouteControllerBase {
 		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
 	}
 
 	const Controller = ApiController<GeneratedReadContractEntity>({
 		entity: GeneratedReadContractEntity,
-		path: "tenant/:tenantAlias/sequence/:sequenceAlias/aliased-read",
+		name: "RawReadRouteGeneratedReadContract",
+		path,
 		routes: {
 			[EApiRouteType.CREATE]: disabledRoute,
 			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: {
-				read: {
-					scope: {
-						parameters: [
-							{ field: "tenantId", parameter: "tenantAlias" },
-							{ field: "sequence", parameter: "sequenceAlias" },
-						],
-					},
-				},
-				request: {
-					[EApiControllerRequestTarget.PARAMETERS]: {
-						transformers: [
-							{
-								key: "tenantAlias",
-								type: EApiControllerRequestTransformerType.STATIC,
-								value: PATH_TENANT_ID,
-							},
-						],
-					},
-				},
-			},
-			[EApiRouteType.GET_LIST]: {
-				read: {
-					scope: {
-						parameters: [
-							{ field: "tenantId", parameter: "tenantAlias" },
-							{ field: "sequence", parameter: "sequenceAlias" },
-						],
-					},
-				},
-				request: {
-					[EApiControllerRequestTarget.PARAMETERS]: {
-						transformers: [
-							{
-								key: "tenantAlias",
-								type: EApiControllerRequestTransformerType.STATIC,
-								value: PATH_TENANT_ID,
-							},
-						],
-						validators: [
-							{
-								errorType: EErrorStringAction.BAD_REQUEST,
-								exception: BadRequestException,
-								validationFunction: parameterValidator,
-							},
-						],
-					},
-				},
-			},
-			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
-			[EApiRouteType.UPDATE]: disabledRoute,
-		},
-	})(AliasedReadControllerBase);
-
-	return {
-		controller: new Controller() as unknown as IGeneratedReadContractController,
-		type: Controller,
-	};
-}
-
-function createDateScopedReadController(): { controller: IGeneratedReadContractController; type: object } {
-	class DateScopedReadControllerBase {
-		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
-	}
-
-	const Controller = ApiController<GeneratedReadContractEntity>({
-		entity: GeneratedReadContractEntity,
-		path: "effective/:effectiveAt/date-scoped-read",
-		routes: {
-			[EApiRouteType.CREATE]: disabledRoute,
-			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: {
-				read: {
-					scope: {
-						parameters: [{ field: "effectiveAt", parameter: "effectiveAt" }],
-					},
-				},
-			},
+			[EApiRouteType.GET]: routeConfig as never,
 			[EApiRouteType.GET_LIST]: disabledRoute,
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(DateScopedReadControllerBase);
+	})(RawReadRouteControllerBase);
 
 	return {
 		controller: new Controller() as unknown as IGeneratedReadContractController,
 		type: Controller,
 	};
-}
-
-function createAuthenticationRequest(scopeWhere: Record<string, unknown>): IApiAuthenticationRequest {
-	return {
-		authorizationDecision: {
-			scope: { where: scopeWhere },
-			transforms: [],
-		},
-	} as unknown as IApiAuthenticationRequest;
 }
 
 describe("generated read contract", () => {
@@ -794,11 +1000,15 @@ describe("generated read contract", () => {
 		["an unsafe inherited path parameter", "tenant/:constructor/generated-read-contract", [{ field: "tenantId", parameter: "constructor" }], 'controller path parameter "constructor" is not a safe property name'],
 		["an unsafe mapped entity field", "tenant/:tenantId/generated-read-contract", [{ field: "__proto__", parameter: "tenantId" }], 'entity field "__proto__" is not a safe property name'],
 	])("rejects %s at controller bootstrap", (_label, path, parameters, expectedMessage) => {
-		expect(() => compileInvalidReadScope(path, parameters)).toThrow(expectedMessage);
+		expect(() => {
+			compileInvalidReadScope(path, parameters);
+		}).toThrow(expectedMessage);
 	});
 
 	it("accepts a quoted required scalar inherited path parameter", () => {
-		expect(() => compileInvalidReadScope('tenant/:"tenant-id"/generated-read-contract', [{ field: "tenantId", parameter: "tenant-id" }])).not.toThrow();
+		expect(() => {
+			compileInvalidReadScope('tenant/:"tenant-id"/generated-read-contract', [{ field: "tenantId", parameter: "tenant-id" }]);
+		}).not.toThrow();
 	});
 
 	it.each([
@@ -813,48 +1023,56 @@ describe("generated read contract", () => {
 		["an unsupported identity key", { parameter: "gameId", unsupported: true }, "Generated identity configuration must contain exactly one string key: parameter"],
 		["an unsafe identity parameter", { parameter: "constructor" }, "Generated identity parameter must be a safe simple identifier"],
 	])("rejects %s at controller bootstrap", (_label, identity, expectedMessage) => {
-		expect(() => compileInvalidIdentityConfiguration("identity-alias", identity)).toThrow(expectedMessage);
+		expect(() => {
+			compileInvalidIdentityConfiguration("identity-alias", identity);
+		}).toThrow(expectedMessage);
 	});
 
 	it("rejects a generated GET identity that collides with an inherited path parameter", () => {
-		expect(() =>
+		expect(() => {
 			compileInvalidIdentityConfiguration("tenant/:gameId/identity-alias", { parameter: "gameId" }, false, {
 				scope: {
 					parameters: [{ field: "tenantId", parameter: "gameId" }],
 				},
-			}),
-		).toThrow('Generated identity parameter "gameId" conflicts with an inherited controller path parameter');
+			});
+		}).toThrow('Generated identity parameter "gameId" conflicts with an inherited controller path parameter');
 	});
 
 	it("rejects an inherited primary field when GET uses a different identity alias", () => {
-		expect(() =>
+		expect(() => {
 			compileInvalidIdentityConfiguration("tenant/:id/identity-alias", { parameter: "gameId" }, false, {
 				scope: {
 					parameters: [{ field: "tenantId", parameter: "id" }],
 				},
-			}),
-		).toThrow('Inherited controller path parameter "id" conflicts with the generated GET primary identity parameter');
+			});
+		}).toThrow('Inherited controller path parameter "id" conflicts with the generated GET primary identity parameter');
 	});
 
 	it("requires read scope mappings whenever an identity route inherits controller path parameters", () => {
-		expect(() => compileInvalidIdentityConfiguration("tenant/:tenantId/identity-alias", { parameter: "gameId" })).toThrow("Generated identity on a controller path with inherited parameters requires generated read scope mappings");
-		expect(() =>
+		expect(() => {
+			compileInvalidIdentityConfiguration("tenant/:tenantId/identity-alias", { parameter: "gameId" });
+		}).toThrow("Generated identity on a controller path with inherited parameters requires generated read scope mappings");
+		expect(() => {
 			compileInvalidIdentityConfiguration("tenant/:tenantId/identity-alias", { parameter: "gameId" }, false, {
 				scope: {
 					parameters: [{ field: "tenantId", parameter: "tenantId" }],
 				},
-			}),
-		).not.toThrow();
+			});
+		}).not.toThrow();
 	});
 
 	it("rejects generated identity grammar on GET_LIST", () => {
-		expect(() => compileInvalidGetListIdentityConfiguration({ parameter: "gameId" })).toThrow("Generated identity configuration is supported only for GET routes");
+		expect(() => {
+			compileInvalidGetListIdentityConfiguration({ parameter: "gameId" });
+		}).toThrow("Generated identity configuration is supported only for GET routes");
 	});
 
 	it("accepts a null-prototype identity record", () => {
 		const identity = Object.assign(Object.create(null) as Record<string, unknown>, { parameter: "gameId" });
 
-		expect(() => compileInvalidIdentityConfiguration("identity-alias", identity)).not.toThrow();
+		expect(() => {
+			compileInvalidIdentityConfiguration("identity-alias", identity);
+		}).not.toThrow();
 	});
 
 	it("rejects identity symbols, non-enumerable fields, accessors, and custom prototypes without invoking getters", () => {
@@ -869,10 +1087,18 @@ describe("generated read contract", () => {
 		Object.defineProperty(accessorIdentity, "parameter", { enumerable: true, get: getter });
 		customPrototypeIdentity.parameter = "gameId";
 
-		expect(() => compileInvalidIdentityConfiguration("identity-alias", symbolIdentity)).toThrow("Generated identity configuration must contain exactly one string key: parameter");
-		expect(() => compileInvalidIdentityConfiguration("identity-alias", nonEnumerableIdentity)).toThrow("Generated identity parameter must be an enumerable data property");
-		expect(() => compileInvalidIdentityConfiguration("identity-alias", accessorIdentity)).toThrow("Generated identity parameter must be an enumerable data property");
-		expect(() => compileInvalidIdentityConfiguration("identity-alias", customPrototypeIdentity)).toThrow("Generated identity configuration must be a plain object");
+		expect(() => {
+			compileInvalidIdentityConfiguration("identity-alias", symbolIdentity);
+		}).toThrow("Generated identity configuration must contain exactly one string key: parameter");
+		expect(() => {
+			compileInvalidIdentityConfiguration("identity-alias", nonEnumerableIdentity);
+		}).toThrow("Generated identity parameter must be an enumerable data property");
+		expect(() => {
+			compileInvalidIdentityConfiguration("identity-alias", accessorIdentity);
+		}).toThrow("Generated identity parameter must be an enumerable data property");
+		expect(() => {
+			compileInvalidIdentityConfiguration("identity-alias", customPrototypeIdentity);
+		}).toThrow("Generated identity configuration must be a plain object");
 		expect(getter).not.toHaveBeenCalled();
 	});
 
@@ -912,17 +1138,27 @@ describe("generated read contract", () => {
 	it("fails closed when legacy low-level controller facades receive an uncompiled identity", () => {
 		const entityMetadata = GenerateEntityInformation(GeneratedReadContractEntity);
 		const routeConfig = { identity: { parameter: "gameId" } } as never;
+
 		const properties = {
 			entity: GeneratedReadContractEntity,
 			routes: { [EApiRouteType.GET]: routeConfig },
 		} as never;
+
 		class LowLevelIdentityController {}
+
 		const handler = function get() {};
+
 		const invocations: Array<() => unknown> = [
-			() => ApiControllerApplyDecorators(handler as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, []),
-			() => ApiControllerApplyMetadata(LowLevelIdentityController, LowLevelIdentityController.prototype, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig),
+			() => {
+				ApiControllerApplyDecorators(handler as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, []);
+			},
+			() => {
+				ApiControllerApplyMetadata(LowLevelIdentityController, LowLevelIdentityController.prototype, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig);
+			},
 			() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET, EApiDtoType.PARAMETERS, routeConfig),
-			() => ApiControllerWriteDtoSwagger(LowLevelIdentityController, entityMetadata, properties, EApiRouteType.GET, routeConfig, entityMetadata),
+			() => {
+				ApiControllerWriteDtoSwagger(LowLevelIdentityController, entityMetadata, properties, EApiRouteType.GET, routeConfig, entityMetadata);
+			},
 		];
 
 		for (const invoke of invocations) {
@@ -941,7 +1177,9 @@ describe("generated read contract", () => {
 		["an unsupported read key", { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] }, unsupported: true }, "Generated read configuration must contain exactly scope"],
 		["an unsupported scope key", { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }], unsupported: true } }, "Generated read scope must contain exactly parameters"],
 	])("rejects %s in generated read grammar", (_label, read, expectedMessage) => {
-		expect(() => compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", read)).toThrow(expectedMessage);
+		expect(() => {
+			compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", read);
+		}).toThrow(expectedMessage);
 	});
 
 	it("rejects hostile nested read records and arrays without invoking accessors", () => {
@@ -954,7 +1192,7 @@ describe("generated read contract", () => {
 		const accessorArray: Array<unknown> = [{ field: "tenantId", parameter: "tenantId" }];
 		const arrayGetter = vi.fn(() => ({ field: "tenantId", parameter: "tenantId" }));
 		const sparseArray: Array<unknown> = new Array<unknown>(1);
-		const extendedArray = [{ field: "tenantId", parameter: "tenantId" }] as Array<unknown> & { extra?: boolean };
+		const extendedArray = [{ field: "tenantId", parameter: "tenantId" }] as { extra?: boolean } & Array<unknown>;
 		const customPrototypeRead = Object.create({ inherited: true }) as Record<string, unknown>;
 
 		Object.defineProperty(scopeAccessor, "scope", { enumerable: true, get: scopeGetter });
@@ -964,13 +1202,27 @@ describe("generated read contract", () => {
 		extendedArray.extra = true;
 		customPrototypeRead.scope = { parameters: [{ field: "tenantId", parameter: "tenantId" }] };
 
-		expect(() => compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", scopeAccessor)).toThrow("Generated read configuration must contain enumerable data properties only");
-		expect(() => compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", { scope: parametersAccessor })).toThrow("Generated read scope must contain enumerable data properties only");
-		expect(() => compileInvalidReadScope("tenant/:tenantId/generated-read-contract", [accessorMapping])).toThrow("Generated read scope parameters[0] must contain enumerable data properties only");
-		expect(() => compileInvalidReadScope("tenant/:tenantId/generated-read-contract", accessorArray)).toThrow("Generated read scope parameters must be a non-empty dense array of data properties");
-		expect(() => compileInvalidReadScope("tenant/:tenantId/generated-read-contract", sparseArray)).toThrow("Generated read scope parameters must be a non-empty dense array of data properties");
-		expect(() => compileInvalidReadScope("tenant/:tenantId/generated-read-contract", extendedArray)).toThrow("Generated read scope parameters must be a non-empty dense array of data properties");
-		expect(() => compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", customPrototypeRead)).toThrow("Generated read configuration must be a plain object");
+		expect(() => {
+			compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", scopeAccessor);
+		}).toThrow("Generated read configuration must contain enumerable data properties only");
+		expect(() => {
+			compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", { scope: parametersAccessor });
+		}).toThrow("Generated read scope must contain enumerable data properties only");
+		expect(() => {
+			compileInvalidReadScope("tenant/:tenantId/generated-read-contract", [accessorMapping]);
+		}).toThrow("Generated read scope parameters[0] must contain enumerable data properties only");
+		expect(() => {
+			compileInvalidReadScope("tenant/:tenantId/generated-read-contract", accessorArray);
+		}).toThrow("Generated read scope parameters must be a non-empty dense array of data properties");
+		expect(() => {
+			compileInvalidReadScope("tenant/:tenantId/generated-read-contract", sparseArray);
+		}).toThrow("Generated read scope parameters must be a non-empty dense array of data properties");
+		expect(() => {
+			compileInvalidReadScope("tenant/:tenantId/generated-read-contract", extendedArray);
+		}).toThrow("Generated read scope parameters must be a non-empty dense array of data properties");
+		expect(() => {
+			compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", customPrototypeRead);
+		}).toThrow("Generated read configuration must be a plain object");
 		expect(scopeGetter).not.toHaveBeenCalled();
 		expect(parametersGetter).not.toHaveBeenCalled();
 		expect(mappingGetter).not.toHaveBeenCalled();
@@ -1011,17 +1263,27 @@ describe("generated read contract", () => {
 	it("fails closed when legacy low-level controller facades receive an uncompiled read scope", () => {
 		const entityMetadata = GenerateEntityInformation(GeneratedReadContractEntity);
 		const routeConfig = { read: { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } } } as never;
+
 		const properties = {
 			entity: GeneratedReadContractEntity,
 			routes: { [EApiRouteType.GET]: routeConfig },
 		} as never;
+
 		class LowLevelReadController {}
+
 		const handler = function get() {};
+
 		const invocations: Array<() => unknown> = [
-			() => ApiControllerApplyDecorators(handler as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, []),
-			() => ApiControllerApplyMetadata(LowLevelReadController, LowLevelReadController.prototype, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig),
+			() => {
+				ApiControllerApplyDecorators(handler as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, []);
+			},
+			() => {
+				ApiControllerApplyMetadata(LowLevelReadController, LowLevelReadController.prototype, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig);
+			},
 			() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET, EApiDtoType.PARAMETERS, routeConfig),
-			() => ApiControllerWriteDtoSwagger(LowLevelReadController, entityMetadata, properties, EApiRouteType.GET, routeConfig, entityMetadata),
+			() => {
+				ApiControllerWriteDtoSwagger(LowLevelReadController, entityMetadata, properties, EApiRouteType.GET, routeConfig, entityMetadata);
+			},
 		];
 
 		for (const invoke of invocations) {
@@ -1030,7 +1292,7 @@ describe("generated read contract", () => {
 	});
 
 	it("rejects generated read scope combined with a manual PARAMETERS DTO", () => {
-		expect(() =>
+		expect(() => {
 			compileInvalidReadConfiguration(
 				"tenant/:tenantId/generated-read-contract",
 				{
@@ -1039,23 +1301,29 @@ describe("generated read contract", () => {
 					},
 				},
 				true,
-			),
-		).toThrow("Generated read scope parameters cannot be combined with a manual PARAMETERS DTO");
+			);
+		}).toThrow("Generated read scope parameters cannot be combined with a manual PARAMETERS DTO");
 	});
 
 	it("rejects generated identity combined with a manual PARAMETERS DTO", () => {
-		expect(() => compileInvalidIdentityConfiguration("identity-alias", { parameter: "gameId" }, true)).toThrow("Generated identity cannot be combined with a manual PARAMETERS DTO");
+		expect(() => {
+			compileInvalidIdentityConfiguration("identity-alias", { parameter: "gameId" }, true);
+		}).toThrow("Generated identity cannot be combined with a manual PARAMETERS DTO");
 	});
 
 	it.each([
 		["hidden by the route guard", "tenant/:tenantId/generated-read-contract", [{ field: "tenantId", parameter: "tenantId" }], ReadScopeGuardB as Type<IAuthGuard>],
 		["explicitly disabled", "label/:label/generated-read-contract", [{ field: "label", parameter: "label" }], undefined],
 	])("rejects a mapped PARAMETERS field that is %s", (_label, path, parameters, currentGuard) => {
-		expect(() => compileInvalidReadConfiguration(path, { scope: { parameters } }, false, currentGuard)).toThrow("maps to an entity field unavailable for the route PARAMETERS DTO");
+		expect(() => {
+			compileInvalidReadConfiguration(path, { scope: { parameters } }, false, currentGuard);
+		}).toThrow("maps to an entity field unavailable for the route PARAMETERS DTO");
 	});
 
 	it("rejects GET_LIST PARAMETERS request configuration without generated read scope", () => {
-		expect(() => compileGetListParametersWithoutRead()).toThrow("GET_LIST PARAMETERS request configuration requires generated read scope");
+		expect(() => {
+			compileGetListParametersWithoutRead();
+		}).toThrow("GET_LIST PARAMETERS request configuration requires generated read scope");
 	});
 
 	it.each([
@@ -1084,7 +1352,9 @@ describe("generated read contract", () => {
 		["a non-array default order", { direction: EFilterOrderDirection.ASC, field: "id" }, [], "GET_LIST order defaultOrder must be an array"],
 		["an unsupported server-order entry key", [{ direction: EFilterOrderDirection.ASC, field: "id", unsupported: true }], [], "GET_LIST order defaultOrder[0] must contain exactly direction, field"],
 	])("rejects %s at controller bootstrap", (_label, defaultOrder, tieBreakers, expectedMessage) => {
-		expect(() => compileInvalidOrder(defaultOrder, tieBreakers)).toThrow(expectedMessage);
+		expect(() => {
+			compileInvalidOrder(defaultOrder, tieBreakers);
+		}).toThrow(expectedMessage);
 	});
 
 	it("generates and registers owner PARAMETERS DTOs for GET and GET_LIST", () => {
@@ -1139,6 +1409,7 @@ describe("generated read contract", () => {
 
 	it("binds identity plans to exact generated handlers across controller inheritance", async () => {
 		const controllers = createIdentityInheritanceControllers();
+
 		const cases: Array<{
 			controller: IGeneratedReadContractController;
 			parameter: string;
@@ -1174,6 +1445,7 @@ describe("generated read contract", () => {
 		const { controller, type } = createIdentityAliasController(true);
 		const controllerType = type as { prototype: { get: object } };
 		const parametersDto = (Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "get") as Array<new () => Record<string, unknown>>)[0];
+
 		const parameters = plainToInstance(parametersDto as new () => Record<string, unknown>, {
 			gameId: ENTITY_ID,
 			tenantId: PATH_TENANT_ID,
@@ -1250,6 +1522,7 @@ describe("generated read contract", () => {
 			sequenceAlias: "7",
 			tenantAlias: QUERY_TENANT_ID,
 		});
+
 		const invalidParameters = plainToInstance(parametersDto as new () => Record<string, unknown>, {
 			sequenceAlias: "not-a-number",
 			tenantAlias: "not-a-uuid",
@@ -1273,6 +1546,7 @@ describe("generated read contract", () => {
 	it("applies configured-read alias transformers to generated GET scope", async () => {
 		const parameterValidator = vi.fn((): boolean => true);
 		const { controller } = createAliasedReadController(parameterValidator);
+
 		const parameters: Record<string, unknown> = {
 			id: ENTITY_ID,
 			sequenceAlias: 7,
@@ -1294,6 +1568,7 @@ describe("generated read contract", () => {
 		const controllerType = type as { prototype: object };
 		const getTypes = Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "get") as Array<new () => Record<string, unknown>>;
 		const parametersDto = getTypes[0];
+
 		const parameters = plainToInstance(parametersDto as new () => Record<string, unknown>, {
 			effectiveAt: EFFECTIVE_AT,
 			id: ENTITY_ID,
@@ -1358,6 +1633,7 @@ describe("generated read contract", () => {
 
 	it("isolates generated PARAMETERS DTO decorators by route guard", () => {
 		const entityMetadata = GenerateEntityInformation<GeneratedReadContractEntity>(GeneratedReadContractEntity);
+
 		const readPlan: IApiControllerReadPlan = Object.freeze({
 			controllerName: "GuardSensitiveReadController",
 			parameters: Object.freeze([Object.freeze({ field: "tenantId", parameter: "tenantAlias" })]),
@@ -1452,6 +1728,173 @@ describe("generated read contract", () => {
 		});
 	});
 
+	it("keeps CURSOR windows inside query, owner, and recalculated IAM scope", async () => {
+		const { controller } = createGeneratedCursorReadController();
+
+		const query = {
+			limit: 1,
+			"tenantId[operator]": EFilterOperation.EQ,
+			"tenantId[value]": QUERY_TENANT_ID,
+		};
+		const first = await controller.getList({ tenantId: PATH_TENANT_ID }, query, {}, "127.0.0.1", createAuthenticationRequest({ tenantId: SCOPE_TENANT_ID }));
+
+		expect(Object.keys(first).toSorted()).toEqual(["items", "nextCursor", "previousCursor"]);
+		expect(first.nextCursor).toEqual(expect.any(String));
+		expect(controller.service.getMany).toHaveBeenCalledTimes(1);
+
+		controller.service.getMany.mockClear();
+		await controller.getList({ tenantId: PATH_TENANT_ID }, { ...query, after: first.nextCursor! }, {}, "127.0.0.1", createAuthenticationRequest({ tenantId: SECOND_SCOPE_TENANT_ID }));
+
+		expect(controller.service.getMany).toHaveBeenCalledTimes(2);
+
+		for (const call of controller.service.getMany.mock.calls) {
+			const where = call[0].where as Array<Record<string, unknown>>;
+
+			expect(where).toHaveLength(2);
+			expect(where.every((branch: Record<string, unknown>): boolean => "tenantId" in branch)).toBe(true);
+			expect(where[0]?.tenantId).toMatchObject({
+				_type: "and",
+			});
+		}
+	});
+
+	it.each([
+		["structured item DTO", { itemType: GeneratedCursorItemDto }],
+		["full flat response DTO", GeneratedCursorResponseDto],
+	] as const)("returns the exact asserted plain CURSOR projection for a proven %s", async (_label, responseDto) => {
+		const { controller } = createGeneratedCursorReadController({ responseDto });
+		const result = await controller.getList({ tenantId: PATH_TENANT_ID }, { limit: 1 }, {}, "127.0.0.1");
+		const firstItem = result.items[0] as unknown as Record<string, unknown>;
+
+		expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+		expect(Object.getPrototypeOf(firstItem)).toBe(Object.prototype);
+		expect(firstItem).toEqual({ id: ENTITY_ID, sequence: 1 });
+	});
+
+	it.each([
+		["aliased protected field", GeneratedCursorAliasedItemDto],
+		["transformed protected field", GeneratedCursorTransformedItemDto],
+	] as const)("rejects a custom CURSOR item DTO with a wire-time %s", async (_label, itemType) => {
+		const { controller } = createGeneratedCursorReadController({ responseDto: { itemType } });
+
+		await expect(controller.getList({ tenantId: PATH_TENANT_ID }, { limit: 1 }, {}, "127.0.0.1")).rejects.toThrow(/protected (?:pagination result|raw order tuple)/u);
+	});
+
+	it("rejects a generated response transformer that changes a framework-owned CURSOR", async () => {
+		const { controller } = createGeneratedCursorReadController({ responseTransformer: { key: "nextCursor", value: "tampered" } });
+
+		await expect(controller.getList({ tenantId: PATH_TENANT_ID }, { limit: 1 }, {}, "127.0.0.1")).rejects.toThrow("changed the protected pagination result");
+	});
+
+	it("allows route AFTER subscribers to redact non-protected item fields", async () => {
+		const subscriberSpy = vi.spyOn(ApiSubscriberExecutor, "executeRouteSubscribers").mockImplementation(async (...parameters: Array<unknown>): Promise<unknown> => {
+			if (parameters[3] !== EApiSubscriberOnType.AFTER) {
+				return undefined;
+			}
+
+			const context = parameters[4] as { result: IApiGetListCursorResponseResult<GeneratedReadContractEntity> };
+
+			return {
+				...context.result,
+				items: context.result.items.map((item: GeneratedReadContractEntity): GeneratedReadContractEntity => ({ ...item, label: "redacted" })),
+			};
+		});
+
+		try {
+			const { controller } = createGeneratedCursorReadController();
+			const result = await controller.getList({ tenantId: PATH_TENANT_ID }, { limit: 1 }, {}, "127.0.0.1");
+
+			expect(result.items[0]?.label).toBe("redacted");
+		} finally {
+			subscriberSpy.mockRestore();
+		}
+	});
+
+	it.each(["cardinality", "order", "tuple"] as const)("rejects a route AFTER subscriber that changes CURSOR item %s", async (mutation) => {
+		const subscriberSpy = vi.spyOn(ApiSubscriberExecutor, "executeRouteSubscribers").mockImplementation(async (...parameters: Array<unknown>): Promise<unknown> => {
+			if (parameters[3] !== EApiSubscriberOnType.AFTER) {
+				return undefined;
+			}
+
+			const context = parameters[4] as { result: IApiGetListCursorResponseResult<GeneratedReadContractEntity> };
+			const items = [...context.result.items];
+
+			if (mutation === "cardinality") {
+				items.pop();
+			} else if (mutation === "order") {
+				items.reverse();
+			} else if (items[0]) {
+				items[0] = { ...items[0], sequence: 99 };
+			}
+
+			return { ...context.result, items };
+		});
+
+		try {
+			const { controller } = createGeneratedCursorReadController();
+
+			await expect(controller.getList({ tenantId: PATH_TENANT_ID }, { limit: 2 }, {}, "127.0.0.1")).rejects.toThrow("changed the protected pagination result");
+		} finally {
+			subscriberSpy.mockRestore();
+		}
+	});
+
+	it("rejects an authorization transform that changes a CURSOR envelope", async () => {
+		const { controller } = createGeneratedCursorReadController();
+		const transform = vi.fn((result: unknown): unknown => ({ ...(result as object), nextCursor: "tampered" }));
+
+		await expect(controller.getList({ tenantId: PATH_TENANT_ID }, { limit: 1 }, {}, "127.0.0.1", createAuthenticationRequest({ tenantId: SCOPE_TENANT_ID }, transform))).rejects.toThrow("changed the protected pagination result");
+		expect(transform).toHaveBeenCalledTimes(1);
+	});
+
+	it("protects the static CURSOR order union from retained-query mutation during I/O", async () => {
+		let retainedQuery: Record<string, unknown> | undefined;
+
+		const subscriberSpy = vi.spyOn(ApiSubscriberExecutor, "executeRouteSubscribers").mockImplementation(async (...parameters: Array<unknown>): Promise<unknown> => {
+			if (parameters[3] === EApiSubscriberOnType.BEFORE) {
+				const context = parameters[4] as { result: { query?: Record<string, unknown> } };
+
+				retainedQuery = context.result.query;
+			}
+
+			return undefined;
+		});
+
+		const transform = vi.fn((result: unknown): unknown => {
+			const envelope = result as IApiGetListCursorResponseResult<GeneratedReadContractEntity>;
+
+			return { ...envelope, items: envelope.items.map(({ sequence: _sequence, ...item }: GeneratedReadContractEntity): Omit<GeneratedReadContractEntity, "sequence"> => item) };
+		});
+
+		try {
+			const { controller } = createGeneratedCursorReadController();
+
+			controller.service.getMany.mockImplementationOnce(async (properties: TApiFunctionGetManyProperties<GeneratedReadContractEntity>): Promise<Array<GeneratedReadContractEntity>> => {
+				ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET_MANY, properties);
+				setTimeout(() => {
+					if (retainedQuery) {
+						retainedQuery.orderBy = "label";
+						retainedQuery.orderDirection = EFilterOrderDirection.DESC;
+					}
+				}, 0);
+
+				await new Promise<void>((resolve): void => {
+					setTimeout(resolve, 5);
+				});
+
+				return [
+					{ effectiveAt: new Date(EFFECTIVE_AT), id: ENTITY_ID, label: "entity-a", sequence: 1, tenantId: PATH_TENANT_ID },
+					{ effectiveAt: new Date(EFFECTIVE_AT), id: SECOND_ENTITY_ID, label: "entity-b", sequence: 2, tenantId: PATH_TENANT_ID },
+				];
+			});
+
+			await expect(controller.getList({ tenantId: PATH_TENANT_ID }, { limit: 1 }, {}, "127.0.0.1", createAuthenticationRequest({ tenantId: SCOPE_TENANT_ID }, transform))).rejects.toThrow(/protected (?:pagination result|raw order tuple)/u);
+			expect(transform).toHaveBeenCalledTimes(1);
+		} finally {
+			subscriberSpy.mockRestore();
+		}
+	});
+
 	it("rejects an empty authorization WHERE before scoped GET_LIST service I/O", async () => {
 		const { controller } = createGeneratedReadController();
 		const authenticationRequest: IApiAuthenticationRequest = createAuthenticationRequest([] as unknown as Record<string, unknown>);
@@ -1465,6 +1908,7 @@ describe("generated read contract", () => {
 		["null", null],
 	])("rejects a partially ineffective authorization WHERE containing %s before scoped GET_LIST service I/O", async (_label: string, ineffectiveTenantId: null | undefined) => {
 		const { controller } = createGeneratedReadController();
+
 		const authenticationRequest: IApiAuthenticationRequest = createAuthenticationRequest({
 			status: "active",
 			tenantId: ineffectiveTenantId,

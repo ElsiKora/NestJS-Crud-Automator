@@ -11,10 +11,25 @@ import { InstanceChecker } from "typeorm";
  * repeatedly expanding an already-contained OR scope.
  */
 export class ApiControllerGeneratedScopeWhereContract {
+	public static contains<E extends IApiBaseEntity>(candidateWhere: TApiAuthorizationScopeWhere<E>, mandatoryWhere: TApiAuthorizationScopeWhere<E>): boolean {
+		if (!mandatoryWhere) {
+			return true;
+		}
+
+		if (!candidateWhere) {
+			return false;
+		}
+
+		const candidateBranches: Array<object> = Array.isArray(candidateWhere) ? candidateWhere : [candidateWhere];
+		const mandatoryBranches: Array<object> = Array.isArray(mandatoryWhere) ? mandatoryWhere : [mandatoryWhere];
+
+		return candidateBranches.length > 0 && mandatoryBranches.length > 0 && candidateBranches.every((candidateBranch: object): boolean => mandatoryBranches.some((mandatoryBranch: object): boolean => this.branchContains(candidateBranch, mandatoryBranch)));
+	}
+
 	public static merge<E extends IApiBaseEntity>(candidateWhere: TApiAuthorizationScopeWhere<E>, mandatoryWhere: TApiAuthorizationScopeWhere<E>): TApiAuthorizationScopeWhere<E> {
 		const normalizedCandidate: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(undefined, candidateWhere);
 
-		return this.implies(normalizedCandidate, mandatoryWhere) ? normalizedCandidate : AuthorizationScopeMergeWhere(normalizedCandidate, mandatoryWhere);
+		return this.contains(normalizedCandidate, mandatoryWhere) ? normalizedCandidate : AuthorizationScopeMergeWhere(normalizedCandidate, mandatoryWhere);
 	}
 
 	private static branchContains(candidate: object, mandatory: object): boolean {
@@ -44,21 +59,6 @@ export class ApiControllerGeneratedScopeWhereContract {
 		}
 
 		return entries;
-	}
-
-	private static implies<E extends IApiBaseEntity>(candidateWhere: TApiAuthorizationScopeWhere<E>, mandatoryWhere: TApiAuthorizationScopeWhere<E>): boolean {
-		if (!mandatoryWhere) {
-			return true;
-		}
-
-		if (!candidateWhere) {
-			return false;
-		}
-
-		const candidateBranches: Array<object> = Array.isArray(candidateWhere) ? candidateWhere : [candidateWhere];
-		const mandatoryBranches: Array<object> = Array.isArray(mandatoryWhere) ? mandatoryWhere : [mandatoryWhere];
-
-		return candidateBranches.every((candidateBranch: object): boolean => mandatoryBranches.some((mandatoryBranch: object): boolean => this.branchContains(candidateBranch, mandatoryBranch)));
 	}
 
 	private static isNestedWhere(value: unknown): value is object {

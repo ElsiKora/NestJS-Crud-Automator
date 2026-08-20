@@ -11,13 +11,13 @@ import type { Token as PathPart } from "path-to-regexp";
 import { createHash } from "node:crypto";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT } from "@constant/safe-object-property-names.constant";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { parse } from "path-to-regexp";
 
 const IDENTITY_PARAMETER_PATTERN: RegExp = /^[A-Za-z_$][\w$]*$/u;
-const UNSAFE_IDENTITY_PROPERTY_NAMES: ReadonlySet<string> = new Set<string>([...Object.getOwnPropertyNames(Object.prototype), "prototype"]);
 
 export class ApiControllerIdentityPlanCompiler {
 	public static compile<E extends IApiBaseEntity, R extends EApiRouteType>(controller: Type<unknown>, controllerPath: string | undefined, entityMetadata: IApiEntity<E>, method: R, routeConfig: TApiControllerPropertiesRoute<E, R>, readPlan?: IApiControllerReadPlan): IApiControllerIdentityPlan | undefined {
@@ -138,7 +138,7 @@ export class ApiControllerIdentityPlanCompiler {
 
 		const parameter: unknown = descriptor.value;
 
-		if (typeof parameter !== "string" || !IDENTITY_PARAMETER_PATTERN.test(parameter) || UNSAFE_IDENTITY_PROPERTY_NAMES.has(parameter)) {
+		if (typeof parameter !== "string" || !IDENTITY_PARAMETER_PATTERN.test(parameter) || UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT.has(parameter)) {
 			throw ErrorException("Generated identity parameter must be a safe simple identifier");
 		}
 

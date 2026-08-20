@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationRequestMetadata } from "@interface/class/api/authorization/request-metadata.interface";
@@ -47,7 +48,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 		const request: TApiAuthorizationGuardRequest = context.switchToHttp().getRequest<TApiAuthorizationGuardRequest>();
 		const authenticationRequest: IApiAuthenticationRequest = request as unknown as IApiAuthenticationRequest;
 		const identityPlan: IApiControllerIdentityPlan | undefined = ApiControllerIdentityPlanGet(context.getHandler());
-		const requestMetadata: IApiAuthorizationRequestMetadata<IApiBaseEntity> = this.resolveRequestMetadata<IApiBaseEntity>(request, identityPlan);
+		const requestMetadata: IApiAuthorizationRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode> = this.resolveRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(request, identityPlan);
 
 		const decision: IApiAuthorizationDecision<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>> = await this.runtime.evaluate({
 			action,
@@ -152,13 +153,13 @@ export class ApiAuthorizationGuard implements CanActivate {
 		return resolvedParameters as Partial<E>;
 	}
 
-	private resolveRequestMetadata<E extends IApiBaseEntity>(request: TApiAuthorizationGuardRequest, identityPlan?: IApiControllerIdentityPlan): IApiAuthorizationRequestMetadata<E> {
+	private resolveRequestMetadata<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(request: TApiAuthorizationGuardRequest, identityPlan?: IApiControllerIdentityPlan): IApiAuthorizationRequestMetadata<E, M> {
 		return {
 			body: request.body as DeepPartial<E> | undefined,
 			headers: this.resolveHeaders(request.headers),
 			ip: typeof request.ip === "string" ? request.ip : undefined,
 			parameters: identityPlan ? this.resolveIdentityParameters<E>(request.params, identityPlan) : (request.params as Partial<E> | undefined),
-			query: request.query as TApiControllerGetListQuery<E> | undefined,
+			query: request.query as TApiControllerGetListQuery<E, M> | undefined,
 		};
 	}
 

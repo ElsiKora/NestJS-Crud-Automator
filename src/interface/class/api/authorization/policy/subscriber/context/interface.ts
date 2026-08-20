@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { EApiRouteType } from "@enum/decorator/api/route";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
@@ -10,10 +11,10 @@ import type { IApiEntity } from "@interface/entity/interface";
  * Execution context for authorization policy hooks.
  * Includes typed DATA and explicit route/action identity.
  */
-export interface IApiAuthorizationPolicySubscriberContext<E extends IApiBaseEntity> extends IApiAuthorizationRequestMetadata<E> {
+export interface IApiAuthorizationPolicySubscriberContext<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> extends IApiAuthorizationRequestMetadata<E, M> {
 	action: string;
 	authenticationRequest?: IApiAuthenticationRequest;
-	readonly DATA: IApiAuthorizationPolicySubscriberContextData<E>;
+	readonly DATA: IApiAuthorizationPolicySubscriberContextData<E, M>;
 	entity: new () => E;
 	entityMetadata: IApiEntity<E>;
 	permissions: ReadonlyArray<string>;

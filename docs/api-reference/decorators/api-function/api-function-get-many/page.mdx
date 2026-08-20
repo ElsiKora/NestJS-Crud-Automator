@@ -20,6 +20,10 @@ Decorated methods gain the shape `getMany(dto: TApiFunctionGetManyProperties<E>)
 - Runs `onAfterGetMany` subscribers; they may adjust the returned list.
 - Emits `onBeforeErrorGetMany` and `onAfterErrorGetMany` subscriber events for error observability.
 
+Generated CURSOR GET_LIST windows and probes use this decorated function with an internal execution contract. Automator runs the GET_MANY BEFORE chain once per CURSOR HTTP request against detached base options, captures its candidate `where` and `withDeleted`, and reuses that exact candidate for the main window and opposite probe. It rejects executable or unstable candidate predicates before query I/O, re-ANDs mandatory query/path/IAM scope and the framework-owned window, restores framework-owned `order`/`take`, forces an own `cache: false`, shadows `select`/`skip`, and disallows subscriber `join`/`lock`.
+
+GET_MANY AFTER subscribers run for each actual query, but changing cardinality, row sequence, or the raw effective-order tuple fails closed. Direct `getMany(...)` calls keep the ordinary per-call override/adjust behavior above; the one-shot candidate and protected-option rules apply only inside a generated CURSOR route.
+
 ## Example
 
 ```typescript

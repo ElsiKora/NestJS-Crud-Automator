@@ -384,9 +384,11 @@ For stronger typing, use the route-aware helper contexts:
 
 - `TApiAuthorizationPolicyBeforeCreateContext<E>`
 - `TApiAuthorizationPolicyBeforeGetContext<E>`
-- `TApiAuthorizationPolicyBeforeGetListContext<E>`
+- `TApiAuthorizationPolicyBeforeGetListContext<E, M = PAGE>`
 - `TApiAuthorizationPolicyBeforeUpdateContext<E>`
 - `TApiAuthorizationPolicyBeforePartialUpdateContext<E>`
+
+The GET_LIST policy action stays the same in CURSOR mode. Select `M = EApiControllerGetListQueryPaginationMode.CURSOR` when a policy needs typed `after`/`before` access or returns a transform for the flat cursor envelope.
 
 Permission helpers compare required permissions against the permissions returned by your hook permission sources:
 

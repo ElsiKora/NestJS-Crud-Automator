@@ -2,6 +2,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { FindManyOptions, FindOneOptions, Repository } from "typeorm";
 
 import { ErrorException } from "@utility/error/exception.utility";
+import { ObjectFindPropertyDescriptor } from "@utility/object-find-property-descriptor.utility";
 
 /**
  * Rejects the TypeORM relation-loader cache combination that cannot inherit a
@@ -38,24 +39,8 @@ export class ApiControllerGeneratedRelationCacheContract {
 		}
 	}
 
-	private static findPropertyDescriptor(source: object, key: PropertyKey): PropertyDescriptor | undefined {
-		let current: null | object = source;
-
-		while (current) {
-			const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(current, key);
-
-			if (descriptor) {
-				return descriptor;
-			}
-
-			current = Object.getPrototypeOf(current) as null | object;
-		}
-
-		return undefined;
-	}
-
 	private static hasRequestedRelations(properties: object): boolean {
-		const descriptor: PropertyDescriptor | undefined = this.findPropertyDescriptor(properties, "relations");
+		const descriptor: PropertyDescriptor | undefined = ObjectFindPropertyDescriptor(properties, "relations");
 
 		if (!descriptor) {
 			return false;
@@ -87,7 +72,7 @@ export class ApiControllerGeneratedRelationCacheContract {
 	}
 
 	private static readDataProperty(source: object, key: PropertyKey): unknown {
-		const descriptor: PropertyDescriptor | undefined = this.findPropertyDescriptor(source, key);
+		const descriptor: PropertyDescriptor | undefined = ObjectFindPropertyDescriptor(source, key);
 
 		if (!descriptor) {
 			return undefined;

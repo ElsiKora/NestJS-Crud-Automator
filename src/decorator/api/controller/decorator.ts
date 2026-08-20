@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { TApiControllerConstructor } from "@type/decorator/api/controller";
@@ -30,7 +31,7 @@ import { ApiControllerFactory } from "@factory/api-controller.factory";
 export const ApiController =
 	<E extends IApiBaseEntity>(options: IApiControllerProperties<E>) =>
 	<T extends TApiControllerConstructor>(target: T): T => {
-		const factory: ApiControllerFactory<E> = new ApiControllerFactory<E>(target, options);
+		const factory: ApiControllerFactory<E, EApiControllerGetListQueryPaginationMode> = new ApiControllerFactory<E, EApiControllerGetListQueryPaginationMode>(target, options);
 		factory.init();
 
 		// eslint-disable-next-line @elsikora/typescript/no-explicit-any

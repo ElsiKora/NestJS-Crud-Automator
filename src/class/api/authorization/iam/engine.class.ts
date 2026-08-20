@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationDecision, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiAuthorizationScope, IApiPolicyAttachment, IApiPolicyDocumentRecord, IApiPolicyStatement, IApiResolvedPolicyAttachments } from "@interface/class/api/authorization";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
@@ -15,7 +16,16 @@ const iamEngineLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorization
 export class ApiAuthorizationIamEngine {
 	public constructor(private readonly queryPlanner: ApiAuthorizationIamQueryPlanner) {}
 
-	public evaluate<E extends IApiBaseEntity>(options: { action: string; attachments: IApiResolvedPolicyAttachments; documents: ReadonlyArray<IApiPolicyDocumentRecord>; policyNamespace: string; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E> }): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
+	public evaluate<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(options: {
+		action: string;
+		attachments: IApiResolvedPolicyAttachments;
+		documents: ReadonlyArray<IApiPolicyDocumentRecord>;
+		policyNamespace: string;
+		principal: IApiAuthorizationPrincipal;
+		requestMetadata: IApiAuthorizationRequestMetadata<E, M>;
+		resource?: E;
+		resourceDefinition: IApiAuthorizationResourceDefinition<E>;
+	}): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
 		iamEngineLogger.verbose(`Evaluating IAM authorization for principal "${options.principal.id}" action "${options.action}" with ${options.documents.length} documents.`);
 
 		const resourceString: string = this.resolveResourceString(options.resourceDefinition, options.requestMetadata, options.resource);
@@ -136,14 +146,14 @@ export class ApiAuthorizationIamEngine {
 		);
 	}
 
-	private buildDecision<E extends IApiBaseEntity>(
+	private buildDecision<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(
 		options: {
 			action: string;
 			attachments: IApiResolvedPolicyAttachments;
 			documents: ReadonlyArray<IApiPolicyDocumentRecord>;
 			policyNamespace: string;
 			principal: IApiAuthorizationPrincipal;
-			requestMetadata: IApiAuthorizationRequestMetadata<E>;
+			requestMetadata: IApiAuthorizationRequestMetadata<E, M>;
 			resource?: E;
 			resourceDefinition: IApiAuthorizationResourceDefinition<E>;
 		},
@@ -185,11 +195,11 @@ export class ApiAuthorizationIamEngine {
 		};
 	}
 
-	private evaluateDocumentSet<E extends IApiBaseEntity>(options: {
+	private evaluateDocumentSet<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: {
 		action: string;
 		documents: ReadonlyArray<IApiPolicyDocumentRecord>;
 		principal: IApiAuthorizationPrincipal;
-		requestMetadata: IApiAuthorizationRequestMetadata<E>;
+		requestMetadata: IApiAuthorizationRequestMetadata<E, M>;
 		resource?: E;
 		resourceDefinition: IApiAuthorizationResourceDefinition<E>;
 		resourceString: string;
@@ -285,7 +295,7 @@ export class ApiAuthorizationIamEngine {
 		return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 	}
 
-	private isStatementMatched<E extends IApiBaseEntity>(options: { action: string; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E>; resourceString: string; statement: IApiPolicyStatement }): boolean {
+	private isStatementMatched<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: { action: string; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E>; resourceString: string; statement: IApiPolicyStatement }): boolean {
 		const isActionMatched: boolean = options.statement.Action.some((pattern: string) => this.matchesWildcardPattern(pattern, options.action));
 		const isResourceMatched: boolean = options.statement.Resource.some((pattern: string) => this.matchesWildcardPattern(pattern, options.resourceString));
 
@@ -479,7 +489,7 @@ export class ApiAuthorizationIamEngine {
 		return currentValue;
 	}
 
-	private resolveResourceString<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, requestMetadata: IApiAuthorizationRequestMetadata<E>, resource: E | undefined): string {
+	private resolveResourceString<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, requestMetadata: IApiAuthorizationRequestMetadata<E, M>, resource: E | undefined): string {
 		const resourceSource: Record<string, unknown> = {
 			...(this.isRecord(resource) ? resource : {}),
 			...(this.isRecord(requestMetadata.parameters) ? requestMetadata.parameters : {}),

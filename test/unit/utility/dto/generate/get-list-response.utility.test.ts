@@ -1,7 +1,7 @@
 import "reflect-metadata";
 
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
-import { DtoGenerateGetListResponse } from "@utility/dto/generate/get-list-response.utility";
+import { DtoGenerateGetListResponse } from "@utility/dto/generate/get-list";
 import { describe, expect, it } from "vitest";
 
 class ListEntity {

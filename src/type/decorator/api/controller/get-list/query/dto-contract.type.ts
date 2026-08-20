@@ -9,6 +9,7 @@ export type TApiControllerGetListQueryDtoContract<E> = (
 				[EApiControllerRequestTarget.QUERY]?: {
 					filter?: never;
 					order?: never;
+					pagination?: never;
 				} & IApiControllerPropertiesRouteBaseRequestTarget<E>;
 			};
 	  }

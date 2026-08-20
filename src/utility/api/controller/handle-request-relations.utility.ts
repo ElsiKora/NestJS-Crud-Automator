@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties, IApiControllerPropertiesRouteBaseRelationsRequest } from "@interface/decorator/api";
 import type { TApiControllerMethod } from "@type/class";
@@ -28,7 +29,7 @@ import { GetEntityColumns } from "@utility/get/entity-columns.utility";
  * @throws {Error} When service configuration is invalid or services are not found
  * @template E - The entity type
  */
-export async function ApiControllerHandleRequestRelations<E extends IApiBaseEntity>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: IApiControllerPropertiesRouteBaseRelationsRequest<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
+export async function ApiControllerHandleRequestRelations<E extends IApiBaseEntity>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: IApiControllerPropertiesRouteBaseRelationsRequest<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode>): Promise<void> {
 	const loadConfig: IApiControllerPropertiesRouteBaseRelationsRequest<E>["load"] | undefined = relationConfig?.load;
 	const referenceConfig: IApiControllerPropertiesRouteBaseRelationsRequest<E>["reference"] | undefined = relationConfig?.reference;
 

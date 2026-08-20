@@ -124,9 +124,11 @@ For stronger route-aware typing, use:
 
 - `TApiAuthorizationPolicyBeforeCreateContext<E>`
 - `TApiAuthorizationPolicyBeforeGetContext<E>`
-- `TApiAuthorizationPolicyBeforeGetListContext<E>`
+- `TApiAuthorizationPolicyBeforeGetListContext<E, M = PAGE>`
 - `TApiAuthorizationPolicyBeforeUpdateContext<E>`
 - `TApiAuthorizationPolicyBeforePartialUpdateContext<E>`
+
+GET_LIST remains the authorization action in CURSOR mode. Its optional `M` generic defaults to PAGE and can select the typed CURSOR query/response contract.
 
 Use `TApiAuthorizationPolicyBefore*Result` and `TApiAuthorizationPolicyCustomActionResult` to make hook return types explicit.
 

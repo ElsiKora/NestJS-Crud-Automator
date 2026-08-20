@@ -18,7 +18,7 @@ All entities must implement this interface (implicitly through TypeScript's stru
 
 ### IApiGetListResponseResult\<E\>
 
-Response structure for paginated list operations.
+Response structure for PAGE list operations.
 
 ```typescript
 interface IApiGetListResponseResult<E> {
@@ -29,6 +29,20 @@ interface IApiGetListResponseResult<E> {
 	totalPages: number;
 }
 ```
+
+### IApiGetListCursorResponseResult\<E\>
+
+Flat response structure for generated CURSOR list operations.
+
+```typescript
+interface IApiGetListCursorResponseResult<E> {
+	items: Array<E>;
+	nextCursor: null | string;
+	previousCursor: null | string;
+}
+```
+
+All three properties are always present. This response intentionally has no count, total, page-info, or boolean fields.
 
 **Related:**
 
@@ -128,14 +142,24 @@ interface IApiControllerPropertiesRouteBaseTransaction {
 
 Omitted configuration and `SUPPORTS` do not open a route transaction. `REQUIRED` opens one through the controller service repository when no Automator transaction is active, `MANDATORY` requires an active owner, and `NONE` rejects active execution. A route that opens the transaction owns the `ROUTE` transaction registry and encloses request relation hydration, the generated service operation, and response relation reload. Request transformation and validation run before the transaction; response transformation, route-after subscribers, authorization result handling, and serialization run after commit.
 
-### IApiControllerPropertiesRouteGetListQueryRequestTarget\<E\>
+### IApiControllerPropertiesRouteGetListQueryRequestTarget\<E, M\>
 
-The generated GET_LIST QUERY target extends ordinary request transformers/validators with optional typed filter and order sections.
+The generated GET_LIST QUERY target extends ordinary request transformers/validators with optional typed filter, order, and pagination sections.
 
 ```typescript
-interface IApiControllerPropertiesRouteGetListQueryRequestTarget<E> extends IApiControllerPropertiesRouteBaseRequestTarget<E> {
+interface IApiControllerPropertiesRouteBaseRequestTarget<E, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> {
+	transformers?: Array<TApiRequestTransformer<E>>;
+	validators?: Array<IApiRequestValidator<E, M>>;
+}
+
+interface IApiControllerPropertiesRouteGetListQueryRequestTarget<E, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> extends IApiControllerPropertiesRouteBaseRequestTarget<E, M> {
 	filter?: IApiControllerPropertiesRouteGetListQueryFilter<E>;
 	order?: IApiControllerPropertiesRouteGetListQueryOrder<E>;
+	pagination?: IApiControllerPropertiesRouteGetListQueryPagination<M>;
+}
+
+interface IApiControllerPropertiesRouteGetListQueryPagination<M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> {
+	mode: M;
 }
 
 interface IApiControllerPropertiesRouteGetListQueryFilter<E> {
@@ -158,9 +182,11 @@ interface IApiControllerPropertiesRouteGetListQueryOrderEntry<E> {
 
 `INHERIT` overlays metadata-enabled fields; `REJECT` creates an allowlist. Filter fields support direct scalars and one-hop to-one scalar paths, while client order fields support direct scalars only. The same immutable plan drives dynamic DTO generation, strict runtime parsing, TypeORM compilation, and OpenAPI. A manual QUERY DTO cannot be combined with these sections; manual RESPONSE DTOs remain compatible.
 
+The `M` generic defaults to `PAGE` on the query target, pagination property, base request target, and its validators. Omitted pagination or explicit `PAGE` uses required `limit`/`page` and `IApiGetListResponseResult`. Select `EApiControllerGetListQueryPaginationMode.CURSOR` for required `limit`, optional mutually exclusive `after`/`before`, and `IApiGetListCursorResponseResult`. CURSOR mode requires an explicit order, exactly one primary column as only the final explicit tie-breaker, and described non-null direct-scalar metadata for every possible order field. Its v1 runtime supports only the exact PostgreSQL storage matrix documented in [Pagination](/docs/nestjs-crud-automator/guides/pagination); PAGE is unchanged.
+
 `defaultOrder` and `tieBreakers` are server-owned ordered arrays. Their fields are validated against all described direct scalar entity columns, not only the client `fields` allowlist, so a UUID primary key can stabilize ordering without becoming a valid `orderBy` value. Duplicate fields within either array, invalid directions, unknown/non-scalar fields, and conflicting directions for the same field across defaults and tie-breakers fail at bootstrap.
 
-When the client omits `orderBy`/`orderDirection`, Automator applies `defaultOrder` followed by `tieBreakers`. When the client supplies the pair, that one client order replaces all defaults and the tie-breakers are appended. Duplicate fields are removed in first-entry order, so the client entry wins when it names a tie-breaker field. This compound TypeORM order is used with required page/limit pagination.
+When the client omits `orderBy`/`orderDirection`, Automator applies `defaultOrder` followed by `tieBreakers`. When the client supplies the pair, that one client order replaces all defaults and the tie-breakers are appended. Duplicate fields are removed in first-entry order, so the client entry wins when it names a tie-breaker field. Both pagination modes use this compound TypeORM order.
 
 ### IApiControllerPropertiesRouteBaseRelationsRequestLoad\<E\>
 
@@ -238,7 +264,7 @@ interface IApiSubscriberRouteExecutionContext<E extends IApiBaseEntity, Result =
 Use `IApiSubscriberRouteExecutionContextData<E, R>` for before hooks (route metadata + optional `authorizationDecision`) and `IApiSubscriberRouteExecutionContextDataExtended<E, R>` for after/error hooks when you need authentication, headers, IP, or request payload fields:
 
 ```typescript
-interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity, R> {
+interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity, R = TApiAuthorizationRuleTransformPayload<E>> {
 	entityMetadata: IApiEntity<E>;
 	method: EApiRouteType;
 	methodName: string;
@@ -246,13 +272,13 @@ interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity, R> {
 	authorizationDecision?: IApiAuthorizationDecision<E, R>;
 }
 
-interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R> extends IApiSubscriberRouteExecutionContextData<E, R> {
+interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R = TApiAuthorizationRuleTransformPayload<E>, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> extends IApiSubscriberRouteExecutionContextData<E, R> {
 	authenticationRequest?: IApiAuthenticationRequest;
 	headers: Record<string, string>;
 	ip: string;
 	body?: DeepPartial<E>;
 	parameters?: Partial<E>;
-	query?: TApiControllerGetListQuery<E>;
+	query?: TApiControllerGetListQuery<E, M>;
 }
 ```
 
@@ -300,20 +326,20 @@ interface IApiSubscriberFunctionExecutionContextUpdateData<E extends IApiBaseEnt
 
 - [Subscriber System - Execution Context](/docs/nestjs-crud-automator/subscriber-system/execution-context)
 
-### IApiSubscriberRoute\<E\>
+### IApiSubscriberRoute\<E, TAuthorizationExpectation, M\>
 
 Interface for route subscribers.
 
 ```typescript
-interface IApiSubscriberRoute<E, TAuthorizationExpectation extends EApiRouteSubscriberAuthorizationExpectation = EApiRouteSubscriberAuthorizationExpectation.OPTIONAL> {
+interface IApiSubscriberRoute<E extends IApiBaseEntity, TAuthorizationExpectation extends EApiRouteSubscriberAuthorizationExpectation = EApiRouteSubscriberAuthorizationExpectation.OPTIONAL, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> {
 	onBeforeCustom?(context: IApiSubscriberRouteExecutionContext<E, unknown, IApiSubscriberRouteExecutionContextData<E, unknown>>): Promise<unknown>;
 	onAfterCustom?(context: IApiSubscriberRouteExecutionContext<E, unknown, IApiSubscriberRouteExecutionContextDataExtended<E, unknown>>): Promise<unknown>;
 	onBeforeCreate?(context: TApiSubscriberRouteBeforeCreateContext<E, TAuthorizationExpectation>): Promise<TApiSubscriberRouteBeforeCreateContext<E, TAuthorizationExpectation>["result"] | undefined>;
 	onAfterCreate?(context: TApiSubscriberRouteAfterCreateContext<E>): Promise<E | undefined>;
 	onBeforeGet?(context: TApiSubscriberRouteBeforeGetContext<E, TAuthorizationExpectation>): Promise<TApiSubscriberRouteBeforeGetContext<E, TAuthorizationExpectation>["result"] | undefined>;
 	onAfterGet?(context: TApiSubscriberRouteAfterGetContext<E>): Promise<E | undefined>;
-	onBeforeGetList?(context: TApiSubscriberRouteBeforeGetListContext<E, TAuthorizationExpectation>): Promise<TApiSubscriberRouteBeforeGetListContext<E, TAuthorizationExpectation>["result"] | undefined>;
-	onAfterGetList?(context: TApiSubscriberRouteAfterGetListContext<E>): Promise<IApiGetListResponseResult<E> | undefined>;
+	onBeforeGetList?(context: TApiSubscriberRouteBeforeGetListContext<E, TAuthorizationExpectation, M>): Promise<TApiSubscriberRouteBeforeGetListContext<E, TAuthorizationExpectation, M>["result"] | undefined>;
+	onAfterGetList?(context: TApiSubscriberRouteAfterGetListContext<E, M>): Promise<TApiControllerGetListResponse<E, M> | undefined>;
 	onBeforeUpdate?(context: TApiSubscriberRouteBeforeUpdateContext<E, TAuthorizationExpectation>): Promise<TApiSubscriberRouteBeforeUpdateContext<E, TAuthorizationExpectation>["result"] | undefined>;
 	onAfterUpdate?(context: TApiSubscriberRouteAfterUpdateContext<E>): Promise<E | undefined>;
 	onBeforePartialUpdate?(context: TApiSubscriberRouteBeforePartialUpdateContext<E, TAuthorizationExpectation>): Promise<TApiSubscriberRouteBeforePartialUpdateContext<E, TAuthorizationExpectation>["result"] | undefined>;
@@ -324,7 +350,7 @@ interface IApiSubscriberRoute<E, TAuthorizationExpectation extends EApiRouteSubs
 }
 ```
 
-The authorization expectation generic is optional and type-only. `REQUIRED` narrows before-hook `context.result.authenticationRequest.authorizationDecision`, while the default `OPTIONAL` preserves optional access.
+The authorization expectation and pagination-mode generics are optional and type-only. `REQUIRED` narrows before-hook `context.result.authenticationRequest.authorizationDecision`. Pagination defaults to PAGE; CURSOR types `query.after`/`query.before` and the flat response without weakening existing PAGE subscribers.
 
 ### IApiRouteSubscriberProperties\<E\>
 
@@ -558,17 +584,19 @@ interface IApiDtoValidator {
 }
 ```
 
-### IApiRequestValidator
+### IApiRequestValidator\<E, M\>
 
 Runtime request validator for controller routes.
 
 ```typescript
-interface IApiRequestValidator<E> {
+interface IApiRequestValidator<E, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> {
 	errorType: EErrorStringAction;
 	exception: TApiException;
-	validationFunction: (entity: Partial<E> | TApiControllerGetListQuery<E>) => boolean | Promise<boolean>;
+	validationFunction: (entity: Partial<E> | TApiControllerGetListQuery<E, M>) => boolean | Promise<boolean>;
 }
 ```
+
+The pagination generic defaults to PAGE. A validator attached to a CURSOR query target receives `TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode.CURSOR>` instead.
 
 **Related:**
 
@@ -582,7 +610,7 @@ Request/response transformer configuration.
 
 ```typescript
 type TApiRequestTransformer<E> = {
-	key: keyof Partial<E> | keyof IApiGetListResponseResult<E> | "limit" | "page";
+	key: keyof Partial<E> | keyof IApiGetListResponseResult<E> | keyof IApiGetListCursorResponseResult<E> | "after" | "before" | "limit" | "page";
 	shouldSetValueEvenIfMissing?: boolean;
 } & (
 	| {

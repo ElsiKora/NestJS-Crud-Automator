@@ -10,15 +10,20 @@ import type { Type } from "@nestjs/common";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { ObjectLiteral } from "typeorm";
 
-import { EApiDtoType as EApiDtoTypeValue, EApiRouteType as EApiRouteTypeValue } from "@enum/decorator/api";
+import { EApiControllerGetListQueryPaginationMode, EApiDtoType as EApiDtoTypeValue, EApiRouteType as EApiRouteTypeValue } from "@enum/decorator/api";
+import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { ApiControllerIdentityPlanAssert } from "@utility/api/controller/identity";
 import { ApiControllerReadPlanAssert } from "@utility/api/controller/read";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerate, DtoGenerateGetListResponse } from "@utility/dto";
+import { DtoGenerateGetListCursorResponse } from "@utility/dto/generate/get-list";
 import { DtoGenerateIdentityReadParameters } from "@utility/dto/generate/identity-read-parameters.utility";
 import { DtoGenerateReadParameters } from "@utility/dto/generate/read-parameters.utility";
+import { ErrorException } from "@utility/error/exception.utility";
 
 const getListItemResponseDtoCache: Map<string, Type<unknown>> = new Map<string, Type<unknown>>();
+const getListCursorItemResponseDtoCache: WeakMap<object, WeakMap<object, Map<string, Type<unknown>>>> = new WeakMap<object, WeakMap<object, Map<string, Type<unknown>>>>();
+const getListCursorItemResponseDtoNameOwnerCache: WeakMap<object, Map<string, object>> = new WeakMap<object, Map<string, object>>();
 
 /**
  * Resolves a DTO class for a generated controller route.
@@ -64,7 +69,7 @@ export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R exte
 
 	if (configuredDto) {
 		if (method === EApiRouteTypeValue.GET_LIST && dtoType === EApiDtoTypeValue.RESPONSE && isGetListResponseDtoConfig(configuredDto)) {
-			return getGetListItemResponseDto(properties.entity, entity, configuredDto, method, dtoType);
+			return getGetListItemResponseDto(properties.entity, entity, configuredDto, method, dtoType, queryPlan);
 		}
 
 		return configuredDto as Type<unknown>;
@@ -80,7 +85,8 @@ export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R exte
 		}
 	}
 
-	const effectiveQueryPlan: IApiControllerGetListQueryPlan | undefined = method === EApiRouteTypeValue.GET_LIST && dtoType === EApiDtoTypeValue.QUERY ? queryPlan : undefined;
+	const isCursorGetListResponse: boolean = method === EApiRouteTypeValue.GET_LIST && dtoType === EApiDtoTypeValue.RESPONSE && ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
+	const effectiveQueryPlan: IApiControllerGetListQueryPlan | undefined = method === EApiRouteTypeValue.GET_LIST && (dtoType === EApiDtoTypeValue.QUERY || isCursorGetListResponse) ? queryPlan : undefined;
 
 	return DtoGenerate(properties.entity, entity, method, dtoType, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard, effectiveQueryPlan);
 }
@@ -105,21 +111,70 @@ function buildGetListItemResponseDtoName<E extends IApiBaseEntity>(entity: IApiE
  * @param {IApiControllerPropertiesRouteGetListResponseDtoConfig} config - Custom item response DTO config.
  * @param {EApiRouteType} method - Current route type.
  * @param {EApiDtoType} dtoType - Current DTO type.
+ * @param {IApiControllerGetListQueryPlan} [queryPlan] - Compiled pagination plan selecting the page or cursor wrapper.
  * @returns {Type<unknown>} Generated list wrapper DTO class.
  * @template E - Entity type.
  */
-function getGetListItemResponseDto<E extends IApiBaseEntity>(resourceClass: ObjectLiteral, entity: IApiEntity<E>, config: IApiControllerPropertiesRouteGetListResponseDtoConfig, method: EApiRouteType, dtoType: EApiDtoType): Type<unknown> {
-	const name: string = buildGetListItemResponseDtoName(entity, config, method, dtoType);
-	const cacheKey: string = `${entity.name ?? "UnknownResource"}_${config.itemType.name}_${name}`;
-	const cached: Type<unknown> | undefined = getListItemResponseDtoCache.get(cacheKey);
+function getGetListItemResponseDto<E extends IApiBaseEntity>(resourceClass: ObjectLiteral, entity: IApiEntity<E>, config: IApiControllerPropertiesRouteGetListResponseDtoConfig, method: EApiRouteType, dtoType: EApiDtoType, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> {
+	const isCursor: boolean = ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
+	const defaultName: string = buildGetListItemResponseDtoName(entity, config, method, dtoType);
+
+	if (!isCursor) {
+		const cacheKey: string = `${entity.name ?? "UnknownResource"}_${config.itemType.name}_${defaultName}`;
+		const cached: Type<unknown> | undefined = getListItemResponseDtoCache.get(cacheKey);
+
+		if (cached) {
+			return cached;
+		}
+
+		// @ts-ignore The existing list wrapper generator accepts the entity constructor at runtime.
+		const dto: Type<unknown> = DtoGenerateGetListResponse(resourceClass, config.itemType, defaultName);
+		getListItemResponseDtoCache.set(cacheKey, dto);
+
+		return dto;
+	}
+
+	const name: string = config.name ?? `${defaultName}Cursor`;
+	const cacheKey: string = `${entity.name ?? "UnknownResource"}_${name}_cursor`;
+	const nameOwnerKey: string = `${entity.name ?? "UnknownResource"}_${name}`;
+	let nameOwnerCache: Map<string, object> | undefined = getListCursorItemResponseDtoNameOwnerCache.get(resourceClass);
+
+	if (!nameOwnerCache) {
+		nameOwnerCache = new Map<string, object>();
+		getListCursorItemResponseDtoNameOwnerCache.set(resourceClass, nameOwnerCache);
+	}
+
+	const currentNameOwner: object | undefined = nameOwnerCache.get(nameOwnerKey);
+	const hasPageConflict: boolean = [...getListItemResponseDtoCache.values()].some((dto: Type<unknown>): boolean => dto.name === name);
+
+	if (hasPageConflict || (currentNameOwner && currentNameOwner !== config.itemType)) {
+		throw ErrorException(`GET_LIST item response DTO wrapper name "${name}" is already used by another item constructor or pagination mode; configure a unique response DTO name`);
+	}
+
+	nameOwnerCache.set(nameOwnerKey, config.itemType);
+	let resourceCache: undefined | WeakMap<object, Map<string, Type<unknown>>> = getListCursorItemResponseDtoCache.get(resourceClass);
+
+	if (!resourceCache) {
+		resourceCache = new WeakMap<object, Map<string, Type<unknown>>>();
+		getListCursorItemResponseDtoCache.set(resourceClass, resourceCache);
+	}
+
+	let itemCache: Map<string, Type<unknown>> | undefined = resourceCache.get(config.itemType);
+
+	if (!itemCache) {
+		itemCache = new Map<string, Type<unknown>>();
+		resourceCache.set(config.itemType, itemCache);
+	}
+
+	const cached: Type<unknown> | undefined = itemCache.get(cacheKey);
 
 	if (cached) {
 		return cached;
 	}
 
-	// @ts-ignore The existing list wrapper generator accepts the entity constructor at runtime.
-	const dto: Type<unknown> = DtoGenerateGetListResponse(resourceClass, config.itemType, name);
-	getListItemResponseDtoCache.set(cacheKey, dto);
+	// @ts-ignore The existing list wrapper generators accept the entity constructor at runtime.
+	const dto: Type<unknown> = DtoGenerateGetListCursorResponse(resourceClass, config.itemType, name);
+	itemCache.set(cacheKey, dto);
 
 	return dto;
 }

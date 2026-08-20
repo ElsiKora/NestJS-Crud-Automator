@@ -21,7 +21,7 @@ Generates CRUD endpoints, DTOs, Swagger metadata, guards, and request/response p
 
 Each route entry can be described in two ways:
 
-- **Auto DTO mode (`autoDto`)** – Add validators to generated DTOs. Entity `@ApiPropertyDescribe({ properties: ... })` metadata remains the capability baseline; GET_LIST `request[QUERY].filter` and `order` may narrow or overlay the generated query contract.
+- **Auto DTO mode (`autoDto`)** – Add validators to generated DTOs. Entity `@ApiPropertyDescribe({ properties: ... })` metadata remains the capability baseline; GET_LIST `request[QUERY].filter`, `order`, and `pagination` own the generated query contract.
 - **Manual DTO mode (`dto`)** – Supply custom DTO classes when manual control is preferred. The decorator still wires up Swagger and validation.
 
 Routes also accept:
@@ -29,7 +29,7 @@ Routes also accept:
 - `documentation` – per-route Swagger `summary`, `description`, and `operationId` overrides. When omitted, generated CRUD routes receive default summaries and descriptions based on `name` or the entity name, using singular resource names for item routes and plural names for list routes.
 - `security.authentication` – bearer/security schemes and custom guards. `type` is required and may be an `EApiAuthenticationType` value or a project-specific string.
 - `security.authorization` – authorization mode and optional per-route overrides.
-- `request` / `response` – target-scoped pipe and serializer overrides for each CRUD action. A generated GET_LIST QUERY target also accepts optional `filter` and `order` sections that compile into one immutable DTO/runtime/OpenAPI query plan.
+- `request` / `response` – target-scoped pipe and serializer overrides for each CRUD action. A generated GET_LIST QUERY target also accepts optional `filter`, `order`, and `pagination` sections that compile into one immutable DTO/runtime/OpenAPI query plan.
 - `identity` – GET-only top-level `{ parameter }` configuration for exposing the entity primary key under a different safe path-parameter name. It remains a primary-key lookup and does not rename the response.
 - `relations` – include-driven request hydration and response loading. `relations.request.load.locks` can apply native `pessimistic_read` or `pessimistic_write` locks to enabled direct relation includes inside an active Automator transaction.
 - `transaction.mode` – generated-route transaction behavior using `EApiFunctionTransactionMode`. Omitted config and `SUPPORTS` open no route transaction; `REQUIRED` opens or joins, `MANDATORY` requires an active owner, and `NONE` rejects one.
@@ -152,9 +152,10 @@ export class UserController {}
 - Use route `REQUIRED` when request relation hydration, the generated service operation, and response relation reload must share one manager. Validation remains outside the route transaction, and commit finishes before route-after subscribers.
 - Generated-route `transaction` configuration does not apply to `@ApiRouteCustom`; custom functions, steps, or named scopes own those transactions.
 - Align `routes` with the DTO metadata defined on the entity (`@ApiPropertyDescribe`) for consistent validation.
-- Omit GET_LIST `filter` or `order` to keep its legacy metadata-driven behavior. `INHERIT` overlays the metadata baseline; `REJECT` creates an allowlist. Route config cannot re-enable a metadata-disabled field.
+- Omit GET_LIST `filter` or `order` to keep its legacy metadata-driven behavior in PAGE mode. `INHERIT` overlays the metadata baseline; `REJECT` creates an allowlist. Route config cannot re-enable a metadata-disabled field.
 - `USE_DEFAULT` inserts `defaultCondition` only when the client omits that field group. A supplied client group replaces the field default; authorization scope is always AND-merged afterward.
-- Do not combine a manual GET_LIST QUERY DTO with generated `filter` or `order`. Manual RESPONSE DTOs remain compatible.
+- Omitted pagination defaults to PAGE. CURSOR generates `limit` plus optional exclusive `after`/`before`, uses the existing `getMany` function, and returns `{ items, nextCursor, previousCursor }`; it requires one primary column only as the final explicit tie-breaker and non-null direct-scalar order fields. CURSOR v1 accepts only the PostgreSQL storage matrix documented in [Pagination](/docs/nestjs-crud-automator/guides/pagination); every other driver/type fails closed, while PAGE is unchanged.
+- Do not combine a manual GET_LIST QUERY DTO with generated `filter`, `order`, or `pagination`. Manual RESPONSE DTOs remain compatible.
 - Configure a generated GET identity only through `@ApiController`; its private compiled plan is shared by routing, DTO generation, runtime lookup, and authorization.
 - Leave `routes[routeType].documentation` empty to use generated Swagger text. Set only the fields you need to override; omitted `summary` and `description` fall back to generated text, while omitted `operationId` uses Nest Swagger's default operation ID.
 

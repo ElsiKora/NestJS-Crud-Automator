@@ -9,6 +9,7 @@ import type {
 	IApiAuthorizationPrincipalResolver,
 	IApiAuthorizationModuleOptions,
 	IApiAuthorizationRequestMetadata,
+	IApiAuthorizationPolicySubscriber,
 	IApiAuthorizationRuleContext,
 	IApiAuthorizationScope,
 	IApiBaseEntity,
@@ -16,12 +17,16 @@ import type {
 	IApiControllerPropertiesRouteBaseTransaction,
 	IApiControllerPropertiesRouteGetListQueryFilter,
 	IApiControllerPropertiesRouteGetListQueryOrder,
+	IApiControllerPropertiesRouteGetListQueryPagination,
+	IApiGetListCursorResponseResult,
+	IApiRequestValidator,
 	IApiFunctionStepContext,
 	IApiFunctionStepProperties,
 	IApiHookPermissionSource,
 	IApiSubscriberFunctionExecutionContextData,
 	IApiSubscriberFunctionExecutionContextUpdateData,
 	IApiSubscriberFunctionTransactionContext,
+	IApiSubscriberRoute,
 	TApiAuthorizationPolicyBeforeCreateContext,
 	TApiAuthorizationPolicyBeforeCreateResult,
 	TApiAuthorizationPolicyBeforeGetContext,
@@ -32,10 +37,14 @@ import type {
 	TApiAuthorizationPolicyBeforePartialUpdateResult,
 	TApiAuthorizationCacheOptions,
 	TApiControllerPropertiesRoute,
+	TApiControllerGetListQuery,
+	TApiControllerGetListResponse,
+	TApiControllerMethodMap,
 	TApiSubscriberFunctionBeforeCreateContext,
 	TApiSubscriberFunctionBeforeUpdateContext,
 	TApiSubscriberFunctionExecutionContextData,
 	TApiSubscriberRouteBeforeCreateContext,
+	TApiSubscriberRouteAfterGetListContext,
 	TApiFunctionTransactionEvent,
 	TApiFunctionTransactionOwner,
 	TApiGetDefaultStringFormatPropertiesBigIntStringOptions,
@@ -55,6 +64,7 @@ import {
 	EApiAuthorizationMode,
 	EApiAuthorizationPrincipalType,
 	EApiControllerGetListQueryFilterMissingBehavior,
+	EApiControllerGetListQueryPaginationMode,
 	EApiControllerGetListQueryUnlistedFields,
 	EApiControllerRequestTarget,
 	EApiControllerRelationReferenceShape,
@@ -70,9 +80,11 @@ import {
 	EApiPropertyStringType,
 	EApiRouteSubscriberAuthorizationExpectation,
 	EApiRouteType,
+	EErrorStringAction,
 	EFilterOperation,
 	GetDefaultStringFormatProperties,
 } from "../../src/index";
+import { BadRequestException } from "@nestjs/common";
 import { describe, expect, it } from "vitest";
 
 class PublicApiUser {
@@ -240,6 +252,30 @@ describe("public API exports (E2E)", () => {
 				},
 			},
 		};
+		const cursorPagination = {
+			mode: EApiControllerGetListQueryPaginationMode.CURSOR,
+		} satisfies IApiControllerPropertiesRouteGetListQueryPagination<EApiControllerGetListQueryPaginationMode.CURSOR>;
+		const cursorRoute: TApiControllerPropertiesRoute<PublicApiUser, EApiRouteType.GET_LIST> = {
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					pagination: cursorPagination,
+				},
+			},
+		};
+		const pageQuery: TApiControllerGetListQuery<PublicApiUser> = { limit: 10, page: 1 };
+		const cursorQuery: TApiControllerGetListQuery<PublicApiUser, EApiControllerGetListQueryPaginationMode.CURSOR> = { after: "cursor", limit: 10 };
+		const cursorResponse: TApiControllerGetListResponse<PublicApiUser, EApiControllerGetListQueryPaginationMode.CURSOR> = { items: [], nextCursor: null, previousCursor: null };
+		const directCursorResponse: IApiGetListCursorResponseResult<PublicApiUser> = cursorResponse;
+		const cursorRequestMetadata: IApiAuthorizationRequestMetadata<PublicApiUser, EApiControllerGetListQueryPaginationMode.CURSOR> = { query: cursorQuery };
+		const cursorValidator: IApiRequestValidator<PublicApiUser, EApiControllerGetListQueryPaginationMode.CURSOR> = {
+			errorType: EErrorStringAction.VALIDATION_ERROR,
+			exception: BadRequestException,
+			validationFunction: (payload: Partial<PublicApiUser> | TApiControllerGetListQuery<PublicApiUser, EApiControllerGetListQueryPaginationMode.CURSOR>): boolean => !("after" in payload && "before" in payload),
+		};
+		const cursorMethodMap: Partial<TApiControllerMethodMap<PublicApiUser, EApiControllerGetListQueryPaginationMode.CURSOR>> = {};
+		const cursorPolicySubscriber: Partial<IApiAuthorizationPolicySubscriber<PublicApiUser, EApiControllerGetListQueryPaginationMode.CURSOR>> = {};
+		const cursorRouteSubscriber: Partial<IApiSubscriberRoute<PublicApiUser, EApiRouteSubscriberAuthorizationExpectation.OPTIONAL, EApiControllerGetListQueryPaginationMode.CURSOR>> = {};
+		const cursorAfterContext = { result: cursorResponse } as TApiSubscriberRouteAfterGetListContext<PublicApiUser, EApiControllerGetListQueryPaginationMode.CURSOR>;
 		const generatedRouteConfig: IApiControllerPropertiesRouteBase<PublicApiUser, EApiRouteType.CREATE> = {
 			relations: {
 				request: {
@@ -354,6 +390,10 @@ describe("public API exports (E2E)", () => {
 			EApiControllerGetListQueryFilterMissingBehavior?: {
 				REJECT?: unknown;
 			};
+			EApiControllerGetListQueryPaginationMode?: {
+				CURSOR?: unknown;
+				PAGE?: unknown;
+			};
 			EApiControllerGetListQueryUnlistedFields?: {
 				REJECT?: unknown;
 			};
@@ -376,6 +416,9 @@ describe("public API exports (E2E)", () => {
 			ApiFunctionTransactionScope?: unknown;
 			EApiControllerGetListQueryFilterMissingBehavior?: {
 				REJECT?: unknown;
+			};
+			EApiControllerGetListQueryPaginationMode?: {
+				CURSOR?: unknown;
 			};
 			EApiControllerGetListQueryUnlistedFields?: {
 				REJECT?: unknown;
@@ -429,6 +472,18 @@ describe("public API exports (E2E)", () => {
 		expect(generatedRouteConfig.transaction?.mode).toBe(EApiFunctionTransactionMode.REQUIRED);
 		expect(typedRoute.request?.[EApiControllerRequestTarget.QUERY]?.filter).toBe(typedFilter);
 		expect(typedRoute.request?.[EApiControllerRequestTarget.QUERY]?.order).toBe(typedOrder);
+		expect(cursorPagination.mode).toBe(EApiControllerGetListQueryPaginationMode.CURSOR);
+		expect(cursorRoute.request?.[EApiControllerRequestTarget.QUERY]?.pagination).toBe(cursorPagination);
+		expect(pageQuery.page).toBe(1);
+		expect(cursorQuery.after).toBe("cursor");
+		expect(cursorResponse).toEqual({ items: [], nextCursor: null, previousCursor: null });
+		expect(directCursorResponse).toBe(cursorResponse);
+		expect(cursorRequestMetadata.query).toBe(cursorQuery);
+		expect(cursorValidator.validationFunction(cursorQuery)).toBe(true);
+		expect(cursorMethodMap).toEqual({});
+		expect(cursorPolicySubscriber).toEqual({});
+		expect(cursorRouteSubscriber).toEqual({});
+		expect(cursorAfterContext.result).toBe(cursorResponse);
 		expect(bigintStringDefaults.pattern).toBe(String.raw`/^(0|[1-9]\d{0,19})$/`);
 		expect(stepProperties.entity).toBe(PublicApiUser);
 		expect(subscriberRequiredData.eventManager).toBeDefined();
@@ -453,6 +508,10 @@ describe("public API exports (E2E)", () => {
 		expect(typeof builtPackageEntry.ApiFunctionTransactionRollbackException).toBe("function");
 		expect(typeof builtPackageEntry.ApiFunctionTransactionScope).toBe("function");
 		expect(builtPackageEntry).not.toHaveProperty("ApiControllerGetListQueryOpenApiDecorators");
+		expect(builtPackageEntry).not.toHaveProperty("ApiControllerGetListCursorRuntime");
+		expect(builtPackageEntry).not.toHaveProperty("ApiControllerGeneratedGetManyContract");
+		expect(builtPackageEntry).not.toHaveProperty("AtMostOneOfListedPropertiesValidator");
+		expect(builtPackageEntry).not.toHaveProperty("DtoGenerateGetListCursorResponse");
 		expect(builtPackageEntry).not.toHaveProperty("ApiControllerGetListQueryPlanCompiler");
 		expect(builtPackageEntry).not.toHaveProperty("ApiControllerGetListQueryPlanGet");
 		expect(builtPackageEntry).not.toHaveProperty("ApiControllerGetListQueryPlanSet");
@@ -470,12 +529,17 @@ describe("public API exports (E2E)", () => {
 		expect(typeof builtCjsPackageEntry.ApiFunctionTransactionScope).toBe("function");
 		expect(builtCjsPackageEntry).not.toHaveProperty("ApiControllerGetListQueryPlanCompiler");
 		expect(builtCjsPackageEntry).not.toHaveProperty("ApiControllerGetListQueryRuntime");
+		expect(builtCjsPackageEntry).not.toHaveProperty("ApiControllerGeneratedGetManyContract");
+		expect(builtCjsPackageEntry).not.toHaveProperty("AtMostOneOfListedPropertiesValidator");
+		expect(builtCjsPackageEntry).not.toHaveProperty("DtoGenerateGetListCursorResponse");
 		expect(builtCjsPackageEntry).not.toHaveProperty("EFilterOperand");
 		expect(builtCjsPackageEntry).not.toHaveProperty("FILTER_OPERATOR_REGISTRY_CONSTANT");
 		expect(builtCjsPackageEntry.EApiControllerGetListQueryFilterMissingBehavior?.REJECT).toBe(EApiControllerGetListQueryFilterMissingBehavior.REJECT);
+		expect(builtCjsPackageEntry.EApiControllerGetListQueryPaginationMode?.CURSOR).toBe(EApiControllerGetListQueryPaginationMode.CURSOR);
 		expect(builtCjsPackageEntry.EApiControllerGetListQueryUnlistedFields?.REJECT).toBe(EApiControllerGetListQueryUnlistedFields.REJECT);
 		expect(builtCjsPackageEntry.EApiGetDefaultStringFormatPropertiesBigIntStringSign?.UNSIGNED).toBe(EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED);
 		expect(builtPackageEntry.EApiControllerGetListQueryFilterMissingBehavior?.REJECT).toBe(EApiControllerGetListQueryFilterMissingBehavior.REJECT);
+		expect(builtPackageEntry.EApiControllerGetListQueryPaginationMode?.CURSOR).toBe(EApiControllerGetListQueryPaginationMode.CURSOR);
 		expect(builtPackageEntry.EApiControllerGetListQueryUnlistedFields?.REJECT).toBe(EApiControllerGetListQueryUnlistedFields.REJECT);
 		expect(builtPackageEntry.EApiFunctionContextStorageKind?.TRANSACTION).toBe(EApiFunctionContextStorageKind.TRANSACTION);
 		expect(builtPackageEntry.EApiFunctionSubscriberTransactionExpectation?.REQUIRED).toBe(EApiFunctionSubscriberTransactionExpectation.REQUIRED);

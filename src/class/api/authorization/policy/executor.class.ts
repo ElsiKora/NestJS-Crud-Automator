@@ -1,7 +1,9 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { EApiRouteType } from "@enum/decorator/api/route";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationPolicySubscriber, IApiAuthorizationPolicySubscriberContext, IApiAuthorizationPolicySubscriberRule } from "@interface/class/api/authorization/policy/subscriber";
 import type { TApiAuthorizationPolicyHookResult } from "@type/class/api/authorization/policy/hook";
+import type { TApiAuthorizationPolicyHookExecutionResult } from "@type/class/api/authorization/policy/hook/execution-result.type";
 import type { TApiAuthorizationPolicySubscriberRuleResult } from "@type/class/api/authorization/policy/subscriber";
 
 import { EApiPolicyOnType } from "@enum/class/authorization/policy/on-type.enum";
@@ -10,10 +12,8 @@ import { LoggerUtility } from "@utility/logger.utility";
 
 const policyExecutorLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationPolicyExecutor");
 
-type TApiAuthorizationPolicyHookExecutionResult<E extends IApiBaseEntity, TAction extends string> = Promise<TApiAuthorizationPolicySubscriberRuleResult<E, TApiAuthorizationPolicyHookResult<TAction, E>>> | TApiAuthorizationPolicySubscriberRuleResult<E, TApiAuthorizationPolicyHookResult<TAction, E>>;
-
 export class ApiAuthorizationPolicyExecutor {
-	public static async execute<E extends IApiBaseEntity, TAction extends string>(subscriber: IApiAuthorizationPolicySubscriber<E>, action: TAction, context: IApiAuthorizationPolicySubscriberContext<E>): Promise<Array<IApiAuthorizationPolicySubscriberRule<E, TApiAuthorizationPolicyHookResult<TAction, E>>>> {
+	public static async execute<E extends IApiBaseEntity, TAction extends string, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(subscriber: IApiAuthorizationPolicySubscriber<E, M>, action: TAction, context: IApiAuthorizationPolicySubscriberContext<E, M>): Promise<Array<IApiAuthorizationPolicySubscriberRule<E, TApiAuthorizationPolicyHookResult<TAction, E, M>>>> {
 		const routeType: EApiRouteType | undefined = context.routeType;
 
 		if (routeType) {
@@ -22,8 +22,8 @@ export class ApiAuthorizationPolicyExecutor {
 
 			if (typeof hook === "function") {
 				policyExecutorLogger.verbose(`Executing authorization policy hook ${hookName} from ${subscriber.constructor.name} for action "${action}"`);
-				const typedHook: (context: IApiAuthorizationPolicySubscriberContext<E>) => TApiAuthorizationPolicyHookExecutionResult<E, TAction> = hook as (context: IApiAuthorizationPolicySubscriberContext<E>) => TApiAuthorizationPolicyHookExecutionResult<E, TAction>;
-				const result: TApiAuthorizationPolicyHookExecutionResult<E, TAction> = typedHook.call(subscriber, context);
+				const typedHook: (context: IApiAuthorizationPolicySubscriberContext<E, M>) => TApiAuthorizationPolicyHookExecutionResult<E, TAction, M> = hook as (context: IApiAuthorizationPolicySubscriberContext<E, M>) => TApiAuthorizationPolicyHookExecutionResult<E, TAction, M>;
+				const result: TApiAuthorizationPolicyHookExecutionResult<E, TAction, M> = typedHook.call(subscriber, context);
 
 				return this.normalizeRuleResult(await result);
 			}
@@ -35,9 +35,9 @@ export class ApiAuthorizationPolicyExecutor {
 			return [];
 		}
 
-		const customActionHook: (actionValue: TAction, hookContext: IApiAuthorizationPolicySubscriberContext<E>) => TApiAuthorizationPolicyHookExecutionResult<E, TAction> = subscriber.getCustomActionRule.bind(subscriber);
+		const customActionHook: (actionValue: TAction, hookContext: IApiAuthorizationPolicySubscriberContext<E, M>) => TApiAuthorizationPolicyHookExecutionResult<E, TAction, M> = subscriber.getCustomActionRule.bind(subscriber);
 
-		const customResult: TApiAuthorizationPolicyHookExecutionResult<E, TAction> = customActionHook(action, context);
+		const customResult: TApiAuthorizationPolicyHookExecutionResult<E, TAction, M> = customActionHook(action, context);
 
 		return this.normalizeRuleResult(await customResult);
 	}

@@ -1,6 +1,6 @@
 # `@ApiFunctionGetList`
 
-Provides paginated list retrieval with filtering, sorting, and relation loading using the DTO emitted by the controller. Automatically computes pagination metadata and runs subscriber hooks.
+Provides the PAGE service/function path for paginated list retrieval with filtering, sorting, relation loading, counts, and GET_LIST function subscribers. Generated CURSOR routes use the existing decorated `getMany(...)` path instead and construct their flat envelope in the route runtime.
 
 ## Signature
 

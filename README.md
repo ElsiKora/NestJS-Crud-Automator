@@ -42,7 +42,7 @@ The core philosophy of this library is built on four pillars: being **Declarativ
 - ✨ **🔄 Data transformation with class-transformer for request/response handling**
 - ✨ **🧩 Type-safe decorators for entity properties with rich metadata support**
 - ✨ **🔒 Authentication and authorization guards integration**
-- ✨ **🔍 Advanced filtering, sorting, and pagination for list operations**
+- ✨ **🔍 Advanced filtering, sorting, and generated PAGE/CURSOR pagination for list operations**
 - ✨ **🧩 Generated nested GET/GET_LIST reads with owner path scoping and stable server ordering**
 - ✨ **📚 Support for object relations with include-driven loading**
 - ✨ **⚡ Performance optimized with TypeORM integration for database operations**
@@ -440,7 +440,9 @@ export class UserController {
 }
 ```
 
-The generated response keeps `count`, `currentPage`, `items`, `totalCount`, and `totalPages`, while `items` are serialized with `PublicUserResponseDto`.
+The shown route omits pagination config, so it uses PAGE and keeps `count`, `currentPage`, `items`, `totalCount`, and `totalPages`, while `items` are serialized with `PublicUserResponseDto`. A route that opts into CURSOR instead uses the flat `{ items, nextCursor, previousCursor }` wrapper, provided its item DTO satisfies the CURSOR proof below.
+
+For CURSOR, custom DTO metadata must keep every potential order field and final primary tie-breaker as a same-name, required, non-null, raw response scalar. A full custom wrapper must prove exactly `items`, `nextCursor`, and `previousCursor`. Wire-time aliases/transforms that change protected fields fail closed; PAGE custom DTO behavior is unchanged.
 
 ### Authorization
 
@@ -1301,9 +1303,9 @@ The library provides advanced filtering capabilities for list endpoints:
 
 This query would search for users with "john" in their username and created between Jan 1 and Dec 31, 2023.
 
-GET_LIST query DTOs remain dynamically generated from entity `ApiPropertyDescribe` and TypeORM metadata. A route can optionally narrow or overlay that baseline through `routes[GET_LIST].request[QUERY].filter` and `order`. The normalized plan drives the generated DTO, strict runtime parser, TypeORM predicates, and OpenAPI deep-object `oneOf` branches. Omitted sections retain legacy metadata-driven behavior.
+GET_LIST query DTOs remain dynamically generated from entity `ApiPropertyDescribe` and TypeORM metadata. A route can optionally narrow or overlay that baseline through `routes[GET_LIST].request[QUERY].filter` and `order`, and select `pagination.mode`. The normalized plan drives the generated DTO, strict runtime parser, TypeORM predicates, response wrapper, and OpenAPI deep-object `oneOf` branches. Omitted pagination remains PAGE; omitted filter/order sections retain legacy metadata-driven behavior in PAGE mode.
 
-Use `INHERIT` to overlay metadata-enabled fields or `REJECT` to create an allowlist. Enabled filters declare a non-empty operation set and optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior; `REJECT` returns `400 FILTER_REQUIRED`. Route plans cannot re-enable metadata-disabled fields. A manual QUERY DTO is mutually exclusive with generated filter/order config, while a manual RESPONSE DTO remains compatible.
+Use `INHERIT` to overlay metadata-enabled fields or `REJECT` to create an allowlist. Enabled filters declare a non-empty operation set and optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior; `REJECT` returns `400 FILTER_REQUIRED`. Route plans cannot re-enable metadata-disabled fields. A manual QUERY DTO is mutually exclusive with generated filter/order/pagination config, while a manual RESPONSE DTO remains compatible.
 
 ### Generated Nested Reads and Stable Ordering
 
@@ -1359,13 +1361,44 @@ Read criteria are merged conjunctively in a fixed order: GET identity or GET_LIS
 
 `defaultOrder` applies when the client omits `orderBy`/`orderDirection`. A supplied client order replaces the defaults, after which `tieBreakers` are appended and duplicate fields are removed with the earlier entry winning. These server-owned entries may use any described direct scalar field, including a UUID `id`, without exposing that field in the client `orderBy` allowlist. Use a deterministic final tie-breaker for stable `page`/`limit` pagination.
 
+### Generated Cursor Pagination
+
+Opt into cursor pagination beside the typed filter/order plan:
+
+```typescript
+[EApiRouteType.GET_LIST]: {
+	request: {
+		[EApiControllerRequestTarget.QUERY]: {
+			order: {
+				defaultOrder: [{ direction: EFilterOrderDirection.DESC, field: "position" }],
+				fields: {
+					isFeatured: { isEnabled: true },
+					position: { isEnabled: true },
+				},
+				tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+				unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+			},
+			pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR },
+		},
+	},
+}
+```
+
+The request has required `limit`, optional paired `orderBy`/`orderDirection`, existing filters, and at most one of `after`/`before`; it has no `page`. The response always contains exactly `items`, `nextCursor`, and `previousCursor`. The first window performs one `getMany` query with `limit + 1`; a cursor window adds one opposite-direction `take: 1` probe. Tokens are unsigned canonical stateless Base64URL values, so no cursor table or key is needed.
+
+CURSOR requires one primary column as the only final explicit tie-breaker, and every possible order field must be a described non-null direct scalar. Tokens bind route, inherited path values, plan signature, normalized actual filters, and effective order. They exclude `limit` and HOOKS/IAM: current query/path/IAM predicates are recalculated and AND-merged on every window and probe.
+
+CURSOR v1 deliberately supports only PostgreSQL with its standard text result parsers. Proven TypeORM order declarations are limited to `boolean`; signed `smallint` and `integer`, including increment-generated columns whose PostgreSQL DDL uses `SMALLSERIAL` or `SERIAL`; numeric enums backed by `smallint` or `integer`; signed `bigint`, including increment-generated columns whose DDL uses `BIGSERIAL`, exposed as a canonical decimal `BIGINT_STRING`; and native `uuid`. PostgreSQL binary mode, custom `extra.types` parsers, every other PostgreSQL storage type, and every other database driver fail closed before CURSOR query I/O. PAGE behavior and its existing TypeORM driver support are unchanged.
+
+The route authorization action remains GET_LIST (`onBeforeGetList`). One GET_MANY BEFORE chain runs per CURSOR HTTP request; its detached candidate `where` and `withDeleted` snapshot is reused for the main window and opposite probe. The framework re-ANDs mandatory scope and window predicates, owns `order`/`take`, forces `cache: false`, shadows `select`/`skip`, and rejects subscriber `join`/`lock`. GET_MANY AFTER hooks run for each actual query. Direct `getMany(...)` calls retain their ordinary per-call subscriber contract.
+
 Generated mandatory reads bypass explicit, inherited, and globally enabled TypeORM query caches. Requested relations with effective `relationLoadStrategy: "query"` and a data-source cache configured with `alwaysEnabled: true` cannot inherit the root `cache: false` guarantee, so Automator rejects that combination before repository I/O; use join loading or disable the global always-on cache.
+
+Because unsigned tokens carry reversible order values, every potential order/tie field must be selected, persisted, non-null, exactly representable, free of TypeORM value transformers/accessors, and unconditionally raw-exposed in the response. Entity `@AfterLoad` listeners are rejected at bootstrap, and applicable active TypeORM `afterLoad` subscribers fail before query I/O. Automator snapshots each subscriber's `listenTo()` target once; subscriber implementations and PostgreSQL parser configuration are trusted TypeORM extension code and must be deterministic. Before decoding, the actual transaction repository proves the supported PostgreSQL storage, hydration, comparison, and canonical wire domain; everything outside the v1 matrix fails closed. Request-only DTO bounds, lengths, patterns, and `multipleOf` rules do not constrain the opaque seek boundary, and `BIGINT_STRING` values never convert through `Number`. Later function, route, authorization, relation, DTO, and serialization work may redact unrelated fields but cannot change cardinality, row sequence, protected raw tuples, cursors, or the flat envelope.
 
 ## 🧭 Migrating to 4.0
 
-Generated controller routes now resolve and capture the exact service function before the Automator-managed route transaction or repository I/O. GET, GET_LIST, UPDATE, and DELETE accept only a function produced for the same entity and function type by `@ApiService` or the matching built-in `@ApiFunctionGet`, `@ApiFunctionGetList`, `@ApiFunctionUpdate`, or `@ApiFunctionDelete` decorator. Undecorated overrides, instance shadows, accessors, and wrong-entity/type decorators fail closed at that boundary. Generated CREATE also preflights the protected GET needed for its post-create read, and generated UPDATE preflights a protected GET when response relation loading requires a reload.
-
-`@ApiFunctionGetMany` and the `getMany` installed by `@ApiService` receive the same internal capability marker, but the current generated route runtime does not invoke GET_MANY; that marker is reserved for a later generated runtime consumer.
+Generated controller routes now resolve and capture the exact service function before the Automator-managed route transaction or repository I/O. GET, GET_LIST, GET_MANY, UPDATE, and DELETE accept only a function produced for the same entity and function type by `@ApiService` or the matching built-in `@ApiFunctionGet`, `@ApiFunctionGetList`, `@ApiFunctionGetMany`, `@ApiFunctionUpdate`, or `@ApiFunctionDelete` decorator. Undecorated overrides, instance shadows, accessors, and wrong-entity/type decorators fail closed before the method body runs. Generated UPDATE also preflights a protected GET when response relation loading requires a reload.
 
 This intentionally breaks the former generated-route selective-override behavior. Remove a reserved override and use the `@ApiService` implementation, apply the matching built-in decorator knowing that it owns the resulting CRUD implementation, or move domain behavior to subscribers, `@ApiFunctionCustom`, or a custom route. Direct service calls remain outside this route capability check. CREATE is not capability-gated in the same way, but a generated CREATE route preflights the protected GET needed for its post-create read. See the full [4.0 migration guide](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-4-0).
 
@@ -1381,7 +1414,7 @@ The current contract has no arbitrary immutable controller `baseWhere`, no `FULL
 
 ## 🛣 Current Status
 
-Version `3.0.2` is the published baseline before the current source; package versions remain owned by release automation. The generated-route service capability boundary requires a new major release. Core CRUD generation, DTO generation, Swagger/OpenAPI metadata, request/response transformers, relation loading, stable page/limit pagination, filtering/sorting, subscribers, transactions, and HOOKS/IAM authorization are implemented.
+Version `3.0.2` is the published baseline before the current source; package versions remain owned by release automation. The generated-route service capability boundary requires a new major release. Core CRUD generation, DTO generation, Swagger/OpenAPI metadata, request/response transformers, relation loading, default page pagination, opt-in stateless cursor pagination, filtering/sorting, subscribers, transactions, and HOOKS/IAM authorization are implemented.
 
 MongoDB, GraphQL, soft deletes, bulk operations, general-purpose cache integration, and custom parameter decorators are not part of the current public contract. Authorization supports source-first resolver reads by default, bounded in-process resolver caching as an explicit opt-in, separate policy-rule caching, and explicit cache invalidation.
 
@@ -1395,7 +1428,7 @@ The roadmap is aligned with the current source contract rather than older docs-o
 - Entity-driven DTO generation for body, query, parameters, and response contracts, including controller-scoped typed GET_LIST query plans and inherited read-path parameter DTOs
 - Custom DTO support, including nested manual DTOs and GET_LIST item response DTOs
 - Swagger/OpenAPI metadata generation for generated and custom routes
-- Stable page/limit pagination, typed filtering, client ordering plus server defaults/tie-breakers, request validators, and request/response transformers
+- Default page/limit and opt-in bidirectional cursor pagination, typed filtering, client ordering plus server defaults/tie-breakers, request validators, and request/response transformers
 - Generated nested GET/GET_LIST owner scoping through exact inherited path-parameter mappings
 - Request and response relation loading with configurable reference projection
 - Route and function subscribers, including custom route/function hooks and error hooks
@@ -1442,7 +1475,7 @@ Yes! The library provides multiple ways to customize your endpoints:
 
 ### Does it support pagination?
 
-Yes. Generated GET_LIST requires 1-based `page` and `limit` parameters and returns `count`, `currentPage`, `totalCount`, and `totalPages`. Configure `defaultOrder` plus a unique final `tieBreakers` field such as UUID `id` when consecutive pages must remain deterministic for an unchanged dataset.
+Yes. PAGE is the source-compatible default: it requires 1-based `page` and `limit` and returns counts/totals. CURSOR is opt-in: it requires `limit`, accepts at most one of `after`/`before`, and returns `{ items, nextCursor, previousCursor }`. Configure an explicit order with the sole primary column only as the final tie-breaker; cursor mode then supports next/previous navigation without database cursor storage. CURSOR v1 is PostgreSQL-only and accepts only the exact boolean, signed int2/int4, numeric-enum int2/int4, signed `BIGINT_STRING` int8, and native UUID storage contracts described above; PAGE is unchanged.
 
 ### How is filtering implemented?
 

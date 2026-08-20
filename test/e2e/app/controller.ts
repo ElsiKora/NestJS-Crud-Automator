@@ -164,7 +164,7 @@ const authentication = {
 						{
 							errorType: EErrorStringAction.VALIDATION_ERROR,
 							exception: BadRequestException,
-							validationFunction: (payload) => (payload as { forceError?: string }).forceError !== "true",
+							validationFunction: (payload: unknown) => (payload as { forceError?: string }).forceError !== "true",
 						},
 					],
 				},

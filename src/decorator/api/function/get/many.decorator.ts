@@ -3,11 +3,15 @@ import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/cla
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context";
 import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context/data.interface";
 import type { IApiFunctionGetManyExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
+import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiFunctionGetManyProperties } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
 import type { FindManyOptions } from "typeorm";
 
+import { ApiControllerGeneratedGetManyContract, ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGeneratedRelationCacheContract } from "@class/api/controller/generated/relation-cache-contract.class";
+import { ApiControllerGetListCursorRuntime } from "@class/api/controller/get-list/cursor/runtime.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
@@ -36,38 +40,53 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 		void _target;
 
 		descriptor.value = async function (this: { repository: Repository<E> }, getManyProperties: TApiFunctionGetManyProperties<E>): Promise<Array<E>> {
+			const mandatoryWhere: TApiAuthorizationScopeWhere<E> | undefined = ApiControllerGeneratedReadScopeStorage.claim<E>(EApiFunctionType.GET_MANY, getManyProperties);
+			const isGeneratedCursorCall: boolean = ApiControllerGeneratedGetManyContract.hasActiveSession();
+
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<Array<E>> => {
 					const entityInstance: E = new entity();
+					let repository: Repository<E> = this.repository;
+					let finalProperties: TApiFunctionGetManyProperties<E>;
+					let isBeforeResolved: boolean = false;
+					let mandatoryProperties: TApiFunctionGetManyProperties<E> | undefined;
 
-					const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetManyProperties<E>> = {
-						DATA: { eventManager, getManyProperties, repository: this.repository },
-						ENTITY: entityInstance,
-						FUNCTION_TYPE: EApiFunctionType.GET_MANY,
-						result: getManyProperties,
-					};
+					try {
+						mandatoryProperties = mandatoryWhere ? ApiControllerGeneratedGetManyContract.createSnapshot(getManyProperties) : undefined;
+						const beforeSubscriber: (beforeProperties: TApiFunctionGetManyProperties<E>) => Promise<TApiFunctionGetManyProperties<E>> = (executeBeforeSubscribers<E>).bind(undefined, this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, eventManager, repository);
+						const subscriberProperties: TApiFunctionGetManyProperties<E> = mandatoryWhere ? await ApiControllerGeneratedGetManyContract.resolveBefore(getManyProperties, beforeSubscriber) : await beforeSubscriber(getManyProperties);
+						isBeforeResolved = true;
+						repository = isGeneratedCursorCall ? repository : this.repository;
 
-					const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_MANY, executionContext);
+						if (!repository) {
+							throw ErrorException("Repository is not available in this context");
+						}
 
-					if (result) {
-						executionContext.result = result;
-					}
+						const scopedProperties: TApiFunctionGetManyProperties<E> = mandatoryWhere && !ApiControllerGeneratedGetManyContract.hasActiveSession() ? ApiControllerGeneratedReadScopeStorage.protect(subscriberProperties, mandatoryWhere) : subscriberProperties;
+						finalProperties = mandatoryProperties ? ApiControllerGeneratedGetManyContract.protect(scopedProperties, mandatoryProperties) : scopedProperties;
 
-					const repository: Repository<E> = this.repository;
+						if (mandatoryWhere) {
+							const generatedRepository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : repository;
 
-					if (!repository) {
+							ApiControllerGeneratedRelationCacheContract.assertSafe(generatedRepository, finalProperties);
+						}
+					} catch (caughtError) {
+						if (!ApiControllerGeneratedGetManyContract.hasActiveSession() && !isBeforeResolved) {
+							throw caughtError;
+						}
+
 						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-							DATA: { eventManager, getManyProperties, repository: this.repository },
+							DATA: { eventManager, getManyProperties, repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.GET_MANY,
 						};
 
-						await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, ErrorException("Repository is not available in this context"));
+						await ApiSubscriberExecutor.executeFunctionErrorSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.BEFORE_ERROR, errorExecutionContext, caughtError as Error);
 
-						throw ErrorException("Repository is not available in this context");
+						throw caughtError;
 					}
 
-					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? {}, repository });
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: finalProperties, repository }, mandatoryProperties);
 				},
 				entity,
 				functionType: EApiFunctionType.GET_MANY,
@@ -96,13 +115,40 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 }
 
 /**
+ * Executes GET_MANY BEFORE subscribers for one property snapshot.
+ * @template E The entity type
+ * @param {new (...arguments_: Array<unknown>) => unknown} constructor - Service constructor
+ * @param {E} entityInstance - Subscriber entity context
+ * @param {EntityManager} eventManager - Active transaction manager
+ * @param {Repository<E>} repository - Service repository
+ * @param {TApiFunctionGetManyProperties<E>} getManyProperties - Properties exposed to the subscriber
+ * @returns {Promise<TApiFunctionGetManyProperties<E>>} Subscriber-selected properties
+ */
+async function executeBeforeSubscribers<E extends IApiBaseEntity>(constructor: new (...arguments_: Array<unknown>) => unknown, entityInstance: E, eventManager: EntityManager | undefined, repository: Repository<E>, getManyProperties: TApiFunctionGetManyProperties<E>): Promise<TApiFunctionGetManyProperties<E>> {
+	const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionGetManyProperties<E>> = {
+		DATA: { eventManager, getManyProperties, repository },
+		ENTITY: entityInstance,
+		FUNCTION_TYPE: EApiFunctionType.GET_MANY,
+		result: getManyProperties,
+	};
+	const result: FindManyOptions<E> | undefined = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(constructor, entityInstance, EApiFunctionType.GET_MANY, executionContext);
+
+	if (result) {
+		executionContext.result = result;
+	}
+
+	return executionContext.result ?? {};
+}
+
+/**
  * Executes the retrieval of multiple entities with error handling
  * @template E The entity type
  * @param {IApiFunctionGetManyExecutorProperties<E>} options - Properties required for retrieving multiple entities
+ * @param {TApiFunctionGetManyProperties<E>} [generatedProperties] - Protected cursor query options for generated routes
  * @returns {Promise<Array<E>>} An array of retrieved entity instances, or an empty array when no entities match
  * @throws {InternalServerErrorException} If the retrieval operation fails
  */
-async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyExecutorProperties<E>): Promise<Array<E>> {
+async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyExecutorProperties<E>, generatedProperties?: TApiFunctionGetManyProperties<E>): Promise<Array<E>> {
 	const { constructor, entity, properties, repository }: IApiFunctionGetManyExecutorProperties<E> = options;
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
@@ -122,14 +168,20 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 			FUNCTION_TYPE: EApiFunctionType.GET_MANY,
 			result: items,
 		};
+		const protectedOrderFields: Array<string> | undefined = generatedProperties?.order ? Object.keys(generatedProperties.order) : undefined;
+		const protectedResultSignature: string | undefined = protectedOrderFields ? ApiControllerGetListCursorRuntime.createItemsInvariantSignature(items, protectedOrderFields) : undefined;
 
 		const afterResult: Array<E> | undefined = await ApiSubscriberExecutor.executeFunctionSubscribers(constructor, new entity(), EApiFunctionType.GET_MANY, EApiSubscriberOnType.AFTER, executionContext);
+		// eslint-disable-next-line @elsikora/typescript/prefer-nullish-coalescing -- Direct calls preserve the existing truthy replacement contract.
+		const finalItems: Array<E> = generatedProperties ? (afterResult ?? items) : afterResult || items;
 
-		if (afterResult) {
-			return afterResult;
+		if (protectedOrderFields && protectedResultSignature) {
+			ApiControllerGetListCursorRuntime.assertItemsInvariant(finalItems, protectedOrderFields, protectedResultSignature);
+
+			return ApiControllerGetListCursorRuntime.isolateItems(finalItems, protectedOrderFields);
 		}
 
-		return items;
+		return finalItems;
 	} catch (caughtError) {
 		const entityInstance: E = new entity();
 

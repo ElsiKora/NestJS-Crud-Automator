@@ -16,9 +16,12 @@ import type { Type } from "@nestjs/common";
 import type { TApiRequestTransformer } from "@type/api-request-transformer.type";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
+import type { TApiControllerGetListQueryCompiledPlan } from "@type/class/api/controller/get-list/compiled/plan.type";
+import type { TApiControllerGetListCursorExecutionOptions } from "@type/class/api/controller/get-list/cursor/execution-options.type";
+import type { TApiControllerGetListCursorQueryRuntimeResult } from "@type/class/api/controller/get-list/cursor/query-runtime-result.type";
 import type { TApiControllerMethod } from "@type/class/controller-method.type";
 import type { TApiControllerGetListQuery, TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
-import type { TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetListPropertiesWhere, TApiFunctionGetProperties, TApiFunctionUpdateCriteria } from "@type/decorator/api/function";
+import type { TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetListPropertiesWhere, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria } from "@type/decorator/api/function";
 import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 import type { TApiControllerTransformDataObjectToTransform } from "@type/utility";
 import type { ClassConstructor } from "class-transformer";
@@ -27,16 +30,20 @@ import type { DeepPartial, EntityManager, FindOptionsOrder, FindOptionsWhere, Re
 
 import { ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGetListCursorDataSourceContract } from "@class/api/controller/get-list/cursor/data-source-contract.class";
+import { ApiControllerGetListCursorRuntime } from "@class/api/controller/get-list/cursor/runtime.class";
 import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/runtime.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
-import { EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
+import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiDtoType } from "@enum/decorator/api";
 import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
+import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
+import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
 import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetPrimaryColumn } from "@utility/api/controller/get/primary-column.utility";
@@ -52,7 +59,7 @@ import { ApiRouteSerializeResponse } from "@utility/api/route/response/serialize
 import { AuthorizationDecisionApplyResult, AuthorizationDecisionAttachResource, AuthorizationDecisionResolveFromRequest } from "@utility/authorization/decision";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
 import { ErrorException } from "@utility/error/exception.utility";
-import { plainToInstance } from "class-transformer";
+import { instanceToPlain, plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 
 export class ApiRouteRuntime {
@@ -359,26 +366,107 @@ export class ApiRouteRuntime {
 				const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName);
 				await this.executeGeneratedRequestPipeline(options, targets, readPlan ? [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.QUERY] : [EApiControllerRequestTarget.QUERY]);
 
-				const query: TApiControllerGetListQuery<E> | undefined = targets.query;
+				const query: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> | undefined = targets.query;
 
 				if (!query) {
 					throw ErrorException("Query target is required for GET_LIST routes");
 				}
 
 				const queryPlan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName);
-				const runtimeQuery: IApiControllerGetListQueryRuntimeResult | undefined = queryPlan ? ApiControllerGetListQueryRuntime.parse(query, queryPlan) : undefined;
-				const service: ApiServiceBase<E> = options.controller.service;
-				const getListFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetListProperties<E>) => Promise<unknown> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_LIST, EApiFunctionType.GET_LIST, options.properties.entity);
+				let cursorPlan: TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR> | undefined;
 
-				return await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<unknown> => {
-					const { limit, orderBy, orderDirection, page, ...getListQuery }: TApiControllerGetListQuery<E> = query;
+				if (queryPlan && ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR) {
+					const compiledPlan: Partial<TApiControllerGetListQueryCompiledPlan> = queryPlan as Partial<TApiControllerGetListQueryCompiledPlan>;
+
+					if (!compiledPlan.order?.serverFields) {
+						throw ErrorException("CURSOR GET_LIST compiled query plan is unavailable");
+					}
+
+					cursorPlan = queryPlan as TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR>;
+				}
+
+				const cursorRuntimeQuery: TApiControllerGetListCursorQueryRuntimeResult | undefined = cursorPlan ? (ApiControllerGetListQueryRuntime.parse(query, cursorPlan) as unknown as TApiControllerGetListCursorQueryRuntimeResult) : undefined;
+				const pageRuntimeQuery: IApiControllerGetListQueryRuntimeResult | undefined = !cursorPlan && queryPlan ? ApiControllerGetListQueryRuntime.parse(query, queryPlan) : undefined;
+				const runtimeQuery: IApiControllerGetListQueryRuntimeResult | TApiControllerGetListCursorQueryRuntimeResult | undefined = cursorRuntimeQuery ?? pageRuntimeQuery;
+				const service: ApiServiceBase<E> = options.controller.service;
+				const getManyFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetManyProperties<E>) => Promise<Array<E>>) | undefined = cursorRuntimeQuery ? ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_MANY, EApiFunctionType.GET_MANY, options.properties.entity) : undefined;
+				const getListFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetListProperties<E>) => Promise<unknown>) | undefined = cursorRuntimeQuery ? undefined : ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_LIST, EApiFunctionType.GET_LIST, options.properties.entity);
+
+				return await this.executeGeneratedTransaction(options, routeConfig, async (eventManager: EntityManager | undefined): Promise<unknown> => {
+					const generatedQuery: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode.CURSOR | EApiControllerGetListQueryPaginationMode.PAGE> = query;
+
+					const {
+						limit,
+						orderBy,
+						orderDirection,
+						page,
+						...getListQuery
+					}: {
+						limit: number;
+						orderBy?: keyof E;
+						orderDirection?: EFilterOrderDirection;
+						page?: number;
+					} = generatedQuery;
 					const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard);
 					const routeScopedFilter: TApiAuthorizationScopeWhere<E> = readPlan ? AuthorizationScopeMergeWhere(filter, ApiControllerReadScopeWhere(targets.parameters, readPlan)) : filter;
 					const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(routeScopedFilter, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
 					const effectiveLimit: number = runtimeQuery?.limit ?? limit;
 					const effectiveOrderBy: keyof E | string | undefined = runtimeQuery?.orderBy ?? orderBy;
 					const effectiveOrderDirection: EFilterOrderDirection | undefined = runtimeQuery?.orderDirection ?? orderDirection;
-					const effectivePage: number = runtimeQuery?.page ?? page;
+					const effectivePage: number | undefined = pageRuntimeQuery?.page ?? page;
+
+					if (cursorRuntimeQuery) {
+						if (!cursorPlan || !cursorRuntimeQuery.ast || !cursorRuntimeQuery.order?.length) {
+							throw ErrorException("Compiled CURSOR GET_LIST query plan is incomplete");
+						}
+
+						const baseProperties: TApiFunctionGetManyProperties<E> = {
+							relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
+							relations: routeConfig.relations?.response?.load?.include,
+							where: scopedFilter ?? filter,
+						};
+						const routePath: string = options.properties.path ?? (options.properties.entity.name ? options.properties.entity.name.toLowerCase() : "UnknownResource");
+						const contextHash: string = ApiControllerGetListCursorRuntime.createContextHash(routePath, targets.parameters, cursorPlan, cursorRuntimeQuery.ast, cursorRuntimeQuery.order, readPlan?.signature);
+						let direction: "after" | "before" | undefined;
+
+						if (cursorRuntimeQuery.after) {
+							direction = "after";
+						} else if (cursorRuntimeQuery.before) {
+							direction = "before";
+						}
+
+						const cursor: string | undefined = cursorRuntimeQuery.after ?? cursorRuntimeQuery.before;
+
+						if (!getManyFunction) {
+							throw ErrorException("Generated CURSOR GET_LIST function capability is not available");
+						}
+
+						const serviceRepository: Repository<E> | undefined = (service as { repository?: Repository<E> } & ApiServiceBase<E>).repository;
+
+						if (!serviceRepository) {
+							throw ErrorException("Repository is not available in this context");
+						}
+
+						const activeRepository: Repository<E> = eventManager ? eventManager.getRepository<E>(serviceRepository.target) : serviceRepository;
+						const validateStorageValue: TApiControllerGetListCursorExecutionOptions<E>["validateStorageValue"] = ApiControllerGetListCursorDataSourceContract.createValueValidator(activeRepository, cursorPlan);
+
+						return await ApiControllerGetListCursorRuntime.execute<E>({
+							baseProperties,
+							contextHash,
+							cursor,
+							direction,
+							limit: effectiveLimit,
+							onBeforeQuery: markAfterBoundary,
+							order: cursorRuntimeQuery.order,
+							plan: cursorPlan,
+							run: async (properties: TApiFunctionGetManyProperties<E>): Promise<Array<E>> => await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET_MANY, properties, properties.where, async (): Promise<Array<E>> => await Reflect.apply(getManyFunction, service, [properties])),
+							validateStorageValue,
+						});
+					}
+
+					if (effectivePage === undefined) {
+						throw ErrorException("Compiled PAGE GET_LIST query plan is incomplete");
+					}
 
 					const requestProperties: TApiFunctionGetListProperties<E> = {
 						relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
@@ -396,6 +484,10 @@ export class ApiRouteRuntime {
 						requestProperties.order = Object.fromEntries(runtimeQuery.order.map((entry: IApiControllerGetListQueryPlanOrderEntry): [string, EFilterOrderDirection] => [entry.field, entry.direction])) as FindOptionsOrder<E>;
 					}
 
+					if (!getListFunction) {
+						throw ErrorException("Generated PAGE GET_LIST function capability is not available");
+					}
+
 					markAfterBoundary();
 
 					return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET_LIST, requestProperties, requestProperties.where, async (): Promise<unknown> => await Reflect.apply(getListFunction, service, [requestProperties]));
@@ -406,33 +498,54 @@ export class ApiRouteRuntime {
 
 	private static async executeGeneratedRequestPipeline<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, targetOrder: Array<EApiControllerRequestTarget>): Promise<void> {
 		const routeConfig: TApiControllerPropertiesRoute<E, R> = options.properties.routes[options.method] ?? {};
-		const requestTargets: Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E>>> | undefined = routeConfig.request;
+		const requestTargets: Partial<Record<EApiControllerRequestTarget, unknown>> | undefined = routeConfig.request;
 		const transformTargets: Partial<Record<EApiControllerRequestTarget, { transformers?: Array<TApiRequestTransformer<E>> }>> | undefined = routeConfig.request;
 
 		for (const target of targetOrder) {
 			if (target === EApiControllerRequestTarget.PARAMETERS) {
 				ApiControllerTransformData<E>(transformTargets, options.properties, { parameters: targets.parameters }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
-				await ApiControllerValidateRequest<E>(requestTargets?.[target], options.properties, targets.parameters ?? {});
+				await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.PARAMETERS] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, options.properties, targets.parameters ?? {});
 			}
 
 			if (target === EApiControllerRequestTarget.QUERY) {
 				ApiControllerTransformData<E>(transformTargets, options.properties, { query: targets.query }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
-				await ApiControllerValidateRequest<E>(requestTargets?.[target], options.properties, targets.query ?? {});
+				await ApiControllerValidateRequest<E, EApiControllerGetListQueryPaginationMode>(requestTargets?.[EApiControllerRequestTarget.QUERY] as IApiControllerPropertiesRouteBaseRequestTarget<E, EApiControllerGetListQueryPaginationMode> | undefined, options.properties, targets.query ?? {});
 			}
 
 			if (target === EApiControllerRequestTarget.BODY) {
 				ApiControllerTransformData<E>(transformTargets, options.properties, { body: targets.body }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
-				await ApiControllerValidateRequest<E>(requestTargets?.[target], options.properties, (targets.body ?? {}) as Partial<E>);
+				await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.BODY] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, options.properties, (targets.body ?? {}) as Partial<E>);
 			}
 		}
 	}
 
 	private static async executeGeneratedResponse<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, entityInstance: E, baseData: IApiSubscriberRouteExecutionContextData<E>, authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined, result: unknown): Promise<unknown> {
 		const routeConfig: TApiControllerPropertiesRoute<E, R> = options.properties.routes[options.method] ?? {};
+		const queryPlan: IApiControllerGetListQueryPlan | undefined = options.method === EApiRouteType.GET_LIST ? ApiControllerGetListQueryPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName) : undefined;
+		let cursorOrderFields: ReadonlyArray<string> | undefined;
+		let cursorResponseSignature: string | undefined;
+
+		if (ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR && queryPlan) {
+			const protectedFields: ReadonlyArray<string> = ApiControllerGetListQueryResolveCursorOrderFields(queryPlan.order);
+
+			if (protectedFields.length === 0) {
+				throw ErrorException("CURSOR GET_LIST response requires its effective order");
+			}
+
+			cursorOrderFields = protectedFields;
+			cursorResponseSignature = ApiControllerGetListCursorRuntime.createResponseInvariantSignature(result, protectedFields);
+		}
+
+		const assertCursorResponseInvariant = (value: unknown): void => {
+			if (cursorOrderFields && cursorResponseSignature) {
+				ApiControllerGetListCursorRuntime.assertResponseInvariant(value, cursorOrderFields, cursorResponseSignature);
+			}
+		};
 		const responseTarget: TApiControllerTransformDataObjectToTransform<E> = { response: result as Partial<E> };
 		const responseResource: E | undefined = responseTarget.response as E | undefined;
 
 		ApiControllerTransformData<E>(routeConfig.response, options.properties, responseTarget, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
+		assertCursorResponseInvariant(responseTarget.response);
 
 		const afterContext: IApiSubscriberRouteExecutionContext<E> = {
 			DATA: { ...(baseData as object), authenticationRequest: targets.authenticationRequest, authorizationDecision: ApiControllerGeneratedSecuritySnapshot.createSubscriberView(authorizationDecision, responseResource), body: targets.body, headers: targets.headers, ip: targets.ip, parameters: targets.parameters, query: targets.query },
@@ -442,14 +555,28 @@ export class ApiRouteRuntime {
 		};
 		const afterResult: unknown = await ApiSubscriberExecutor.executeRouteSubscribers(options.controller.constructor as new (...arguments_: Array<unknown>) => unknown, (responseTarget.response ?? entityInstance) as E, options.method, EApiSubscriberOnType.AFTER, afterContext);
 		const finalResponse: unknown = afterResult ?? responseTarget.response;
+		assertCursorResponseInvariant(finalResponse);
 		const transformedResponse: unknown = await AuthorizationDecisionApplyResult(ApiControllerGeneratedSecuritySnapshot.withResource(authorizationDecision, finalResponse as E) as never, finalResponse as never);
+		assertCursorResponseInvariant(transformedResponse);
 		const identityPlan: IApiControllerIdentityPlan | undefined = this.resolveIdentityPlan(options.controller, options.methodName);
-		const dto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(options.properties, options.entityMetadata, options.method, EApiDtoType.RESPONSE, routeConfig, undefined, undefined, identityPlan);
+		const dto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(options.properties, options.entityMetadata, options.method, EApiDtoType.RESPONSE, routeConfig, queryPlan, undefined, identityPlan);
+		const projectedResponse: unknown = ApiRouteProjectRelationResponse(routeConfig.relations?.response, transformedResponse);
 
-		return ApiControllerSerializeRouteResponse(routeConfig, dto, ApiRouteProjectRelationResponse(routeConfig.relations?.response, transformedResponse));
+		assertCursorResponseInvariant(projectedResponse);
+		const serializedResponse: unknown = ApiControllerSerializeRouteResponse(routeConfig, dto, projectedResponse);
+
+		if (cursorOrderFields && cursorResponseSignature) {
+			const wireResponse: unknown = instanceToPlain(serializedResponse);
+
+			assertCursorResponseInvariant(wireResponse);
+
+			return wireResponse;
+		}
+
+		return serializedResponse;
 	}
 
-	private static async executeGeneratedTransaction<E extends IApiBaseEntity, R extends EApiRouteType, T>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, routeConfig: TApiControllerPropertiesRoute<E, R>, callback: () => Promise<T>): Promise<T> {
+	private static async executeGeneratedTransaction<E extends IApiBaseEntity, R extends EApiRouteType, T>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, routeConfig: TApiControllerPropertiesRoute<E, R>, callback: (eventManager: EntityManager | undefined) => Promise<T>): Promise<T> {
 		const mode: EApiFunctionTransactionMode = routeConfig.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 		const activeEventManager: EntityManager | undefined = ApiFunctionContextStorage.getTransactionRegistry() ? ApiFunctionContextStorage.getEventManager() : undefined;
 
@@ -480,7 +607,7 @@ export class ApiRouteRuntime {
 			});
 		}
 
-		return await callback();
+		return await callback(activeEventManager);
 	}
 
 	private static async executeGeneratedUpdateOperation<E extends IApiBaseEntity, R extends EApiRouteType>(
@@ -521,14 +648,14 @@ export class ApiRouteRuntime {
 			entity: metadata.resource.entity,
 			routes: {},
 		};
-		const requestTargets: Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E>>> | undefined = runtimeProperties.request;
+		const requestTargets: Partial<Record<EApiControllerRequestTarget, unknown>> | undefined = runtimeProperties.request;
 
 		ApiControllerTransformData<E>(runtimeProperties.request, controllerProperties, { parameters: request.params }, contextData);
-		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.PARAMETERS], controllerProperties, request.params ?? {});
-		ApiControllerTransformData<E>(runtimeProperties.request, controllerProperties, { query: request.query as TApiControllerGetListQuery<E> | undefined }, contextData);
-		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.QUERY], controllerProperties, request.query ?? {});
+		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.PARAMETERS] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, controllerProperties, request.params ?? {});
+		ApiControllerTransformData<E>(runtimeProperties.request, controllerProperties, { query: request.query as TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> | undefined }, contextData);
+		await ApiControllerValidateRequest<E, EApiControllerGetListQueryPaginationMode>(requestTargets?.[EApiControllerRequestTarget.QUERY] as IApiControllerPropertiesRouteBaseRequestTarget<E, EApiControllerGetListQueryPaginationMode> | undefined, controllerProperties, request.query ?? {});
 		ApiControllerTransformData<E>(runtimeProperties.request, controllerProperties, { body: request.body as E | undefined }, contextData);
-		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.BODY], controllerProperties, request.body ?? {});
+		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.BODY] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, controllerProperties, request.body ?? {});
 		await this.executeDiscriminatedRequestBodyDto(runtimeProperties, request);
 	}
 

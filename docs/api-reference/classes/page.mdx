@@ -106,10 +106,10 @@ Abstract base class for route-level subscribers.
 **Location:** `src/class/api/subscriber/route-base.class.ts`
 
 ```typescript
-abstract class ApiRouteSubscriberBase<E extends IApiBaseEntity, TAuthorizationExpectation extends EApiRouteSubscriberAuthorizationExpectation = EApiRouteSubscriberAuthorizationExpectation.OPTIONAL>
+abstract class ApiRouteSubscriberBase<E extends IApiBaseEntity, TAuthorizationExpectation extends EApiRouteSubscriberAuthorizationExpectation = EApiRouteSubscriberAuthorizationExpectation.OPTIONAL, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>
 ```
 
-The second generic is optional and type-only. Use `EApiRouteSubscriberAuthorizationExpectation.REQUIRED` when the subscriber only observes routes that guarantee authentication and authorization.
+The second generic is optional and type-only. Use `EApiRouteSubscriberAuthorizationExpectation.REQUIRED` when the subscriber only observes routes that guarantee authentication and authorization. The third generic defaults to PAGE for source compatibility; select CURSOR when GET_LIST hooks consume cursor queries and the flat response.
 
 **Hook Methods:**
 

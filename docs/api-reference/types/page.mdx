@@ -18,15 +18,21 @@ type TApiFunctionGetManyProperties<E> = FindManyOptions<E>;
 ## Route Query Types
 
 ```typescript
-type TApiControllerGetListQuery<E> = {
+type TApiControllerGetListQuery<E, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> = {
 	limit: number;
-	orderBy?: keyof E;
-	orderDirection?: EFilterOrderDirection;
-	page: number;
-} & Partial<TFilterKeys<E>>;
+} & (M extends EApiControllerGetListQueryPaginationMode.CURSOR
+	? ({ after: string; before?: never; page?: never } | { after?: never; before: string; page?: never } | { after?: never; before?: never; page?: never }) & ({ orderBy: keyof E; orderDirection: EFilterOrderDirection } | { orderBy?: never; orderDirection?: never })
+	: {
+			orderBy?: keyof E;
+			orderDirection?: EFilterOrderDirection;
+			page: number;
+		}) &
+	Partial<TFilterKeys<E>>;
+
+type TApiControllerGetListResponse<E, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> = M extends EApiControllerGetListQueryPaginationMode.CURSOR ? IApiGetListCursorResponseResult<E> : IApiGetListResponseResult<E>;
 ```
 
-HTTP list queries use lowercase sort directions: `asc` and `desc`.
+The default generic keeps the existing PAGE source contract. Select the CURSOR generic for a request without `page` and the flat cursor response. Its type permits exactly one of three direction states: neither cursor, `after`, or `before`; it never permits both. Client sorting likewise permits neither order property or the complete `orderBy`/`orderDirection` pair. HTTP list queries use lowercase sort directions: `asc` and `desc`.
 
 Typed GET_LIST route plans expose metadata-backed helper types:
 
@@ -99,10 +105,10 @@ These helper aliases power `ApiFunctionSubscriberBase` shorthand generics and `T
 ## Authorization Types
 
 ```typescript
-type TApiAuthorizationRuleTransformPayload<E extends IApiBaseEntity> = Array<unknown> | boolean | E | IApiGetListResponseResult<E> | null | number | object | Partial<E> | Record<string, unknown> | string | undefined;
+type TApiAuthorizationRuleTransformPayload<E extends IApiBaseEntity> = Array<unknown> | boolean | E | IApiGetListCursorResponseResult<E> | IApiGetListResponseResult<E> | null | number | object | Partial<E> | Record<string, unknown> | string | undefined;
 ```
 
-Authorization transforms receive the payload produced by the route action and may return a replacement payload of the same public response family.
+Authorization transforms receive the payload produced by the route action and may return a replacement payload of the same public response family, including either the PAGE count envelope or the flat CURSOR envelope.
 
 ## Related resources
 

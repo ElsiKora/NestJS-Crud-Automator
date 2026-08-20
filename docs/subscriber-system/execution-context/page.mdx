@@ -72,8 +72,8 @@ Function helpers also accept a transaction expectation generic. Exact `REQUIRED`
 - `TApiSubscriberRouteAfterPartialUpdateContext<E>`
 - `TApiSubscriberRouteBeforeGetContext<E>`
 - `TApiSubscriberRouteAfterGetContext<E>`
-- `TApiSubscriberRouteBeforeGetListContext<E>`
-- `TApiSubscriberRouteAfterGetListContext<E>`
+- `TApiSubscriberRouteBeforeGetListContext<E, TAuthorizationExpectation = OPTIONAL, M = PAGE>`
+- `TApiSubscriberRouteAfterGetListContext<E, M = PAGE>`
 - `TApiSubscriberRouteBeforeDeleteContext<E>`
 - `TApiSubscriberRouteAfterDeleteContext<E>`
 
@@ -119,7 +119,7 @@ interface IApiSubscriberRouteExecutionContext<E, Result, Input> {
 **Base DATA (for before hooks):**
 
 ```typescript
-interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity, R> {
+interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity, R = TApiAuthorizationRuleTransformPayload<E>> {
 	readonly entityMetadata: IApiEntity<E>;
 	readonly method: EApiRouteType;
 	readonly methodName: string;
@@ -131,15 +131,17 @@ interface IApiSubscriberRouteExecutionContextData<E extends IApiBaseEntity, R> {
 **Extended DATA (for after/error hooks):**
 
 ```typescript
-interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R> extends IApiSubscriberRouteExecutionContextData<E, R> {
+interface IApiSubscriberRouteExecutionContextDataExtended<E extends IApiBaseEntity, R = TApiAuthorizationRuleTransformPayload<E>, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> extends IApiSubscriberRouteExecutionContextData<E, R> {
 	readonly authenticationRequest?: IApiAuthenticationRequest;
 	readonly headers: Record<string, string>;
 	readonly ip: string;
 	readonly body?: DeepPartial<E>;
 	readonly parameters?: Partial<E>;
-	readonly query?: TApiControllerGetListQuery<E>;
+	readonly query?: TApiControllerGetListQuery<E, M>;
 }
 ```
+
+PAGE remains the default generic. A CURSOR route subscriber selects `M = EApiControllerGetListQueryPaginationMode.CURSOR` to receive the mutually exclusive `after`/`before` query and `TApiControllerGetListResponse<E, M>` flat envelope.
 
 ### Accessing Route Context Data
 
@@ -385,17 +387,17 @@ TApiFunctionCreateProperties<E> = DeepPartial<E>;
 TApiFunctionUpdateProperties<E> = DeepPartial<E>;
 
 // Route create/update before hooks
-TApiControllerRequestProperties<E> = {
+TApiControllerRequestProperties<E, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> = {
 	body?: DeepPartial<E>;
 	parameters?: Partial<E>;
-	query?: TApiControllerGetListQuery<E>;
+	query?: TApiControllerGetListQuery<E, M>;
 };
 
 // Get operation (function + route after)
 E; // The entity itself
 
 // Get list operation (function + route after)
-IApiGetListResponseResult<E>;
+TApiControllerGetListResponse<E, M>; // PAGE by default; flat CURSOR response when M = CURSOR
 
 // Get many operation (function + route after)
 Array<E>;

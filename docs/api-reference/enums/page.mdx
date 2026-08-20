@@ -202,6 +202,19 @@ enum EApiPropertyDataType {
 
 ## GET_LIST Query Plan Enums
 
+### EApiControllerGetListQueryPaginationMode
+
+Selects the generated GET_LIST request, runtime, service path, and response envelope.
+
+```typescript
+enum EApiControllerGetListQueryPaginationMode {
+	CURSOR = "cursor",
+	PAGE = "page",
+}
+```
+
+Omitted configuration defaults to PAGE. CURSOR is opt-in through `request[QUERY].pagination.mode`.
+
 ### EApiControllerGetListQueryUnlistedFields
 
 Controls whether a configured GET_LIST filter/order section overlays the entity metadata baseline or acts as an allowlist.

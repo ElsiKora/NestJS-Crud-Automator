@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationDecision, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata } from "@interface/class/api/authorization";
 import type { IApiControllerAuthorizationProperties, IApiControllerRouteAuthorizationProperties } from "@interface/decorator/api/controller/properties";
@@ -11,7 +12,16 @@ import { Injectable } from "@nestjs/common";
 export class ApiAuthorizationSimulator {
 	public constructor(private readonly runtime: ApiAuthorizationRuntime) {}
 
-	public async evaluate<E extends IApiBaseEntity>(options: { action: string; authorization: IApiControllerAuthorizationProperties<E>; entity: new () => E; principal: IApiAuthorizationPrincipal; requestMetadata?: IApiAuthorizationRequestMetadata<E>; resource?: E; routeAuthorization?: IApiControllerRouteAuthorizationProperties; routeType?: EApiRouteType }): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
+	public async evaluate<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(options: {
+		action: string;
+		authorization: IApiControllerAuthorizationProperties<E>;
+		entity: new () => E;
+		principal: IApiAuthorizationPrincipal;
+		requestMetadata?: IApiAuthorizationRequestMetadata<E, M>;
+		resource?: E;
+		routeAuthorization?: IApiControllerRouteAuthorizationProperties;
+		routeType?: EApiRouteType;
+	}): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
 		return await this.runtime.evaluate({
 			action: options.action,
 			authorization: options.authorization,

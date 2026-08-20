@@ -84,7 +84,8 @@ Configured typed GET_LIST plans return stable `400` codes independently of the h
 - `FILTER_REQUIRED` when a filter configured with `missingBehavior: REJECT` is absent;
 - `INVALID_FILTER` for an invalid path, operation, operand, value, or cardinality;
 - `INVALID_ORDER` for invalid `orderBy` or `orderDirection`;
-- `INVALID_LIMIT` and `INVALID_PAGE` for invalid pagination.
+- `INVALID_LIMIT` and `INVALID_PAGE` for invalid PAGE pagination;
+- `INVALID_CURSOR` for a malformed, non-canonical, context-mismatched, empty, or conflicting CURSOR input, including `page` in CURSOR mode.
 
 Unknown or disabled typed-query fields fail closed instead of being silently ignored.
 

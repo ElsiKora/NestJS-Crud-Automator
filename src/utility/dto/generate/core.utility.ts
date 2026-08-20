@@ -11,8 +11,9 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
-import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { ApiExtraModels } from "@nestjs/swagger";
+import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
 import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
@@ -20,12 +21,12 @@ import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoGenerateCacheKey } from "@utility/dto/generate/cache-key.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
 import { DtoGenerateFilterDecorator } from "@utility/dto/generate/filter-decorator.utility";
-import { DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list-query-properties.utility";
-import { DtoGenerateGetListResponse } from "@utility/dto/generate/get-list-response.utility";
+import { DtoGenerateGetListCursorResponse, DtoGenerateGetListQueryProperties, DtoGenerateGetListResponse } from "@utility/dto/generate/get-list";
 import { DtoGetGetListQueryBaseClass } from "@utility/dto/get/get-list-query-base-class.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "@utility/dto/is/should-be-generated.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { AtMostOneOfListedPropertiesValidator } from "@validator/at-most-one-of-listed-properties.validator";
 import { HasPairedCustomSuffixesFieldsValidator } from "@validator/has/paired-custom-suffixes-fields.validator";
 import { Transform } from "class-transformer";
 import { Validate } from "class-validator";
@@ -52,14 +53,17 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		return undefined;
 	}
 
+	const isGetListResponse: boolean = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE;
+	const isCursorGetListResponse: boolean = isGetListResponse && ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
+
 	const cacheKey: string = DtoGenerateCacheKey({
-		controllerName: queryPlan?.controllerName,
+		controllerName: isCursorGetListResponse ? undefined : queryPlan?.controllerName,
 		dtoConfig,
 		dtoType,
 		entityName: String(entityMetadata.name),
 		guardName: currentGuard?.name,
 		method,
-		queryPlanSignature: queryPlan?.signature,
+		queryPlanSignature: isCursorGetListResponse ? EApiControllerGetListQueryPaginationMode.CURSOR : queryPlan?.signature,
 	});
 
 	const cached: Type<unknown> | undefined = dtoGenerateCache.get(cacheKey);
@@ -262,14 +266,22 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		});
 
 		Validate(HasPairedCustomSuffixesFieldsValidator, ["operator", ["value", "values"]])(GeneratedDTO.prototype, "object");
+
+		if (ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR) {
+			Validate(AtMostOneOfListedPropertiesValidator, ["after", "before"])(GeneratedDTO.prototype, "object");
+		}
 	}
 
 	if (extraModels.length > 0) {
 		ApiExtraModels(...extraModels)(GeneratedDTO);
 	}
 
-	// @ts-ignore
-	const result: Type<unknown> = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE ? DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`) : GeneratedDTO;
+	let result: Type<unknown> = GeneratedDTO;
+
+	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE) {
+		// @ts-ignore The generated entity/DTO constructors satisfy the wrapper generator at runtime.
+		result = ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR ? DtoGenerateGetListCursorResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}Cursor${CamelCaseString(dtoType)}ItemsDTO`) : DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`);
+	}
 
 	dtoGenerateCache.set(cacheKey, result);
 

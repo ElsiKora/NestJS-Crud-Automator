@@ -1,4 +1,4 @@
-import type { EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
+import type { EApiControllerGetListQueryPaginationMode, EApiFunctionType, EApiRouteSubscriberAuthorizationExpectation, EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function";
 import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.interface";
@@ -16,7 +16,7 @@ class ApiSubscriberRegistry {
 
 	private nextFunctionSubscriberRegistrationOrder: number;
 
-	private readonly ROUTE_SUBSCRIBERS: Map<string, SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity>>>;
+	private readonly ROUTE_SUBSCRIBERS: Map<string, SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>>>;
 
 	constructor() {
 		this.FUNCTION_SUBSCRIBER_REGISTRATION_ORDER = new WeakMap();
@@ -45,8 +45,10 @@ class ApiSubscriberRegistry {
 		return (this.FUNCTION_SUBSCRIBERS.get(entityName)?.subscribers ?? []).filter((entry: { properties?: IApiFunctionSubscriberProperties<IApiBaseEntity>; subscriber: IApiSubscriberFunction<IApiBaseEntity> }) => this.isFunctionSubscriberMatching(entry.properties, functionType, action)).map((s: { subscriber: IApiSubscriberFunction<IApiBaseEntity> }) => s.subscriber) as unknown as Array<IApiSubscriberFunction<E>>;
 	}
 
-	public getRouteSubscribers<E extends IApiBaseEntity>(entityName: string, controller?: new (...arguments_: Array<unknown>) => unknown, routeType?: EApiRouteType, action?: string): Array<IApiSubscriberRoute<E>> {
-		return (this.ROUTE_SUBSCRIBERS.get(entityName)?.subscribers ?? []).filter((entry: { properties?: IApiRouteSubscriberProperties<IApiBaseEntity>; subscriber: IApiSubscriberRoute<IApiBaseEntity> }) => this.isRouteSubscriberMatching(entry.properties, controller, routeType, action)).map((s: { subscriber: IApiSubscriberRoute<IApiBaseEntity> }) => s.subscriber) as unknown as Array<IApiSubscriberRoute<E>>;
+	public getRouteSubscribers<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(entityName: string, controller?: new (...arguments_: Array<unknown>) => unknown, routeType?: EApiRouteType, action?: string): Array<IApiSubscriberRoute<E, EApiRouteSubscriberAuthorizationExpectation, M>> {
+		return (this.ROUTE_SUBSCRIBERS.get(entityName)?.subscribers ?? [])
+			.filter((entry: { properties?: IApiRouteSubscriberProperties<IApiBaseEntity>; subscriber: IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode> }) => this.isRouteSubscriberMatching(entry.properties, controller, routeType, action))
+			.map((s: { subscriber: IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode> }) => s.subscriber) as unknown as Array<IApiSubscriberRoute<E, EApiRouteSubscriberAuthorizationExpectation, M>>;
 	}
 
 	public registerFunctionSubscriber<E extends IApiBaseEntity>(properties: IApiFunctionSubscriberProperties<E>, subscriber: IApiSubscriberFunction<E>): void {
@@ -69,19 +71,19 @@ class ApiSubscriberRegistry {
 		subscriberRegistryLogger.debug(`Registered function subscriber entities: [${[...this.FUNCTION_SUBSCRIBERS.values()].map((registeredWrapper: SubscriberWrapper<IApiSubscriberFunction<IApiBaseEntity>>) => registeredWrapper.getName()).join(", ")}]`);
 	}
 
-	public registerRouteSubscriber<E extends IApiBaseEntity>(properties: IApiRouteSubscriberProperties<E>, subscriber: IApiSubscriberRoute<E>): void {
+	public registerRouteSubscriber<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(properties: IApiRouteSubscriberProperties<E>, subscriber: IApiSubscriberRoute<E, EApiRouteSubscriberAuthorizationExpectation, M>): void {
 		const entityName: string = properties.entity.name;
-		let wrapper: SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity>> | undefined = this.ROUTE_SUBSCRIBERS.get(entityName);
+		let wrapper: SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>> | undefined = this.ROUTE_SUBSCRIBERS.get(entityName);
 
 		if (!wrapper) {
 			wrapper = new SubscriberWrapper(entityName);
 			this.ROUTE_SUBSCRIBERS.set(entityName, wrapper);
 		}
 
-		wrapper.addSubscriber(subscriber as unknown as IApiSubscriberRoute<IApiBaseEntity>, properties.priority, properties);
+		wrapper.addSubscriber(subscriber as unknown as IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>, properties.priority, properties);
 
 		subscriberRegistryLogger.debug(`Total route subscribers for "${entityName}": ${wrapper.getSubscriberCount()}`);
-		subscriberRegistryLogger.debug(`Registered route subscriber entities: [${[...this.ROUTE_SUBSCRIBERS.values()].map((registeredWrapper: SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity>>) => registeredWrapper.getName()).join(", ")}]`);
+		subscriberRegistryLogger.debug(`Registered route subscriber entities: [${[...this.ROUTE_SUBSCRIBERS.values()].map((registeredWrapper: SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>>) => registeredWrapper.getName()).join(", ")}]`);
 	}
 
 	private isFunctionSubscriberMatching(properties: IApiFunctionSubscriberProperties<IApiBaseEntity> | undefined, functionType?: EApiFunctionType, action?: string): boolean {

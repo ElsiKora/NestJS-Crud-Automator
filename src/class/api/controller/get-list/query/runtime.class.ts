@@ -5,10 +5,11 @@ import type { FindOperator } from "typeorm";
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "@constant/factory-dto-get-list-query.constant";
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
-import { EApiControllerGetListQueryFilterMissingBehavior, EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
+import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode, EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { EFilterOperand, EFilterOperation, EFilterOrderDirection } from "@enum/filter";
 import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryEnumValues } from "@utility/api/controller/get-list/query/enum-values.utility";
+import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 
 export class ApiControllerGetListQueryRuntime {
 	public static compileWhere<E>(ast: IApiControllerGetListQueryAst): TApiFunctionGetListPropertiesWhere<E> {
@@ -51,11 +52,16 @@ export class ApiControllerGetListQueryRuntime {
 
 	public static parse(query: Record<string, unknown>, plan: IApiControllerGetListQueryPlan): IApiControllerGetListQueryRuntimeResult {
 		const limit: number = this.parsePositiveInteger(query.limit, GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_LENGTH, GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MAXIMUM_LIST_LENGTH, "limit");
-		const page: number = this.parsePositiveInteger(query.page, GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_PAGES_COUNT, GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MAXIMUM_LIST_PAGES_COUNT, "page");
+		const paginationMode: EApiControllerGetListQueryPaginationMode = ApiControllerGetListQueryGetPaginationMode(plan);
+		const isCursor: boolean = paginationMode === EApiControllerGetListQueryPaginationMode.CURSOR;
+		const page: number | undefined = isCursor ? undefined : this.parsePositiveInteger(query.page, GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_PAGES_COUNT, GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MAXIMUM_LIST_PAGES_COUNT, "page");
+		const cursor: { after?: string; before?: string } = isCursor ? this.parseCursor(query.after, query.before, query.page) : {};
 		const filterQuery: Record<string, unknown> = {};
 
 		for (const [key, value] of Object.entries(query)) {
-			if (key !== "limit" && key !== "orderBy" && key !== "orderDirection" && key !== "page") {
+			const isCursorDirection: boolean = isCursor && (key === "after" || key === "before");
+
+			if (!isCursorDirection && key !== "limit" && key !== "orderBy" && key !== "orderDirection" && key !== "page") {
 				filterQuery[key] = value;
 			}
 		}
@@ -66,12 +72,14 @@ export class ApiControllerGetListQueryRuntime {
 
 		return Object.freeze({
 			ast,
+			...cursor,
 			filterQuery: Object.freeze(filterQuery),
 			limit,
 			...(hasCompoundOrder ? { order: this.compileOrder(order.orderBy, order.orderDirection, plan) } : {}),
 			...order,
 			page,
-		});
+			...(isCursor ? { paginationMode } : {}),
+		}) as unknown as IApiControllerGetListQueryRuntimeResult;
 	}
 
 	private static compileOrder(orderBy: string | undefined, orderDirection: EFilterOrderDirection | undefined, plan: IApiControllerGetListQueryPlan): ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> {
@@ -87,6 +95,34 @@ export class ApiControllerGetListQueryRuntime {
 		}
 
 		return Object.freeze(entries);
+	}
+
+	private static parseCursor(afterValue: unknown, beforeValue: unknown, pageValue: unknown): { after?: string; before?: string } {
+		if (pageValue !== undefined) {
+			throw new BadRequestException("INVALID_CURSOR");
+		}
+
+		if (afterValue !== undefined && beforeValue !== undefined) {
+			throw new BadRequestException("INVALID_CURSOR");
+		}
+
+		if (afterValue !== undefined) {
+			if (typeof afterValue !== "string" || afterValue.length === 0) {
+				throw new BadRequestException("INVALID_CURSOR");
+			}
+
+			return { after: afterValue };
+		}
+
+		if (beforeValue !== undefined) {
+			if (typeof beforeValue !== "string" || beforeValue.length === 0) {
+				throw new BadRequestException("INVALID_CURSOR");
+			}
+
+			return { before: beforeValue };
+		}
+
+		return {};
 	}
 
 	private static parseFilter(query: Record<string, unknown>, plan: IApiControllerGetListQueryPlan): IApiControllerGetListQueryAst {

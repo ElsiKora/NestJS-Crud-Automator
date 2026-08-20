@@ -1,5 +1,6 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiControllerProperties, IApiGetListResponseResult } from "@interface/decorator/api";
+import type { IApiControllerProperties, IApiGetListCursorResponseResult, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { TApiRequestTransformer } from "@type/api-request-transformer.type";
 import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import type { TApiControllerTransformDataData, TApiControllerTransformDataObjectToTransform, TApiTransformDataIsValidationProperties } from "@type/utility";
@@ -66,11 +67,11 @@ export function ApiControllerTransformData<E extends IApiBaseEntity>(targets: Pa
 function handleTransformation<E>(object: TApiTransformDataIsValidationProperties<E>, key: PropertyKey, value: unknown, entity: IApiBaseEntity, shouldSetValueEvenIfMissing: boolean = false): void {
 	if (isApiGetListResponseResult(object)) {
 		if (key in object) {
-			(object[key as keyof IApiGetListResponseResult<E>] as unknown) = value;
+			(object[key as keyof (IApiGetListCursorResponseResult<E> | IApiGetListResponseResult<E>)] as unknown) = value;
 		}
 	} else if (isApiFunctionGetListProperties(object)) {
 		if (key in object) {
-			(object[key as keyof TApiControllerGetListQuery<E>] as unknown) = value;
+			(object[key as keyof TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode>] as unknown) = value;
 		}
 	} else if (isPartialE(object) && key in object) {
 		(object[key as keyof E] as unknown) = value;
@@ -92,7 +93,7 @@ function handleTransformation<E>(object: TApiTransformDataIsValidationProperties
  * @returns {boolean} True if the object is a get list query object
  * @private
  */
-function isApiFunctionGetListProperties<E>(object: TApiTransformDataIsValidationProperties<E>): object is TApiControllerGetListQuery<E> {
+function isApiFunctionGetListProperties<E>(object: TApiTransformDataIsValidationProperties<E>): object is TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> {
 	return "limit" in object && "page" in object;
 }
 
@@ -102,8 +103,8 @@ function isApiFunctionGetListProperties<E>(object: TApiTransformDataIsValidation
  * @returns {boolean} True if the object is a get list response result
  * @private
  */
-function isApiGetListResponseResult<E>(object: TApiTransformDataIsValidationProperties<E>): object is IApiGetListResponseResult<E> {
-	return "items" in object && "totalCount" in object;
+function isApiGetListResponseResult<E>(object: TApiTransformDataIsValidationProperties<E>): object is IApiGetListCursorResponseResult<E> | IApiGetListResponseResult<E> {
+	return "items" in object && ("totalCount" in object || "nextCursor" in object);
 }
 
 /**

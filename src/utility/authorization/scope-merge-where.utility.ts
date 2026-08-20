@@ -2,10 +2,9 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { FindOperator, FindOptionsWhere } from "typeorm";
 
+import { UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT } from "@constant/safe-object-property-names.constant";
 import { ErrorException } from "@utility/error/exception.utility";
 import { And, Equal, In, InstanceChecker } from "typeorm";
-
-const UNSAFE_WHERE_PROPERTY_NAMES: ReadonlySet<string> = new Set<string>([...Object.getOwnPropertyNames(Object.prototype), "prototype"]);
 
 /**
  * Merges two WHERE expressions by building a Cartesian product of OR branches.
@@ -452,7 +451,7 @@ function validateWhereRecordKeys(value: Record<string, unknown>): void {
 	}
 
 	for (const [key, nestedValue] of entries) {
-		if (UNSAFE_WHERE_PROPERTY_NAMES.has(key)) {
+		if (UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT.has(key)) {
 			throw ErrorException(`Authorization scope WHERE property "${key}" is not a safe property name`);
 		}
 

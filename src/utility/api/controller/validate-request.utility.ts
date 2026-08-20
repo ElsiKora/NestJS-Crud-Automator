@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiControllerPropertiesRouteBaseRequestTarget } from "@interface/decorator/api/controller/properties/route/base";
@@ -14,7 +15,7 @@ import { ErrorString } from "@utility/error/string.utility";
  * @returns {Promise<void>} A promise that resolves when validation passes
  * @template E - The entity type
  */
-export async function ApiControllerValidateRequest<E extends IApiBaseEntity>(target: IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, properties: IApiControllerProperties<E>, parameters: Partial<E> | TApiControllerGetListQuery<E>): Promise<void> {
+export async function ApiControllerValidateRequest<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(target: IApiControllerPropertiesRouteBaseRequestTarget<E, M> | undefined, properties: IApiControllerProperties<E>, parameters: Partial<E> | TApiControllerGetListQuery<E, M>): Promise<void> {
 	if (!target?.validators) {
 		return;
 	}

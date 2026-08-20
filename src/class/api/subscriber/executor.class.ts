@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode, EApiRouteSubscriberAuthorizationExpectation } from "@enum/decorator/api";
 import type { EApiRouteType } from "@enum/decorator/api/route";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunction, IApiSubscriberRoute } from "@interface/class/api/subscriber";
@@ -99,7 +100,7 @@ export class ApiSubscriberExecutor {
 		}
 
 		const entityName: string = ApiSubscriberExecutor.resolveEntityName(entity, context);
-		const subscribers: Array<IApiSubscriberRoute<IApiBaseEntity>> = apiSubscriberRegistry.getRouteSubscribers(entityName, constructor, routeType, action ?? context.action);
+		const subscribers: Array<IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>> = apiSubscriberRegistry.getRouteSubscribers<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(entityName, constructor, routeType, action ?? context.action);
 
 		for (const subscriber of subscribers) {
 			const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, routeType);
@@ -118,7 +119,7 @@ export class ApiSubscriberExecutor {
 		}
 
 		const entityName: string = ApiSubscriberExecutor.resolveEntityName(entity, context);
-		const subscribers: Array<IApiSubscriberRoute<IApiBaseEntity>> = apiSubscriberRegistry.getRouteSubscribers(entityName, constructor, routeType, action ?? context.action);
+		const subscribers: Array<IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>> = apiSubscriberRegistry.getRouteSubscribers<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(entityName, constructor, routeType, action ?? context.action);
 		let result: TResult | undefined = context.result;
 
 		for (const subscriber of subscribers) {

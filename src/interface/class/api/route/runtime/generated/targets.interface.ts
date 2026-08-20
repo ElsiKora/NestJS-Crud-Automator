@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
@@ -9,5 +10,5 @@ export interface IApiRouteRuntimeGeneratedTargets<E extends IApiBaseEntity> {
 	headers: Record<string, string>;
 	ip: string;
 	parameters?: Partial<E>;
-	query?: TApiControllerGetListQuery<E>;
+	query?: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode>;
 }

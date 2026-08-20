@@ -1,7 +1,7 @@
 import type { AsyncLocalStorage } from "node:async_hooks";
 
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiControllerGeneratedReadScopeEntry } from "@interface/class/api/controller/generated-read-scope-entry.interface";
+import type { IApiControllerGeneratedReadScopeEntry } from "@interface/class/api/controller/generated/read-scope-entry.interface";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiControllerGeneratedScopeFunctionType } from "@type/class/api/controller/generated/scope-function-type.type";
 

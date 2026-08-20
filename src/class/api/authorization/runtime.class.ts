@@ -1,3 +1,4 @@
+import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationAuditSink, IApiAuthorizationDecision, IApiAuthorizationPolicy, IApiAuthorizationPolicyRegistry, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiAuthorizationRequestMetadata, IApiPolicyAttachment, IApiPolicyDocumentRecord, IApiResolvedPolicyAttachments } from "@interface/class/api/authorization";
@@ -36,7 +37,17 @@ export class ApiAuthorizationRuntime {
 		private readonly auditSink?: IApiAuthorizationAuditSink,
 	) {}
 
-	public async evaluate<E extends IApiBaseEntity>(options: { action: string; authenticationRequest?: IApiAuthenticationRequest; authorization: IApiControllerAuthorizationProperties<E>; entity: new () => E; principal?: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E>; resource?: E; routeAuthorization?: IApiRouteAuthorizationProperties; routeType?: EApiRouteType }): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
+	public async evaluate<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(options: {
+		action: string;
+		authenticationRequest?: IApiAuthenticationRequest;
+		authorization: IApiControllerAuthorizationProperties<E>;
+		entity: new () => E;
+		principal?: IApiAuthorizationPrincipal;
+		requestMetadata: IApiAuthorizationRequestMetadata<E, M>;
+		resource?: E;
+		routeAuthorization?: IApiRouteAuthorizationProperties;
+		routeType?: EApiRouteType;
+	}): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
 		const principal: IApiAuthorizationPrincipal = await this.resolvePrincipal(options.principal, options.authenticationRequest);
 		const mode: EApiAuthorizationMode = this.resolveMode(options.authorization, options.routeAuthorization);
 
@@ -81,7 +92,7 @@ export class ApiAuthorizationRuntime {
 		};
 	}
 
-	private async evaluateHooks<E extends IApiBaseEntity>(options: { action: string; authenticationRequest?: IApiAuthenticationRequest; entity: new () => E; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E>; resource?: E; routeType?: EApiRouteType }): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
+	private async evaluateHooks<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: { action: string; authenticationRequest?: IApiAuthenticationRequest; entity: new () => E; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; routeType?: EApiRouteType }): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
 		const permissions: ReadonlyArray<string> = await this.hookPermissionResolver.resolve(options.principal);
 
 		authorizationRuntimeLogger.verbose(`Resolved ${permissions.length} hook permissions for principal "${options.principal.id}" on entity "${options.entity.name}".`);
@@ -105,7 +116,7 @@ export class ApiAuthorizationRuntime {
 		});
 	}
 
-	private async evaluateIam<E extends IApiBaseEntity>(options: { action: string; authorization: IApiControllerAuthorizationProperties<E>; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E>; resource?: E; routeType?: EApiRouteType }): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
+	private async evaluateIam<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: { action: string; authorization: IApiControllerAuthorizationProperties<E>; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; routeType?: EApiRouteType }): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
 		if (!options.authorization.policyNamespace) {
 			authorizationRuntimeLogger.error("IAM authorization requires policyNamespace");
 

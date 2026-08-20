@@ -12,11 +12,11 @@ GET /users?limit=20&page=1&username[operator]=eq&username[value]=john_doe
 
 This filters users where username equals "john_doe".
 
-Generated GET_LIST routes require `limit` and `page`. Later filter fragments omit those two parameters only to keep the operator examples readable.
+Generated GET_LIST routes always require `limit`. Default PAGE mode also requires `page`; opt-in CURSOR mode accepts optional `after` or `before` instead. Later filter fragments omit pagination parameters only to keep the operator examples readable.
 
 ## Route-Owned Typed Query Plans
 
-Entity `@ApiPropertyDescribe` and TypeORM metadata remain the source for generated GET_LIST query DTOs. A generated GET_LIST route can optionally add `filter` and `order` under `request[EApiControllerRequestTarget.QUERY]`. Automator compiles the metadata and this route overlay into one immutable plan used by the runtime DTO, strict parser, TypeORM predicates, and OpenAPI.
+Entity `@ApiPropertyDescribe` and TypeORM metadata remain the source for generated GET_LIST query DTOs. A generated GET_LIST route can optionally add `filter`, `order`, and `pagination` under `request[EApiControllerRequestTarget.QUERY]`. Automator compiles the metadata and this route overlay into one immutable plan used by the runtime DTO, strict parser, TypeORM predicates, and OpenAPI.
 
 ```typescript filename="user.controller.ts" copy
 @ApiController<UserEntity>({
@@ -89,7 +89,8 @@ Typed-query failures use stable `400` codes:
 - `FILTER_REQUIRED` — a field configured with `missingBehavior: REJECT` is absent.
 - `INVALID_FILTER` — a filter path, operator, operand, value, or cardinality violates the compiled plan.
 - `INVALID_ORDER` — `orderBy` or `orderDirection` violates the compiled plan.
-- `INVALID_LIMIT` / `INVALID_PAGE` — `limit` or `page` is missing, non-integer, or outside the generated bounds.
+- `INVALID_LIMIT` / `INVALID_PAGE` — PAGE input is missing, non-integer, or outside the generated bounds.
+- `INVALID_CURSOR` — CURSOR direction/token input is malformed, conflicting, non-canonical, or belongs to another route/path/filter/order context.
 
 The same plan emits one OpenAPI deep-object parameter per enabled filter field. Its `oneOf` branches describe the exact operator and `value`, `values`, or nullary operand shape. Disabled fields are omitted from both the generated query DTO contract and OpenAPI.
 
@@ -402,7 +403,7 @@ internalNotes: string;
 
 A route-owned typed plan may disable this field again or narrow its operations, but it cannot re-enable a field disabled by entity metadata. Query exposure is evaluated independently of response visibility.
 
-Do not combine a manual `dto[EApiDtoType.QUERY]` with generated `filter` or `order` configuration. A manual GET_LIST response DTO or `{ itemType }` response configuration remains compatible with a generated typed query.
+Do not combine a manual `dto[EApiDtoType.QUERY]` with generated `filter`, `order`, or `pagination` configuration. A manual GET_LIST response DTO or `{ itemType }` response configuration remains compatible with a generated typed query.
 
 ## Complex Filter Queries
 
