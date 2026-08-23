@@ -1414,7 +1414,7 @@ The current contract has no arbitrary immutable controller `baseWhere`, no `FULL
 
 ## 🛣 Current Status
 
-Version `3.0.2` is the published baseline before the current source; package versions remain owned by release automation. The generated-route service capability boundary requires a new major release. Core CRUD generation, DTO generation, Swagger/OpenAPI metadata, request/response transformers, relation loading, default page pagination, opt-in stateless cursor pagination, filtering/sorting, subscribers, transactions, and HOOKS/IAM authorization are implemented.
+Version `4.0.1` is the published baseline before the current source; package versions remain owned by release automation. Core CRUD generation, DTO generation, Swagger/OpenAPI metadata, request/response transformers, relation loading, default page pagination, opt-in stateless cursor pagination, filtering/sorting, subscribers, transactions, and HOOKS/IAM authorization are implemented.
 
 MongoDB, GraphQL, soft deletes, bulk operations, general-purpose cache integration, and custom parameter decorators are not part of the current public contract. Authorization supports source-first resolver reads by default, bounded in-process resolver caching as an explicit opt-in, separate policy-rule caching, and explicit cache invalidation.
 
@@ -1438,6 +1438,7 @@ The roadmap is aligned with the current source contract rather than older docs-o
 
 ### Current Focus
 
+- Keep `ApiRouteCustom` and generated routes on the same `ApiMethod` composition path for typed execution and HTTP documentation concerns
 - Keep `README.md`, `docs/`, and `ai/` synchronized with the public TypeScript interfaces
 - Expand examples for `ApiRouteCustom`, `ApiFunctionCustom`, relation loading boundaries, and IAM cache invalidation
 - Harden documentation around generated `PUT` vs `PATCH`, GET_LIST response modes, subscriber context shapes, and authorization custom actions
@@ -1445,6 +1446,7 @@ The roadmap is aligned with the current source contract rather than older docs-o
 
 ### Future Candidates
 
+- Extend CURSOR beyond the PostgreSQL v1 boolean/int2/int4/numeric-enum/int8/UUID matrix only as a separate storage-domain slice rewritten from the current source with an exact database/type matrix and real PostgreSQL E2E. The superseded prototype evidence is recovery object `202e2eab`; it must never be restored wholesale.
 - Soft-delete route semantics
 - Bulk create/update/delete operations
 - File upload recipes for generated and custom controllers

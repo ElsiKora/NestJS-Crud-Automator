@@ -1,13 +1,14 @@
 import "reflect-metadata";
 
-import type { IApiRouteMetadata } from "@interface/decorator/api";
-import type { Type } from "@nestjs/common";
+import type { IApiRouteDocumentationProperties, IApiRouteMetadata } from "@interface/decorator/api";
+import type { CallHandler, CanActivate, ExecutionContext, NestInterceptor, Type } from "@nestjs/common";
+import type { Observable } from "rxjs";
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiAuthenticationType, EApiRouteType } from "@enum/decorator/api";
-import { GUARDS_METADATA } from "@nestjs/common/constants";
+import { GUARDS_METADATA, INTERCEPTORS_METADATA } from "@nestjs/common/constants";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -59,7 +60,7 @@ const readApiResponses = (): Record<string, Record<string, unknown>> => readHand
 
 describe("ApiMethod", () => {
 	beforeEach(() => {
-		for (const metadataKey of [DECORATORS.API_EXTRA_MODELS, DECORATORS.API_RESPONSE, DECORATORS.API_SECURITY, GUARDS_METADATA, METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY]) {
+		for (const metadataKey of [DECORATORS.API_CONSUMES, DECORATORS.API_EXTRA_MODELS, DECORATORS.API_PARAMETERS, DECORATORS.API_PRODUCES, DECORATORS.API_RESPONSE, DECORATORS.API_SECURITY, GUARDS_METADATA, INTERCEPTORS_METADATA, METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY]) {
 			Reflect.deleteMetadata(metadataKey, MethodController.prototype, "handler");
 			Reflect.deleteMetadata(metadataKey, MethodController.prototype.handler);
 		}
@@ -111,6 +112,74 @@ describe("ApiMethod", () => {
 
 		expect(guards).toEqual(expect.arrayContaining([CustomGuard, ApiAuthorizationGuard]));
 		expect(securities).toEqual(expect.arrayContaining([{ bearer: [] }, { apiKey: [] }]));
+	});
+
+	it("composes explicit execution and OpenAPI request and response documentation", () => {
+		class ExecutionGuard implements CanActivate {
+			public canActivate(): boolean {
+				return true;
+			}
+		}
+		class ExecutionInterceptor implements NestInterceptor {
+			public intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
+				return next.handle();
+			}
+		}
+
+		const documentation: IApiRouteDocumentationProperties = {
+			request: {
+				headers: [
+					{
+						description: "Detached request signature.",
+						name: "X-Signature",
+						required: true,
+						schema: { type: "string" },
+					},
+				],
+				mediaTypes: ["application/vnd.test+json"],
+			},
+			response: {
+				mediaTypes: ["application/vnd.test+json"],
+				statuses: [
+					{
+						description: "Request body is too large.",
+						status: HttpStatus.PAYLOAD_TOO_LARGE,
+					},
+				],
+			},
+			summary: "Execute signed request",
+		};
+
+		applyDecorator(
+			ApiMethod({
+				execution: {
+					guards: [ExecutionGuard],
+					interceptors: [ExecutionInterceptor],
+				},
+				metadata: createMetadata({
+					documentation,
+				}),
+			}),
+		);
+
+		expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual([ExecutionGuard, ApiAuthorizationGuard]);
+		expect(readHandlerMetadata<Array<unknown>>(INTERCEPTORS_METADATA)).toEqual([ExecutionInterceptor]);
+		expect(readHandlerMetadata<Array<string>>(DECORATORS.API_CONSUMES)).toEqual(["application/vnd.test+json"]);
+		expect(readHandlerMetadata<Array<string>>(DECORATORS.API_PRODUCES)).toEqual(["application/vnd.test+json"]);
+		expect(readHandlerMetadata<Array<Record<string, unknown>>>(DECORATORS.API_PARAMETERS)).toEqual([
+			expect.objectContaining({
+				in: "header",
+				name: "X-Signature",
+				required: true,
+			}),
+		]);
+		expect(readApiResponses()[HttpStatus.PAYLOAD_TOO_LARGE]).toEqual({
+			description: "Request body is too large.",
+		});
+		expect(documentation.response?.statuses?.[0]).toEqual({
+			description: "Request body is too large.",
+			status: HttpStatus.PAYLOAD_TOO_LARGE,
+		});
 	});
 
 	it("writes normal success response headers into swagger metadata", () => {

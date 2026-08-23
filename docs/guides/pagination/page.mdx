@@ -154,6 +154,8 @@ CURSOR v1 deliberately supports only PostgreSQL with the standard text result pa
 
 PostgreSQL binary mode, custom `extra.types` parser configuration, every other PostgreSQL storage type, and every other database driver fail closed before CURSOR query I/O. This restriction applies only to protected CURSOR order/tie-breaker fields. It does not change PAGE behavior or PAGE's existing driver support.
 
+Temporal, general text, floating-point, and string-enum storage domains are deferred rather than transitionally supported. Any future expansion must be a separate slice rewritten from the current source, choose an exact database/type/parser matrix, and prove the public endpoint against real PostgreSQL E2E. Recovery object `202e2eab` contains superseded design evidence only and must not be restored wholesale.
+
 A cursor is an opaque seek boundary, not ordinary request-field input. `ApiPropertyDescribe` still proves the primitive wire category and raw response exposure, but request-only minimum/maximum, length, pattern, and `multipleOf` constraints do not restrict the boundary. Generated tokens and incoming tokens are capped at 8,192 Base64URL characters, and bootstrap rejects a physical order tuple whose worst-case encoding cannot fit that bound.
 
 Custom item DTOs must declare protected fields under the same names with compatible Automator response decorators. Accessor aliases, `toPlainOnly` transforms, response transformers, authorization transforms, or subscribers may change unrelated fields but cannot conceal or rewrite the protected tuple.

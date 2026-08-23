@@ -65,6 +65,8 @@ export function ApiControllerBuildRouteDocumentation(options: { documentation?: 
 	return {
 		description: options.documentation?.description ?? description,
 		operationId: options.documentation?.operationId,
+		request: options.documentation?.request,
+		response: options.documentation?.response,
 		summary: options.documentation?.summary ?? summary,
 	};
 }
