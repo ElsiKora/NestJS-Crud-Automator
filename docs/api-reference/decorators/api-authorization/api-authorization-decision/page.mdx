@@ -1,0 +1,54 @@
+# `@ApiAuthorizationDecision`
+
+Injects the authorization decision that `ApiAuthorizationGuard` attached to the current HTTP request. Use it on custom `@ApiMethod(...)` or `@ApiRouteCustom(...)` handlers that need the evaluated principal, scope, permissions, trace, or transforms without accepting the raw request.
+
+## Signature
+
+```typescript
+@ApiAuthorizationDecision<E, R>()
+authorizationDecision: IApiAuthorizationDecision<E, R>
+```
+
+`IApiAuthorizationDecision<E>` defaults `R` to the supported Automator route-result payload union, so handlers only need the second generic when they use a narrower result type.
+
+## Example
+
+```typescript
+import type { IApiAuthorizationDecision } from "@elsikora/nestjs-crud-automator";
+
+import { ApiAuthorizationDecision, ApiRouteCustom, EApiAuthorizationMode } from "@elsikora/nestjs-crud-automator";
+import { HttpStatus, RequestMethod } from "@nestjs/common";
+
+export class ReportController {
+	@ApiRouteCustom<ReportEntity>({
+		resource: {
+			action: "report.export",
+			entity: ReportEntity,
+		},
+		route: {
+			method: RequestMethod.POST,
+			path: "export",
+		},
+		security: {
+			authorization: { mode: EApiAuthorizationMode.IAM },
+		},
+		response: {
+			status: HttpStatus.ACCEPTED,
+			type: ExportResponseDto,
+		},
+	})
+	public async export(@ApiAuthorizationDecision<ReportEntity>() authorizationDecision: IApiAuthorizationDecision<ReportEntity>): Promise<ExportResponseDto> {
+		return await this.reportService.export({
+			principalId: authorizationDecision.principal.id,
+			scope: authorizationDecision.scope,
+		});
+	}
+}
+```
+
+The decorator returns the exact decision object attached by the guard; it does not evaluate authorization again or copy the decision. It fails closed with `403 Forbidden` when no decision is attached. The route must therefore already guarantee authorization through `@ApiControllerSecurable()` and its Automator security configuration; this parameter decorator does not install a guard.
+
+## Related resources
+
+- [`@ApiAuthorizationPolicy`](/docs/nestjs-crud-automator/api-reference/decorators/api-authorization/api-authorization-policy)
+- [Guides – Authorization](/docs/nestjs-crud-automator/guides/authorization)
