@@ -1,3 +1,10 @@
+# [4.1.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.0.1...v4.1.0) (2026-08-23)
+
+### Features
+
+- **api:** compose custom route concerns [skip ci] ([1ca63fe](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/1ca63fedc14c8ac506855dfb4d38d1c772acf99d))
+- **api:** promote custom route composition ([e906868](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/e906868d6eb1a6ac98ff2447bb9b82957b3201a4))
+
 ## [4.0.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.0.0...v4.0.1) (2026-08-20)
 
 ### Bug Fixes
