@@ -78,13 +78,13 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 
 	switch (method) {
 		case EApiRouteType.CREATE: {
-			customDecorators.push(ApiMethod({ metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.POST, "", HttpStatus.CREATED, responseDto, { hasConflict: true, hasInternalServerError: true, hasUnauthorized: true }) }));
+			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.POST, "", HttpStatus.CREATED, responseDto, { hasConflict: true, hasInternalServerError: true, hasUnauthorized: true }) }));
 
 			break;
 		}
 
 		case EApiRouteType.DELETE: {
-			customDecorators.push(ApiMethod({ metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.DELETE, `:${String(entity.primaryKey?.name)}`, HttpStatus.NO_CONTENT, undefined, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }) }));
+			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.DELETE, `:${String(entity.primaryKey?.name)}`, HttpStatus.NO_CONTENT, undefined, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }) }));
 
 			break;
 		}
@@ -94,6 +94,7 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 
 			customDecorators.push(
 				ApiMethod({
+					execution: routeConfig.execution,
 					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, path, HttpStatus.OK, responseDto, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }),
 				}),
 			);
@@ -108,6 +109,7 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 
 			customDecorators.push(
 				ApiMethod({
+					execution: routeConfig.execution,
 					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, "", HttpStatus.OK, responseDto, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }),
 				}),
 			);
@@ -116,13 +118,13 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 		}
 
 		case EApiRouteType.PARTIAL_UPDATE: {
-			customDecorators.push(ApiMethod({ metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PATCH, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }) }));
+			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PATCH, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }) }));
 
 			break;
 		}
 
 		case EApiRouteType.UPDATE: {
-			customDecorators.push(ApiMethod({ metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PUT, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }) }));
+			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PUT, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }) }));
 
 			break;
 		}

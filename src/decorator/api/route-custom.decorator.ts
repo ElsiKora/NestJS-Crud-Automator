@@ -7,7 +7,7 @@ import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiControllerResponseTarget } from "@enum/decorator/api";
 import { ApiRouteRuntimeInterceptor } from "@interceptor/api-route-runtime.interceptor";
-import { applyDecorators, SetMetadata, UseInterceptors } from "@nestjs/common";
+import { applyDecorators, SetMetadata } from "@nestjs/common";
 import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum.js";
 import { ApiRouteApplyDtoMetadata } from "@utility/api/route/apply-dto-metadata.utility";
@@ -57,7 +57,7 @@ export function ApiRouteCustom<E extends IApiBaseEntity>(properties: IApiRouteCu
 		const originalMethod: (...methodArguments: Array<unknown>) => unknown = descriptor.value as (...methodArguments: Array<unknown>) => unknown;
 		const bodyArgumentIndex: number | undefined = resolveRouteArgumentIndex(target, propertyKey, RouteParamtypes.BODY);
 
-		descriptor.value = Object.defineProperty(
+		const wrappedMethod: (...methodArguments: Array<unknown>) => Promise<unknown> = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, ...methodArguments: Array<unknown>): Promise<unknown> {
 				const body: Partial<E> | undefined = bodyArgumentIndex === undefined ? undefined : (methodArguments[bodyArgumentIndex] as Partial<E> | undefined);
 
@@ -70,8 +70,23 @@ export function ApiRouteCustom<E extends IApiBaseEntity>(properties: IApiRouteCu
 			{ value: originalMethod.name },
 		);
 
+		for (const metadataKey of Reflect.getOwnMetadataKeys(originalMethod)) {
+			Reflect.defineMetadata(metadataKey, Reflect.getOwnMetadata(metadataKey, originalMethod), wrappedMethod);
+		}
+
+		descriptor.value = wrappedMethod;
+
 		ApiRouteApplyDtoMetadata(target, propertyKey, metadata, runtimeProperties, descriptor);
-		applyDecorators(ApiMethod({ metadata }), SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, runtimeProperties), UseInterceptors(ApiRouteRuntimeInterceptor))(target, propertyKey, descriptor);
+		applyDecorators(
+			ApiMethod({
+				execution: {
+					guards: properties.execution?.guards,
+					interceptors: [...(properties.execution?.interceptors ?? []), ApiRouteRuntimeInterceptor],
+				},
+				metadata,
+			}),
+			SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, runtimeProperties),
+		)(target, propertyKey, descriptor);
 	};
 }
 

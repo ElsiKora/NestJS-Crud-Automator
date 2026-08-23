@@ -7,8 +7,8 @@ import type { SecurityRequirementObject } from "@nestjs/swagger/dist/interfaces/
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiRouteType } from "@enum/decorator/api";
-import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, SetMetadata, UseGuards } from "@nestjs/common";
-import { ApiBadRequestResponse, ApiConflictResponse, ApiExtraModels, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
+import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, SetMetadata, UseGuards, UseInterceptors } from "@nestjs/common";
+import { ApiBadRequestResponse, ApiConflictResponse, ApiConsumes, ApiExtraModels, ApiForbiddenResponse, ApiHeaders, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiProduces, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema } from "@utility/api/route/discriminator";
 import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
@@ -114,6 +114,22 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 		HttpCode(metadata.response?.status ?? HttpStatus.OK),
 	];
 
+	if (metadata.documentation?.request?.headers?.length) {
+		decorators.push(ApiHeaders(metadata.documentation.request.headers));
+	}
+
+	if (metadata.documentation?.request?.mediaTypes?.length) {
+		decorators.push(ApiConsumes(...metadata.documentation.request.mediaTypes));
+	}
+
+	if (metadata.documentation?.response?.mediaTypes?.length) {
+		decorators.push(ApiProduces(...metadata.documentation.response.mediaTypes));
+	}
+
+	for (const response of metadata.documentation?.response?.statuses ?? []) {
+		decorators.push(ApiResponse({ ...response }));
+	}
+
 	if (metadata.throttling?.default) {
 		decorators.push(Throttle({ default: metadata.throttling.default }));
 	}
@@ -191,7 +207,7 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 		decorators.push(ApiSecurity(openApiSecurityRequirement));
 	}
 
-	const guards: Array<CanActivate | Type<CanActivate>> = [];
+	const guards: Array<CanActivate | Type<CanActivate>> = [...(options.execution?.guards ?? [])];
 
 	if (metadata.security?.authentication?.guard) {
 		guards.push(metadata.security.authentication.guard);
@@ -199,6 +215,10 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 
 	guards.push(ApiAuthorizationGuard);
 	decorators.push(UseGuards(...guards));
+
+	if (options.execution?.interceptors?.length) {
+		decorators.push(UseInterceptors(...options.execution.interceptors));
+	}
 
 	return applyDecorators(...decorators);
 }

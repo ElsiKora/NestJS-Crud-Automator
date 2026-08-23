@@ -10,15 +10,17 @@
 
 ## Options
 
-| Option     | Type                   | Description                                                    |
-| ---------- | ---------------------- | -------------------------------------------------------------- |
-| `metadata` | `IApiRouteMetadata<T>` | Single route metadata contract used by CRUD and custom routes. |
+| Option      | Type                           | Description                                                                         |
+| ----------- | ------------------------------ | ----------------------------------------------------------------------------------- |
+| `execution` | `IApiRouteExecutionProperties` | Optional ordered guards and interceptors shared by generated and custom routes.     |
+| `metadata`  | `IApiRouteMetadata<T>`         | Single route metadata contract used by generated CRUD and custom controller routes. |
 
 ## Behavior
 
 - Applies NestJS HTTP method decorators plus `@HttpCode`.
-- Emits Swagger decorators for the success response and any enabled error responses.
+- Emits Swagger decorators for the success response, enabled standard errors, required request headers, request/response media types, and explicit additional statuses.
 - Automatically applies `ApiAuthorizationGuard` along with any custom guards specified in `authentication.guard`.
+- Applies `execution.guards` before authentication/authorization guards and preserves the declared `execution.interceptors` order.
 - Stores `metadata.resource.action` as the single action source for docs, subscribers, hooks authorization, and IAM authorization.
 - Does not run request transformers, relation loading, subscribers, authorization result transforms, or response serialization. Use `@ApiRouteCustom` when a custom handler needs the shared route runtime.
 

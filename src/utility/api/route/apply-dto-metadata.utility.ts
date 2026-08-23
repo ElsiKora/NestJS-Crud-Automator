@@ -10,6 +10,7 @@ import { applyDecorators } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum.js";
 import { ApiBody, ApiExtraModels } from "@nestjs/swagger";
+import { DECORATORS } from "@nestjs/swagger/dist/constants.js";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema, ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
@@ -35,6 +36,7 @@ export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: objec
 	const queryDto: Type<unknown> | undefined = ApiRouteIsDiscriminatedDtoProperties(queryDtoConfig) ? undefined : queryDtoConfig;
 	const routeArgumentsMetadata: Record<string, { data?: unknown; index?: number }> | undefined = Reflect.getMetadata(ROUTE_ARGS_METADATA, target.constructor, propertyKey) as Record<string, { data?: unknown; index?: number }> | undefined;
 	const parameterTypes: Array<unknown> = [...((Reflect.getMetadata(PARAMTYPES_METADATA, target, propertyKey) as Array<unknown> | undefined) ?? [])];
+	const bodyArgumentIndex: number | undefined = resolveRouteArgumentIndex(routeArgumentsMetadata, RouteParamtypes.BODY);
 
 	for (const { dto, parameterType } of [
 		{ dto: ApiRouteIsDiscriminatedDtoProperties(bodyDto) ? Object : bodyDto, parameterType: RouteParamtypes.BODY },
@@ -45,7 +47,7 @@ export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: objec
 			continue;
 		}
 
-		const argumentIndex: number | undefined = resolveRouteArgumentIndex(routeArgumentsMetadata, parameterType);
+		const argumentIndex: number | undefined = parameterType === RouteParamtypes.BODY ? bodyArgumentIndex : resolveRouteArgumentIndex(routeArgumentsMetadata, parameterType);
 
 		if (argumentIndex !== undefined) {
 			parameterTypes[argumentIndex] = dto;
@@ -74,6 +76,8 @@ export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: objec
 				schema: ApiRouteBuildDiscriminatedDtoOpenApiSchema(bodyDto, "ApiRouteCustom body"),
 			}),
 		);
+	} else if (bodyDto && bodyArgumentIndex === undefined && !((Reflect.getMetadata(DECORATORS.API_PARAMETERS, descriptor.value as object) as Array<{ in?: string }> | undefined) ?? []).some((parameter: { in?: string }): boolean => parameter.in === "body")) {
+		swaggerDecorators.push(ApiBody({ type: bodyDto }));
 	}
 
 	if (swaggerDecorators.length > 0) {

@@ -18,7 +18,10 @@ Use it when a controller method is not standard CRUD but should still behave lik
 
 - Metadata fields (`resource`, `route`, `documentation`, `security`, `throttling`, and response `status`, `type`, `headers`, `errors`, `serialization`) are stored as `IApiRouteMetadata`.
 - Runtime fields (`request`, target-first response transformers, `relations`, `dto`, and `autoDto`) are stored as `IApiRouteRuntimeProperties`.
+- `execution.guards` and `execution.interceptors` are applied by the same `@ApiMethod` composition path used by generated routes. Custom interceptors run before the internal route-runtime interceptor.
 - Response target keys such as `[EApiControllerResponseTarget.RESPONSE]` belong only to runtime properties, not method metadata.
+
+`documentation.request` accepts required OpenAPI headers and request media types. `documentation.response` accepts response media types and additional responses with an explicit `status`. A configured ordinary body DTO always emits `ApiBody`, including handlers that read the physical request through `@Req()` rather than declaring `@Body()`. `@ApiRouteCustom` also preserves existing own method metadata when it wraps the handler, so Nest and third-party decorators do not depend on decorator ordering.
 
 ## Runtime behavior
 

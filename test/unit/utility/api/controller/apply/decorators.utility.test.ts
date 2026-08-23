@@ -2,9 +2,10 @@ import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 
+import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiAuthenticationType, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
-import { METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
+import { GUARDS_METADATA, INTERCEPTORS_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { ApiControllerApplyDecorators } from "@utility/api/controller/apply/decorators.utility";
@@ -15,6 +16,8 @@ class DecoratorEntity {
 }
 
 class DecoratorGuard {}
+class DecoratorExecutionGuard {}
+class DecoratorExecutionInterceptor {}
 
 const entityMetadata: IApiEntity<DecoratorEntity> = {
 	columns: [],
@@ -122,5 +125,37 @@ describe("ApiControllerApplyDecorators", () => {
 				},
 			},
 		});
+	});
+
+	it("forwards generated route execution through ApiMethod", () => {
+		const routeConfig: TApiControllerPropertiesRoute<DecoratorEntity, EApiRouteType.GET> = {
+			documentation: {
+				request: {
+					headers: [{ name: "X-Route-Proof", required: true }],
+					mediaTypes: ["application/vnd.generated+json"],
+				},
+				response: {
+					mediaTypes: ["application/vnd.generated+json"],
+					statuses: [{ description: "Generated request is too large.", status: HttpStatus.PAYLOAD_TOO_LARGE }],
+				},
+			},
+			dto: {
+				[EApiDtoType.RESPONSE]: DecoratorEntity,
+			},
+			execution: {
+				guards: [DecoratorExecutionGuard as never],
+				interceptors: [DecoratorExecutionInterceptor as never],
+			},
+		};
+		const targetMethod = () => undefined;
+
+		ApiControllerApplyDecorators(targetMethod as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, []);
+
+		expect(Reflect.getMetadata(GUARDS_METADATA, targetMethod)).toEqual([DecoratorExecutionGuard, ApiAuthorizationGuard]);
+		expect(Reflect.getMetadata(INTERCEPTORS_METADATA, targetMethod)).toEqual([DecoratorExecutionInterceptor]);
+		expect(Reflect.getMetadata(DECORATORS.API_CONSUMES, targetMethod)).toEqual(["application/vnd.generated+json"]);
+		expect(Reflect.getMetadata(DECORATORS.API_PRODUCES, targetMethod)).toEqual(["application/vnd.generated+json"]);
+		expect(Reflect.getMetadata(DECORATORS.API_PARAMETERS, targetMethod)).toEqual([expect.objectContaining({ in: "header", name: "X-Route-Proof", required: true })]);
+		expect(Reflect.getMetadata(DECORATORS.API_RESPONSE, targetMethod)?.[HttpStatus.PAYLOAD_TOO_LARGE]).toEqual({ description: "Generated request is too large." });
 	});
 });
