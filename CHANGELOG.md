@@ -1,3 +1,9 @@
+# [4.2.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.1.0...v4.2.0) (2026-08-23)
+
+### Features
+
+- **authorization:** inject request decisions ([ec1d402](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/ec1d4024cc52c1a7691b304d665602258110c744))
+
 # [4.1.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.0.1...v4.1.0) (2026-08-23)
 
 ### Features
