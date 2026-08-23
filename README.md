@@ -976,6 +976,16 @@ Custom `@ApiMethod(...)` actions pass through unchanged after the namespace. For
 
 The runtime resolves a `principal`, dispatches to the selected mode, and stores a unified `authorizationDecision` on the request. Hooks mode traces matched rules and resolved permissions; IAM mode traces attachments, documents, statements, boundaries, and final decision type. For out-of-band checks, inject `ApiAuthorizationSimulator` and call `evaluate(...)` with the same controller authorization metadata you use at runtime.
 
+Custom handlers can inject that evaluated decision without accepting the raw request. The decorator returns the exact guard-attached object and fails closed with `403 Forbidden` when a securable route did not produce one:
+
+```typescript
+public async publish(
+	@ApiAuthorizationDecision<PostEntity>() authorizationDecision: IApiAuthorizationDecision<PostEntity>,
+): Promise<PostEntity> {
+	return await this.service.publish(authorizationDecision.principal.id);
+}
+```
+
 Important IAM details from the current implementation:
 
 - `resource.id` and `resource.operatorId` are safe planner-friendly paths for `GET` and `GET_LIST` when declared in `resourceDefinition.fields`
