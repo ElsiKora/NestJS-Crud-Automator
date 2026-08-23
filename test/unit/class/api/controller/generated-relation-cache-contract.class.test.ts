@@ -7,7 +7,7 @@ import { DataSource } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 describe("ApiControllerGeneratedRelationCacheContract", () => {
-	it("fails closed for GET and PAGE relation queries when global cache is always enabled", async () => {
+	it("fails closed for GET, PAGE, and CURSOR relation queries when global cache is always enabled", async () => {
 		const dataSource = new DataSource({
 			cache: { alwaysEnabled: true, duration: 60_000 },
 			database: ":memory:",
@@ -23,6 +23,7 @@ describe("ApiControllerGeneratedRelationCacheContract", () => {
 			const repository: Repository<GeneratedRelationCacheOwnerEntity> = dataSource.getRepository(GeneratedRelationCacheOwnerEntity);
 			const getProperties: FindOneOptions<GeneratedRelationCacheOwnerEntity> = { cache: false, relations: { children: true }, where: { id: "owner-a" } };
 			const pageProperties: FindManyOptions<GeneratedRelationCacheOwnerEntity> = { cache: false, relations: { children: true }, take: 10, where: { id: "owner-a" } };
+			const cursorProperties: FindManyOptions<GeneratedRelationCacheOwnerEntity> = { cache: false, order: { id: "ASC" }, relations: { children: true }, take: 2, where: { id: "owner-a" } };
 
 			await repository.save([
 				{ id: "owner-a", name: "A" },
@@ -32,15 +33,18 @@ describe("ApiControllerGeneratedRelationCacheContract", () => {
 
 			await repository.findOne(getProperties);
 			await repository.findAndCount(pageProperties);
+			await repository.find(cursorProperties);
 			await dataSource.query('UPDATE "generated_relation_cache_child" SET "ownerId" = ? WHERE "id" = ?', ["owner-b", "child-secret"]);
 
 			const staleGet = await repository.findOne(getProperties);
 			const stalePage = await repository.findAndCount(pageProperties);
+			const staleCursor = await repository.find(cursorProperties);
 
 			expect(staleGet?.children).toHaveLength(1);
 			expect(stalePage[0][0]?.children).toHaveLength(1);
+			expect(staleCursor[0]?.children).toHaveLength(1);
 
-			for (const properties of [getProperties, pageProperties]) {
+			for (const properties of [getProperties, pageProperties, cursorProperties]) {
 				expect(() => ApiControllerGeneratedRelationCacheContract.assertSafe(repository, properties)).toThrow('relationLoadStrategy "query"');
 			}
 
