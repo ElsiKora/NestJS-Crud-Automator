@@ -48,14 +48,12 @@ export class ApiControllerGetListCursorRuntime {
 			normalizedParameters[key] = value;
 		}
 
-		const filters: Array<Record<string, unknown>> = ast.nodes.map(
-			(node: IApiControllerGetListQueryAstNode): Record<string, unknown> => ({
-				operation: node.operation,
-				path: node.path,
-				...(node.value === undefined ? {} : { value: node.value }),
-				...(node.values === undefined ? {} : { values: node.values }),
-			}),
-		);
+		const filters: Array<Record<string, unknown>> = ast.nodes.map((node: IApiControllerGetListQueryAstNode): Record<string, unknown> => ({
+			operation: node.operation,
+			path: node.path,
+			...(node.value === undefined ? {} : { value: node.value }),
+			...(node.values === undefined ? {} : { values: node.values }),
+		}));
 
 		const context: object = {
 			filters,
@@ -362,14 +360,12 @@ export class ApiControllerGetListCursorRuntime {
 		const probeWhere: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(ApiControllerGeneratedSecuritySnapshot.detach(baseWhere), probeWindowWhere);
 		const probeOrder: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> = probeDirection === "before" ? this.reverseOrder(options.order) : options.order;
 
-		const probeItems: Array<E> = await ApiControllerGeneratedGetManyContract.runWindow(
-			probeWindowWhere,
-			(): Promise<Array<E>> =>
-				options.run({
-					order: this.toTypeOrmOrder<E>(probeOrder),
-					take: 1,
-					where: probeWhere,
-				}),
+		const probeItems: Array<E> = await ApiControllerGeneratedGetManyContract.runWindow(probeWindowWhere, (): Promise<Array<E>> =>
+			options.run({
+				order: this.toTypeOrmOrder<E>(probeOrder),
+				take: 1,
+				where: probeWhere,
+			}),
 		);
 
 		this.assertItemsInvariant(rawItems, protectedOrderFields, protectedItemsSignature);
@@ -430,12 +426,10 @@ export class ApiControllerGetListCursorRuntime {
 	}
 
 	private static reverseOrder(order: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry>): ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> {
-		return order.map(
-			(entry: IApiControllerGetListQueryPlanOrderEntry): IApiControllerGetListQueryPlanOrderEntry => ({
-				direction: entry.direction === EFilterOrderDirection.ASC ? EFilterOrderDirection.DESC : EFilterOrderDirection.ASC,
-				field: entry.field,
-			}),
-		);
+		return order.map((entry: IApiControllerGetListQueryPlanOrderEntry): IApiControllerGetListQueryPlanOrderEntry => ({
+			direction: entry.direction === EFilterOrderDirection.ASC ? EFilterOrderDirection.DESC : EFilterOrderDirection.ASC,
+			field: entry.field,
+		}));
 	}
 
 	private static toTypeOrmOrder<E>(order: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry>): FindOptionsOrder<E> {

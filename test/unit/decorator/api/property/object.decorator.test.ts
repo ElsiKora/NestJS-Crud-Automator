@@ -9,6 +9,57 @@ import { describe, expect, it } from "vitest";
 
 import { CatDto, ChildDto, DiscriminatorDto, DogDto, DynamicDto, FreeformResponseDto, ObjectArrayDto, ObjectEntity, ParentDto } from "./object/fixture";
 
+class DiscriminatorArrayDto {
+	@ApiPropertyObject({
+		description: "pets",
+		discriminator: {
+			mapping: {
+				cat: CatDto,
+				dog: DogDto,
+			},
+			propertyName: "kind",
+			shouldKeepDiscriminatorProperty: true,
+		},
+		entity: ObjectEntity,
+		isArray: true,
+		isRequired: true,
+		isUniqueItems: false,
+		maxItems: 2,
+		minItems: 1,
+		shouldValidateNested: true,
+		type: [CatDto, DogDto],
+	})
+	public pets!: Array<CatDto | DogDto>;
+}
+
+class DynamicDiscriminatorArrayDto {
+	@ApiPropertyObject({
+		description: "pets",
+		discriminator: {
+			mapping: {
+				cat: "CatDto",
+				dog: "DogDto",
+			},
+			propertyName: "kind",
+			shouldKeepDiscriminatorProperty: true,
+		},
+		entity: ObjectEntity,
+		generatedDTOs: {
+			CatDto,
+			DogDto,
+		},
+		isArray: true,
+		isDynamicallyGenerated: true,
+		isRequired: true,
+		isUniqueItems: false,
+		maxItems: 2,
+		minItems: 1,
+		shouldValidateNested: true,
+		type: [CatDto, DogDto],
+	})
+	public pets!: Array<CatDto | DogDto>;
+}
+
 describe("ApiPropertyObject", () => {
 	it("writes swagger metadata for single objects", () => {
 		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, ParentDto.prototype, "payload");
@@ -87,6 +138,39 @@ describe("ApiPropertyObject", () => {
 		const constraintMessages = Object.values(errors[0]?.constraints ?? {}).join(" ");
 
 		expect(constraintMessages).toContain("missing required discriminator field");
+	});
+
+	it("transforms and validates explicit discriminated object arrays per item", () => {
+		const instance = plainToInstance(DiscriminatorArrayDto, {
+			pets: [{ kind: "cat" }, { kind: "dog" }],
+		});
+
+		expect(validateSync(instance)).toHaveLength(0);
+		expect(instance.pets[0]).toBeInstanceOf(CatDto);
+		expect(instance.pets[1]).toBeInstanceOf(DogDto);
+	});
+
+	it("transforms and validates dynamically generated discriminated object arrays per item", () => {
+		const instance = plainToInstance(DynamicDiscriminatorArrayDto, {
+			pets: [{ kind: "cat" }, { kind: "dog" }],
+		});
+
+		expect(validateSync(instance)).toHaveLength(0);
+		expect(instance.pets[0]).toBeInstanceOf(CatDto);
+		expect(instance.pets[1]).toBeInstanceOf(DogDto);
+	});
+
+	it.each([
+		["missing", {}, /missing required discriminator field|must match one of the schemas/u],
+		["unknown", { kind: "bird" }, /invalid discriminator value 'bird'/u],
+	])("rejects %s discriminators inside object arrays", (_caseName: string, pet: Record<string, string>, expectedMessage: RegExp) => {
+		const instance = plainToInstance(DiscriminatorArrayDto, {
+			pets: [pet, { kind: "cat" }],
+		});
+		const errors = validateSync(instance);
+
+		expect(errors).toHaveLength(1);
+		expect(Object.values(errors[0]?.constraints ?? {}).join(" ")).toMatch(expectedMessage);
 	});
 
 	it("handles dynamically generated discriminator mappings", () => {

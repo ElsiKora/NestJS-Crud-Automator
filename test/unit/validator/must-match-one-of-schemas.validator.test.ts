@@ -51,6 +51,16 @@ describe("MustMatchOneOfSchemasConstraint", () => {
 		expect(validator.validate({ kind: "A" }, args)).toBe(true);
 	});
 
+	it("retains invalid discriminator evidence when a later array item is valid", () => {
+		const validator = new MustMatchOneOfSchemasConstraint();
+		const args = buildArgs();
+
+		expect(validator.validate({ kind: "UNKNOWN" }, args)).toBe(false);
+		expect(validator.validate({ kind: "A" }, args)).toBe(true);
+		expect(validator.defaultMessage(args)).toContain("invalid discriminator value 'UNKNOWN'");
+		expect(validator.defaultMessage(args)).not.toContain("invalid discriminator value 'A'");
+	});
+
 	it("handles missing or invalid discriminator configuration", () => {
 		const validator = new MustMatchOneOfSchemasConstraint();
 

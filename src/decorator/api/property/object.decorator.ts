@@ -254,10 +254,14 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 
 	if (Array.isArray(properties.type) && properties.discriminator && !("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated)) {
 		decorators.push(
-			MustMatchOneOfSchemasValidator({
-				discriminator: properties.discriminator,
-				schemas: properties.type,
-			}),
+			MustMatchOneOfSchemasValidator(
+				{
+					discriminator: properties.discriminator,
+					schemas: properties.type,
+				},
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				properties.isArray === true ? { each: true } : undefined,
+			),
 			Type(() => Object, {
 				discriminator: {
 					property: properties.discriminator.propertyName,
@@ -271,10 +275,14 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 		);
 	} else if ("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated) {
 		decorators.push(
-			MustMatchOneOfSchemasValidator({
-				discriminator: properties.discriminator,
-				schemas: properties.generatedDTOs,
-			}),
+			MustMatchOneOfSchemasValidator(
+				{
+					discriminator: properties.discriminator,
+					schemas: properties.generatedDTOs,
+				},
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				properties.isArray === true ? { each: true } : undefined,
+			),
 			Type(() => Object, {
 				discriminator: {
 					property: properties.discriminator.propertyName,
