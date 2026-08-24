@@ -116,8 +116,6 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 				return false;
 			}
 
-			this.discriminatorValue = discriminatorValue;
-
 			if (!discriminator.mapping || typeof discriminator.mapping !== "object") {
 				this.errorType = EMastMatchOneOfSchemasValidationErrorType.SCHEMA_MISMATCH;
 				this.prepareAllowedSchemas(_arguments);
@@ -129,6 +127,7 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 
 			if (!this.allowedValues.includes(discriminatorValue)) {
 				this.errorType = EMastMatchOneOfSchemasValidationErrorType.INVALID_DISCRIMINATOR;
+				this.discriminatorValue = discriminatorValue;
 
 				return false;
 			}
