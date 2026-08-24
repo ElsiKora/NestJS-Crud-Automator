@@ -1,3 +1,9 @@
+## [4.2.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.2.0...v4.2.1) (2026-08-24)
+
+### Bug Fixes
+
+- **api:** validate discriminated object arrays per item ([26ef691](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/26ef69113223cd909696125c3e8f36eacc8ff7af))
+
 # [4.2.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.1.0...v4.2.0) (2026-08-23)
 
 ### Features
