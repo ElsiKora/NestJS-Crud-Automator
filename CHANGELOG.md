@@ -1,3 +1,9 @@
+## [4.3.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.3.0...v4.3.1) (2026-08-25)
+
+### Bug Fixes
+
+- **api:** accept standard nest guards ([374ad52](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/374ad52aef18b2744e25ad9941fd99bd98dc13b3))
+
 # [4.3.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.2.1...v4.3.0) (2026-08-25)
 
 ### Features
