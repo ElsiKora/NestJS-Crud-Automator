@@ -209,13 +209,13 @@ Authentication configuration for routes.
 
 ```typescript
 interface IApiControllerPropertiesRouteAuthentication {
-	guard: Type<IAuthGuard>;
+	guard: Type<CanActivate>;
 	securityRequirements?: Array<IApiRouteSecurityRequirement>;
 	type: EApiAuthenticationType | string;
 }
 ```
 
-Use `securityRequirements` for route-level Swagger security. Top-level `bearerStrategies` and `securityStrategies` are not part of the current authentication config.
+The guard may be any Nest `CanActivate` class. Passport `IAuthGuard` classes remain compatible because they implement that Nest contract. Use `securityRequirements` for route-level Swagger security. Top-level `bearerStrategies` and `securityStrategies` are not part of the current authentication config.
 
 ### IApiRouteSecurityRequirement
 

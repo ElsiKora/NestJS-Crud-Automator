@@ -2,8 +2,7 @@ import type { IApiControllerIdentityPlan } from "@interface/class/api/controller
 import type { IApiControllerReadPlan, IApiControllerReadPlanParameter } from "@interface/class/api/controller/read";
 import type { IApiControllerPropertiesRouteAutoDtoConfig } from "@interface/decorator/api";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
-import type { Type } from "@nestjs/common";
-import type { IAuthGuard } from "@nestjs/passport";
+import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 import { createHash } from "node:crypto";
@@ -15,7 +14,7 @@ import { ErrorException } from "@utility/error/exception.utility";
 import { Validate } from "class-validator";
 
 const NO_READ_PLAN: object = Object.freeze({});
-const identityParametersDtoCache: WeakMap<IApiControllerIdentityPlan, WeakMap<object, Map<Type<IAuthGuard> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>>>> = new WeakMap<IApiControllerIdentityPlan, WeakMap<object, Map<Type<IAuthGuard> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>>>>();
+const identityParametersDtoCache: WeakMap<IApiControllerIdentityPlan, WeakMap<object, Map<Type<CanActivate> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>>>> = new WeakMap<IApiControllerIdentityPlan, WeakMap<object, Map<Type<CanActivate> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>>>>();
 
 /**
  * Generates a PARAMETERS DTO for a GET identity alias and optional inherited read scope.
@@ -23,23 +22,23 @@ const identityParametersDtoCache: WeakMap<IApiControllerIdentityPlan, WeakMap<ob
  * @param {IApiControllerIdentityPlan} identityPlan - Compiled identity alias plan.
  * @param {IApiControllerReadPlan} [readPlan] - Optional compiled owner-scope plan.
  * @param {IApiControllerPropertiesRouteAutoDtoConfig} [dtoConfig] - Auto DTO validators.
- * @param {Type<IAuthGuard>} [currentGuard] - Route authentication guard.
+ * @param {Type<CanActivate>} [currentGuard] - Route authentication guard.
  * @returns {Type<unknown>} Generated PARAMETERS DTO.
  * @template E - Entity type.
  */
-export function DtoGenerateIdentityReadParameters<E>(entityMetadata: IApiEntity<E>, identityPlan: IApiControllerIdentityPlan, readPlan?: IApiControllerReadPlan, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>): Type<unknown> {
-	let readPlanCache: undefined | WeakMap<object, Map<Type<IAuthGuard> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>>> = identityParametersDtoCache.get(identityPlan);
+export function DtoGenerateIdentityReadParameters<E>(entityMetadata: IApiEntity<E>, identityPlan: IApiControllerIdentityPlan, readPlan?: IApiControllerReadPlan, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>): Type<unknown> {
+	let readPlanCache: undefined | WeakMap<object, Map<Type<CanActivate> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>>> = identityParametersDtoCache.get(identityPlan);
 
 	if (!readPlanCache) {
-		readPlanCache = new WeakMap<object, Map<Type<IAuthGuard> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>>>();
+		readPlanCache = new WeakMap<object, Map<Type<CanActivate> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>>>();
 		identityParametersDtoCache.set(identityPlan, readPlanCache);
 	}
 
 	const readPlanKey: object = readPlan ?? NO_READ_PLAN;
-	let guardCache: Map<Type<IAuthGuard> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>> | undefined = readPlanCache.get(readPlanKey);
+	let guardCache: Map<Type<CanActivate> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>> | undefined = readPlanCache.get(readPlanKey);
 
 	if (!guardCache) {
-		guardCache = new Map<Type<IAuthGuard> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>>();
+		guardCache = new Map<Type<CanActivate> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>>();
 		readPlanCache.set(readPlanKey, guardCache);
 	}
 

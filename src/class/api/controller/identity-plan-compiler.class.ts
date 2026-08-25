@@ -2,8 +2,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
-import type { Type } from "@nestjs/common";
-import type { IAuthGuard } from "@nestjs/passport";
+import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { Token as PathPart } from "path-to-regexp";
@@ -64,7 +63,7 @@ export class ApiControllerIdentityPlanCompiler {
 			throw ErrorException(`Inherited controller path parameter "${field}" is ambiguous with generated identity parameter "${parameter}"`);
 		}
 
-		const currentGuard: Type<IAuthGuard> | undefined = routeConfig.security?.authentication?.guard;
+		const currentGuard: Type<CanActivate> | undefined = routeConfig.security?.authentication?.guard;
 
 		if (!DtoBuildDecorator(method, primaryMetadata, entityMetadata, EApiDtoType.PARAMETERS, parameter, currentGuard)) {
 			throw ErrorException(`Generated identity parameter "${parameter}" maps to a primary entity field unavailable for the route PARAMETERS DTO`);

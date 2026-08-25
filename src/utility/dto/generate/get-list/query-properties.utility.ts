@@ -1,8 +1,7 @@
 import type { EFilterOperation } from "@enum/filter";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
-import type { Type } from "@nestjs/common";
-import type { IAuthGuard } from "@nestjs/passport";
+import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
@@ -16,7 +15,7 @@ import { GenerateEntityInformation } from "@utility/generate-entity-information.
  * Resolves metadata-backed GET_LIST filter properties for legacy or normalized-plan DTO generation.
  * @param {IApiEntity<E>} entityMetadata - Root entity metadata.
  * @param {Array<{isPrimary: boolean; metadata: TApiPropertyDescribeProperties; name: keyof E}>} markedProperties - Legacy metadata-visible root properties.
- * @param {Type<IAuthGuard>} currentGuard - Active route guard used by legacy visibility checks.
+ * @param {Type<CanActivate>} currentGuard - Active route guard used by legacy visibility checks.
  * @param {IApiControllerGetListQueryPlan} queryPlan - Optional normalized typed query plan.
  * @returns {Array<object>} Filter properties consumed by the dynamic DTO generator.
  * @template E - Root entity type.
@@ -28,7 +27,7 @@ export function DtoGenerateGetListQueryProperties<E>(
 		metadata: TApiPropertyDescribeProperties;
 		name: keyof E;
 	}>,
-	currentGuard?: Type<IAuthGuard>,
+	currentGuard?: Type<CanActivate>,
 	queryPlan?: IApiControllerGetListQueryPlan,
 ): Array<{
 	allowedOperations?: ReadonlyArray<EFilterOperation>;

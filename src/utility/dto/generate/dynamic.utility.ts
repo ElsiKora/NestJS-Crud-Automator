@@ -1,7 +1,6 @@
 import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import type { IApiEntity } from "@interface/entity";
-import type { Type } from "@nestjs/common";
-import type { IAuthGuard } from "@nestjs/passport";
+import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { TDtoGenerateIsAllowedCombination } from "@type/utility";
 
@@ -22,14 +21,14 @@ import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed-f
  * @param {IApiEntity<E>} entity - The entity metadata
  * @param {D} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
  * @param {string} _propertyName - The name of the property
- * @param {Type<IAuthGuard>} [currentGuard] - Optional authentication guard
+ * @param {Type<CanActivate>} [currentGuard] - Optional authentication guard
  * @returns {Record<string, Type<unknown>> | undefined} A record of generated DTO classes or undefined if generation not needed
  * @template E - The entity type
  * @template M - The API route type
  * @template D - The DTO type
  */
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
-export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, _propertyName: string, currentGuard?: Type<IAuthGuard>): Record<string, Type<unknown>> | undefined {
+export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, _propertyName: string, currentGuard?: Type<CanActivate>): Record<string, Type<unknown>> | undefined {
 	if (propertyMetadata.type !== EApiPropertyDescribeType.OBJECT) {
 		return undefined;
 	}

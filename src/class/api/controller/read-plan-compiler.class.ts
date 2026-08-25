@@ -1,8 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerReadPlan, IApiControllerReadPlanParameter } from "@interface/class/api/controller/read";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
-import type { Type } from "@nestjs/common";
-import type { IAuthGuard } from "@nestjs/passport";
+import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { Token as PathPart } from "path-to-regexp";
@@ -55,7 +54,7 @@ export class ApiControllerReadPlanCompiler {
 		const mappedFields: Set<string> = new Set<string>();
 		const compiledByParameter: Map<string, IApiControllerReadPlanParameter> = new Map<string, IApiControllerReadPlanParameter>();
 		const primaryIdentityParameter: string | undefined = entityMetadata.primaryKey ? String(entityMetadata.primaryKey.name) : undefined;
-		const currentGuard: Type<IAuthGuard> | undefined = routeConfig.security?.authentication?.guard;
+		const currentGuard: Type<CanActivate> | undefined = routeConfig.security?.authentication?.guard;
 
 		if (method === EApiRouteType.GET && primaryIdentityParameter && inheritedParameterSet.has(primaryIdentityParameter)) {
 			throw ErrorException(`Inherited controller path parameter "${primaryIdentityParameter}" conflicts with the generated GET primary identity parameter`);

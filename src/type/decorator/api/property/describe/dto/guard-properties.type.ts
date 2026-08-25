@@ -1,7 +1,6 @@
-import type { Type } from "@nestjs/common";
-import type { IAuthGuard } from "@nestjs/passport";
+import type { CanActivate, Type } from "@nestjs/common";
 
 export type TApiPropertyDescribeDtoGuardProperties = {
-	guards: Array<Type<IAuthGuard>> | Type<IAuthGuard>;
+	guards: Array<Type<CanActivate>> | Type<CanActivate>;
 	isInverse?: boolean;
 };

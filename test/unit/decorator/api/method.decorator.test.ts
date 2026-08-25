@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import type { IApiRouteDocumentationProperties, IApiRouteMetadata } from "@interface/decorator/api";
 import type { CallHandler, CanActivate, ExecutionContext, NestInterceptor, Type } from "@nestjs/common";
+import type { IAuthGuard } from "@nestjs/passport";
 import type { Observable } from "rxjs";
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
@@ -10,6 +11,7 @@ import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiAuthenticationType, EApiRouteType } from "@enum/decorator/api";
 import { GUARDS_METADATA, INTERCEPTORS_METADATA } from "@nestjs/common/constants";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
+import { AuthGuard } from "@nestjs/passport";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -73,7 +75,11 @@ describe("ApiMethod", () => {
 	});
 
 	it("applies responses, grouped throttling, authentication, and guards", () => {
-		class CustomGuard {}
+		class CustomGuard implements CanActivate {
+			public canActivate(): boolean {
+				return true;
+			}
+		}
 		class ResponseDto {}
 
 		const metadata = createMetadata({
@@ -85,7 +91,7 @@ describe("ApiMethod", () => {
 			},
 			security: {
 				authentication: {
-					guard: CustomGuard as unknown as Type,
+					guard: CustomGuard,
 					securityRequirements: [
 						{
 							bearerStrategies: ["bearer"],
@@ -112,6 +118,22 @@ describe("ApiMethod", () => {
 
 		expect(guards).toEqual(expect.arrayContaining([CustomGuard, ApiAuthorizationGuard]));
 		expect(securities).toEqual(expect.arrayContaining([{ bearer: [] }, { apiKey: [] }]));
+	});
+
+	it("keeps Passport authentication guards compatible with the CanActivate contract", () => {
+		const passportGuard: Type<IAuthGuard> = AuthGuard("test-passport");
+		const metadata = createMetadata({
+			security: {
+				authentication: {
+					guard: passportGuard,
+					type: EApiAuthenticationType.USER,
+				},
+			},
+		});
+
+		applyDecorator(ApiMethod({ metadata }));
+
+		expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual(expect.arrayContaining([passportGuard, ApiAuthorizationGuard]));
 	});
 
 	it("composes explicit execution and OpenAPI request and response documentation", () => {

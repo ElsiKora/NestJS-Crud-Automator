@@ -2,8 +2,7 @@ import type { EFilterOperation } from "@enum/filter";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerPropertiesRouteAutoDtoConfig } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
-import type { Type } from "@nestjs/common";
-import type { IAuthGuard } from "@nestjs/passport";
+import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { ObjectLiteral } from "typeorm";
 
@@ -42,13 +41,13 @@ const dtoGenerateCache: Map<string, Type<unknown>> = new Map<string, Type<unknow
  * @param {EApiRouteType} method - The API route type (CREATE, DELETE, GET, etc.)
  * @param {EApiDtoType} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
  * @param {IApiControllerPropertiesRouteAutoDtoConfig} [dtoConfig] - Optional configuration for automatic DTO generation
- * @param {Type<IAuthGuard>} [currentGuard] - Optional authentication guard for property visibility control
+ * @param {Type<CanActivate>} [currentGuard] - Optional authentication guard for property visibility control
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Normalized route plan that narrows generated GET_LIST query fields.
  * @returns {Type<unknown> | undefined} The generated DTO class or undefined if no DTO should be generated
  * @throws {Error} When primary key metadata is missing
  * @template E - The entity type
  */
-export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> | undefined {
+export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
 		return undefined;
 	}

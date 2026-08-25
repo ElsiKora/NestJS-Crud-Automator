@@ -3,8 +3,7 @@ import type { IApiControllerGetListQueryOperator, IApiControllerGetListQueryPlan
 import type { IApiControllerGetListQueryPlanPagination } from "@interface/class/api/controller/get-list/query/plan/pagination.interface";
 import type { IApiControllerPropertiesRouteGetListQueryFilter, IApiControllerPropertiesRouteGetListQueryOrder, IApiControllerPropertiesRouteGetListQueryOrderEntry, IApiControllerPropertiesRouteGetListQueryPagination } from "@interface/decorator/api";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
-import type { Type } from "@nestjs/common";
-import type { IAuthGuard } from "@nestjs/passport";
+import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiControllerGetListQueryCompiledOrderField } from "@type/class/api/controller/get-list/compiled/order-field.type";
 import type { TApiControllerGetListQueryCompiledOrder } from "@type/class/api/controller/get-list/compiled/order.type";
 import type { TApiControllerGetListQueryCompiledPlan } from "@type/class/api/controller/get-list/compiled/plan.type";
@@ -57,7 +56,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 			throw ErrorException("Generated GET_LIST query configuration cannot be combined with a manual QUERY DTO");
 		}
 
-		const currentGuard: Type<IAuthGuard> | undefined = routeConfig.security?.authentication?.guard;
+		const currentGuard: Type<CanActivate> | undefined = routeConfig.security?.authentication?.guard;
 		const pagination: IApiControllerGetListQueryPlanPagination<EApiControllerGetListQueryPaginationMode> = this.compilePagination(queryTarget.pagination);
 		const isCursor: boolean = pagination.mode === EApiControllerGetListQueryPaginationMode.CURSOR;
 		const filterBaseline: Readonly<Record<string, IApiControllerGetListQueryPlanFilterField>> = this.buildFilterBaseline(entity, entityMetadata, currentGuard, isCursor);
@@ -166,7 +165,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return plan;
 	}
 
-	private static buildFilterBaseline<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, currentGuard: Type<IAuthGuard> | undefined, isCursor: boolean): Readonly<Record<string, IApiControllerGetListQueryPlanFilterField>> {
+	private static buildFilterBaseline<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, currentGuard: Type<CanActivate> | undefined, isCursor: boolean): Readonly<Record<string, IApiControllerGetListQueryPlanFilterField>> {
 		const fields: Record<string, IApiControllerGetListQueryPlanFilterField> = {};
 
 		for (const column of entityMetadata.columns) {

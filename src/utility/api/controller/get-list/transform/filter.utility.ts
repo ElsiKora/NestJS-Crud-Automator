@@ -1,7 +1,6 @@
 import type { EFilterOperation } from "@enum/filter";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
-import type { Type } from "@nestjs/common";
-import type { IAuthGuard } from "@nestjs/passport";
+import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { FindOptionsWhere } from "typeorm";
 
@@ -17,11 +16,11 @@ import { GenerateEntityInformation } from "@utility/generate-entity-information.
  * Handles special cases for relation properties.
  * @param {Record<string, unknown>} query - The query parameters from the HTTP request
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
- * @param {Type<IAuthGuard>} currentGuard - Optional guard used to mirror generated query DTO visibility.
+ * @param {Type<CanActivate>} currentGuard - Optional guard used to mirror generated query DTO visibility.
  * @returns {FindOptionsWhere<E>} The TypeORM filter object for the query
  * @template E - The entity type
  */
-export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>, currentGuard?: Type<IAuthGuard>): FindOptionsWhere<E> {
+export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>, currentGuard?: Type<CanActivate>): FindOptionsWhere<E> {
 	const filter: FindOptionsWhere<E> = {};
 	const filterRecord: Record<string, unknown> = filter;
 

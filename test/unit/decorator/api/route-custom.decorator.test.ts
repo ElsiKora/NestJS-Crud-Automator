@@ -6,7 +6,7 @@ import type { Observable } from "rxjs";
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiRouteCustom } from "@decorator/api";
-import { EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType } from "@enum/decorator/api";
+import { EApiAuthenticationType, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType } from "@enum/decorator/api";
 import { ApiRouteRuntimeInterceptor } from "@interceptor/api-route-runtime.interceptor";
 import { Header, HttpStatus, Req, RequestMethod, SetMetadata, UseGuards, UseInterceptors } from "@nestjs/common";
 import { GUARDS_METADATA, HEADERS_METADATA, INTERCEPTORS_METADATA } from "@nestjs/common/constants";
@@ -17,6 +17,42 @@ import { describe, expect, it } from "vitest";
 import { RouteCustomController, RouteCustomEmailResponseDto, RouteCustomEntity, RouteCustomPhoneResponseDto } from "./route-custom/fixture";
 
 describe("ApiRouteCustom", () => {
+	it("applies a plain CanActivate authentication guard through ApiMethod", () => {
+		class AuthenticationGuard implements CanActivate {
+			public canActivate(): boolean {
+				return true;
+			}
+		}
+		class Controller {
+			public handler(): void {}
+		}
+
+		const descriptor: PropertyDescriptor = Object.getOwnPropertyDescriptor(Controller.prototype, "handler") as PropertyDescriptor;
+
+		ApiRouteCustom<RouteCustomEntity>({
+			resource: {
+				action: "custom.authenticated",
+				entity: RouteCustomEntity,
+			},
+			response: {
+				status: HttpStatus.NO_CONTENT,
+				type: undefined,
+			},
+			route: {
+				method: RequestMethod.POST,
+				path: "custom",
+			},
+			security: {
+				authentication: {
+					guard: AuthenticationGuard,
+					type: EApiAuthenticationType.USER,
+				},
+			},
+		})(Controller.prototype, "handler", descriptor);
+
+		expect(Reflect.getMetadata(GUARDS_METADATA, descriptor.value)).toEqual([AuthenticationGuard, ApiAuthorizationGuard]);
+	});
+
 	it("keeps runtime response targets out of route metadata", () => {
 		const descriptor = Object.getOwnPropertyDescriptor(RouteCustomController.prototype, "handler") ?? {
 			value: RouteCustomController.prototype.handler,

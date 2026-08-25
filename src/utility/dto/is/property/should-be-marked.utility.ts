@@ -1,5 +1,4 @@
-import type { Type } from "@nestjs/common";
-import type { IAuthGuard } from "@nestjs/passport";
+import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
@@ -13,10 +12,10 @@ import { DtoIsPropertyInfrastructureTimestamp } from "@utility/dto/is/property/i
  * @param {string} _propertyName - The name of the property
  * @param {TApiPropertyDescribeProperties} propertyMetadata - The property's metadata
  * @param {boolean} isPrimary - Whether the property is a primary key
- * @param {Type<IAuthGuard>} currentGuard - The current authentication guard
+ * @param {Type<CanActivate>} currentGuard - The current authentication guard
  * @returns {boolean} True if the property should be marked, false otherwise
  */
-export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApiDtoType, _propertyName: string, propertyMetadata: TApiPropertyDescribeProperties, isPrimary: boolean, currentGuard?: Type<IAuthGuard>): boolean {
+export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApiDtoType, _propertyName: string, propertyMetadata: TApiPropertyDescribeProperties, isPrimary: boolean, currentGuard?: Type<CanActivate>): boolean {
 	if (propertyMetadata.isAutoDtoEnabled === false) {
 		return false;
 	}

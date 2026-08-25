@@ -71,7 +71,7 @@ Generates DTO classes from entity metadata.
 **Location:** `src/utility/dto/generate/core.utility.ts`
 
 ```typescript
-function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<IAuthGuard>): Type<unknown> | undefined;
+function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>): Type<unknown> | undefined;
 ```
 
 **Internal Use:** Called automatically for DTO generation.

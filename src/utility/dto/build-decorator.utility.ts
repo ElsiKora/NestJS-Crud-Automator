@@ -1,7 +1,6 @@
 import type { EApiPropertyDateIdentifier } from "@enum/decorator/api";
 import type { IApiEntity } from "@interface/entity";
-import type { Type } from "@nestjs/common";
-import type { IAuthGuard } from "@nestjs/passport";
+import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeDateProperties, TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { TDtoGenerateIsAllowedCombination } from "@type/utility";
 
@@ -20,7 +19,7 @@ import { DtoIsPropertyInfrastructureTimestamp } from "@utility/dto/is/property/i
  * @param {IApiEntity<E>} entity - The entity metadata
  * @param {D} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
  * @param {string} propertyName - The name of the property
- * @param {Type<IAuthGuard>} [currentGuard] - Optional authentication guard
+ * @param {Type<CanActivate>} [currentGuard] - Optional authentication guard
  * @param {Record<string, Type<unknown>>} [generatedDTOs] - Optional record of dynamically generated DTOs
  * @returns {Array<PropertyDecorator> | undefined} Array of property decorators or undefined if property should not be included
  * @template E - The entity type
@@ -28,7 +27,7 @@ import { DtoIsPropertyInfrastructureTimestamp } from "@utility/dto/is/property/i
  * @template D - The DTO type
  */
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
-export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, propertyName: string, currentGuard?: Type<IAuthGuard>, generatedDTOs?: Record<string, Type<unknown>>): Array<PropertyDecorator> | undefined {
+export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, propertyName: string, currentGuard?: Type<CanActivate>, generatedDTOs?: Record<string, Type<unknown>>): Array<PropertyDecorator> | undefined {
 	type TAllowed = TDtoGenerateIsAllowedCombination<M, D>;
 
 	type TPropertiesType = TAllowed extends true ? TApiPropertyDescribeDtoProperties : never;
