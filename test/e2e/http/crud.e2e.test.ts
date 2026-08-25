@@ -1856,14 +1856,43 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(invalidResponse.statusCode).toBe(400);
 
+		const invalidHiddenCopyResponse = await fastify.inject({
+			method: "POST",
+			payload: { count: "2", internalReference: 123, name: "Copied" },
+			url: "/copy",
+		});
+
+		expect(invalidHiddenCopyResponse.statusCode).toBe(400);
+
 		const response = await fastify.inject({
 			method: "POST",
-			payload: { count: "2", name: "Copied" },
+			payload: { count: "2", internalReference: "copied-internal", name: "Copied" },
 			url: "/copy",
 		});
 
 		expect(response.statusCode).toBe(201);
-		expect(response.json()).toMatchObject({ count: 2, name: "Copied" });
+		expect(response.json()).toMatchObject({ count: 2, internalReference: "copied-internal", name: "Copied" });
+	});
+
+	it("keeps a globally auto-DTO-hidden column in persistence but omits it from generated responses", async () => {
+		await service.repository.save({
+			count: 1,
+			id: "hidden-response",
+			internalReference: "server-only",
+			name: "Hidden",
+			ownerId: E2E_OWNER_ID,
+		});
+
+		const persisted = await service.repository.findOneOrFail({ where: { id: "hidden-response" } });
+		const response = await fastify.inject({
+			headers: withSignature("hidden-response"),
+			method: "GET",
+			url: "/items/hidden-response",
+		});
+
+		expect(persisted.internalReference).toBe("server-only");
+		expect(response.statusCode).toBe(200);
+		expect(response.json()).not.toHaveProperty("internalReference");
 	});
 
 	it("returns 404 when relation id is invalid", async () => {

@@ -71,6 +71,12 @@ Inside a step, prefer `this.getApiFunctionStepContext()` for `eventManager`, `re
 
 When `read.scope.parameters` is present, Automator owns the generated PARAMETERS DTO and Swagger path contract. Do not combine it with `dto[EApiDtoType.PARAMETERS]`. Use `autoDto[PARAMETERS]` only for validators that belong on the generated DTO.
 
+## Reopening A Globally Hidden Property
+
+`ApiPropertyDescribe({ isAutoDtoEnabled: false })` is a property-wide auto-generation boundary, not a default that route configuration can override. Do not try to reopen it with DTO `isEnabled: true`, generated GET identity, `read.scope.parameters`, or a typed client filter/order allowlist; those configurations fail closed. The property remains described and persisted, so PAGE-only server `defaultOrder` and `tieBreakers` may use it without client exposure.
+
+Use explicit `ApiPropertyCopy` when a manual DTO intentionally needs the hidden source property. Copy bypasses only the global auto-DTO boundary; the source metadata's remaining route/DTO, guard, and validation rules still apply. CURSOR cannot order by the property because protected cursor fields must be exposed in the generated response.
+
 ## Relation Metadata Arrays
 
 `ApiPropertyDescribe({ type: EApiPropertyDescribeType.RELATION })` does not currently accept `isArray`, `minItems`, `maxItems`, or `isUniqueItems`. Relation arrays are TypeORM relation shape, not describe-array validator metadata.

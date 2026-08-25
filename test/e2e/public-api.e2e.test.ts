@@ -48,6 +48,7 @@ import type {
 	TApiFunctionTransactionEvent,
 	TApiFunctionTransactionOwner,
 	TApiGetDefaultStringFormatPropertiesBigIntStringOptions,
+	TApiPropertyDescribeProperties,
 	TApiRouteDiscriminatedDtoProperties,
 } from "../../src/index";
 
@@ -77,6 +78,7 @@ import {
 	EApiFunctionTransactionTraceType,
 	EApiFunctionType,
 	EApiGetDefaultStringFormatPropertiesBigIntStringSign,
+	EApiPropertyDescribeType,
 	EApiPropertyStringType,
 	EApiRouteSubscriberAuthorizationExpectation,
 	EApiRouteType,
@@ -299,6 +301,16 @@ describe("public API exports (E2E)", () => {
 		const bigintStringOptions: TApiGetDefaultStringFormatPropertiesBigIntStringOptions = {
 			sign: EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED,
 		};
+		const autoDtoHiddenProperty = {
+			description: "Internal persistence reference",
+			exampleValue: "internal-1",
+			format: EApiPropertyStringType.STRING,
+			isAutoDtoEnabled: false,
+			maxLength: 64,
+			minLength: 1,
+			pattern: "/^.+$/",
+			type: EApiPropertyDescribeType.STRING,
+		} satisfies TApiPropertyDescribeProperties;
 		const stepProperties: IApiFunctionStepProperties<PublicApiUser> = {
 			entity: PublicApiUser,
 		};
@@ -485,6 +497,16 @@ describe("public API exports (E2E)", () => {
 		expect(cursorRouteSubscriber).toEqual({});
 		expect(cursorAfterContext.result).toBe(cursorResponse);
 		expect(bigintStringDefaults.pattern).toBe(String.raw`/^(0|[1-9]\d{0,19})$/`);
+		expect(autoDtoHiddenProperty).toEqual({
+			description: "Internal persistence reference",
+			exampleValue: "internal-1",
+			format: EApiPropertyStringType.STRING,
+			isAutoDtoEnabled: false,
+			maxLength: 64,
+			minLength: 1,
+			pattern: "/^.+$/",
+			type: EApiPropertyDescribeType.STRING,
+		});
 		expect(stepProperties.entity).toBe(PublicApiUser);
 		expect(subscriberRequiredData.eventManager).toBeDefined();
 		expect(subscriberRequiredData.repository).toBe(subscriberRepository);

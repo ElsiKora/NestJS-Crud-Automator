@@ -8,6 +8,7 @@ import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TMetadata } from "@type/class";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
+import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 import { MetadataStorage } from "@class/metadata-storage.class";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
@@ -105,7 +106,9 @@ export function ApiControllerWriteDtoSwaggerWithReadPlan<E extends IApiBaseEntit
 
 			if (metadata)
 				for (const key of Object.keys(metadata)) {
-					if (metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] && metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]?.type === EApiPropertyDescribeType.RELATION) {
+					const propertyMetadata: TApiPropertyDescribeProperties | undefined = metadata[key]?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
+
+					if (propertyMetadata?.type === EApiPropertyDescribeType.RELATION && propertyMetadata.isAutoDtoEnabled !== false) {
 						const relationClass: { new (): unknown; prototype: unknown } = class GeneratedDTO {
 							constructor() {
 								Object.defineProperty(this, "id", {

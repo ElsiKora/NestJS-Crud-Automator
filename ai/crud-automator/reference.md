@@ -10,6 +10,7 @@
 | Custom controller command with runtime pipeline | `@ApiRouteCustom()`                                     |
 | Low-level custom method metadata                | `@ApiMethod({ metadata })`                              |
 | Generated DTO field controls                    | `ApiPropertyDescribe({ properties })`                   |
+| Property-wide generated DTO opt-out             | `ApiPropertyDescribe({ isAutoDtoEnabled: false })`      |
 | Route-local generated DTO validators            | `autoDto`                                               |
 | Manual route DTOs                               | `dto: { [EApiDtoType.*]: DTO }`                         |
 | GET_LIST custom item shape                      | `dto: { [EApiDtoType.RESPONSE]: { itemType, name? } }`  |
@@ -116,6 +117,9 @@ Generated route transaction rules:
 - `EApiDtoType.BODY`, `QUERY`, `PARAMETERS`, and `RESPONSE` are the only DTO keys.
 - `autoDto` supports `validators` only.
 - Use entity `ApiPropertyDescribe.properties` for field enablement, requiredness, response exposure, filters, guards, and route/DTO-specific behavior.
+- `ApiPropertyDescribe.isAutoDtoEnabled` defaults to enabled. `false` preserves metadata, TypeORM behavior, and manual DTO use while omitting the property from every generated DTO, generated Swagger relation component, and metadata-driven or typed client filter/order surface.
+- DTO `isEnabled: true`, generated GET identity, `read.scope.parameters`, and client filter/order config cannot reopen a globally hidden property. Explicit `ApiPropertyCopy` bypasses only that global boundary and still applies all remaining source metadata rules.
+- PAGE server-only `defaultOrder` and `tieBreakers` may target a described scalar with `isAutoDtoEnabled: false`. CURSOR order fields must be exposed in the generated response, so the same property is rejected for CURSOR ordering.
 - Generated CREATE, UPDATE, and PARTIAL_UPDATE bodies omit date fields identified as `CREATED_AT`, `RECEIVED_AT`, or `UPDATED_AT`; responses retain them. Property names do not imply ownership, and `DATE` remains writable.
 - Generated GET_LIST `request[QUERY].filter`, `order`, and `pagination` compile with entity/TypeORM metadata into one immutable plan. `INHERIT` overlays metadata; `REJECT` creates an allowlist; route config cannot re-enable a metadata-disabled field.
 - Filter fields use exact disabled `{ isEnabled: false }` or enabled non-empty `allowedOperations` plus optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior. Client order fields are direct-scalar enabled/disabled overlays and have no filter-only settings.

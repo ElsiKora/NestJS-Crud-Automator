@@ -81,7 +81,7 @@ export function DtoGenerateReadParameters<E>(entityMetadata: IApiEntity<E>, meth
 		const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((candidate: IApiEntityColumn<E>): boolean => String(candidate.name) === parameter.field);
 		const metadata: TApiPropertyDescribeProperties | undefined = column?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
 
-		if (!column || !metadata) {
+		if (!column || !metadata || metadata.isAutoDtoEnabled === false) {
 			throw ErrorException(`Metadata for generated read scope field ${parameter.field} not found`);
 		}
 

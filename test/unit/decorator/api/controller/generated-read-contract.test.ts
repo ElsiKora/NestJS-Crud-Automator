@@ -76,6 +76,19 @@ class GeneratedReadContractOwnerEntity {
 	public id!: string;
 }
 
+@Entity("generated_read_hidden_identity_entities")
+class GeneratedReadHiddenIdentityEntity {
+	@ApiPropertyDescribe({
+		description: "hidden identity",
+		isAutoDtoEnabled: false,
+		type: EApiPropertyDescribeType.UUID,
+	})
+	@PrimaryColumn({ type: "uuid" })
+	public id!: string;
+}
+
+class GeneratedReadHiddenIdentityService extends ApiServiceBase<GeneratedReadHiddenIdentityEntity> {}
+
 class ReadScopeGuardA {}
 
 @Entity("generated_read_contract_entities")
@@ -132,6 +145,28 @@ class GeneratedReadContractEntity {
 	})
 	@Column({ type: "int" })
 	public sequence!: number;
+
+	@ApiPropertyDescribe({
+		description: "internal sequence",
+		exampleValue: 1,
+		format: EApiPropertyNumberType.INTEGER,
+		isAutoDtoEnabled: false,
+		maximum: 100,
+		minimum: 0,
+		multipleOf: 1,
+		properties: {
+			[EApiRouteType.GET]: {
+				[EApiDtoType.PARAMETERS]: { isEnabled: true },
+			},
+			[EApiRouteType.GET_LIST]: {
+				[EApiDtoType.QUERY]: { isEnabled: true },
+				[EApiDtoType.RESPONSE]: { isEnabled: true },
+			},
+		},
+		type: EApiPropertyDescribeType.NUMBER,
+	})
+	@Column({ type: "int" })
+	public internalSequence?: number;
 
 	@ApiPropertyDescribe({
 		description: "tenant id",
@@ -282,6 +317,56 @@ function compileGetListParametersWithoutRead(): void {
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
 	})(ParametersWithoutReadControllerBase);
+}
+
+/**
+ * Compiles a generated identity against a globally auto-DTO-hidden primary key.
+ */
+function compileHiddenIdentity(): void {
+	class HiddenIdentityControllerBase {
+		public readonly service: GeneratedReadHiddenIdentityService = new GeneratedReadHiddenIdentityService();
+	}
+
+	ApiController<GeneratedReadHiddenIdentityEntity>({
+		entity: GeneratedReadHiddenIdentityEntity,
+		path: "hidden-identity",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: { identity: { parameter: "entityId" } },
+			[EApiRouteType.GET_LIST]: disabledRoute,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(HiddenIdentityControllerBase);
+}
+
+/**
+ * Compiles a GET_LIST query target against the generated-read fixture.
+ * @param queryTarget Generated query configuration under test.
+ * @returns Compiled controller type.
+ */
+function compileHiddenQueryConfiguration(queryTarget: unknown): object {
+	class HiddenQueryControllerBase {
+		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
+	}
+
+	return ApiController<GeneratedReadContractEntity>({
+		entity: GeneratedReadContractEntity,
+		path: "hidden-query",
+		routes: {
+			[EApiRouteType.CREATE]: disabledRoute,
+			[EApiRouteType.DELETE]: disabledRoute,
+			[EApiRouteType.GET]: disabledRoute,
+			[EApiRouteType.GET_LIST]: {
+				request: {
+					[EApiControllerRequestTarget.QUERY]: queryTarget,
+				},
+			} as never,
+			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
+			[EApiRouteType.UPDATE]: disabledRoute,
+		},
+	})(HiddenQueryControllerBase);
 }
 
 /**
@@ -1038,6 +1123,10 @@ describe("generated read contract", () => {
 		}).toThrow('Generated identity parameter "gameId" conflicts with an inherited controller path parameter');
 	});
 
+	it("rejects generated identity when the primary entity field is globally hidden from auto DTOs", () => {
+		expect(() => compileHiddenIdentity()).toThrow("Generated identity requires a described direct scalar primary entity field");
+	});
+
 	it("rejects an inherited primary field when GET uses a different identity alias", () => {
 		expect(() => {
 			compileInvalidIdentityConfiguration("tenant/:id/identity-alias", { parameter: "gameId" }, false, {
@@ -1320,6 +1409,16 @@ describe("generated read contract", () => {
 		}).toThrow("maps to an entity field unavailable for the route PARAMETERS DTO");
 	});
 
+	it("rejects a read scope field globally hidden from auto DTOs despite a local PARAMETERS enable", () => {
+		expect(() => {
+			compileInvalidReadConfiguration("internal/:internalSequence/generated-read-contract", {
+				scope: {
+					parameters: [{ field: "internalSequence", parameter: "internalSequence" }],
+				},
+			});
+		}).toThrow('Generated read scope parameter "internalSequence" must map to a described direct scalar entity field');
+	});
+
 	it("rejects GET_LIST PARAMETERS request configuration without generated read scope", () => {
 		expect(() => {
 			compileGetListParametersWithoutRead();
@@ -1355,6 +1454,58 @@ describe("generated read contract", () => {
 		expect(() => {
 			compileInvalidOrder(defaultOrder, tieBreakers);
 		}).toThrow(expectedMessage);
+	});
+
+	it("rejects globally hidden fields explicitly enabled for typed client filters and ordering", () => {
+		expect(() =>
+			compileHiddenQueryConfiguration({
+				filter: {
+					fields: {
+						internalSequence: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
+					},
+					unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+				},
+			}),
+		).toThrow('GET_LIST filter field "internalSequence" is not an enabled direct scalar or one-hop to-one scalar path');
+
+		expect(() =>
+			compileHiddenQueryConfiguration({
+				order: {
+					fields: { internalSequence: { isEnabled: true } },
+					unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+				},
+			}),
+		).toThrow('GET_LIST order field "internalSequence" is not an enabled direct scalar path');
+	});
+
+	it("allows a globally hidden field only as PAGE server ordering evidence", () => {
+		const Controller = compileHiddenQueryConfiguration({
+			order: {
+				defaultOrder: [{ direction: EFilterOrderDirection.ASC, field: "internalSequence" }],
+				fields: {},
+				tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+				unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+			},
+		}) as { prototype: object };
+		const plan = ApiControllerGetListQueryPlanGet(Controller.prototype, "getList");
+
+		expect(plan?.order.defaultOrder).toEqual([{ direction: EFilterOrderDirection.ASC, field: "internalSequence" }]);
+		expect(plan?.order.tieBreakers).toEqual([{ direction: EFilterOrderDirection.ASC, field: "id" }]);
+		expect(plan?.order.fields).not.toHaveProperty("internalSequence");
+	});
+
+	it("rejects a globally hidden CURSOR order field even when locally response-enabled", () => {
+		expect(() =>
+			compileHiddenQueryConfiguration({
+				order: {
+					defaultOrder: [{ direction: EFilterOrderDirection.ASC, field: "internalSequence" }],
+					fields: {},
+					tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+					unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+				},
+				pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR },
+			}),
+		).toThrow('CURSOR GET_LIST order field "internalSequence" must be unconditionally raw-exposed in the generated response');
 	});
 
 	it("generates and registers owner PARAMETERS DTOs for GET and GET_LIST", () => {

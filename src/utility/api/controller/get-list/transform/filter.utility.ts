@@ -76,7 +76,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 
 				if (!nestedColumn || !nestedColumnMetadata || nestedColumnMetadata.type === EApiPropertyDescribeType.RELATION || nestedColumnMetadata.type === EApiPropertyDescribeType.OBJECT) continue;
 
-				if (!nestedColumn.isPrimary && !DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, nestedPropertyName, nestedColumnMetadata, nestedColumn.isPrimary, currentGuard)) continue;
+				if (!DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, nestedPropertyName, nestedColumnMetadata, false, currentGuard)) continue;
 
 				const relationFilter: Record<string, unknown> = (filterRecord[relationName] ?? {}) as Record<string, unknown>;
 

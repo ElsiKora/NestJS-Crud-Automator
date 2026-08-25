@@ -14,6 +14,21 @@ import { describe, expect, it } from "vitest";
 class FilterEntity {
 	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({
+		description: "internal reference",
+		isAutoDtoEnabled: false,
+		properties: {
+			[EApiRouteType.GET_LIST]: {
+				[EApiDtoType.QUERY]: {
+					isEnabled: true,
+				},
+			},
+		},
+		type: EApiPropertyDescribeType.STRING,
+	} as TApiPropertyDescribeProperties)
+	public internalReference!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({
 		description: "id",
 		properties: {
 			[EApiRouteType.GET_LIST]: {
@@ -51,6 +66,7 @@ describe("FilterOrderByFromEntity", () => {
 			NAME: "name",
 		});
 		expect(result).not.toHaveProperty("ID");
+		expect(result).not.toHaveProperty("INTERNAL_REFERENCE");
 	});
 
 	it("applies field selectors and rejects unknown fields", () => {
@@ -61,7 +77,15 @@ describe("FilterOrderByFromEntity", () => {
 			NAME: "name",
 		});
 		expect(result).not.toHaveProperty("COUNT");
+		expect(result).not.toHaveProperty("INTERNAL_REFERENCE");
 
 		expect(() => FilterOrderByFromEntity(FilterEntity, metadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, { missing: true })).toThrow('Field "missing" does not exist in the entity.');
+	});
+
+	it("does not let a legacy field selector expose a globally hidden field", () => {
+		const metadata = GenerateEntityInformation<FilterEntity>(FilterEntity as unknown as IApiBaseEntity);
+		const result = FilterOrderByFromEntity(FilterEntity, metadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, { internalReference: true });
+
+		expect(result).not.toHaveProperty("INTERNAL_REFERENCE");
 	});
 });

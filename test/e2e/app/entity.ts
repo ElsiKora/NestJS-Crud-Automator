@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import { ApiPropertyDescribe, ApiPropertyEnum, ApiPropertyObject, ApiPropertyString, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "../../../src/index";
+import { ApiPropertyDescribe, ApiPropertyEnum, ApiPropertyObject, ApiPropertyString, EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 
 import { E2E_OWNER_ID } from "./constants";
@@ -145,6 +145,28 @@ export class E2eEntity {
 		type: EApiPropertyDescribeType.STRING,
 	})
 	public code?: string;
+
+	@Column({ nullable: true, type: "varchar" })
+	@ApiPropertyDescribe({
+		description: "internalReference",
+		exampleValue: "internal-1",
+		format: EApiPropertyStringType.STRING,
+		isAutoDtoEnabled: false,
+		isNullable: true,
+		maxLength: 64,
+		minLength: 1,
+		pattern: "/^.+$/",
+		properties: {
+			[EApiRouteType.CREATE]: {
+				[EApiDtoType.BODY]: { isEnabled: true },
+			},
+			[EApiRouteType.GET]: {
+				[EApiDtoType.RESPONSE]: { isEnabled: true },
+			},
+		},
+		type: EApiPropertyDescribeType.STRING,
+	})
+	public internalReference?: string;
 
 	@Column({ type: "boolean", nullable: true })
 	@ApiPropertyDescribe({

@@ -2,7 +2,7 @@ import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiFilterOrderBy, TFilterFieldSelector } from "@type/decorator/api/filter";
-import type { TApiPropertyDescribeDtoQueryGetListProperties } from "@type/decorator/api/property";
+import type { TApiPropertyDescribeDtoQueryGetListProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { ObjectLiteral } from "typeorm";
 import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
 import type { MetadataArgsStorage } from "typeorm/metadata-args/MetadataArgsStorage";
@@ -50,9 +50,10 @@ export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata
 
 		if (isAllowedType) {
 			for (const metadataColumn of entityMetadata.columns) {
-				const metadata: { properties: Record<EApiRouteType, Record<EApiDtoType, TApiPropertyDescribeDtoQueryGetListProperties>> } | undefined = metadataColumn.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as { properties: Record<EApiRouteType, Record<EApiDtoType, TApiPropertyDescribeDtoQueryGetListProperties>> } | undefined;
+				const metadata: TApiPropertyDescribeProperties | undefined = metadataColumn.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
+				const methodProperties: Partial<Record<EApiDtoType, TApiPropertyDescribeDtoQueryGetListProperties>> | undefined = metadata?.properties?.[method] as Partial<Record<EApiDtoType, TApiPropertyDescribeDtoQueryGetListProperties>> | undefined;
 
-				const useAsFilter: boolean = metadata?.properties?.[method]?.[dtoType]?.useAsOrderByFilter !== false;
+				const useAsFilter: boolean = metadata?.isAutoDtoEnabled !== false && methodProperties?.[dtoType]?.useAsOrderByFilter !== false;
 
 				if (metadataColumn.name == column.propertyName && metadata && useAsFilter) {
 					const snakeUpperCase: string = column.propertyName

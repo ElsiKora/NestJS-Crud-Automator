@@ -17,6 +17,10 @@ import { DtoIsPropertyInfrastructureTimestamp } from "@utility/dto/is/property/i
  * @returns {boolean} True if the property should be marked, false otherwise
  */
 export function DtoIsPropertyShouldBeMarked(method: EApiRouteType, dtoType: EApiDtoType, _propertyName: string, propertyMetadata: TApiPropertyDescribeProperties, isPrimary: boolean, currentGuard?: Type<IAuthGuard>): boolean {
+	if (propertyMetadata.isAutoDtoEnabled === false) {
+		return false;
+	}
+
 	const isWriteBody: boolean = dtoType === EApiDtoType.BODY && (method === EApiRouteType.CREATE || method === EApiRouteType.UPDATE || method === EApiRouteType.PARTIAL_UPDATE);
 
 	if (isWriteBody && DtoIsPropertyInfrastructureTimestamp(propertyMetadata)) {

@@ -66,6 +66,38 @@ describe("DtoIsPropertyShouldBeMarked", () => {
 		expect(result).toBe(false);
 	});
 
+	it.each([
+		["an omitted flag", undefined, true],
+		["an explicit enable", true, true],
+		["an explicit disable", false, false],
+	] as const)("treats %s as the auto-DTO visibility source of truth", (_label, isAutoDtoEnabled, expected) => {
+		const metadata = {
+			...stringMetadata,
+			...(isAutoDtoEnabled === undefined ? {} : { isAutoDtoEnabled }),
+		} as TApiPropertyDescribeProperties;
+
+		expect(DtoIsPropertyShouldBeMarked(EApiRouteType.GET, EApiDtoType.RESPONSE, "name", metadata, false)).toBe(expected);
+	});
+
+	it.each([
+		[EApiRouteType.CREATE, EApiDtoType.BODY, false],
+		[EApiRouteType.GET, EApiDtoType.PARAMETERS, true],
+		[EApiRouteType.GET_LIST, EApiDtoType.QUERY, false],
+		[EApiRouteType.GET, EApiDtoType.RESPONSE, false],
+	] as const)("does not let %s %s generation reopen a globally hidden property", (method, dtoType, isPrimary) => {
+		const metadata = {
+			...stringMetadata,
+			isAutoDtoEnabled: false,
+			properties: {
+				[method]: {
+					[dtoType]: { isEnabled: true },
+				},
+			},
+		} as TApiPropertyDescribeProperties;
+
+		expect(DtoIsPropertyShouldBeMarked(method, dtoType, "internalReference", metadata, isPrimary)).toBe(false);
+	});
+
 	it("skips object properties in query DTOs", () => {
 		const metadata = {
 			description: "payload",

@@ -104,9 +104,17 @@ class DtoRelatedEntity {
 	@PrimaryGeneratedColumn("uuid")
 	@ApiPropertyDescribe({
 		description: "id",
+		isAutoDtoEnabled: false,
 		type: EApiPropertyDescribeType.UUID,
 	})
 	public id!: string;
+
+	@Column({ type: "uuid" })
+	@ApiPropertyDescribe({
+		description: "external id",
+		type: EApiPropertyDescribeType.UUID,
+	})
+	public externalId!: string;
 
 	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({
@@ -124,13 +132,14 @@ class DtoRelatedEntity {
 	@ApiPropertyDescribe({
 		description: "hidden owner name",
 		format: EApiPropertyStringType.STRING,
+		isAutoDtoEnabled: false,
 		maxLength: 50,
 		minLength: 1,
 		pattern: "/^.+$/",
 		properties: {
 			[EApiRouteType.GET_LIST]: {
 				[EApiDtoType.QUERY]: {
-					isEnabled: false,
+					isEnabled: true,
 				},
 			},
 		},
@@ -179,6 +188,28 @@ class DtoEntity {
 		type: EApiPropertyDescribeType.STRING,
 	})
 	public name!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({
+		description: "internal reference",
+		exampleValue: "internal-1",
+		format: EApiPropertyStringType.STRING,
+		isAutoDtoEnabled: false,
+		maxLength: 64,
+		minLength: 1,
+		pattern: "/^.+$/",
+		properties: {
+			[EApiRouteType.CREATE]: {
+				[EApiDtoType.BODY]: { isEnabled: true },
+			},
+			[EApiRouteType.GET_LIST]: {
+				[EApiDtoType.QUERY]: { isEnabled: true },
+				[EApiDtoType.RESPONSE]: { isEnabled: true },
+			},
+		},
+		type: EApiPropertyDescribeType.STRING,
+	} as TApiPropertyDescribeProperties)
+	public internalReference!: string;
 
 	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({
@@ -397,25 +428,39 @@ describe("DtoGenerate", () => {
 		expect(queryDto?.name).toBe("DtoEntityGetListQueryDTO");
 		expect(responseDto?.name).toBe("DtoEntityGetListResponseItemsDTO");
 
-		const queryInstance = queryDto ? (new queryDto() as Record<string, unknown>) : undefined;
-		const querySwaggerProperties: ReadonlyArray<string> | undefined = queryDto ? Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES_ARRAY, queryDto.prototype) : undefined;
-		const queryValidationProperties: ReadonlyArray<string> = queryDto
-			? getMetadataStorage()
-					.getTargetValidationMetadatas(queryDto, "", true, false)
-					.map((metadata): string => metadata.propertyName)
-			: [];
+		if (!createBodyDto || !queryDto || !responseDto) {
+			throw new Error("Expected generated body, query, and response DTOs.");
+		}
+
+		const createBodyInstance = new createBodyDto() as Record<string, unknown>;
+		const queryInstance = new queryDto() as Record<string, unknown>;
+		const responseInstance = new responseDto() as Record<string, unknown>;
+		const querySwaggerProperties: ReadonlyArray<string> | undefined = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES_ARRAY, queryDto.prototype);
+		const queryValidationProperties: ReadonlyArray<string> = getMetadataStorage()
+			.getTargetValidationMetadatas(queryDto, "", true, false)
+			.map((metadata): string => metadata.propertyName);
 		expect(queryInstance).toBeDefined();
 		expect(Object.getOwnPropertyDescriptor(queryInstance, "page")).toMatchObject({ enumerable: true, value: undefined, writable: true });
 		expect(Object.keys(queryInstance ?? {}).slice(0, 4)).toEqual(["limit", "orderBy", "orderDirection", "page"]);
 		expect(querySwaggerProperties?.slice(0, 4)).toEqual([":limit", ":orderBy", ":orderDirection", ":page"]);
 		expect(queryValidationProperties.indexOf("object")).toBeLessThan(queryValidationProperties.indexOf("page"));
+		expect(entityMetadata.columns.some((column) => column.name === "internalReference")).toBe(true);
+		expect(createBodyInstance).not.toHaveProperty("internalReference");
+		expect(responseInstance).not.toHaveProperty("internalReference");
+		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, createBodyDto.prototype, "internalReference")).toBeUndefined();
+		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, responseDto.prototype, "internalReference")).toBeUndefined();
 		expect(queryInstance && "name[value]" in queryInstance).toBe(true);
 		expect(queryInstance && "name[operator]" in queryInstance).toBe(true);
+		expect(queryInstance && "internalReference[value]" in queryInstance).toBe(false);
+		expect(queryInstance && "internalReference[operator]" in queryInstance).toBe(false);
 		expect(queryInstance && "owner[value]" in queryInstance).toBe(false);
 		expect(queryInstance && "owner[operator]" in queryInstance).toBe(false);
-		expect(queryInstance && "owner.id[value]" in queryInstance).toBe(true);
-		expect(queryInstance && "owner.id[values]" in queryInstance).toBe(true);
-		expect(queryInstance && "owner.id[operator]" in queryInstance).toBe(true);
+		expect(queryInstance && "owner.id[value]" in queryInstance).toBe(false);
+		expect(queryInstance && "owner.id[values]" in queryInstance).toBe(false);
+		expect(queryInstance && "owner.id[operator]" in queryInstance).toBe(false);
+		expect(queryInstance && "owner.externalId[value]" in queryInstance).toBe(true);
+		expect(queryInstance && "owner.externalId[values]" in queryInstance).toBe(true);
+		expect(queryInstance && "owner.externalId[operator]" in queryInstance).toBe(true);
 		expect(queryInstance && "owner.name[value]" in queryInstance).toBe(true);
 		expect(queryInstance && "owner.name[values]" in queryInstance).toBe(true);
 		expect(queryInstance && "owner.name[operator]" in queryInstance).toBe(true);
@@ -426,21 +471,21 @@ describe("DtoGenerate", () => {
 		expect(queryInstance && "owner.metadata[value]" in queryInstance).toBe(false);
 		expect(queryInstance && "owner.metadata[operator]" in queryInstance).toBe(false);
 
-		const ownerIdOperatorMetadata = queryDto ? Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, queryDto.prototype, "owner.id[operator]") : undefined;
+		const ownerExternalIdOperatorMetadata = queryDto ? Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, queryDto.prototype, "owner.externalId[operator]") : undefined;
 		const ownerNameOperatorMetadata = queryDto ? Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, queryDto.prototype, "owner.name[operator]") : undefined;
 
-		expect(ownerIdOperatorMetadata?.enum).toEqual(Object.values(EFilterOperationUuid));
+		expect(ownerExternalIdOperatorMetadata?.enum).toEqual(Object.values(EFilterOperationUuid));
 		expect(ownerNameOperatorMetadata?.enum).toEqual(Object.values(EFilterOperationString));
 
 		const invalidQuery = queryDto
 			? plainToInstance(queryDto as ClassConstructor<unknown>, {
-					"owner.id[operator]": EFilterOperation.CONT,
-					"owner.id[value]": "owner-1",
+					"owner.externalId[operator]": EFilterOperation.CONT,
+					"owner.externalId[value]": "owner-1",
 				})
 			: undefined;
 		const invalidQueryErrors = invalidQuery ? validateSync(invalidQuery as object) : [];
 
-		expect(invalidQueryErrors.some((error) => error.property === "owner.id[operator]")).toBe(true);
+		expect(invalidQueryErrors.some((error) => error.property === "owner.externalId[operator]")).toBe(true);
 	});
 
 	it("preserves PAGE response constructor identity isolation across query plans", () => {

@@ -204,11 +204,11 @@ export class ApiControllerGetListQueryPlanCompiler {
 				const nestedMetadata: TApiPropertyDescribeProperties | undefined = this.getPropertyMetadata(relationColumn);
 				const nestedName: string = String(relationColumn.name);
 
-				if (!nestedMetadata || nestedMetadata.type === EApiPropertyDescribeType.OBJECT || nestedMetadata.type === EApiPropertyDescribeType.RELATION || this.isGloballyDisabled(nestedMetadata)) {
+				if (!nestedMetadata || nestedMetadata.type === EApiPropertyDescribeType.OBJECT || nestedMetadata.type === EApiPropertyDescribeType.RELATION) {
 					continue;
 				}
 
-				if (!relationColumn.isPrimary && !DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, nestedName, nestedMetadata, relationColumn.isPrimary, currentGuard)) {
+				if (!DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, nestedName, nestedMetadata, false, currentGuard)) {
 					continue;
 				}
 
@@ -673,10 +673,6 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 
 		return metadata.properties.format === EApiPropertyStringType.STRING && metadata.properties.minLength === 1 && metadata.properties.maxLength === API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH && metadata.properties.pattern === "/^[A-Za-z0-9_-]+$/";
-	}
-
-	private static isGloballyDisabled(metadata: TApiPropertyDescribeProperties): boolean {
-		return metadata.properties?.[EApiRouteType.GET_LIST]?.[EApiDtoType.QUERY]?.isEnabled === false;
 	}
 
 	private static isManualRawResponseProperty(metadata: TManualDtoPropertyMetadata, isArray: boolean, isNullable: boolean): boolean {

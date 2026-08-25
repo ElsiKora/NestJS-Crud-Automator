@@ -101,7 +101,7 @@ export function DtoGenerateGetListQueryProperties<E>(
 
 			if (!relationPropertyMetadata || relationPropertyMetadata.type === EApiPropertyDescribeType.RELATION || relationPropertyMetadata.type === EApiPropertyDescribeType.OBJECT) continue;
 
-			if (!relationProperty.isPrimary && !DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, relationProperty.name, relationPropertyMetadata, relationProperty.isPrimary, currentGuard)) continue;
+			if (!DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, relationProperty.name, relationPropertyMetadata, false, currentGuard)) continue;
 
 			queryFilterProperties.push({
 				entityMetadata: relationEntityMetadata,

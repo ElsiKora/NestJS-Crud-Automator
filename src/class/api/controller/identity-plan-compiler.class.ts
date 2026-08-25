@@ -45,7 +45,7 @@ export class ApiControllerIdentityPlanCompiler {
 		const primaryColumn: IApiEntityColumn<E> | undefined = entityMetadata.primaryKey;
 		const primaryMetadata: TApiPropertyDescribeProperties | undefined = primaryColumn?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
 
-		if (!primaryColumn || primaryColumn.relation || !primaryMetadata || primaryMetadata.type === EApiPropertyDescribeType.OBJECT || primaryMetadata.type === EApiPropertyDescribeType.RELATION) {
+		if (!primaryColumn || primaryColumn.relation || !primaryMetadata || primaryMetadata.isAutoDtoEnabled === false || primaryMetadata.type === EApiPropertyDescribeType.OBJECT || primaryMetadata.type === EApiPropertyDescribeType.RELATION) {
 			throw ErrorException("Generated identity requires a described direct scalar primary entity field");
 		}
 

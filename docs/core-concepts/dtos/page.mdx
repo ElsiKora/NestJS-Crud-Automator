@@ -38,6 +38,24 @@ This automatically generates:
 - **UserResponseDto** - For responses
 - **GetListQueryDto** - For GET /users query parameters
 
+### Property-wide exclusion
+
+Set `isAutoDtoEnabled: false` on `@ApiPropertyDescribe` when the entity still needs complete metadata but the property must not appear in any generated DTO:
+
+```typescript
+@Column({ default: false, type: "boolean" })
+@ApiPropertyDescribe({
+	description: "Internal eligibility flag",
+	isAutoDtoEnabled: false,
+	type: EApiPropertyDescribeType.BOOLEAN,
+})
+internalEligibility!: boolean;
+```
+
+Omitted or `true` keeps normal generation. `false` preserves `MetadataStorage`, TypeORM mapping, and manual DTO behavior while excluding the property from generated BODY, PARAMETERS, QUERY, and RESPONSE DTOs, generated Swagger relation components, and metadata-driven or typed client filter/order fields. Route- or DTO-level `isEnabled: true`, generated GET identity, `read.scope.parameters`, and query allowlists cannot reopen it.
+
+An explicit `@ApiPropertyCopy` can deliberately place the source property in a manual DTO; only the global exclusion is bypassed, so the remaining route/DTO, guard, and validation rules still apply. PAGE server-only defaults and tie-breakers may use a hidden described scalar. CURSOR cannot, because every cursor order field must remain exposed in the generated response.
+
 ## DTO Types
 
 ### Body DTOs

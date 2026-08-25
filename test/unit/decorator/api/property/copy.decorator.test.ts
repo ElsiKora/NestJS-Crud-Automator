@@ -24,6 +24,7 @@ class CopyEntity {
 		description: "name",
 		exampleValue: "Name",
 		format: EApiPropertyStringType.STRING,
+		isAutoDtoEnabled: false,
 		maxLength: 50,
 		minLength: 1,
 		pattern: "/^.+$/",
@@ -54,6 +55,7 @@ class CopyDepositEntity {
 	@ManyToOne(() => CopyCurrencyEntity)
 	@ApiPropertyDescribe({
 		description: "currency",
+		isAutoDtoEnabled: false,
 		type: EApiPropertyDescribeType.RELATION,
 	})
 	public currency!: CopyCurrencyEntity;
@@ -132,7 +134,7 @@ describe("ApiPropertyCopy", () => {
 		expect(buildDto).toThrow("ApiPropertyCopy requires method and dtoType or a valid autoResolveContext.");
 	});
 
-	it("copies property decorators from entity metadata", () => {
+	it("explicitly copies decorators from a globally auto-DTO-hidden scalar property", () => {
 		class CopyDto {
 			@ApiPropertyCopy({
 				entity: CopyEntity,
@@ -143,11 +145,14 @@ describe("ApiPropertyCopy", () => {
 			public name!: string;
 		}
 
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, CopyDto.prototype, "name");
-		expect(metadata).toBeDefined();
+		const swaggerMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, CopyDto.prototype, "name");
+		const errors = validateSync(plainToInstance(CopyDto, { name: 1 }));
+
+		expect(swaggerMetadata).toMatchObject({ description: "CopyEntity name", type: "string" });
+		expect(errors.some((error) => error.property === "name")).toBe(true);
 	});
 
-	it("copies relation response decorators with a relation-aware nested id description", () => {
+	it("explicitly copies a globally auto-DTO-hidden relation into a response DTO", () => {
 		class CopyRelationResponseDto {
 			@ApiPropertyCopy({
 				entity: CopyDepositEntity,
@@ -167,7 +172,7 @@ describe("ApiPropertyCopy", () => {
 		expect(idMetadata.description).not.toBe("CopyDepositEntity identifier");
 	});
 
-	it("keeps request relation copies as UUID references", () => {
+	it("explicitly copies a globally auto-DTO-hidden relation as a request UUID reference", () => {
 		class CopyRelationRequestDto {
 			@ApiPropertyCopy({
 				entity: CopyDepositEntity,

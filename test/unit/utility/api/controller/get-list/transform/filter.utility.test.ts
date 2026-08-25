@@ -17,8 +17,9 @@ import { OwnerGroupEntity, OwnerMetadata } from "./fixture/owner";
 class OwnerEntity {
 	@PrimaryGeneratedColumn("uuid")
 	@ApiPropertyDescribe({
-		type: EApiPropertyDescribeType.UUID,
 		description: "owner id",
+		isAutoDtoEnabled: false,
+		type: EApiPropertyDescribeType.UUID,
 	} as TApiPropertyDescribeProperties)
 	public id!: string;
 
@@ -30,15 +31,16 @@ class OwnerEntity {
 	public name!: string;
 
 	@ApiPropertyDescribe({
-		type: EApiPropertyDescribeType.STRING,
 		description: "hidden owner name",
+		isAutoDtoEnabled: false,
 		properties: {
 			[EApiRouteType.GET_LIST]: {
 				[EApiDtoType.QUERY]: {
-					isEnabled: false,
+					isEnabled: true,
 				},
 			},
 		},
+		type: EApiPropertyDescribeType.STRING,
 	} as TApiPropertyDescribeProperties)
 	@Column({ type: "varchar" })
 	public hiddenName!: string;
@@ -62,6 +64,10 @@ class OwnerEntity {
 @Entity("items")
 class ItemEntity {
 	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		description: "item id",
+		type: EApiPropertyDescribeType.UUID,
+	} as TApiPropertyDescribeProperties)
 	public id!: string;
 
 	@ApiPropertyDescribe({
@@ -70,6 +76,14 @@ class ItemEntity {
 	} as TApiPropertyDescribeProperties)
 	@Column({ type: "varchar" })
 	public name!: string;
+
+	@ApiPropertyDescribe({
+		description: "internal item reference",
+		isAutoDtoEnabled: false,
+		type: EApiPropertyDescribeType.STRING,
+	} as TApiPropertyDescribeProperties)
+	@Column({ type: "varchar" })
+	public internalReference!: string;
 
 	@ManyToOne(() => OwnerEntity)
 	@ApiPropertyDescribe({
@@ -80,6 +94,18 @@ class ItemEntity {
 }
 
 describe("ApiControllerGetListTransformFilter", () => {
+	it("ignores root primary filters that legacy query DTOs do not publish", () => {
+		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
+		const query = {
+			"id[operator]": EFilterOperation.EQ,
+			"id[value]": "item-1",
+		};
+
+		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);
+
+		expect(filter).not.toHaveProperty("id");
+	});
+
 	it("transforms scalar filters", () => {
 		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
 		const query = {
@@ -93,7 +119,7 @@ describe("ApiControllerGetListTransformFilter", () => {
 		expect((filter.name as { value?: unknown }).value).toBe("Sample");
 	});
 
-	it("transforms explicit relation id filters", () => {
+	it("ignores a globally hidden nested relation primary key", () => {
 		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
 		const query = {
 			"owner.id[operator]": EFilterOperation.EQ,
@@ -102,9 +128,19 @@ describe("ApiControllerGetListTransformFilter", () => {
 
 		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);
 
-		expect(filter).toHaveProperty("owner");
-		expect(filter.owner).toHaveProperty("id");
-		expect(((filter.owner as { id?: { value?: unknown } }).id as { value?: unknown }).value).toBe("owner-1");
+		expect(filter).not.toHaveProperty("owner");
+	});
+
+	it("ignores globally hidden direct scalar filters", () => {
+		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
+		const query = {
+			"internalReference[operator]": EFilterOperation.EQ,
+			"internalReference[value]": "internal-1",
+		};
+
+		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);
+
+		expect(filter).not.toHaveProperty("internalReference");
 	});
 
 	it("transforms nested relation scalar filters", () => {
@@ -149,7 +185,7 @@ describe("ApiControllerGetListTransformFilter", () => {
 		expect(filter).not.toHaveProperty("owner");
 	});
 
-	it("ignores related object, relation, and hidden query fields", () => {
+	it("ignores related object, relation, and globally hidden fields even when locally enabled", () => {
 		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
 		const query = {
 			"owner.group[operator]": EFilterOperation.EQ,

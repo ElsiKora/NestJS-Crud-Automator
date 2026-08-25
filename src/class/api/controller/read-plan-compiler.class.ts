@@ -94,7 +94,7 @@ export class ApiControllerReadPlanCompiler {
 			const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((candidate: IApiEntityColumn<E>): boolean => String(candidate.name) === field);
 			const metadata: TApiPropertyDescribeProperties | undefined = column?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
 
-			if (!column || column.relation || !metadata || metadata.type === EApiPropertyDescribeType.OBJECT || metadata.type === EApiPropertyDescribeType.RELATION) {
+			if (!column || column.relation || !metadata || metadata.isAutoDtoEnabled === false || metadata.type === EApiPropertyDescribeType.OBJECT || metadata.type === EApiPropertyDescribeType.RELATION) {
 				throw ErrorException(`Generated read scope parameter "${parameter}" must map to a described direct scalar entity field`);
 			}
 

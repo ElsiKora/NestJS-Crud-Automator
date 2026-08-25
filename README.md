@@ -154,6 +154,8 @@ export class UserEntity {
 
 `CREATED_AT`, `UPDATED_AT`, and `RECEIVED_AT` identify server-owned infrastructure timestamps. Generated CREATE, UPDATE, and PARTIAL_UPDATE body DTOs omit them while response DTOs retain them. Exclusion follows the semantic identifier, not the property name; use `DATE` for a writable business date.
 
+Set `isAutoDtoEnabled: false` on `ApiPropertyDescribe` when a described entity property must remain outside every Automator-generated BODY, PARAMETERS, QUERY, and RESPONSE DTO. The property keeps its metadata and TypeORM mapping and remains available to manual DTOs, but it is also omitted from generated Swagger relation components and generated filter/order input. Route- or DTO-level `isEnabled: true` cannot re-enable it. An explicit `ApiPropertyCopy` may deliberately copy it into a manual DTO while retaining the source metadata's other route, DTO, guard, and validation rules.
+
 ### 2. Create a Service
 
 Create a service with the `ApiService` decorator to add CRUD operations:
@@ -1315,7 +1317,7 @@ This query would search for users with "john" in their username and created betw
 
 GET_LIST query DTOs remain dynamically generated from entity `ApiPropertyDescribe` and TypeORM metadata. A route can optionally narrow or overlay that baseline through `routes[GET_LIST].request[QUERY].filter` and `order`, and select `pagination.mode`. The normalized plan drives the generated DTO, strict runtime parser, TypeORM predicates, response wrapper, and OpenAPI deep-object `oneOf` branches. Omitted pagination remains PAGE; omitted filter/order sections retain legacy metadata-driven behavior in PAGE mode.
 
-Use `INHERIT` to overlay metadata-enabled fields or `REJECT` to create an allowlist. Enabled filters declare a non-empty operation set and optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior; `REJECT` returns `400 FILTER_REQUIRED`. Route plans cannot re-enable metadata-disabled fields. A manual QUERY DTO is mutually exclusive with generated filter/order/pagination config, while a manual RESPONSE DTO remains compatible.
+Use `INHERIT` to overlay metadata-enabled fields or `REJECT` to create an allowlist. Enabled filters declare a non-empty operation set and optional `OMIT`, `REJECT`, or `USE_DEFAULT` missing behavior; `REJECT` returns `400 FILTER_REQUIRED`. Route plans cannot re-enable metadata-disabled fields or properties with `isAutoDtoEnabled: false`. A manual QUERY DTO is mutually exclusive with generated filter/order/pagination config, while a manual RESPONSE DTO remains compatible.
 
 ### Generated Nested Reads and Stable Ordering
 
@@ -1369,7 +1371,7 @@ Every required scalar `:parameter` inherited from the controller `path` must be 
 
 Read criteria are merged conjunctively in a fixed order: GET identity or GET_LIST query predicates, then path scope, then HOOKS/IAM scope. A later layer never overwrites an earlier field; incompatible values become a match-nothing condition. During an additional-scope merge, scalar leaves are emitted as explicit TypeORM `Equal(...)` predicates so relation-shaped paths cannot cause TypeORM to discard them. Wrap object-valued scalar columns such as JSON/JSONB or geometry in `Equal(value)` explicitly; unwrapped objects are interpreted as relation or embedded criteria.
 
-`defaultOrder` applies when the client omits `orderBy`/`orderDirection`. A supplied client order replaces the defaults, after which `tieBreakers` are appended and duplicate fields are removed with the earlier entry winning. These server-owned entries may use any described direct scalar field, including a UUID `id`, without exposing that field in the client `orderBy` allowlist. Use a deterministic final tie-breaker for stable `page`/`limit` pagination.
+`defaultOrder` applies when the client omits `orderBy`/`orderDirection`. A supplied client order replaces the defaults, after which `tieBreakers` are appended and duplicate fields are removed with the earlier entry winning. In PAGE mode, these server-owned entries may use any described direct scalar field, including a UUID `id` or a property with `isAutoDtoEnabled: false`, without exposing that field in the client `orderBy` allowlist. Hidden properties are not valid for generated GET identity, `read.scope.parameters`, or client filter/order fields. Use a deterministic final tie-breaker for stable `page`/`limit` pagination.
 
 ### Generated Cursor Pagination
 
@@ -1396,7 +1398,7 @@ Opt into cursor pagination beside the typed filter/order plan:
 
 The request has required `limit`, optional paired `orderBy`/`orderDirection`, existing filters, and at most one of `after`/`before`; it has no `page`. The response always contains exactly `items`, `nextCursor`, and `previousCursor`. The first window performs one `getMany` query with `limit + 1`; a cursor window adds one opposite-direction `take: 1` probe. Tokens are unsigned canonical stateless Base64URL values, so no cursor table or key is needed.
 
-CURSOR requires one primary column as the only final explicit tie-breaker, and every possible order field must be a described non-null direct scalar. Tokens bind route, inherited path values, plan signature, normalized actual filters, and effective order. They exclude `limit` and HOOKS/IAM: current query/path/IAM predicates are recalculated and AND-merged on every window and probe.
+CURSOR requires one primary column as the only final explicit tie-breaker, and every possible order field must be a described non-null direct scalar that is exposed in the generated response. A property with `isAutoDtoEnabled: false` therefore cannot participate in CURSOR ordering, even as a server-only default or tie-breaker. Tokens bind route, inherited path values, plan signature, normalized actual filters, and effective order. They exclude `limit` and HOOKS/IAM: current query/path/IAM predicates are recalculated and AND-merged on every window and probe.
 
 CURSOR v1 deliberately supports only PostgreSQL with its standard text result parsers. Proven TypeORM order declarations are limited to `boolean`; signed `smallint` and `integer`, including increment-generated columns whose PostgreSQL DDL uses `SMALLSERIAL` or `SERIAL`; numeric enums backed by `smallint` or `integer`; signed `bigint`, including increment-generated columns whose DDL uses `BIGSERIAL`, exposed as a canonical decimal `BIGINT_STRING`; and native `uuid`. PostgreSQL binary mode, custom `extra.types` parsers, every other PostgreSQL storage type, and every other database driver fail closed before CURSOR query I/O. PAGE behavior and its existing TypeORM driver support are unchanged.
 

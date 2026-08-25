@@ -32,6 +32,7 @@ ApiPropertyCopy<E>({
 - Resolves the entity (sync or async) and ensures `propertyName` metadata exists, throwing descriptive errors if not.
 - Determines the correct DTO context either from `method`/`dtoType` or the auto context queue.
 - Calls the DTO generator to produce the same decorators originally attached to the entity property and re-applies them to the DTO field.
+- May explicitly copy a source property declared with `ApiPropertyDescribe({ isAutoDtoEnabled: false })`. This is an intentional manual-DTO opt-in that bypasses only the global auto-generation boundary; all other source route/DTO, guard, validator, transformer, and Swagger rules still apply.
 - Supports guard-aware decorator generation so field-level guards remain in sync.
 - Relation response copies generate a relation object whose nested `id` description is relation-aware, e.g. `DepositEntity currency identifier` instead of `DepositEntity identifier`.
 - Request relation copies keep the existing UUID reference behavior.

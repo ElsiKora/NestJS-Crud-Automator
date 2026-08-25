@@ -5,7 +5,7 @@ import type { IApiEntity } from "@interface/entity";
 import { MetadataStorage } from "@class/metadata-storage.class";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { ApiControllerWriteDtoSwagger } from "@utility/api/controller/write/dto-swagger.utility";
 import { describe, expect, it } from "vitest";
@@ -15,6 +15,14 @@ class SwaggerDto {}
 abstract class InheritedSwaggerBaseEntity {
 	@ApiPropertyDescribe({
 		description: "owner",
+		isAutoDtoEnabled: false,
+		properties: {
+			[EApiRouteType.CREATE]: {
+				[EApiDtoType.BODY]: {
+					isEnabled: true,
+				},
+			},
+		},
 		type: EApiPropertyDescribeType.RELATION,
 	})
 	public owner!: { id: string };
@@ -58,7 +66,7 @@ describe("ApiControllerWriteDtoSwagger", () => {
 		expect(modelNames).toEqual(expect.arrayContaining([SwaggerDto.name, "SwaggerEntityGetBodyownerDTO"]));
 	});
 
-	it("registers inherited relation DTOs in swagger extra models", () => {
+	it("does not register an orphan relation component for a globally hidden inherited property", () => {
 		const entityMetadata: IApiEntity<{ owner?: { id: string } }> = {
 			columns: [{ isPrimary: true, name: "id" as never, type: "uuid" }],
 			name: InheritedSwaggerEntity.name,
@@ -79,8 +87,11 @@ describe("ApiControllerWriteDtoSwagger", () => {
 		};
 		const target = {};
 
-		ApiControllerWriteDtoSwagger(target, entityMetadata, properties, EApiRouteType.GET, routeConfig as never, entityMetadata);
+		ApiControllerWriteDtoSwagger(target, entityMetadata, properties, EApiRouteType.CREATE, routeConfig as never, entityMetadata);
 
-		expect((Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, target) as Array<{ name?: string }>).map((model) => model?.name)).toContain("InheritedSwaggerEntityGetBodyownerDTO");
+		const modelNames = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, target) as Array<{ name?: string }>).map((model) => model?.name);
+
+		expect(modelNames).toContain(SwaggerDto.name);
+		expect(modelNames).not.toContain("InheritedSwaggerEntityCreateBodyownerDTO");
 	});
 });

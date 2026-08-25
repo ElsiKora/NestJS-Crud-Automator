@@ -5,6 +5,14 @@ import { E2eEntity } from "../entity";
 export class E2eCopyDto {
 	@ApiPropertyCopy({
 		entity: E2eEntity,
+		propertyName: "internalReference",
+		method: EApiRouteType.CREATE,
+		dtoType: EApiDtoType.BODY,
+	})
+	public internalReference?: string;
+
+	@ApiPropertyCopy({
+		entity: E2eEntity,
 		propertyName: "name",
 		method: EApiRouteType.CREATE,
 		dtoType: EApiDtoType.BODY,

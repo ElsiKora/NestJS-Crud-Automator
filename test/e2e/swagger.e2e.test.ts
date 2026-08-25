@@ -44,6 +44,27 @@ class SwaggerAutoDtoEntity {
 		type: EApiPropertyDescribeType.STRING,
 	})
 	public name!: string;
+
+	@Column({ nullable: true, type: "varchar" })
+	@ApiPropertyDescribe({
+		description: "internal reference",
+		exampleValue: "internal-1",
+		format: EApiPropertyStringType.STRING,
+		isAutoDtoEnabled: false,
+		maxLength: 64,
+		minLength: 1,
+		pattern: "/^.+$/",
+		properties: {
+			[EApiRouteType.CREATE]: {
+				[EApiDtoType.BODY]: { isEnabled: true },
+			},
+			[EApiRouteType.GET]: {
+				[EApiDtoType.RESPONSE]: { isEnabled: true },
+			},
+		},
+		type: EApiPropertyDescribeType.STRING,
+	})
+	public internalReference?: string;
 }
 
 class SwaggerRegistrationPayloadDto {
@@ -492,10 +513,19 @@ describe("Swagger request DTO documentation (E2E)", () => {
 
 	it("documents generated autoDto request bodies for ApiRouteCustom", () => {
 		const autoDtoRequestBody: unknown = getOperation("/swagger/auto-dto").requestBody;
+		const createBodySchema = document.components?.schemas?.SwaggerAutoDtoEntityCreateBodyDTO as { properties?: Record<string, unknown> } | undefined;
 
 		expect(autoDtoRequestBody).toBeDefined();
 		expect(JSON.stringify(autoDtoRequestBody)).toContain("#/components/schemas/SwaggerAutoDtoEntityCreateBodyDTO");
-		expect(document.components?.schemas?.SwaggerAutoDtoEntityCreateBodyDTO).toBeDefined();
+		expect(createBodySchema?.properties).toHaveProperty("name");
+		expect(createBodySchema?.properties).not.toHaveProperty("internalReference");
+	});
+
+	it("omits globally hidden properties from generated response schemas despite local route enables", () => {
+		const getResponseSchema = document.components?.schemas?.SwaggerAutoDtoEntityGetResponseDTO as { properties?: Record<string, unknown> } | undefined;
+
+		expect(getResponseSchema?.properties).toHaveProperty("name");
+		expect(getResponseSchema?.properties).not.toHaveProperty("internalReference");
 	});
 
 	it("coexists with manual Swagger body decorators on ApiRouteCustom", () => {

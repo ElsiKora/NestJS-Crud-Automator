@@ -280,7 +280,21 @@ comments: CommentEntity[];
 
 ## DTO Generation Control
 
-Control which DTOs include specific properties:
+Use `isAutoDtoEnabled: false` when a described property must remain outside all automatically generated DTOs:
+
+```typescript
+@Column({ default: false, type: "boolean" })
+@ApiPropertyDescribe({
+  type: EApiPropertyDescribeType.BOOLEAN,
+  description: "Internal eligibility flag",
+  isAutoDtoEnabled: false,
+})
+internalEligibility: boolean;
+```
+
+Omitted or `true` keeps normal generation. `false` retains entity metadata, TypeORM persistence, and manual DTO support, while excluding the property from every generated BODY, PARAMETERS, QUERY, and RESPONSE DTO, generated Swagger relation components, and client filter/order surfaces. Route/DTO `isEnabled: true`, generated identity or read scope, and a typed query plan cannot re-enable it. Explicit `@ApiPropertyCopy` may deliberately copy it into a manual DTO and still applies all other source metadata rules. PAGE server-only ordering may use the described scalar; CURSOR ordering cannot because it requires generated response exposure.
+
+Use route- and DTO-specific metadata when only selected generated DTOs should exclude a property:
 
 ```typescript
 @Column()
