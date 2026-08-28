@@ -8,6 +8,7 @@ import { ApiFunctionContextStorage } from "@class/api/function/context-storage.c
 import { ApiFunctionTransactionLifecycle } from "@class/api/function/transaction/lifecycle.class";
 import { ApiFunctionTransactionRegistry } from "@class/api/function/transaction/registry.class";
 import { EApiFunctionTransactionFailureStage } from "@enum/decorator/api";
+import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
@@ -83,7 +84,7 @@ export class ApiFunctionTransactionRuntime {
 		try {
 			await queryRunner.release();
 		} catch (error) {
-			transactionLogger.error("Failed to release transaction query runner", error);
+			transactionLogger.error(`Failed to release transaction query runner: ${FormatErrorEvidenceForLog(error)}`);
 		}
 	}
 

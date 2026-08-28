@@ -21,6 +21,7 @@ import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeo
 import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
 import { DatabaseTypeOrmIsForeignKeyViolation } from "@utility/database/typeorm/is/foreign-key-violation.utility";
 import { DatabaseTypeOrmIsUniqueViolation } from "@utility/database/typeorm/is/unique-violation.utility";
+import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { ErrorString } from "@utility/error/string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -171,7 +172,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 			throw error;
 		}
 
-		LoggerUtility.getLogger("ApiFunctionCreate").verbose(`Error creating entity ${entity.name}:`, error);
+		LoggerUtility.getLogger("ApiFunctionCreate").verbose(`Error creating entity ${entity.name}: ${FormatErrorEvidenceForLog(error)}`);
 		await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
 
 		throw new InternalServerErrorException(

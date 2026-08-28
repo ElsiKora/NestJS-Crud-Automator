@@ -20,6 +20,7 @@ import { HttpException, InternalServerErrorException, NotFoundException } from "
 import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
 import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
+import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { ErrorString } from "@utility/error/string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -207,7 +208,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetManyEx
 			throw error;
 		}
 
-		LoggerUtility.getLogger("ApiFunctionGetMany").verbose(`Error fetching multiple entity ${entity.name}:`, error);
+		LoggerUtility.getLogger("ApiFunctionGetMany").verbose(`Error fetching multiple entity ${entity.name}: ${FormatErrorEvidenceForLog(error)}`);
 		await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.GET_MANY, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
 
 		throw new InternalServerErrorException(

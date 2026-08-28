@@ -314,21 +314,11 @@ async onAfterErrorCreate(
   >,
   error: Error
 ): Promise<void> {
-  // Log error with context
-  console.error("Post creation failed", {
-    error: error.message,
-    stack: error.stack,
-    entity: context.ENTITY,
-    user: context.DATA.authenticationRequest?.user,
-    ip: context.DATA.ip,
-    headers: context.DATA.headers,
-  });
+  console.error(`Post creation failed: ${FormatErrorEvidenceForLog(error)}`);
 
-  // Send error notification
   await this.notificationService.notifyAdmins({
     type: "post_creation_error",
-    error: error.message,
-    userId: context.DATA.authenticationRequest?.user?.id,
+    errorEvidence: FormatErrorEvidenceForLog(error),
   });
 }
 ```
@@ -507,14 +497,11 @@ async onAfterErrorCreate(
     await this.fileService.deleteTempFiles(context.ENTITY.tempFileIds);
   }
 
-  // Log with full context
-  this.logger.error("Failed to create post", {
-    error: error.message,
-    entity: context.ENTITY,
-    hasTransaction: Boolean(context.DATA.eventManager),
-  });
+	this.logger.error(`Failed to create post: ${FormatErrorEvidenceForLog(error)}`);
 }
 ```
+
+Error hooks may use context for recovery decisions, but must not serialize that context into logs. Log only explicitly admitted dimensions and `FormatErrorEvidenceForLog(error)`.
 
 ## Next Steps
 

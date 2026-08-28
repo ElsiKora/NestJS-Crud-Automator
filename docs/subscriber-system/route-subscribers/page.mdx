@@ -212,11 +212,7 @@ async onBeforeErrorCreate(
   context: IApiSubscriberRouteErrorExecutionContext<PostEntity, IApiSubscriberRouteExecutionContextData<PostEntity>>,
   error: Error
 ): Promise<void> {
-  // Log before error propagates
-  console.error("Post creation is about to fail:", {
-    error: error.message,
-    data: context.DATA,
-  });
+  console.error(`Post creation is about to fail: ${FormatErrorEvidenceForLog(error)}`);
 }
 
 async onAfterErrorCreate(
@@ -226,11 +222,12 @@ async onAfterErrorCreate(
   // Cleanup or notify after error
   await this.notificationService.notifyAdmins({
     type: "post_creation_failed",
-    error: error.message,
-    user: context.DATA.authenticationRequest?.user,
+    errorEvidence: FormatErrorEvidenceForLog(error),
   });
 }
 ```
+
+Error hooks may inspect route context for decisions, but raw context, request URL, headers, IP, authentication data, error messages, stacks, causes, SQL, parameters, and driver objects must not be logged.
 
 #### Other Error Hooks
 

@@ -157,6 +157,26 @@ if (IsErrorOfType(error, EException.BAD_REQUEST)) {
 }
 ```
 
+### FormatErrorEvidenceForLog
+
+Formats an unknown error as bounded evidence suitable for a log message.
+
+**Location:** `src/utility/error/evidence-for-log.utility.ts`
+
+```typescript
+function FormatErrorEvidenceForLog(error: unknown): string;
+```
+
+The result contains only an ASCII error-type token of at most 64 characters and, when available, a validated five-character SQLSTATE. Inspection is bounded and uses own data descriptors, so getters are not invoked. The utility never reads or emits `message`, `stack`, query text, parameters, headers, URLs, IP addresses, or arbitrary driver fields.
+
+```typescript
+import { FormatErrorEvidenceForLog } from "@elsikora/nestjs-crud-automator";
+
+logger.error(`Database operation failed: ${FormatErrorEvidenceForLog(error)}`);
+```
+
+`FormatUnknownForLog` remains a general formatter and is not a safe error-evidence boundary.
+
 ## Logging Utilities
 
 ### LoggerUtility
@@ -176,7 +196,7 @@ class LoggerUtility {
 ```typescript
 const logger = LoggerUtility.getLogger("UserService");
 logger.log("Operation completed");
-logger.error("Operation failed", error.stack);
+logger.error(`Operation failed: ${FormatErrorEvidenceForLog(error)}`);
 ```
 
 ## Controller Utilities

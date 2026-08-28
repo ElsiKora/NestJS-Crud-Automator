@@ -15,6 +15,7 @@ Global interceptor that adds correlation IDs and timestamps to all error respons
 - Adds `timestamp` to error responses
 - Uses `x-correlation-id` header if present, generates UUID if not
 - Handles rate limiting errors (ThrottlerException) specifically
+- Emits one bounded log for each `5xx`, without request URL, error message, stack, cause payload, query, parameters, or driver object
 
 ## Setup
 
@@ -157,26 +158,27 @@ if (!response.ok) {
 	const error = await response.json();
 	console.error("Request failed:", {
 		correlationId: error.correlationID,
-		message: error.message,
+		status: response.status,
 	});
 }
 ```
 
 ## Logging Integration
 
-Use correlation IDs in your logging:
+The built-in interceptor keeps correlation IDs in the response contract but does not copy the caller-controlled header value into its automatic logs. Application-owned logs should admit only validated dimensions and bounded error evidence:
 
 ```typescript filename="logger.service.ts" copy
 import { Injectable, LoggerService } from "@nestjs/common";
+import { FormatErrorEvidenceForLog } from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
 export class CustomLoggerService implements LoggerService {
-	log(message: string, context?: string, correlationId?: string) {
-		console.log(`[${correlationId}] [${context}] ${message}`);
+	log(event: string) {
+		console.log(event);
 	}
 
-	error(message: string, trace?: string, context?: string, correlationId?: string) {
-		console.error(`[${correlationId}] [${context}] ${message}`, trace);
+	error(error: unknown, context?: string) {
+		console.error(`[${context}] Operation failed: ${FormatErrorEvidenceForLog(error)}`);
 	}
 }
 ```
@@ -203,9 +205,7 @@ export class AuditSubscriber extends ApiRouteSubscriberBase<UserEntity> {
 	}
 
 	async onAfterErrorCreate(context: IApiSubscriberRouteErrorExecutionContext<UserEntity, IApiSubscriberRouteExecutionContextDataExtended<UserEntity, UserEntity>>, error: Error): Promise<void> {
-		const correlationId = context.DATA.headers["x-correlation-id"];
-
-		console.error(`[${correlationId}] User creation failed:`, error.message);
+		console.error(`User creation failed: ${FormatErrorEvidenceForLog(error)}`);
 	}
 }
 ```
@@ -227,11 +227,11 @@ interface ErrorResponse {
 
 ## Best Practices
 
-1. **Always send correlation IDs from clients** for easier debugging
-2. **Log correlation IDs** with every operation
-3. **Use the same correlation ID** across microservices for distributed tracing
-4. **Store correlation IDs** in monitoring/analytics systems
-5. **Include correlation IDs** in error reports and support tickets
+1. **Always send correlation IDs from clients** for response-level tracing
+2. **Validate and bound application-owned correlation dimensions** before logging them
+3. **Log only bounded error evidence**, never raw errors or request data
+4. **Use the same validated correlation identity** across trusted service boundaries
+5. **Keep query text, parameters, URLs, headers, IPs, messages, and stacks out of automatic logs**
 
 ## Next Steps
 
