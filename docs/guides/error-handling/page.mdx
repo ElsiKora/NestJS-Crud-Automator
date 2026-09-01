@@ -61,7 +61,7 @@ const response = await fetch("/users", {
 });
 ```
 
-The same ID will appear in error responses and server logs, enabling request tracing.
+The same ID appears in error responses. The built-in interceptor deliberately omits the caller-controlled value from automatic logs; applications may log a separately validated and bounded correlation dimension.
 
 ## Validation Errors
 
@@ -136,7 +136,7 @@ Handle errors in subscriber hooks:
 
 ```typescript filename="post-error.subscriber.ts" copy
 import { Injectable } from "@nestjs/common";
-import { ApiRouteSubscriber, ApiRouteSubscriberBase, IApiSubscriberRouteErrorExecutionContext, IApiSubscriberRouteExecutionContextData, IApiSubscriberRouteExecutionContextDataExtended } from "@elsikora/nestjs-crud-automator";
+import { ApiRouteSubscriber, ApiRouteSubscriberBase, FormatErrorEvidenceForLog, IApiSubscriberRouteErrorExecutionContext, IApiSubscriberRouteExecutionContextData, IApiSubscriberRouteExecutionContextDataExtended } from "@elsikora/nestjs-crud-automator";
 import { PostEntity } from "./post.entity";
 
 @Injectable()
@@ -146,15 +146,9 @@ import { PostEntity } from "./post.entity";
 })
 export class PostErrorSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 	async onAfterErrorCreate(context: IApiSubscriberRouteErrorExecutionContext<PostEntity, IApiSubscriberRouteExecutionContextDataExtended<PostEntity, PostEntity>>, error: Error): Promise<void> {
-		// Log error with context
-		console.error("Post creation failed:", {
-			error: error.message,
-			data: context.DATA,
-			entity: context.ENTITY,
-		});
+		console.error(`Post creation failed: ${FormatErrorEvidenceForLog(error)}`);
 
-		// Notify admins, send alerts, etc.
-		await this.notifyAdmins(error);
+		await this.notifyAdmins();
 	}
 
 	async onBeforeErrorCreate(context: IApiSubscriberRouteErrorExecutionContext<PostEntity, IApiSubscriberRouteExecutionContextData<PostEntity>>, error: Error): Promise<void> {
@@ -162,7 +156,7 @@ export class PostErrorSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 		await this.cleanup(context);
 	}
 
-	private async notifyAdmins(error: Error): Promise<void> {
+	private async notifyAdmins(): Promise<void> {
 		// Send notification logic
 	}
 
@@ -224,6 +218,7 @@ Integrate with logging service:
 
 ```typescript filename="services/logger.service.ts" copy
 import { Injectable, LoggerService } from "@nestjs/common";
+import { FormatErrorEvidenceForLog } from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
 export class CustomLoggerService implements LoggerService {
@@ -232,8 +227,8 @@ export class CustomLoggerService implements LoggerService {
 		console.log(`[${context}] ${message}`);
 	}
 
-	error(message: string, trace?: string, context?: string) {
-		console.error(`[${context}] ${message}`, trace);
+	error(error: unknown, context?: string) {
+		console.error(`[${context}] Operation failed: ${FormatErrorEvidenceForLog(error)}`);
 	}
 
 	warn(message: string, context?: string) {
@@ -251,13 +246,11 @@ async onAfterErrorCreate(
   context: IApiSubscriberRouteErrorExecutionContext<PostEntity>,
   error: Error
 ): Promise<void> {
-  this.logger.error(
-    `Post creation failed: ${error.message}`,
-    error.stack,
-    "PostErrorSubscriber"
-  );
+  this.logger.error(error, "PostErrorSubscriber");
 }
 ```
+
+`FormatErrorEvidenceForLog` is deliberately narrow: it emits a bounded error type and optional validated SQLSTATE. Do not replace it with `FormatUnknownForLog`, serialization, `error.message`, `error.stack`, a raw cause, or request/subscriber context.
 
 ## Business Logic Errors
 

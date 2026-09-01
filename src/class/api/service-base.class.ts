@@ -1,4 +1,3 @@
-/* eslint-disable @elsikora/sonar/void-use */
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiFunctionContext, IApiFunctionStepContext } from "@interface/class/api/function";
 import type { IApiGetListResponseResult } from "@interface/decorator/api";
@@ -13,41 +12,27 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/core-concepts/services | Core Concepts - Services}
  */
 export class ApiServiceBase<E> {
-	create(properties: TApiFunctionCreateProperties<E>): Promise<E> {
-		void properties;
-
+	create(_properties: TApiFunctionCreateProperties<E>): Promise<E> {
 		return Promise.resolve({} as E);
 	}
 
-	delete(criteria: Array<TApiFunctionDeleteCriteria<E>> | TApiFunctionDeleteCriteria<E>): Promise<void> {
-		void criteria;
-
+	delete(_criteria: Array<TApiFunctionDeleteCriteria<E>> | TApiFunctionDeleteCriteria<E>): Promise<void> {
 		return Promise.resolve();
 	}
 
-	// eslint-disable-next-line @elsikora/sonar/no-identical-functions
-	get(properties: TApiFunctionGetProperties<E>): Promise<E> {
-		void properties;
-
+	get(_properties: TApiFunctionGetProperties<E>): Promise<E> {
 		return Promise.resolve({} as E);
 	}
 
-	getList(properties: TApiFunctionGetListProperties<E>): Promise<IApiGetListResponseResult<E>> {
-		void properties;
-
+	getList(_properties: TApiFunctionGetListProperties<E>): Promise<IApiGetListResponseResult<E>> {
 		return Promise.resolve({ items: [], total: 0 } as unknown as IApiGetListResponseResult<E>);
 	}
 
-	getMany(properties: TApiFunctionGetManyProperties<E>): Promise<Array<E>> {
-		void properties;
-
+	getMany(_properties: TApiFunctionGetManyProperties<E>): Promise<Array<E>> {
 		return Promise.resolve([]);
 	}
 
-	update(criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: TApiFunctionUpdateProperties<E>): Promise<E> {
-		void criteria;
-		void properties;
-
+	update(_criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, _properties: TApiFunctionUpdateProperties<E>): Promise<E> {
 		return Promise.resolve({} as E);
 	}
 

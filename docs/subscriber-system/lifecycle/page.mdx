@@ -412,10 +412,12 @@ async onAfterErrorCreate(
     await this.cleanup(context.ENTITY);
   } catch (cleanupError) {
     // Don't throw errors in error hooks
-    this.logger.error("Cleanup failed", cleanupError);
+    this.logger.error(`Cleanup failed: ${FormatErrorEvidenceForLog(cleanupError)}`);
   }
 }
 ```
+
+The formatter returns only a bounded error type and optional validated SQLSTATE. It does not serialize the cleanup error or subscriber context.
 
 ## Next Steps
 

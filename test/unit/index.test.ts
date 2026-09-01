@@ -11,6 +11,7 @@ describe("index exports", () => {
 		expect(indexExports).toHaveProperty("ApiPropertyDescribe");
 		expect(indexExports).toHaveProperty("EApiRouteType");
 		expect(indexExports).toHaveProperty("AuthorizationDecisionApplyResult");
+		expect(indexExports).toHaveProperty("FormatErrorEvidenceForLog");
 		expect(indexExports).toHaveProperty("IsRegularExpressionValidator");
 	});
 });

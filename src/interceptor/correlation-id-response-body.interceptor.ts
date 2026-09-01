@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 
 import { HttpException, HttpStatus, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { ThrottlerException } from "@nestjs/throttler";
-import { FormatUnknownForLog } from "@utility/format-unknown-for-log.utility";
+import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { catchError } from "rxjs/operators";
 
@@ -28,8 +28,6 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 		const headerCorrelationId: string | undefined = Array.isArray(rawCorrelationId) ? rawCorrelationId.find((value: string) => value.trim().length > 0) : rawCorrelationId;
 		const normalizedCorrelationId: string | undefined = typeof headerCorrelationId === "string" ? headerCorrelationId.trim() : undefined;
 		const correlationId: string = normalizedCorrelationId && normalizedCorrelationId.length > 0 ? normalizedCorrelationId : randomUUID();
-		const requestMethod: string = request.method ?? "UNKNOWN_METHOD";
-		const requestUrl: string = request.url ?? "UNKNOWN_URL";
 
 		// Persist the resolved correlation ID for downstream loggers/middlewares
 		(request.headers as unknown as Record<string, unknown>)["x-correlation-id"] = correlationId;
@@ -40,7 +38,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 			catchError((error: unknown) => {
 				if (error instanceof ThrottlerException) {
 					const errorResponse: object | string = error.getResponse();
-					interceptorLogger.warn(`HTTP ${HttpStatus.TOO_MANY_REQUESTS} ${requestMethod} ${requestUrl} correlationID=${correlationId}`);
+					interceptorLogger.warn(`HTTP ${HttpStatus.TOO_MANY_REQUESTS} rateLimited`);
 
 					let customErrorResponse: Record<string, unknown> = { statusCode: HttpStatus.TOO_MANY_REQUESTS };
 
@@ -59,16 +57,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 					const status: HttpStatus = error.getStatus();
 
 					if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
-						const errorStack: string | undefined = error instanceof Error ? error.stack : undefined;
-						interceptorLogger.error(`HTTP ${status} ${requestMethod} ${requestUrl} correlationID=${correlationId}`, errorStack);
-
-						const cause: unknown = (error as { cause?: unknown }).cause;
-
-						if (cause instanceof Error) {
-							interceptorLogger.error(`Cause: ${cause.name}: ${cause.message} correlationID=${correlationId}`, cause.stack);
-						} else if (cause != null) {
-							interceptorLogger.error(`Cause: ${FormatUnknownForLog(cause)} correlationID=${correlationId}`);
-						}
+						interceptorLogger.error(`HTTP ${status} ${FormatErrorEvidenceForLog(error)}`);
 					}
 
 					let customErrorResponse: Record<string, unknown> = {};
@@ -83,17 +72,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 
 					throw new HttpException(customErrorResponse, status);
 				} else {
-					if (error instanceof Error) {
-						interceptorLogger.error(`HTTP ${HttpStatus.INTERNAL_SERVER_ERROR} ${requestMethod} ${requestUrl} correlationID=${correlationId} (non-HttpException)`, error.stack);
-
-						if (error.cause instanceof Error) {
-							interceptorLogger.error(`Cause: ${error.cause.name}: ${error.cause.message} correlationID=${correlationId}`, error.cause.stack);
-						} else if (error.cause != null) {
-							interceptorLogger.error(`Cause: ${FormatUnknownForLog(error.cause)} correlationID=${correlationId}`);
-						}
-					} else {
-						interceptorLogger.error(`HTTP ${HttpStatus.INTERNAL_SERVER_ERROR} ${requestMethod} ${requestUrl} correlationID=${correlationId} (non-Error thrown): ${FormatUnknownForLog(error)}`);
-					}
+					interceptorLogger.error(`HTTP ${HttpStatus.INTERNAL_SERVER_ERROR} ${FormatErrorEvidenceForLog(error)}`);
 
 					if (!(error instanceof Error)) {
 						error = new InternalServerErrorException("Unknown error");

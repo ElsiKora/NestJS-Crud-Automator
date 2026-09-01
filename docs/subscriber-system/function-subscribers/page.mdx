@@ -253,11 +253,7 @@ async onBeforeErrorCreate(
   context: IApiSubscriberFunctionErrorExecutionContext<PostEntity>,
   error: Error
 ): Promise<void> {
-  // Log before error propagates
-  console.error("Post creation about to fail:", {
-    error: error.message,
-    entity: context.ENTITY,
-  });
+  console.error(`Post creation about to fail: ${FormatErrorEvidenceForLog(error)}`);
 }
 
 async onAfterErrorCreate(
@@ -282,6 +278,8 @@ async onAfterErrorGetMany(...) {}
 async onBeforeErrorDelete(...) {}
 async onAfterErrorDelete(...) {}
 ```
+
+Use the package `FormatErrorEvidenceForLog` utility for deliberate error logs. Subscriber entity/context data, messages, stacks, causes, SQL, parameters, and driver objects are not safe log evidence.
 
 ## Practical Examples
 

@@ -19,6 +19,7 @@ import { HttpException, InternalServerErrorException, NotFoundException } from "
 import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
 import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
+import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { ErrorString } from "@utility/error/string.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -35,9 +36,6 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 	const transactionMode: EApiFunctionTransactionMode = properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
-		// eslint-disable-next-line @elsikora/sonar/void-use
-		void _target;
-
 		descriptor.value = async function (this: { repository: Repository<E> }, getProperties: TApiFunctionGetProperties<E>): Promise<E> {
 			const mandatoryWhere: TApiAuthorizationScopeWhere<E> | undefined = ApiControllerGeneratedReadScopeStorage.claim<E>(EApiFunctionType.GET, getProperties);
 			const isWriteHydration: boolean = mandatoryWhere ? ApiControllerGeneratedReadScopeStorage.isWriteHydration(EApiFunctionType.GET, getProperties) : false;
@@ -187,7 +185,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 			throw error;
 		}
 
-		LoggerUtility.getLogger("ApiFunctionGet").verbose(`Error fetching entity ${entity.name}:`, error);
+		LoggerUtility.getLogger("ApiFunctionGet").verbose(`Error fetching entity ${entity.name}: ${FormatErrorEvidenceForLog(error)}`);
 		await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.GET, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
 
 		throw new InternalServerErrorException(
