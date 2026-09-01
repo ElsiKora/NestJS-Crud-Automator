@@ -36,9 +36,6 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 	const transactionMode: EApiFunctionTransactionMode = properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
-		// eslint-disable-next-line @elsikora/sonar/void-use
-		void _target;
-
 		descriptor.value = async function (this: { repository: Repository<E> }, getProperties: TApiFunctionGetProperties<E>): Promise<E> {
 			const mandatoryWhere: TApiAuthorizationScopeWhere<E> | undefined = ApiControllerGeneratedReadScopeStorage.claim<E>(EApiFunctionType.GET, getProperties);
 			const isWriteHydration: boolean = mandatoryWhere ? ApiControllerGeneratedReadScopeStorage.isWriteHydration(EApiFunctionType.GET, getProperties) : false;

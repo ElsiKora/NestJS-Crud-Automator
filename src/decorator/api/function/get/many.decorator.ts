@@ -37,9 +37,6 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 	const transactionMode: EApiFunctionTransactionMode = properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
-		// eslint-disable-next-line @elsikora/sonar/void-use
-		void _target;
-
 		descriptor.value = async function (this: { repository: Repository<E> }, getManyProperties: TApiFunctionGetManyProperties<E>): Promise<Array<E>> {
 			const mandatoryWhere: TApiAuthorizationScopeWhere<E> | undefined = ApiControllerGeneratedReadScopeStorage.claim<E>(EApiFunctionType.GET_MANY, getManyProperties);
 			const isGeneratedCursorCall: boolean = ApiControllerGeneratedGetManyContract.hasActiveSession();
