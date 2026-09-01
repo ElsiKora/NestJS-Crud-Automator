@@ -1,3 +1,10 @@
+## [4.3.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.3.1...v4.3.2) (2026-09-01)
+
+### Bug Fixes
+
+- **lint:** mark unused parameters explicitly ([a9b7d83](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/a9b7d83a573bf21ee8eaa8721e06fd7f07fd76c5))
+- **logging:** bound error evidence ([5d0f223](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/5d0f223726337972a2be0457c89d06982e695371))
+
 ## [4.3.1](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.3.0...v4.3.1) (2026-08-25)
 
 ### Bug Fixes
