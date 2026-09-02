@@ -1,3 +1,9 @@
+## [4.3.3](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.3.2...v4.3.3) (2026-09-02)
+
+### Bug Fixes
+
+- **api-property-object:** support open nested requests ([0ecb3bb](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/0ecb3bb03d064156c5c8ddc350be76db0086f510))
+
 ## [4.3.2](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.3.1...v4.3.2) (2026-09-01)
 
 ### Bug Fixes
