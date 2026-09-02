@@ -13,12 +13,13 @@ import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-e
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerateContextualManualDto } from "@utility/dto/generate/manual-child.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
+import { DtoProjectOpenRequestObject } from "@utility/dto/project-open-request-object.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GetAutoDtoContext } from "@utility/get/auto-dto-context.utility";
 import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { MustMatchOneOfSchemasValidator } from "@validator/must-match-one-of-schemas.validator";
-import { Exclude, Expose, Transform, Type } from "class-transformer";
+import { Exclude, Expose, Transform, TransformationType, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsObject, ValidateIf, ValidateNested } from "class-validator";
 
 /**
@@ -307,6 +308,17 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 		} else if (properties.type !== undefined) {
 			decorators.push(Type(() => properties.type as () => unknown));
 		}
+	}
+
+	if (properties.isResponse !== true && properties.additionalProperties === true && properties.shouldValidateNested === true && properties.type !== Object) {
+		decorators.push(
+			Transform(
+				({ type, value }: { type: TransformationType; value: unknown }) => {
+					return type === TransformationType.PLAIN_TO_CLASS ? DtoProjectOpenRequestObject(value) : value;
+				},
+				{ toClassOnly: true },
+			),
+		);
 	}
 
 	return decorators;

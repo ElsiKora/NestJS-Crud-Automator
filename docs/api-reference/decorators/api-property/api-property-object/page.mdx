@@ -16,17 +16,18 @@ Describes nested object fields in DTOs. Works with single DTO types, arrays, pol
 | `discriminator`                                    | Optional `{ propertyName, mapping, shouldKeepDiscriminatorProperty }` enabling OpenAPI discriminators and runtime validation. Required when supplying multiple types. |
 | `shouldValidateNested`                             | Adds `ValidateNested` and `Type` decorators so nested objects are validated/serialized. Mandatory for request-side arrays.                                            |
 | `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables arrays with validation.                                                                                                                                       |
-| `additionalProperties`                             | Pass-through for arbitrary JSON object schemas.                                                                                                                       |
+| `additionalProperties`                             | OpenAPI `boolean`, `SchemaObject`, or `ReferenceObject`; literal `true` has request runtime behavior described below.                                                 |
 
 ## Behavior
 
 - Calls `RegisterAutoDtoChild` so generated DTOs are discoverable inside auto contexts.
 - Emits `@ApiProperty` with `type`, `oneOf`, or `discriminator` metadata. Allows arrays and `additionalProperties`.
+- On typed nested request DTOs, literal `additionalProperties: true` accepts and strips undeclared keys before validation. `SchemaObject` and `ReferenceObject` values remain OpenAPI-only.
 - Adds `Type`, `ValidateNested`, presence guards, `IsObject`, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
 - Supports polymorphic validation via `MustMatchOneOfSchemasValidator`.
 - Adds `ApiResponseProperty`, `Expose`, or `Exclude` for response DTOs.
 - When a manual DTO is nested inside an auto-generated DTO, creates context-specific wrapper schemas so request and response metadata do not collide.
-- Leaves `type: Object` as a free-form object and does not wrap it as a contextual DTO.
+- Leaves `type: Object` as a free-form object and does not wrap it as a contextual DTO; its free-form behavior is unaffected by `additionalProperties` request stripping.
 - When `discriminator` is used, every variant DTO must declare the discriminator property with the usual property decorators, such as `ApiPropertyEnum` or `ApiProperty`.
 
 `@ApiPropertyObject` discriminators apply to nested object properties inside a DTO. For a flat custom route body union or flat polymorphic custom route response, use root-level `ApiRouteCustom.dto.body` and `ApiRouteCustom.response` discriminators instead.

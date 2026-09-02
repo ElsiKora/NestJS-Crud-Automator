@@ -3,7 +3,7 @@ import "reflect-metadata";
 import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
-import { plainToInstance } from "class-transformer";
+import { instanceToInstance, plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 import { describe, expect, it } from "vitest";
 
@@ -60,6 +60,54 @@ class DynamicDiscriminatorArrayDto {
 	public pets!: Array<CatDto | DogDto>;
 }
 
+class OpenParentDto {
+	@ApiPropertyObject({
+		additionalProperties: true,
+		description: "open payload",
+		entity: ObjectEntity,
+		isRequired: true,
+		shouldValidateNested: true,
+		type: ChildDto,
+	})
+	public payload!: ChildDto;
+}
+
+class OpenObjectArrayDto {
+	@ApiPropertyObject({
+		additionalProperties: true,
+		description: "open payloads",
+		entity: ObjectEntity,
+		isArray: true,
+		isRequired: true,
+		isUniqueItems: false,
+		maxItems: 2,
+		minItems: 1,
+		shouldValidateNested: true,
+		type: ChildDto,
+	})
+	public payloads!: Array<ChildDto>;
+}
+
+class OpenDiscriminatorDto {
+	@ApiPropertyObject({
+		additionalProperties: true,
+		description: "open pet",
+		discriminator: {
+			mapping: {
+				cat: CatDto,
+				dog: DogDto,
+			},
+			propertyName: "kind",
+			shouldKeepDiscriminatorProperty: true,
+		},
+		entity: ObjectEntity,
+		isRequired: true,
+		shouldValidateNested: true,
+		type: [CatDto, DogDto],
+	})
+	public pet!: CatDto | DogDto;
+}
+
 describe("ApiPropertyObject", () => {
 	it("writes swagger metadata for single objects", () => {
 		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, ParentDto.prototype, "payload");
@@ -74,6 +122,116 @@ describe("ApiPropertyObject", () => {
 
 		expect(errors[0]?.children?.[0]?.constraints?.isString).toBeDefined();
 		expect(validateSync(plainToInstance(ParentDto, { payload: { name: "ok" } }))).toHaveLength(0);
+	});
+
+	it("accepts and strips undeclared properties from open typed request objects", () => {
+		const instance = plainToInstance(OpenParentDto, {
+			payload: {
+				futureObject: { nested: true },
+				name: "ok",
+				pay_uri: "https://example.com/payment",
+			},
+		});
+		const errors = validateSync(instance, {
+			forbidNonWhitelisted: true,
+			forbidUnknownValues: true,
+			whitelist: true,
+		});
+
+		expect(errors).toHaveLength(0);
+		expect(instance.payload).toBeInstanceOf(ChildDto);
+		expect(Object.keys(instance.payload)).toEqual(["name"]);
+		expect(instance.payload.name).toBe("ok");
+	});
+
+	it("does not project open objects during class-to-class transformation", () => {
+		const source = new OpenParentDto();
+		source.payload = Object.assign(new ChildDto(), {
+			futureDataField: true,
+			name: "ok",
+		});
+
+		const clone = instanceToInstance(source);
+
+		expect(clone.payload).toBeInstanceOf(ChildDto);
+		expect(Object.keys(clone.payload).sort()).toEqual(["futureDataField", "name"]);
+	});
+
+	it("keeps undeclared parent properties strict around an open nested object", () => {
+		const instance = plainToInstance(OpenParentDto, {
+			futureEnvelopeField: true,
+			payload: { futureDataField: true, name: "ok" },
+		});
+		const errors = validateSync(instance, {
+			forbidNonWhitelisted: true,
+			forbidUnknownValues: true,
+			whitelist: true,
+		});
+
+		expect(errors).toHaveLength(1);
+		expect(errors[0]?.property).toBe("futureEnvelopeField");
+		expect(errors[0]?.constraints?.whitelistValidation).toContain("should not exist");
+		expect(Object.keys(instance.payload)).toEqual(["name"]);
+	});
+
+	it("retains declared validation inside an open nested object", () => {
+		const instance = plainToInstance(OpenParentDto, {
+			payload: { futureDataField: true, name: 123 },
+		});
+		const errors = validateSync(instance, {
+			forbidNonWhitelisted: true,
+			forbidUnknownValues: true,
+			whitelist: true,
+		});
+
+		expect(errors[0]?.children?.[0]?.constraints?.isString).toBeDefined();
+		expect(Object.keys(instance.payload)).toEqual(["name"]);
+	});
+
+	it("keeps typed nested objects strict unless additional properties are enabled", () => {
+		const instance = plainToInstance(ParentDto, {
+			payload: { futureDataField: true, name: "ok" },
+		});
+		const errors = validateSync(instance, {
+			forbidNonWhitelisted: true,
+			forbidUnknownValues: true,
+			whitelist: true,
+		});
+
+		expect(errors[0]?.children?.[0]?.constraints?.whitelistValidation).toContain("should not exist");
+	});
+
+	it("projects every item in open typed request arrays", () => {
+		const instance = plainToInstance(OpenObjectArrayDto, {
+			payloads: [
+				{ futureDataField: true, name: "first" },
+				{ name: "second", pay_uri: "https://example.com/payment" },
+			],
+		});
+		const errors = validateSync(instance, {
+			forbidNonWhitelisted: true,
+			forbidUnknownValues: true,
+			whitelist: true,
+		});
+
+		expect(errors).toHaveLength(0);
+		expect(instance.payloads.every((payload: ChildDto): boolean => payload instanceof ChildDto)).toBe(true);
+		expect(instance.payloads.map((payload: ChildDto): Array<string> => Object.keys(payload))).toEqual([["name"], ["name"]]);
+	});
+
+	it("projects the selected variant of open discriminated request objects", () => {
+		const instance = plainToInstance(OpenDiscriminatorDto, {
+			pet: { futureDataField: true, kind: "cat" },
+		});
+		const errors = validateSync(instance, {
+			forbidNonWhitelisted: true,
+			forbidUnknownValues: true,
+			whitelist: true,
+		});
+
+		expect(errors).toHaveLength(0);
+		expect(instance.pet).toBeInstanceOf(CatDto);
+		expect(Object.keys(instance.pet)).toEqual(["kind"]);
 	});
 
 	it("keeps explicit response-only objects readOnly in swagger", () => {
