@@ -1,3 +1,9 @@
+## [4.3.4](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.3.3...v4.3.4) (2026-09-03)
+
+### Bug Fixes
+
+- **api-function-update:** omit undefined patch fields ([7fa8a86](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/7fa8a86b4f32572a0bbae601d391e50d2bea212e))
+
 ## [4.3.3](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.3.2...v4.3.3) (2026-09-02)
 
 ### Bug Fixes
