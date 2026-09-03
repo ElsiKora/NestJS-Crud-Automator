@@ -1,3 +1,9 @@
+## [4.3.5](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.3.4...v4.3.5) (2026-09-03)
+
+### Bug Fixes
+
+- **api-function-update:** preserve malformed patches for subscribers ([2faad1f](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/2faad1f9f839e46154642f57d6edf9a32ac4a230))
+
 ## [4.3.4](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.3.3...v4.3.4) (2026-09-03)
 
 ### Bug Fixes
