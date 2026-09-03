@@ -169,6 +169,74 @@ describe("ApiFunctionUpdate", () => {
 		expect(repository.save).toHaveBeenCalledWith({ count: 1, description: null, id: "id-1", name: "new" });
 	});
 
+	it("leaves malformed runtime patches untouched for fail-closed update subscribers without invoking traps", async () => {
+		let getterCalls: number = 0;
+		let proxyTrapCalls: number = 0;
+		const accessorPatch: Record<string, unknown> = {};
+		const proxyPatch: Record<string, unknown> = new Proxy(
+			{ count: undefined },
+			{
+				getOwnPropertyDescriptor(target: Record<string, unknown>, property: string | symbol): PropertyDescriptor | undefined {
+					proxyTrapCalls += 1;
+
+					return Reflect.getOwnPropertyDescriptor(target, property);
+				},
+				getPrototypeOf(target: Record<string, unknown>): null | object {
+					proxyTrapCalls += 1;
+
+					return Reflect.getPrototypeOf(target);
+				},
+				ownKeys(target: Record<string, unknown>): ArrayLike<string | symbol> {
+					proxyTrapCalls += 1;
+
+					return Reflect.ownKeys(target);
+				},
+			},
+		);
+		const revocableProxy = Proxy.revocable({ count: undefined }, {});
+
+		revocableProxy.revoke();
+
+		Object.defineProperty(accessorPatch, "name", {
+			enumerable: true,
+			get: (): string => {
+				getterCalls += 1;
+
+				return "unexpected";
+			},
+		});
+
+		const invalidPatches: ReadonlyArray<unknown> = [undefined, null, false, 1, "invalid", Symbol("invalid"), [undefined], proxyPatch, revocableProxy.proxy, accessorPatch];
+		const repository = {
+			findOne: vi.fn(async () => ({ count: 1, id: "id-1", name: "old" })),
+			save: vi.fn(async (value: UpdateEntity) => value),
+		} as unknown as Repository<UpdateEntity>;
+		const service = buildUpdateService(repository);
+		let expectedPatch: unknown;
+		const rejection: Error = new Error("subscriber rejected malformed patch");
+
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockImplementation(async (_constructor, _entity, functionType, context) => {
+			if (functionType === EApiFunctionType.UPDATE) {
+				expect((context as TApiSubscriberFunctionBeforeUpdateContext<UpdateEntity>).result).toBe(expectedPatch);
+
+				throw rejection;
+			}
+
+			return undefined;
+		});
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+
+		for (const invalidPatch of invalidPatches) {
+			expectedPatch = invalidPatch;
+
+			await expect(service.update({ id: "id-1" }, invalidPatch as Partial<UpdateEntity>)).rejects.toBe(rejection);
+		}
+
+		expect(getterCalls).toBe(0);
+		expect(proxyTrapCalls).toBe(0);
+		expect(repository.save).not.toHaveBeenCalled();
+	});
+
 	it("normalizes a subscriber-replaced patch again at the persistence boundary", async () => {
 		const existingEntity: UpdateEntity = { count: 1, description: "old", id: "id-1", name: "old" };
 		const subscriberProperties: TApiFunctionUpdateProperties<UpdateEntity> = { count: undefined, description: null, name: "subscriber" };

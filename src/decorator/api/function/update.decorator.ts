@@ -8,6 +8,8 @@ import type { TApiSubscriberFunctionBeforeUpdateContext } from "@type/class/api/
 import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 import type { DeepPartial, EntityManager, Repository } from "typeorm";
 
+import { types as utilityTypes } from "node:util";
+
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
@@ -252,11 +254,36 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
  * @returns {TApiFunctionUpdateProperties<E>} The original patch or a shallow normalized copy
  */
 function normalizeUpdateProperties<E>(properties: TApiFunctionUpdateProperties<E>): TApiFunctionUpdateProperties<E> {
-	const entries: Array<[string, unknown]> = Object.entries(properties as Record<string, unknown>);
+	const propertiesCandidate: unknown = properties;
 
-	if (!entries.some(([, value]: [string, unknown]): boolean => value === undefined)) {
+	if (typeof propertiesCandidate !== "object" || propertiesCandidate === null || utilityTypes.isProxy(propertiesCandidate) || Array.isArray(propertiesCandidate)) {
 		return properties;
 	}
 
-	return Object.fromEntries(entries.filter(([, value]: [string, unknown]): boolean => value !== undefined)) as TApiFunctionUpdateProperties<E>;
+	const descriptors: Record<PropertyKey, PropertyDescriptor> = Object.getOwnPropertyDescriptors(propertiesCandidate);
+	const keys: Array<PropertyKey> = Reflect.ownKeys(descriptors);
+
+	const hasEnumerableUndefinedField: boolean = keys.some((key: PropertyKey): boolean => {
+		const descriptor: PropertyDescriptor | undefined = descriptors[key];
+
+		return typeof key === "string" && descriptor?.enumerable === true && "value" in descriptor && descriptor.value === undefined;
+	});
+
+	if (!hasEnumerableUndefinedField) {
+		return properties;
+	}
+
+	const normalizedProperties: object = Object.create(Object.getPrototypeOf(propertiesCandidate) as null | object) as object;
+
+	for (const key of keys) {
+		const descriptor: PropertyDescriptor | undefined = descriptors[key];
+
+		if (!descriptor || (typeof key === "string" && descriptor.enumerable && "value" in descriptor && descriptor.value === undefined)) {
+			continue;
+		}
+
+		Object.defineProperty(normalizedProperties, key, descriptor);
+	}
+
+	return normalizedProperties as TApiFunctionUpdateProperties<E>;
 }
