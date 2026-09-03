@@ -1,4 +1,5 @@
 import type { TApiSubscriberFunctionBeforeUpdateContext } from "@type/class/api/subscriber/function/before/update-context.type";
+import type { TApiFunctionUpdateProperties } from "@type/decorator/api/function";
 import type { EntityManager, Repository } from "typeorm";
 
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
@@ -11,6 +12,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 class UpdateEntity {
 	public count?: number;
+
+	public description?: null | string;
 
 	public id?: string;
 
@@ -136,6 +139,52 @@ describe("ApiFunctionUpdate", () => {
 
 		expect(repository.findOne).toHaveBeenCalledTimes(1);
 		expect(repository.save).toHaveBeenCalledWith({ count: 2, id: "id-1", name: "subscriber" });
+	});
+
+	it("treats own undefined update fields as omitted before subscribers and persistence while preserving null", async () => {
+		const existingEntity: UpdateEntity = { count: 1, description: "old", id: "id-1", name: "old" };
+		const updateProperties: Partial<UpdateEntity> = { count: undefined, description: null, name: "new" };
+		let subscriberProperties: TApiFunctionUpdateProperties<UpdateEntity> | undefined;
+		const repository = {
+			findOne: vi.fn(async () => existingEntity),
+			save: vi.fn(async (value: UpdateEntity) => value),
+		} as unknown as Repository<UpdateEntity>;
+		const service = buildUpdateService(repository);
+
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockImplementation(async (_constructor, _entity, functionType, context) => {
+			if (functionType === EApiFunctionType.UPDATE) {
+				subscriberProperties = (context as TApiSubscriberFunctionBeforeUpdateContext<UpdateEntity>).result;
+			}
+
+			return undefined;
+		});
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+
+		await service.update({ id: "id-1" }, updateProperties);
+
+		expect(subscriberProperties).toEqual({ description: null, name: "new" });
+		expect(subscriberProperties).not.toBe(updateProperties);
+		expect(Object.hasOwn(subscriberProperties ?? {}, "count")).toBe(false);
+		expect(updateProperties).toEqual({ count: undefined, description: null, name: "new" });
+		expect(repository.save).toHaveBeenCalledWith({ count: 1, description: null, id: "id-1", name: "new" });
+	});
+
+	it("normalizes a subscriber-replaced patch again at the persistence boundary", async () => {
+		const existingEntity: UpdateEntity = { count: 1, description: "old", id: "id-1", name: "old" };
+		const subscriberProperties: TApiFunctionUpdateProperties<UpdateEntity> = { count: undefined, description: null, name: "subscriber" };
+		const repository = {
+			findOne: vi.fn(async () => existingEntity),
+			save: vi.fn(async (value: UpdateEntity) => value),
+		} as unknown as Repository<UpdateEntity>;
+		const service = buildUpdateService(repository);
+
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockImplementation(async (_constructor, _entity, functionType) => (functionType === EApiFunctionType.UPDATE ? subscriberProperties : undefined));
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+
+		await service.update({ id: "id-1" }, { name: "incoming" });
+
+		expect(subscriberProperties).toEqual({ count: undefined, description: null, name: "subscriber" });
+		expect(repository.save).toHaveBeenCalledWith({ count: 1, description: null, id: "id-1", name: "subscriber" });
 	});
 
 	it("keeps a generated update internal GET inside its detached owner scope and strips inherited cache ids", async () => {
@@ -318,6 +367,7 @@ describe("ApiFunctionUpdate", () => {
 
 	it("runs get then update error lifecycle without invoking update-before when the row is missing", async () => {
 		const lifecycle: Array<string> = [];
+		let updateErrorProperties: TApiFunctionUpdateProperties<UpdateEntity> | undefined;
 
 		const repository = {
 			findOne: vi.fn(async () => null),
@@ -330,16 +380,21 @@ describe("ApiFunctionUpdate", () => {
 
 			return;
 		});
-		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockImplementation(async (_constructor, _entity, functionType, onType) => {
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockImplementation(async (_constructor, _entity, functionType, onType, context) => {
 			lifecycle.push(`${functionType}:${onType}`);
+
+			if (functionType === EApiFunctionType.UPDATE && onType === EApiSubscriberOnType.AFTER_ERROR) {
+				updateErrorProperties = (context.DATA as { properties?: TApiFunctionUpdateProperties<UpdateEntity> }).properties;
+			}
 		});
 
-		await expect(service.update({ id: "missing" }, { name: "new" })).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
+		await expect(service.update({ id: "missing" }, { count: undefined, description: null, name: "new" })).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
 
 		expect(lifecycle).toEqual(["get:Before", "get:AfterError", "update:AfterError"]);
 		expect(lifecycle).not.toContain("update:Before");
 		expect(repository.findOne).toHaveBeenCalledTimes(1);
 		expect(repository.save).not.toHaveBeenCalled();
+		expect(updateErrorProperties).toEqual({ description: null, name: "new" });
 	});
 
 	it("throws when repository is missing", async () => {
@@ -351,6 +406,7 @@ describe("ApiFunctionUpdate", () => {
 	});
 
 	it("maps unique constraint violations to conflict", async () => {
+		let updateErrorProperties: TApiFunctionUpdateProperties<UpdateEntity> | undefined;
 		const repository = {
 			findOne: vi.fn(async () => ({ id: "id-1", name: "old" })),
 			save: vi.fn(async () => {
@@ -360,9 +416,14 @@ describe("ApiFunctionUpdate", () => {
 		const service = buildUpdateService(repository);
 
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
-		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockImplementation(async (_constructor, _entity, functionType, onType, context) => {
+			if (functionType === EApiFunctionType.UPDATE && onType === EApiSubscriberOnType.AFTER_ERROR) {
+				updateErrorProperties = (context.DATA as { properties?: TApiFunctionUpdateProperties<UpdateEntity> }).properties;
+			}
+		});
 
-		await expect(service.update({ id: "id-1" }, { name: "dup" })).rejects.toMatchObject({ status: HttpStatus.CONFLICT });
+		await expect(service.update({ id: "id-1" }, { count: undefined, name: "dup" })).rejects.toMatchObject({ status: HttpStatus.CONFLICT });
+		expect(updateErrorProperties).toEqual({ name: "dup" });
 	});
 
 	it("maps foreign key violations to bad request", async () => {

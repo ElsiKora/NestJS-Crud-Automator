@@ -200,6 +200,36 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eFunctionSubscriber.events).toEqual(expect.arrayContaining(["function:before:create", "function:after:create", "function:before:get", "function:after:get", "function:before:getList", "function:after:getList", "function:before:update", "function:after:update", "function:before:delete", "function:after:delete"]));
 	});
 
+	it("passes only supplied generated PATCH fields to function subscribers and persistence", async () => {
+		await service.repository.save({
+			code: "code-before-patch",
+			count: 7,
+			id: "sparse-patch-1",
+			name: "BeforePatch",
+			ownerId: E2E_OWNER_ID,
+		});
+
+		const patchResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "PATCH",
+			payload: { code: null, name: "AfterPatch" },
+			url: "/items/sparse-patch-1",
+		});
+
+		expect(patchResponse.statusCode).toBe(200);
+		expect(E2eFunctionSubscriber.updateProperties).toEqual([{ code: null, name: "AfterPatch" }]);
+
+		const saved = await service.repository.findOneOrFail({ where: { id: "sparse-patch-1" } });
+
+		expect(saved).toMatchObject({
+			code: null,
+			count: 7,
+			id: "sparse-patch-1",
+			name: "fn-AfterPatch",
+			ownerId: E2E_OWNER_ID,
+		});
+	});
+
 	it("loads one decorated current entity before a database-backed update", async () => {
 		await service.repository.save({ count: 1, id: "current-entity-1", name: "Original", ownerId: E2E_OWNER_ID });
 		E2eFunctionSubscriber.reset();
@@ -318,6 +348,7 @@ describe("CRUD routes (E2E)", () => {
 		expect(patchResponse.statusCode).toBe(200);
 		expect(patchResponse.json()).toEqual({
 			displayName: "route-fn-AfterPatch",
+			owner: E2E_OWNER_ID,
 			resourceId: "custom-patch-1",
 		});
 	});

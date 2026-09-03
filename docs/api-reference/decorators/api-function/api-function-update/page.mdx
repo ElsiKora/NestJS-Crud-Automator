@@ -17,6 +17,7 @@ Decorated methods gain the shape `update(criteria: TApiFunctionUpdateCriteria<E>
 - Resolves the configured transaction mode, opening or joining a transaction when required, then performs exactly one ordinary decorated `@ApiFunctionGet` before any UPDATE before-subscriber runs.
 - Runs the complete GET before/get/after lifecycle and raises the native decorated GET `404` when the entity is missing.
 - Gives `onBeforeUpdate` the incoming DTO in `context.result`, the active manager repository when a transaction exists (otherwise the service base repository) in `context.DATA.repository`, and a top-level detached and frozen shallow snapshot in `context.DATA.currentEntity`.
+- Treats enumerable own patch fields whose value is `undefined` as omitted before subscribers and persistence, while preserving explicit `null` values. A patch with no such fields keeps its original object identity, and a subscriber-replaced patch is normalized again before persistence.
 - Merges the subscriber-returned patch into the internally loaded entity and saves through the same repository without another explicit Automator GET.
 - Executes `onAfterUpdate` subscribers; their return value can replace the final response.
 - Skips `onBeforeUpdate` when the GET misses, preserves the GET error lifecycle, and then invokes the UPDATE error lifecycle with the same error.

@@ -45,6 +45,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (this: { repository: Repository<E> }, criteria: TApiFunctionUpdateCriteria<E>, updateProperties: TApiFunctionUpdateProperties<E>): Promise<E> {
 			const mandatoryWhere: TApiAuthorizationScopeWhere<E> | undefined = ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.UPDATE, criteria);
+			const normalizedUpdateProperties: TApiFunctionUpdateProperties<E> = normalizeUpdateProperties(updateProperties);
 
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<E> => {
@@ -80,7 +81,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 						existingEntity = await executeProtectedGet(this, getFunction, criteria, mandatoryWhere);
 					} catch (caughtError) {
 						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-							DATA: { criteria, eventManager, properties: updateProperties, repository },
+							DATA: { criteria, eventManager, properties: normalizedUpdateProperties, repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.UPDATE,
 						};
@@ -96,7 +97,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 						DATA: { criteria, currentEntity, eventManager, repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.UPDATE,
-						result: updateProperties,
+						result: normalizedUpdateProperties,
 					};
 
 					const result: TApiFunctionUpdateProperties<E> | undefined = await ApiSubscriberExecutor.executeFunctionBeforeSubscribers(this.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, EApiFunctionType.UPDATE, executionContext);
@@ -105,7 +106,9 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 						executionContext.result = result;
 					}
 
-					return await executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria, entity, existingEntity, properties: executionContext.result ?? ({} as unknown as TApiFunctionUpdateProperties<E>), repository });
+					const executorProperties: TApiFunctionUpdateProperties<E> = normalizeUpdateProperties(executionContext.result ?? ({} as unknown as TApiFunctionUpdateProperties<E>));
+
+					return await executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, criteria, entity, existingEntity, properties: executorProperties, repository });
 				},
 				entity,
 				functionType: EApiFunctionType.UPDATE,
@@ -239,4 +242,21 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			{ cause: caughtError },
 		);
 	}
+}
+
+/**
+ * Treats enumerable own properties with an undefined value as omitted update fields.
+ * Returns the original patch when no normalization is needed so subscriber identity remains stable.
+ * @template E The entity type
+ * @param {TApiFunctionUpdateProperties<E>} properties - Update patch to normalize
+ * @returns {TApiFunctionUpdateProperties<E>} The original patch or a shallow normalized copy
+ */
+function normalizeUpdateProperties<E>(properties: TApiFunctionUpdateProperties<E>): TApiFunctionUpdateProperties<E> {
+	const entries: Array<[string, unknown]> = Object.entries(properties as Record<string, unknown>);
+
+	if (!entries.some(([, value]: [string, unknown]): boolean => value === undefined)) {
+		return properties;
+	}
+
+	return Object.fromEntries(entries.filter(([, value]: [string, unknown]): boolean => value !== undefined)) as TApiFunctionUpdateProperties<E>;
 }
