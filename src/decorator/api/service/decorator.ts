@@ -7,6 +7,7 @@ import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiFunction } from "@decorator/api/function";
 import { EApiFunctionType } from "@enum/decorator/api";
+import { ErrorException } from "@utility/error/exception.utility";
 
 /**
  * Creates a class decorator that adds CRUD operations to a service class for a specific entity
@@ -18,6 +19,12 @@ import { EApiFunctionType } from "@enum/decorator/api";
  */
 export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProperties<E>) {
 	const { entity, functions }: TApiServiceProperties<E> = properties;
+
+	for (const functionType of Object.values(EApiFunctionType)) {
+		if (functionType !== EApiFunctionType.UPDATE && functions?.[functionType]?.persistenceMode !== undefined) {
+			throw ErrorException("Persistence mode is only supported for UPDATE");
+		}
+	}
 
 	// eslint-disable-next-line @elsikora/typescript/no-explicit-any
 	return function <TFunction extends new (...arguments_: Array<any>) => object>(target: TFunction): TFunction {
@@ -206,6 +213,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						value: async function (criteria: TApiFunctionUpdateCriteria<E>, properties: TApiFunctionUpdateProperties<E>): Promise<E> {
 							const apiFunctionDecorator: (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor = ApiFunction({
 								entity,
+								persistenceMode: functions?.[EApiFunctionType.UPDATE]?.persistenceMode,
 								transaction: functions?.[EApiFunctionType.UPDATE]?.transaction,
 								type: EApiFunctionType.UPDATE,
 							});

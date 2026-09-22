@@ -7,6 +7,7 @@ import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGet } from "@decorator/api/function/get/decorator";
 import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { HttpStatus } from "@nestjs/common";
+import { Equal } from "typeorm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createTransactionFixture } from "@test/unit/fixture";
@@ -30,6 +31,56 @@ class GetService {
 describe("ApiFunctionGet", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
+	});
+
+	it("captures the protected effective projection after BEFORE and before the initial query", async () => {
+		const request = { where: { id: "id-required" } };
+		const options: FindOneOptions<GetEntity> = { select: { id: true }, where: { name: "allowed" } };
+		let captured: FindOneOptions<GetEntity> | undefined;
+		const findOne = vi.fn(async (properties: FindOneOptions<GetEntity>) => {
+			expect(captured).toEqual(properties);
+			expect(captured).not.toBe(properties);
+			(options.select as { id: boolean }).id = false;
+			return { id: "id-required" };
+		});
+		const service = new GetService({ findOne } as unknown as Repository<GetEntity>);
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockResolvedValue(options);
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+
+		await ApiControllerGeneratedReadScopeStorage.runWriteHydration(
+			request,
+			request.where,
+			async () => await service.get(request),
+			(properties) => {
+				captured = properties;
+			},
+		);
+
+		expect(findOne).toHaveBeenCalledOnce();
+		expect(captured).toMatchObject({ cache: false, select: { id: true }, where: { id: Equal("id-required"), name: Equal("allowed") } });
+	});
+
+	it("reports capture validation through protected GET BEFORE_ERROR without querying", async () => {
+		const request = { where: { id: "id-required" } };
+		const repository = { findOne: vi.fn() } as unknown as Repository<GetEntity>;
+		const service = new GetService(repository);
+		const error = new Error("invalid PATCH projection");
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockResolvedValue(undefined);
+		const errors = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+
+		await expect(
+			ApiControllerGeneratedReadScopeStorage.runWriteHydration(
+				request,
+				request.where,
+				async () => await service.get(request),
+				() => {
+					throw error;
+				},
+			),
+		).rejects.toBe(error);
+		expect(repository.findOne).not.toHaveBeenCalled();
+		expect(errors).toHaveBeenCalledOnce();
+		expect(errors.mock.calls[0]?.[3]).toBe(EApiSubscriberOnType.BEFORE_ERROR);
 	});
 
 	it("returns entities when found", async () => {

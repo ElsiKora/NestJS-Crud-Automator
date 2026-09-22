@@ -1,4 +1,4 @@
-import type { EApiFunctionTransactionMode, EApiFunctionType } from "@enum/decorator/api";
+import type { EApiFunctionTransactionMode, EApiFunctionType, EApiFunctionUpdatePersistenceMode } from "@enum/decorator/api";
 
 export type TApiFunctionProperties<E> = {
 	action?: string;
@@ -6,5 +6,13 @@ export type TApiFunctionProperties<E> = {
 	transaction?: {
 		mode: EApiFunctionTransactionMode;
 	};
-	type: EApiFunctionType;
-};
+} & (
+	| {
+			persistenceMode?: EApiFunctionUpdatePersistenceMode;
+			type: EApiFunctionType.UPDATE;
+	  }
+	| {
+			persistenceMode?: never;
+			type: Exclude<EApiFunctionType, EApiFunctionType.UPDATE>;
+	  }
+);

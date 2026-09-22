@@ -2,7 +2,8 @@ import { ApiService } from "@decorator/api/service/decorator";
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
-import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
+import { EApiFunctionTransactionMode, EApiFunctionType, EApiFunctionUpdatePersistenceMode, EApiSubscriberOnType } from "@enum/decorator/api";
+import type { TApiServiceProperties } from "@type/decorator/api/service";
 import type { EntityManager } from "typeorm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -15,6 +16,23 @@ class ServiceEntity {
 }
 
 describe("ApiService", () => {
+	it("rejects persistence mode outside the generated UPDATE configuration", () => {
+		expect(() => ApiService({ entity: ServiceEntity, functions: { [EApiFunctionType.GET]: { persistenceMode: EApiFunctionUpdatePersistenceMode.PATCH, transaction: { mode: EApiFunctionTransactionMode.SUPPORTS } } } } as unknown as TApiServiceProperties<ServiceEntity>)).toThrow("only supported for UPDATE");
+	});
+
+	it("forwards generated UPDATE persistence mode to native transaction preflight", async () => {
+		const repository = { findOne: vi.fn(), save: vi.fn() };
+		@ApiService({ entity: ServiceEntity, functions: { [EApiFunctionType.UPDATE]: { persistenceMode: EApiFunctionUpdatePersistenceMode.PATCH, transaction: { mode: EApiFunctionTransactionMode.SUPPORTS } } } })
+		class Service {
+			public constructor(public repository: unknown) {}
+		}
+		const service = new Service(repository) as Service & { update(criteria: { id: string }, properties: { name: string }): Promise<ServiceEntity> };
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+		await expect(service.update({ id: "id-1" }, { name: "new" })).rejects.toThrow(/PATCH/);
+		expect(repository.findOne).not.toHaveBeenCalled();
+		expect(repository.save).not.toHaveBeenCalled();
+	});
+
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});

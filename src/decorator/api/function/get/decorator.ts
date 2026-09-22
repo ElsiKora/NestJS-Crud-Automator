@@ -70,6 +70,8 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 						if (mandatoryWhere) {
 							ApiControllerGeneratedRelationCacheContract.assertSafe(repository, finalProperties);
 						}
+
+						finalProperties = ApiControllerGeneratedReadScopeStorage.captureWriteHydrationReadProperties(getProperties, finalProperties);
 					} catch (caughtError) {
 						if (mandatoryWhere || !repository) {
 							const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {

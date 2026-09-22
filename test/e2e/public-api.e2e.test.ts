@@ -22,6 +22,9 @@ import type {
 	IApiRequestValidator,
 	IApiFunctionStepContext,
 	IApiFunctionStepProperties,
+	IApiFunctionUpdateProperties,
+	TApiFunctionProperties,
+	TApiServiceProperties,
 	IApiHookPermissionSource,
 	IApiSubscriberFunctionExecutionContextData,
 	IApiSubscriberFunctionExecutionContextUpdateData,
@@ -55,6 +58,9 @@ import type {
 import {
 	ApiAuthorizationPolicy,
 	ApiAuthorizationPolicyBase,
+	ApiFunction,
+	ApiFunctionUpdate,
+	ApiService,
 	ApiFunctionStep,
 	ApiFunctionTransactionCommitUnknownOutcomeException,
 	ApiFunctionTransactionPostCommitException,
@@ -77,6 +83,7 @@ import {
 	EApiFunctionTransactionOwnerKind,
 	EApiFunctionTransactionTraceType,
 	EApiFunctionType,
+	EApiFunctionUpdatePersistenceMode,
 	EApiGetDefaultStringFormatPropertiesBigIntStringSign,
 	EApiPropertyDescribeType,
 	EApiPropertyStringType,
@@ -579,5 +586,42 @@ describe("public API exports (E2E)", () => {
 		expect(EApiAuthorizationMode.HOOKS).toBe("hooks");
 		expect(new PublicApiPolicy()).toBeInstanceOf(ApiAuthorizationPolicyBase);
 		expect(new PublicApiStepService()).toBeInstanceOf(PublicApiStepService);
+	});
+	it("exports UPDATE-only SAVE and PATCH configuration through direct, generic and generated service APIs", async (): Promise<void> => {
+		const direct = {
+			entity: PublicApiUser,
+			persistenceMode: EApiFunctionUpdatePersistenceMode.PATCH,
+			transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+		} satisfies IApiFunctionUpdateProperties<PublicApiUser>;
+		const generic = {
+			...direct,
+			type: EApiFunctionType.UPDATE,
+		} satisfies TApiFunctionProperties<PublicApiUser>;
+		const service = {
+			entity: PublicApiUser,
+			functions: {
+				[EApiFunctionType.UPDATE]: {
+					persistenceMode: EApiFunctionUpdatePersistenceMode.PATCH,
+					transaction: { mode: EApiFunctionTransactionMode.MANDATORY },
+				},
+			},
+		} satisfies TApiServiceProperties<PublicApiUser>;
+		expect(EApiFunctionUpdatePersistenceMode).toEqual({ SAVE: "SAVE", PATCH: "PATCH" });
+		expect(typeof ApiFunctionUpdate(direct)).toBe("function");
+		expect(typeof ApiFunction(generic)).toBe("function");
+		expect(typeof ApiService(service)).toBe("function");
+		for (const entryPath of ["../../dist/esm/index.js", "../../dist/cjs/index.js"]) {
+			const built = (await import(entryPath)) as {
+				ApiFunction: typeof ApiFunction;
+				ApiFunctionUpdate: typeof ApiFunctionUpdate;
+				ApiService: typeof ApiService;
+				EApiFunctionUpdatePersistenceMode: typeof EApiFunctionUpdatePersistenceMode;
+			};
+			expect(built.EApiFunctionUpdatePersistenceMode).toEqual({ SAVE: "SAVE", PATCH: "PATCH" });
+			expect(typeof built.ApiFunctionUpdate(direct)).toBe("function");
+			expect(typeof built.ApiFunction(generic)).toBe("function");
+			expect(typeof built.ApiService(service)).toBe("function");
+			expect(typeof built.ApiFunctionUpdate({ entity: PublicApiUser })).toBe("function");
+		}
 	});
 });

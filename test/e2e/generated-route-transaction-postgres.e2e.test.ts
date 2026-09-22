@@ -2,15 +2,20 @@ import "reflect-metadata";
 
 import type { IApiRouteRuntimeGeneratedExecutionOptions } from "@interface/class/api/route";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import type { FindOneOptions, Logger } from "typeorm";
+import type { DeepPartial, EntityManager, FindOneOptions, FindOptionsWhere, Logger } from "typeorm";
+import type { IApiSubscriberFunction, TApiSubscriberFunctionBeforeGetContext, TApiSubscriberFunctionBeforeUpdateContext, TApiSubscriberFunctionAfterUpdateContext } from "../../src/index";
 
+import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
+import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
+import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
+import { ApiServiceObservable } from "@decorator/api/service/observable.decorator";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiService } from "@decorator/api/service/decorator";
-import { EApiControllerRelationReferenceShape, EApiDtoType, EApiFunctionTransactionMode, EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
+import { EApiControllerRelationReferenceShape, EApiDtoType, EApiFunctionTransactionMode, EApiFunctionType, EApiFunctionUpdatePersistenceMode, EApiRouteType } from "@enum/decorator/api";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { Column, DataSource, Entity, ManyToOne, PrimaryColumn, QueryRunner, Repository } from "typeorm";
+import { AfterLoad, Column, DataSource, DeleteDateColumn, Entity, ManyToOne, PrimaryColumn, QueryRunner, Repository, VersionColumn } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 @Entity("route_transaction_profiles")
@@ -88,6 +93,54 @@ class RouteTransactionItemService extends ApiServiceBase<RouteTransactionItemEnt
 	}
 }
 
+@Entity("route_transaction_patches")
+class RouteTransactionPatchEntity {
+	public static shouldPresentOtherId: boolean = false;
+
+	@PrimaryColumn({ type: "uuid" })
+	public id!: string;
+
+	@Column({ array: true, type: "text" })
+	public cidrs!: Array<string>;
+
+	@DeleteDateColumn({ nullable: true, type: "timestamptz" })
+	public deletedAt!: Date | null;
+
+	@Column({ select: false, type: "varchar" })
+	public hidden: string = "constructor-hidden";
+
+	@Column({ type: "varchar" })
+	public state: string = "constructor-state";
+
+	@Column({ type: "varchar" })
+	public tenantId!: string;
+
+	@VersionColumn()
+	public version!: number;
+
+	@AfterLoad()
+	public presentId(): void {
+		if (RouteTransactionPatchEntity.shouldPresentOtherId && this.id === PATCH_ID) this.id = OTHER_PATCH_ID;
+	}
+}
+
+@ApiService({
+	entity: RouteTransactionPatchEntity,
+	functions: {
+		[EApiFunctionType.GET]: { transaction: { mode: EApiFunctionTransactionMode.MANDATORY } },
+		[EApiFunctionType.UPDATE]: {
+			persistenceMode: EApiFunctionUpdatePersistenceMode.PATCH,
+			transaction: { mode: EApiFunctionTransactionMode.MANDATORY },
+		},
+	},
+})
+@ApiServiceObservable()
+class RouteTransactionPatchService extends ApiServiceBase<RouteTransactionPatchEntity> {
+	public constructor(public readonly repository: Repository<RouteTransactionPatchEntity>) {
+		super();
+	}
+}
+
 class RouteTransactionQueryLogger implements Logger {
 	public readonly executions: Array<{ isTransactionActive: boolean; query: string; queryRunner: QueryRunner | undefined }> = [];
 
@@ -113,6 +166,9 @@ class RouteTransactionQueryLogger implements Logger {
 
 	public logSchemaBuild(): void {}
 }
+
+const PATCH_ID: string = "40000000-0000-4000-8000-000000000001";
+const OTHER_PATCH_ID: string = "40000000-0000-4000-8000-000000000002";
 
 const OWNER_ID: string = "10000000-0000-4000-8000-000000000001";
 const PROFILE_ID: string = "20000000-0000-4000-8000-000000000001";
@@ -271,22 +327,92 @@ describe("generated route transactions with PostgreSQL", () => {
 	const queryLogger = new RouteTransactionQueryLogger();
 	let container: StartedPostgreSqlContainer;
 	let dataSource: DataSource;
+	let patchHooks: {
+		beforeGet?: (context: TApiSubscriberFunctionBeforeGetContext<RouteTransactionPatchEntity>) => Promise<FindOneOptions<RouteTransactionPatchEntity> | undefined>;
+		beforeUpdate?: (context: TApiSubscriberFunctionBeforeUpdateContext<RouteTransactionPatchEntity>) => Promise<void>;
+		afterUpdate?: (context: TApiSubscriberFunctionAfterUpdateContext<RouteTransactionPatchEntity>) => Promise<void>;
+	} = {};
+	const patchLifecycle: Array<string> = [];
+	const patchSubscriber: IApiSubscriberFunction<RouteTransactionPatchEntity> = {
+		onBeforeGet: async (context) => {
+			patchLifecycle.push("get:before");
+			return patchHooks.beforeGet?.(context);
+		},
+		onAfterGet: async () => {
+			patchLifecycle.push("get:after");
+			return undefined;
+		},
+		onBeforeUpdate: async (context) => {
+			patchLifecycle.push("update:before");
+			await patchHooks.beforeUpdate?.(context);
+			return undefined;
+		},
+		onAfterUpdate: async (context) => {
+			patchLifecycle.push("update:after");
+			await patchHooks.afterUpdate?.(context);
+			return undefined;
+		},
+	};
+
+	async function runConcurrentPatch(patch: DeepPartial<RouteTransactionPatchEntity>, concurrentWrite: (manager: EntityManager) => Promise<void>, mandatoryWhere?: FindOptionsWhere<RouteTransactionPatchEntity>): Promise<{ owner: EntityManager; result: PromiseSettledResult<RouteTransactionPatchEntity> }> {
+		const hydrated = createDeferred();
+		const resume = createDeferred();
+		let owner: EntityManager | undefined;
+		patchHooks.beforeUpdate = async (context): Promise<void> => {
+			expect(context.DATA.eventManager).toBe(owner);
+			expect(context.DATA.currentEntity).toMatchObject({ cidrs: ["192.0.2.0/24"], state: "ACTIVE" });
+			hydrated.resolve();
+			await resume.promise;
+		};
+		const service = new RouteTransactionPatchService(dataSource.getRepository(RouteTransactionPatchEntity));
+		const criteria = { id: PATCH_ID };
+		const operation = ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "native-patch-paused-writer" }, async (manager): Promise<RouteTransactionPatchEntity> => {
+			owner = manager;
+			await manager.query("SET LOCAL statement_timeout = '5s'");
+			return mandatoryWhere ? await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.UPDATE, criteria, mandatoryWhere, () => service.update(criteria, patch)) : await service.update(criteria, patch);
+		});
+		const settled = Promise.allSettled([operation]);
+		try {
+			await Promise.race([
+				hydrated.promise,
+				operation.then((): never => {
+					throw new Error("PATCH completed before its hydration barrier.");
+				}),
+			]);
+			await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "native-patch-concurrent-writer" }, async (manager): Promise<void> => {
+				expect(manager).not.toBe(owner);
+				await manager.query("SET LOCAL lock_timeout = '2s'");
+				await concurrentWrite(manager);
+			});
+		} finally {
+			resume.resolve();
+			await settled;
+		}
+		if (!owner) throw new Error("PATCH owner was not acquired.");
+		const [result] = await settled;
+		return { owner, result: result! };
+	}
 
 	beforeAll(async (): Promise<void> => {
 		container = await new PostgreSqlContainer("postgres:17-alpine").start();
-		dataSource = await new DataSource({
+		dataSource = new DataSource({
 			dropSchema: true,
-			entities: [RouteTransactionItemEntity, RouteTransactionOwnerEntity, RouteTransactionProfileEntity],
+			entities: [RouteTransactionItemEntity, RouteTransactionOwnerEntity, RouteTransactionProfileEntity, RouteTransactionPatchEntity],
 			logger: queryLogger,
 			logging: ["query"],
 			synchronize: true,
 			type: "postgres",
 			url: container.getConnectionUri(),
-		}).initialize();
+		});
+		await dataSource.initialize();
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: RouteTransactionPatchEntity }, patchSubscriber);
 	}, 120_000);
 
 	beforeEach(async (): Promise<void> => {
-		await dataSource.query('TRUNCATE TABLE "route_transaction_items", "route_transaction_owners", "route_transaction_profiles" CASCADE');
+		patchHooks = {};
+		patchLifecycle.length = 0;
+		RouteTransactionPatchEntity.shouldPresentOtherId = false;
+		await dataSource.query('TRUNCATE TABLE "route_transaction_items", "route_transaction_owners", "route_transaction_profiles", "route_transaction_patches" CASCADE');
 		const profile: RouteTransactionProfileEntity = await dataSource.getRepository(RouteTransactionProfileEntity).save({
 			id: PROFILE_ID,
 			label: "Profile",
@@ -297,15 +423,27 @@ describe("generated route transactions with PostgreSQL", () => {
 			name: "Owner",
 			profile,
 		});
+		await dataSource.getRepository(RouteTransactionPatchEntity).insert([
+			{ id: PATCH_ID, cidrs: ["192.0.2.0/24"], hidden: "database-hidden-original", state: "ACTIVE", tenantId: "tenant-a" },
+			{ id: OTHER_PATCH_ID, cidrs: ["198.51.100.0/24"], hidden: "database-hidden-other", state: "OTHER", tenantId: "tenant-b" },
+		]);
 		queryLogger.clear();
 	});
 
 	afterAll(async (): Promise<void> => {
-		if (dataSource?.isInitialized) {
-			await dataSource.destroy();
+		const failures: Array<unknown> = [];
+		try {
+			if (dataSource?.isInitialized) await dataSource.destroy();
+		} catch (error) {
+			failures.push(error);
 		}
-
-		await container?.stop();
+		try {
+			await container?.stop();
+		} catch (error) {
+			failures.push(error);
+		}
+		if (failures.length === 1) throw failures[0];
+		if (failures.length > 1) throw new AggregateError(failures, "PostgreSQL data source and container cleanup failed.");
 	});
 
 	it.each([
@@ -468,5 +606,99 @@ describe("generated route transactions with PostgreSQL", () => {
 
 		await expect(ApiRouteRuntime.executeGenerated(createGeneratedCreateOptions(itemService, ownerService, "30000000-0000-4000-8000-000000000031", { mode: "pessimistic_read" }, EApiFunctionTransactionMode.SUPPORTS))).rejects.toThrow("Request relation locks require an active transaction");
 		expect(await dataSource.getRepository(RouteTransactionItemEntity).count()).toBe(0);
+	});
+	it.each([false, true])("PATCH preserves omitted state but writes explicit same-value state=%s after a concurrent commit", async (isStateExplicit): Promise<void> => {
+		const { owner, result } = await runConcurrentPatch({ cidrs: ["203.0.113.0/24"], ...(isStateExplicit ? { state: "ACTIVE" } : {}) }, async (manager): Promise<void> => {
+			await manager.update(RouteTransactionPatchEntity, { id: PATCH_ID }, { state: "SUSPENDED" });
+		});
+		expect(result.status).toBe("fulfilled");
+		if (result.status !== "fulfilled") throw result.reason;
+		const expectedState = isStateExplicit ? "ACTIVE" : "SUSPENDED";
+		expect(result.value).toMatchObject({ id: PATCH_ID, cidrs: ["203.0.113.0/24"], state: expectedState, version: 3 });
+		expect(await dataSource.getRepository(RouteTransactionPatchEntity).findOneByOrFail({ id: PATCH_ID })).toMatchObject({ cidrs: ["203.0.113.0/24"], state: expectedState, version: 3 });
+		const ownedWrites = queryLogger.executions.filter((entry) => entry.queryRunner === owner.queryRunner && entry.query.startsWith("UPDATE") && entry.query.includes('"route_transaction_patches"'));
+		expect(ownedWrites).toHaveLength(1);
+		expect(ownedWrites[0]?.isTransactionActive).toBe(true);
+		expect(patchLifecycle).toEqual(["get:before", "get:after", "update:before", "update:after"]);
+	});
+
+	it.each([false, true])("PATCH rejects a target leaving its protected visibility with soft-delete=%s", async (isSoftDelete): Promise<void> => {
+		const { result } = await runConcurrentPatch(
+			{ cidrs: ["203.0.113.0/24"] },
+			async (manager): Promise<void> => {
+				if (isSoftDelete) await manager.softDelete(RouteTransactionPatchEntity, { id: PATCH_ID });
+				else await manager.update(RouteTransactionPatchEntity, { id: PATCH_ID }, { tenantId: "tenant-b" });
+			},
+			{ tenantId: "tenant-a" },
+		);
+		expect(result.status).toBe("rejected");
+		if (result.status !== "rejected") throw new Error("Expected protected PATCH rejection.");
+		expect(result.reason).toMatchObject({ status: 404 });
+		expect(patchLifecycle).toEqual(["get:before", "get:after", "update:before"]);
+		const row = await dataSource.getRepository(RouteTransactionPatchEntity).findOneOrFail({ where: { id: PATCH_ID }, withDeleted: true });
+		expect(row.cidrs).toEqual(["192.0.2.0/24"]);
+		expect(row.version).toBe(2);
+		if (isSoftDelete) expect(row.deletedAt).toBeInstanceOf(Date);
+		else expect(row.tenantId).toBe("tenant-b");
+	});
+
+	it("PATCH reloads a changed state by immutable identity and rolls back it with a same-owner side effect", async (): Promise<void> => {
+		const service = new RouteTransactionPatchService(dataSource.getRepository(RouteTransactionPatchEntity));
+		const failure = new Error("outer patch rollback");
+		const sideEffectId = "20000000-0000-4000-8000-000000000099";
+		let updateOwner: EntityManager | undefined;
+		patchHooks.afterUpdate = async (context): Promise<void> => {
+			updateOwner = context.DATA.eventManager;
+			expect(context.result.state).toBe("SUSPENDED");
+			await context.DATA.eventManager!.insert(RouteTransactionProfileEntity, { id: sideEffectId, label: "same-owner-side-effect" });
+		};
+		await expect(
+			ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "native-patch-atomic-rollback" }, async (manager): Promise<void> => {
+				const result = await service.update({ id: PATCH_ID, state: "ACTIVE" }, { state: "SUSPENDED" });
+				expect(result.state).toBe("SUSPENDED");
+				expect(updateOwner).toBe(manager);
+				throw failure;
+			}),
+		).rejects.toBe(failure);
+		expect(await dataSource.getRepository(RouteTransactionPatchEntity).findOneByOrFail({ id: PATCH_ID })).toMatchObject({ state: "ACTIVE", version: 1 });
+		expect(await dataSource.getRepository(RouteTransactionProfileEntity).existsBy({ id: sideEffectId })).toBe(false);
+		expect(patchLifecycle).toEqual(["get:before", "get:after", "update:before", "update:after"]);
+	});
+
+	it("PATCH keeps the effective projection and original primary key despite native AfterLoad presentation", async (): Promise<void> => {
+		RouteTransactionPatchEntity.shouldPresentOtherId = true;
+		const service = new RouteTransactionPatchService(dataSource.getRepository(RouteTransactionPatchEntity));
+		const select = { cidrs: true, id: true };
+		patchHooks.beforeGet = async (context) => ({ ...context.result, select });
+		patchHooks.beforeUpdate = async (context): Promise<void> => {
+			expect(context.DATA.currentEntity).toMatchObject({ id: OTHER_PATCH_ID, state: "constructor-state", hidden: "constructor-hidden" });
+			Object.assign(select, { hidden: true, state: true });
+		};
+		const result = await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "native-patch-projection" }, () => service.update({ id: PATCH_ID }, { cidrs: ["203.0.113.0/24"] }));
+		expect(result).toMatchObject({ id: OTHER_PATCH_ID, cidrs: ["203.0.113.0/24"], state: "constructor-state", hidden: "constructor-hidden" });
+		const rows = await dataSource.query('SELECT "id", "cidrs", "state", "hidden" FROM "route_transaction_patches" ORDER BY "id"');
+		expect(rows).toEqual([
+			{ id: PATCH_ID, cidrs: ["203.0.113.0/24"], state: "ACTIVE", hidden: "database-hidden-original" },
+			{ id: OTHER_PATCH_ID, cidrs: ["198.51.100.0/24"], state: "OTHER", hidden: "database-hidden-other" },
+		]);
+		const selects = queryLogger.queries.filter((query) => query.startsWith("SELECT") && query.includes('"route_transaction_patches"') && !query.startsWith('SELECT "id"'));
+		expect(selects).toHaveLength(2);
+		expect(selects.every((query) => !query.includes('"hidden"') && !query.includes('"state"'))).toBe(true);
+		patchHooks.beforeGet = async (context) => ({ ...context.result, select: { cidrs: true, id: true } });
+		patchHooks.beforeUpdate = undefined;
+		const writesBefore = queryLogger.queries.filter((query) => query.startsWith("UPDATE")).length;
+		await expect(ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "native-patch-unselected" }, () => service.update({ id: PATCH_ID }, { state: "FORBIDDEN" }))).rejects.toMatchObject({ status: 400 });
+		expect(queryLogger.queries.filter((query) => query.startsWith("UPDATE"))).toHaveLength(writesBefore);
+	});
+
+	it("PATCH with only omitted values performs a fresh read without UPDATE or its own version bump", async (): Promise<void> => {
+		const { owner, result } = await runConcurrentPatch({ state: undefined, cidrs: undefined }, async (manager): Promise<void> => {
+			await manager.update(RouteTransactionPatchEntity, { id: PATCH_ID }, { state: "SUSPENDED" });
+		});
+		expect(result.status).toBe("fulfilled");
+		if (result.status !== "fulfilled") throw result.reason;
+		expect(result.value).toMatchObject({ id: PATCH_ID, cidrs: ["192.0.2.0/24"], state: "SUSPENDED", version: 2 });
+		expect(queryLogger.executions.filter((entry) => entry.queryRunner === owner.queryRunner && entry.query.startsWith("UPDATE"))).toHaveLength(0);
+		expect(patchLifecycle).toEqual(["get:before", "get:after", "update:before", "update:after"]);
 	});
 });

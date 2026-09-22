@@ -1,13 +1,15 @@
 import type { TApiSubscriberFunctionBeforeUpdateContext } from "@type/class/api/subscriber/function/before/update-context.type";
 import type { TApiFunctionUpdateProperties } from "@type/decorator/api/function";
-import type { EntityManager, Repository } from "typeorm";
+import type { EntityManager, FindOneOptions, Repository } from "typeorm";
 
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionUpdate } from "@decorator/api/function/update.decorator";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
+import { EApiFunctionUpdatePersistenceMode } from "@enum/decorator/api/function/update-persistence-mode.enum";
 import { HttpStatus } from "@nestjs/common";
 import { createTransactionFixture } from "@test/unit/fixture";
+import { And, Equal, In, IsNull } from "typeorm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 class UpdateEntity {
@@ -28,11 +30,11 @@ class UpdateEntity {
 	public tenantId?: string;
 }
 
-const buildUpdateService = (repository: Repository<UpdateEntity>, transactionMode: EApiFunctionTransactionMode = EApiFunctionTransactionMode.SUPPORTS) => {
+const buildUpdateService = (repository: Repository<UpdateEntity>, transactionMode: EApiFunctionTransactionMode = EApiFunctionTransactionMode.SUPPORTS, persistenceMode?: EApiFunctionUpdatePersistenceMode) => {
 	class UpdateService {
 		public constructor(public repository: Repository<UpdateEntity>) {}
 
-		@ApiFunctionUpdate({ entity: UpdateEntity, transaction: { mode: transactionMode } })
+		@ApiFunctionUpdate({ entity: UpdateEntity, persistenceMode, transaction: { mode: transactionMode } })
 		public async update(criteria: Partial<UpdateEntity>, properties: Partial<UpdateEntity>): Promise<UpdateEntity> {
 			void criteria;
 			void properties;
@@ -507,5 +509,220 @@ describe("ApiFunctionUpdate", () => {
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
 
 		await expect(service.update({ id: "id-1" }, { name: "bad-ref" })).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+	});
+});
+
+function createPatchFixture() {
+	const columns = ["id", "name", "count", "description", "status", "tenantId", "metadata", "secret", "createdAt", "updatedAt", "version", "deletedAt", "generated", "readOnly"].map((propertyName) => ({
+		embeddedMetadata: undefined as object | undefined,
+		isCreateDate: propertyName === "createdAt",
+		isDeleteDate: propertyName === "deletedAt",
+		isGenerated: propertyName === "generated",
+		isPrimary: propertyName === "id",
+		isSelect: propertyName !== "secret",
+		isUpdate: propertyName !== "readOnly",
+		isUpdateDate: propertyName === "updatedAt",
+		isVersion: propertyName === "version",
+		propertyName,
+		propertyPath: propertyName,
+	}));
+	const metadata = { columns, primaryColumns: columns.filter((column) => column.isPrimary), relations: [] as Array<{ isEager: boolean; isLazy: boolean; propertyName: string }>, deleteDateColumn: undefined as (typeof columns)[number] | undefined };
+	const execute = vi.fn(async (): Promise<{ affected: number | undefined }> => ({ affected: 1 }));
+	const builder = { execute, set: vi.fn(), update: vi.fn(), where: vi.fn() };
+	for (const method of ["set", "update", "where"] as const) builder[method].mockReturnValue(builder);
+	const repository = {
+		createQueryBuilder: vi.fn(() => builder),
+		findOne: vi.fn(async (_properties: FindOneOptions<UpdateEntity>) => ({ count: 1, id: "id-1", name: "old", status: "INACTIVE" })),
+		findOneOrFail: vi.fn(async (_properties: FindOneOptions<UpdateEntity>) => ({ count: 1, id: "id-1", name: "new", status: "ACTIVE" })),
+		metadata,
+		save: vi.fn(),
+	};
+	const manager = { getRepository: vi.fn(() => repository) } as unknown as EntityManager;
+	const transaction = createTransactionFixture(manager);
+	const baseRepository = { manager: { connection: transaction.dataSource } } as Repository<UpdateEntity>;
+	const before = vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockResolvedValue(undefined);
+	const after = vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+	const error = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+	const service = buildUpdateService(baseRepository, EApiFunctionTransactionMode.REQUIRED, EApiFunctionUpdatePersistenceMode.PATCH);
+	return { after, baseRepository, before, builder, columns, error, execute, manager, metadata, repository, service, transaction };
+}
+
+describe("ApiFunctionUpdate explicit PATCH persistence", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("sets supplied unchanged values only and returns fresh omitted state on the bound owner", async () => {
+		const fixture = createPatchFixture();
+		const result = await fixture.service.update({ id: "id-1" }, { count: 1, description: null, name: undefined });
+		expect(fixture.builder.set).toHaveBeenCalledExactlyOnceWith({ count: 1, description: null });
+		expect(fixture.repository.save).not.toHaveBeenCalled();
+		expect(result.status).toBe("ACTIVE");
+		expect(fixture.repository.findOneOrFail).toHaveBeenCalledWith(expect.objectContaining({ cache: false, loadEagerRelations: false, where: { id: "id-1" } }));
+		expect(fixture.transaction.dataSource.createQueryRunner).toHaveBeenCalledOnce();
+		expect(fixture.transaction.queryRunner.commitTransaction).toHaveBeenCalledOnce();
+		const context = fixture.before.mock.calls.find((call) => call[2] === EApiFunctionType.UPDATE)?.[3] as TApiSubscriberFunctionBeforeUpdateContext<UpdateEntity>;
+		expect(Object.isFrozen(context.DATA.currentEntity)).toBe(true);
+		expect(context.DATA.currentEntity.status).toBe("INACTIVE");
+		expect(context.DATA.eventManager).toBe(fixture.manager);
+	});
+
+	it("pins original criteria rather than a load-hook primary presentation or later caller mutation", async () => {
+		const fixture = createPatchFixture();
+		const criteria = { id: "id-1" };
+		fixture.repository.findOne.mockResolvedValue({ count: 1, id: "presentation-id", name: "old", status: "INACTIVE" });
+		fixture.before.mockImplementation(async (_constructor, _entity, functionType) => {
+			if (functionType === EApiFunctionType.UPDATE) criteria.id = "other-row";
+			return undefined;
+		});
+		await fixture.service.update(criteria, { name: "new" });
+		expect(fixture.builder.where).toHaveBeenCalledWith({ id: Equal("id-1") });
+		expect(fixture.repository.findOneOrFail.mock.calls[0]?.[0].where).toEqual({ id: "id-1" });
+	});
+
+	it("keeps the actual selected columns and narrowed scope after GET AFTER mutates its options alias", async () => {
+		const fixture = createPatchFixture();
+		fixture.before.mockImplementation(async (_constructor, _entity, functionType) => (functionType === EApiFunctionType.GET ? { select: { id: true, name: true }, where: { tenantId: "tenant-a" } } : undefined));
+		fixture.after.mockImplementation(async (_constructor, _entity, functionType, _onType, context) => {
+			if (functionType === EApiFunctionType.GET) {
+				const properties = (context.DATA as { properties: FindOneOptions<UpdateEntity> }).properties;
+				properties.select = { id: true, status: true };
+				properties.where = { id: "other-row" };
+			}
+			return undefined;
+		});
+		await fixture.service.update({ id: "id-1" }, { name: "new" });
+		expect(fixture.builder.where).toHaveBeenCalledWith({ id: Equal("id-1"), tenantId: Equal("tenant-a") });
+		expect(fixture.repository.findOneOrFail.mock.calls[0]?.[0].select).toEqual({ id: true, name: true });
+		expect(fixture.repository.findOneOrFail.mock.calls[0]?.[0].where).toEqual({ id: "id-1" });
+	});
+
+	it("accepts a common complete equality in native AND and OR scope branches without losing conjuncts", async () => {
+		const fixture = createPatchFixture();
+		const criteria = [
+			{ id: And(Equal("id-1"), In(["id-1", "id-2"])), tenantId: "a" },
+			{ id: Equal("id-1"), tenantId: "b" },
+		];
+		await fixture.service.update(criteria as never, { name: "new" });
+		const where = fixture.builder.where.mock.calls[0]?.[0];
+		expect(where).toHaveLength(2);
+		expect(where[0].id.type).toBe("and");
+		expect(where[0].tenantId).toEqual(Equal("a"));
+		expect(where[1].tenantId).toEqual(Equal("b"));
+		expect(fixture.repository.findOneOrFail.mock.calls[0]?.[0].where).toEqual({ id: "id-1" });
+	});
+
+	it.each([{}, { id: In(["id-1"]) }, [{ id: "id-1" }, { id: "id-2" }], { id: And(Equal("id-1"), Equal("id-2")) }])("rejects missing, broad or divergent primary equality before GET for %j", async (criteria) => {
+		const fixture = createPatchFixture();
+		await expect(fixture.service.update(criteria as never, { name: "new" })).rejects.toMatchObject({ status: 400 });
+		expect(fixture.repository.findOne).not.toHaveBeenCalled();
+		expect(fixture.builder.execute).not.toHaveBeenCalled();
+		expect(fixture.error.mock.calls[0]?.[3]).toBe(EApiSubscriberOnType.BEFORE_ERROR);
+	});
+
+	it("requires and retains every composite primary equality", async () => {
+		const fixture = createPatchFixture();
+		const tenant = fixture.columns.find((column) => column.propertyName === "tenantId")!;
+		tenant.isPrimary = true;
+		fixture.metadata.primaryColumns.push(tenant);
+		await expect(fixture.service.update({ id: "id-1" }, { name: "new" })).rejects.toMatchObject({ status: 400 });
+		await fixture.service.update({ id: "id-1", tenantId: "a" }, { name: "new" });
+		expect(fixture.repository.findOneOrFail.mock.calls[0]?.[0].where).toEqual({ id: "id-1", tenantId: "a" });
+	});
+
+	it.each([[], {}, { id: false }, { name: true }, null, { id: true, metadata: { label: true } }])("rejects projection fallback or incomplete/nonflat projection %j before query", async (select) => {
+		const fixture = createPatchFixture();
+		fixture.before.mockImplementation(async (_constructor, _entity, functionType) => (functionType === EApiFunctionType.GET ? ({ select } as never) : undefined));
+		await expect(fixture.service.update({ id: "id-1" }, { name: "new" })).rejects.toMatchObject({ status: 400 });
+		expect(fixture.repository.findOne).not.toHaveBeenCalled();
+		expect(fixture.execute).not.toHaveBeenCalled();
+	});
+
+	it.each(["inherited", "accessor"])("rejects %s GET select without invoking it or querying", async (kind) => {
+		const fixture = createPatchFixture();
+		const getter = vi.fn(() => {
+			throw new Error("must not execute");
+		});
+		const properties = kind === "inherited" ? Object.create({ select: { id: true, name: true } }) : Object.defineProperty({}, "select", { enumerable: true, get: getter });
+		fixture.before.mockImplementation(async (_constructor, _entity, functionType) => (functionType === EApiFunctionType.GET ? properties : undefined));
+		await expect(fixture.service.update({ id: "id-1" }, { name: "new" })).rejects.toMatchObject({ status: 400 });
+		expect(getter).not.toHaveBeenCalled();
+		expect(fixture.repository.findOne).not.toHaveBeenCalled();
+		expect(fixture.execute).not.toHaveBeenCalled();
+	});
+
+	it("rejects default embedded hydration but accepts an explicit direct projection", async () => {
+		const fixture = createPatchFixture();
+		fixture.columns.push({ ...fixture.columns[1]!, embeddedMetadata: {}, propertyName: "label", propertyPath: "nested.label" });
+		await expect(fixture.service.update({ id: "id-1" }, { name: "new" })).rejects.toMatchObject({ status: 400 });
+		expect(fixture.repository.findOne).not.toHaveBeenCalled();
+		fixture.before.mockImplementation(async (_constructor, _entity, functionType) => (functionType === EApiFunctionType.GET ? { select: { id: true, name: true } } : undefined));
+		await fixture.service.update({ id: "id-1" }, { name: "new" });
+		expect(fixture.builder.set).toHaveBeenCalledExactlyOnceWith({ name: "new" });
+		expect(fixture.repository.findOneOrFail.mock.calls[0]?.[0].select).toEqual({ id: true, name: true });
+	});
+
+	it.each(["id", "secret", "createdAt", "updatedAt", "version", "deletedAt", "generated", "readOnly", "unknown", "relation"])("rejects unselected, managed, primary or unknown supplied field %s", async (key) => {
+		const fixture = createPatchFixture();
+		await expect(fixture.service.update({ id: "id-1" }, { [key]: "new" })).rejects.toMatchObject({ status: 400 });
+		expect(fixture.execute).not.toHaveBeenCalled();
+	});
+
+	it("validates subscriber replacement without invoking nested accessors, executable data or proxy traps", async () => {
+		for (const kind of ["accessor", "function", "proxy"]) {
+			const fixture = createPatchFixture();
+			const trap = vi.fn(() => {
+				throw new Error("must not execute");
+			});
+			const nested = kind === "accessor" ? Object.defineProperty({}, "value", { enumerable: true, get: trap }) : kind === "function" ? { value: trap } : new Proxy({}, { ownKeys: trap });
+			fixture.before.mockImplementation(async (_constructor, _entity, functionType) => (functionType === EApiFunctionType.UPDATE ? ({ metadata: nested } as never) : undefined));
+			await expect(fixture.service.update({ id: "id-1" }, { name: "new" })).rejects.toMatchObject({ status: 400 });
+			expect(trap).not.toHaveBeenCalled();
+			expect(fixture.execute).not.toHaveBeenCalled();
+			vi.restoreAllMocks();
+		}
+	});
+
+	it("writes a valid subscriber replacement and keeps its nested values detached", async () => {
+		const fixture = createPatchFixture();
+		const replacement = { metadata: { label: "new" }, description: undefined };
+		fixture.before.mockImplementation(async (_constructor, _entity, functionType) => (functionType === EApiFunctionType.UPDATE ? replacement : undefined));
+		await fixture.service.update({ id: "id-1" }, { name: "incoming" });
+		expect(fixture.builder.set).toHaveBeenCalledExactlyOnceWith({ metadata: { label: "new" } });
+		expect(fixture.builder.set.mock.calls[0]?.[0].metadata).not.toBe(replacement.metadata);
+	});
+
+	it.each([0, undefined, 2])("rejects affected=%s inside the owner and never publishes successful UPDATE AFTER", async (affected) => {
+		const fixture = createPatchFixture();
+		fixture.execute.mockResolvedValue({ affected });
+		await expect(fixture.service.update({ id: "id-1" }, { name: "new" })).rejects.toMatchObject({ status: affected === 0 ? 404 : 500 });
+		expect(fixture.repository.findOneOrFail).not.toHaveBeenCalled();
+		expect(fixture.after.mock.calls.some((call) => call[2] === EApiFunctionType.UPDATE)).toBe(false);
+		expect(fixture.transaction.queryRunner.rollbackTransaction).toHaveBeenCalledOnce();
+	});
+
+	it("retains soft-delete visibility on SQL writes while reloading the immutable primary tuple", async () => {
+		const fixture = createPatchFixture();
+		fixture.metadata.deleteDateColumn = fixture.columns.find((column) => column.propertyName === "deletedAt");
+		await fixture.service.update({ id: "id-1", status: "INACTIVE" }, { status: "ACTIVE" });
+		expect(fixture.builder.where).toHaveBeenCalledWith({ deletedAt: IsNull(), id: Equal("id-1"), status: Equal("INACTIVE") });
+		expect(fixture.repository.findOneOrFail.mock.calls[0]?.[0].where).toEqual({ id: "id-1" });
+	});
+
+	it("fresh-reads an empty patch under its complete scope without UPDATE or version advancement", async () => {
+		const fixture = createPatchFixture();
+		fixture.metadata.deleteDateColumn = fixture.columns.find((column) => column.propertyName === "deletedAt");
+		await fixture.service.update({ id: "id-1", tenantId: "a" }, { name: undefined });
+		expect(fixture.repository.createQueryBuilder).not.toHaveBeenCalled();
+		expect(fixture.repository.findOneOrFail.mock.calls[0]?.[0]).toMatchObject({ cache: false, where: { deletedAt: IsNull(), id: Equal("id-1"), tenantId: Equal("a") } });
+		expect(fixture.after.mock.calls.filter((call) => call[2] === EApiFunctionType.UPDATE)).toHaveLength(1);
+	});
+
+	it.each([EApiFunctionTransactionMode.NONE, EApiFunctionTransactionMode.SUPPORTS])("rejects PATCH with %s before repository I/O", async (mode) => {
+		const fixture = createPatchFixture();
+		const service = buildUpdateService(fixture.baseRepository, mode, EApiFunctionUpdatePersistenceMode.PATCH);
+		await expect(service.update({ id: "id-1" }, { name: "new" })).rejects.toThrow("PATCH");
+		expect(fixture.repository.findOne).not.toHaveBeenCalled();
+		expect(fixture.transaction.dataSource.createQueryRunner).not.toHaveBeenCalled();
 	});
 });

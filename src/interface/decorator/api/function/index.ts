@@ -5,3 +5,4 @@ export type * from "./get";
 export { type IApiFunctionProperties } from "./properties.interface";
 export { type IApiFunctionStepProperties } from "./step-properties.interface";
 export { type IApiFunctionUpdateExecutorProperties } from "./update-executor-properties.interface";
+export { type IApiFunctionUpdateProperties } from "./update-properties.interface";

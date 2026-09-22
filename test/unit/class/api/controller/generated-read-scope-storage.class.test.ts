@@ -4,7 +4,7 @@ import { EApiFunctionType } from "@enum/decorator/api";
 import type { FindManyOptions, FindOneOptions } from "typeorm";
 
 import { Column, DataSource, Entity, Equal, PrimaryColumn } from "typeorm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 @Entity({ name: "generated_read_scope_cache" })
 class GeneratedReadScopeEntity {
@@ -16,6 +16,79 @@ class GeneratedReadScopeEntity {
 }
 
 describe("ApiControllerGeneratedReadScopeStorage", () => {
+	it("captures write hydration options once with independent query and capture snapshots", async () => {
+		const input = { where: { id: "item" } };
+		const options: FindOneOptions<GeneratedReadScopeEntity> = { select: { id: true, tenantId: true }, where: input.where };
+		let captured: FindOneOptions<GeneratedReadScopeEntity> | undefined;
+		const capture = vi.fn((properties: FindOneOptions<GeneratedReadScopeEntity>) => {
+			captured = properties;
+		});
+
+		await ApiControllerGeneratedReadScopeStorage.runWriteHydration(
+			input,
+			input.where,
+			async () => {
+				expect(ApiControllerGeneratedReadScopeStorage.captureWriteHydrationReadProperties(input, options)).toBe(options);
+				ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, input);
+				expect(ApiControllerGeneratedReadScopeStorage.captureWriteHydrationReadProperties({}, options)).toBe(options);
+				expect(capture).not.toHaveBeenCalled();
+
+				const queryOptions = ApiControllerGeneratedReadScopeStorage.captureWriteHydrationReadProperties(input, options);
+				expect(capture).toHaveBeenCalledOnce();
+				expect(queryOptions).toEqual(options);
+				expect(captured).toEqual(options);
+				expect(queryOptions).not.toBe(options);
+				expect(captured).not.toBe(queryOptions);
+				(options.select as { tenantId?: boolean }).tenantId = false;
+				(queryOptions.where as { id: string }).id = "query-mutated";
+				expect(captured).toEqual({ select: { id: true, tenantId: true }, where: { id: "item" } });
+				expect(queryOptions.select).toEqual({ id: true, tenantId: true });
+				expect(() => ApiControllerGeneratedReadScopeStorage.captureWriteHydrationReadProperties(input, queryOptions)).toThrow("captured exactly once");
+			},
+			capture,
+		);
+	});
+
+	it("requires capture on successful opted-in hydration and preserves callback errors", async () => {
+		const input = { where: { id: "item" } };
+		const capture = vi.fn();
+		await expect(
+			ApiControllerGeneratedReadScopeStorage.runWriteHydration(
+				input,
+				input.where,
+				async () => {
+					ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, input);
+					return "uncaptured";
+				},
+				capture,
+			),
+		).rejects.toThrow("did not capture its read properties");
+
+		const error = new Error("query-failed");
+		await expect(
+			ApiControllerGeneratedReadScopeStorage.runWriteHydration(
+				input,
+				input.where,
+				async () => {
+					ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, input);
+					throw error;
+				},
+				capture,
+			),
+		).rejects.toBe(error);
+		expect(capture).not.toHaveBeenCalled();
+	});
+
+	it("leaves ordinary GET and SAVE hydration options unchanged without capture opt-in", async () => {
+		const input = { where: { id: "item" } };
+		const options = Object.freeze({ where: input.where });
+		expect(ApiControllerGeneratedReadScopeStorage.captureWriteHydrationReadProperties(input, options)).toBe(options);
+		await ApiControllerGeneratedReadScopeStorage.runWriteHydration(input, input.where, async () => {
+			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, input);
+			expect(ApiControllerGeneratedReadScopeStorage.captureWriteHydrationReadProperties(input, options)).toBe(options);
+		});
+	});
+
 	it("binds a detached mandatory scope to the exact input once and supports frozen subscriber options", async () => {
 		const requiredOperator = Equal("tenant-required");
 		const input = { where: { id: "item-required", tenantId: requiredOperator } };

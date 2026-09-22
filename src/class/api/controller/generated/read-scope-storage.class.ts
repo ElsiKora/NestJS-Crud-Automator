@@ -4,6 +4,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGeneratedReadScopeEntry } from "@interface/class/api/controller/generated/read-scope-entry.interface";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiControllerGeneratedScopeFunctionType } from "@type/class/api/controller/generated/scope-function-type.type";
+import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
 
 import { AsyncLocalStorage as NodeAsyncLocalStorage } from "node:async_hooks";
 
@@ -19,6 +20,24 @@ import { ErrorException } from "@utility/error/exception.utility";
  */
 export class ApiControllerGeneratedReadScopeStorage {
 	private static readonly STORAGE: AsyncLocalStorage<IApiControllerGeneratedReadScopeEntry> = new NodeAsyncLocalStorage<IApiControllerGeneratedReadScopeEntry>();
+
+	public static captureWriteHydrationReadProperties<T extends object>(input: object, properties: T): T {
+		const entry: IApiControllerGeneratedReadScopeEntry | undefined = this.STORAGE.getStore();
+
+		if (!entry?.captureWriteHydrationReadProperties || !this.isWriteHydration(EApiFunctionType.GET, input)) {
+			return properties;
+		}
+
+		if (entry.isWriteHydrationReadCaptured) {
+			throw ErrorException("Write hydration read properties must be captured exactly once");
+		}
+
+		entry.isWriteHydrationReadCaptured = true;
+		const detachedProperties: T = ApiControllerGeneratedSecuritySnapshot.detach(properties);
+		entry.captureWriteHydrationReadProperties(ApiControllerGeneratedSecuritySnapshot.detach(detachedProperties));
+
+		return detachedProperties;
+	}
 
 	public static claim<E extends IApiBaseEntity>(functionType: TApiControllerGeneratedScopeFunctionType, input: object): TApiAuthorizationScopeWhere<E> | undefined {
 		const entry: IApiControllerGeneratedReadScopeEntry | undefined = this.STORAGE.getStore();
@@ -91,18 +110,31 @@ export class ApiControllerGeneratedReadScopeStorage {
 		return this.runWithEntry(functionType, input, where, callback, false);
 	}
 
-	public static runWriteHydration<E extends IApiBaseEntity, R>(input: object, where: TApiAuthorizationScopeWhere<E>, callback: () => Promise<R>): Promise<R> {
-		return this.runWithEntry(EApiFunctionType.GET, input, where, callback, true);
+	public static runWriteHydration<E extends IApiBaseEntity, R>(input: object, where: TApiAuthorizationScopeWhere<E>, callback: () => Promise<R>, captureReadProperties?: (properties: TApiFunctionGetProperties<E>) => void): Promise<R> {
+		return this.runWithEntry(
+			EApiFunctionType.GET,
+			input,
+			where,
+			callback,
+			true,
+			captureReadProperties
+				? (properties: object): void => {
+						captureReadProperties(properties);
+					}
+				: undefined,
+		);
 	}
 
-	private static runWithEntry<E extends IApiBaseEntity, R>(functionType: TApiControllerGeneratedScopeFunctionType, input: object, where: TApiAuthorizationScopeWhere<E>, callback: () => Promise<R>, isWriteHydration: boolean): Promise<R> {
+	private static runWithEntry<E extends IApiBaseEntity, R>(functionType: TApiControllerGeneratedScopeFunctionType, input: object, where: TApiAuthorizationScopeWhere<E>, callback: () => Promise<R>, isWriteHydration: boolean, captureWriteHydrationReadProperties?: (properties: object) => void): Promise<R> {
 		const normalizedWhere: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(undefined, ApiControllerGeneratedSecuritySnapshot.detach(where));
 
 		const entry: IApiControllerGeneratedReadScopeEntry = {
+			captureWriteHydrationReadProperties,
 			functionType,
 			input,
 			isClaimed: false,
 			isWriteHydration,
+			isWriteHydrationReadCaptured: false,
 			where: normalizedWhere,
 		};
 
@@ -111,6 +143,10 @@ export class ApiControllerGeneratedReadScopeStorage {
 
 			if (!entry.isClaimed) {
 				throw ErrorException("Generated service function did not claim its mandatory scope");
+			}
+
+			if (entry.captureWriteHydrationReadProperties && !entry.isWriteHydrationReadCaptured) {
+				throw ErrorException("Write hydration did not capture its read properties");
 			}
 
 			return result;

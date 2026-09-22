@@ -2,7 +2,8 @@ import type { Repository } from "typeorm";
 
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunction } from "@decorator/api/function/decorator";
-import { EApiFunctionType } from "@enum/decorator/api";
+import { EApiFunctionTransactionMode, EApiFunctionType, EApiFunctionUpdatePersistenceMode } from "@enum/decorator/api";
+import type { TApiFunctionProperties } from "@type/decorator/api/function";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 class FunctionEntity {
@@ -28,6 +29,20 @@ const applyDecorator = (decorator: ReturnType<typeof ApiFunction>): void => {
 };
 
 describe("ApiFunction", () => {
+	it("rejects persistence mode on a non-UPDATE configuration", () => {
+		expect(() => ApiFunction({ entity: FunctionEntity, type: EApiFunctionType.GET, persistenceMode: EApiFunctionUpdatePersistenceMode.PATCH } as unknown as TApiFunctionProperties<FunctionEntity>)).toThrow("only supported for UPDATE");
+	});
+
+	it("forwards UPDATE persistence mode to its native transaction preflight", async () => {
+		const repository = { findOne: vi.fn(), save: vi.fn() } as unknown as Repository<FunctionEntity>;
+		const service = new FunctionService(repository);
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+		applyDecorator(ApiFunction({ entity: FunctionEntity, type: EApiFunctionType.UPDATE, persistenceMode: EApiFunctionUpdatePersistenceMode.PATCH, transaction: { mode: EApiFunctionTransactionMode.SUPPORTS } }));
+		await expect(service.handler({ id: "id-1" }, { name: "new" })).rejects.toThrow(/PATCH/);
+		expect(repository.findOne).not.toHaveBeenCalled();
+		expect(repository.save).not.toHaveBeenCalled();
+	});
+
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});

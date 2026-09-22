@@ -25,6 +25,10 @@ import { ErrorException } from "@utility/error/exception.utility";
 export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctionProperties<E>): (target: unknown, propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
 	const { entity, type }: TApiFunctionProperties<E> = properties;
 
+	if (type !== EApiFunctionType.UPDATE && properties.persistenceMode !== undefined) {
+		throw ErrorException("Persistence mode is only supported for UPDATE");
+	}
+
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		const originalMethod: unknown = descriptor.value;
 
@@ -70,7 +74,7 @@ export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctio
 				}
 
 				case EApiFunctionType.UPDATE: {
-					decoratorFunction = ApiFunctionUpdate({ entity, transaction: properties.transaction });
+					decoratorFunction = ApiFunctionUpdate({ entity, persistenceMode: properties.persistenceMode, transaction: properties.transaction });
 
 					break;
 				}
