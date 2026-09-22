@@ -1,3 +1,13 @@
+# [4.4.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.3.5...v4.4.0) (2026-09-22)
+
+### Bug Fixes
+
+- **metadata:** use object for property decorator targets ([4aa5b79](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/4aa5b79e12e1177fcddbd3b3c1ac5f383733d43f))
+
+### Features
+
+- **update:** support atomic supplied-column patches ([195004c](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/195004c7ac40de0e1d5f05a374443811ed1cda27))
+
 ## [4.3.5](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.3.4...v4.3.5) (2026-09-03)
 
 ### Bug Fixes
