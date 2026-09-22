@@ -87,7 +87,7 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/core-concepts/entities | Core Concepts - Entities}
  */
 export function ApiPropertyDescribe(properties: TApiPropertyDescribeProperties): PropertyDecorator {
-	return (target: Record<never, unknown>, propertyKey: string | symbol): void => {
+	return (target: object, propertyKey: string | symbol): void => {
 		const entityName: string = target.constructor.name;
 		MetadataStorage.getInstance().setMetadata(entityName, propertyKey, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY, properties);
 	};
