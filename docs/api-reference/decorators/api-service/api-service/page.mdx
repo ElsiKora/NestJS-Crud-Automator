@@ -8,10 +8,11 @@ Extends a provider with CRUD-ready methods (`create`, `update`, `delete`, `get`,
 @ApiService<E extends IApiBaseEntity>({ entity, functions }: TApiServiceProperties<E>)
 ```
 
-| Property                           | Type                          | Description                                                                 |
-| ---------------------------------- | ----------------------------- | --------------------------------------------------------------------------- |
-| `entity`                           | `new () => E`                 | Entity constructor for generated CRUD functions.                            |
-| `functions[type].transaction.mode` | `EApiFunctionTransactionMode` | Optional transaction mode for a generated function. Defaults to `SUPPORTS`. |
+| Property                                             | Type                                | Description                                                                                                            |
+| ---------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `entity`                                             | `new () => E`                       | Entity constructor for generated CRUD functions.                                                                       |
+| `functions[type].transaction.mode`                   | `EApiFunctionTransactionMode`       | Optional transaction mode for a generated function. Defaults to `SUPPORTS`.                                            |
+| `functions[EApiFunctionType.UPDATE].persistenceMode` | `EApiFunctionUpdatePersistenceMode` | `SAVE` by default; opt-in `PATCH` preserves omitted concurrent fields and requires explicit `REQUIRED` or `MANDATORY`. |
 
 ## Requirements
 
@@ -61,6 +62,8 @@ export class UserService extends ApiServiceBase<UserEntity> {
 ```
 
 The `functions` map accepts generated function types (`CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, `GET_MANY`). Omitted entries keep the default `SUPPORTS` transaction mode. It does not configure `CUSTOM`; use `@ApiFunctionCustom` for custom service commands.
+
+The UPDATE-only persistence option follows the [native UPDATE contract](/docs/nestjs-crud-automator/api-reference/decorators/api-function/api-function-update): PATCH requires a complete equality primary key and flat selected writable columns, retains the effective write scope and performs a fresh native read under the same owner. SAVE keeps entity/relation/cascade semantics. Configuring a persistence mode on another function is rejected.
 
 ## Related resources
 

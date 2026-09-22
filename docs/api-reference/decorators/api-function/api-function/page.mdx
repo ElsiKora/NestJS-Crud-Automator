@@ -10,12 +10,13 @@ Factory decorator that selects the appropriate CRUD decorator (`create`, `update
 
 ## Options
 
-| Option             | Type                          | Description                                                                               |
-| ------------------ | ----------------------------- | ----------------------------------------------------------------------------------------- |
-| `entity`           | `new () => E`                 | Entity constructor used to instantiate temporary instances for metadata generation.       |
-| `type`             | `EApiFunctionType`            | Target operation (`CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, `GET_MANY`, `CUSTOM`). |
-| `action`           | `string`                      | Optional action name for custom function subscriber filtering.                            |
-| `transaction.mode` | `EApiFunctionTransactionMode` | Optional transaction mode. Defaults to `SUPPORTS`.                                        |
+| Option             | Type                                | Description                                                                                                                             |
+| ------------------ | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `entity`           | `new () => E`                       | Entity constructor used to instantiate temporary instances for metadata generation.                                                     |
+| `type`             | `EApiFunctionType`                  | Target operation (`CREATE`, `UPDATE`, `DELETE`, `GET`, `GET_LIST`, `GET_MANY`, `CUSTOM`).                                               |
+| `action`           | `string`                            | Optional action name for custom function subscriber filtering.                                                                          |
+| `transaction.mode` | `EApiFunctionTransactionMode`       | Optional transaction mode. Defaults to `SUPPORTS`.                                                                                      |
+| `persistenceMode`  | `EApiFunctionUpdatePersistenceMode` | UPDATE only: `SAVE` by default; explicit `PATCH` writes only supplied selected writable columns and requires `REQUIRED` or `MANDATORY`. |
 
 ## Behavior
 

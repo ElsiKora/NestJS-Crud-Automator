@@ -6,7 +6,7 @@ Adds update semantics to a service method, including DTO validation, repository 
 
 ```typescript
 @ApiFunctionUpdate<E extends IApiBaseEntity>(
-	properties: IApiFunctionProperties<E>
+	properties: IApiFunctionUpdateProperties<E>
 )
 ```
 
@@ -18,11 +18,34 @@ Decorated methods gain the shape `update(criteria: TApiFunctionUpdateCriteria<E>
 - Runs the complete GET before/get/after lifecycle and raises the native decorated GET `404` when the entity is missing.
 - Gives `onBeforeUpdate` the incoming DTO in `context.result`, the active manager repository when a transaction exists (otherwise the service base repository) in `context.DATA.repository`, and a top-level detached and frozen shallow snapshot in `context.DATA.currentEntity`.
 - Treats enumerable own patch fields whose value is `undefined` as omitted before subscribers and persistence, while preserving explicit `null` values. A patch with no such fields keeps its original object identity, and a subscriber-replaced patch is normalized again before persistence.
-- Merges the subscriber-returned patch into the internally loaded entity and saves through the same repository without another explicit Automator GET.
+- Defaults to `EApiFunctionUpdatePersistenceMode.SAVE`: merges the subscriber-returned patch into the internally loaded entity and saves through the same repository without another explicit Automator GET.
 - Executes `onAfterUpdate` subscribers; their return value can replace the final response.
 - Skips `onBeforeUpdate` when the GET misses, preserves the GET error lifecycle, and then invokes the UPDATE error lifecycle with the same error.
 
 `currentEntity` is typed as `Readonly<E>`, but runtime immutability is intentionally shallow. Only the top-level object is detached and frozen. Nested relations, arrays, JSON objects, `Date`, `Buffer`, and lazy values retain aliases to the internal loaded entity, so mutating them can affect persistence. The top-level snapshot itself is never merged or saved, and this feature does not add a row lock.
+
+## Supplied-column persistence
+
+Use `persistenceMode: EApiFunctionUpdatePersistenceMode.PATCH` for flat updates that must preserve concurrent changes to omitted fields. For example, changing only an address allowlist preserves a state change committed by another transaction after the initial GET. Explicitly supplying the old state still writes it; PATCH is not optimistic version checking.
+
+```typescript
+@ApiFunctionUpdate<PostEntity>({
+	entity: PostEntity,
+	persistenceMode: EApiFunctionUpdatePersistenceMode.PATCH,
+	transaction: { mode: EApiFunctionTransactionMode.REQUIRED },
+})
+```
+
+PATCH requires explicitly configured `REQUIRED` or `MANDATORY`. It retains GET and UPDATE subscriber order and the shallow `currentEntity` snapshot. It performs an atomic native UPDATE with only supplied selected writable columns, followed by a fresh native read under the same owner before UPDATE-after subscribers. The reread does not invoke another Automator GET lifecycle. TypeORM update listeners/subscribers receive the native partial UPDATE event, not a fabricated SAVE entity.
+
+- Criteria must constrain every direct primary-key column to the same non-null equality in every OR branch. Literal equality, `Equal`, and an equality inside `And` are supported; broad or divergent identities reject. Identity comes from criteria, including when load hooks change the hydrated key's presentation.
+- The effective GET scope is retained for the write, including implicit soft-delete visibility. Zero affected rows means not found; an unsupported or ambiguous affected count fails in the owner transaction. After a successful write, the reread uses the captured key and projection without reapplying a mutable old filter that the patch changed.
+- Selection comes from effective GET options after before-subscribers. Default selection uses metadata; an explicit flat selection must include all primary columns and at least one selected column. Constructor defaults do not make an unselected field writable or cause hidden fields to be loaded.
+- Only selected direct physical writable columns may appear in the patch. Primary, generated, create-date, update-date, version and delete-date columns remain native-owned. Unknown, relation, embedded and unselected fields reject. Undefined fields are omitted; explicit null remains a write. Functions, accessors and proxies in supplied data reject before persistence.
+- Hydration must be flat: requested relations, relation IDs, deprecated joins, lazy/embedded hydration and initial row locks reject. Ordinary unloaded relation metadata is allowed; eager relations require explicit `loadEagerRelations: false`. Native load hooks retain their normal hydration semantics.
+- An empty normalized patch issues no UPDATE or version increment. It rereads using the captured effective scope and then executes the ordinary UPDATE-after lifecycle.
+
+SAVE remains appropriate when full entity persistence, relation cascades or nested mutation semantics are required. Its behavior is unchanged by the opt-in mode.
 
 ## Example
 
