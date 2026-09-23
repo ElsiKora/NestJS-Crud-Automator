@@ -3,6 +3,8 @@ import type { IApiFunctionTransactionFailure } from "@interface/class/api/functi
 import type { IApiSubscriberFunction, IApiSubscriberFunctionTransactionContext } from "@interface/class/api/subscriber/function";
 import type { DataSource, EntityManager, QueryRunner, Repository } from "typeorm";
 
+import { ApiFunctionTransactionRegistry } from "@class/api/function/transaction/registry.class";
+import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionCommitUnknownOutcomeException, ApiFunctionTransactionPostCommitException } from "@class/api/function/transaction/exception";
 import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
@@ -34,6 +36,7 @@ describe("ApiFunctionExecuteWithTransaction", () => {
 	});
 
 	afterEach(() => {
+		vi.restoreAllMocks();
 		resetApiSubscriberRegistry();
 	});
 
@@ -348,5 +351,127 @@ describe("ApiFunctionExecuteWithTransaction", () => {
 
 		expect(subscriber.onAfterCommit).not.toHaveBeenCalled();
 		expect(subscriber.onAfterRollback).not.toHaveBeenCalled();
+	});
+	it("times only reached native callbacks, preserving inclusive nested intervals and excluding event bookkeeping", async () => {
+		class Entity {}
+		const { dataSource } = createTransactionFixture();
+		let clock = 0;
+		vi.spyOn(performance, "now").mockImplementation(() => clock);
+		const originalBegin = ApiFunctionTransactionRegistry.prototype.beginEvent;
+		const originalSucceed = ApiFunctionTransactionRegistry.prototype.succeedEvent;
+		vi.spyOn(ApiFunctionTransactionRegistry.prototype, "beginEvent").mockImplementation(function (this: ApiFunctionTransactionRegistry, options) {
+			clock += 100;
+			return originalBegin.call(this, options);
+		});
+		vi.spyOn(ApiFunctionTransactionRegistry.prototype, "succeedEvent").mockImplementation(function (this: ApiFunctionTransactionRegistry, sequence) {
+			clock += 200;
+			return originalSucceed.call(this, sequence);
+		});
+		const observe = vi.fn();
+		const selectors = ["outer", "inner"].map((methodName) => ({ entity: Entity, functionType: EApiFunctionTransactionTraceType.STEP, methodName }));
+		await ApiFunctionTransactionScope.runWithDataSource(
+			dataSource,
+			{ name: "timing", observation: { onSettled: observe, selectors } },
+			async () =>
+				await ApiFunctionExecuteWithTransaction({
+					callback: async () => {
+						clock += 1.25;
+						await ApiFunctionExecuteWithTransaction({
+							callback: async () => {
+								clock += 2.5;
+							},
+							entity: Entity,
+							functionType: EApiFunctionTransactionTraceType.STEP,
+							methodName: "inner",
+							mode: EApiFunctionTransactionMode.REQUIRED,
+						});
+						clock += 4.75;
+					},
+					entity: Entity,
+					functionType: EApiFunctionTransactionTraceType.STEP,
+					methodName: "outer",
+					mode: EApiFunctionTransactionMode.MANDATORY,
+				}),
+		);
+		expect(observe).toHaveBeenCalledWith({
+			droppedCount: 0,
+			measurements: [
+				{ durationMs: 308.5, selectorIndex: 0, status: EApiFunctionTransactionEventStatus.SUCCEEDED },
+				{ durationMs: 2.5, selectorIndex: 1, status: EApiFunctionTransactionEventStatus.SUCCEEDED },
+			],
+			outcome: EApiFunctionTransactionOutcome.COMMITTED,
+		});
+	});
+
+	it("does not time mode preflight failures or nontransactional callbacks", async () => {
+		class Entity {}
+		const { dataSource } = createTransactionFixture();
+		const now = vi.spyOn(performance, "now");
+		const observe = vi.fn();
+		const execute = (mode: EApiFunctionTransactionMode) => ApiFunctionExecuteWithTransaction({ callback: async () => "result", entity: Entity, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "step", mode });
+		await expect(execute(EApiFunctionTransactionMode.MANDATORY)).rejects.toThrow("requires an active transaction");
+		await expect(execute(EApiFunctionTransactionMode.NONE)).resolves.toBe("result");
+		await expect(execute(EApiFunctionTransactionMode.SUPPORTS)).resolves.toBe("result");
+		await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "preflight", observation: { onSettled: observe, selectors: [{ entity: Entity, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "step" }] } }, async () => {
+			await expect(execute(EApiFunctionTransactionMode.NONE)).rejects.toThrow("cannot run inside an active transaction");
+		});
+		expect(now).not.toHaveBeenCalled();
+		expect(observe).toHaveBeenCalledWith({ droppedCount: 0, measurements: [], outcome: EApiFunctionTransactionOutcome.COMMITTED });
+	});
+
+	it("delivers successful step measurements after a real post-commit hook failure without changing the exception", async () => {
+		class Entity {}
+		class Service {}
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, Service);
+		const { dataSource, queryRunner } = createTransactionFixture();
+		const hookError = new Error("hook failure");
+		const order: Array<string> = [];
+		apiSubscriberRegistry.registerFunctionSubscriber(
+			{ entity: Entity },
+			{
+				onAfterCommit: async () => {
+					order.push("hook");
+					throw hookError;
+				},
+			},
+		);
+		const observe = vi.fn(() => {
+			order.push("observe");
+		});
+		await expect(
+			ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "post-commit", observation: { onSettled: observe, selectors: [{ entity: Entity, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "step" }] } }, async () => {
+				await ApiFunctionExecuteWithTransaction({ callback: async () => undefined, entity: Entity, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "step", mode: EApiFunctionTransactionMode.MANDATORY });
+				await ApiFunctionExecuteWithTransaction({ callback: async () => undefined, entity: Entity, functionType: EApiFunctionType.UPDATE, methodName: "update", mode: EApiFunctionTransactionMode.SUPPORTS, serviceConstructor: Service });
+			}),
+		).rejects.toMatchObject({ name: ApiFunctionTransactionPostCommitException.name, outcome: EApiFunctionTransactionOutcome.COMMITTED, cause: hookError });
+		expect(order).toEqual(["hook", "observe"]);
+		expect(observe).toHaveBeenCalledWith({ droppedCount: 0, measurements: [expect.objectContaining({ selectorIndex: 0, status: EApiFunctionTransactionEventStatus.SUCCEEDED })], outcome: EApiFunctionTransactionOutcome.COMMITTED });
+		expect(queryRunner.rollbackTransaction).not.toHaveBeenCalled();
+	});
+
+	it("keeps reached step failure distinct from successful nested work when the owner rolls back", async () => {
+		class Entity {}
+		const { dataSource } = createTransactionFixture();
+		const error = new Error("same error");
+		const observe = vi.fn();
+		const selectors = ["outer", "inner"].map((methodName) => ({ entity: Entity, functionType: EApiFunctionTransactionTraceType.STEP, methodName }));
+		await expect(
+			ApiFunctionTransactionScope.runWithDataSource(
+				dataSource,
+				{ name: "rollback", observation: { onSettled: observe, selectors } },
+				async () =>
+					await ApiFunctionExecuteWithTransaction({
+						callback: async () => {
+							await ApiFunctionExecuteWithTransaction({ callback: async () => undefined, entity: Entity, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "inner", mode: EApiFunctionTransactionMode.SUPPORTS });
+							throw error;
+						},
+						entity: Entity,
+						functionType: EApiFunctionTransactionTraceType.STEP,
+						methodName: "outer",
+						mode: EApiFunctionTransactionMode.MANDATORY,
+					}),
+			),
+		).rejects.toBe(error);
+		expect(observe).toHaveBeenCalledWith({ droppedCount: 0, measurements: [expect.objectContaining({ selectorIndex: 0, status: EApiFunctionTransactionEventStatus.FAILED }), expect.objectContaining({ selectorIndex: 1, status: EApiFunctionTransactionEventStatus.SUCCEEDED })], outcome: EApiFunctionTransactionOutcome.ROLLED_BACK });
 	});
 });

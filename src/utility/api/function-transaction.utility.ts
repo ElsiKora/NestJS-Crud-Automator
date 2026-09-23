@@ -6,7 +6,7 @@ import type { EntityManager, Repository } from "typeorm";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/runtime.class";
 import { SERVICE_API_DECORATOR_CONSTANT } from "@constant/decorator/api/service.constant";
-import { EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind } from "@enum/decorator/api";
+import { EApiFunctionTransactionEventStatus, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind } from "@enum/decorator/api";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
@@ -54,8 +54,11 @@ export async function ApiFunctionExecuteWithTransaction<E extends IApiBaseEntity
 			methodName: options.methodName,
 		});
 
+		const observationIndex: number | undefined = registry?.beginObservation(options);
+
 		try {
 			const result: R = await options.callback(eventManager);
+			registry?.completeObservation(observationIndex, EApiFunctionTransactionEventStatus.SUCCEEDED);
 
 			if (sequence !== undefined) {
 				registry?.succeedEvent(sequence);
@@ -63,6 +66,8 @@ export async function ApiFunctionExecuteWithTransaction<E extends IApiBaseEntity
 
 			return result;
 		} catch (error) {
+			registry?.completeObservation(observationIndex, EApiFunctionTransactionEventStatus.FAILED);
+
 			if (sequence !== undefined) {
 				registry?.failEvent(sequence, error);
 			}

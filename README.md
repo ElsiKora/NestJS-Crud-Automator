@@ -652,6 +652,32 @@ await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "registe
 
 The callback receives the exact manager owned by the named scope. Decorated operations join it automatically; use the argument for transaction-bound raw repository or migration work. The scope name is trimmed and must be non-empty. `runWithEntityManager()` is join-only: it accepts only the manager already bound to an active Automator transaction and never opens a second transaction.
 
+Named scopes can also select bounded execution measurements without adding ordinary function subscribers:
+
+```typescript
+await ApiFunctionTransactionScope.runWithDataSource(
+	dataSource,
+	{
+		name: "register-user",
+		observation: {
+			selectors: [{ entity: UserEntity, functionType: EApiFunctionType.CREATE, methodName: "create" }],
+			onSettled(snapshot) {
+				captureTransactionObservation(snapshot);
+			},
+		},
+	},
+	async () => await userService.create(properties),
+);
+```
+
+`captureTransactionObservation` is an application-provided bounded synchronous capture function, not a package API. Selectors match the exact entity constructor, native function type (or `EApiFunctionTransactionTraceType.STEP`) and method name. The package copies the selectors and callback before query-runner work, rejects duplicate selectors and invalid configuration, and allows at most 32 selectors with nonblank method names of at most 256 characters. An empty selector list produces only the owner settlement. `runWithEntityManager()` continues to join the existing owner and cannot replace observation.
+
+Each owner reserves at most 256 selected invocations at their start, including overlapping work. The detached, frozen snapshot contains `measurements` with only `selectorIndex`, fractional `durationMs` and native execution `status`, plus the existing transaction `outcome` and `droppedCount`. The index refers to the configured selector order. Omitted intervals include capacity overflow, incomplete work at settlement and unavailable/invalid clock samples. Late completions are ignored. No transaction IDs, arguments, results, entities, managers or raw errors enter this projection; ordinary transaction event shapes and pending-event rules stay unchanged.
+
+Duration covers the actual native execution callback, including STEP context construction or CUSTOM subscriber work, and excludes its own transaction preflight and event bookkeeping. Nested intervals are inclusive: do not sum them or label them as isolated method-body, SQL or lock-wait time. A successful execution remains `SUCCEEDED` if its owner later rolls back or has an unknown commit outcome. Disabled and unmatched observation performs no clock sampling; rejected preflight or failed owner startup creates no fabricated duration.
+
+`onSettled` runs once after the best-effort release attempt, context exit and terminal lifecycle hooks have finished or failed. It does not run when owner startup fails. Its synchronous throws and accidental Promise/thenable rejections are contained; returned asynchronous work is never awaited and cannot replace the original result or error. Synchronous callback work still adds latency, so capture into a bounded application buffer and let its existing transport own delivery. STEP remains trace-only and does not become an ordinary subscriber event. The public observation types and `API_FUNCTION_TRANSACTION_OBSERVATION_CONSTANT` are available from the package root.
+
 Function subscribers can react once after the outer commit or rollback. The observed service must use `@ApiServiceObservable()`, and the subscriber must be registered as a Nest provider:
 
 ```typescript

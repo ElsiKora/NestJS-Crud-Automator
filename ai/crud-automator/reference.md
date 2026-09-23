@@ -261,6 +261,20 @@ Post-transaction function subscriber lifecycle:
 
 For generated CRUD before hooks, `context.result` includes request targets plus `authenticationRequest`, `headers`, and `ip`. For `@ApiRouteCustom`, `context.result` is only `{ body?, parameters?, query? }`; read `authenticationRequest`, `headers`, `ip`, route metadata, and runtime properties from `context.DATA`.
 
+## Named Owner Execution Observation
+
+`runWithDataSource(dataSource, { name, observation }, callback)` accepts `IApiFunctionTransactionObservationOptions` from the package root:
+
+- `selectors`: up to 32 entries with `entity` constructor identity, `functionType` (native CRUD/CUSTOM or STEP) and exact `methodName`. Method names must be nonblank and at most 256 characters. Duplicate tuples reject before query-runner I/O. Selectors and `onSettled` are copied before any await; an empty selector list is valid.
+- `onSettled`: bounded synchronous capture receiving `Readonly<IApiFunctionTransactionObservationSnapshot>` once after the best-effort release attempt, context teardown and terminal lifecycle, including hook failure. Failed startup and rejected nested owners do not deliver a snapshot. Synchronous throws and accidental asynchronous rejections are isolated; delivery is never awaited.
+- `measurements`: at most 256 immutable records containing only `selectorIndex`, `durationMs` and `EApiFunctionTransactionEventStatus`. Capacity is reserved at invocation start, including concurrent work. Records follow invocation order; late completions after settlement are ignored.
+- `outcome`: existing `COMMITTED`, `ROLLED_BACK` or `UNKNOWN`, independent of each execution status. A successful callback followed by failed commit stays successful in its measurement and has owner outcome `UNKNOWN`.
+- `droppedCount`: omitted selected intervals, including capacity overflow, incomplete execution at settlement and invalid/unavailable clocks; saturates at the maximum safe integer. Do not silently treat a truncated snapshot as a complete sample.
+
+The measured interval is the actual native callback after its own event registration and before its completion bookkeeping. It includes STEP context creation, CUSTOM subscribers and nested operations. Intervals overlap and cannot be summed; they are not isolated method-body, SQL or database-lock-wait duration. Mode preflight and unselected execution do not produce measurements. No observation clock is read when disabled or unmatched.
+
+Observation is a separate diagnostic projection. It neither expands the ordinary event ABI nor alters pending-event errors, subscriber selection, transaction ownership or financial semantics. STEP remains trace-only. `runWithEntityManager` and nested joining functions use their existing owner; they cannot install another observer. No raw errors, UUIDs, managers, arguments, results or entity instances enter the output. The limits are exported through `API_FUNCTION_TRANSACTION_OBSERVATION_CONSTANT`. A synchronous capture callback still contributes request latency; transport and buffering remain application responsibilities.
+
 ## Authorization Notes
 
 - Generated CRUD route actions map to the authorization runtime automatically.

@@ -1,3 +1,4 @@
+export { API_FUNCTION_TRANSACTION_OBSERVATION_CONSTANT } from "./api-function-transaction-observation.constant";
 export * from "./class";
 export { DATE_CONSTANT } from "./date.constant";
 export * from "./decorator";

@@ -65,6 +65,14 @@ Use `@ApiFunctionStep` only for internal transaction-aware service helpers, incl
 
 Inside a step, prefer `this.getApiFunctionStepContext()` for `eventManager`, `repository`, and `getRepository()`. It intentionally does not expose `operations`; standalone domain actions should remain `@ApiFunctionCustom`.
 
+## Misinterpreting Execution Observation
+
+Named-owner observation measures inclusive native callback execution, including context creation, subscribers and nested work. It is not isolated SQL or database-lock-wait time, and parent/child durations must not be summed. Match entity constructors, not their names; distinct constructors may share a name.
+
+Keep execution status separate from owner outcome. A successful step can belong to a rolled-back or unknown transaction, and a later post-commit hook failure does not undo COMMIT. Preflight failures, failed startup and unreached selectors create no duration. Report `droppedCount` when capacity, incomplete work or invalid clocks omit selected intervals.
+
+`onSettled` runs after the best-effort release attempt, context exit and terminal lifecycle. It isolates throws/rejections and never awaits returned work; this does not make expensive synchronous callbacks free or preemptible. Use only bounded capture, with transport elsewhere. Observation does not change STEP subscriber behavior, ordinary event payloads, native pending-event errors or transaction ownership.
+
 ## Auto DTO Overreach
 
 `autoDto` is for validators only. It does not control exposure, guard visibility, response serialization, requiredness, or pagination mode. Put the global capability baseline in `ApiPropertyDescribe({ properties })`; use generated GET_LIST `request[QUERY].filter`, `order`, and `pagination` for the generated query contract. Use manual `dto` when generation is not appropriate.

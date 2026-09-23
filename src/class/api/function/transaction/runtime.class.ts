@@ -1,4 +1,4 @@
-import type { IApiFunctionTransactionFailure } from "@interface/class/api/function";
+import type { IApiFunctionTransactionFailure, IApiFunctionTransactionObservationOptions } from "@interface/class/api/function";
 import type { TApiFunctionTransactionOwner } from "@type/class/api/function";
 import type { DataSource, EntityManager, QueryRunner } from "typeorm";
 
@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionLifecycle } from "@class/api/function/transaction/lifecycle.class";
 import { ApiFunctionTransactionRegistry } from "@class/api/function/transaction/registry.class";
-import { EApiFunctionTransactionFailureStage } from "@enum/decorator/api";
+import { EApiFunctionTransactionFailureStage, EApiFunctionTransactionOutcome } from "@enum/decorator/api";
 import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -15,10 +15,12 @@ import { LoggerUtility } from "@utility/logger.utility";
 const transactionLogger: LoggerUtility = LoggerUtility.getLogger("ApiFunctionTransactionRuntime");
 
 export class ApiFunctionTransactionRuntime {
-	public static async execute<R>(options: { callback: (entityManager: EntityManager) => Promise<R>; dataSource: DataSource; owner: TApiFunctionTransactionOwner }): Promise<R> {
+	public static async execute<R>(options: { callback: (entityManager: EntityManager) => Promise<R>; dataSource: DataSource; observation?: Readonly<IApiFunctionTransactionObservationOptions>; owner: TApiFunctionTransactionOwner }): Promise<R> {
 		if (ApiFunctionContextStorage.getTransactionRegistry()) {
 			throw ErrorException("Cannot open an owning transaction inside an active Automator transaction");
 		}
+
+		const registry: ApiFunctionTransactionRegistry = new ApiFunctionTransactionRegistry(randomUUID(), options.owner, options.observation);
 
 		const queryRunner: QueryRunner = options.dataSource.createQueryRunner();
 
@@ -31,7 +33,6 @@ export class ApiFunctionTransactionRuntime {
 			throw error;
 		}
 
-		const registry: ApiFunctionTransactionRegistry = new ApiFunctionTransactionRegistry(randomUUID(), options.owner);
 		const result: { value?: R } = {};
 		let commitCleanupFailure: IApiFunctionTransactionFailure | undefined;
 		let commitError: unknown;
@@ -63,21 +64,30 @@ export class ApiFunctionTransactionRuntime {
 			await ApiFunctionTransactionRuntime.releaseBestEffort(queryRunner);
 		});
 
-		if (hasOperationError) {
-			return await ApiFunctionTransactionLifecycle.executeAfterRollback(registry, operationError, rollbackFailure);
+		let outcome: EApiFunctionTransactionOutcome = EApiFunctionTransactionOutcome.COMMITTED;
+
+		if (hasCommitError || rollbackFailure) outcome = EApiFunctionTransactionOutcome.UNKNOWN;
+		else if (hasOperationError) outcome = EApiFunctionTransactionOutcome.ROLLED_BACK;
+
+		try {
+			if (hasOperationError) {
+				return await ApiFunctionTransactionLifecycle.executeAfterRollback(registry, operationError, rollbackFailure);
+			}
+
+			if (hasCommitError) {
+				return await ApiFunctionTransactionLifecycle.executeCommitUnknown(registry, commitError, commitCleanupFailure);
+			}
+
+			if (!("value" in result)) {
+				throw ErrorException("Automator transaction completed without a committed result");
+			}
+
+			await ApiFunctionTransactionLifecycle.executeAfterCommit(registry);
+
+			return result.value as R;
+		} finally {
+			registry.settleObservation(outcome);
 		}
-
-		if (hasCommitError) {
-			return await ApiFunctionTransactionLifecycle.executeCommitUnknown(registry, commitError, commitCleanupFailure);
-		}
-
-		if (!("value" in result)) {
-			throw ErrorException("Automator transaction completed without a committed result");
-		}
-
-		await ApiFunctionTransactionLifecycle.executeAfterCommit(registry);
-
-		return result.value as R;
 	}
 
 	private static async releaseBestEffort(queryRunner: QueryRunner): Promise<void> {

@@ -343,6 +343,29 @@ export class OrderMetricsSubscriber extends ApiFunctionSubscriberBase<OrderEntit
 
 `runWithEntityManager` is join-only in the current 3.x contract. Post-commit hooks run after the outer owner confirms COMMIT and cannot replace results. Transaction events are payload-free metadata; keep outbox bodies in application-owned state.
 
+## Selected Native Execution Durations
+
+```ts
+import { ApiFunctionTransactionScope, EApiFunctionType, type IApiFunctionTransactionObservationSnapshot } from "@elsikora/nestjs-crud-automator";
+
+// The application supplies a bounded capture function, with transport elsewhere.
+declare const capture: (snapshot: Readonly<IApiFunctionTransactionObservationSnapshot>) => void;
+
+await ApiFunctionTransactionScope.runWithDataSource(
+	dataSource,
+	{
+		name: "close-expired-orders",
+		observation: {
+			selectors: [{ entity: OrderEntity, functionType: EApiFunctionType.UPDATE, methodName: "update" }],
+			onSettled: capture,
+		},
+	},
+	async () => await orderService.closeExpired(),
+);
+```
+
+Each reached generated UPDATE maps to selector index zero. Select an existing decorated helper with `EApiFunctionTransactionTraceType.STEP` and its exact method name in the same way; this does not make it subscriber-observable. The owner delivers bounded immutable scalar records after the best-effort transaction release attempt and terminal hooks, with execution status separate from transaction outcome. Check `droppedCount`, preserve fractional durations and do not sum overlapping records. The callback must capture quickly: its returned asynchronous work is not awaited, but synchronous work still costs time. A preflight rejection or failed startup does not fabricate a sample.
+
 ## Function Subscriber With Transaction Expectation
 
 ```ts

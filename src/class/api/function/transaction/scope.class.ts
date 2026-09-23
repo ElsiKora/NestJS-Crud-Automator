@@ -1,6 +1,6 @@
 import type { ApiFunctionTransactionRegistry } from "@class/api/function/transaction/registry.class";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiFunctionContext } from "@interface/class/api/function";
+import type { IApiFunctionContext, IApiFunctionTransactionObservationOptions } from "@interface/class/api/function";
 import type { DataSource, EntityManager, Repository } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
@@ -9,7 +9,7 @@ import { EApiFunctionTransactionOwnerKind } from "@enum/decorator/api";
 import { ErrorException } from "@utility/error/exception.utility";
 
 export class ApiFunctionTransactionScope {
-	public static async runWithDataSource<R>(dataSource: DataSource, properties: { name: string }, callback: (entityManager: EntityManager) => Promise<R>): Promise<R> {
+	public static async runWithDataSource<R>(dataSource: DataSource, properties: { name: string; observation?: Readonly<IApiFunctionTransactionObservationOptions> }, callback: (entityManager: EntityManager) => Promise<R>): Promise<R> {
 		const name: string = properties.name.trim();
 
 		if (name.length === 0) {
@@ -19,6 +19,7 @@ export class ApiFunctionTransactionScope {
 		return await ApiFunctionTransactionRuntime.execute({
 			callback: async (entityManager: EntityManager): Promise<R> => await ApiFunctionTransactionScope.runWithEntityManager(entityManager, async (): Promise<R> => await callback(entityManager)),
 			dataSource,
+			observation: properties.observation,
 			owner: {
 				kind: EApiFunctionTransactionOwnerKind.SCOPE,
 				name,

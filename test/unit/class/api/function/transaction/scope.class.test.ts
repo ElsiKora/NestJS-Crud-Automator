@@ -1,7 +1,10 @@
+import type { IApiFunctionTransactionObservationOptions } from "@interface/class/api/function";
+
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionCommitUnknownOutcomeException, ApiFunctionTransactionRollbackException } from "@class/api/function/transaction/exception";
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
-import { EApiFunctionTransactionOwnerKind } from "@enum/decorator/api";
+import { EApiFunctionTransactionOwnerKind, EApiFunctionTransactionOutcome, EApiFunctionTransactionTraceType, EApiFunctionTransactionMode } from "@enum/decorator/api";
+import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 import { describe, expect, it, vi } from "vitest";
 
 import { createTransactionFixture } from "@test/unit/fixture";
@@ -148,5 +151,90 @@ describe("ApiFunctionTransactionScope", () => {
 		await expect(ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: phase }, async () => undefined)).rejects.toBe(error);
 		expect(queryRunner.commitTransaction).not.toHaveBeenCalled();
 		expect(queryRunner.release).toHaveBeenCalledTimes(1);
+	});
+	it("copies observation configuration before connection I/O and never exposes transaction authority", async () => {
+		class Entity {}
+		class OtherEntity {}
+		const { dataSource, queryRunner } = createTransactionFixture();
+		const originalObserver = vi.fn();
+		const replacementObserver = vi.fn();
+		const selector = { entity: Entity, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "step" };
+		const observation = { onSettled: originalObserver, selectors: [selector] };
+		vi.mocked(queryRunner.connect).mockImplementationOnce(async () => {
+			observation.onSettled = replacementObserver;
+			selector.entity = OtherEntity;
+			selector.methodName = "changed";
+			observation.selectors.length = 0;
+		});
+		await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "copied", observation }, async () => await ApiFunctionExecuteWithTransaction({ callback: async () => "result", entity: Entity, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "step", mode: EApiFunctionTransactionMode.MANDATORY }));
+		expect(originalObserver).toHaveBeenCalledWith({ droppedCount: 0, measurements: [{ durationMs: expect.any(Number), selectorIndex: 0, status: "SUCCEEDED" }], outcome: EApiFunctionTransactionOutcome.COMMITTED });
+		expect(replacementObserver).not.toHaveBeenCalled();
+	});
+
+	it("rejects invalid observation contracts before query-runner creation", async () => {
+		class Entity {}
+		const selector = { entity: Entity, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "step" };
+		const invalid = [
+			{ onSettled: null, selectors: [selector] },
+			{ onSettled: vi.fn(), selectors: null },
+			{ onSettled: vi.fn(), selectors: Array.from({ length: 33 }, (_, index) => ({ ...selector, methodName: `step${index}` })) },
+			{ onSettled: vi.fn(), selectors: [selector, { ...selector }] },
+			...[null, { ...selector, entity: {} }, { ...selector, functionType: "unknown" }, { ...selector, methodName: " " }, { ...selector, methodName: "a".repeat(257) }].map((value) => ({ onSettled: vi.fn(), selectors: [value] })),
+		];
+		for (const observation of invalid) {
+			const { dataSource } = createTransactionFixture();
+			await expect(ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "invalid", observation: observation as unknown as IApiFunctionTransactionObservationOptions }, async () => undefined)).rejects.toThrow("Invalid transaction observation");
+			expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
+		}
+	});
+
+	it.each(["connect", "startTransaction"] as const)("does not observe a scope whose %s fails", async (phase) => {
+		const { dataSource, queryRunner } = createTransactionFixture();
+		const observe = vi.fn();
+		const error = new Error("startup");
+		vi.mocked(queryRunner[phase]).mockRejectedValueOnce(error);
+		await expect(ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "startup", observation: { onSettled: observe, selectors: [] } }, async () => undefined)).rejects.toBe(error);
+		expect(observe).not.toHaveBeenCalled();
+	});
+
+	it("keeps concurrent owner observations separate and delivers after context teardown", async () => {
+		class Entity {}
+		const first = createTransactionFixture();
+		const second = createTransactionFixture();
+		let unblock: (() => void) | undefined;
+		const barrier = new Promise<void>((resolve) => {
+			unblock = resolve;
+		});
+		const contexts: Array<unknown> = [];
+		const firstObserver = vi.fn(() => {
+			contexts.push(ApiFunctionContextStorage.getTransactionRegistry());
+		});
+		const secondObserver = vi.fn(() => {
+			contexts.push(ApiFunctionContextStorage.getTransactionRegistry());
+		});
+		const selectors = [{ entity: Entity, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "step" }];
+		const firstResult = ApiFunctionTransactionScope.runWithDataSource(
+			first.dataSource,
+			{ name: "first", observation: { onSettled: firstObserver, selectors } },
+			async () =>
+				await ApiFunctionExecuteWithTransaction({
+					callback: async () => {
+						await barrier;
+						return "first";
+					},
+					entity: Entity,
+					functionType: EApiFunctionTransactionTraceType.STEP,
+					methodName: "step",
+					mode: EApiFunctionTransactionMode.MANDATORY,
+				}),
+		);
+		const secondResult = ApiFunctionTransactionScope.runWithDataSource(second.dataSource, { name: "second", observation: { onSettled: secondObserver, selectors } }, async () => "second");
+		await expect(secondResult).resolves.toBe("second");
+		expect(firstObserver).not.toHaveBeenCalled();
+		unblock?.();
+		await expect(firstResult).resolves.toBe("first");
+		expect(firstObserver).toHaveBeenCalledWith(expect.objectContaining({ measurements: [expect.objectContaining({ selectorIndex: 0 })] }));
+		expect(secondObserver).toHaveBeenCalledWith(expect.objectContaining({ measurements: [] }));
+		expect(contexts).toEqual([undefined, undefined]);
 	});
 });
