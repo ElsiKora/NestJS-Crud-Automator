@@ -1,3 +1,9 @@
+# [4.5.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.4.0...v4.5.0) (2026-09-23)
+
+### Features
+
+- **transaction:** observe selected native execution ([fc3db68](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/fc3db68ba73885e666f4c10c9154141136306786))
+
 # [4.4.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.3.5...v4.4.0) (2026-09-22)
 
 ### Bug Fixes
