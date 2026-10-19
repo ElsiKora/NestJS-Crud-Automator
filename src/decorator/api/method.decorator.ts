@@ -6,7 +6,7 @@ import type { SecurityRequirementObject } from "@nestjs/swagger/dist/interfaces/
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
-import { EApiRouteType } from "@enum/decorator/api";
+import { EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
 import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, SetMetadata, UseGuards, UseInterceptors } from "@nestjs/common";
 import { ApiBadRequestResponse, ApiConflictResponse, ApiConsumes, ApiExtraModels, ApiForbiddenResponse, ApiHeaders, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiProduces, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
@@ -207,14 +207,64 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 		decorators.push(ApiSecurity(openApiSecurityRequirement));
 	}
 
-	const guards: Array<CanActivate | Type<CanActivate>> = [...(options.execution?.guards ?? [])];
+	const beforeAuthenticationGuards: Array<CanActivate | Type<CanActivate>> = [];
+	const afterAuthenticationGuards: Array<CanActivate | Type<CanActivate>> = [];
+	const afterAuthorizationGuards: Array<CanActivate | Type<CanActivate>> = [];
 
-	if (metadata.security?.authentication?.guard) {
-		guards.push(metadata.security.authentication.guard);
+	for (const routeGuard of options.execution?.guards ?? []) {
+		if (typeof routeGuard === "function") {
+			beforeAuthenticationGuards.push(routeGuard);
+
+			continue;
+		}
+
+		// Untyped callers can pass null or primitives; reject them before the `in` checks below.
+		const routeGuardEntry: unknown = routeGuard;
+
+		if (typeof routeGuardEntry !== "object" || routeGuardEntry === null) {
+			throw ErrorException(`ApiMethod error: Route guard entry of type ${routeGuardEntry === null ? "null" : typeof routeGuardEntry} must be a guard class, a guard instance, or a staged guard descriptor`);
+		}
+
+		// Any object exposing canActivate (prototype chain included) is a guard instance, whatever other fields it has.
+		if ("canActivate" in routeGuard) {
+			beforeAuthenticationGuards.push(routeGuard);
+
+			continue;
+		}
+
+		const descriptorGuard: unknown = routeGuard.guard;
+
+		if (typeof descriptorGuard !== "function" && (typeof descriptorGuard !== "object" || descriptorGuard === null || !("canActivate" in descriptorGuard))) {
+			throw ErrorException("ApiMethod error: Route guard descriptor guard must be a guard class or a guard instance exposing canActivate");
+		}
+
+		switch (routeGuard.stage ?? EApiRouteGuardStage.BEFORE_AUTHENTICATION) {
+			case EApiRouteGuardStage.AFTER_AUTHENTICATION: {
+				afterAuthenticationGuards.push(routeGuard.guard);
+
+				break;
+			}
+
+			case EApiRouteGuardStage.AFTER_AUTHORIZATION: {
+				afterAuthorizationGuards.push(routeGuard.guard);
+
+				break;
+			}
+
+			case EApiRouteGuardStage.BEFORE_AUTHENTICATION: {
+				beforeAuthenticationGuards.push(routeGuard.guard);
+
+				break;
+			}
+
+			default: {
+				throw ErrorException(`ApiMethod error: Route guard stage ${String(routeGuard.stage)} is not supported`);
+			}
+		}
 	}
 
-	guards.push(ApiAuthorizationGuard);
-	decorators.push(UseGuards(...guards));
+	const authenticationGuards: Array<Type<CanActivate>> = metadata.security?.authentication?.guard ? [metadata.security.authentication.guard] : [];
+	decorators.push(UseGuards(...beforeAuthenticationGuards, ...authenticationGuards, ...afterAuthenticationGuards, ApiAuthorizationGuard, ...afterAuthorizationGuards));
 
 	if (options.execution?.interceptors?.length) {
 		decorators.push(UseInterceptors(...options.execution.interceptors));

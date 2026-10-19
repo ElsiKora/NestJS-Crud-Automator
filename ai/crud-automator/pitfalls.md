@@ -59,6 +59,10 @@ UPDATE exposes a detached, top-level frozen shallow `context.DATA.currentEntity`
 
 `EApiRouteSubscriberAuthorizationExpectation.REQUIRED` narrows before-route subscriber helper types only. It does not authenticate the request or run authorization by itself; the observed route must already guarantee auth through route security/runtime configuration.
 
+## Principal-Dependent Guards Before Authentication
+
+Plain `execution.guards` entries run before `security.authentication.guard`, so `request.user` is not set yet. Do not run the authentication guard twice or move it into `execution.guards`; declare the dependent guard as `{ guard, stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }` (or `AFTER_AUTHORIZATION` when it needs the authorization decision). Global guards registered with `APP_GUARD`, such as a globally registered `ThrottlerGuard`, always run before the whole staged route chain and never see the principal. The stock `ThrottlerGuard` tracks `request.ip`; override `getTracker` to key limits by the principal.
+
 ## Function Step Overreach
 
 Use `@ApiFunctionStep` only for internal transaction-aware service helpers, including direct helper calls when the selected transaction mode permits. Do not use it as a replacement for `@ApiFunctionCustom` when the operation needs an action name, function subscribers, route metadata, Swagger metadata, or authorization action identity.

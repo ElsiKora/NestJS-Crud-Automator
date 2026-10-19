@@ -1468,6 +1468,23 @@ describe("CRUD routes (E2E)", () => {
 		expect(E2eCustomRouteSubscriber.events).toEqual(expect.arrayContaining(["custom-route:before:custom.echo", "custom-route:after:custom.echo"]));
 	});
 
+	it("runs staged ApiRouteCustom guards around the authentication guard so later stages see the principal", async () => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/custom-route/staged-guards",
+		});
+
+		expect(response.statusCode).toBe(200);
+		expect(response.json()).toEqual({
+			stageTrace: [
+				{ principalId: null, stage: "beforeAuthentication" },
+				{ principalId: E2E_OWNER_ID, stage: "afterAuthentication" },
+				{ principalId: E2E_OWNER_ID, stage: "afterAuthorization" },
+			],
+		});
+	});
+
 	it("executes discriminated ApiRouteCustom request and response DTOs", async () => {
 		const response = await fastify.inject({
 			headers: adminHeaders,

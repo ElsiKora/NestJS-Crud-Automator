@@ -221,6 +221,24 @@ import { EApiAuthenticationType } from "@elsikora/nestjs-crud-automator";
 })
 ```
 
+Route `execution.guards` runs before `authentication.guard` by default. Use a staged guard when it needs the authenticated principal:
+
+```typescript
+[EApiRouteType.CREATE]: {
+  execution: {
+    guards: [{ guard: UserThrottlerGuard, stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }],
+  },
+  security: {
+    authentication: {
+      type: EApiAuthenticationType.USER,
+      guard: JwtAuthGuard,
+    },
+  },
+},
+```
+
+`UserThrottlerGuard` is a `ThrottlerGuard` subclass whose `getTracker` returns `request.user.id`; the stock tracker uses `request.ip`. The chain is `BEFORE_AUTHENTICATION` guards → `authentication.guard` → `AFTER_AUTHENTICATION` guards → `ApiAuthorizationGuard` → `AFTER_AUTHORIZATION` guards. Global `APP_GUARD` guards run before it. See [Guard stages](/docs/nestjs-crud-automator/api-reference/decorators/api-method/api-method#guard-stages).
+
 ## Request Transformers
 
 Automatically transform request data before processing:

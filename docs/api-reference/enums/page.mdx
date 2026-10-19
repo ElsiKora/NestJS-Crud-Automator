@@ -511,6 +511,24 @@ enum EApiFunctionSubscriberTransactionExpectation {
 
 `REQUIRED` and `MANDATORY` require `context.DATA.eventManager` before the subscriber hook runs. `SUPPORTS`, `NONE`, and omitted metadata keep the event manager optional; subscriber expectations do not create or forbid transactions.
 
+### EApiRouteGuardStage
+
+Position of a staged `execution.guards` entry in the route guard chain.
+
+```typescript
+enum EApiRouteGuardStage {
+	AFTER_AUTHENTICATION = "AFTER_AUTHENTICATION",
+	AFTER_AUTHORIZATION = "AFTER_AUTHORIZATION",
+	BEFORE_AUTHENTICATION = "BEFORE_AUTHENTICATION",
+}
+```
+
+The chain is `BEFORE_AUTHENTICATION` guards → `security.authentication.guard` → `AFTER_AUTHENTICATION` guards → `ApiAuthorizationGuard` → `AFTER_AUTHORIZATION` guards. Omitted stages and plain guards are `BEFORE_AUTHENTICATION`.
+
+**Related:**
+
+- [`@ApiMethod` – Guard stages](/docs/nestjs-crud-automator/api-reference/decorators/api-method/api-method#guard-stages)
+
 ### EApiRouteSubscriberAuthorizationExpectation
 
 Subscriber-declared authorization typing expectations for route subscribers.

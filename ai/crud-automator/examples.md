@@ -256,6 +256,37 @@ export class UserController {
 }
 ```
 
+## Guard After Authentication
+
+Run a guard after authentication when it needs the authenticated principal. The stock `ThrottlerGuard` tracks `request.ip`, so key the limit by the account with a `getTracker` override:
+
+```ts
+@Injectable()
+export class AccountThrottlerGuard extends ThrottlerGuard {
+	protected async getTracker(request: Record<string, any>): Promise<string> {
+		return request.user?.id ?? request.ip;
+	}
+}
+
+@ApiRouteCustom<AccountEntity>({
+	execution: {
+		guards: [{ guard: AccountThrottlerGuard, stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }],
+	},
+	resource: { action: "password.change", entity: AccountEntity },
+	response: { status: HttpStatus.NO_CONTENT, type: undefined },
+	route: { method: RequestMethod.POST, path: "password/change" },
+	security: {
+		authentication: { guard: AccessTokenGuard, type: EApiAuthenticationType.ACCOUNT },
+	},
+	throttling: { default: { limit: 5, ttl: 60_000 } },
+})
+public changePassword(@Body() body: ChangePasswordDto): Promise<void> {
+	return this.service.changePassword(body);
+}
+```
+
+The chain is `AccessTokenGuard` → `AccountThrottlerGuard` → `ApiAuthorizationGuard`. Generated routes accept the same entry under `routes[EApiRouteType.*].execution.guards`.
+
 ## Relations
 
 ```ts

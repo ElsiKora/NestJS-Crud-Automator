@@ -20,6 +20,8 @@ import type {
 	IApiControllerPropertiesRouteGetListQueryPagination,
 	IApiGetListCursorResponseResult,
 	IApiRequestValidator,
+	IApiRouteExecutionProperties,
+	IApiRouteGuardProperties,
 	IApiFunctionStepContext,
 	IApiFunctionStepProperties,
 	IApiFunctionUpdateProperties,
@@ -87,6 +89,7 @@ import {
 	EApiGetDefaultStringFormatPropertiesBigIntStringSign,
 	EApiPropertyDescribeType,
 	EApiPropertyStringType,
+	EApiRouteGuardStage,
 	EApiRouteSubscriberAuthorizationExpectation,
 	EApiRouteType,
 	EErrorStringAction,
@@ -357,6 +360,13 @@ describe("public API exports (E2E)", () => {
 			getRepository: <T extends IApiBaseEntity>(_entity: new () => T): Repository<T> => stepRepository as unknown as Repository<T>,
 			repository: stepRepository,
 		} satisfies IApiFunctionStepContext<PublicApiUser>;
+		const stagedRouteGuard = {
+			guard: { canActivate: (): boolean => true },
+			stage: EApiRouteGuardStage.AFTER_AUTHENTICATION,
+		} satisfies IApiRouteGuardProperties;
+		const routeExecution = {
+			guards: [stagedRouteGuard, { canActivate: (): boolean => true }],
+		} satisfies IApiRouteExecutionProperties;
 		const transactionOwner: TApiFunctionTransactionOwner = {
 			kind: EApiFunctionTransactionOwnerKind.SCOPE,
 			name: "public-api",
@@ -421,6 +431,9 @@ describe("public API exports (E2E)", () => {
 			};
 			EApiGetDefaultStringFormatPropertiesBigIntStringSign?: {
 				UNSIGNED?: unknown;
+			};
+			EApiRouteGuardStage?: {
+				AFTER_AUTHENTICATION?: unknown;
 			};
 			EApiRouteSubscriberAuthorizationExpectation?: {
 				REQUIRED?: unknown;
@@ -579,6 +592,8 @@ describe("public API exports (E2E)", () => {
 		expect(builtPackageEntry.EApiFunctionTransactionTraceType?.STEP).toBe(EApiFunctionTransactionTraceType.STEP);
 		expect(builtPackageEntry.EApiFunctionType?.CREATE).toBe(EApiFunctionType.CREATE);
 		expect(builtPackageEntry.EApiGetDefaultStringFormatPropertiesBigIntStringSign?.UNSIGNED).toBe(EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED);
+		expect(builtPackageEntry.EApiRouteGuardStage?.AFTER_AUTHENTICATION).toBe(EApiRouteGuardStage.AFTER_AUTHENTICATION);
+		expect(routeExecution.guards[0]).toBe(stagedRouteGuard);
 		expect(builtPackageEntry.EApiRouteSubscriberAuthorizationExpectation?.REQUIRED).toBe(EApiRouteSubscriberAuthorizationExpectation.REQUIRED);
 		expect(builtPackageEntry.EFilterOperation?.EQ).toBe(EFilterOperation.EQ);
 		expect(AUTHORIZATION_PRINCIPAL_RESOLVER_TOKEN).toBe("API_AUTHORIZATION_PRINCIPAL_RESOLVER");

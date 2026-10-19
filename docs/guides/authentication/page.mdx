@@ -416,6 +416,70 @@ export class OwnerGuard implements CanActivate {
 }
 ```
 
+## Guard Stages
+
+Route `execution.guards` run before the authentication guard by default. When a guard needs the authenticated principal, declare it as a staged guard with `EApiRouteGuardStage`.
+
+The stock `ThrottlerGuard` tracks clients by `request.ip`. To limit by the authenticated account, override `getTracker` and run the guard after authentication:
+
+```typescript filename="auth/guards/account-throttler.guard.ts" copy
+import { Injectable } from "@nestjs/common";
+import { ThrottlerGuard } from "@nestjs/throttler";
+
+@Injectable()
+export class AccountThrottlerGuard extends ThrottlerGuard {
+	protected async getTracker(request: Record<string, any>): Promise<string> {
+		return request.user?.id ?? request.ip;
+	}
+}
+```
+
+```typescript filename="account.controller.ts" copy
+import { ApiRouteCustom, EApiAuthenticationType, EApiRouteGuardStage } from "@elsikora/nestjs-crud-automator";
+import { HttpStatus, RequestMethod } from "@nestjs/common";
+import { AccountThrottlerGuard } from "../auth/guards/account-throttler.guard";
+
+@ApiRouteCustom<AccountEntity>({
+	execution: {
+		guards: [{ guard: AccountThrottlerGuard, stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }],
+	},
+	resource: {
+		action: "password.change",
+		entity: AccountEntity,
+	},
+	response: {
+		status: HttpStatus.NO_CONTENT,
+		type: undefined,
+	},
+	route: {
+		method: RequestMethod.POST,
+		path: "password/change",
+	},
+	security: {
+		authentication: {
+			guard: AccessTokenGuard,
+			type: EApiAuthenticationType.ACCOUNT,
+		},
+	},
+	throttling: {
+		default: { limit: 5, ttl: 60_000 },
+	},
+})
+public changePassword(@Body() body: ChangePasswordDto): Promise<void> {
+	return this.service.changePassword(body);
+}
+```
+
+The guard chain is always:
+
+1. `BEFORE_AUTHENTICATION` guards (plain guards and staged guards without `stage`)
+2. `security.authentication.guard`, when configured
+3. `AFTER_AUTHENTICATION` guards — `request.user` is available
+4. `ApiAuthorizationGuard`
+5. `AFTER_AUTHORIZATION` guards — the authorization decision is attached on securable controllers
+
+Declaration order is preserved inside each stage. Global guards registered with `APP_GUARD` (for example a globally registered `ThrottlerGuard`) always run before this whole route chain, so they cannot see `request.user`. Generated routes accept the same `execution.guards` under `routes[EApiRouteType.*].execution`.
+
 ## Swagger Security
 
 Configure Swagger to show authentication requirements:

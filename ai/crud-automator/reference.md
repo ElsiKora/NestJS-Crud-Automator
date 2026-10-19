@@ -196,6 +196,14 @@ Use `@ApiFunctionStep({ entity, transaction })` for private/protected/public hel
 
 Use `@ApiRouteCustom` when a custom route should participate in route runtime behavior. Use `@ApiMethod` only when metadata composition is enough.
 
+Route guard stages:
+
+- `execution.guards` entries are a plain `CanActivate` class/instance or `IApiRouteGuardProperties` `{ guard, stage? }`. A function or an object exposing `canActivate` (prototype chain included) is treated as a plain guard instance and its other properties, such as `guard` or `stage` fields, are ignored; every other object is a staged guard descriptor whose `guard` must be a guard class or instance. Null/primitive entries and invalid descriptor guards throw at decoration.
+- Chain order: `EApiRouteGuardStage.BEFORE_AUTHENTICATION` guards → `security.authentication.guard` (if configured) → `AFTER_AUTHENTICATION` guards → `ApiAuthorizationGuard` → `AFTER_AUTHORIZATION` guards. Declaration order is kept within a stage.
+- Plain guards and entries without `stage` are `BEFORE_AUTHENTICATION`, so pre-stage configuration keeps its order.
+- `AFTER_AUTHENTICATION` guards see the principal set by the authentication guard; on securable controllers `AFTER_AUTHORIZATION` guards also see the attached authorization decision.
+- Generated routes, `@ApiRouteCustom`, and direct `@ApiMethod` share the same ordering because all compose through `@ApiMethod`. Guards added through `generation.decorators` or other `UseGuards` decorators are outside this staged chain.
+
 Custom route caveats:
 
 - Request relation hydration currently targets the body argument.

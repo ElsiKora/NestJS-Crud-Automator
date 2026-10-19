@@ -217,6 +217,32 @@ interface IApiControllerPropertiesRouteAuthentication {
 
 The guard may be any Nest `CanActivate` class. Passport `IAuthGuard` classes remain compatible because they implement that Nest contract. Use `securityRequirements` for route-level Swagger security. Top-level `bearerStrategies` and `securityStrategies` are not part of the current authentication config.
 
+### IApiRouteExecutionProperties
+
+Route guard and interceptor configuration shared by generated routes (`routes[type].execution`), `@ApiRouteCustom`, and `@ApiMethod`.
+
+```typescript
+interface IApiRouteExecutionProperties {
+	guards?: Array<CanActivate | IApiRouteGuardProperties | Type<CanActivate>>;
+	interceptors?: Array<NestInterceptor | Type<NestInterceptor>>;
+}
+```
+
+Plain guards run before authentication. Interceptors keep their declared order.
+
+### IApiRouteGuardProperties
+
+Staged route guard entry for `execution.guards`.
+
+```typescript
+interface IApiRouteGuardProperties {
+	guard: CanActivate | Type<CanActivate>;
+	stage?: EApiRouteGuardStage;
+}
+```
+
+`stage` defaults to `EApiRouteGuardStage.BEFORE_AUTHENTICATION`. A function or an object exposing `canActivate` (prototype chain included) is treated as a plain guard instance and its other properties, such as `guard` or `stage` fields, are ignored; every other object is a staged guard descriptor whose `guard` must be a guard class or instance. Guards keep declaration order within a stage; see [`@ApiMethod` – Guard stages](/docs/nestjs-crud-automator/api-reference/decorators/api-method/api-method#guard-stages).
+
 ### IApiRouteSecurityRequirement
 
 One OpenAPI route security requirement group.

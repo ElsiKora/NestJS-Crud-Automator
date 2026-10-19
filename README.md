@@ -262,6 +262,31 @@ Use `response.headers` for Swagger/OpenAPI response header documentation only. A
 
 Top-level `authentication.bearerStrategies` and `authentication.securityStrategies` are not supported; put scheme names inside `authentication.securityRequirements`.
 
+Route `execution.guards` run before `authentication.guard` unless they are staged. A staged guard `{ guard, stage }` with `EApiRouteGuardStage` places it in one chain shared by generated routes, `@ApiRouteCustom`, and `@ApiMethod`: `BEFORE_AUTHENTICATION` guards → `authentication.guard` → `AFTER_AUTHENTICATION` guards → `ApiAuthorizationGuard` → `AFTER_AUTHORIZATION` guards, with declaration order kept inside each stage. Global guards (`APP_GUARD`) always run before this whole route chain. Use `AFTER_AUTHENTICATION` for guards that need `request.user`. For example, the stock `ThrottlerGuard` tracks `request.ip`; a subclass that overrides `getTracker` can key the limit by the authenticated principal instead:
+
+```typescript
+@Injectable()
+export class UserThrottlerGuard extends ThrottlerGuard {
+	protected async getTracker(request: Record<string, any>): Promise<string> {
+		return request.user?.id ?? request.ip;
+	}
+}
+```
+
+```typescript
+[EApiRouteType.CREATE]: {
+	execution: {
+		guards: [{ guard: UserThrottlerGuard, stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }],
+	},
+	security: {
+		authentication: {
+			type: EApiAuthenticationType.USER,
+			guard: JwtAuthGuard,
+		},
+	},
+},
+```
+
 ## Advanced Usage
 
 ### Custom Validation

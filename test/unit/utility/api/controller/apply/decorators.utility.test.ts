@@ -4,7 +4,7 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
-import { EApiAuthenticationType, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import { EApiAuthenticationType, EApiDtoType, EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
 import { GUARDS_METADATA, INTERCEPTORS_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { DECORATORS } from "@nestjs/swagger/dist/constants";
@@ -17,6 +17,7 @@ class DecoratorEntity {
 
 class DecoratorGuard {}
 class DecoratorExecutionGuard {}
+class DecoratorStagedExecutionGuard {}
 class DecoratorExecutionInterceptor {}
 
 const entityMetadata: IApiEntity<DecoratorEntity> = {
@@ -157,5 +158,28 @@ describe("ApiControllerApplyDecorators", () => {
 		expect(Reflect.getMetadata(DECORATORS.API_PRODUCES, targetMethod)).toEqual(["application/vnd.generated+json"]);
 		expect(Reflect.getMetadata(DECORATORS.API_PARAMETERS, targetMethod)).toEqual([expect.objectContaining({ in: "header", name: "X-Route-Proof", required: true })]);
 		expect(Reflect.getMetadata(DECORATORS.API_RESPONSE, targetMethod)?.[HttpStatus.PAYLOAD_TOO_LARGE]).toEqual({ description: "Generated request is too large." });
+	});
+
+	it("orders staged generated route guards around authentication and authorization", () => {
+		const routeConfig: TApiControllerPropertiesRoute<DecoratorEntity, EApiRouteType.CREATE> = {
+			dto: {
+				[EApiDtoType.BODY]: DecoratorEntity,
+				[EApiDtoType.RESPONSE]: DecoratorEntity,
+			},
+			execution: {
+				guards: [{ guard: DecoratorStagedExecutionGuard as never, stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }, DecoratorExecutionGuard as never],
+			},
+			security: {
+				authentication: {
+					guard: DecoratorGuard as never,
+					type: EApiAuthenticationType.USER,
+				},
+			},
+		};
+		const targetMethod = () => undefined;
+
+		ApiControllerApplyDecorators(targetMethod as never, entityMetadata, properties, EApiRouteType.CREATE, "create", routeConfig, []);
+
+		expect(Reflect.getMetadata(GUARDS_METADATA, targetMethod)).toEqual([DecoratorExecutionGuard, DecoratorGuard, DecoratorStagedExecutionGuard, ApiAuthorizationGuard]);
 	});
 });

@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import type { IApiRouteDocumentationProperties, IApiRouteMetadata } from "@interface/decorator/api";
+import type { IApiRouteDocumentationProperties, IApiRouteGuardProperties, IApiRouteMetadata } from "@interface/decorator/api";
 import type { CallHandler, CanActivate, ExecutionContext, NestInterceptor, Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
 import type { Observable } from "rxjs";
@@ -8,7 +8,7 @@ import type { Observable } from "rxjs";
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiMethod } from "@decorator/api/method.decorator";
-import { EApiAuthenticationType, EApiRouteType } from "@enum/decorator/api";
+import { EApiAuthenticationType, EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
 import { GUARDS_METADATA, INTERCEPTORS_METADATA } from "@nestjs/common/constants";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
@@ -473,6 +473,157 @@ describe("ApiMethod", () => {
 			});
 
 		expect(invoke).toThrow("response.discriminator is required");
+	});
+
+	describe("route guard stages", () => {
+		class AuthenticationGuard implements CanActivate {
+			public canActivate(): boolean {
+				return true;
+			}
+		}
+		class FirstGuard implements CanActivate {
+			public canActivate(): boolean {
+				return true;
+			}
+		}
+		class SecondGuard implements CanActivate {
+			public canActivate(): boolean {
+				return true;
+			}
+		}
+		class ThirdGuard implements CanActivate {
+			public canActivate(): boolean {
+				return true;
+			}
+		}
+		class FourthGuard implements CanActivate {
+			public canActivate(): boolean {
+				return true;
+			}
+		}
+
+		const createAuthenticatedMetadata = (): IApiRouteMetadata<MethodEntity> =>
+			createMetadata({
+				security: {
+					authentication: {
+						guard: AuthenticationGuard,
+						type: EApiAuthenticationType.USER,
+					},
+				},
+			});
+
+		it("keeps plain guards before authentication by default", () => {
+			const instanceGuard: CanActivate = { canActivate: (): boolean => true };
+
+			applyDecorator(ApiMethod({ execution: { guards: [FirstGuard, instanceGuard] }, metadata: createAuthenticatedMetadata() }));
+
+			expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual([FirstGuard, instanceGuard, AuthenticationGuard, ApiAuthorizationGuard]);
+		});
+
+		it("treats a guard descriptor without stage as before authentication", () => {
+			applyDecorator(ApiMethod({ execution: { guards: [{ guard: FirstGuard }] }, metadata: createAuthenticatedMetadata() }));
+
+			expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual([FirstGuard, AuthenticationGuard, ApiAuthorizationGuard]);
+		});
+
+		it.each([
+			[EApiRouteGuardStage.BEFORE_AUTHENTICATION, [FirstGuard, AuthenticationGuard, ApiAuthorizationGuard]],
+			[EApiRouteGuardStage.AFTER_AUTHENTICATION, [AuthenticationGuard, FirstGuard, ApiAuthorizationGuard]],
+			[EApiRouteGuardStage.AFTER_AUTHORIZATION, [AuthenticationGuard, ApiAuthorizationGuard, FirstGuard]],
+		])("places a %s guard at its stage", (stage: EApiRouteGuardStage, expectedGuards: Array<unknown>) => {
+			applyDecorator(ApiMethod({ execution: { guards: [{ guard: FirstGuard, stage }] }, metadata: createAuthenticatedMetadata() }));
+
+			expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual(expectedGuards);
+		});
+
+		it("groups mixed stages while preserving declaration order within each stage", () => {
+			const instanceGuard: CanActivate = { canActivate: (): boolean => true };
+
+			applyDecorator(
+				ApiMethod({
+					execution: {
+						guards: [{ guard: FirstGuard, stage: EApiRouteGuardStage.AFTER_AUTHORIZATION }, { guard: SecondGuard, stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }, ThirdGuard, { guard: FourthGuard, stage: EApiRouteGuardStage.AFTER_AUTHORIZATION }, { guard: instanceGuard, stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }, { guard: SecondGuard, stage: EApiRouteGuardStage.BEFORE_AUTHENTICATION }],
+					},
+					metadata: createAuthenticatedMetadata(),
+				}),
+			);
+
+			expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual([ThirdGuard, SecondGuard, AuthenticationGuard, SecondGuard, instanceGuard, ApiAuthorizationGuard, FirstGuard, FourthGuard]);
+		});
+
+		it("keeps stage order around authorization when the route has no authentication guard", () => {
+			applyDecorator(
+				ApiMethod({
+					execution: {
+						guards: [{ guard: FirstGuard, stage: EApiRouteGuardStage.AFTER_AUTHORIZATION }, { guard: SecondGuard, stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }, ThirdGuard],
+					},
+					metadata: createMetadata(),
+				}),
+			);
+
+			expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual([ThirdGuard, SecondGuard, ApiAuthorizationGuard, FirstGuard]);
+		});
+
+		it("keeps only authentication and authorization guards for empty execution guards", () => {
+			applyDecorator(ApiMethod({ execution: { guards: [] }, metadata: createAuthenticatedMetadata() }));
+
+			expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual([AuthenticationGuard, ApiAuthorizationGuard]);
+		});
+
+		it("keeps only the authorization guard for empty execution guards without authentication", () => {
+			applyDecorator(ApiMethod({ execution: { guards: [] }, metadata: createMetadata() }));
+
+			expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual([ApiAuthorizationGuard]);
+		});
+
+		it("treats an object exposing canActivate as a guard instance even when it has guard and stage fields", () => {
+			class CompositeGuard implements CanActivate {
+				public constructor(
+					private readonly guard: CanActivate,
+					public readonly stage: EApiRouteGuardStage,
+				) {}
+
+				public canActivate(): boolean {
+					return this.guard.canActivate({} as ExecutionContext) === true;
+				}
+			}
+
+			const compositeGuard: CompositeGuard = new CompositeGuard(new SecondGuard(), EApiRouteGuardStage.AFTER_AUTHORIZATION);
+
+			applyDecorator(ApiMethod({ execution: { guards: [{ guard: FirstGuard, stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }, compositeGuard] }, metadata: createAuthenticatedMetadata() }));
+
+			expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual([compositeGuard, AuthenticationGuard, FirstGuard, ApiAuthorizationGuard]);
+		});
+
+		it.each([
+			["a nested descriptor", '{"guard":{"guard":null},"stage":"AFTER_AUTHENTICATION"}'],
+			["null", '{"guard":null,"stage":"AFTER_AUTHENTICATION"}'],
+			["a missing guard", '{"stage":"AFTER_AUTHENTICATION"}'],
+			["a string", '{"guard":"ThrottlerGuard"}'],
+		])("throws when descriptor guard is %s", (_description: string, serializedDescriptor: string) => {
+			const routeGuards = JSON.parse(`[${serializedDescriptor}]`) as NonNullable<NonNullable<Parameters<typeof ApiMethod>[0]["execution"]>["guards"]>;
+			const invoke = () => ApiMethod({ execution: { guards: routeGuards }, metadata: createMetadata() });
+
+			expect(invoke).toThrow("ApiMethod error: Route guard descriptor guard must be a guard class or a guard instance exposing canActivate");
+		});
+
+		it.each([
+			["null", "null"],
+			["number", "1"],
+			["string", '"ThrottlerGuard"'],
+		])("throws a clear error for a %s guard entry", (entryType: string, serializedEntry: string) => {
+			const routeGuards = JSON.parse(`[${serializedEntry}]`) as NonNullable<NonNullable<Parameters<typeof ApiMethod>[0]["execution"]>["guards"]>;
+			const invoke = () => ApiMethod({ execution: { guards: routeGuards }, metadata: createMetadata() });
+
+			expect(invoke).toThrow(`ApiMethod error: Route guard entry of type ${entryType} must be a guard class, a guard instance, or a staged guard descriptor`);
+		});
+
+		it("throws for an unsupported guard stage", () => {
+			const unsupportedStageGuard = JSON.parse('{"stage":"DURING_AUTHENTICATION"}') as Omit<IApiRouteGuardProperties, "guard">;
+			const invoke = () => ApiMethod({ execution: { guards: [{ ...unsupportedStageGuard, guard: FirstGuard }] }, metadata: createMetadata() });
+
+			expect(invoke).toThrow("ApiMethod error: Route guard stage DURING_AUTHENTICATION is not supported");
+		});
 	});
 
 	it("throws for unsupported HTTP methods", () => {

@@ -10,19 +10,57 @@
 
 ## Options
 
-| Option      | Type                           | Description                                                                         |
-| ----------- | ------------------------------ | ----------------------------------------------------------------------------------- |
-| `execution` | `IApiRouteExecutionProperties` | Optional ordered guards and interceptors shared by generated and custom routes.     |
-| `metadata`  | `IApiRouteMetadata<T>`         | Single route metadata contract used by generated CRUD and custom controller routes. |
+| Option      | Type                           | Description                                                                            |
+| ----------- | ------------------------------ | -------------------------------------------------------------------------------------- |
+| `execution` | `IApiRouteExecutionProperties` | Optional staged guards and ordered interceptors shared by generated and custom routes. |
+| `metadata`  | `IApiRouteMetadata<T>`         | Single route metadata contract used by generated CRUD and custom controller routes.    |
 
 ## Behavior
 
 - Applies NestJS HTTP method decorators plus `@HttpCode`.
 - Emits Swagger decorators for the success response, enabled standard errors, required request headers, request/response media types, and explicit additional statuses.
-- Automatically applies `ApiAuthorizationGuard` along with any custom guards specified in `authentication.guard`.
-- Applies `execution.guards` before authentication/authorization guards and preserves the declared `execution.interceptors` order.
+- Automatically applies `ApiAuthorizationGuard` along with the configured `security.authentication.guard`.
+- Orders `execution.guards` by `EApiRouteGuardStage` (see [Guard stages](#guard-stages)) and preserves the declared `execution.interceptors` order.
 - Stores `metadata.resource.action` as the single action source for docs, subscribers, hooks authorization, and IAM authorization.
 - Does not run request transformers, relation loading, subscribers, authorization result transforms, or response serialization. Use `@ApiRouteCustom` when a custom handler needs the shared route runtime.
+
+## Guard stages
+
+`execution.guards` accepts plain Nest guards (classes or instances) and staged guards `{ guard, stage? }`. A function or an object exposing `canActivate` (prototype chain included) is treated as a plain guard instance and its other properties, such as `guard` or `stage` fields, are ignored; every other object is a staged guard descriptor whose `guard` must be a guard class or instance. Null, primitive, or invalid descriptor entries fail when the decorator is applied. `@ApiMethod` composes one guard chain:
+
+1. `EApiRouteGuardStage.BEFORE_AUTHENTICATION` guards
+2. `security.authentication.guard`, when configured
+3. `EApiRouteGuardStage.AFTER_AUTHENTICATION` guards
+4. `ApiAuthorizationGuard`
+5. `EApiRouteGuardStage.AFTER_AUTHORIZATION` guards
+
+Declaration order is preserved within each stage. A plain guard or a staged guard without `stage` is `BEFORE_AUTHENTICATION`, so existing routes keep their previous order. Use `AFTER_AUTHENTICATION` for guards that need the authenticated principal set by the authentication guard, for example a `ThrottlerGuard` subclass whose `getTracker` returns the account id (the stock tracker uses `request.ip`). Global guards registered with `APP_GUARD` always run before this whole route chain. On a securable controller, `AFTER_AUTHORIZATION` guards also see the authorization decision attached by `ApiAuthorizationGuard`. An unknown stage fails when the decorator is applied. Guards attached through other decorators, such as `UseGuards` in `generation.decorators`, are not part of this staged chain.
+
+```typescript
+@ApiMethod<AccountEntity>({
+	execution: {
+		guards: [RequestSignatureGuard, { guard: AccountThrottlerGuard, stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }],
+	},
+	metadata: {
+		resource: {
+			action: "password.change",
+			entity: AccountEntity,
+		},
+		route: {
+			method: RequestMethod.POST,
+			path: "password/change",
+		},
+		security: {
+			authentication: {
+				guard: AccessTokenGuard,
+				type: EApiAuthenticationType.ACCOUNT,
+			},
+		},
+	},
+})
+```
+
+The resulting chain is `RequestSignatureGuard` → `AccessTokenGuard` → `AccountThrottlerGuard` → `ApiAuthorizationGuard`. See [Guard Stages](/docs/nestjs-crud-automator/guides/authentication#guard-stages) for an `AccountThrottlerGuard` that overrides `getTracker`.
 
 ## Discriminated responses
 

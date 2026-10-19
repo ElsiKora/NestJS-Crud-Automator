@@ -1,6 +1,6 @@
-import { BadRequestException, Body, Controller, HttpStatus, Inject, Param, Query, RequestMethod } from "@nestjs/common";
+import { BadRequestException, Body, Controller, HttpStatus, Inject, Param, Query, Req, RequestMethod } from "@nestjs/common";
 
-import { ApiControllerObservable, ApiRouteCustom, EApiAuthenticationType, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../../src/index";
+import { ApiControllerObservable, ApiRouteCustom, EApiAuthenticationType, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiRouteGuardStage, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../../src/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eEntity } from "../entity";
@@ -8,6 +8,7 @@ import { E2eOwnerService } from "../owner";
 import { E2eService } from "../service";
 import { E2eCustomRouteDiscriminatedEmailBodyDto, E2eCustomRouteDiscriminatedSessionResponseDto, E2eCustomRouteDiscriminatedStrippedBodyDto, E2eCustomRouteDiscriminatedUsernameBodyDto, E2eCustomRouteDiscriminatedVerificationResponseDto } from "./discriminated";
 import { E2eCustomRouteResponseDto } from "./response.dto";
+import { E2eStageTraceGuard, type IE2eStageTraceEntry } from "./stage-trace";
 
 const authentication = {
 	guard: TestAuthGuard,
@@ -295,5 +296,29 @@ export class E2eCustomRouteController {
 			channel: body.channel,
 			token: body.token,
 		};
+	}
+
+	@ApiRouteCustom<E2eEntity>({
+		execution: {
+			guards: [{ guard: new E2eStageTraceGuard("afterAuthorization"), stage: EApiRouteGuardStage.AFTER_AUTHORIZATION }, { guard: new E2eStageTraceGuard("afterAuthentication"), stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }, new E2eStageTraceGuard("beforeAuthentication")],
+		},
+		resource: {
+			action: "custom.stagedGuards",
+			entity: E2eEntity,
+		},
+		response: {
+			status: HttpStatus.OK,
+			type: undefined,
+		},
+		route: {
+			method: RequestMethod.GET,
+			path: "staged-guards",
+		},
+		security: {
+			authentication,
+		},
+	})
+	public stagedGuards(@Req() request: { stageTrace?: Array<IE2eStageTraceEntry> }): { stageTrace: Array<IE2eStageTraceEntry> } {
+		return { stageTrace: request.stageTrace ?? [] };
 	}
 }
