@@ -10,6 +10,7 @@ import { EFilterOperand, EFilterOperation, EFilterOrderDirection } from "@enum/f
 import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryEnumValues } from "@utility/api/controller/get-list/query/enum-values.utility";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
+import { EnumIsValue } from "@utility/enum/is-value.utility";
 
 export class ApiControllerGetListQueryRuntime {
 	public static compileWhere<E>(ast: IApiControllerGetListQueryAst): TApiFunctionGetListPropertiesWhere<E> {
@@ -188,11 +189,11 @@ export class ApiControllerGetListQueryRuntime {
 	}
 
 	private static parseGroup(field: IApiControllerGetListQueryPlanFilterField, group: IApiControllerGetListQueryRawGroup): IApiControllerGetListQueryAstNode {
-		if (Array.isArray(group.operator) || typeof group.operator !== "string" || !Object.values(EFilterOperation).includes(group.operator as EFilterOperation)) {
+		const operation: unknown = group.operator;
+
+		if (!EnumIsValue(EFilterOperation, operation)) {
 			throw new BadRequestException("INVALID_FILTER");
 		}
-
-		const operation: EFilterOperation = group.operator as EFilterOperation;
 
 		if (!field.allowedOperations.includes(operation)) {
 			throw new BadRequestException("INVALID_FILTER");
@@ -250,9 +251,9 @@ export class ApiControllerGetListQueryRuntime {
 			throw new BadRequestException("INVALID_ORDER");
 		}
 
-		const normalizedDirection: EFilterOrderDirection = orderDirectionValue.toLowerCase() as EFilterOrderDirection;
+		const normalizedDirection: string = orderDirectionValue.toLowerCase();
 
-		if (normalizedDirection !== EFilterOrderDirection.ASC && normalizedDirection !== EFilterOrderDirection.DESC) {
+		if (!EnumIsValue(EFilterOrderDirection, normalizedDirection)) {
 			throw new BadRequestException("INVALID_ORDER");
 		}
 

@@ -11,13 +11,11 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @returns {SchemaObject} OpenAPI schema for one scalar filter operand.
  */
 export function ApiControllerGetListQueryOpenApiValueSchema(metadata: TApiPropertyDescribeProperties): SchemaObject {
-	const propertyType: EApiPropertyDescribeType = metadata.type;
-
-	if (propertyType === EApiPropertyDescribeType.OBJECT || propertyType === EApiPropertyDescribeType.RELATION) {
+	if (metadata.type === EApiPropertyDescribeType.OBJECT || metadata.type === EApiPropertyDescribeType.RELATION) {
 		throw ErrorException("GET_LIST query OpenAPI schemas support scalar fields only");
 	}
 
-	switch (propertyType) {
+	switch (metadata.type) {
 		case EApiPropertyDescribeType.BOOLEAN: {
 			return { type: "boolean" };
 		}
@@ -49,9 +47,7 @@ export function ApiControllerGetListQueryOpenApiValueSchema(metadata: TApiProper
 		}
 
 		case EApiPropertyDescribeType.NUMBER: {
-			const numberFormat: EApiPropertyNumberType | undefined = "format" in metadata ? (metadata.format as EApiPropertyNumberType) : undefined;
-
-			return { type: numberFormat === EApiPropertyNumberType.INTEGER ? "integer" : "number" };
+			return { type: metadata.format === EApiPropertyNumberType.INTEGER ? "integer" : "number" };
 		}
 
 		case EApiPropertyDescribeType.STRING: {

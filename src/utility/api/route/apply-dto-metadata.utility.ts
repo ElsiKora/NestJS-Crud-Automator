@@ -133,9 +133,8 @@ function resolveRouteArgumentIndex(routeArgumentsMetadata: Record<string, { data
 	for (const entry of Object.entries(routeArgumentsMetadata)) {
 		const [key, value]: [string, { data?: unknown; index?: number }] = entry;
 		const [type]: Array<string> = key.split(":");
-		const metadataParameterType: RouteParamtypes = Number(type);
 
-		if (metadataParameterType === parameterType && value.data === undefined) {
+		if (type === String(parameterType) && value.data === undefined) {
 			return value.index;
 		}
 	}

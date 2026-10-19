@@ -3,6 +3,7 @@ import type { IApiControllerGetListQueryOperator } from "@interface/class/api/co
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { EFilterOperand, EFilterOperation } from "@enum/filter";
 import { THasPairedCustomSuffixesFieldsValidationContext } from "@type/validator/has-paired-custom-suffixes-fields";
+import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { type ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface } from "class-validator";
 
 // eslint-disable-next-line @elsikora/typescript/naming-convention
@@ -29,13 +30,13 @@ export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstrai
 
 			if (groupSuffixes.has(operatorSuffix)) {
 				const operatorField: string = `${baseName}[${operatorSuffix}]`;
-				const operatorValue: string = indexableObject[operatorField] as string;
-				const operator: EFilterOperation = operatorValue as EFilterOperation;
-				const operatorConfig: IApiControllerGetListQueryOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operator];
+				const operator: unknown = indexableObject[operatorField];
 
-				if (!operatorConfig) {
-					return `Invalid operator "${operator}" for group "${baseName}"`;
+				if (!EnumIsValue(EFilterOperation, operator)) {
+					return `Invalid operator "${String(operator)}" for group "${baseName}"`;
 				}
+
+				const operatorConfig: IApiControllerGetListQueryOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operator];
 
 				if (operatorConfig.operand === EFilterOperand.NONE) {
 					const valueCount: number = valueSuffixes.filter((suffix: string) => groupSuffixes.has(suffix)).length;
@@ -132,11 +133,11 @@ export class HasPairedCustomSuffixesFieldsValidator implements ValidatorConstrai
 
 			if (groupSuffixes.has(operatorSuffix)) {
 				const operatorField: string = `${baseName}[${operatorSuffix}]`;
-				const operatorValue: string = indexableObject[operatorField] as string;
-				const operator: EFilterOperation = operatorValue as EFilterOperation;
-				const operatorConfig: IApiControllerGetListQueryOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operator];
+				const operator: unknown = indexableObject[operatorField];
 
-				if (!operatorConfig) return false;
+				if (!EnumIsValue(EFilterOperation, operator)) return false;
+
+				const operatorConfig: IApiControllerGetListQueryOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operator];
 
 				if (operatorConfig.operand === EFilterOperand.NONE) {
 					const valueCount: number = valueSuffixes.filter((suffix: string) => groupSuffixes.has(suffix)).length;

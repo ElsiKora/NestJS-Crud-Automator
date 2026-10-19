@@ -10,6 +10,7 @@ export * from "./register-auto-dto-child.utility.test";
 export * from "./api";
 export * from "./authorization";
 export * from "./dto";
+export * from "./enum";
 export * from "./error";
 export * from "./database";
 export * from "./get";

@@ -2,6 +2,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerPropertiesRouteBaseRelationsResponse } from "@interface/decorator/api";
 
 import { EApiControllerRelationReferenceShape } from "@enum/decorator/api";
+import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
@@ -73,7 +74,7 @@ function validateResponseReferenceConfig(referenceConfig: IApiControllerProperti
 		throw ErrorException("Response relation reference config is required when relation loading is configured");
 	}
 
-	if (!Object.values(EApiControllerRelationReferenceShape).includes(referenceConfig.shape)) {
+	if (!EnumIsValue(EApiControllerRelationReferenceShape, referenceConfig.shape)) {
 		throw ErrorException("Response relation reference shape must be OBJECT or SCALAR");
 	}
 

@@ -12,6 +12,7 @@ import { ApiServiceBase } from "@class/api/service-base.class";
 import { EApiControllerRelationReferenceShape } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { BadRequestException, HttpStatus } from "@nestjs/common";
+import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { ErrorString } from "@utility/error/string.utility";
 import { GetEntityColumns } from "@utility/get/entity-columns.utility";
@@ -258,7 +259,7 @@ function validateIncludedRelationKey(propertyName: string, relationNames: Set<st
  * @returns {void}
  */
 function validateReferenceConfig(referenceConfig: IApiControllerPropertiesRouteBaseRelationsRequest<IApiBaseEntity>["reference"]): void {
-	if (!Object.values(EApiControllerRelationReferenceShape).includes(referenceConfig.shape)) {
+	if (!EnumIsValue(EApiControllerRelationReferenceShape, referenceConfig.shape)) {
 		throw ErrorException("Request relation reference shape must be OBJECT or SCALAR");
 	}
 

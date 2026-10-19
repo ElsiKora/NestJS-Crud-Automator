@@ -1,4 +1,3 @@
-import type { EFilterOperation } from "@enum/filter";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
@@ -6,8 +5,10 @@ import type { FindOptionsWhere } from "typeorm";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { EFilterOperation } from "@enum/filter";
 import { ApiControllerGetListTransformOperation } from "@utility/api/controller/get-list/transform/operation.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
+import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
 /**
@@ -34,11 +35,11 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 		const cleanField: string = field.replace("]", "");
 
 		if (cleanField === "value" || cleanField === "values") {
-			const operation: EFilterOperation = query[`${String(key)}[operator]`] as EFilterOperation;
+			const operation: unknown = query[`${String(key)}[operator]`];
 
 			const value: unknown = query[fullKey];
 
-			if (!operation || !key || value === undefined || value === null) continue;
+			if (!EnumIsValue(EFilterOperation, operation) || !key || value === undefined || value === null) continue;
 
 			const path: Array<string> = key.split(".");
 

@@ -31,6 +31,7 @@ import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entit
 import { DtoGetDecoratorConfig } from "@utility/dto/get/decorator-config.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/get.utility";
+import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { getMetadataArgsStorage } from "typeorm";
@@ -274,19 +275,18 @@ export class ApiControllerGetListQueryPlanCompiler {
 		const operations: Array<EFilterOperation> = [];
 
 		for (const rawOperation of rawOperations) {
-			if (typeof rawOperation !== "string" || !Object.values(EFilterOperation).includes(rawOperation as EFilterOperation)) {
+			if (!EnumIsValue(EFilterOperation, rawOperation)) {
 				throw ErrorException(`GET_LIST filter field "${field.path}" contains an unknown operation`);
 			}
 
-			const operation: EFilterOperation = rawOperation as EFilterOperation;
-			const descriptor: IApiControllerGetListQueryOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operation];
+			const descriptor: IApiControllerGetListQueryOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[rawOperation];
 
 			if (!descriptor.kinds.includes(field.type) || (descriptor.operand === EFilterOperand.NONE && !field.isNullable)) {
-				throw ErrorException(`GET_LIST filter operation "${operation}" is incompatible with field "${field.path}"`);
+				throw ErrorException(`GET_LIST filter operation "${rawOperation}" is incompatible with field "${field.path}"`);
 			}
 
-			if (!operations.includes(operation)) {
-				operations.push(operation);
+			if (!operations.includes(rawOperation)) {
+				operations.push(rawOperation);
 			}
 		}
 
@@ -295,9 +295,9 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 	private static compileDefaultCondition(rawCondition: unknown, field: IApiControllerGetListQueryPlanFilterField, allowedOperations: ReadonlyArray<EFilterOperation>): IApiControllerGetListQueryPlanCondition {
 		const condition: Record<string, unknown> = this.requireRecord(rawCondition, `GET_LIST filter defaultCondition for "${field.path}"`);
-		const operation: EFilterOperation = condition.operator as EFilterOperation;
+		const operation: unknown = condition.operator;
 
-		if (!allowedOperations.includes(operation)) {
+		if (!EnumIsValue(EFilterOperation, operation) || !allowedOperations.includes(operation)) {
 			throw ErrorException(`GET_LIST filter defaultCondition operation for "${field.path}" is not allowed`);
 		}
 
@@ -363,9 +363,9 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 			this.requireAllowedKeys(field, ["allowedOperations", "defaultCondition", "isEnabled", "missingBehavior"], `GET_LIST filter field "${path}"`);
 			const allowedOperations: ReadonlyArray<EFilterOperation> = this.compileAllowedOperations(field.allowedOperations, baselineField, isCursor);
-			const missingBehavior: EApiControllerGetListQueryFilterMissingBehavior = (field.missingBehavior as EApiControllerGetListQueryFilterMissingBehavior | undefined) ?? EApiControllerGetListQueryFilterMissingBehavior.OMIT;
+			const missingBehavior: unknown = field.missingBehavior ?? EApiControllerGetListQueryFilterMissingBehavior.OMIT;
 
-			if (!Object.values(EApiControllerGetListQueryFilterMissingBehavior).includes(missingBehavior)) {
+			if (!EnumIsValue(EApiControllerGetListQueryFilterMissingBehavior, missingBehavior)) {
 				throw ErrorException(`GET_LIST filter field "${path}" has an invalid missingBehavior`);
 			}
 
@@ -485,7 +485,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 		this.requireExactKeys(rawConfig, ["mode"], "GET_LIST pagination");
 
-		if (!Object.values(EApiControllerGetListQueryPaginationMode).includes(config.mode)) {
+		if (!EnumIsValue(EApiControllerGetListQueryPaginationMode, config.mode)) {
 			throw ErrorException("GET_LIST pagination mode must be PAGE or CURSOR");
 		}
 
@@ -794,7 +794,8 @@ export class ApiControllerGetListQueryPlanCompiler {
 		for (const fieldName of fields) {
 			const field: TApiControllerGetListQueryCompiledOrderField | undefined = order.serverFields[fieldName];
 			const metadata: TManualDtoPropertyMetadata | undefined = itemMetadata.get(fieldName);
-			const expectedDecorator: EManualDtoPropertyMetadataDecorator | undefined = field && field.type !== EApiPropertyDescribeType.OBJECT && field.type !== EApiPropertyDescribeType.RELATION ? (field.type as unknown as EManualDtoPropertyMetadataDecorator) : undefined;
+			const fieldType: string | undefined = field?.type;
+			const expectedDecorator: EManualDtoPropertyMetadataDecorator | undefined = field?.type !== EApiPropertyDescribeType.OBJECT && EnumIsValue(EManualDtoPropertyMetadataDecorator, fieldType) ? fieldType : undefined;
 			const expectedFormat: unknown = field && "format" in field.metadata ? field.metadata.format : undefined;
 			const actualFormat: unknown = metadata && "format" in metadata.properties ? metadata.properties.format : undefined;
 
@@ -995,7 +996,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 	}
 
 	private static validateUnlistedFields(value: EApiControllerGetListQueryUnlistedFields, section: string): void {
-		if (!Object.values(EApiControllerGetListQueryUnlistedFields).includes(value)) {
+		if (!EnumIsValue(EApiControllerGetListQueryUnlistedFields, value)) {
 			throw ErrorException(`GET_LIST ${section} requires unlistedFields INHERIT or REJECT`);
 		}
 	}
