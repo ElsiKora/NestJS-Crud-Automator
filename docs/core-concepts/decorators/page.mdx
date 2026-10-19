@@ -87,9 +87,7 @@ import { Injectable } from "@nestjs/common";
 import { ApiService, ApiServiceBase, ApiServiceObservable } from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
-@ApiService({
-	/* ... */
-})
+@ApiService({/* ... */})
 @ApiServiceObservable()
 export class PostService extends ApiServiceBase<PostEntity> {
 	// ...

@@ -260,15 +260,13 @@ class IamConsumerPolicyDocumentSource implements IApiPolicyDocumentSource {
 			},
 		});
 
-		return records.map(
-			(record: IamConsumerPolicyDocumentEntity): IApiPolicyDocumentRecord => ({
-				document: record.document,
-				id: record.id,
-				namespace: record.namespace,
-				sourceType: record.sourceType,
-				version: record.version,
-			}),
-		);
+		return records.map((record: IamConsumerPolicyDocumentEntity): IApiPolicyDocumentRecord => ({
+			document: record.document,
+			id: record.id,
+			namespace: record.namespace,
+			sourceType: record.sourceType,
+			version: record.version,
+		}));
 	}
 }
 

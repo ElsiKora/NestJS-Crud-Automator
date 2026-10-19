@@ -20,9 +20,7 @@ Marks a controller as observable so its CRUD lifecycle emits events to route sub
 @ApiController({
 	entity: PostEntity,
 	path: "posts",
-	routes: {
-		/* ... */
-	},
+	routes: {/* ... */},
 })
 @ApiControllerObservable()
 export class PostController {}

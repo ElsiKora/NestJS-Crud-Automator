@@ -92,9 +92,7 @@ export class PostController {
 import { ApiService, ApiServiceBase, ApiServiceObservable } from "@elsikora/nestjs-crud-automator";
 
 @Injectable()
-@ApiService({
-	/* ... */
-})
+@ApiService({/* ... */})
 @ApiServiceObservable() // Required for function subscribers
 export class PostService extends ApiServiceBase<PostEntity> {
 	constructor(
