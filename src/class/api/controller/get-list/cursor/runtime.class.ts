@@ -17,8 +17,8 @@ import { API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller
 import { EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
 import { EFilterOrderDirection } from "@enum/filter";
 import { BadRequestException } from "@nestjs/common";
-import { ApiControllerGetListQueryEnumValues } from "@utility/api/controller/get-list/query/enum-values.utility";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
+import { EnumValues } from "@utility/enum/values.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { Equal, LessThan, MoreThan } from "typeorm";
 
@@ -272,7 +272,7 @@ export class ApiControllerGetListCursorRuntime {
 		}
 
 		if (field.type === EApiPropertyDescribeType.ENUM) {
-			const enumValues: ReadonlyArray<number | string> = ApiControllerGetListQueryEnumValues("enum" in field.metadata ? field.metadata.enum : {});
+			const enumValues: ReadonlyArray<number | string> = EnumValues("enum" in field.metadata ? field.metadata.enum : {});
 
 			if (enumValues.length > 0 && enumValues.every((item: number | string): boolean => typeof item === "number" && Number.isSafeInteger(item)) && typeof value === "number" && Number.isSafeInteger(value)) {
 				return value;

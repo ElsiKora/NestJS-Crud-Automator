@@ -7,8 +7,8 @@ import type { ColumnMetadata } from "typeorm/metadata/ColumnMetadata";
 
 import { API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
 import { EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
-import { ApiControllerGetListQueryEnumValues } from "@utility/api/controller/get-list/query/enum-values.utility";
 import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
+import { EnumValues } from "@utility/enum/values.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { ObjectFindPropertyDescriptor } from "@utility/object-find-property-descriptor.utility";
 
@@ -403,7 +403,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 		}
 
 		if (field.type === EApiPropertyDescribeType.ENUM) {
-			const values: ReadonlyArray<number | string> = ApiControllerGetListQueryEnumValues("enum" in field.metadata ? field.metadata.enum : {});
+			const values: ReadonlyArray<number | string> = EnumValues("enum" in field.metadata ? field.metadata.enum : {});
 
 			if (values.length > 0 && values.every((value: number | string): boolean => typeof value === "number" && Number.isSafeInteger(value))) {
 				return "ENUM_NUMBER";

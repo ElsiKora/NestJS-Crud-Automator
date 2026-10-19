@@ -1,9 +1,9 @@
 /**
  * Returns canonical enum values while removing TypeScript numeric reverse mappings.
- * @param {Readonly<Record<string, number | string>>} enumObject - Runtime enum object from property metadata.
- * @returns {ReadonlyArray<number | string>} Stable unique values accepted by the query contract.
+ * @param {Readonly<Record<string, number | string>>} enumObject - Runtime enum object.
+ * @returns {ReadonlyArray<number | string>} Stable unique member values of the enum.
  */
-export function ApiControllerGetListQueryEnumValues(enumObject: Readonly<Record<string, number | string>>): ReadonlyArray<number | string> {
+export function EnumValues(enumObject: Readonly<Record<string, number | string>>): ReadonlyArray<number | string> {
 	const values: Array<number | string> = Object.entries(enumObject)
 		.filter(([key, value]: [string, number | string]): boolean => {
 			const numericKey: number = Number(key);

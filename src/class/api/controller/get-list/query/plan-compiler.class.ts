@@ -25,13 +25,13 @@ import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
 import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperand, EFilterOperation, EFilterOrderDirection } from "@enum/filter";
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
-import { ApiControllerGetListQueryEnumValues } from "@utility/api/controller/get-list/query/enum-values.utility";
 import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
 import { DtoGetDecoratorConfig } from "@utility/dto/get/decorator-config.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/get.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
+import { EnumValues } from "@utility/enum/values.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { getMetadataArgsStorage } from "typeorm";
@@ -500,7 +500,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 
 		if ("enum" in field.metadata) {
-			const values: ReadonlyArray<number | string> = ApiControllerGetListQueryEnumValues(field.metadata.enum);
+			const values: ReadonlyArray<number | string> = EnumValues(field.metadata.enum);
 			let enumKind: string = "mixed";
 
 			if (values.every((value: number | string): boolean => typeof value === "number")) {
@@ -530,7 +530,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 
 		if ("enum" in field.metadata) {
-			fingerprint.enum = ApiControllerGetListQueryEnumValues(field.metadata.enum);
+			fingerprint.enum = EnumValues(field.metadata.enum);
 		}
 
 		return fingerprint;
@@ -916,7 +916,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 
 		if (field.type === EApiPropertyDescribeType.ENUM) {
-			const enumValues: ReadonlyArray<number | string> = ApiControllerGetListQueryEnumValues("enum" in field.metadata ? field.metadata.enum : {});
+			const enumValues: ReadonlyArray<number | string> = EnumValues("enum" in field.metadata ? field.metadata.enum : {});
 
 			if (enumValues.length === 0 || !enumValues.every((value: number | string): boolean => typeof value === "number" && Number.isSafeInteger(value))) {
 				throw ErrorException(`CURSOR GET_LIST enum order field "${field.path}" requires safe numeric values in PostgreSQL v1`);
@@ -962,7 +962,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 			}
 
 			case EApiPropertyDescribeType.ENUM: {
-				const enumValues: ReadonlyArray<number | string> = ApiControllerGetListQueryEnumValues("enum" in field.metadata ? field.metadata.enum : {});
+				const enumValues: ReadonlyArray<number | string> = EnumValues("enum" in field.metadata ? field.metadata.enum : {});
 
 				isValid = (typeof value === "number" || typeof value === "string") && enumValues.includes(value);
 

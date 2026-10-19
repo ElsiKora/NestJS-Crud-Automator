@@ -2,7 +2,7 @@ import type { SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 import { EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
-import { ApiControllerGetListQueryEnumValues } from "@utility/api/controller/get-list/query/enum-values.utility";
+import { EnumValues } from "@utility/enum/values.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
@@ -29,7 +29,7 @@ export function ApiControllerGetListQueryOpenApiValueSchema(metadata: TApiProper
 				throw ErrorException("GET_LIST enum query metadata is unavailable");
 			}
 
-			const enumValues: ReadonlyArray<number | string> = ApiControllerGetListQueryEnumValues(metadata.enum);
+			const enumValues: ReadonlyArray<number | string> = EnumValues(metadata.enum);
 			const hasNumericValues: boolean = enumValues.some((value: number | string): boolean => typeof value === "number");
 			const hasStringValues: boolean = enumValues.some((value: number | string): boolean => typeof value === "string");
 			let valueType: "number" | "string" | undefined;

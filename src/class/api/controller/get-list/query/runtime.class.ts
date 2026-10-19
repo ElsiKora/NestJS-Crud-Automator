@@ -8,9 +8,9 @@ import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
 import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode, EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { EFilterOperand, EFilterOperation, EFilterOrderDirection } from "@enum/filter";
 import { BadRequestException } from "@nestjs/common";
-import { ApiControllerGetListQueryEnumValues } from "@utility/api/controller/get-list/query/enum-values.utility";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
+import { EnumValues } from "@utility/enum/values.utility";
 
 export class ApiControllerGetListQueryRuntime {
 	public static compileWhere<E>(ast: IApiControllerGetListQueryAst): TApiFunctionGetListPropertiesWhere<E> {
@@ -314,7 +314,7 @@ export class ApiControllerGetListQueryRuntime {
 			}
 
 			case EApiPropertyDescribeType.ENUM: {
-				const enumValues: ReadonlyArray<number | string> = ApiControllerGetListQueryEnumValues("enum" in field.metadata ? field.metadata.enum : {});
+				const enumValues: ReadonlyArray<number | string> = EnumValues("enum" in field.metadata ? field.metadata.enum : {});
 				const enumValue: number | string | undefined = enumValues.find((candidate: number | string): boolean => candidate === value || (typeof candidate === "number" && typeof value === "string" && String(candidate) === value));
 
 				if (enumValue !== undefined) {
