@@ -1,3 +1,13 @@
+# [4.6.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.5.0...v4.6.0) (2026-10-19)
+
+### Bug Fixes
+
+- **lint:** narrow enum values without unsafe assertions ([63566e1](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/63566e104ed90ab433731ae5832c35cb6e8fd738))
+
+### Features
+
+- **route:** add configurable guard stages ([5ba1002](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/5ba10024af4217fc55a14f68f4b1181452a28d28))
+
 # [4.5.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.4.0...v4.5.0) (2026-09-23)
 
 ### Features
