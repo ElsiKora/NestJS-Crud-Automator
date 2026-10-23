@@ -28,13 +28,13 @@ export function ApiRouteResolveDiscriminatedDto(properties: TApiRouteDiscriminat
 	const discriminatorValue: unknown = payloadAsRecord[discriminatorPropertyName];
 
 	if (typeof discriminatorValue !== "string" || discriminatorValue === "") {
-		throw ErrorException(`${context} discriminator payload error: invalid discriminator value '${String(discriminatorValue)}' for field '${discriminatorPropertyName}'`);
+		throw ErrorException(`${context} discriminator payload error: invalid discriminator value for field '${discriminatorPropertyName}'`);
 	}
 
-	const dto: Type<unknown> | undefined = properties.discriminator.mapping[discriminatorValue];
+	const dto: Type<unknown> | undefined = Object.hasOwn(properties.discriminator.mapping, discriminatorValue) ? properties.discriminator.mapping[discriminatorValue] : undefined;
 
 	if (!dto) {
-		throw ErrorException(`${context} discriminator payload error: invalid discriminator value '${discriminatorValue}' for field '${discriminatorPropertyName}'`);
+		throw ErrorException(`${context} discriminator payload error: invalid discriminator value for field '${discriminatorPropertyName}'`);
 	}
 
 	return dto;

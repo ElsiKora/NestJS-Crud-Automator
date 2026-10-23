@@ -44,6 +44,14 @@ describe("MustMatchOneOfSchemasConstraint", () => {
 		expect(validator.defaultMessage(args)).toBe("payload has invalid discriminator value for field 'kind'. must be one of: 'A', 'B'");
 	});
 
+	it.each(["constructor", "toString", "__proto__"])("rejects the inherited object key %s as a discriminator", (discriminatorValue: string) => {
+		const validator = new MustMatchOneOfSchemasConstraint();
+		const args = buildArgs();
+
+		expect(validator.validate({ kind: discriminatorValue }, args)).toBe(false);
+		expect(validator.defaultMessage(args)).toBe("payload has invalid discriminator value for field 'kind'. must be one of: 'A', 'B'");
+	});
+
 	it("passes when discriminator matches allowed schema", () => {
 		const validator = new MustMatchOneOfSchemasConstraint();
 		const args = buildArgs();

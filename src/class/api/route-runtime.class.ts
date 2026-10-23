@@ -54,7 +54,7 @@ import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/ser
 import { ApiControllerTransformData } from "@utility/api/controller/transform-data.utility";
 import { ApiControllerValidateRequest } from "@utility/api/controller/validate-request.utility";
 import { ApiRouteProjectRelationResponse, ApiRouteValidationFlattenErrors } from "@utility/api/route";
-import { ApiRouteCreateDiscriminatedDtoValidationFailure, ApiRouteIsDiscriminatedDtoProperties, ApiRoutePrepareDiscriminatedDtoPayload, ApiRouteResolveDiscriminatedDto } from "@utility/api/route/discriminator";
+import { ApiRouteCreateDiscriminatedDtoValidationFailure, ApiRouteIsDiscriminatedDtoProperties, ApiRoutePrepareDiscriminatedDtoPayload, ApiRouteResolveDiscriminatedDto, ApiRouteValidateDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { ApiRouteSerializeResponse } from "@utility/api/route/response/serialize.utility";
 import { AuthorizationDecisionApplyResult, AuthorizationDecisionAttachResource, AuthorizationDecisionResolveFromRequest } from "@utility/authorization/decision";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
@@ -240,6 +240,8 @@ export class ApiRouteRuntime {
 		if (!ApiRouteIsDiscriminatedDtoProperties(bodyDto)) {
 			return;
 		}
+
+		ApiRouteValidateDiscriminatedDtoProperties(bodyDto, "ApiRouteCustom body");
 
 		let selectedDto: Type<unknown> | undefined;
 		let transformedBody: unknown;

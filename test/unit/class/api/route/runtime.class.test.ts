@@ -359,6 +359,30 @@ describe("ApiRouteRuntime", () => {
 		expect(JSON.stringify(errors)).not.toContain("123");
 	});
 
+	it.each(["constructor", "toString", "__proto__"])("treats the inherited object key %s as an unknown request discriminator", async (discriminatorValue: string) => {
+		const factoryResult: { code: string } = { code: "VALIDATION_FAILED" };
+		const exceptionFactory = vi.fn((_errors: Array<ValidationError>): unknown => factoryResult);
+
+		const thrownError: unknown = await executeDiscriminatedBodyRoute({ channel: discriminatorValue, email: "user@example.com" }, { exceptionFactory }).catch((error: unknown) => error);
+
+		expect(thrownError).toBe(factoryResult);
+		expect(exceptionFactory.mock.lastCall?.[0]).toEqual([Object.assign(new ValidationError(), { children: [], constraints: { mustMatchDiscriminatorMapping: "channel has invalid discriminator value. must be one of: 'email', 'phone'" }, property: "channel" })]);
+	});
+
+	it.each([
+		{ body: { channel: "email", email: "user@example.com" }, name: "valid" },
+		{ body: { channel: "unknown" }, name: "invalid" },
+	])("surfaces a misconfigured discriminated body mapping as a configuration error for a $name payload", async ({ body }) => {
+		const exceptionFactory = vi.fn((_errors: Array<ValidationError>): unknown => new Error("factory"));
+
+		const thrownError: unknown = await executeDiscriminatedBodyRoute(body, { exceptionFactory, type: [RuntimeRouteEmailBodyDTO] }).catch((error: unknown) => error);
+
+		expect(thrownError).toBeInstanceOf(Error);
+		expect(thrownError).not.toBeInstanceOf(BadRequestException);
+		expect((thrownError as Error).message).toContain("[NestJS-Crud-Automator] ApiRouteCustom body discriminator config error");
+		expect(exceptionFactory).not.toHaveBeenCalled();
+	});
+
 	it("awaits an async exception factory and throws its resolved result", async () => {
 		const factoryResult: { code: string } = { code: "VALIDATION_FAILED" };
 		const exceptionFactory = vi.fn(async (_errors: Array<ValidationError>): Promise<unknown> => factoryResult);
@@ -579,6 +603,52 @@ describe("ApiRouteRuntime", () => {
 				runtimeProperties: {},
 			}),
 		).rejects.toThrow("missing required discriminator field");
+	});
+
+	it.each(["constructor", "toString", "__proto__"])("rejects the inherited object key %s as a response discriminator without echoing it", async (discriminatorValue: string) => {
+		const request = {
+			body: {},
+			headers: {},
+			ip: "127.0.0.1",
+			params: {},
+			query: {},
+		} as IApiRouteRuntimeHttpRequest<RuntimeRouteEntity>;
+
+		const thrownError: unknown = await ApiRouteRuntime.executeCustom({
+			executionContext: createExecutionContext(request),
+			metadata: {
+				resource: {
+					action: "custom.discriminatedResponse",
+					entity: RuntimeRouteEntity,
+				},
+				response: {
+					discriminator: {
+						mapping: {
+							session: RuntimeRouteSessionResponseDTO,
+							verification: RuntimeRouteVerificationResponseDTO,
+						},
+						propertyName: "mode",
+					},
+					serialization: {
+						isEnabled: true,
+					},
+					status: HttpStatus.OK,
+					type: [RuntimeRouteVerificationResponseDTO, RuntimeRouteSessionResponseDTO],
+				},
+				route: {
+					method: RequestMethod.POST,
+					path: "custom",
+				},
+			},
+			operation: async () => ({
+				id: "response-1",
+				mode: discriminatorValue,
+			}),
+			runtimeProperties: {},
+		}).catch((error: unknown) => error);
+
+		expect(thrownError).toBeInstanceOf(Error);
+		expect((thrownError as Error).message).toBe("[NestJS-Crud-Automator] ApiRouteSerializeResponse discriminator payload error: invalid discriminator value for field 'mode'");
 	});
 
 	it("passes response relation load strategy to custom route response reload", async () => {
