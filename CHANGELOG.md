@@ -1,3 +1,13 @@
+# [4.7.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.6.0...v4.7.0) (2026-10-23)
+
+### Bug Fixes
+
+- **route:** resolve discriminated dtos from own mapping keys only ([ca817f0](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/ca817f0f38b7d69d96ca266b18154a77636f1eda))
+
+### Features
+
+- **route:** add exception factory for discriminated request bodies ([cb30c1d](https://github.com/ElsiKora/NestJS-Crud-Automator/commit/cb30c1d5c10ca2243478462cc215f2ae13830677))
+
 # [4.6.0](https://github.com/ElsiKora/NestJS-Crud-Automator/compare/v4.5.0...v4.6.0) (2026-10-19)
 
 ### Bug Fixes
