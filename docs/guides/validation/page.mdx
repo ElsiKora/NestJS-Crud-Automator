@@ -139,7 +139,7 @@ validators: [
 
 ### MustMatchOneOfSchemasValidator
 
-Validates an object property against one of multiple discriminator-backed schemas. Prefer `ApiPropertyObject({ type: [...], discriminator, shouldValidateNested: true })` for generated DTO object payloads because it wires the validator from property metadata.
+Validates an object property against one of multiple discriminator-backed schemas. Prefer `ApiPropertyObject({ type: [...], discriminator, shouldValidateNested: true })` for generated DTO object payloads because it wires the validator from property metadata. Its messages never echo the rejected discriminator value, for example `payload has invalid discriminator value for field 'type'. must be one of: 'card', 'paypal'`.
 
 ```typescript
 import { MustMatchOneOfSchemasValidator } from "@elsikora/nestjs-crud-automator";
@@ -413,6 +413,10 @@ async function bootstrap() {
 }
 bootstrap();
 ```
+
+### Root-level discriminated custom route bodies
+
+A global `ValidationPipe` does not validate root-level discriminated `@ApiRouteCustom` bodies: Crud Automator selects the variant DTO, transforms it, and validates it itself. Mirror the pipe options you need on the discriminated body config with `validatorOptions`, `transformOptions`, and `exceptionFactory`. `exceptionFactory` behaves like the `ValidationPipe` option and may be sync or async: it receives the selected variant's native `ValidationError[]`, or one synthetic `mustMatchDiscriminatorMapping` error without `value` for a non-object body or a missing or unknown discriminator, and its return value is thrown. Discriminator messages never echo the rejected value. Errors thrown while transforming the selected variant, including an `HttpException` or any other error from your own `@Transform`, are not passed to `exceptionFactory` and propagate unchanged, exactly as with Nest `ValidationPipe`. See [`@ApiRouteCustom`](/docs/nestjs-crud-automator/api-reference/decorators/api-method/api-route-custom#root-level-discriminated-dtos) for a full example.
 
 ## Validation in Subscribers
 

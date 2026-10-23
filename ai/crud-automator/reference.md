@@ -204,6 +204,13 @@ Route guard stages:
 - `AFTER_AUTHENTICATION` guards see the principal set by the authentication guard; on securable controllers `AFTER_AUTHORIZATION` guards also see the attached authorization decision.
 - Generated routes, `@ApiRouteCustom`, and direct `@ApiMethod` share the same ordering because all compose through `@ApiMethod`. Guards added through `generation.decorators` or other `UseGuards` decorators are outside this staged chain.
 
+Root-level discriminated custom route bodies:
+
+- `dto.body: { type: [...], discriminator, validatorOptions?, transformOptions?, exceptionFactory? }` (`TApiRouteDiscriminatedDtoProperties`). Crud Automator selects, transforms, and validates the variant itself; the host `ValidationPipe` options never reach it, so mirror them with these three options.
+- `exceptionFactory(errors: Array<ValidationError>) => unknown` has `ValidationPipe` semantics: it may be sync or async, and its awaited return value is thrown instead of the default `BadRequestException(string[])`. Variant failures pass native `ValidationError[]` (`value`/`target` follow `validatorOptions.validationError`); a non-object body or missing/unknown discriminator passes one synthetic `{ property, constraints: { mustMatchDiscriminatorMapping }, children: [] }` error with no `value` key.
+- Transformation errors (class-transformer failures and any `HttpException` or other error thrown by a consumer `@Transform`) bypass `exceptionFactory` and propagate unchanged, as with Nest `ValidationPipe`; a non-HTTP error becomes a generic 500.
+- Discriminator messages never echo the rejected value: `channel has invalid discriminator value. must be one of: 'email', 'username'`. The nested `MustMatchOneOfSchemasValidator` (`ApiPropertyObject` discriminators) follows the same rule: `<prop> has invalid discriminator value for field '<field>'. must be one of: ...`. Generated CRUD routes keep using the host `ValidationPipe`.
+
 Custom route caveats:
 
 - Request relation hydration currently targets the body argument.

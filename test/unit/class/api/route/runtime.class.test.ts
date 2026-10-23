@@ -1,5 +1,6 @@
 import type { IApiRouteRuntimeHttpRequest } from "@interface/class/api/route";
 import type { ExecutionContext } from "@nestjs/common";
+import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 import type { FindOperator, ValueTransformer } from "typeorm";
 
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
@@ -7,12 +8,13 @@ import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
-import { HttpStatus, RequestMethod } from "@nestjs/common";
+import { BadRequestException, HttpStatus, RequestMethod } from "@nestjs/common";
 import { ApiRouteProjectRelationResponse } from "@utility/api/route/response/project-relation.utility";
+import { ValidationError } from "class-validator";
 import { In } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
-import { RuntimeRouteEmailBodyDTO, RuntimeRouteEntity, RuntimeRouteExposedEmailBodyDTO, RuntimeRouteExposedPhoneBodyDTO, RuntimeRoutePhoneBodyDTO, RuntimeRouteResponseDTO, RuntimeRouteSessionResponseDTO, RuntimeRouteVerificationResponseDTO } from "./runtime/fixture";
+import { RUNTIME_ROUTE_TRANSFORM_ERROR, RuntimeRouteEmailBodyDTO, RuntimeRouteEntity, RuntimeRouteExposedEmailBodyDTO, RuntimeRouteExposedPhoneBodyDTO, RuntimeRoutePhoneBodyDTO, RuntimeRouteResponseDTO, RuntimeRouteSessionResponseDTO, RuntimeRouteTransformBodyDTO, RuntimeRouteVerificationResponseDTO } from "./runtime/fixture";
 
 const createExecutionContext = (request: IApiRouteRuntimeHttpRequest<RuntimeRouteEntity>): ExecutionContext =>
 	({
@@ -33,6 +35,51 @@ const createExecutionContext = (request: IApiRouteRuntimeHttpRequest<RuntimeRout
 			getData: () => undefined,
 		}),
 	}) as unknown as ExecutionContext;
+
+const executeDiscriminatedBodyRoute = async (body: unknown, bodyProperties: Partial<TApiRouteDiscriminatedDtoProperties> = {}): Promise<unknown> => {
+	const request = {
+		body,
+		headers: {},
+		ip: "127.0.0.1",
+		params: {},
+		query: {},
+	} as IApiRouteRuntimeHttpRequest<RuntimeRouteEntity>;
+
+	return await ApiRouteRuntime.executeCustom({
+		executionContext: createExecutionContext(request),
+		metadata: {
+			resource: {
+				action: "custom.discriminatedBody",
+				entity: RuntimeRouteEntity,
+			},
+			response: {
+				status: HttpStatus.OK,
+				type: undefined,
+			},
+			route: {
+				method: RequestMethod.POST,
+				path: "custom",
+			},
+		},
+		operation: async () => request.body,
+		runtimeProperties: {
+			dto: {
+				body: {
+					discriminator: {
+						mapping: {
+							email: RuntimeRouteEmailBodyDTO,
+							phone: RuntimeRoutePhoneBodyDTO,
+						},
+						propertyName: "channel",
+						shouldKeepDiscriminatorProperty: true,
+					},
+					type: [RuntimeRouteEmailBodyDTO, RuntimeRoutePhoneBodyDTO],
+					...bodyProperties,
+				},
+			},
+		},
+	});
+};
 
 describe("ApiRouteRuntime", () => {
 	it("executes custom route request targets, response targets, and explicit serialization", async () => {
@@ -218,7 +265,108 @@ describe("ApiRouteRuntime", () => {
 		expect(thrownError).toMatchObject({
 			status: 400,
 		});
-		expect(responseBody.message).toEqual([expect.stringContaining("channel has invalid discriminator value 'sms'")]);
+		expect(responseBody.message).toEqual(["channel has invalid discriminator value. must be one of: 'email', 'phone'"]);
+		expect(JSON.stringify(responseBody)).not.toContain("sms");
+	});
+
+	it("keeps the default bad request message array for selected discriminated variant failures", async () => {
+		const thrownError: unknown = await executeDiscriminatedBodyRoute({ channel: "email", email: 42 }).catch((error: unknown) => error);
+
+		expect(thrownError).toBeInstanceOf(BadRequestException);
+		expect((thrownError as BadRequestException).getResponse()).toMatchObject({ message: ["email must be a string"] });
+	});
+
+	it.each([
+		{ body: { phone: "+10000000000" }, message: "channel is missing required discriminator field 'channel'", property: "channel" },
+		{ body: "rejected-secret-value", message: "body must be an object", property: "body" },
+	])("keeps the default bad request message for discriminator resolution failure on $property", async ({ body, message }) => {
+		const thrownError: unknown = await executeDiscriminatedBodyRoute(body).catch((error: unknown) => error);
+
+		expect(thrownError).toBeInstanceOf(BadRequestException);
+		expect((thrownError as BadRequestException).getResponse()).toMatchObject({ message: [message] });
+		expect(JSON.stringify((thrownError as BadRequestException).getResponse())).not.toContain("rejected-secret-value");
+	});
+
+	it("throws the exception factory result for native selected discriminated variant validation errors", async () => {
+		const factoryError: Error = new Error("factory");
+		const exceptionFactory = vi.fn((_errors: Array<ValidationError>): unknown => factoryError);
+
+		const thrownError: unknown = await executeDiscriminatedBodyRoute({ channel: "email", email: 42 }, { exceptionFactory, validatorOptions: { validationError: { target: false, value: false } } }).catch((error: unknown) => error);
+		const errors: Array<ValidationError> = exceptionFactory.mock.lastCall?.[0] ?? [];
+
+		expect(thrownError).toBe(factoryError);
+		expect(exceptionFactory).toHaveBeenCalledOnce();
+		expect(errors).toHaveLength(1);
+		expect(errors[0]).toBeInstanceOf(ValidationError);
+		expect(errors[0]).toMatchObject({ constraints: { isString: "email must be a string" }, property: "email" });
+		expect(Object.keys(errors[0] ?? {})).not.toContain("value");
+		expect(Object.keys(errors[0] ?? {})).not.toContain("target");
+	});
+
+	it("passes native selected discriminated variant validation errors untouched when validator options keep values", async () => {
+		const exceptionFactory = vi.fn((_errors: Array<ValidationError>): unknown => new Error("factory"));
+
+		await executeDiscriminatedBodyRoute({ channel: "email", email: 42 }, { exceptionFactory }).catch((error: unknown) => error);
+
+		expect(exceptionFactory.mock.lastCall?.[0]).toEqual([expect.objectContaining({ property: "email", value: 42 })]);
+	});
+
+	it.each([
+		{ body: { channel: "transform", payload: 5 }, expectedError: (error: unknown): void => expect(error).toBeInstanceOf(TypeError), name: "class-transformer failure" },
+		{ body: { channel: "transform", token: "reject" }, expectedError: (error: unknown): void => expect(error).toBe(RUNTIME_ROUTE_TRANSFORM_ERROR), name: "consumer @Transform exception" },
+	])("propagates a $name on the selected discriminated variant unchanged without the exception factory", async ({ body, expectedError }) => {
+		const exceptionFactory = vi.fn((_errors: Array<ValidationError>): unknown => new Error("factory"));
+
+		const thrownError: unknown = await executeDiscriminatedBodyRoute(body, {
+			discriminator: {
+				mapping: {
+					transform: RuntimeRouteTransformBodyDTO,
+				},
+				propertyName: "channel",
+				shouldKeepDiscriminatorProperty: true,
+			},
+			exceptionFactory,
+			type: [RuntimeRouteTransformBodyDTO],
+		}).catch((error: unknown) => error);
+
+		expectedError(thrownError);
+		expect(exceptionFactory).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{ body: { phone: "+10000000000" }, message: "channel is missing required discriminator field 'channel'", property: "channel" },
+		{ body: { channel: "rejected-secret-value", phone: "+10000000000" }, message: "channel has invalid discriminator value. must be one of: 'email', 'phone'", property: "channel" },
+		{ body: "rejected-secret-value", message: "body must be an object", property: "body" },
+		{ body: ["rejected-secret-value"], message: "body must be an object", property: "body" },
+		{ body: null, message: "body must be an object", property: "body" },
+		{ body: { channel: 123, phone: "+10000000000" }, message: "channel has invalid discriminator value. must be one of: 'email', 'phone'", property: "channel" },
+		{ body: { channel: { secret: "rejected-secret-value" }, phone: "+10000000000" }, message: "channel has invalid discriminator value. must be one of: 'email', 'phone'", property: "channel" },
+		{ body: { channel: "", phone: "+10000000000" }, message: "channel has invalid discriminator value. must be one of: 'email', 'phone'", property: "channel" },
+	])("throws the exception factory result for a synthetic discriminator error on $property: $message ($body)", async ({ body, message, property }) => {
+		const factoryResult: { code: string } = { code: "VALIDATION_FAILED" };
+		const exceptionFactory = vi.fn((_errors: Array<ValidationError>): unknown => factoryResult);
+
+		const thrownError: unknown = await executeDiscriminatedBodyRoute(body, { exceptionFactory }).catch((error: unknown) => error);
+		const errors: Array<ValidationError> = exceptionFactory.mock.lastCall?.[0] ?? [];
+
+		expect(thrownError).toBe(factoryResult);
+		expect(exceptionFactory).toHaveBeenCalledOnce();
+		expect(errors).toHaveLength(1);
+		expect(errors[0]).toBeInstanceOf(ValidationError);
+		expect(errors[0]).toEqual(Object.assign(new ValidationError(), { children: [], constraints: { mustMatchDiscriminatorMapping: message }, property }));
+		expect(Object.keys(errors[0] ?? {})).not.toContain("value");
+		expect(JSON.stringify(errors)).not.toContain("rejected-secret-value");
+		expect(JSON.stringify(errors)).not.toContain("123");
+	});
+
+	it("awaits an async exception factory and throws its resolved result", async () => {
+		const factoryResult: { code: string } = { code: "VALIDATION_FAILED" };
+		const exceptionFactory = vi.fn(async (_errors: Array<ValidationError>): Promise<unknown> => factoryResult);
+
+		const thrownError: unknown = await executeDiscriminatedBodyRoute({ channel: "email", email: 42 }, { exceptionFactory }).catch((error: unknown) => error);
+
+		expect(thrownError).toBe(factoryResult);
+		expect(exceptionFactory).toHaveBeenCalledOnce();
 	});
 
 	it("passes configured validator options to selected discriminated custom route request DTO validation", async () => {

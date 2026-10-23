@@ -125,6 +125,10 @@ Omitted route config and `SUPPORTS` must not add a new `BEGIN`. `MANDATORY` requ
 
 `@ApiRouteCustom` request relation hydration only reads the method `@Body()` argument. Custom route subscribers receive auth, headers, IP, metadata, and runtime properties through `context.DATA`, not `context.result`.
 
+## Discriminated Body Errors Through The Global Pipe
+
+Root-level discriminated `@ApiRouteCustom` bodies are validated by Crud Automator, not by the host `ValidationPipe`, so a global `exceptionFactory`, `whitelist`, or `transformOptions` does not apply. Mirror them on the body config (`exceptionFactory`, `validatorOptions`, `transformOptions`); set `validatorOptions.validationError: { target: false, value: false }` when the factory must not see submitted values.
+
 ## Delete Return Shape Assumptions
 
 Generated service/controller `delete` returns `Promise<void>`. The low-level decorator currently has an internal removed-entity return shape, but app-facing code should not depend on it.

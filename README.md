@@ -587,7 +587,33 @@ Swagger emits `oneOf` plus OpenAPI discriminator metadata for both sides. Reques
 
 Declare the discriminator field, such as `channel` or `mode`, on every variant DTO with the usual property decorators. If `shouldKeepDiscriminatorProperty` is `false`, make that DTO property optional so Swagger can still document the input contract while the transformed instance omits the field.
 
-Root-level discriminator selection runs before Nest can infer a concrete DTO class, so global `ValidationPipe` options are not applied automatically to the selected variant. Add `validatorOptions` or `transformOptions` to the discriminated body config when a route needs specific validation or transformation settings.
+Root-level discriminator selection runs before Nest can infer a concrete DTO class, so global `ValidationPipe` options are not applied automatically to the selected variant. Add `validatorOptions`, `transformOptions`, or `exceptionFactory` to the discriminated body config when a route needs specific validation, transformation, or error-shaping settings.
+
+`exceptionFactory(errors)` has the same semantics as the `ValidationPipe` option: it may be sync or async, and when it is present, Crud Automator throws its (awaited) return value instead of the default `BadRequestException` with a flattened message array. It receives the native `class-validator` `ValidationError[]` of the selected variant, so `value` and `target` follow `validatorOptions.validationError` exactly as in `ValidationPipe`. When the body is not an object or its discriminator is missing or unknown, it receives one synthetic `{ property, constraints: { mustMatchDiscriminatorMapping }, children: [] }` error that has no `value` key. Discriminator failure messages never echo the rejected value, for example `channel has invalid discriminator value. must be one of: 'email', 'username'`. `exceptionFactory` applies to the request body only. Errors thrown while transforming the selected variant, including an `HttpException` or any other error from your own `@Transform`, are not passed to `exceptionFactory` and propagate unchanged, exactly as with Nest `ValidationPipe`.
+
+```typescript
+dto: {
+	body: {
+		type: [EmailRegistrationBodyDto, UsernameRegistrationBodyDto],
+		discriminator: {
+			propertyName: "channel",
+			shouldKeepDiscriminatorProperty: true,
+			mapping: {
+				email: EmailRegistrationBodyDto,
+				username: UsernameRegistrationBodyDto,
+			},
+		},
+		validatorOptions: {
+			validationError: { target: false, value: false },
+		},
+		exceptionFactory: (errors: Array<ValidationError>) =>
+			new BadRequestException({
+				code: "VALIDATION_FAILED",
+				errors: errors.flatMap((error) => Object.keys(error.constraints ?? {}).map((rule) => ({ path: error.property, rule }))),
+			}),
+	},
+},
+```
 
 Generated routes can opt into a route-owned transaction by reusing `EApiFunctionTransactionMode`:
 

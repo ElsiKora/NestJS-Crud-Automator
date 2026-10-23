@@ -11,8 +11,6 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 
 	private discriminatorField: null | string = null;
 
-	private discriminatorValue: null | string = null;
-
 	private errorType: EMastMatchOneOfSchemasValidationErrorType = EMastMatchOneOfSchemasValidationErrorType.UNKNOWN;
 
 	/**
@@ -31,7 +29,7 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 					})
 					.join(", ");
 
-				return `${propertyName} has invalid discriminator value '${String(this.discriminatorValue)}' for field '${String(this.discriminatorField)}'. must be one of: ${schemasList}`;
+				return `${propertyName} has invalid discriminator value for field '${String(this.discriminatorField)}'. must be one of: ${schemasList}`;
 			}
 
 			case EMastMatchOneOfSchemasValidationErrorType.MISSING_DISCRIMINATOR: {
@@ -110,7 +108,6 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 
 			if (typeof discriminatorValue !== "string" || discriminatorValue === "") {
 				this.errorType = EMastMatchOneOfSchemasValidationErrorType.INVALID_DISCRIMINATOR;
-				this.discriminatorValue = String(discriminatorValue);
 				this.prepareAllowedSchemas(_arguments);
 
 				return false;
@@ -127,7 +124,6 @@ export class MustMatchOneOfSchemasConstraint implements ValidatorConstraintInter
 
 			if (!this.allowedValues.includes(discriminatorValue)) {
 				this.errorType = EMastMatchOneOfSchemasValidationErrorType.INVALID_DISCRIMINATOR;
-				this.discriminatorValue = discriminatorValue;
 
 				return false;
 			}

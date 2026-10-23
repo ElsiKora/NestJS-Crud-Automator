@@ -48,6 +48,20 @@ type TApiControllerGetListQueryFilterFields<E> = {
 
 Enabled filter fields require non-empty `allowedOperations`. Their typed `defaultCondition` discriminates scalar `value`, membership/range `values`, and nullary operations. Disabled filter/order fields use the exact `{ isEnabled: false }` shape. TypeScript checks structural paths and broad scalar kinds; controller initialization applies the exact `ApiPropertyDescribe` and TypeORM metadata checks for UUID, enum, nullability, and relation shape.
 
+## Route DTO Types
+
+```typescript
+type TApiRouteDiscriminatedDtoProperties = {
+	discriminator: TTypeDiscriminator;
+	exceptionFactory?: (errors: Array<ValidationError>) => unknown;
+	transformOptions?: ClassTransformOptions;
+	type: Array<Type<unknown>>;
+	validatorOptions?: ValidatorOptions;
+};
+```
+
+Root-level discriminated `@ApiRouteCustom` body and response config. Global `ValidationPipe` options do not reach the selected body variant, so `validatorOptions`, `transformOptions`, and `exceptionFactory` mirror them. `exceptionFactory` follows `ValidationPipe` semantics: it may be sync or async, and its awaited return value is thrown instead of the default `BadRequestException(string[])`. It receives the selected variant's native `ValidationError[]`, or one synthetic `mustMatchDiscriminatorMapping` error without `value` when the body is not an object or its discriminator is missing or unknown. No discriminator message echoes the rejected value. `exceptionFactory` applies to the request body only. Errors thrown while transforming the selected variant, including an `HttpException` or any other error from your own `@Transform`, are not passed to `exceptionFactory` and propagate unchanged, exactly as with Nest `ValidationPipe`.
+
 ## Subscriber Context Helpers
 
 ```typescript

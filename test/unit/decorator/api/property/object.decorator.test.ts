@@ -320,7 +320,7 @@ describe("ApiPropertyObject", () => {
 
 	it.each([
 		["missing", {}, /missing required discriminator field|must match one of the schemas/u],
-		["unknown", { kind: "bird" }, /invalid discriminator value 'bird'/u],
+		["unknown", { kind: "bird" }, /^pets has invalid discriminator value for field 'kind'\. must be one of: (?!.*bird)/u],
 	])("rejects %s discriminators inside object arrays", (_caseName: string, pet: Record<string, string>, expectedMessage: RegExp) => {
 		const instance = plainToInstance(DiscriminatorArrayDto, {
 			pets: [pet, { kind: "cat" }],

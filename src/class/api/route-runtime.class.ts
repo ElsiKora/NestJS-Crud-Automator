@@ -241,24 +241,23 @@ export class ApiRouteRuntime {
 			return;
 		}
 
-		let selectedDto: Type<unknown>;
+		let selectedDto: Type<unknown> | undefined;
+		let transformedBody: unknown;
+		let validationErrors: Array<ValidationError> = [];
 
 		try {
 			selectedDto = ApiRouteResolveDiscriminatedDto(bodyDto, request.body, "ApiRouteCustom body");
 		} catch {
-			const validationError: ValidationError = ApiRouteCreateDiscriminatedDtoValidationFailure(bodyDto, request.body);
-			const validationMessages: Array<string> = ApiRouteValidationFlattenErrors([validationError]);
-
-			throw new BadRequestException(validationMessages);
+			validationErrors = [ApiRouteCreateDiscriminatedDtoValidationFailure(bodyDto, request.body)];
 		}
 
-		const transformedBody: unknown = plainToInstance(selectedDto as ClassConstructor<unknown>, ApiRoutePrepareDiscriminatedDtoPayload(bodyDto, request.body), bodyDto.transformOptions);
-		const validationErrors: Array<ValidationError> = await validate(transformedBody as object, bodyDto.validatorOptions);
+		if (selectedDto) {
+			transformedBody = plainToInstance(selectedDto as ClassConstructor<unknown>, ApiRoutePrepareDiscriminatedDtoPayload(bodyDto, request.body), bodyDto.transformOptions);
+			validationErrors = await validate(transformedBody as object, bodyDto.validatorOptions);
+		}
 
 		if (validationErrors.length > 0) {
-			const validationMessages: Array<string> = ApiRouteValidationFlattenErrors(validationErrors);
-
-			throw new BadRequestException(validationMessages);
+			throw bodyDto.exceptionFactory ? await bodyDto.exceptionFactory(validationErrors) : new BadRequestException(ApiRouteValidationFlattenErrors(validationErrors));
 		}
 
 		request.body = transformedBody as Partial<E>;

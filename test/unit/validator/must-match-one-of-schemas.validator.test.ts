@@ -40,8 +40,8 @@ describe("MustMatchOneOfSchemasConstraint", () => {
 		expect(validator.validate({ other: "value" } as object, args)).toBe(false);
 		expect(validator.defaultMessage(args)).toContain("missing required discriminator field");
 
-		expect(validator.validate({ kind: "C" } as object, args)).toBe(false);
-		expect(validator.defaultMessage(args)).toContain("invalid discriminator value");
+		expect(validator.validate({ kind: "rejected-secret-value" } as object, args)).toBe(false);
+		expect(validator.defaultMessage(args)).toBe("payload has invalid discriminator value for field 'kind'. must be one of: 'A', 'B'");
 	});
 
 	it("passes when discriminator matches allowed schema", () => {
@@ -57,8 +57,8 @@ describe("MustMatchOneOfSchemasConstraint", () => {
 
 		expect(validator.validate({ kind: "UNKNOWN" }, args)).toBe(false);
 		expect(validator.validate({ kind: "A" }, args)).toBe(true);
-		expect(validator.defaultMessage(args)).toContain("invalid discriminator value 'UNKNOWN'");
-		expect(validator.defaultMessage(args)).not.toContain("invalid discriminator value 'A'");
+		expect(validator.defaultMessage(args)).toBe("payload has invalid discriminator value for field 'kind'. must be one of: 'A', 'B'");
+		expect(validator.defaultMessage(args)).not.toContain("UNKNOWN");
 	});
 
 	it("handles missing or invalid discriminator configuration", () => {
@@ -87,7 +87,7 @@ describe("MustMatchOneOfSchemasConstraint", () => {
 
 		const invalidValueArgs = buildArgs();
 		expect(validator.validate({ kind: 123 } as object, invalidValueArgs)).toBe(false);
-		expect(validator.defaultMessage(invalidValueArgs)).toContain("invalid discriminator value");
+		expect(validator.defaultMessage(invalidValueArgs)).toBe("payload has invalid discriminator value for field 'kind'. must be one of: 'A', 'B'");
 
 		const missingMappingArgs = {
 			constraints: [

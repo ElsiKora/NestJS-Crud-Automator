@@ -1,3 +1,5 @@
+import type { ValidationError } from "class-validator";
+
 import { BadRequestException, Body, Controller, HttpStatus, Inject, Param, Query, Req, RequestMethod } from "@nestjs/common";
 
 import { ApiControllerObservable, ApiRouteCustom, EApiAuthenticationType, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiRouteGuardStage, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../../src/index";
@@ -6,7 +8,7 @@ import { TestAuthGuard } from "../auth-guard";
 import { E2eEntity } from "../entity";
 import { E2eOwnerService } from "../owner";
 import { E2eService } from "../service";
-import { E2eCustomRouteDiscriminatedEmailBodyDto, E2eCustomRouteDiscriminatedSessionResponseDto, E2eCustomRouteDiscriminatedStrippedBodyDto, E2eCustomRouteDiscriminatedUsernameBodyDto, E2eCustomRouteDiscriminatedVerificationResponseDto } from "./discriminated";
+import { E2eCustomRouteDiscriminatedEmailBodyDto, E2eCustomRouteDiscriminatedSessionResponseDto, E2eCustomRouteDiscriminatedStrippedBodyDto, E2eCustomRouteDiscriminatedTransformBodyDto, E2eCustomRouteDiscriminatedUsernameBodyDto, E2eCustomRouteDiscriminatedVerificationResponseDto } from "./discriminated";
 import { E2eCustomRouteResponseDto } from "./response.dto";
 import { E2eStageTraceGuard, type IE2eStageTraceEntry } from "./stage-trace";
 
@@ -258,6 +260,54 @@ export class E2eCustomRouteController {
 			hidden: "should-not-serialize",
 			mode: "session",
 			sessionToken: body.username,
+		};
+	}
+
+	@ApiRouteCustom<E2eEntity>({
+		dto: {
+			[EApiDtoType.BODY]: {
+				discriminator: {
+					mapping: {
+						email: E2eCustomRouteDiscriminatedEmailBodyDto,
+						transform: E2eCustomRouteDiscriminatedTransformBodyDto,
+						username: E2eCustomRouteDiscriminatedUsernameBodyDto,
+					},
+					propertyName: "channel",
+					shouldKeepDiscriminatorProperty: true,
+				},
+				exceptionFactory: (errors: Array<ValidationError>): BadRequestException =>
+					new BadRequestException({
+						code: "VALIDATION_FAILED",
+						errors: errors.flatMap((error: ValidationError): Array<{ path: string; rule: string }> => Object.keys(error.constraints ?? {}).map((rule: string): { path: string; rule: string } => ({ path: error.property, rule }))),
+					}),
+				type: [E2eCustomRouteDiscriminatedEmailBodyDto, E2eCustomRouteDiscriminatedTransformBodyDto, E2eCustomRouteDiscriminatedUsernameBodyDto],
+				validatorOptions: {
+					validationError: {
+						target: false,
+						value: false,
+					},
+				},
+			},
+		},
+		resource: {
+			action: "custom.discriminatedCodes",
+			entity: E2eEntity,
+		},
+		response: {
+			status: HttpStatus.OK,
+			type: undefined,
+		},
+		route: {
+			method: RequestMethod.POST,
+			path: "discriminated-codes",
+		},
+		security: {
+			authentication,
+		},
+	})
+	public discriminatedCodes(@Body() body: E2eCustomRouteDiscriminatedEmailBodyDto | E2eCustomRouteDiscriminatedTransformBodyDto | E2eCustomRouteDiscriminatedUsernameBodyDto): Record<string, unknown> {
+		return {
+			bodyClass: body.constructor.name,
 		};
 	}
 

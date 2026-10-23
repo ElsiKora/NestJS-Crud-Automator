@@ -1520,7 +1520,64 @@ describe("CRUD routes (E2E)", () => {
 		expect(missingResponse.statusCode).toBe(400);
 		expect(invalidResponse.statusCode).toBe(400);
 		expect(Array.isArray(missingResponse.json().message)).toBe(true);
-		expect(invalidResponse.json().message).toEqual([expect.stringContaining("channel has invalid discriminator value 'phone'")]);
+		expect(invalidResponse.json().message).toEqual(["channel has invalid discriminator value. must be one of: 'email', 'username'"]);
+		expect(JSON.stringify(invalidResponse.json())).not.toContain("phone");
+	});
+
+	it("returns the exceptionFactory body for discriminated ApiRouteCustom validation failures", async () => {
+		const validResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { channel: "username", username: "user" },
+			url: "/custom-route/discriminated-codes",
+		});
+		const invalidVariantResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { channel: "username", username: 42 },
+			url: "/custom-route/discriminated-codes",
+		});
+		const unknownDiscriminatorResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { channel: "rejected-secret-value", username: "user" },
+			url: "/custom-route/discriminated-codes",
+		});
+		const missingDiscriminatorResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { username: "rejected-secret-value" },
+			url: "/custom-route/discriminated-codes",
+		});
+		const nonObjectBodyResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: ["rejected-secret-value"],
+			url: "/custom-route/discriminated-codes",
+		});
+		const factoryBody = (response: { json: () => Record<string, unknown> }): Record<string, unknown> => {
+			const { correlationID, timestamp, ...body } = response.json();
+
+			expect(typeof correlationID).toBe("string");
+			expect(typeof timestamp).toBe("number");
+
+			return body;
+		};
+
+		expect(validResponse.statusCode).toBe(200);
+		expect(validResponse.json()).toEqual({ bodyClass: "E2eCustomRouteDiscriminatedUsernameBodyDto" });
+		expect(invalidVariantResponse.statusCode).toBe(400);
+		expect(factoryBody(invalidVariantResponse)).toEqual({ code: "VALIDATION_FAILED", errors: [{ path: "username", rule: "isString" }] });
+		expect(unknownDiscriminatorResponse.statusCode).toBe(400);
+		expect(factoryBody(unknownDiscriminatorResponse)).toEqual({ code: "VALIDATION_FAILED", errors: [{ path: "channel", rule: "mustMatchDiscriminatorMapping" }] });
+		expect(missingDiscriminatorResponse.statusCode).toBe(400);
+		expect(factoryBody(missingDiscriminatorResponse)).toEqual({ code: "VALIDATION_FAILED", errors: [{ path: "channel", rule: "mustMatchDiscriminatorMapping" }] });
+		expect(nonObjectBodyResponse.statusCode).toBe(400);
+		expect(factoryBody(nonObjectBodyResponse)).toEqual({ code: "VALIDATION_FAILED", errors: [{ path: "body", rule: "mustMatchDiscriminatorMapping" }] });
+
+		for (const response of [unknownDiscriminatorResponse, missingDiscriminatorResponse, nonObjectBodyResponse]) {
+			expect(JSON.stringify(response.json())).not.toContain("rejected-secret-value");
+		}
 	});
 
 	it("runs validation for the selected discriminated ApiRouteCustom body variant", async () => {
@@ -1533,6 +1590,27 @@ describe("CRUD routes (E2E)", () => {
 
 		expect(response.statusCode).toBe(400);
 		expect(response.json().message).toEqual([expect.stringContaining("email must be a string")]);
+	});
+
+	it("propagates discriminated ApiRouteCustom transformation errors unchanged instead of using exceptionFactory", async () => {
+		const transformerFailureResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { channel: "transform", payload: 5 },
+			url: "/custom-route/discriminated-codes",
+		});
+		const consumerTransformResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { channel: "transform", token: "reject" },
+			url: "/custom-route/discriminated-codes",
+		});
+
+		expect(transformerFailureResponse.statusCode).toBe(500);
+		expect(transformerFailureResponse.json()).toMatchObject({ message: "Internal server error", statusCode: 500 });
+		expect(JSON.stringify(transformerFailureResponse.json())).not.toContain("argument");
+		expect(consumerTransformResponse.statusCode).toBe(409);
+		expect(consumerTransformResponse.json()).toMatchObject({ message: "TRANSFORM_REJECTED", statusCode: 409 });
 	});
 
 	it("honors shouldKeepDiscriminatorProperty for discriminated ApiRouteCustom bodies", async () => {

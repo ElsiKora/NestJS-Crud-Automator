@@ -135,7 +135,33 @@ async register(@Body() body: EmailRegistrationBodyDto | UsernameRegistrationBody
 
 For request bodies, Crud Automator selects the variant DTO from `discriminator.mapping`, transforms the plain body into that DTO class, runs `class-validator` on the selected variant, and passes the transformed instance to the controller method. Missing or unknown discriminator values fail request validation. Declare the discriminator property on every variant DTO with the usual property decorators, such as `ApiPropertyEnum`; make it optional on the DTO when `shouldKeepDiscriminatorProperty: false` should remove it from the transformed instance.
 
-Root-level discriminator selection happens before Nest can validate a concrete DTO class, so global `ValidationPipe` options are not applied automatically to the selected variant. Use `validatorOptions` and `transformOptions` on the discriminated body config when the route must mirror specific validation or transformation settings.
+Root-level discriminator selection happens before Nest can validate a concrete DTO class, so global `ValidationPipe` options are not applied automatically to the selected variant. Use `validatorOptions`, `transformOptions`, and `exceptionFactory` on the discriminated body config when the route must mirror specific validation, transformation, or error-shaping settings.
+
+`exceptionFactory(errors)` has the same semantics as the `ValidationPipe` option: it may be sync or async, and when it is present, Crud Automator throws its (awaited) return value instead of the default `BadRequestException` with a flattened message array. It receives the native `class-validator` `ValidationError[]` of the selected variant, so `value` and `target` follow `validatorOptions.validationError` exactly as in `ValidationPipe`. When the body is not an object or its discriminator is missing or unknown, it receives one synthetic `{ property, constraints: { mustMatchDiscriminatorMapping }, children: [] }` error that has no `value` key. Discriminator failure messages never echo the rejected value, for example `channel has invalid discriminator value. must be one of: 'email', 'username'`. `exceptionFactory` applies to the request body only. Errors thrown while transforming the selected variant, including an `HttpException` or any other error from your own `@Transform`, are not passed to `exceptionFactory` and propagate unchanged, exactly as with Nest `ValidationPipe`.
+
+```typescript
+dto: {
+	body: {
+		type: [EmailRegistrationBodyDto, UsernameRegistrationBodyDto],
+		discriminator: {
+			propertyName: "channel",
+			shouldKeepDiscriminatorProperty: true,
+			mapping: {
+				email: EmailRegistrationBodyDto,
+				username: UsernameRegistrationBodyDto,
+			},
+		},
+		validatorOptions: {
+			validationError: { target: false, value: false },
+		},
+		exceptionFactory: (errors: Array<ValidationError>) =>
+			new BadRequestException({
+				code: "VALIDATION_FAILED",
+				errors: errors.flatMap((error) => Object.keys(error.constraints ?? {}).map((rule) => ({ path: error.property, rule }))),
+			}),
+	},
+},
+```
 
 For responses, Swagger emits `oneOf` with an OpenAPI discriminator. When serialization is enabled, Crud Automator selects the response DTO from the returned value's discriminator, then applies the same `excludeExtraneousValues` response serialization used by single DTO responses. Returning a value without a valid discriminator is treated as a route contract error.
 
