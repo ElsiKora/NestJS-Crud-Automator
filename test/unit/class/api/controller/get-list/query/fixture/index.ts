@@ -15,3 +15,4 @@ export { TypedQueryEntity } from "./entity";
 export { TypedQueryNarrowController } from "./narrow.controller";
 export { TypedQueryOwnerEntity } from "./owner.entity";
 export { TypedQueryTagEntity } from "./tag.entity";
+export { UuidRelationCurrencyEntity, UuidRelationTransactionEntity } from "./uuid-relation.entity";

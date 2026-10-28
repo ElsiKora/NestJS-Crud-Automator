@@ -1570,7 +1570,7 @@ Yes. PAGE is the source-compatible default: it requires 1-based `page` and `limi
 
 ### How is filtering implemented?
 
-Filtering uses an operator-based bracket wire format with operations such as equals, contains, comparison, membership, and between. By default, fields come from entity metadata. A generated GET_LIST route may add a typed filter/order plan to narrow or allowlist direct scalar and one-hop to-one scalar paths such as `author.id[...]` or `author.username[...]`. Configured plans reject unknown, disabled, malformed, or disallowed input with `400` independently of the host `ValidationPipe`; omitted plans retain legacy metadata-driven behavior.
+Filtering uses an operator-based bracket wire format with operations such as equals, contains, comparison, membership, and between. By default, fields come from entity metadata. A generated GET_LIST route may add a typed filter/order plan to narrow or allowlist direct scalar and one-hop to-one scalar paths such as `author.id[...]` or `author.username[...]`; UUID fields support membership (`in`/`notin`) like boolean, enum, number, and string fields. Configured plans reject unknown, disabled, malformed, or disallowed input with `400` independently of the host `ValidationPipe`; omitted plans retain legacy metadata-driven behavior.
 
 ### Can I use this with NestJS microservices?
 

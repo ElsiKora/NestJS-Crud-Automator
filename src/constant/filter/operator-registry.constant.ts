@@ -6,7 +6,7 @@ import { EFilterOperand, EFilterOperation } from "@enum/filter";
 import { Between, Equal, ILike, In, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not, Or } from "typeorm";
 
 const COMPARABLE_KINDS: ReadonlyArray<EApiPropertyDescribeType> = Object.freeze([EApiPropertyDescribeType.DATE, EApiPropertyDescribeType.NUMBER]);
-const MEMBERSHIP_KINDS: ReadonlyArray<EApiPropertyDescribeType> = Object.freeze([EApiPropertyDescribeType.BOOLEAN, EApiPropertyDescribeType.ENUM, EApiPropertyDescribeType.NUMBER, EApiPropertyDescribeType.STRING]);
+const MEMBERSHIP_KINDS: ReadonlyArray<EApiPropertyDescribeType> = Object.freeze([EApiPropertyDescribeType.BOOLEAN, EApiPropertyDescribeType.ENUM, EApiPropertyDescribeType.NUMBER, EApiPropertyDescribeType.STRING, EApiPropertyDescribeType.UUID]);
 const NO_KINDS: ReadonlyArray<EApiPropertyDescribeType> = Object.freeze([]);
 const PAIR_OPERAND_COUNT: number = 2;
 const SCALAR_KINDS: ReadonlyArray<EApiPropertyDescribeType> = Object.freeze([EApiPropertyDescribeType.BOOLEAN, EApiPropertyDescribeType.DATE, EApiPropertyDescribeType.ENUM, EApiPropertyDescribeType.NUMBER, EApiPropertyDescribeType.STRING, EApiPropertyDescribeType.UUID]);

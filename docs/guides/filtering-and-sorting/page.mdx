@@ -283,6 +283,12 @@ GET /users?id[operator]=eq&id[value]=550e8400-e29b-41d4-a716-446655440000
 // Not equals
 GET /users?id[operator]=ne&id[value]=550e8400-e29b-41d4-a716-446655440000
 
+// In array (every value must be a UUID)
+GET /users?id[operator]=in&id[values]=550e8400-e29b-41d4-a716-446655440000&id[values]=6ba7b810-9dad-11d1-80b4-00c04fd430c8
+
+// Not in array
+GET /users?id[operator]=notin&id[values]=550e8400-e29b-41d4-a716-446655440000
+
 // Is null
 GET /users?id[operator]=isnull
 
@@ -297,6 +303,9 @@ Generated GET_LIST routes filter relations through explicit one-level relation p
 ```typescript
 // Filter by related entity id
 GET /posts?author.id[operator]=eq&author.id[value]=550e8400-e29b-41d4-a716-446655440000
+
+// Filter by several related entity ids
+GET /posts?author.id[operator]=in&author.id[values]=550e8400-e29b-41d4-a716-446655440000&author.id[values]=6ba7b810-9dad-11d1-80b4-00c04fd430c8
 
 // Filter by a scalar field on the related entity
 GET /posts?author.username[operator]=eq&author.username[value]=john_doe

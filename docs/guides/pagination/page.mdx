@@ -134,6 +134,8 @@ Cursor tokens are strict canonical, unsigned Base64URL values. They contain a ve
 - normalized actual filter AST, including applied static defaults;
 - effective default or client order plus tie-breakers.
 
+The query-plan signature includes each filter field's allowed operations, so widening what a field accepts (for example, UUID fields gained `in`/`notin`) changes the generated query schema name and makes cursor tokens minted before that upgrade fail once with `400 INVALID_CURSOR`; clients simply restart from the first window.
+
 It intentionally excludes `limit` and HOOKS/IAM scope. Path scope, filters, and current HOOKS/IAM authorization are recalculated and AND-merged on every request, including the opposite probe. A token is a navigation position, not an authorization credential.
 
 The token is reversible and contains the typed effective-order values. Automator therefore accepts only potential order/tie fields that are already selected and unconditionally raw-exposed in the GET_LIST response; do not treat cursor contents as secret.

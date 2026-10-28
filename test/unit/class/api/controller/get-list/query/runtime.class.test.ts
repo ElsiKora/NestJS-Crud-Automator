@@ -22,10 +22,10 @@ import { DtoGetGetListQueryBaseClass } from "@utility/dto/get/get-list-query-bas
 import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/get.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { getMetadataStorage, validate } from "class-validator";
-import { DataSource, Equal } from "typeorm";
+import { DataSource, Equal, In, Not } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
-import { CompositeCursorQueryEntity, CursorAccessorQueryEntity, CursorCustomAccessorItemDto, CursorCustomIncompleteItemDto, CursorCustomInvalidResponseDto, CursorCustomItemDto, CursorCustomResponseDto, CursorInheritedQueryEntity, CursorQueryController, CursorQueryEntity, CursorStorageQueryEntity, CursorUnsafeFieldNameQueryEntity, TypedQueryController, TypedQueryEntity, TypedQueryNarrowController } from "./fixture";
+import { CompositeCursorQueryEntity, CursorAccessorQueryEntity, CursorCustomAccessorItemDto, CursorCustomIncompleteItemDto, CursorCustomInvalidResponseDto, CursorCustomItemDto, CursorCustomResponseDto, CursorInheritedQueryEntity, CursorQueryController, CursorQueryEntity, CursorStorageQueryEntity, CursorUnsafeFieldNameQueryEntity, TypedQueryController, TypedQueryEntity, TypedQueryNarrowController, UuidRelationTransactionEntity } from "./fixture";
 
 const entityMetadata: IApiEntity<TypedQueryEntity> = GenerateEntityInformation<TypedQueryEntity>(TypedQueryEntity as unknown as IApiBaseEntity);
 const CURSOR_ID_A: string = "00000000-0000-0000-0000-000000000001";
@@ -203,6 +203,91 @@ describe("typed GET_LIST query plan and runtime", () => {
 
 		expect((await validate(invalidInstance)).some((error): boolean => error.property === "id[value]")).toBe(true);
 		expect(() => ApiControllerGetListQueryRuntime.parse(invalidQuery, plan)).toThrow("INVALID_FILTER");
+	});
+
+	describe("UUID membership filters", () => {
+		const IDENTIFIER_A: string = "123e4567-e89b-12d3-a456-426614174000";
+		const IDENTIFIER_B: string = "123e4567-e89b-12d3-a456-426614174001";
+		const compileUuidRelationPlan = (fields: Record<string, unknown>, unlistedFields: EApiControllerGetListQueryUnlistedFields = EApiControllerGetListQueryUnlistedFields.REJECT): IApiControllerGetListQueryPlan => {
+			const relationMetadata: IApiEntity<UuidRelationTransactionEntity> = GenerateEntityInformation<UuidRelationTransactionEntity>(UuidRelationTransactionEntity as unknown as IApiBaseEntity);
+			const routeConfig = {
+				request: {
+					[EApiControllerRequestTarget.QUERY]: {
+						filter: { fields, unlistedFields },
+					},
+				},
+			} as unknown as TApiControllerPropertiesRoute<UuidRelationTransactionEntity, EApiRouteType.GET_LIST>;
+			const plan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanCompiler.compile(TypedQueryController, UuidRelationTransactionEntity, relationMetadata, routeConfig);
+
+			if (!plan) {
+				throw new Error("Expected a UUID relation query plan");
+			}
+
+			return plan;
+		};
+
+		it("includes membership in the default UUID baseline", () => {
+			const plan: IApiControllerGetListQueryPlan = compileUuidRelationPlan({}, EApiControllerGetListQueryUnlistedFields.INHERIT);
+
+			expect(plan.filter.fields.id?.allowedOperations).toEqual(expect.arrayContaining([EFilterOperation.EQ, EFilterOperation.IN, EFilterOperation.NE, EFilterOperation.NOTIN]));
+			expect(plan.filter.fields.id?.allowedOperations).not.toContain(EFilterOperation.CONT);
+		});
+
+		it("accepts explicit in and notin on direct and one-hop relation UUID paths", () => {
+			const plan: IApiControllerGetListQueryPlan = compileUuidRelationPlan({
+				"currency.id": { allowedOperations: [EFilterOperation.IN, EFilterOperation.NOTIN], isEnabled: true },
+				id: { allowedOperations: [EFilterOperation.IN], isEnabled: true },
+			});
+
+			expect(plan.filter.fields["currency.id"]).toMatchObject({ allowedOperations: [EFilterOperation.IN, EFilterOperation.NOTIN], type: EApiPropertyDescribeType.UUID });
+			expect(plan.filter.fields.id).toMatchObject({ allowedOperations: [EFilterOperation.IN], type: EApiPropertyDescribeType.UUID });
+		});
+
+		it("changes the plan signature when the UUID baseline widens", () => {
+			const baseline: IApiControllerGetListQueryPlan = compileUuidRelationPlan({}, EApiControllerGetListQueryUnlistedFields.INHERIT);
+			const previousBaseline: IApiControllerGetListQueryPlan = compileUuidRelationPlan({ id: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.NE], isEnabled: true } }, EApiControllerGetListQueryUnlistedFields.INHERIT);
+			const widenedExplicit: IApiControllerGetListQueryPlan = compileUuidRelationPlan({ id: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN, EFilterOperation.NE, EFilterOperation.NOTIN], isEnabled: true } }, EApiControllerGetListQueryUnlistedFields.INHERIT);
+
+			expect(previousBaseline.filter.fields.id?.allowedOperations).toEqual([EFilterOperation.EQ, EFilterOperation.NE]);
+			expect(baseline.filter.fields.id?.allowedOperations).toEqual([EFilterOperation.EQ, EFilterOperation.IN, EFilterOperation.NE, EFilterOperation.NOTIN]);
+			expect(baseline.signature).not.toBe(previousBaseline.signature);
+			expect(baseline.schemaName).not.toBe(previousBaseline.schemaName);
+			expect(baseline.signature).toBe(widenedExplicit.signature);
+		});
+
+		it("parses UUID membership values and compiles them to In and Not(In) for direct and relation paths", () => {
+			const plan: IApiControllerGetListQueryPlan = compileUuidRelationPlan({
+				"currency.id": { allowedOperations: [EFilterOperation.IN, EFilterOperation.NOTIN], isEnabled: true },
+				id: { allowedOperations: [EFilterOperation.IN, EFilterOperation.NOTIN], isEnabled: true },
+			});
+			const included = ApiControllerGetListQueryRuntime.parse({ "currency.id[operator]": EFilterOperation.IN, "currency.id[values]": [IDENTIFIER_A, IDENTIFIER_B], limit: 10, page: 1 }, plan);
+			const excluded = ApiControllerGetListQueryRuntime.parse({ "currency.id[operator]": EFilterOperation.NOTIN, "currency.id[values]": IDENTIFIER_A, limit: 10, page: 1 }, plan);
+			const direct = ApiControllerGetListQueryRuntime.parse({ "id[operator]": EFilterOperation.IN, "id[values]": [IDENTIFIER_A], limit: 10, page: 1 }, plan);
+
+			expect(included.ast?.nodes).toEqual([expect.objectContaining({ operation: EFilterOperation.IN, path: "currency.id", values: [IDENTIFIER_A, IDENTIFIER_B] })]);
+			expect(ApiControllerGetListQueryRuntime.compileWhere<UuidRelationTransactionEntity>(included.ast!)).toEqual({ currency: { id: In([IDENTIFIER_A, IDENTIFIER_B]) } });
+			expect(ApiControllerGetListQueryRuntime.compileWhere<UuidRelationTransactionEntity>(excluded.ast!)).toEqual({ currency: { id: Not(In([IDENTIFIER_A])) } });
+			expect(ApiControllerGetListQueryRuntime.compileWhere<UuidRelationTransactionEntity>(direct.ast!)).toEqual({ id: In([IDENTIFIER_A]) });
+		});
+
+		it.each(["currency.id", "id"])("rejects a non-UUID membership item on %s with INVALID_FILTER", (path: string) => {
+			const plan: IApiControllerGetListQueryPlan = compileUuidRelationPlan({ [path]: { allowedOperations: [EFilterOperation.IN], isEnabled: true } });
+
+			expect(() => ApiControllerGetListQueryRuntime.parse({ [`${path}[operator]`]: EFilterOperation.IN, [`${path}[values]`]: [IDENTIFIER_A, "not-a-uuid"], limit: 10, page: 1 }, plan)).toThrow("INVALID_FILTER");
+		});
+
+		it.each(["currency.id", "id"])("rejects an empty or oversized UUID membership list on %s with INVALID_FILTER", (path: string) => {
+			const plan: IApiControllerGetListQueryPlan = compileUuidRelationPlan({ [path]: { allowedOperations: [EFilterOperation.IN], isEnabled: true } });
+			const oversized: Array<string> = Array.from({ length: DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES + 1 }, (_value: unknown, index: number): string => `123e4567-e89b-12d3-a456-${String(index).padStart(12, "0")}`);
+
+			for (const values of [[], oversized]) {
+				expect(() => ApiControllerGetListQueryRuntime.parse({ [`${path}[operator]`]: EFilterOperation.IN, [`${path}[values]`]: values, limit: 10, page: 1 }, plan)).toThrow("INVALID_FILTER");
+			}
+		});
+
+		it("still refuses membership on date fields", () => {
+			expect(() => compilePlan({ occurredAt: { allowedOperations: [EFilterOperation.IN], isEnabled: true } })).toThrow('GET_LIST filter operation "in" is incompatible with field "occurredAt"');
+		});
 	});
 
 	it("does not let primary filter eligibility bypass query visibility", () => {

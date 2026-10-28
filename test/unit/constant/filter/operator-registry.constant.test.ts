@@ -27,6 +27,24 @@ describe("FILTER_OPERATOR_REGISTRY_CONSTANT", () => {
 		expect(FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[EFilterOperation.EQ].kinds).toEqual(expect.arrayContaining([EApiPropertyDescribeType.BOOLEAN, EApiPropertyDescribeType.DATE, EApiPropertyDescribeType.NUMBER, EApiPropertyDescribeType.STRING, EApiPropertyDescribeType.UUID]));
 	});
 
+	it("allows membership on every scalar kind that supports equality except dates", () => {
+		for (const operation of [EFilterOperation.IN, EFilterOperation.NOTIN]) {
+			expect(FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operation].kinds).toEqual([EApiPropertyDescribeType.BOOLEAN, EApiPropertyDescribeType.ENUM, EApiPropertyDescribeType.NUMBER, EApiPropertyDescribeType.STRING, EApiPropertyDescribeType.UUID]);
+		}
+	});
+
+	it("compiles uuid membership to In and Not(In) over the original operands", () => {
+		const identifiers: ReadonlyArray<string> = ["123e4567-e89b-12d3-a456-426614174000", "123e4567-e89b-12d3-a456-426614174001"];
+		const include = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[EFilterOperation.IN].compile(identifiers);
+		const exclude = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[EFilterOperation.NOTIN].compile(identifiers);
+
+		expect(include.type).toBe("in");
+		expect(include.value).toEqual(identifiers);
+		expect(exclude.type).toBe("not");
+		expect(exclude.child?.type).toBe("in");
+		expect(exclude.child?.value).toEqual(identifiers);
+	});
+
 	it("preserves typed scalar and date operands in TypeORM operators", () => {
 		const numberOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[EFilterOperation.EQ].compile(7);
 		const booleanOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[EFilterOperation.EQ].compile(false);

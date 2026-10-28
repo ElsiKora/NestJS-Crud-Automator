@@ -488,6 +488,20 @@ describe("DtoGenerate", () => {
 		expect(invalidQueryErrors.some((error) => error.property === "owner.externalId[operator]")).toBe(true);
 	});
 
+	it("accepts uuid membership operators on the legacy generated query DTO and validates each member", () => {
+		const entityMetadata = GenerateEntityInformation<DtoEntity>(DtoEntity as unknown as IApiBaseEntity);
+		const queryDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY);
+		const validIdentifiers = ["123e4567-e89b-12d3-a456-426614174000", "123e4567-e89b-12d3-a456-426614174001"];
+
+		for (const operator of [EFilterOperation.IN, EFilterOperation.NOTIN]) {
+			const validQuery = queryDto ? plainToInstance(queryDto as ClassConstructor<unknown>, { limit: 10, "owner.externalId[operator]": operator, "owner.externalId[values]": validIdentifiers, page: 1 }) : undefined;
+			const invalidQuery = queryDto ? plainToInstance(queryDto as ClassConstructor<unknown>, { limit: 10, "owner.externalId[operator]": operator, "owner.externalId[values]": [validIdentifiers[0], "not-a-uuid"], page: 1 }) : undefined;
+
+			expect(validQuery ? validateSync(validQuery as object) : []).toEqual([]);
+			expect((invalidQuery ? validateSync(invalidQuery as object) : []).some((error) => error.property === "owner.externalId[values]")).toBe(true);
+		}
+	});
+
 	it("preserves PAGE response constructor identity isolation across query plans", () => {
 		const entityMetadata = GenerateEntityInformation<DtoEntity>(DtoEntity as unknown as IApiBaseEntity);
 		const firstPlan: IApiControllerGetListQueryPlan = {

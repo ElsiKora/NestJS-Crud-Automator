@@ -113,7 +113,9 @@ export enum EFilterOperationString {
 
 export enum EFilterOperationUuid {
 	EQ = EFilterOperation.EQ,
+	IN = EFilterOperation.IN,
 	ISNULL = EFilterOperation.ISNULL,
 	NE = EFilterOperation.NE,
+	NOTIN = EFilterOperation.NOTIN,
 	NOTNULL = EFilterOperation.NOTNULL,
 }
