@@ -137,6 +137,18 @@ Generated service/controller `delete` returns `Promise<void>`. The low-level dec
 
 `resourceDefinition.resourcePath` can contain `{id}` placeholders. IAM statement `Resource` values should be concrete strings or wildcard strings, not template placeholders.
 
+## IAM Deny Scope
+
+Do not assume a resource-conditioned Deny blocks the whole request. Generated routes evaluate IAM before loading the row, so a Deny whose `resource.*` keys compile is a row exclusion: the list omits those rows and GET/UPDATE/DELETE answer `404`, not `403`. Only Deny statements without `resource.*` keys, non-compilable ones, and `resource.*` Deny on CREATE return `403`.
+
+A row-specific Deny `Resource` such as `<type>/item-1` hides that row from `list` only when the Deny's `Action` matches `list`; a Deny on `read` does not widen to `list`. Its placeholder must map to an `isFilterable` field in `resourceDefinition.fields` (`{id}` → `resource.id`), and a prefix pattern such as `<type>/abc*` also needs a STRING-described direct property, otherwise the list is denied. On SQLite and case-insensitive MySQL collations the prefix match is case-insensitive and may hide extra rows.
+
+Do not expect `StringNotEqualsIfExists` to spare NULL rows: a stored NULL is present and differs from any non-empty value, so the Deny applies to it. Condition values of `""`, or variables resolving to `null` or `""`, deny the whole request instead of compiling.
+
+Custom routes that query on their own must apply `decision.scope.where`; ignoring it skips both Allow scopes and Deny exclusions.
+
+Condition operators outside `EApiPolicyConditionOperator` are rejected when the document is loaded. Do not use AWS operators such as `StringLike` or `ArnEquals`.
+
 ## Resolver Cache Invalidation
 
 Authorization resolver caches are source-first by default, so permission, attachment, and document values are re-read without cross-request map state or stale fallback. Do not add an implicit in-memory fallback for source failures.

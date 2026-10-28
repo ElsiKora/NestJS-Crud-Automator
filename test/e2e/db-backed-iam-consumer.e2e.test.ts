@@ -2,10 +2,10 @@ import "reflect-metadata";
 
 import type { ExecutionContext, INestApplication } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
-import type { IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiPolicyAttachmentSource, IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "../../src/index";
+import type { IApiAuthorizationDecision, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiPolicyAttachmentSource, IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "../../src/index";
 import type { Repository } from "typeorm";
 
-import { Inject, Injectable, Module } from "@nestjs/common";
+import { Get, Inject, Injectable, Module, Req, RequestMethod, UseGuards } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { getRepositoryToken, InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
@@ -13,6 +13,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Column, Entity, In, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 
 import {
+	ApiAuthorizationGuard,
 	ApiAuthorizationModule,
 	ApiAuthorizationSimulator,
 	ApiController,
@@ -35,6 +36,7 @@ import {
 	EApiPropertyDescribeType,
 	EApiPropertyStringType,
 	EApiRouteType,
+	METHOD_API_DECORATOR_CONSTANT,
 } from "../../src/index";
 
 function describeRelationProperty(entity: new () => unknown, description: string): PropertyDecorator {
@@ -327,7 +329,7 @@ const iamConsumerAuthorization = {
 			},
 		},
 		[EApiRouteType.DELETE]: {
-			generation: { isEnabled: false },
+			security: { authentication: iamConsumerAuthentication },
 		},
 		[EApiRouteType.GET]: {
 			identity: { parameter: "gameId" },
@@ -383,7 +385,63 @@ class IamConsumerItemController {
 
 	@Inject(IamConsumerItemService)
 	public readonly service!: IamConsumerItemService;
+
+	@Get("reports/visible")
+	@UseGuards(IamConsumerAuthGuard, ApiAuthorizationGuard)
+	public async listVisible(@Req() request: { authorizationDecision?: IApiAuthorizationDecision<IamConsumerItemEntity, unknown> }): Promise<Array<string>> {
+		const items: Array<IamConsumerItemEntity> = await this.service.repository.find({ where: request.authorizationDecision?.scope?.where });
+
+		return items.map((item: IamConsumerItemEntity): string => item.id).sort();
+	}
+
+	@Get("reports/listed")
+	@UseGuards(IamConsumerAuthGuard, ApiAuthorizationGuard)
+	public async listListed(@Req() request: { authorizationDecision?: IApiAuthorizationDecision<IamConsumerItemEntity, unknown> }): Promise<Array<string>> {
+		const items: Array<IamConsumerItemEntity> = await this.service.repository.find({ where: request.authorizationDecision?.scope?.where });
+
+		return items.map((item: IamConsumerItemEntity): string => item.id).sort();
+	}
 }
+
+Reflect.defineMetadata(
+	METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
+	{
+		resource: {
+			action: "export",
+			entity: IamConsumerItemEntity,
+		},
+		route: {
+			method: RequestMethod.GET,
+			path: "reports/visible",
+		},
+		security: {
+			authorization: {
+				mode: EApiAuthorizationMode.IAM,
+			},
+		},
+	},
+	IamConsumerItemController.prototype.listVisible,
+);
+
+Reflect.defineMetadata(
+	METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
+	{
+		resource: {
+			action: "list",
+			entity: IamConsumerItemEntity,
+		},
+		route: {
+			method: RequestMethod.GET,
+			path: "reports/listed",
+		},
+		security: {
+			authorization: {
+				mode: EApiAuthorizationMode.IAM,
+			},
+		},
+	},
+	IamConsumerItemController.prototype.listListed,
+);
 
 @Module({
 	controllers: [IamConsumerItemController],
@@ -506,6 +564,38 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 			sourceType: EApiPolicySourceType.DATABASE,
 			version: "1",
 		});
+	}
+
+	async function appendPolicyStatements(statements: Array<IamConsumerPolicyDocumentEntity["document"]["Statement"][number]>): Promise<void> {
+		const record: IamConsumerPolicyDocumentEntity = await documentRepository.findOneByOrFail({ id: "policy-operator-scope" });
+
+		await documentRepository.save({
+			...record,
+			document: {
+				...record.document,
+				Statement: [...record.document.Statement, ...statements],
+			},
+			version: String(Number(record.version) + 1),
+		});
+	}
+
+	async function listItemIds(): Promise<{ ids?: Array<string>; statusCode: number }> {
+		const response = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items?limit=10&page=1",
+		});
+
+		return {
+			ids:
+				response.statusCode === 200
+					? response
+							.json()
+							.items.map((item: { id: string }) => item.id)
+							.sort()
+					: undefined,
+			statusCode: response.statusCode,
+		};
 	}
 
 	beforeAll(async () => {
@@ -776,5 +866,215 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 
 		expect(deniedUpdateResponse.statusCode).toBe(403);
 		expect((await itemService.repository.findOne({ where: { id: "iam-item-own" } }))?.operatorId).toBe("operator-1");
+	});
+
+	it("omits rows excluded by a compilable resource Deny and answers 404 on their row routes", async () => {
+		await itemService.repository.save([
+			{ id: "iam-item-own", name: "Own Item", operatorId: "operator-1" },
+			{ id: "iam-item-hidden", name: "Hidden Item", operatorId: "operator-1" },
+			{ id: "iam-item-foreign", name: "Foreign Item", operatorId: "operator-2" },
+		]);
+		await appendPolicyStatements([
+			{
+				Action: ["admin:item:delete"],
+				Condition: {
+					StringEquals: {
+						"resource.operatorId": "${principal.attributes.operatorId}",
+					},
+				},
+				Effect: EApiPolicyEffect.ALLOW,
+				Resource: ["gameport:admin:item/*"],
+			},
+			{
+				Action: ["admin:item:list", "admin:item:read", "admin:item:update", "admin:item:delete"],
+				Condition: {
+					StringEquals: {
+						"resource.id": "iam-item-hidden",
+					},
+				},
+				Effect: EApiPolicyEffect.DENY,
+				Resource: ["gameport:admin:item/*"],
+			},
+		]);
+
+		expect(await listItemIds()).toEqual({ ids: ["iam-item-own"], statusCode: 200 });
+
+		const hiddenGetResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items/iam-item-hidden",
+		});
+		const hiddenUpdateResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "PUT",
+			payload: {
+				name: "Renamed Hidden Item",
+				operator: "operator-1",
+			},
+			url: "/iam-consumer-items/iam-item-hidden",
+		});
+		const hiddenDeleteResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "DELETE",
+			url: "/iam-consumer-items/iam-item-hidden",
+		});
+
+		expect(hiddenGetResponse.statusCode).toBe(404);
+		expect(hiddenUpdateResponse.statusCode).toBe(404);
+		expect(hiddenDeleteResponse.statusCode).toBe(404);
+		expect(await itemService.repository.findOne({ where: { id: "iam-item-hidden" } })).toMatchObject({ name: "Hidden Item" });
+
+		const ownGetResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items/iam-item-own",
+		});
+		const ownDeleteResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "DELETE",
+			url: "/iam-consumer-items/iam-item-own",
+		});
+
+		expect(ownGetResponse.statusCode).toBe(200);
+		expect(ownDeleteResponse.statusCode).toBe(204);
+		expect(await itemService.repository.findOne({ where: { id: "iam-item-own" } })).toBeNull();
+	});
+
+	it("denies the whole request when a resource Deny cannot be compiled", async () => {
+		await itemService.repository.save({ id: "iam-item-own", name: "Own Item", operatorId: "operator-1" });
+		await appendPolicyStatements([
+			{
+				Action: ["admin:item:list"],
+				Condition: {
+					StringEquals: {
+						"resource.name": "Hidden Item",
+					},
+				},
+				Effect: EApiPolicyEffect.DENY,
+				Resource: ["gameport:admin:item/*"],
+			},
+		]);
+
+		const ownGetResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items/iam-item-own",
+		});
+
+		expect(await listItemIds()).toEqual({ ids: undefined, statusCode: 403 });
+		expect(ownGetResponse.statusCode).toBe(200);
+	});
+
+	it("hides row-scoped Deny targets from GET_LIST without widening the Deny to reads", async () => {
+		await itemService.repository.save([
+			{ id: "iam-item-own", name: "Own Item", operatorId: "operator-1" },
+			{ id: "iam-item-own-2", name: "Own Item 2", operatorId: "operator-1" },
+			{ id: "iam-item-own-3", name: "Own Item 3", operatorId: "operator-1" },
+		]);
+		await appendPolicyStatements([
+			{
+				Action: ["admin:item:list"],
+				Effect: EApiPolicyEffect.DENY,
+				Resource: ["gameport:admin:item/iam-item-own-2"],
+			},
+			{
+				Action: ["admin:item:read"],
+				Effect: EApiPolicyEffect.DENY,
+				Resource: ["gameport:admin:item/iam-item-own-3"],
+			},
+		]);
+
+		expect(await listItemIds()).toEqual({ ids: ["iam-item-own", "iam-item-own-3"], statusCode: 200 });
+
+		const listDeniedGetResponse = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items/iam-item-own-2",
+		});
+
+		expect(listDeniedGetResponse.statusCode).toBe(200);
+
+		await appendPolicyStatements([
+			{
+				Action: ["admin:item:list"],
+				Effect: EApiPolicyEffect.DENY,
+				Resource: ["gameport:admin:item/iam_item*"],
+			},
+		]);
+
+		expect(await listItemIds()).toEqual({ ids: ["iam-item-own", "iam-item-own-3"], statusCode: 200 });
+
+		await appendPolicyStatements([
+			{
+				Action: ["admin:item:list"],
+				Effect: EApiPolicyEffect.DENY,
+				Resource: ["gameport:admin:item/iam-item-own-*"],
+			},
+		]);
+
+		expect(await listItemIds()).toEqual({ ids: ["iam-item-own"], statusCode: 200 });
+	});
+
+	it("passes Deny exclusions to custom routes through decision.scope", async () => {
+		await itemService.repository.save([
+			{ id: "iam-item-own", name: "Own Item", operatorId: "operator-1" },
+			{ id: "iam-item-hidden", name: "Hidden Item", operatorId: "operator-1" },
+			{ id: "iam-item-foreign", name: "Foreign Item", operatorId: "operator-2" },
+		]);
+		await appendPolicyStatements([
+			{
+				Action: ["admin:item:export"],
+				Condition: {
+					StringEquals: {
+						"resource.operatorId": "${principal.attributes.operatorId}",
+					},
+				},
+				Effect: EApiPolicyEffect.ALLOW,
+				Resource: ["gameport:admin:item/*"],
+			},
+			{
+				Action: ["admin:item:export"],
+				Condition: {
+					StringEqualsIfExists: {
+						"resource.id": "iam-item-hidden",
+					},
+				},
+				Effect: EApiPolicyEffect.DENY,
+				Resource: ["gameport:admin:item/*"],
+			},
+		]);
+
+		const response = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items/reports/visible",
+		});
+
+		expect(response.statusCode).toBe(200);
+		expect(response.json()).toEqual(["iam-item-own"]);
+	});
+
+	it("applies row-scoped list Denies to custom routes with the list action", async () => {
+		await itemService.repository.save([
+			{ id: "iam-item-own", name: "Own Item", operatorId: "operator-1" },
+			{ id: "iam-item-own-2", name: "Own Item 2", operatorId: "operator-1" },
+			{ id: "iam-item-foreign", name: "Foreign Item", operatorId: "operator-2" },
+		]);
+		await appendPolicyStatements([
+			{
+				Action: ["admin:item:list"],
+				Effect: EApiPolicyEffect.DENY,
+				Resource: ["gameport:admin:item/iam-item-own-2"],
+			},
+		]);
+
+		const response = await fastify.inject({
+			headers: principalHeaders(),
+			method: "GET",
+			url: "/iam-consumer-items/reports/listed",
+		});
+
+		expect(response.statusCode).toBe(200);
+		expect(response.json()).toEqual(["iam-item-own"]);
 	});
 });

@@ -1073,6 +1073,10 @@ Important IAM details from the current implementation:
 - impossible conflicts collapse to a match-nothing branch instead of rewriting the requested filter
 - relation payloads can be raw UUID strings, so create/update conditions like `request.body.operator = "${principal.attributes.operatorId}"` work without hooks fallback
 - `{id}` placeholders belong to `resourceDefinition.resourcePath`; policy document `Resource` entries should use concrete strings or wildcards such as `gameport:admin:item/*`
+- conditions support exactly `StringEquals`, `StringEqualsIfExists`, `StringNotEquals`, and `StringNotEqualsIfExists` (`EApiPolicyConditionOperator`); any other operator fails document validation
+- a matched Deny with compilable `resource.*` keys becomes a row exclusion ANDed into the scope that keeps exactly the rows the in-memory evaluator allows: lists omit those rows and row routes answer `404`; a Deny whose `resource.*` keys cannot compile, whose values are `""` or resolve to `null`/`""`, or any `resource.*` Deny on `CREATE`, denies the whole request with `403`
+- a list Deny with a row-specific `Resource`, such as `gameport:admin:item/item-1` or `gameport:admin:item/abc*` (string fields only), hides the matching rows from `GET_LIST` and from custom `list` actions; unmappable patterns deny the list, and a Deny on `read` never affects `list`
+- custom routes receive the same Allow scope and Deny exclusions through `decision.scope`
 
 ### `CorrelationIDResponseBodyInterceptor`: Request Tracing
 

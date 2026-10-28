@@ -1,7 +1,8 @@
 import type { IApiPolicyDocumentRecord } from "@interface/class/api/authorization";
 
-import { EApiPolicyEffect } from "@enum/class/authorization";
+import { EApiPolicyConditionOperator, EApiPolicyEffect } from "@enum/class/authorization";
 import { Injectable } from "@nestjs/common";
+import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
@@ -100,11 +101,25 @@ export class ApiAuthorizationIamDocumentValidator {
 		}
 
 		if (condition && this.isRecord(condition)) {
-			for (const value of Object.values(condition)) {
+			for (const [operator, value] of Object.entries(condition)) {
+				if (!EnumIsValue(EApiPolicyConditionOperator, operator)) {
+					iamDocumentValidatorLogger.error(`Policy document "${documentId}" contains an unsupported Condition operator "${operator}"`);
+
+					throw ErrorException(`Policy document "${documentId}" contains an unsupported Condition operator "${operator}"`);
+				}
+
 				if (!this.isRecord(value)) {
 					iamDocumentValidatorLogger.error(`Policy document "${documentId}" contains an invalid Condition operand map`);
 
 					throw ErrorException(`Policy document "${documentId}" contains an invalid Condition operand map`);
+				}
+
+				for (const [path, operand] of Object.entries(value)) {
+					if (typeof operand !== "string" && typeof operand !== "number" && typeof operand !== "boolean") {
+						iamDocumentValidatorLogger.error(`Policy document "${documentId}" contains a non-scalar Condition operand for "${path}"`);
+
+						throw ErrorException(`Policy document "${documentId}" contains a non-scalar Condition operand for "${path}"`);
+					}
 				}
 			}
 		}

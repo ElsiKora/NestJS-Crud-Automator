@@ -132,6 +132,8 @@ Use local source as the contract:
 - Use IAM mode for policy documents, principal resolution, document sources, attachment sources, and boundaries.
 - Register `@ApiAuthorizationPolicy()` classes as Nest providers.
 - IAM policy document `Resource` values match literally or with wildcards; `{id}` placeholders belong in `resourceDefinition.resourcePath`.
+- IAM condition operators are exactly `EApiPolicyConditionOperator` (`StringEquals`, `StringEqualsIfExists`, `StringNotEquals`, `StringNotEqualsIfExists`); anything else fails document validation.
+- IAM Deny never fails open: compilable `resource.*` keys become row exclusions that keep exactly the rows the in-memory evaluator allows (lists hide rows, row routes 404); non-compilable keys, `""`/`null` values, oversized scopes, and `resource.*` Deny on CREATE deny the whole request; row-specific `Resource` Deny on `list` (GET_LIST or a `<namespace>:list` custom action) excludes those rows. Custom routes must apply `decision.scope.where`, which already carries the exclusions.
 - Authorization resolver caches default to `EApiAuthorizationCacheMode.SOURCE_FIRST`: every evaluation reads hooks permission, IAM attachment, and IAM document sources without cross-request map reads, writes, or stale fallback.
 - `MEMORY` is explicit process-local opt-in and requires positive safe-integer `ttlMs` and `maxEntries`; each resolver cache receives its own bound.
 - In memory mode, use `ApiAuthorizationCacheInvalidationService` when resolver backing data must be visible before TTL expiry.

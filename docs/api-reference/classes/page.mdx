@@ -334,13 +334,13 @@ Service for evaluating authorization decisions outside HTTP requests by reusing 
 
 ### ApiAuthorizationIamEngine
 
-Evaluates IAM attachments and policy documents, applies explicit deny and boundary rules, resolves runtime condition paths such as `principal.*`, `resource.*`, and `request.*`, and produces IAM decision traces.
+Evaluates IAM attachments and policy documents, applies explicit deny and boundary rules, resolves runtime condition paths such as `principal.*`, `resource.*`, and `request.*`, and produces IAM decision traces. It decides whether each statement matches; a matched Deny denies the whole request, or, when the resource is not loaded yet, contributes row exclusions for its `resource.*` keys and for row-scoped `Resource` patterns on list routes. Deny exclusions the planner cannot compile, and unmappable row patterns, fail closed with an explicit deny.
 
 **Location:** `src/class/api/authorization/iam/engine.class.ts`
 
 ### ApiAuthorizationIamQueryPlanner
 
-Compiles safe `resource.*` IAM conditions into database scopes for controller queries. The planner supports `StringEquals` and `StringEqualsIfExists` on filterable resource fields, including `resource.id`, `resource.operatorId`, and nested `queryPath` mappings such as `operator.id`.
+Compiles safe `resource.*` IAM conditions into database scopes for controller queries. `plan(...)` compiles Allow statements: it supports `StringEquals` and `StringEqualsIfExists` on filterable resource fields, including `resource.id`, `resource.operatorId`, and nested `queryPath` mappings such as `operator.id`. `planExclusion(...)` compiles matched Deny statements into negated OR branches for all `EApiPolicyConditionOperator` values, keeping exactly the rows the in-memory evaluator allows, plus exact and prefix row exclusions from resource patterns (prefix only on STRING-described fields). Several exclusions are ANDed through `AuthorizationScopeMergeWhere`, and an exclusion over `AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES` branches is reported as not compilable.
 
 **Location:** `src/class/api/authorization/iam/query-planner.class.ts`
 

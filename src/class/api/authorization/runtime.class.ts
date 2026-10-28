@@ -146,6 +146,7 @@ export class ApiAuthorizationRuntime {
 			requestMetadata: options.requestMetadata,
 			resource: options.resource,
 			resourceDefinition: options.authorization.resourceDefinition,
+			routeType: options.routeType,
 		});
 	}
 

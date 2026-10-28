@@ -563,6 +563,33 @@ type TApiAuthorizationCacheOptions = IApiAuthorizationCacheMemoryOptions | IApiA
 
 Omitting `cache` or `cache.mode` selects source-first behavior. `MEMORY` must declare positive safe-integer `maxEntries` and `ttlMs`; bootstrap rejects invalid values.
 
+### IAM planning interfaces
+
+`ApiAuthorizationIamEngine` and `ApiAuthorizationIamQueryPlanner` exchange matched Deny statements through these shapes. Applications only meet them when they call `planExclusion(...)` directly.
+
+```typescript
+interface IApiAuthorizationIamResourceSegment {
+	placeholder?: string; // unresolved resourcePath placeholder, rendered as "*"
+	value: string;
+}
+
+interface IApiAuthorizationIamResourceConstraint {
+	isPrefix: boolean; // true for a trailing-wildcard pattern such as "<type>/abc*"
+	placeholder: string; // mapped to the "resource.<placeholder>" field
+	value: string;
+}
+
+interface IApiAuthorizationIamDenyExclusion {
+	resourceConstraints: ReadonlyArray<IApiAuthorizationIamResourceConstraint>;
+	statement: IApiPolicyStatement;
+}
+
+interface IApiAuthorizationIamStatementMatch {
+	exclusions?: Array<IApiAuthorizationIamDenyExclusion>; // absent on a matched Deny means a whole-request deny
+	isMatched: boolean;
+}
+```
+
 ## Authentication Interface
 
 ### IApiAuthenticationRequest

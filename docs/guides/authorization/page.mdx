@@ -483,7 +483,7 @@ Generated CRUD actions are normalized to IAM-friendly names inside the configure
 
 Custom `@ApiMethod(...)` actions pass through unchanged after the namespace. For example, `resource.action: "update.promote"` becomes `admin:item:update.promote` when `policyNamespace` is `admin:item`.
 
-`queryPath` may be nested, such as `operator.id`, when your repository filter shape uses relations. The query planner now safely compiles both `resource.id` and relation-backed paths such as `resource.operatorId` for `GET` and `GET_LIST`.
+`queryPath` may be nested, such as `operator.id`, when your repository filter shape uses relations. The query planner compiles both `resource.id` and relation-backed paths such as `resource.operatorId` into scopes for row and list routes.
 
 Example IAM sources:
 
@@ -576,12 +576,110 @@ IAM behavior is intentionally strict:
 
 - explicit deny wins over allow
 - boundaries intersect the final allow scope
-- the query planner only compiles supported `StringEquals` and `StringEqualsIfExists` conditions on `resource.*` fields marked as `isFilterable`
 - typed client filters, static `USE_DEFAULT` predicates, and authorization scopes are merged once with logical `AND`, not overwrite semantics
 - principal- or tenant-dependent restrictions belong in HOOKS/IAM scope; route query defaults never replace or satisfy authorization scope
 - impossible conflicts collapse to a match-nothing branch instead of rewriting the requested filter
-- unsupported or unsafe query-planning cases result in denial instead of hidden in-memory filtering
+- conditions that cannot be planned into a query fail closed instead of being filtered in memory: an Allow statement is not matched, while a Deny statement denies the whole request (explicit deny)
 - duplicate document IDs across sources and missing requested documents throw immediately
+
+### Condition operators
+
+IAM conditions support exactly these operators, exposed as `EApiPolicyConditionOperator`:
+
+| Operator                  | Holds when                                     |
+| ------------------------- | ---------------------------------------------- |
+| `StringEquals`            | the value equals the expected value            |
+| `StringEqualsIfExists`    | the value is absent or equals the expected one |
+| `StringNotEquals`         | the value differs from the expected value      |
+| `StringNotEqualsIfExists` | the value is absent or differs from it         |
+
+Any other operator, and any operand that is not a string, number, or boolean, is a document validation error: `ApiAuthorizationIamDocumentValidator` rejects the document when it is loaded from a document source, so a typo can never silently turn a statement into a no-op. If an unknown operator still reaches evaluation, it fails closed: the key holds for a Deny and fails for an Allow.
+
+Keys inside one statement are ANDed. `principal.*` and `request.*` keys are evaluated in memory; `resource.*` keys are evaluated in memory when the resource is already loaded (for example in `ApiAuthorizationSimulator` with `resource`) and are otherwise planned into a database scope.
+
+### Allow scopes
+
+The query planner compiles `StringEquals` and `StringEqualsIfExists` Allow conditions on `resource.*` fields marked `isFilterable` into the decision scope. Allow statements are ORed with each other and intersected with boundary scopes. An Allow statement whose `resource.*` keys use another operator, a non-filterable or unmapped field, an unresolved `${...}` variable, a value that is `""` or resolves to `null` or `""`, or an object value is not matched.
+
+### Deny semantics
+
+Generated routes evaluate IAM once, before the resource is loaded. A matched Deny statement (its action, resource, and non-resource keys hold) then behaves as follows:
+
+- **No `resource.*` keys** — the whole request is denied with `403`.
+- **`resource.*` keys that all compile** — the Deny becomes a row exclusion: its condition is negated and ANDed with the Allow scope. Lists omit excluded rows, and `GET`, `UPDATE`, `PARTIAL_UPDATE`, and `DELETE` of an excluded row answer `404`, exactly like a row outside an Allow scope.
+- **Any `resource.*` key that cannot compile** (another operator, a non-filterable or unmapped field, an unresolved `${...}` variable, a value that resolves to `null` or `""`, an object value) — the whole request is denied with `403`.
+- **`CREATE`** — a Deny with `resource.*` keys denies the whole request, because there is no stored row to exclude. Custom routes whose action is `<policyNamespace>:create` follow the same rule.
+
+By De Morgan, the keys of one Deny become top-level OR branches of the exclusion. The kept rows are exactly the rows the in-memory evaluator allows once the resource is loaded. That evaluator compares values as strings and treats a stored `NULL` as a present value that normalizes to an empty string, so `NULL` never equals a non-empty value and always differs from it. The `IfExists` operators only behave differently for paths that are missing entirely, which a stored row never has, so for stored rows they compile like their plain forms:
+
+| Deny key                  | Rows kept                         |
+| ------------------------- | --------------------------------- |
+| `StringEquals`            | `field <> value OR field IS NULL` |
+| `StringEqualsIfExists`    | `field <> value OR field IS NULL` |
+| `StringNotEquals`         | `field = value`                   |
+| `StringNotEqualsIfExists` | `field = value`                   |
+
+Because `""` and `NULL` compare equal in memory but not in SQL, a condition value that is `""` or resolves to `null` or `""` is not compiled; it denies the whole request instead.
+
+Several matched Deny statements, including boundary Deny statements, are ANDed. Nested `queryPath` values such as `operator.id` follow the same path rules as Allow scopes.
+
+Equality follows the database collation, exactly as it does for Allow scopes. Under a case-insensitive collation (common on MySQL), the `field = value` branch of a `StringNotEquals` or `StringNotEqualsIfExists` Deny also keeps rows whose value differs from `value` only by letter case, although the case-sensitive in-memory evaluator would deny them. Use case-sensitive collations for columns that Deny statements compare.
+
+A merged scope with a Deny exclusion may hold at most `AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES` (128) OR branches; a larger one denies the whole request with `403` instead of sending an unbounded query. Branches are counted without pruning:
+
+- within one Deny statement, branches add up: each `StringEquals` or `StringEqualsIfExists` key and each row-pattern placeholder constraint contributes 2 (`<> value` and `IS NULL`); each `StringNotEquals` or `StringNotEqualsIfExists` key contributes 1;
+- Deny statements multiply with each other, and the result multiplies with the Allow scope branches (one per compiled Allow statement, times the boundary scope branches).
+
+For example, three Deny statements with one `StringEquals` key each give 2 × 2 × 2 = 8 branches; under an Allow scope with 20 branches that is 160, so the request is denied.
+
+```typescript filename="authorization/archived-deny-document.ts" copy
+const document = {
+	Statement: [
+		{
+			Action: ["admin:item:list", "admin:item:read", "admin:item:update", "admin:item:delete"],
+			Condition: {
+				StringEquals: {
+					"resource.operatorId": "${principal.attributes.operatorId}",
+				},
+			},
+			Effect: EApiPolicyEffect.ALLOW,
+			Resource: ["gameport:admin:item/*"],
+		},
+		{
+			Action: ["admin:item:list", "admin:item:read", "admin:item:update", "admin:item:delete"],
+			Condition: {
+				StringEquals: {
+					"resource.status": "archived",
+				},
+			},
+			Effect: EApiPolicyEffect.DENY,
+			Resource: ["gameport:admin:item/*"],
+		},
+	],
+	Version: "2012-10-17",
+};
+
+// GET_LIST scope: operatorId = principal operator AND (status <> 'archived' OR status IS NULL)
+```
+
+### Row-scoped Deny on lists
+
+A list request (`GET_LIST`, or a custom route whose action is `<policyNamespace>:list`) uses the collection resource, for example `gameport:admin:item/*`. A Deny statement whose `Action` matches the list action and whose `Resource` is more specific than the collection resource is compiled into a row exclusion on the mapped fields:
+
+- `gameport:admin:item/item-1` excludes `id = 'item-1'`
+- `gameport:admin:item/abc*` excludes ids starting with `abc`; literal `%`, `_`, and `!` are escaped and the prefix is matched with `NOT LIKE ... ESCAPE '!'`
+
+Rows whose placeholder field is `NULL` stay visible, because their resource string renders the placeholder as `*`, which no row-scoped pattern matches.
+
+Unresolved `resourcePath` placeholders map to `resourceDefinition.fields` by name: `{id}` uses the `resource.id` field, which must be `isFilterable`. Prefix patterns additionally require a direct property described as `EApiPropertyDescribeType.STRING`, the same rule the typed `starts` filter uses, without the `BIGINT_STRING` and `UUID` string formats; UUID, numeric, and relation-backed fields cannot be prefix-matched. Placeholders already resolved from request parameters, such as an inherited parent id, must match literally. A prefix pattern only maps when it ends inside the first unresolved placeholder. When the pattern cannot be mapped unambiguously or a placeholder field is missing, not filterable, or not a string, the whole list request is denied with `403`. Patterns for other resource types are ignored.
+
+`LIKE` is case-sensitive on PostgreSQL but case-insensitive by default on SQLite and on MySQL with case-insensitive collations. There, a prefix Deny also hides rows whose id differs only by letter case, so it over-excludes rather than revealing rows.
+
+Actions are never widened: a Deny on `read` does not hide rows from `list`, and a row-scoped Deny on `list` does not affect `read`. On row routes the resource string is concrete, so an exact `Resource` Deny matches that row and denies the request with `403`.
+
+### Custom routes
+
+Custom `@ApiMethod(...)` routes receive the same contract through `decision.scope`: Allow scopes and Deny exclusions are already merged into `decision.scope.where`, so applying it to the route's own query enforces both. A Deny with `resource.*` keys that cannot compile denies the custom route with `403` before the handler runs.
 
 Automator does not add a separate immutable `baseWhere` controller option. Put fixed, principal-dependent, and tenant-dependent restrictions in HOOKS or IAM scope so they participate in the same fail-closed AND merge.
 
@@ -624,6 +722,8 @@ if (decision.effect !== EApiPolicyEffect.ALLOW) {
 }
 ```
 
+The simulator applies the same IAM rules as generated routes: pass `routeType` to select list, create, or row semantics, and pass `resource` to evaluate `resource.*` keys in memory instead of planning them into `decision.scope`.
+
 If you need audit logging, provide `AUTHORIZATION_AUDIT_SINK_TOKEN` with an `IApiAuthorizationAuditSink` implementation. The runtime records every final decision through that sink.
 
 The built-in permission, attachment, and document resolvers follow the module's cache mode. Source-first mode reads the sources on every evaluation; bounded memory mode uses the configured process-local TTL and entry limit.
@@ -641,6 +741,8 @@ The authorization module validates configuration during bootstrap. Common failur
 - `resourceDefinition.entity` not matching the controller entity
 - invalid `resourceDefinition.fields` entries or duplicate `path` / `queryPath` mappings
 
+IAM policy documents are validated whenever a document source returns them: invalid `Action`, `Resource`, or `Effect` entries, malformed `Condition` maps, and condition operators outside `EApiPolicyConditionOperator` throw instead of being evaluated.
+
 This keeps misconfiguration explicit and prevents silent fallback behavior.
 
 ## Migration Notes
@@ -653,5 +755,13 @@ When moving from the older authorization API:
 4. Use `@ApiAuthorizationPolicy(...)` only for hooks mode.
 5. Use IAM attachment/document sources for declarative IAM evaluation.
 6. Treat source-first resolver reads as the new default. Applications that intentionally need process-local resolver reuse must opt into bounded `MEMORY`, choose finite TTL and entry limits, and own invalidation; the old unbounded, indefinitely retained resolver maps are not preserved.
+
+IAM Deny statements are compiled into row exclusions instead of being applied to the whole request or ignored:
+
+- A Deny with `resource.*` keys that compile now hides the matching rows: row routes (`GET`, `UPDATE`, `PARTIAL_UPDATE`, `DELETE`) answer `404` instead of `403`, and lists omit the rows instead of failing. A Deny whose `resource.*` keys cannot compile, which was ignored before, now denies the whole request with `403`.
+- Custom routes that run their own queries must apply `decision.scope.where`; it carries both Allow scopes and Deny exclusions.
+- Condition operators outside `EApiPolicyConditionOperator` and non-scalar condition operands now throw when a document source returns the document, instead of evaluating to false. `null` operands are rejected too; to check that a `principal.*` or `request.*` value is absent, compare it with `""`, which the evaluator treats the same as a missing value.
+- An Allow statement whose `resource.*` value is `""` or resolves to `null` or `""` is no longer compiled into an equality scope; the statement is unmatched, so without another matching Allow the request is an implicit deny.
+- Row-scoped list Deny patterns that cannot be mapped, such as a prefix pattern that crosses a placeholder or runs over several of them, deny the list with `403`.
 
 See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the hooks policy contract and the [controller decorator docs](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) for marker behavior.

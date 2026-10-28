@@ -4,6 +4,7 @@ export type * from "./decision";
 export { type IApiAuthorizationEngine } from "./engine.interface";
 export { type IApiAuthorizationEngineEvaluateOptions } from "./evaluate-options.interface";
 export { type IApiHookPermissionSource } from "./hook-permission-source.interface";
+export type * from "./iam";
 export { type IApiAuthorizationIamModuleOptions } from "./iam-module-options.interface";
 export type * from "./module-options";
 export type * from "./policy";

@@ -661,6 +661,13 @@ enum EApiPolicyAttachmentType {
 	BOUNDARY = "boundary",
 }
 
+enum EApiPolicyConditionOperator {
+	STRING_EQUALS = "StringEquals",
+	STRING_EQUALS_IF_EXISTS = "StringEqualsIfExists",
+	STRING_NOT_EQUALS = "StringNotEquals",
+	STRING_NOT_EQUALS_IF_EXISTS = "StringNotEqualsIfExists",
+}
+
 enum EApiPolicyOnType {
 	BEFORE = "Before",
 }
@@ -677,6 +684,8 @@ enum EApiPolicyStatus {
 	PUBLISHED = "published",
 }
 ```
+
+`EApiPolicyConditionOperator` lists the only condition operators IAM policy documents may use; any other operator is a document validation error.
 
 ### Utility and Validator Enums
 
