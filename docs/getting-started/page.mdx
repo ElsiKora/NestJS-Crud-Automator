@@ -47,6 +47,7 @@ Crud Automator 5.0.0 moves to the current majors of its peers. NestJS 11, `@nest
   - An ES module application imports it as before, with `moduleResolution` `bundler`, `node16` or `nodenext`: every relative import in the declarations carries its `.js` extension.
   - A CommonJS application keeps `require("@elsikora/nestjs-crud-automator")`, which Node.js loads through `require(esm)`. The top-level `types` field stays, so TypeScript with `module: commonjs` and the default `node10` resolution still finds the types.
   - Deep imports such as `@elsikora/nestjs-crud-automator/dist/cjs/...` no longer resolve. Import from the package root.
+  - CI checks all three setups on the packed tarball: an ES module app with `bundler` resolution, one with `nodenext`, and a CommonJS app with `node10`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26.
 - Every peer has an upper bound at the next major. What npm does with a release outside a range depends on the order:
   - Adding Crud Automator to a project that already has such a release fails with `ERESOLVE`, and nothing is installed.
   - Upgrading a peer of an existing installation to such a release, for example `npm install @nestjs/common@latest`, succeeds with exit code 0. npm only prints `npm warn ERESOLVE overriding peer dependency`, and `npm ls @nestjs/common` then reports the package as `invalid`. Check the tree with `npm ls` after upgrading a peer.

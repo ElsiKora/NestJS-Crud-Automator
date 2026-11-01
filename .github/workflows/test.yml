@@ -13,6 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The development toolchain (testcontainers, lint-staged) needs Node >=22.22, so the full suite runs on
+        # the latest release of each supported line; the consumer-smoke job covers the exact engines floors
         node-version: ["22.x", "24.x", "26.x"]
 
     steps:
@@ -47,6 +49,53 @@ jobs:
           path: |
             coverage/
             reports/
+
+  consumer-smoke:
+    name: Consumer smoke (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The engines floors ^22.13.0 || >=24.11.0 and the newest line
+        node-version: ["22.13.0", "24.11.0", "26.x"]
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }} for the build
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build package
+        run: npm run build
+
+      - name: Setup Node.js ${{ matrix.node-version }} for the consumers
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Run consumer smoke on the packed tarball
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+        run: |
+          node --version
+          npm run test:consumer -- --skip-build
 
   swagger-compatibility:
     name: Swagger ${{ matrix.swagger-version }}

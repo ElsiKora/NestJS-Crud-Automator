@@ -46,6 +46,7 @@
 		"prepare": "husky",
 		"release": "semantic-release",
 		"test:all": "npm run test:unit && npm run test:e2e",
+		"test:consumer": "node scripts/test/consumer-smoke.mjs",
 		"test:e2e": "npm run build && vitest --config vitest.e2e.config.js --typecheck.tsconfig tsconfig.json",
 		"test:unit": "vitest run test/unit --config vitest.unit.config.js"
 	},
