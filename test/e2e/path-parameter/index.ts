@@ -19,3 +19,22 @@ export {
 	E2ePathParameterIamUuidItemEntity,
 	E2ePathParameterIamUuidItemService,
 } from "./authorization";
+export {
+	buildE2ePathParameterCanonicalUndescribedCustomController,
+	E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID,
+	E2E_PATH_PARAMETER_CANONICAL_AT,
+	E2E_PATH_PARAMETER_CANONICAL_CONTROLLERS,
+	E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID,
+	E2E_PATH_PARAMETER_CANONICAL_DOCUMENTS,
+	E2E_PATH_PARAMETER_CANONICAL_DTO_KINDS,
+	E2E_PATH_PARAMETER_CANONICAL_NARROW_MAXIMUM,
+	E2ePathParameterCanonicalGuard,
+	E2ePathParameterCanonicalIntItemEntity,
+	E2ePathParameterCanonicalIntItemService,
+	E2ePathParameterCanonicalMomentItemEntity,
+	E2ePathParameterCanonicalMomentItemService,
+	E2ePathParameterCanonicalTextUuidItemEntity,
+	E2ePathParameterCanonicalTextUuidItemService,
+	E2ePathParameterCanonicalUuidItemEntity,
+	E2ePathParameterCanonicalUuidItemService,
+} from "./canonical";

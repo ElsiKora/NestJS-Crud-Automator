@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import { NUMBER_CONSTANT } from "@constant/number.constant";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
+import { ApiPropertyBoolean } from "@decorator/api/property/boolean.decorator";
 import { ApiPropertyDate } from "@decorator/api/property/date.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
@@ -26,6 +27,16 @@ class PathValueIntegerDto {
 class PathValueIntegerArrayDto {
 	@ApiPropertyNumber({ description: "ids", entity: PathValueRulesEntity, exampleValue: [1], format: EApiPropertyNumberType.INTEGER, isArray: true, isRequired: true, isUniqueItems: false, maxItems: 5, maximum: 100, minimum: 0, minItems: 1, multipleOf: 1 })
 	public ids!: Array<number>;
+}
+
+class PathValueBooleanDto {
+	@ApiPropertyBoolean({ description: "active", entity: PathValueRulesEntity, isRequired: true })
+	public active!: boolean;
+}
+
+class PathValueBooleanArrayDto {
+	@ApiPropertyBoolean({ description: "flags", entity: PathValueRulesEntity, isArray: true, isRequired: true, isUniqueItems: false, maxItems: 5, minItems: 1 } as never)
+	public flags!: Array<boolean>;
 }
 
 class PathValueDoubleDto {
@@ -103,6 +114,25 @@ describe("path value rules of property decorators", () => {
 		expect(plainToInstance(PathValueIntegerDto, { id: 16 }).id).toBe(16);
 		expect(plainToInstance(PathValueIntegerArrayDto, { ids: ["1", "2"] }).ids).toEqual([1, 2]);
 		expect(validateSync(plainToInstance(PathValueIntegerArrayDto, { ids: ["1", "02"] }))[0]?.constraints?.isInt).toBeDefined();
+	});
+
+	it("rejects an array for a single integer value", () => {
+		for (const value of [["007"], ["7"], [7], []]) {
+			expect({ errors: validateSync(plainToInstance(PathValueIntegerDto, { id: value })).length > 0, value }).toEqual({ errors: true, value });
+		}
+	});
+
+	it("accepts only true and false for a boolean value", () => {
+		expect(plainToInstance(PathValueBooleanDto, { active: "true" }).active).toBe(true);
+		expect(plainToInstance(PathValueBooleanDto, { active: "false" }).active).toBe(false);
+		expect(plainToInstance(PathValueBooleanDto, { active: false }).active).toBe(false);
+		expect(plainToInstance(PathValueBooleanArrayDto, { flags: ["true", false] }).flags).toEqual([true, false]);
+
+		for (const value of ["1", "0", "no", "TRUE", " true", "garbage", "", 1, 0, ["true"]]) {
+			expect({ errors: validateSync(plainToInstance(PathValueBooleanDto, { active: value })).length > 0, value }).toEqual({ errors: true, value });
+		}
+
+		expect(validateSync(plainToInstance(PathValueBooleanArrayDto, { flags: ["true", "1"] })).length).toBeGreaterThan(0);
 	});
 
 	it("keeps decimal and exponent text for DOUBLE properties", () => {
