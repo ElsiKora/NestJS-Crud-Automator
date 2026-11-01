@@ -269,8 +269,8 @@ export class ApiFunctionKeyPageLoader {
 	}
 
 	/**
-	 * Binds the `Date` operands of a `timestamptz` column condition as canonical UTC text, each through the column transformer once.
-	 * A condition with such an operand becomes operators that TypeORM binds without the column transformer.
+	 * Binds the operands of a `timestamptz` column condition through the column transformers once, and a `Date` they return as canonical UTC text.
+	 * A condition that binds so becomes operators that TypeORM binds without the column transformer.
 	 * @param {Driver} driver - Driver of the read
 	 * @param {TTypeOrmColumnMetadata} column - Column the condition filters
 	 * @param {unknown} condition - Plain value or find operator of the column
@@ -280,11 +280,13 @@ export class ApiFunctionKeyPageLoader {
 		const columnType: string = driver.normalizeType(column);
 		const driverType: string = driver.options.type;
 
-		const isInstantText: boolean = DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType) && DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(driverType) && this.hasDate(condition);
+		// A transformer may return a Date for any operand, so a transformed instant column binds every condition itself.
+		const isInstantText: boolean = DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType) && DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(driverType) && (column.transformer !== undefined || this.hasDate(condition));
 		// TypeORM hands the transformer the operators of a composed condition, so a transformed temporal column binds those itself.
 		const isComposedTransform: boolean = column.transformer !== undefined && this.isTemporalType(columnType) && this.isComposed(condition);
 
-		if (!isInstantText && !isComposedTransform) {
+		// TypeORM handles a null or undefined condition by its invalidWhereValuesBehavior option, without the transformer.
+		if ((!isInstantText && !isComposedTransform) || condition === null || condition === undefined) {
 			return condition;
 		}
 

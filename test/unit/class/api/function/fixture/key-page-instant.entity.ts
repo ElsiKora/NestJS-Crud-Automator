@@ -56,6 +56,10 @@ export class KeyPageInstantEntity {
 	})
 	public orderedAt!: Date;
 
+	// The entity holds text that the transformer turns into a Date only on the way to the database.
+	@Column({ precision: 3, transformer: { from: (value: unknown): unknown => value, to: (value: unknown): unknown => (typeof value === "string" ? new Date(value) : value) }, type: "timestamptz" })
+	public parsedAt!: string;
+
 	@Column({ precision: 3, type: "timestamptz" })
 	public plainAt!: Date;
 

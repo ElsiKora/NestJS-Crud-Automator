@@ -527,6 +527,20 @@ describe("ApiFunctionKeyPageLoader", () => {
 			expect(KEY_PAGE_INSTANT_INPUTS).toEqual([INSTANT, LATER]);
 		});
 
+		it.each([
+			["a plain value", "1800-06-01T12:00:00.000Z", ["1800-06-01T12:00:00.000Z"]],
+			["MoreThan", MoreThan("1800-06-01T12:00:00.000Z"), ["1800-06-01T12:00:00.000Z"]],
+			["Between", Between("1800-06-01T12:00:00.000Z", "1800-06-01T12:00:05.000Z"), ["1800-06-01T12:00:00.000Z", "1800-06-01T12:00:05.000Z"]],
+		])("binds canonical UTC text for the Date a transformer returns from %s", async (_label, condition, parameters) => {
+			expect(await bindParameters({ parsedAt: condition })).toEqual(parameters);
+		});
+
+		it("leaves a null or undefined condition on a transformed instant column to TypeORM, which rejects it", async () => {
+			await expect(bindParameters({ transformedAt: null })).rejects.toThrow("Null value encountered in property 'KeyPageInstantEntity.transformedAt'");
+			await expect(bindParameters({ transformedAt: undefined })).rejects.toThrow("Undefined value encountered in property 'KeyPageInstantEntity.transformedAt'");
+			expect(KEY_PAGE_INSTANT_INPUTS).toEqual([]);
+		});
+
 		it("binds what a transformer returns for a Date when it is not a Date", async () => {
 			expect(await bindParameters({ textAt: INSTANT })).toEqual(["1800-06-01T12:00:00.000+00:00"]);
 		});
