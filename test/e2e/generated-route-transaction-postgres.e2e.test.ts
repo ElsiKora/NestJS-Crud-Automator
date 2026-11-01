@@ -300,6 +300,7 @@ function createGeneratedGetListOptions(itemService: RouteTransactionItemService)
 			routes: {
 				[EApiRouteType.GET_LIST]: {
 					dto: {
+						[EApiDtoType.QUERY]: class {},
 						[EApiDtoType.RESPONSE]: RouteTransactionItemEntity,
 					},
 					response: {

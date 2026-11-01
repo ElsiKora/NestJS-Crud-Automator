@@ -155,6 +155,7 @@ function createGeneratedReadOrDeleteOptions(service: ApiServiceBase<RuntimeRoute
 						? {}
 						: {
 								dto: {
+									...(method === EApiRouteType.GET_LIST ? { [EApiDtoType.QUERY]: class {} } : {}),
 									[EApiDtoType.RESPONSE]: RuntimeRouteResponseDTO,
 								},
 								response: {

@@ -34,9 +34,10 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 
 		const cleanField: string = field.replace("]", "");
 
-		if (cleanField === "value" || cleanField === "values") {
-			const operation: unknown = query[`${String(key)}[operator]`];
+		const operation: unknown = query[`${String(key)}[operator]`];
+		const isValuelessOperator: boolean = cleanField === "operator" && (operation === EFilterOperation.ISNULL || operation === EFilterOperation.NOTNULL);
 
+		if (cleanField === "value" || cleanField === "values" || isValuelessOperator) {
 			const value: unknown = query[fullKey];
 
 			if (!EnumIsValue(EFilterOperation, operation) || !key || value === undefined || value === null) continue;

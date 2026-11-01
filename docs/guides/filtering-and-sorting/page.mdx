@@ -14,6 +14,48 @@ This filters users where username equals "john_doe".
 
 Generated GET_LIST routes always require `limit`. Default PAGE mode also requires `page`; opt-in CURSOR mode accepts optional `after` or `before` instead. Later filter fragments omit pagination parameters only to keep the operator examples readable.
 
+## Query Validation Without a Typed Plan
+
+A PAGE route without a typed `filter` validates its own QUERY DTO, generated or manual, whether or not the host registers a `ValidationPipe`. It reads the raw request query, so a transforming or whitelisting pipe cannot change the result. Route-before subscribers and QUERY transformers run first, and no SQL runs for a rejected request.
+
+| Input                                                                                                                            | Result |
+| -------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| `orderBy` outside the generated enum, including a real column with `useAsOrderByFilter: false` or without `@ApiPropertyDescribe` | `400`  |
+| `orderDirection` other than the lowercase `asc` or `desc`                                                                        | `400`  |
+| Missing `limit` or `page`, or a value outside `1..100`                                                                           | `400`  |
+| Filter operator not allowed for the column type, or an invalid `[value]` or `[values]` item                                      | `400`  |
+| Filter group with a value but no operator, or an operator other than `isnull` or `notnull` with no value                         | `400`  |
+| Fewer than two `[values]` items for a membership operator                                                                        | `400`  |
+
+The body is the one a default `ValidationPipe` returns:
+
+```json
+{
+	"error": "Bad Request",
+	"message": ["orderBy must be one of the following values: createdAt, username"],
+	"statusCode": 400
+}
+```
+
+`isnull` and `notnull` take no value: `age[operator]=isnull` applies the filter, and adding `age[value]` returns `400`.
+
+Query keys the DTO does not describe, such as `utm_source=x` or `unknownField[operator]=eq&unknownField[value]=x`, are ignored as a default `ValidationPipe` ignores them. Use a typed plan to reject unknown filters.
+
+### Migration Notes
+
+Before 5.0.0, these routes relied on a host `ValidationPipe`. Without one, an unknown `orderBy` or missing pagination returned `500`, `limit` had no upper bound, an unknown operator returned the unfiltered list, and an invalid filter value returned `500` on PostgreSQL.
+
+Those hosts also accepted `orderBy` on any entity column, including one with `useAsOrderByFilter: false` or without `@ApiPropertyDescribe`. A client could sort by that column and infer its hidden values from the row order. If your API ran without a pipe that validates query parameters, treat such columns as exposed through ordering until you upgrade.
+
+From 5.0.0, the rules above apply on every such route. Change these requests if your clients send them:
+
+- `orderDirection=ASC` or `DESC`: send lowercase. Hosts without a pipe used to accept the uppercase form.
+- `limit` above 100, `limit=0`, or a request without `limit` or `page`: send values in range.
+- A membership filter with one item, such as `status[operator]=in&status[values]=active`: use `eq`, or send two or more items.
+- `isnull` or `notnull` with a value: remove the value. `isnull` or `notnull` without a value used to be ignored and now filters, so those requests return fewer rows.
+
+With a transforming host pipe, a date filter used to fail on PostgreSQL and return no rows on SQLite. It now behaves the same with or without a pipe. A route-before subscriber now always sees the raw query on these routes, not the instance a transforming pipe produced.
+
 ## Route-Owned Typed Query Plans
 
 Entity `@ApiPropertyDescribe` and TypeORM metadata remain the source for generated GET_LIST query DTOs. A generated GET_LIST route can optionally add `filter`, `order`, and `pagination` under `request[EApiControllerRequestTarget.QUERY]`. Automator compiles the metadata and this route overlay into one immutable plan used by the runtime DTO, strict parser, TypeORM predicates, and OpenAPI.
@@ -337,7 +379,7 @@ Sort by a single field:
 GET /users?orderBy=createdAt&orderDirection=desc
 ```
 
-Available directions:
+Available directions, lowercase only:
 
 - `asc` - Ascending order
 - `desc` - Descending order

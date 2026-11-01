@@ -8,7 +8,7 @@ import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/deco
 import { EFilterOperation } from "@enum/filter";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, IsNull, ManyToOne, Not, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 import { OwnerGroupEntity, OwnerMetadata } from "./fixture/owner";
@@ -104,6 +104,19 @@ describe("ApiControllerGetListTransformFilter", () => {
 		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);
 
 		expect(filter).not.toHaveProperty("id");
+	});
+
+	it("applies isnull and notnull from the operator alone", () => {
+		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
+
+		expect(ApiControllerGetListTransformFilter<ItemEntity>({ "name[operator]": EFilterOperation.ISNULL }, metadata)).toEqual({ name: IsNull() });
+		expect(ApiControllerGetListTransformFilter<ItemEntity>({ "name[operator]": EFilterOperation.NOTNULL }, metadata)).toEqual({ name: Not(IsNull()) });
+	});
+
+	it("ignores any other operator without a value", () => {
+		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
+
+		expect(ApiControllerGetListTransformFilter<ItemEntity>({ "name[operator]": EFilterOperation.EQ }, metadata)).toEqual({});
 	});
 
 	it("transforms scalar filters", () => {

@@ -25,7 +25,7 @@ import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/api";
 import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/controller/apply/decorators.utility";
 import { ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/apply/metadata.utility";
-import { ApiControllerGetListQueryPlanGet, ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
+import { ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
 import { ApiControllerReadPlanGet, ApiControllerReadPlanSet } from "@utility/api/controller/read";
@@ -168,8 +168,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 				async function (this: TApiControllerMethod<E>, parameters: Partial<E>, query: TApiControllerGetListQuery<E, M>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<TApiControllerGetListResponse<E, M>> {
 					const requestQueryValue: unknown = authenticationRequest && "query" in authenticationRequest ? authenticationRequest.query : undefined;
 					const requestQuery: TApiControllerGetListQuery<E, M> | undefined = requestQueryValue && typeof requestQueryValue === "object" && !Array.isArray(requestQueryValue) ? (requestQueryValue as TApiControllerGetListQuery<E, M>) : undefined;
-					const queryPlan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanGet(Object.getPrototypeOf(this) as object, methodName);
-					const runtimeQuery: TApiControllerGetListQuery<E, M> = queryPlan && !queryPlan.filter.isLegacy && requestQuery ? requestQuery : query;
+					const runtimeQuery: TApiControllerGetListQuery<E, M> = requestQuery ?? query;
 
 					return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, schemaPrefix, targets: { authenticationRequest, headers, ip, parameters, query: runtimeQuery as TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> } })) as TApiControllerGetListResponse<E, M>;
 				},
@@ -184,8 +183,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			async function (this: TApiControllerMethod<E>, query: TApiControllerGetListQuery<E, M>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<TApiControllerGetListResponse<E, M>> {
 				const requestQueryValue: unknown = authenticationRequest && "query" in authenticationRequest ? authenticationRequest.query : undefined;
 				const requestQuery: TApiControllerGetListQuery<E, M> | undefined = requestQueryValue && typeof requestQueryValue === "object" && !Array.isArray(requestQueryValue) ? (requestQueryValue as TApiControllerGetListQuery<E, M>) : undefined;
-				const queryPlan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanGet(Object.getPrototypeOf(this) as object, methodName);
-				const runtimeQuery: TApiControllerGetListQuery<E, M> = queryPlan && !queryPlan.filter.isLegacy && requestQuery ? requestQuery : query;
+				const runtimeQuery: TApiControllerGetListQuery<E, M> = requestQuery ?? query;
 
 				return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, schemaPrefix, targets: { authenticationRequest, headers, ip, query: runtimeQuery as TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> } })) as TApiControllerGetListResponse<E, M>;
 			},

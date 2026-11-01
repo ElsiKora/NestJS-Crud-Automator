@@ -1071,6 +1071,7 @@ describe("ApiRouteRuntime", () => {
 				routes: {
 					[EApiRouteType.GET_LIST]: {
 						dto: {
+							[EApiDtoType.QUERY]: class {},
 							[EApiDtoType.RESPONSE]: RuntimeRouteResponseDTO,
 						},
 						relations: {

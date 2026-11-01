@@ -58,7 +58,7 @@ describe("CRUD routes (E2E)", () => {
 		fastify.inject({
 			headers,
 			method: "GET",
-			url: "/custom-item-response-items?limit=10&page=1&orderBy=id&orderDirection=ASC",
+			url: "/custom-item-response-items?limit=10&page=1&orderBy=id&orderDirection=asc",
 		});
 	const seedFilterItems = async () => {
 		await createItem({
@@ -372,7 +372,7 @@ describe("CRUD routes (E2E)", () => {
 		const listResponse = await fastify.inject({
 			headers: adminHeaders,
 			method: "GET",
-			url: "/custom-response-items?limit=10&page=1&orderBy=id&orderDirection=ASC",
+			url: "/custom-response-items?limit=10&page=1&orderBy=id&orderDirection=asc",
 		});
 
 		expect(listResponse.statusCode).toBe(200);
@@ -863,7 +863,7 @@ describe("CRUD routes (E2E)", () => {
 		const listResponse = await fastify.inject({
 			headers: adminHeaders,
 			method: "GET",
-			url: "/items?limit=1&page=2&orderBy=id&orderDirection=ASC",
+			url: "/items?limit=1&page=2&orderBy=id&orderDirection=asc",
 		});
 
 		expect(listResponse.statusCode).toBe(200);
@@ -885,7 +885,7 @@ describe("CRUD routes (E2E)", () => {
 			{ expected: ["filter-3"], query: "count[operator]=between&count[values]=2&count[values]=4" },
 			{ expected: ["filter-2"], query: "count[operator]=gt&count[value]=3" },
 			{ expected: ["filter-1"], query: "count[operator]=lt&count[value]=3" },
-			{ expected: ["filter-3"], query: "code[operator]=isnull&code[value]=1" },
+			{ expected: ["filter-3"], query: "code[operator]=isnull" },
 			{ expected: ["filter-1", "filter-3"], query: "isActive[operator]=eq&isActive[value]=1" },
 			{ expected: ["filter-2", "filter-3"], query: "createdAt[operator]=gt&createdAt[value]=2024-01-15T00:00:00.000Z" },
 		];
@@ -897,7 +897,7 @@ describe("CRUD routes (E2E)", () => {
 				url: `/items?limit=10&page=1&${scenario.query}`,
 			});
 
-			expect(listResponse.statusCode).toBe(200);
+			expect(listResponse.statusCode, `${scenario.query}: ${JSON.stringify(listResponse.json())}`).toBe(200);
 			const ids = listResponse
 				.json()
 				.items.map((item: { id: string }) => item.id)
@@ -1075,7 +1075,7 @@ describe("CRUD routes (E2E)", () => {
 		const listResponse = await fastify.inject({
 			headers: adminHeaders,
 			method: "GET",
-			url: "/items?limit=10&page=1&orderBy=count&orderDirection=DESC",
+			url: "/items?limit=10&page=1&orderBy=count&orderDirection=desc",
 		});
 
 		expect(listResponse.statusCode).toBe(200);
@@ -1089,7 +1089,7 @@ describe("CRUD routes (E2E)", () => {
 		const listResponse = await fastify.inject({
 			headers: adminHeaders,
 			method: "GET",
-			url: "/items?limit=2&page=1&orderBy=id&orderDirection=ASC",
+			url: "/items?limit=2&page=1&orderBy=id&orderDirection=asc",
 		});
 
 		expect(listResponse.statusCode).toBe(200);
