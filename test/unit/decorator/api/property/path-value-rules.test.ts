@@ -135,6 +135,22 @@ describe("path value rules of property decorators", () => {
 		expect(validateSync(plainToInstance(PathValueBooleanArrayDto, { flags: ["true", "1"] })).length).toBeGreaterThan(0);
 	});
 
+	it("reads the request value itself under implicit conversion, which turns any non-empty text into true", () => {
+		const options: { enableImplicitConversion: boolean } = { enableImplicitConversion: true };
+
+		expect(plainToInstance(PathValueBooleanDto, { active: "true" }, options).active).toBe(true);
+		expect(plainToInstance(PathValueBooleanDto, { active: "false" }, options).active).toBe(false);
+		expect(plainToInstance(PathValueBooleanDto, { active: false }, options).active).toBe(false);
+		expect(plainToInstance(PathValueBooleanArrayDto, { flags: ["true", "false"] }, options).flags).toEqual([true, false]);
+		expect(plainToInstance(PathValueBooleanArrayDto, { flags: "false" }, options).flags).toEqual([false]);
+
+		for (const value of ["1", "0", "no", "TRUE", "", 1, 0, ["true"]]) {
+			expect({ errors: validateSync(plainToInstance(PathValueBooleanDto, { active: value }, options)).length > 0, value }).toEqual({ errors: true, value });
+		}
+
+		expect(validateSync(plainToInstance(PathValueBooleanArrayDto, { flags: ["true", "0"] }, options)).length).toBeGreaterThan(0);
+	});
+
 	it("keeps decimal and exponent text for DOUBLE properties", () => {
 		expect(plainToInstance(PathValueDoubleDto, { ratio: "1e3" }).ratio).toBe(1000);
 		expect(plainToInstance(PathValueDoubleDto, { ratio: "16.5" }).ratio).toBe(16.5);

@@ -1,13 +1,13 @@
 import type { ExecutionContext } from "@nestjs/common";
 
-import { Inject, Injectable, Param, RequestMethod } from "@nestjs/common";
+import { Body, Inject, Injectable, Param, Query, RequestMethod } from "@nestjs/common";
 import { ApiProperty } from "@nestjs/swagger";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Type } from "class-transformer";
 import { IsInt, Max } from "class-validator";
 import { Column, Entity, PrimaryColumn, PrimaryGeneratedColumn, Repository } from "typeorm";
 
-import { ApiController, ApiControllerObservable, ApiControllerSecurable, ApiPropertyCopy, ApiPropertyDescribe, ApiRouteCustom, ApiService, ApiServiceBase, EApiAuthenticationType, EApiAuthorizationMode, EApiDtoType, EApiPolicyEffect, EApiPolicySourceType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
+import { ApiController, ApiControllerObservable, ApiControllerSecurable, ApiPropertyBoolean, ApiPropertyCopy, ApiPropertyDescribe, ApiRouteCustom, ApiService, ApiServiceBase, EApiAuthenticationType, EApiAuthorizationMode, EApiDtoType, EApiPolicyEffect, EApiPolicySourceType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
 
 export const E2E_PATH_PARAMETER_CANONICAL_AT: string = "2024-03-10T12:00:00.000Z";
 export const E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -332,6 +332,124 @@ export const buildE2ePathParameterCanonicalUndescribedCustomController = (): new
 	return E2ePathParameterCanonicalCustomBadController;
 };
 
+/**
+ * Copies the generated PARAMETERS decorators of the key and the boolean column, for a custom route shared through inheritance.
+ */
+export class E2ePathParameterCanonicalCopyActiveIdParametersDto {
+	@ApiPropertyCopy({ dtoType: EApiDtoType.PARAMETERS, entity: () => E2ePathParameterCanonicalIntItemEntity, method: EApiRouteType.GET, propertyName: "active" })
+	public active!: boolean;
+
+	@ApiPropertyCopy({ dtoType: EApiDtoType.PARAMETERS, entity: () => E2ePathParameterCanonicalIntItemEntity, method: EApiRouteType.GET, propertyName: "id" })
+	public id!: number;
+}
+
+/**
+ * Base controller whose custom route `:active/:id` two securable subclasses share, each with its own resource path.
+ */
+export class E2ePathParameterCanonicalInheritedActiveBaseController {
+	@Inject(E2ePathParameterCanonicalIntItemService)
+	public readonly service!: E2ePathParameterCanonicalIntItemService;
+
+	@ApiRouteCustom({
+		documentation: { description: "Reads two path values", summary: "Reads two path values" },
+		dto: { [EApiDtoType.PARAMETERS]: E2ePathParameterCanonicalCopyActiveIdParametersDto },
+		resource: { action: "read", entity: E2ePathParameterCanonicalIntItemEntity },
+		response: { errors: {}, serialization: { isEnabled: false }, status: 200, type: E2ePathParameterCanonicalCustomResponseDto },
+		route: { method: RequestMethod.GET, path: ":active/:id" },
+		security: { authentication, authorization: { mode: EApiAuthorizationMode.IAM } },
+	} as never)
+	public read(@Param() parameters: E2ePathParameterCanonicalCopyActiveIdParametersDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: `${typeof parameters.active}:${String(parameters.active)}` };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-inh-va", E2ePathParameterCanonicalIntItemEntity, "ppc-inh-va/{id}", ["id"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalInheritedVa", path: "path-parameter/canonical/ppc-inh-va", routes: noRoutes })
+export class E2ePathParameterCanonicalInheritedVaController extends E2ePathParameterCanonicalInheritedActiveBaseController {}
+
+@ApiControllerSecurable()
+@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-inh-vb", E2ePathParameterCanonicalIntItemEntity, "ppc-inh-vb/{active}/{id}", ["id", "active"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalInheritedVb", path: "path-parameter/canonical/ppc-inh-vb", routes: noRoutes })
+export class E2ePathParameterCanonicalInheritedVbController extends E2ePathParameterCanonicalInheritedActiveBaseController {}
+
+/**
+ * Base controller whose custom route `:id` is described for `{id}` only.
+ */
+export class E2ePathParameterCanonicalInheritedIdBaseController {
+	@Inject(E2ePathParameterCanonicalIntItemService)
+	public readonly service!: E2ePathParameterCanonicalIntItemService;
+
+	@buildCustomRoute(E2ePathParameterCanonicalIntItemEntity, E2ePathParameterCanonicalCopyIntParametersDto)
+	public read(@Param("id") id: unknown): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: `${typeof id}:${String(id)}` };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-inh-a", E2ePathParameterCanonicalIntItemEntity, "ppc-inh-a/{id}", ["id"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalInheritedA", path: "path-parameter/canonical/ppc-inh-a", routes: noRoutes })
+export class E2ePathParameterCanonicalInheritedAController extends E2ePathParameterCanonicalInheritedIdBaseController {}
+
+/**
+ * Names the controller path parameter `{tenant}` in its resource path, which the inherited PARAMETERS DTO does not describe, so it must fail at startup.
+ */
+@ApiControllerSecurable()
+@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-inh-b", E2ePathParameterCanonicalIntItemEntity, "ppc-inh-b/{tenant}/{id}", ["id"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalInheritedB", path: "path-parameter/canonical/ppc-inh-b/:tenant", routes: noRoutes })
+export class E2ePathParameterCanonicalInheritedBController extends E2ePathParameterCanonicalInheritedIdBaseController {}
+
+/**
+ * Copies the generated CREATE body decorators of the boolean column, like a hand-written body DTO in a consumer service.
+ */
+export class E2ePathParameterCanonicalCopyActiveBodyDto {
+	@ApiPropertyCopy({ dtoType: EApiDtoType.BODY, entity: () => E2ePathParameterCanonicalIntItemEntity, method: EApiRouteType.CREATE, propertyName: "active" })
+	public active!: boolean;
+}
+
+/**
+ * Declares the boolean with `ApiPropertyBoolean` directly.
+ */
+export class E2ePathParameterCanonicalBooleanBodyDto {
+	@ApiPropertyBoolean({ description: "active", entity: E2ePathParameterCanonicalIntItemEntity, isRequired: true } as never)
+	public active!: boolean;
+}
+
+const buildBooleanEchoRoute = (method: RequestMethod, path: string, dto: Partial<Record<EApiDtoType, new () => unknown>>): MethodDecorator =>
+	ApiRouteCustom({
+		documentation: { description: "Echoes one boolean", summary: "Echoes one boolean" },
+		dto,
+		resource: { action: "read", entity: E2ePathParameterCanonicalIntItemEntity },
+		response: { errors: {}, serialization: { isEnabled: false }, status: 200, type: E2ePathParameterCanonicalCustomResponseDto },
+		route: { method, path },
+	} as never);
+
+/**
+ * Echoes the boolean a host pipe gives the handler from a body or a query.
+ */
+@ApiControllerObservable()
+@ApiController<E2ePathParameterCanonicalIntItemEntity>({ entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalBooleanEcho", path: "path-parameter/canonical/boolean-echo", routes: noRoutes })
+export class E2ePathParameterCanonicalBooleanEchoController {
+	@Inject(E2ePathParameterCanonicalIntItemService)
+	public readonly service!: E2ePathParameterCanonicalIntItemService;
+
+	@buildBooleanEchoRoute(RequestMethod.POST, "copy", { [EApiDtoType.BODY]: E2ePathParameterCanonicalCopyActiveBodyDto })
+	public copyBody(@Body() body: E2ePathParameterCanonicalCopyActiveBodyDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: `${typeof body.active}:${String(body.active)}` };
+	}
+
+	@buildBooleanEchoRoute(RequestMethod.GET, "copy", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalCopyActiveBodyDto })
+	public copyQuery(@Query() query: E2ePathParameterCanonicalCopyActiveBodyDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: `${typeof query.active}:${String(query.active)}` };
+	}
+
+	@buildBooleanEchoRoute(RequestMethod.POST, "boolean", { [EApiDtoType.BODY]: E2ePathParameterCanonicalBooleanBodyDto })
+	public booleanBody(@Body() body: E2ePathParameterCanonicalBooleanBodyDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: `${typeof body.active}:${String(body.active)}` };
+	}
+
+	@buildBooleanEchoRoute(RequestMethod.GET, "boolean", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalBooleanBodyDto })
+	public booleanQuery(@Query() query: E2ePathParameterCanonicalBooleanBodyDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: `${typeof query.active}:${String(query.active)}` };
+	}
+}
+
 const buildDocument = (id: string, statements: Array<Record<string, unknown>>): Record<string, unknown> => ({ document: { Statement: statements, Version: "2012-10-17" }, id, namespace: id, sourceType: EApiPolicySourceType.DATABASE, version: "1" });
 const allow = (namespace: string, condition?: Record<string, unknown>): Record<string, unknown> => ({ Action: [`${namespace}:*`], ...(condition ? { Condition: condition } : {}), Effect: EApiPolicyEffect.ALLOW, Resource: ["*"] });
 const deny = (namespace: string, resource: Array<string>, condition?: Record<string, unknown>): Record<string, unknown> => ({ Action: [`${namespace}:*`], ...(condition ? { Condition: condition } : {}), Effect: EApiPolicyEffect.DENY, Resource: resource });
@@ -346,6 +464,10 @@ export const E2E_PATH_PARAMETER_CANONICAL_DOCUMENTS: Array<Record<string, unknow
 	buildDocument("ppc-custom-int", [allow("ppc-custom-int"), deny("ppc-custom-int", ["ppc-custom-int/16"])]),
 	buildDocument("ppc-custom-uuid", [allow("ppc-custom-uuid"), deny("ppc-custom-uuid", [`ppc-custom-uuid/${E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID}`])]),
 	buildDocument("ppc-custom-bad", [allow("ppc-custom-bad")]),
+	buildDocument("ppc-inh-va", [allow("ppc-inh-va")]),
+	buildDocument("ppc-inh-vb", [allow("ppc-inh-vb"), deny("ppc-inh-vb", ["ppc-inh-vb/true/*"])]),
+	buildDocument("ppc-inh-a", [allow("ppc-inh-a")]),
+	buildDocument("ppc-inh-b", [allow("ppc-inh-b")]),
 ];
 
 export const E2E_PATH_PARAMETER_CANONICAL_CONTROLLERS: Array<new () => unknown> = [
@@ -359,4 +481,8 @@ export const E2E_PATH_PARAMETER_CANONICAL_CONTROLLERS: Array<new () => unknown> 
 	E2ePathParameterCanonicalTextUuidController,
 	E2ePathParameterCanonicalCustomIntController,
 	E2ePathParameterCanonicalCustomUuidController,
+	// The subclass whose resource path names fewer placeholders comes first, so a rule shared through the inherited handler would reach the second one.
+	E2ePathParameterCanonicalInheritedVaController,
+	E2ePathParameterCanonicalInheritedVbController,
+	E2ePathParameterCanonicalBooleanEchoController,
 ];

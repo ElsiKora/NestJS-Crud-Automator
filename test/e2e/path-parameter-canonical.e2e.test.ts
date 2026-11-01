@@ -23,6 +23,10 @@ import {
 	E2E_PATH_PARAMETER_CANONICAL_DTO_KINDS,
 	E2E_PATH_PARAMETER_CANONICAL_NARROW_MAXIMUM,
 	E2ePathParameterCanonicalGuard,
+	E2ePathParameterCanonicalInheritedAController,
+	E2ePathParameterCanonicalInheritedBController,
+	E2ePathParameterCanonicalInheritedVaController,
+	E2ePathParameterCanonicalInheritedVbController,
 	E2ePathParameterCanonicalIntItemEntity,
 	E2ePathParameterCanonicalIntItemService,
 	E2ePathParameterCanonicalMomentItemEntity,
@@ -209,6 +213,37 @@ describe.each([
 		expect(await expectStatus(`/path-parameter/canonical/ppc-custom-uuid/${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID.toUpperCase()}`, HttpStatus.OK)).toEqual({ value: `string:${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID}` });
 	});
 
+	it("validates an inherited custom route by the resource path of each subclass", async () => {
+		await expectStatus("/path-parameter/canonical/ppc-inh-vb/true/1", HttpStatus.FORBIDDEN);
+
+		for (const value of NON_CANONICAL_BOOLEANS) {
+			await expectStatus(`/path-parameter/canonical/ppc-inh-vb/${value}/1`, HttpStatus.BAD_REQUEST);
+		}
+
+		await expectStatus("/path-parameter/canonical/ppc-inh-vb/true/016", HttpStatus.BAD_REQUEST);
+		await expectStatus("/path-parameter/canonical/ppc-inh-va/true/016", HttpStatus.BAD_REQUEST);
+		// Without a host pipe the handler reads the canonical text the guard wrote back; a host pipe converts the copied DTO from that text.
+		expect(await expectStatus("/path-parameter/canonical/ppc-inh-vb/false/1", HttpStatus.OK)).toEqual({ value: pipe === "none" ? "string:false" : "boolean:false" });
+	});
+
+	it.skipIf(pipe === "none").each(["copy", "boolean"])("gives the handler the boolean of the %s body and query DTO exactly as sent", async (kind: string) => {
+		for (const [sent, received] of [
+			["true", "boolean:true"],
+			["false", "boolean:false"],
+			[false, "boolean:false"],
+		] as Array<[boolean | string, string]>) {
+			expect(await expectStatus(`/path-parameter/canonical/boolean-echo/${kind}`, HttpStatus.OK, "POST", { active: sent })).toEqual({ value: received });
+			expect(await expectStatus(`/path-parameter/canonical/boolean-echo/${kind}?active=${String(sent)}`, HttpStatus.OK)).toEqual({ value: received });
+		}
+
+		for (const value of NON_CANONICAL_BOOLEANS) {
+			await expectStatus(`/path-parameter/canonical/boolean-echo/${kind}`, HttpStatus.BAD_REQUEST, "POST", { active: value });
+			await expectStatus(`/path-parameter/canonical/boolean-echo/${kind}?active=${value}`, HttpStatus.BAD_REQUEST);
+		}
+
+		await expectStatus(`/path-parameter/canonical/boolean-echo/${kind}`, HttpStatus.BAD_REQUEST, "POST", { active: 1 });
+	});
+
 	it("leaves the raw path text to a guard that runs before authorization", async () => {
 		E2ePathParameterCanonicalGuard.RAW_PARAMETERS.length = 0;
 		await expectStatus("/path-parameter/canonical/ppc-custom-int/016", HttpStatus.BAD_REQUEST);
@@ -223,6 +258,63 @@ describe("custom route resource placeholders (E2E)", () => {
 
 		await expect(app.init()).rejects.toThrow(/path parameter "id"/);
 		// A failed init leaves the Fastify server unbound, so its close fails; the application holds no database connection worth closing.
+		await app.close().catch((): undefined => undefined);
+	});
+});
+
+describe("inherited custom routes (E2E)", () => {
+	const VB_DENIED_SPELLINGS: Array<string> = ["/path-parameter/canonical/ppc-inh-vb/TRUE/1", "/path-parameter/canonical/ppc-inh-vb/1/1"];
+
+	/**
+	 * Initializes an application, runs the requests and closes it.
+	 * @param {Array<new () => unknown>} controllers - Controllers to register, in this order.
+	 * @param {Array<[string, HttpStatus]>} expectations - Request URLs and the status each must return.
+	 * @returns {Promise<void>}
+	 */
+	const expectInApplication = async (controllers: Array<new () => unknown>, expectations: Array<[string, HttpStatus]>): Promise<void> => {
+		const app: INestApplication = await createCanonicalApplication(undefined, controllers);
+		await app.init();
+		const fastify: TCanonicalFastify = app.getHttpAdapter().getInstance();
+
+		try {
+			for (const [url, status] of expectations) {
+				expect({ status: (await fastify.inject({ method: "GET", url })).statusCode, url }).toEqual({ status, url });
+			}
+		} finally {
+			await app.close();
+		}
+	};
+
+	const vbExpectations: Array<[string, HttpStatus]> = [["/path-parameter/canonical/ppc-inh-vb/true/1", HttpStatus.FORBIDDEN], ["/path-parameter/canonical/ppc-inh-vb/false/1", HttpStatus.OK], ...VB_DENIED_SPELLINGS.map((url: string): [string, HttpStatus] => [url, HttpStatus.BAD_REQUEST])];
+
+	it.each([
+		["Va then Vb", [E2ePathParameterCanonicalInheritedVaController, E2ePathParameterCanonicalInheritedVbController]],
+		["Vb then Va", [E2ePathParameterCanonicalInheritedVbController, E2ePathParameterCanonicalInheritedVaController]],
+	] as Array<[string, Array<new () => unknown>]>)("validates the subclass Vb by its own resource path when registered %s", async (_order: string, controllers: Array<new () => unknown>) => {
+		await expectInApplication(controllers, [...vbExpectations, ["/path-parameter/canonical/ppc-inh-va/true/016", HttpStatus.BAD_REQUEST]]);
+	});
+
+	it("does not carry the rule of one application into the next", async () => {
+		await expectInApplication([E2ePathParameterCanonicalInheritedVaController], [["/path-parameter/canonical/ppc-inh-va/true/1", HttpStatus.OK]]);
+		await expectInApplication([E2ePathParameterCanonicalInheritedVbController], vbExpectations);
+	});
+
+	it.each([
+		["A then B", [E2ePathParameterCanonicalInheritedAController, E2ePathParameterCanonicalInheritedBController]],
+		["B then A", [E2ePathParameterCanonicalInheritedBController, E2ePathParameterCanonicalInheritedAController]],
+		["B alone", [E2ePathParameterCanonicalInheritedBController]],
+	] as Array<[string, Array<new () => unknown>]>)("fails at startup on the undescribed placeholder of an inherited custom route, %s", async (_order: string, controllers: Array<new () => unknown>) => {
+		const app: INestApplication = await createCanonicalApplication(undefined, controllers);
+
+		await expect(app.init()).rejects.toThrow(/"E2ePathParameterCanonicalInheritedBController" method "read" names the path parameter "tenant"/);
+		await app.close().catch((): undefined => undefined);
+	});
+
+	it("fails at startup on the undescribed placeholder after an application that started with the sibling subclass", async () => {
+		await expectInApplication([E2ePathParameterCanonicalInheritedAController], [["/path-parameter/canonical/ppc-inh-a/016", HttpStatus.BAD_REQUEST]]);
+		const app: INestApplication = await createCanonicalApplication(undefined, [E2ePathParameterCanonicalInheritedBController]);
+
+		await expect(app.init()).rejects.toThrow(/path parameter "tenant"/);
 		await app.close().catch((): undefined => undefined);
 	});
 });
