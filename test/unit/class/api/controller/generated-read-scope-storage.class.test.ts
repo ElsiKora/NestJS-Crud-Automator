@@ -152,7 +152,7 @@ describe("ApiControllerGeneratedReadScopeStorage", () => {
 			database: ":memory:",
 			entities: [GeneratedReadScopeEntity],
 			synchronize: true,
-			type: "sqlite",
+			type: "better-sqlite3",
 		});
 
 		await dataSource.initialize();

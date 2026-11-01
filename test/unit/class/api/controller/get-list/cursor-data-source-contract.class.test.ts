@@ -111,7 +111,7 @@ describe("ApiControllerGetListCursorDataSourceContract", () => {
 	});
 
 	beforeEach(async () => {
-		dataSource = new DataSource({ database: ":memory:", entities: [CursorQueryEntity], synchronize: true, type: "sqlite" });
+		dataSource = new DataSource({ database: ":memory:", entities: [CursorQueryEntity], synchronize: true, type: "better-sqlite3" });
 		await dataSource.initialize();
 	});
 
@@ -466,7 +466,7 @@ describe("ApiControllerGetListCursorDataSourceContract", () => {
 			},
 		],
 	] as const)("rejects %s storage when the active SQLite driver cannot prove exact keyset values", (_label, field) => {
-		const repository = createDriverRepository("sqlite", field, dataSource.driver);
+		const repository = createDriverRepository("better-sqlite3", field, dataSource.driver);
 
 		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).toThrow("CURSOR GET_LIST");
 	});

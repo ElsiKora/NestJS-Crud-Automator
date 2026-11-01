@@ -452,7 +452,7 @@ Reflect.defineMetadata(
 			entities: [IamConsumerItemEntity, IamConsumerOperatorEntity, IamConsumerPolicyAttachmentEntity, IamConsumerPolicyDocumentEntity],
 			logging: false,
 			synchronize: true,
-			type: "sqlite",
+			type: "better-sqlite3",
 		}),
 		TypeOrmModule.forFeature([IamConsumerItemEntity, IamConsumerOperatorEntity, IamConsumerPolicyAttachmentEntity, IamConsumerPolicyDocumentEntity]),
 		ApiAuthorizationModule.forRootAsync({

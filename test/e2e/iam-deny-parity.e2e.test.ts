@@ -228,7 +228,7 @@ describe.each([
 			container = await new PostgreSqlContainer("postgres:17-alpine").start();
 		}
 
-		dataSource = new DataSource(container ? { dropSchema: true, entities: [IamParityItemEntity, IamParityTenantItemEntity], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities: [IamParityItemEntity, IamParityTenantItemEntity], synchronize: true, type: "sqlite" });
+		dataSource = new DataSource(container ? { dropSchema: true, entities: [IamParityItemEntity, IamParityTenantItemEntity], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities: [IamParityItemEntity, IamParityTenantItemEntity], synchronize: true, type: "better-sqlite3" });
 		await dataSource.initialize();
 		await dataSource.getRepository(IamParityItemEntity).save(parityRows);
 		await dataSource.getRepository(IamParityTenantItemEntity).save(parityTenantRows);

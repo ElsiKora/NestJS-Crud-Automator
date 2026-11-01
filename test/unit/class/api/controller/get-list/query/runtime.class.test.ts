@@ -1119,7 +1119,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 			throw new Error("Expected compiled cursor AST and order");
 		}
 
-		const dataSource = new DataSource({ database: ":memory:", entities: [CursorQueryEntity], synchronize: true, type: "sqlite" });
+		const dataSource = new DataSource({ database: ":memory:", entities: [CursorQueryEntity], synchronize: true, type: "better-sqlite3" });
 
 		await dataSource.initialize();
 

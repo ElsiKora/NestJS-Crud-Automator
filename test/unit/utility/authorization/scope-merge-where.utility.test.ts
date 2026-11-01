@@ -208,7 +208,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 		const dataSource: DataSource = new DataSource({
 			database: ":memory:",
 			entities: [SCOPE_ENTITY_SCHEMA, SCOPE_OPERATOR_SCHEMA],
-			type: "sqlite",
+			type: "better-sqlite3",
 		});
 
 		await dataSource.initialize();
@@ -226,7 +226,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 		const dataSource: DataSource = new DataSource({
 			database: ":memory:",
 			entities: [SCOPE_ENTITY_SCHEMA, SCOPE_OPERATOR_SCHEMA],
-			type: "sqlite",
+			type: "better-sqlite3",
 		});
 		const partialWhere = { status: "active", tenantId: undefined } as TApiAuthorizationScopeWhere<ScopeEntity>;
 
@@ -248,7 +248,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 		const dataSource: DataSource = new DataSource({
 			database: ":memory:",
 			entities: [SCOPE_ENTITY_SCHEMA, SCOPE_OPERATOR_SCHEMA],
-			type: "sqlite",
+			type: "better-sqlite3",
 		});
 		const hiddenPartial = { status: "active" } as Record<string, unknown>;
 		const hiddenOnly: Record<string, unknown> = {};
@@ -279,7 +279,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 		const dataSource: DataSource = new DataSource({
 			database: ":memory:",
 			entities: [SCOPE_ENTITY_SCHEMA, SCOPE_OPERATOR_SCHEMA],
-			type: "sqlite",
+			type: "better-sqlite3",
 		});
 		const partialWhere = { operator: new ScopeOperatorCondition(), status: "active" } as unknown as TApiAuthorizationScopeWhere<ScopeEntity>;
 		const inheritedOperatorLookalike = { operator: new ScopeInheritedOperatorShape(), status: "active" } as unknown as TApiAuthorizationScopeWhere<ScopeEntity>;
@@ -307,7 +307,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 		const dataSource: DataSource = new DataSource({
 			database: ":memory:",
 			entities: [SCOPE_ENTITY_SCHEMA, SCOPE_OPERATOR_SCHEMA],
-			type: "sqlite",
+			type: "better-sqlite3",
 		});
 		const relationScalars: Array<unknown> = [1, "", new Date("2026-08-19T10:00:00.000Z"), Buffer.alloc(0), new Uint8Array()];
 
@@ -333,7 +333,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 		const dataSource: DataSource = new DataSource({
 			database: ":memory:",
 			entities: [SCOPE_ENTITY_SCHEMA, SCOPE_OPERATOR_SCHEMA],
-			type: "sqlite",
+			type: "better-sqlite3",
 		});
 		const scalarArrayWhere = { tags: ["one", "two"] } as unknown as TApiAuthorizationScopeWhere<ScopeEntity>;
 
@@ -414,7 +414,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 			database: ":memory:",
 			entities: [SCOPE_ENTITY_SCHEMA, SCOPE_OPERATOR_SCHEMA],
 			synchronize: true,
-			type: "sqlite",
+			type: "better-sqlite3",
 		});
 
 		await dataSource.initialize();

@@ -111,7 +111,7 @@ describe("Subscriber registry on application shutdown (E2E)", () => {
 					entities: [SubscriberShutdownEntity],
 					logging: false,
 					synchronize: true,
-					type: "sqlite",
+					type: "better-sqlite3",
 				}),
 				TypeOrmModule.forFeature([SubscriberShutdownEntity]),
 				ApiAuthorizationModule,

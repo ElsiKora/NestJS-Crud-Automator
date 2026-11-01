@@ -46,7 +46,7 @@ describe("UUID membership GET_LIST filters (E2E)", () => {
 					entities: [E2eUuidCurrencyEntity, E2eUuidTransactionEntity],
 					logging: false,
 					synchronize: true,
-					type: "sqlite",
+					type: "better-sqlite3",
 				}),
 				TypeOrmModule.forFeature([E2eUuidCurrencyEntity, E2eUuidTransactionEntity]),
 				ApiAuthorizationModule.forRoot(),

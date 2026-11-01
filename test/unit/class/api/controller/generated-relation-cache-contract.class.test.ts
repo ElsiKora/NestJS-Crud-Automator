@@ -14,7 +14,7 @@ describe("ApiControllerGeneratedRelationCacheContract", () => {
 			entities: [GeneratedRelationCacheChildEntity, GeneratedRelationCacheOwnerEntity],
 			relationLoadStrategy: "query",
 			synchronize: true,
-			type: "sqlite",
+			type: "better-sqlite3",
 		});
 
 		await dataSource.initialize();
@@ -70,14 +70,14 @@ describe("ApiControllerGeneratedRelationCacheContract", () => {
 			database: ":memory:",
 			entities: [GeneratedRelationCacheChildEntity, GeneratedRelationCacheOwnerEntity],
 			synchronize: true,
-			type: "sqlite",
+			type: "better-sqlite3",
 		});
 		const uncachedDataSource = new DataSource({
 			database: ":memory:",
 			entities: [GeneratedRelationCacheChildEntity, GeneratedRelationCacheOwnerEntity],
 			relationLoadStrategy: "query",
 			synchronize: true,
-			type: "sqlite",
+			type: "better-sqlite3",
 		});
 
 		await cachedDataSource.initialize();

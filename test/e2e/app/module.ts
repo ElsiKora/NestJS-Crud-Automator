@@ -52,7 +52,7 @@ import { E2eValidationPipe } from "./validation-pipe";
 			entities: [E2eEntity, E2eOwnerEntity],
 			logging: false,
 			synchronize: true,
-			type: "sqlite",
+			type: "better-sqlite3",
 		}),
 		TypeOrmModule.forFeature([E2eEntity, E2eOwnerEntity]),
 		ApiAuthorizationModule.forRoot({

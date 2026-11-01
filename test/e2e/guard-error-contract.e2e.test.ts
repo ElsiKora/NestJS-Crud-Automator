@@ -189,7 +189,7 @@ class E2eGuardContractConsumerFailingController {
 
 @Module({
 	controllers: [E2eGuardContractPlainController, E2eGuardContractThrottledBeforeAuthenticationController, E2eGuardContractThrottledAfterAuthenticationController, E2eGuardContractThrottledAfterAuthorizationController, E2eGuardContractConsumerForbiddenController, E2eGuardContractConsumerFalseController, E2eGuardContractConsumerFailingController],
-	imports: [TypeOrmModule.forRoot({ database: ":memory:", dropSchema: true, entities: [E2eGuardContractEntity], logging: false, synchronize: true, type: "sqlite" }), TypeOrmModule.forFeature([E2eGuardContractEntity]), ThrottlerModule.forRoot({ throttlers: [{ limit: 1, ttl: 60_000 }] }), ApiAuthorizationModule.forRoot({ hookPermissionSources: [e2eHookPermissionSource], principalResolver: e2eAuthorizationPrincipalResolver }), ApiSubscriberModule],
+	imports: [TypeOrmModule.forRoot({ database: ":memory:", dropSchema: true, entities: [E2eGuardContractEntity], logging: false, synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature([E2eGuardContractEntity]), ThrottlerModule.forRoot({ throttlers: [{ limit: 1, ttl: 60_000 }] }), ApiAuthorizationModule.forRoot({ hookPermissionSources: [e2eHookPermissionSource], principalResolver: e2eAuthorizationPrincipalResolver }), ApiSubscriberModule],
 	providers: [E2eGuardContractService, E2eGuardContractPolicySubscriber, E2eRejectingAuthGuard],
 })
 class E2eGuardContractModule {}
