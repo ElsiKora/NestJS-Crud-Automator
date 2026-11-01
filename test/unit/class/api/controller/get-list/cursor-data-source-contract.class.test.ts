@@ -42,7 +42,7 @@ function createPostgresTextParser(oid: number): (value: string) => unknown {
 		return (value: string): number => Number(value);
 	}
 
-	if (oid === 1114 || oid === 1184) {
+	if (oid === 1184) {
 		return types.getTypeParser(oid, "text");
 	}
 
@@ -50,7 +50,7 @@ function createPostgresTextParser(oid: number): (value: string) => unknown {
 }
 
 function createDriverRepository(type: string, field: TApiControllerGetListQueryCompiledOrderField, driver: object = {}, extra?: object): Repository<CursorQueryEntity> {
-	const declaredType: unknown = field.columnType === "boolean-constructor" ? Boolean : field.columnType === "date-constructor" ? Date : field.columnType === "number-constructor" ? Number : field.columnType === "string-constructor" ? String : field.columnType;
+	const declaredType: unknown = field.columnType === "boolean-constructor" ? Boolean : field.columnType === "number-constructor" ? Number : field.columnType === "string-constructor" ? String : field.columnType;
 	const columnMetadata = {
 		isArray: field.isColumnArray,
 		isNullable: field.isNullable,
@@ -362,61 +362,141 @@ describe("ApiControllerGetListCursorDataSourceContract", () => {
 		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).toThrow("text result parser is incompatible");
 	});
 
-	it.each([
-		["timestamp", "timestamp without time zone"],
-		["timestamptz", "timestamp with time zone"],
-		["timestamp with time zone", "timestamp with time zone"],
-		["timestamp without time zone", "timestamp without time zone"],
-		["date-constructor", "timestamp without time zone"],
-	])("accepts a %s order field behind the standard PostgreSQL text parser", (columnType, storageType) => {
+	it.each(["timestamptz", "timestamp with time zone"])("accepts a %s order field behind the standard PostgreSQL text parser", (columnType) => {
 		const field = createTimestampField(columnType);
-		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => storageType });
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => "timestamp with time zone" });
 
 		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).not.toThrow();
 	});
 
+	it.each(["timestamp", "timestamp without time zone"])("rejects a %s order field because it has no exact instant", (columnType) => {
+		const field = createTimestampField(columnType);
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => "timestamp without time zone" });
+
+		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).toThrow('CURSOR GET_LIST date order field "createdAt" requires PostgreSQL timestamptz storage because other date column types have no exact instant; the active driver stores it as "timestamp without time zone", so declare the column type "timestamptz"');
+	});
+
 	it.each([
-		["timestamp without time zone", 1114],
-		["timestamp with time zone", 1184],
-	])("proves the standard %s parser keeps every millisecond exact", (_storageType, oid) => {
-		const parser = types.getTypeParser(oid, "text") as (value: string) => Date;
+		["a create date column without a declared type", "unknown", "timestamp", "timestamp without time zone"],
+		["a Date-constructor column", "date-constructor", Date, "timestamp without time zone"],
+		["a date column", "date", "date", "date"],
+	])("rejects %s at bootstrap with the storage the active driver reports", (_label, compiledType, activeType, normalizedType) => {
+		const field = createTimestampField(compiledType);
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => normalizedType });
+
+		(repository.metadata.columns[0] as { type: unknown }).type = activeType;
+
+		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).toThrow(`date order field "createdAt" requires PostgreSQL timestamptz storage because other date column types have no exact instant; the active driver stores it as "${normalizedType}"`);
+	});
+
+	it("accepts a date column without a declared type that the active driver stores as timestamptz", () => {
+		const field = createTimestampField("unknown");
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => "timestamp with time zone" });
+
+		(repository.metadata.columns[0] as { type: unknown }).type = "timestamptz";
+
+		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).not.toThrow();
+	});
+
+	it("keeps rejecting a declared type that differs from the compiled plan", () => {
+		const field = createTimestampField("timestamptz");
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => "timestamp with time zone" });
+
+		(repository.metadata.columns[0] as { type: unknown }).type = "timestamp";
+
+		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).toThrow('active column metadata for "createdAt" differs from the compiled cursor plan');
+	});
+
+	it("proves the standard timestamptz parser keeps every millisecond exact", () => {
+		const parser = types.getTypeParser(1184, "text") as (value: string) => Date;
 
 		for (let millisecond: number = 0; millisecond < 1000; millisecond += 1) {
 			const fraction: string = millisecond.toString().padStart(3, "0").replace(/0+$/u, "");
-			const text: string = `2024-02-29 12:34:56${fraction ? `.${fraction}` : ""}${oid === 1184 ? "+00" : ""}`;
 
-			expect(parser(text).getMilliseconds()).toBe(millisecond);
+			expect(parser(`2024-02-29 12:34:56${fraction ? `.${fraction}` : ""}+00`).getMilliseconds()).toBe(millisecond);
 		}
 	});
 
 	it.each([
-		["timestamp without time zone", "timestamp", (value: string): Date => new Date(new Date(`${value.replace(" ", "T")}`).getTime() + 1)],
-		["timestamp with time zone", "timestamptz", (value: string): Date => new Date(new Date(value.replace(" ", "T").replace(/([+-]\d{2})$/u, "$1:00")).getTime() + 1)],
-		["timestamp without time zone", "timestamp", (value: string): string => value],
-		["timestamp with time zone", "timestamptz", (value: string): string => value],
-	] as const)("rejects a custom %s text parser", (storageType, columnType, parser) => {
-		const field = createTimestampField(columnType);
-		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => storageType, postgres: { types: { getTypeParser: (): typeof parser => parser } } });
+		["an inexact result", (value: string): Date => new Date((types.getTypeParser(1184, "text") as (text: string) => Date)(value).getTime() + 1)],
+		["a raw string result", (value: string): string => value],
+	] as const)("rejects a custom timestamptz text parser with %s", (_label, parser) => {
+		const field = createTimestampField("timestamptz");
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => "timestamp with time zone", postgres: { types: { getTypeParser: (): typeof parser => parser } } });
 
 		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).toThrow("text result parser is incompatible");
 	});
 
-	it("rejects an offset-less timestamp when dates are bound as UTC but read as local time", () => {
-		const timestampField = createTimestampField("timestamp");
-		const timestamptzField = createTimestampField("timestamptz");
-		const defaults = { parseInputDatesAsUTC: true };
-		const timestampRepository = createDriverRepository("postgres", timestampField, { normalizeType: (): string => "timestamp without time zone", postgres: { defaults, types: { getTypeParser: createPostgresTextParser } } });
-		const timestamptzRepository = createDriverRepository("postgres", timestamptzField, { normalizeType: (): string => "timestamp with time zone", postgres: { defaults, types: { getTypeParser: createPostgresTextParser } } });
+	it.each(["1969-12-31 23:59:59.999+00", "1970-01-01 00:00:00+00", "2024-02-29 12:34:56.789+00", "2024-02-29 15:34:56.7+03", "2024-02-29 07:04:56.12-05:30", "1800-06-01 14:30:17+02:30:17"])("rejects a timestamptz text parser that is inexact only for %s", (probe) => {
+		const standardParser = types.getTypeParser(1184, "text") as (value: string) => Date;
+		const parser = (value: string): Date => (value === probe ? new Date(standardParser(value).getTime() + 1) : standardParser(value));
+		const field = createTimestampField("timestamptz");
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => "timestamp with time zone", postgres: { types: { getTypeParser: (): typeof parser => parser } } });
 
-		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(timestampRepository, createStoragePlan(timestampField))).toThrow("local input dates");
-		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(timestamptzRepository, createStoragePlan(timestamptzField))).not.toThrow();
+		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).toThrow("text result parser is incompatible");
+	});
+
+	it.each([
+		["a wider active precision", 6, true],
+		["an unset active precision", undefined, true],
+		["the compiled precision", 3, false],
+	] as const)("compares the compiled temporal precision with %s", (_label, activePrecision, isRejected) => {
+		const field = createTimestampField("timestamptz");
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => "timestamp with time zone" });
+
+		Object.assign(repository.metadata.columns[0] as object, { precision: activePrecision });
+
+		const assertion = expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field)));
+
+		if (isRejected) {
+			assertion.toThrow('active column metadata for "createdAt" differs from the compiled cursor plan');
+		} else {
+			assertion.not.toThrow();
+		}
+	});
+
+	it.each([
+		[224, false],
+		[225, true],
+	] as const)("bounds the cursor token of %i timestamptz order fields by their exact wire length", (fieldCount, isRejected) => {
+		const field = createTimestampField("timestamptz");
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => "timestamp with time zone" });
+		const [column] = repository.metadata.columns;
+		const serverFields: Record<string, TApiControllerGetListQueryCompiledOrderField> = { createdAt: field };
+
+		for (let index: number = 1; index < fieldCount; index += 1) {
+			const path: string = `occurredAt${index}`;
+
+			serverFields[path] = { ...field, path };
+			repository.metadata.columns.push({ ...column, propertyPath: path } as typeof column & object);
+		}
+
+		const storagePlan = createStoragePlan(field);
+		const plan: TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR> = {
+			...storagePlan,
+			order: {
+				...storagePlan.order,
+				defaultOrder: Object.keys(serverFields)
+					.filter((path: string): boolean => path !== "createdAt")
+					.map((path: string) => ({ direction: EFilterOrderDirection.ASC, field: path })),
+				fields: {},
+				serverFields,
+			},
+		};
+		const assertion = expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, plan));
+
+		if (isRejected) {
+			assertion.toThrow("can exceed the maximum cursor token length");
+		} else {
+			assertion.not.toThrow();
+		}
 	});
 
 	it("rejects a temporal order field outside the active timestamp storage contract", () => {
 		const field = createTimestampField("date");
 		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => "date" });
 
-		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).toThrow("no proven exact active database representation");
+		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).toThrow('requires PostgreSQL timestamptz storage because other date column types have no exact instant; the active driver stores it as "date"');
 
 		const timeField: TApiControllerGetListQueryCompiledOrderField = { ...createTimestampField("timestamptz"), metadata: { format: EApiPropertyDateType.TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE } };
 		const timeRepository = createDriverRepository("postgres", timeField, { normalizeType: (): string => "timestamp with time zone" });
@@ -424,14 +504,15 @@ describe("ApiControllerGetListCursorDataSourceContract", () => {
 		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(timeRepository, createStoragePlan(timeField))).toThrow("not supported by PostgreSQL CURSOR v1");
 	});
 
-	it("validates temporal cursor boundaries as exact Date values", () => {
+	it("validates temporal cursor boundaries as canonical UTC strings", () => {
 		const field = createTimestampField("timestamptz");
 		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => "timestamp with time zone" });
 		const validate = ApiControllerGetListCursorDataSourceContract.createValueValidator(repository, createStoragePlan(field));
 
-		expect(() => validate(field, new Date("2024-02-29T12:34:56.789Z"))).not.toThrow();
-		expect(() => validate(field, new Date(Number.NaN))).toThrow("invalid active storage value");
-		expect(() => validate(field, "2024-02-29T12:34:56.789Z")).toThrow("invalid active storage value");
+		expect(() => validate(field, "2024-02-29T12:34:56.789Z")).not.toThrow();
+		expect(() => validate(field, new Date("2024-02-29T12:34:56.789Z"))).toThrow("invalid active storage value");
+		expect(() => validate(field, "2024-02-29T12:34:56Z")).toThrow("invalid active storage value");
+		expect(() => validate(field, "0000-01-01T00:00:00.000Z")).toThrow("invalid active storage value");
 		expect(() => validate(field, Number.POSITIVE_INFINITY)).toThrow("invalid active storage value");
 	});
 

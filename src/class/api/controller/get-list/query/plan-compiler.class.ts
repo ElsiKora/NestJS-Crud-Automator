@@ -42,7 +42,6 @@ const CURSOR_BOOLEAN_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["bool"
 const CURSOR_ENUM_INTEGER_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["int", "int2", "int4", "integer", "smallint"]);
 const CURSOR_INTEGER_COLUMN_TYPES: ReadonlySet<string> = new Set<string>([...CURSOR_ENUM_INTEGER_COLUMN_TYPES, "number-constructor"]);
 const CURSOR_NON_PERSISTED_COLUMN_MODES: ReadonlySet<string> = new Set<string>(["array", "treeChildrenCount", "virtual", "virtual-property"]);
-const CURSOR_TIMESTAMP_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["date-constructor", "timestamp", "timestamptz", "timestamp without time zone", "timestamp with time zone"]);
 const CURSOR_TIMESTAMP_MAXIMUM_PRECISION: number = 3;
 const CURSOR_UUID_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["uuid"]);
 
@@ -875,7 +874,8 @@ export class ApiControllerGetListQueryPlanCompiler {
 	}
 
 	private static validateCursorStorageField(field: TApiControllerGetListQueryCompiledOrderField): void {
-		if (field.columnType === "unknown" || CURSOR_NON_PERSISTED_COLUMN_MODES.has(field.columnMode) || field.hasTransformer || field.isColumnArray || !field.isSelected) {
+		// A date column may declare no type, as @CreateDateColumn does; the bootstrap check reads its storage from the driver.
+		if ((field.columnType === "unknown" && (field.type !== EApiPropertyDescribeType.DATE || field.columnMode === "unknown")) || CURSOR_NON_PERSISTED_COLUMN_MODES.has(field.columnMode) || field.hasTransformer || field.isColumnArray || !field.isSelected) {
 			throw ErrorException(`CURSOR GET_LIST order field "${field.path}" must be a selected persisted column without a transformer`);
 		}
 
@@ -944,12 +944,8 @@ export class ApiControllerGetListQueryPlanCompiler {
 				throw ErrorException(`CURSOR GET_LIST date order field "${field.path}" supports only DATE_TIME metadata in PostgreSQL v1`);
 			}
 
-			if (!CURSOR_TIMESTAMP_COLUMN_TYPES.has(field.columnType)) {
-				throw ErrorException(`CURSOR GET_LIST date order field "${field.path}" requires PostgreSQL timestamp or timestamptz storage`);
-			}
-
-			if (typeof field.precision !== "number" || field.precision > CURSOR_TIMESTAMP_MAXIMUM_PRECISION) {
-				throw ErrorException(`CURSOR GET_LIST date order field "${field.path}" requires a declared column precision of at most ${CURSOR_TIMESTAMP_MAXIMUM_PRECISION} so a JS Date round-trips exactly`);
+			if (typeof field.precision !== "number" || !Number.isInteger(field.precision) || field.precision < 0 || field.precision > CURSOR_TIMESTAMP_MAXIMUM_PRECISION) {
+				throw ErrorException(`CURSOR GET_LIST date order field "${field.path}" requires a declared integer column precision from 0 to ${CURSOR_TIMESTAMP_MAXIMUM_PRECISION} so a JS Date round-trips exactly`);
 			}
 
 			return;

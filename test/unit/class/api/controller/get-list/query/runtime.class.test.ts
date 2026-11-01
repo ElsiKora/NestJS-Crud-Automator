@@ -143,6 +143,25 @@ function compileCursorStoragePlan(defaultField: keyof CursorStorageQueryEntity, 
 	return plan as TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR>;
 }
 
+function createCompositeCursorConfig(firstField: string, secondField: string, order: Record<string, unknown> = {}): TApiControllerPropertiesRoute<never, EApiRouteType.GET_LIST> {
+	return {
+		request: {
+			[EApiControllerRequestTarget.QUERY]: {
+				order: {
+					fields: {},
+					tieBreakers: [
+						{ direction: EFilterOrderDirection.ASC, field: firstField },
+						{ direction: EFilterOrderDirection.ASC, field: secondField },
+					],
+					unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					...order,
+				},
+				pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR },
+			},
+		},
+	} as unknown as TApiControllerPropertiesRoute<never, EApiRouteType.GET_LIST>;
+}
+
 function compileCompositeCursorPlan(order: { defaultOrder?: Array<{ direction: EFilterOrderDirection; field: string }>; fields?: Record<string, unknown>; tieBreakers?: Array<{ direction: EFilterOrderDirection; field: string }> }): TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR> {
 	const compositeMetadata: IApiEntity<CompositeTimestampCursorQueryEntity> = GenerateEntityInformation<CompositeTimestampCursorQueryEntity>(CompositeTimestampCursorQueryEntity as unknown as IApiBaseEntity);
 	const routeConfig = {
@@ -1071,18 +1090,18 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(() => compileCursorStoragePlan(field)).not.toThrow();
 	});
 
-	it.each(["safeSecondTimestamp", "safeTimestamp", "safeTimestampConstructor", "safeTimestamptz"] as const)("accepts a CURSOR temporal order field with a declared precision of at most 3: %s", (field) => {
+	it.each(["safeCreateDateTimestamptz", "safeLongAliasTimestamptz", "safeSecondTimestamptz", "safeTimestamptz"] as const)("accepts a CURSOR timestamptz order field with a declared precision from 0 to 3: %s", (field) => {
 		expect(() => compileCursorStoragePlan(field)).not.toThrow();
 	});
 
-	it("limits client temporal order selection to the GET_LIST order baseline", () => {
-		expect(() => compileCursorStoragePlan("safeTimestamp", { safeTimestamp: { isEnabled: true } })).not.toThrow();
-		expect(() => compileCursorStoragePlan("safeTimestampConstructor", { safeTimestampConstructor: { isEnabled: true } })).not.toThrow();
+	it("keeps every CURSOR temporal order field out of client order selection", () => {
 		expect(() => compileCursorStoragePlan("safeTimestamptz", { safeTimestamptz: { isEnabled: true } })).toThrow('order field "safeTimestamptz" is not an enabled direct scalar path');
+		// The storage type of a date field is the bootstrap check's to decide, through the active driver.
+		expect(() => compileCursorStoragePlan("unsafeTimestamp", { unsafeTimestamp: { isEnabled: true } })).not.toThrow();
 	});
 
 	it("names the field and the exact-precision rule when a temporal CURSOR field is too precise", () => {
-		expect(() => compileCursorStoragePlan("unsafeSixDigitTimestamptz")).toThrow('date order field "unsafeSixDigitTimestamptz" requires a declared column precision of at most 3 so a JS Date round-trips exactly');
+		expect(() => compileCursorStoragePlan("unsafeSixDigitTimestamptz")).toThrow('date order field "unsafeSixDigitTimestamptz" requires a declared integer column precision from 0 to 3 so a JS Date round-trips exactly');
 	});
 
 	it("does not treat request-validation integer bounds as the cursor storage domain", () => {
@@ -1096,14 +1115,33 @@ describe("typed GET_LIST query plan and runtime", () => {
 		["unsafeJsonString", "only BIGINT_STRING metadata"],
 		["unsafeTimezoneTime", "only DATE_TIME metadata"],
 		["unsafeDateFormatTimestamptz", "only DATE_TIME metadata"],
-		["unsafeDateColumn", "timestamp or timestamptz storage"],
-		["unsafeUnsetPrecisionTimestamp", "declared column precision of at most 3"],
-		["unsafeUnsetPrecisionTimestamptz", "declared column precision of at most 3"],
-		["unsafeFourDigitTimestamp", "declared column precision of at most 3"],
-		["unsafeSixDigitTimestamptz", "declared column precision of at most 3"],
+		["unsafeDateColumn", "integer column precision from 0 to 3"],
+		["unsafeUnsetPrecisionTimestamptz", "integer column precision from 0 to 3"],
+		["unsafeFourDigitTimestamptz", "integer column precision from 0 to 3"],
+		["unsafeSixDigitTimestamptz", "integer column precision from 0 to 3"],
+		["unsafeFractionalPrecisionTimestamptz", "integer column precision from 0 to 3"],
+		["unsafeNanPrecisionTimestamptz", "integer column precision from 0 to 3"],
+		["unsafeNegativePrecisionTimestamptz", "integer column precision from 0 to 3"],
 		["unsafeVarcharBoolean", "boolean storage"],
 	] as const)("rejects a CURSOR field whose DTO scalar cannot exactly represent its storage: %s", (field, message) => {
 		expect(() => compileCursorStoragePlan(field)).toThrow(message);
+	});
+
+	it.each(["unsafeCreateDateWithoutType", "unsafeDateConstructor", "unsafeLongAliasTimestamp", "unsafeTimestamp"] as const)("leaves the storage type of a CURSOR date field to the bootstrap check: %s", (field) => {
+		expect(() => compileCursorStoragePlan(field)).not.toThrow();
+	});
+
+	it("accepts a date column without a declared type only when it is persisted", () => {
+		const validateStorageField = (field: Partial<TApiControllerGetListQueryCompiledOrderField>): void => {
+			const validate: (field: TApiControllerGetListQueryCompiledOrderField) => void = Reflect.get(ApiControllerGetListQueryPlanCompiler, "validateCursorStorageField") as (field: TApiControllerGetListQueryCompiledOrderField) => void;
+
+			Reflect.apply(validate, ApiControllerGetListQueryPlanCompiler, [{ columnMode: "regular", columnType: "unknown", hasTransformer: false, isColumnArray: false, isEnabled: true, isNullable: false, isSelected: true, isUnsigned: false, metadata: {}, path: "field", type: EApiPropertyDescribeType.DATE, ...field }]);
+		};
+
+		// Past the type check, the field meets the date rules that need no driver.
+		expect(() => validateStorageField({})).toThrow('date order field "field" supports only DATE_TIME metadata');
+		expect(() => validateStorageField({ columnMode: "unknown" })).toThrow('CURSOR GET_LIST order field "field" must be a selected persisted column without a transformer');
+		expect(() => validateStorageField({ type: EApiPropertyDescribeType.NUMBER })).toThrow('CURSOR GET_LIST order field "field" must be a selected persisted column without a transformer');
 	});
 
 	it.each(["responseHiddenRank", "responseGuardedRank"])("rejects a CURSOR order field that is not unconditionally raw-exposed: %s", (defaultField) => {
@@ -1227,25 +1265,18 @@ describe("typed GET_LIST query plan and runtime", () => {
 	it("applies the storage matrix to every composite primary key component", () => {
 		const stringKeyMetadata: IApiEntity<CompositeCursorQueryEntity> = GenerateEntityInformation<CompositeCursorQueryEntity>(CompositeCursorQueryEntity as unknown as IApiBaseEntity);
 		const unsetPrecisionMetadata: IApiEntity<CompositeUnsetPrecisionCursorQueryEntity> = GenerateEntityInformation<CompositeUnsetPrecisionCursorQueryEntity>(CompositeUnsetPrecisionCursorQueryEntity as unknown as IApiBaseEntity);
-		const createConfig = (firstField: string, secondField: string): TApiControllerPropertiesRoute<never, EApiRouteType.GET_LIST> =>
-			({
-				request: {
-					[EApiControllerRequestTarget.QUERY]: {
-						order: {
-							fields: {},
-							tieBreakers: [
-								{ direction: EFilterOrderDirection.ASC, field: firstField },
-								{ direction: EFilterOrderDirection.ASC, field: secondField },
-							],
-							unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
-						},
-						pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR },
-					},
-				},
-			}) as unknown as TApiControllerPropertiesRoute<never, EApiRouteType.GET_LIST>;
 
-		expect(() => ApiControllerGetListQueryPlanCompiler.compile(CursorQueryController, CompositeCursorQueryEntity, stringKeyMetadata, createConfig("partition", "sequence") as never)).toThrow("only BIGINT_STRING metadata");
-		expect(() => ApiControllerGetListQueryPlanCompiler.compile(CursorQueryController, CompositeUnsetPrecisionCursorQueryEntity, unsetPrecisionMetadata, createConfig("createdAt", "id") as never)).toThrow('date order field "createdAt" requires a declared column precision of at most 3');
+		expect(() => ApiControllerGetListQueryPlanCompiler.compile(CursorQueryController, CompositeCursorQueryEntity, stringKeyMetadata, createCompositeCursorConfig("partition", "sequence") as never)).toThrow("only BIGINT_STRING metadata");
+		expect(() => ApiControllerGetListQueryPlanCompiler.compile(CursorQueryController, CompositeUnsetPrecisionCursorQueryEntity, unsetPrecisionMetadata, createCompositeCursorConfig("createdAt", "id") as never)).toThrow('date order field "createdAt" requires a declared integer column precision from 0 to 3');
+	});
+
+	it.each([
+		["an enabled field", { fields: { partition: { isEnabled: true } } }],
+		["an inherited baseline", { unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT }],
+	])("rejects a primary key component the order baseline exposes for client order through %s", (_label, order) => {
+		const stringKeyMetadata: IApiEntity<CompositeCursorQueryEntity> = GenerateEntityInformation<CompositeCursorQueryEntity>(CompositeCursorQueryEntity as unknown as IApiBaseEntity);
+
+		expect(() => ApiControllerGetListQueryPlanCompiler.compile(CursorQueryController, CompositeCursorQueryEntity, stringKeyMetadata, createCompositeCursorConfig("partition", "sequence", order) as never)).toThrow('primary key "partition", "sequence" may appear only as the final tie-breakers');
 	});
 
 	it("keeps the single primary key CURSOR rule unchanged", () => {
@@ -1286,9 +1317,8 @@ describe("typed GET_LIST query plan and runtime", () => {
 		const seekWhere = seekRun.mock.calls[0]?.[0].where as Array<Record<string, { type: string; value: unknown }>>;
 
 		expect(seekWhere.map((branch: Record<string, { type: string; value: unknown }>): Record<string, string> => Object.fromEntries(Object.entries(branch).map(([field, operator]: [string, { type: string; value: unknown }]): [string, string] => [field, operator.type])))).toEqual([{ rank: "lessThan" }, { createdAt: "lessThan", rank: "equal" }, { createdAt: "equal", id: "moreThan", rank: "equal" }]);
-		expect(seekWhere[1]?.createdAt?.value).toEqual(createdAt);
-		expect(seekWhere[1]?.createdAt?.value).toBeInstanceOf(Date);
-		expect(seekWhere[2]?.createdAt?.value).toEqual(createdAt);
+		expect(seekWhere[1]?.createdAt?.value).toBe("2024-02-29T12:34:56.789Z");
+		expect(seekWhere[2]?.createdAt?.value).toBe("2024-02-29T12:34:56.789Z");
 		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash: reorderedHash, cursor: first.nextCursor as string, direction: "after", limit: 1, onBeforeQuery: vi.fn(), order: parsed.order, plan, run: seekRun })).rejects.toThrow("INVALID_CURSOR");
 	});
 
@@ -1302,6 +1332,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 		["an impossible time", "2024-02-29T24:34:56.789Z"],
 		["an expanded year", "+012024-02-29T12:34:56.789Z"],
 		["a negative year", "-000044-03-15T12:00:00.000Z"],
+		["year zero, which PostgreSQL cannot parse", "0000-01-01T00:00:00.000Z"],
 		["free text", "yesterday"],
 		["a number", 1_709_210_096_789],
 		["null", null],
@@ -1335,6 +1366,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 		["an infinite timestamp", Number.POSITIVE_INFINITY],
 		["an invalid date", new Date(Number.NaN)],
 		["an expanded year", new Date("+012024-02-29T12:34:56.789Z")],
+		["year zero", new Date("0000-06-01T00:00:00.000Z")],
 	])("fails closed when a CURSOR row exposes %s", async (_label, createdAt) => {
 		const plan = compileCompositeCursorPlan({
 			tieBreakers: [

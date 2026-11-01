@@ -13,7 +13,7 @@ export class E2eCursorTransactionEntity {
 	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
 	public id!: string;
 
-	@Column({ precision: 3, type: "timestamp" })
+	@Column({ precision: 3, type: "timestamptz" })
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
 	public settledAt!: Date;
 

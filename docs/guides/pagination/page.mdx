@@ -183,17 +183,21 @@ CURSOR v1 deliberately supports only PostgreSQL with the standard text result pa
 - numeric TypeScript enums backed by PostgreSQL `smallint` or `integer`;
 - signed PostgreSQL `bigint` TypeORM declarations exposed as canonical decimal `BIGINT_STRING` without conversion through `Number`, including increment-generated columns whose DDL uses `BIGSERIAL`;
 - native PostgreSQL `uuid` exposed as a canonical UUID string;
-- PostgreSQL `timestamp` and `timestamptz` TypeORM declarations with a declared `precision` of at most 3, described as `EApiPropertyDateType.DATE_TIME` and hydrated as a JavaScript `Date`.
+- PostgreSQL `timestamptz` TypeORM declarations with a declared integer `precision` from 0 to 3, described as `EApiPropertyDateType.DATE_TIME` and hydrated as a JavaScript `Date`.
 
 `smallserial`, `serial`, and `bigserial` are PostgreSQL DDL forms, not TypeORM column type literals. Declare increment generation over the corresponding supported `smallint`, `integer`, or `bigint` type.
 
-A temporal order field must declare its precision because a JavaScript `Date` holds whole milliseconds only. An unset precision (PostgreSQL defaults to 6) or a precision above 3 fails at bootstrap with an error naming the field. The declared precision must match the physical column. Each seek compares `Date` values equal to the stored milliseconds, so rows sharing one timestamp page without duplicates or gaps through the following order entries.
+A temporal order field must declare its precision because a JavaScript `Date` holds whole milliseconds only. An unset precision (PostgreSQL defaults to 6), or any precision other than an integer from 0 to 3, fails at bootstrap with an error naming the field. The declared precision must match the physical column. Each seek binds the canonical UTC string to the `timestamptz` comparison, so the boundary is exact in every process time zone and rows sharing one timestamp page without duplicates or gaps through the following order entries.
 
-In a token, a temporal value is a canonical ISO-8601 UTC string with millisecond precision, such as `2026-01-31T12:00:00.000Z`. A non-canonical, impossible, or out-of-range value is `INVALID_CURSOR` before database access. The token form covers years 0000 through 9999; a stored value outside that range, including PostgreSQL `infinity`, fails closed when a window containing it is read.
+PostgreSQL `timestamp` has no offset, so a stored wall-clock value does not identify one instant. It fails at bootstrap with an error naming the field and the `timestamptz` rule, as do `Date`-constructor columns, which TypeORM stores as `timestamp`.
 
-`timestamp` stores no offset, so the standard parser and parameter binding both use process-local wall-clock time. Every process serving one route must therefore run in the same time zone. A stored wall-clock value inside that zone's daylight-saving gap has no exact `Date`, so prefer `timestamptz`, or run in UTC, wherever other writers can produce such values. The `pg` `parseInputDatesAsUTC` default breaks this symmetry and fails closed for `timestamp` order fields.
+`@CreateDateColumn` and `@UpdateDateColumn` take the type the driver gives them, `timestamp` on PostgreSQL, so `@CreateDateColumn({ precision: 3 })` fails at bootstrap with the `timestamptz` storage error. Declare it explicitly as `@CreateDateColumn({ precision: 3, type: "timestamptz" })`. The storage check reads the column type the active driver reports, so it runs at bootstrap, when the DataSource exists.
 
-Client order selection follows the GET_LIST order baseline, which includes `timestamp` and `Date` columns but not `timestamptz`. A `timestamptz` field is available through `defaultOrder` and `tieBreakers`.
+In a token, a temporal value is a canonical ISO-8601 UTC string with millisecond precision, such as `2026-01-31T12:00:00.000Z`. A non-canonical, impossible, or out-of-range value is `INVALID_CURSOR` before database access. The token form covers years 0001 through 9999.
+
+A stored value outside those years, BC values included, is served normally while it stays inside a window, so the outcome depends on `limit`. The request fails closed only when such a value lands on a row that must become a cursor: the last item of a window with a next page, or the first or last item of a window reached through a cursor. PostgreSQL `infinity` fails closed on every window that reads it, including the extra row read to detect a next page.
+
+Client order selection follows the GET_LIST order baseline, which does not include `timestamptz`. A `timestamptz` field is available through `defaultOrder` and `tieBreakers`.
 
 PostgreSQL binary mode, custom `extra.types` parser configuration, every other PostgreSQL storage type, and every other database driver fail closed before CURSOR query I/O. This restriction applies only to protected CURSOR order/tie-breaker fields. It does not change PAGE behavior or PAGE's existing driver support.
 
@@ -278,6 +282,28 @@ Page mode returns its ordinary zero-count envelope. Cursor mode keeps all three 
 ```
 
 At an empty cursor edge, the cursor pointing back toward an existing window remains available while the exhausted direction is `null`.
+
+## Migration Notes
+
+Cursor mode now accepts composite primary keys and `timestamptz` order fields. Existing single-key cursor routes and their tokens keep working without configuration changes.
+
+- A composite primary key must appear in full, each component once, as the final explicit tie-breakers. The components may appear in any order among themselves, and no component may appear in `defaultOrder`, ahead of a non-key tie-breaker, or in client ordering.
+- A `timestamptz` order field needs a declared integer `precision` from 0 to 3 that matches the physical column, plus `EApiPropertyDateType.DATE_TIME` metadata. A date column counts by the type the active driver stores it as, so `@CreateDateColumn` needs an explicit `type: "timestamptz"`. `timestamp` and `Date`-constructor columns are not cursor storage.
+
+Bootstrap error texts changed. Update any assertion that matches them:
+
+| Previous text                                                              | Current text                                                                    |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `requires exactly one primary column`                                      | `requires a primary key`                                                        |
+| `requires the sole primary field "id" as the final explicit tie-breaker`   | `requires the complete primary key "id" as the final explicit tie-breakers`     |
+| `primary field "id" may appear only as the final tie-breaker`              | `primary key "id" may appear only as the final tie-breakers`                    |
+| `active repository must use the final order field as its sole primary key` | `active repository must use the final order fields as its complete primary key` |
+
+New temporal bootstrap errors name the field:
+
+- `date order field "createdAt" supports only DATE_TIME metadata in PostgreSQL v1`
+- `date order field "createdAt" requires PostgreSQL timestamptz storage because other date column types have no exact instant; the active driver stores it as "timestamp without time zone", so declare the column type "timestamptz"`
+- `date order field "createdAt" requires a declared integer column precision from 0 to 3 so a JS Date round-trips exactly`
 
 ## Next Steps
 

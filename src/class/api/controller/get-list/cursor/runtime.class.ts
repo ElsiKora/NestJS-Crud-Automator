@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
 
 import { ApiControllerGeneratedGetManyContract } from "@class/api/controller/generated/get-many-contract.class";
 import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated/security-snapshot.class";
-import { API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
+import { API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN, API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
 import { EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
 import { EFilterOrderDirection } from "@enum/filter";
 import { BadRequestException } from "@nestjs/common";
@@ -26,7 +26,6 @@ const CURSOR_CONTEXT_HASH_PATTERN: RegExp = /^[\da-f]{64}$/u;
 const CURSOR_TOKEN_PATTERN: RegExp = /^[\w-]+$/u;
 const CURSOR_VERSION: number = 1;
 const BIGINT_WIRE_PATTERN: RegExp = /^(?:0|-?[1-9]\d*)$/u;
-const TIMESTAMP_WIRE_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 const UUID_WIRE_PATTERN: RegExp = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/u;
 
 export class ApiControllerGetListCursorRuntime {
@@ -294,11 +293,12 @@ export class ApiControllerGetListCursorRuntime {
 			return value;
 		}
 
-		if (field.type === EApiPropertyDescribeType.DATE && "format" in field.metadata && field.metadata.format === EApiPropertyDateType.DATE_TIME && typeof value === "string" && TIMESTAMP_WIRE_PATTERN.test(value)) {
+		if (field.type === EApiPropertyDescribeType.DATE && "format" in field.metadata && field.metadata.format === EApiPropertyDateType.DATE_TIME && typeof value === "string" && API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN.test(value)) {
 			const date: Date = new Date(value);
 
+			// The seek binds this UTC string: pg serializes a Date through a local offset truncated to whole minutes.
 			if (!Number.isNaN(date.getTime()) && date.toISOString() === value) {
-				return date;
+				return value;
 			}
 		}
 

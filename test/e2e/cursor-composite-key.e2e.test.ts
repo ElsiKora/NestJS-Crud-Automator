@@ -22,11 +22,13 @@ const PROCESS_TIMEZONE: string = "America/New_York";
 const WALLET_A: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const WALLET_B: string = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const WALLET_C: string = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const WALLET_D: string = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const WALLETS: ReadonlyArray<string> = [WALLET_A, WALLET_B, WALLET_C];
 // Instants straddle both partition boundaries so one window can span several partitions.
 const CREATED_AT_VALUES: ReadonlyArray<string> = ["2023-12-31T23:59:59.999Z", "2024-01-01T00:00:00.000Z", "2024-01-01T00:00:00.001Z", "2024-06-15T12:34:56.789Z", "2024-12-31T23:59:59.999Z", "2025-01-01T00:00:00.000Z"];
 const SETTLED_AT_VALUES: ReadonlyArray<string> = ["2024-03-01T10:00:00.001Z", "2024-03-01T10:00:00.002Z", "2024-07-01T04:00:00.999Z"];
 const ROW_COUNT: number = 48;
+const MAXIMUM_WALK_PAGES: number = 100;
 
 const ROWS: ReadonlyArray<TCursorItem> = Array.from({ length: ROW_COUNT }, (_value: unknown, index: number): TCursorItem => ({
 	createdAt: CREATED_AT_VALUES[index % CREATED_AT_VALUES.length] as string,
@@ -34,6 +36,17 @@ const ROWS: ReadonlyArray<TCursorItem> = Array.from({ length: ROW_COUNT }, (_val
 	settledAt: SETTLED_AT_VALUES[index % SETTLED_AT_VALUES.length] as string,
 	walletId: WALLETS[index % WALLETS.length] as string,
 }));
+
+const createWalletRows = (settledAtValues: ReadonlyArray<string>): Array<TCursorItem> =>
+	settledAtValues.map((settledAt: string, index: number): TCursorItem => ({
+		createdAt: "2024-06-15T12:34:56.789Z",
+		id: `00000000-0000-4000-9000-${index.toString().padStart(12, "0")}`,
+		settledAt,
+		walletId: WALLET_D,
+	}));
+
+// Pre-standard-time offsets carry seconds: New York -04:56:02, Moscow +02:30:17.
+const HISTORIC_ROWS: ReadonlyArray<TCursorItem> = createWalletRows(Array.from({ length: 6 }, (_value: unknown, index: number): string => new Date(Date.UTC(1800, 5, 1, 12, 0, index)).toISOString())).map((row: TCursorItem): TCursorItem => ({ ...row, createdAt: row.settledAt }));
 
 const compareStrings = (left: string, right: string): number => {
 	if (left < right) {
@@ -44,7 +57,6 @@ const compareStrings = (left: string, right: string): number => {
 };
 const compareTransactions = (left: TCursorItem, right: TCursorItem): number => compareStrings(right.createdAt, left.createdAt) || compareStrings(left.id, right.id);
 const compareSettlements = (left: TCursorItem, right: TCursorItem): number => compareStrings(left.settledAt, right.settledAt) || compareStrings(left.id, right.id);
-const compareSettlementsDescending = (left: TCursorItem, right: TCursorItem): number => compareStrings(right.settledAt, left.settledAt) || compareStrings(left.id, right.id);
 const decodeCursor = (cursor: string): TCursorPayload => JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as TCursorPayload;
 const encodeCursor = (payload: TCursorPayload): string => Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 
@@ -66,7 +78,7 @@ describe("generated CURSOR pagination over a composite primary key (E2E)", () =>
 		const pages: Array<TCursorPage> = [await getPage(`${path}?${query}`)];
 		let cursor: null | string | undefined = pages[0]?.nextCursor;
 
-		while (cursor) {
+		while (cursor && pages.length < MAXIMUM_WALK_PAGES) {
 			const page: TCursorPage = await getPage(`${path}?${query}&after=${cursor}`);
 
 			pages.push(page);
@@ -80,7 +92,7 @@ describe("generated CURSOR pagination over a composite primary key (E2E)", () =>
 		const pages: Array<TCursorPage> = [];
 		let cursor: null | string = startCursor;
 
-		while (cursor) {
+		while (cursor && pages.length < MAXIMUM_WALK_PAGES) {
 			const page: TCursorPage = await getPage(`${path}?${query}&before=${cursor}`);
 
 			pages.unshift(page);
@@ -115,6 +127,18 @@ describe("generated CURSOR pagination over a composite primary key (E2E)", () =>
 		expect(backwardPages.every(({ nextCursor }: TCursorPage): boolean => typeof nextCursor === "string")).toBe(true);
 	};
 
+	const withWalletRows = async (rows: ReadonlyArray<TCursorItem>, callback: () => Promise<void>): Promise<void> => {
+		try {
+			for (const { createdAt, id, settledAt, walletId } of rows) {
+				await service.repository.query(`INSERT INTO e2e_cursor_transactions (id, "createdAt", "settledAt", "walletId") VALUES ($1, $2, $3, $4)`, [id, createdAt, settledAt, walletId]);
+			}
+
+			await callback();
+		} finally {
+			await service.repository.query(`DELETE FROM e2e_cursor_transactions WHERE "walletId" = $1`, [WALLET_D]);
+		}
+	};
+
 	beforeAll(async () => {
 		process.env.TZ = PROCESS_TIMEZONE;
 		container = await new PostgreSqlContainer("postgres:17-alpine").start();
@@ -140,7 +164,7 @@ describe("generated CURSOR pagination over a composite primary key (E2E)", () =>
 		service = app.get(E2eCursorTransactionService);
 		fastify = app.getHttpAdapter().getInstance();
 
-		await service.repository.query(`CREATE TABLE e2e_cursor_transactions (id uuid NOT NULL, "createdAt" timestamptz(3) NOT NULL, "settledAt" timestamp(3) NOT NULL, "walletId" uuid NOT NULL, PRIMARY KEY (id, "createdAt")) PARTITION BY RANGE ("createdAt")`);
+		await service.repository.query(`CREATE TABLE e2e_cursor_transactions (id uuid NOT NULL, "createdAt" timestamptz(3) NOT NULL, "settledAt" timestamptz(3) NOT NULL, "walletId" uuid NOT NULL, PRIMARY KEY (id, "createdAt")) PARTITION BY RANGE ("createdAt")`);
 		await service.repository.query(`CREATE TABLE e2e_cursor_transactions_2023 PARTITION OF e2e_cursor_transactions FOR VALUES FROM ('2023-01-01 00:00:00+00') TO ('2024-01-01 00:00:00+00')`);
 		await service.repository.query(`CREATE TABLE e2e_cursor_transactions_2024 PARTITION OF e2e_cursor_transactions FOR VALUES FROM ('2024-01-01 00:00:00+00') TO ('2025-01-01 00:00:00+00')`);
 		await service.repository.query(`CREATE TABLE e2e_cursor_transactions_default PARTITION OF e2e_cursor_transactions DEFAULT`);
@@ -186,12 +210,50 @@ describe("generated CURSOR pagination over a composite primary key (E2E)", () =>
 		await expectCompleteWalk("/cursor-transactions", `limit=3&walletId[operator]=eq&walletId[value]=${WALLET_B}`, expected);
 	});
 
-	it("walks timestamp-without-time-zone order fields ahead of the composite key", async () => {
-		const stored = (await service.repository.query(`SELECT DISTINCT "settledAt"::text AS "settledAt" FROM e2e_cursor_transactions ORDER BY 1`)) as Array<{ settledAt: string }>;
-
-		expect(stored.map(({ settledAt }: { settledAt: string }): string => settledAt)).toEqual(["2024-03-01 05:00:00.001", "2024-03-01 05:00:00.002", "2024-07-01 00:00:00.999"]);
+	it("walks a timestamptz order field ahead of the composite key", async () => {
 		await expectCompleteWalk("/cursor-settlements", "limit=6", ROWS.toSorted(compareSettlements));
-		await expectCompleteWalk("/cursor-settlements", "limit=6&orderBy=settledAt&orderDirection=desc", ROWS.toSorted(compareSettlementsDescending));
+	});
+
+	it.each(["America/New_York", "Europe/Moscow"])("seeks historic timestamptz boundaries exactly in an %s process, forward and backward", async (timezone) => {
+		await withWalletRows(HISTORIC_ROWS, async () => {
+			const query: string = `limit=1&walletId[operator]=eq&walletId[value]=${WALLET_D}`;
+
+			process.env.TZ = timezone;
+
+			try {
+				await expectCompleteWalk("/cursor-transactions", query, HISTORIC_ROWS.toSorted(compareTransactions));
+				await expectCompleteWalk("/cursor-settlements", query, HISTORIC_ROWS.toSorted(compareSettlements));
+			} finally {
+				process.env.TZ = PROCESS_TIMEZONE;
+			}
+		});
+	});
+
+	it("fails closed on a stored value beyond the token years only where it must become a boundary", async () => {
+		const query: string = `walletId[operator]=eq&walletId[value]=${WALLET_D}`;
+
+		await withWalletRows(createWalletRows(["2024-01-01 00:00:00+00", "10000-06-01 00:00:00+00", "20000-06-01 00:00:00+00"]), async () => {
+			const completeWindow: TCursorPage = await getPage(`/cursor-settlements?limit=5&${query}`);
+			const firstWindow: TCursorPage = await getPage(`/cursor-settlements?limit=1&${query}`);
+			const secondWindow = await fastify.inject({ method: "GET", url: `/cursor-settlements?limit=1&${query}&after=${String(firstWindow.nextCursor)}` });
+
+			expect(completeWindow.items).toHaveLength(3);
+			expect(completeWindow.nextCursor).toBeNull();
+			expect(firstWindow.items).toHaveLength(1);
+			expect(secondWindow.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+		});
+	});
+
+	it("fails closed on a stored infinity in every window that reads it", async () => {
+		const query: string = `walletId[operator]=eq&walletId[value]=${WALLET_D}`;
+
+		await withWalletRows(createWalletRows(["2024-01-01 00:00:00+00", "2024-01-02 00:00:00+00", "infinity"]), async () => {
+			const unreadValue: TCursorPage = await getPage(`/cursor-settlements?limit=1&${query}`);
+			const overflowRow = await fastify.inject({ method: "GET", url: `/cursor-settlements?limit=2&${query}` });
+
+			expect(unreadValue.items).toHaveLength(1);
+			expect(overflowRow.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+		});
 	});
 
 	it("reports the opposite window through its after and before probes", async () => {
@@ -226,6 +288,7 @@ describe("generated CURSOR pagination over a composite primary key (E2E)", () =>
 		["an offset timestamp", (payload: TCursorPayload): void => void (payload.values[0] = "2024-06-15T12:34:56.789+00:00")],
 		["an impossible timestamp", (payload: TCursorPayload): void => void (payload.values[0] = "2024-02-30T12:34:56.789Z")],
 		["an expanded-year timestamp", (payload: TCursorPayload): void => void (payload.values[0] = "+275760-09-13T00:00:00.000Z")],
+		["a year zero timestamp", (payload: TCursorPayload): void => void (payload.values[0] = "0000-01-01T00:00:00.000Z")],
 		["a numeric timestamp", (payload: TCursorPayload): void => void (payload.values[0] = 1_718_454_896_789)],
 		["swapped key components", (payload: TCursorPayload): void => void payload.values.reverse()],
 		["a missing key component", (payload: TCursorPayload): void => void payload.values.pop()],
@@ -251,7 +314,7 @@ describe("generated CURSOR pagination over a composite primary key (E2E)", () =>
 			fastify.inject({ method: "GET", url: `/cursor-transactions?limit=2&walletId[operator]=eq&walletId[value]=${WALLET_A}&after=${String(unfiltered.nextCursor)}` }),
 			fastify.inject({ method: "GET", url: `/cursor-transactions?limit=2&walletId[operator]=eq&walletId[value]=${WALLET_B}&after=${String(filtered.nextCursor)}` }),
 			fastify.inject({ method: "GET", url: `/cursor-transactions?limit=2&after=${String(settlements.nextCursor)}` }),
-			fastify.inject({ method: "GET", url: `/cursor-settlements?limit=2&orderBy=settledAt&orderDirection=desc&after=${String(settlements.nextCursor)}` }),
+			fastify.inject({ method: "GET", url: `/cursor-settlements?limit=2&after=${String(unfiltered.nextCursor)}` }),
 		]);
 
 		for (const response of responses) {
@@ -268,7 +331,7 @@ describe("generated CURSOR pagination over a composite primary key (E2E)", () =>
 
 		const beforeEveryRow: TCursorPage = await getPage(`/cursor-transactions?limit=2&after=${encodeCursor(payload)}`);
 
-		payload.values[0] = "0000-01-01T00:00:00.000Z";
+		payload.values[0] = "0001-01-01T00:00:00.000Z";
 
 		const afterEveryRow: TCursorPage = await getPage(`/cursor-transactions?limit=2&after=${encodeCursor(payload)}`);
 

@@ -1,7 +1,7 @@
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
 import { GetDefaultStringFormatProperties } from "@utility/api/get-default-string-format-properties";
-import { Column, Entity, PrimaryColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, PrimaryColumn } from "typeorm";
 
 import { ECursorStorageState } from "./cursor-storage-state.enum";
 
@@ -31,21 +31,21 @@ export class CursorStorageQueryEntity {
 	@ApiPropertyDescribe({ description: "opaque cursor integer", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 10_000_000_000_000_000, minimum: -10_000_000_000_000_000, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER })
 	public opaqueInteger!: number;
 
-	@Column({ precision: 0, type: "timestamp" })
+	@CreateDateColumn({ precision: 3, type: "timestamptz" })
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
-	public safeSecondTimestamp!: Date;
+	public safeCreateDateTimestamptz!: Date;
 
-	@Column({ precision: 3, type: "timestamp" })
+	@Column({ precision: 2, type: "timestamp with time zone" })
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
-	public safeTimestamp!: Date;
+	public safeLongAliasTimestamptz!: Date;
+
+	@Column({ precision: 0, type: "timestamptz" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public safeSecondTimestamptz!: Date;
 
 	@Column({ precision: 3, type: "timestamptz" })
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
 	public safeTimestamptz!: Date;
-
-	@Column({ precision: 3, type: Date })
-	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
-	public safeTimestampConstructor!: Date;
 
 	@Column({ type: "uuid" })
 	@ApiPropertyDescribe({ description: "safe UUID", type: EApiPropertyDescribeType.UUID })
@@ -75,9 +75,37 @@ export class CursorStorageQueryEntity {
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
 	public unsafeDateFormatTimestamptz!: Date;
 
-	@Column({ precision: 4, type: "timestamp" })
+	@CreateDateColumn({ precision: 3 })
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
-	public unsafeFourDigitTimestamp!: Date;
+	public unsafeCreateDateWithoutType!: Date;
+
+	@Column({ precision: 3, type: Date })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeDateConstructor!: Date;
+
+	@Column({ precision: 4, type: "timestamptz" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeFourDigitTimestamptz!: Date;
+
+	@Column({ precision: 2.5, type: "timestamptz" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeFractionalPrecisionTimestamptz!: Date;
+
+	@Column({ precision: 3, type: "timestamp without time zone" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeLongAliasTimestamp!: Date;
+
+	@Column({ precision: Number.NaN, type: "timestamptz" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeNanPrecisionTimestamptz!: Date;
+
+	@Column({ precision: -1, type: "timestamptz" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeNegativePrecisionTimestamptz!: Date;
+
+	@Column({ precision: 3, type: "timestamp" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeTimestamp!: Date;
 
 	@Column({ precision: 6, type: "timestamptz" })
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
@@ -86,10 +114,6 @@ export class CursorStorageQueryEntity {
 	@Column({ precision: 0, type: "time with time zone" })
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
 	public unsafeTimezoneTime!: string;
-
-	@Column({ type: "timestamp" })
-	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
-	public unsafeUnsetPrecisionTimestamp!: Date;
 
 	@Column({ type: "timestamptz" })
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })

@@ -5,7 +5,7 @@ import type { TApiControllerGetListQueryCompiledPlan } from "@type/class/api/con
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { EntitySubscriberInterface, EntityTarget, Repository } from "typeorm";
 
-import { API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
+import { API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN, API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
 import { EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
 import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
 import { EnumValues } from "@utility/enum/values.utility";
@@ -16,9 +16,7 @@ const POSTGRES_BOOLEAN_OID: number = 16;
 const POSTGRES_BIGINT_OID: number = 20;
 const POSTGRES_SMALLINT_OID: number = 21;
 const POSTGRES_INTEGER_OID: number = 23;
-const POSTGRES_TIMESTAMP_OID: number = 1114;
 const POSTGRES_TIMESTAMPTZ_OID: number = 1184;
-const POSTGRES_TIMESTAMP_STORAGE_TYPE: string = "timestamp without time zone";
 const POSTGRES_TIMESTAMPTZ_STORAGE_TYPE: string = "timestamp with time zone";
 const POSTGRES_UUID_OID: number = 2950;
 const POSTGRES_BIGINT_PROBE: string = "9007199254740992";
@@ -54,7 +52,7 @@ const EXACT_STORAGE_TYPES_BY_DRIVER: Readonly<Record<string, Readonly<Record<str
 		BOOLEAN: new Set<string>(["boolean"]),
 		ENUM_NUMBER: new Set<string>(["integer", "smallint"]),
 		INTEGER: new Set<string>(["integer", "smallint"]),
-		TIMESTAMP: new Set<string>([POSTGRES_TIMESTAMP_STORAGE_TYPE, POSTGRES_TIMESTAMPTZ_STORAGE_TYPE]),
+		TIMESTAMPTZ: new Set<string>([POSTGRES_TIMESTAMPTZ_STORAGE_TYPE]),
 		UUID: new Set<string>(["uuid"]),
 	}),
 });
@@ -122,7 +120,8 @@ export class ApiControllerGetListCursorDataSourceContract {
 		const columnPrecision: null | number | undefined = column.precision ?? undefined;
 		const fieldPrecision: null | number | undefined = field.precision ?? undefined;
 
-		if (column.propertyPath !== field.path || columnType !== field.columnType || columnPrecision !== fieldPrecision || column.scale !== field.scale || column.isArray !== field.isColumnArray || column.isNullable !== field.isNullable || column.isSelect !== field.isSelected || column.unsigned !== field.isUnsigned || Boolean(column.transformer) !== field.hasTransformer) {
+		// A date field compiled without a declared type, the only kind the plan admits, takes the type TypeORM derives at bootstrap.
+		if (column.propertyPath !== field.path || (field.columnType !== "unknown" && columnType !== field.columnType) || columnPrecision !== fieldPrecision || column.scale !== field.scale || column.isArray !== field.isColumnArray || column.isNullable !== field.isNullable || column.isSelect !== field.isSelected || column.unsigned !== field.isUnsigned || Boolean(column.transformer) !== field.hasTransformer) {
 			throw ErrorException(`CURSOR GET_LIST active column metadata for "${field.path}" differs from the compiled cursor plan`);
 		}
 
@@ -160,7 +159,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 		} else if (storageContract === "UUID" && normalizedStorageType === "uuid") {
 			oid = POSTGRES_UUID_OID;
 			probes = Object.freeze(["00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002", "ffffffff-ffff-ffff-ffff-ffffffffffff"].map((probe: string): Readonly<[string, unknown]> => this.createPostgresParserProbe(probe, probe)));
-		} else if (storageContract === "TIMESTAMP" && normalizedStorageType === POSTGRES_TIMESTAMPTZ_STORAGE_TYPE) {
+		} else if (storageContract === "TIMESTAMPTZ" && normalizedStorageType === POSTGRES_TIMESTAMPTZ_STORAGE_TYPE) {
 			oid = POSTGRES_TIMESTAMPTZ_OID;
 			probes = Object.freeze([
 				this.createPostgresParserProbe("1969-12-31 23:59:59.999+00", new Date("1969-12-31T23:59:59.999Z")),
@@ -168,15 +167,8 @@ export class ApiControllerGetListCursorDataSourceContract {
 				this.createPostgresParserProbe("2024-02-29 12:34:56.789+00", new Date("2024-02-29T12:34:56.789Z")),
 				this.createPostgresParserProbe("2024-02-29 15:34:56.7+03", new Date("2024-02-29T12:34:56.700Z")),
 				this.createPostgresParserProbe("2024-02-29 07:04:56.12-05:30", new Date("2024-02-29T12:34:56.120Z")),
+				this.createPostgresParserProbe("1800-06-01 14:30:17+02:30:17", new Date("1800-06-01T12:00:00.000Z")),
 			]);
-		} else if (storageContract === "TIMESTAMP" && normalizedStorageType === POSTGRES_TIMESTAMP_STORAGE_TYPE) {
-			// A timestamp value has no offset, so the standard parser reads it as process-local wall-clock time.
-			if (this.getPostgresDefault(repository, "parseInputDatesAsUTC")) {
-				throw ErrorException("CURSOR GET_LIST timestamp storage requires PostgreSQL local input dates matching its local text result parser");
-			}
-
-			oid = POSTGRES_TIMESTAMP_OID;
-			probes = Object.freeze([this.createPostgresParserProbe("1969-12-31 23:59:59.999", new Date("1969-12-31T23:59:59.999")), this.createPostgresParserProbe("2024-02-29 12:34:56.789", new Date("2024-02-29T12:34:56.789")), this.createPostgresParserProbe("2024-07-01 00:00:00.7", new Date("2024-07-01T00:00:00.700"))]);
 		} else {
 			throw ErrorException("CURSOR GET_LIST active PostgreSQL storage has no proven text result parser");
 		}
@@ -249,6 +241,10 @@ export class ApiControllerGetListCursorDataSourceContract {
 			const storageContract: string = this.getStorageContract(field);
 			const normalizedStorageType: string = this.normalizeActiveStorageType(repository, column);
 
+			if (storageContract === "TIMESTAMPTZ" && !driverStorage[storageContract]?.has(normalizedStorageType)) {
+				throw ErrorException(`CURSOR GET_LIST date order field "${field.path}" requires PostgreSQL timestamptz storage because other date column types have no exact instant; the active driver stores it as "${normalizedStorageType}", so declare the column type "timestamptz"`);
+			}
+
 			if (!driverStorage[storageContract]?.has(normalizedStorageType)) {
 				throw ErrorException(`CURSOR GET_LIST order field "${field.path}" has no proven exact active database representation`);
 			}
@@ -305,9 +301,9 @@ export class ApiControllerGetListCursorDataSourceContract {
 			return;
 		}
 
-		if (storageContract === "TIMESTAMP") {
-			if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
-				throw ErrorException(`CURSOR GET_LIST timestamp order field "${field.path}" has an invalid active storage value`);
+		if (storageContract === "TIMESTAMPTZ") {
+			if (typeof value !== "string" || !API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN.test(value)) {
+				throw ErrorException(`CURSOR GET_LIST timestamptz order field "${field.path}" has an invalid active storage value`);
 			}
 
 			return;
@@ -362,7 +358,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 			return UUID_TEXT_LENGTH + JSON_STRING_QUOTES_BYTES;
 		}
 
-		if (storageContract === "TIMESTAMP") {
+		if (storageContract === "TIMESTAMPTZ") {
 			return TIMESTAMP_TEXT_LENGTH + JSON_STRING_QUOTES_BYTES;
 		}
 
@@ -416,14 +412,6 @@ export class ApiControllerGetListCursorDataSourceContract {
 		);
 	}
 
-	private static getPostgresDefault<E extends IApiBaseEntity>(repository: Repository<E>, key: string): unknown {
-		const driver: unknown = repository.manager.dataSource.driver;
-		const postgres: unknown = driver && typeof driver === "object" && "postgres" in driver ? driver.postgres : undefined;
-		const postgresDefaults: unknown = postgres && typeof postgres === "object" && "defaults" in postgres ? postgres.defaults : undefined;
-
-		return postgresDefaults && typeof postgresDefaults === "object" && key in postgresDefaults ? Reflect.get(postgresDefaults, key) : undefined;
-	}
-
 	private static getStorageContract(field: TApiControllerGetListQueryCompiledOrderField): string {
 		if (field.type === EApiPropertyDescribeType.BOOLEAN) {
 			return "BOOLEAN";
@@ -461,7 +449,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 
 		if (field.type === EApiPropertyDescribeType.DATE) {
 			if ("format" in field.metadata && field.metadata.format === EApiPropertyDateType.DATE_TIME) {
-				return "TIMESTAMP";
+				return "TIMESTAMPTZ";
 			}
 
 			throw ErrorException(`CURSOR GET_LIST date order field "${field.path}" is not supported by PostgreSQL CURSOR v1`);
@@ -521,8 +509,12 @@ export class ApiControllerGetListCursorDataSourceContract {
 		const dataSource: Repository<E>["manager"]["dataSource"] = repository.manager.dataSource;
 		const extra: unknown = dataSource.options && typeof dataSource.options === "object" && "extra" in dataSource.options ? dataSource.options.extra : undefined;
 		const extraBinary: unknown = extra && typeof extra === "object" && "binary" in extra ? extra.binary : undefined;
+		const driver: unknown = dataSource.driver;
+		const postgres: unknown = driver && typeof driver === "object" && "postgres" in driver ? driver.postgres : undefined;
+		const postgresDefaults: unknown = postgres && typeof postgres === "object" && "defaults" in postgres ? postgres.defaults : undefined;
+		const defaultBinary: unknown = postgresDefaults && typeof postgresDefaults === "object" && "binary" in postgresDefaults ? postgresDefaults.binary : undefined;
 
-		return Boolean(extraBinary) || Boolean(this.getPostgresDefault(repository, "binary"));
+		return Boolean(extraBinary) || Boolean(defaultBinary);
 	}
 
 	private static isPostgresParserResultExact(actual: unknown, expected: unknown): boolean {
@@ -557,6 +549,10 @@ export class ApiControllerGetListCursorDataSourceContract {
 
 		if (type === Number) {
 			return "number-constructor";
+		}
+
+		if (type === String) {
+			return "string-constructor";
 		}
 
 		return typeof type === "string" ? type.trim().toLowerCase() : "unknown";
