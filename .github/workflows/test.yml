@@ -51,7 +51,7 @@ jobs:
             reports/
 
   consumer-smoke:
-    name: Consumer smoke (Node ${{ matrix.node-version }})
+    name: Consumer smoke (Node ${{ matrix.node-version }}${{ matrix.peer-floors && ', peer floors' || '' }})
     runs-on: ubuntu-latest
 
     strategy:
@@ -59,6 +59,11 @@ jobs:
       matrix:
         # The engines floors ^22.13.0 || >=24.11.0 and the newest line
         node-version: ["22.13.0", "24.11.0", "26.x"]
+        peer-floors: [false]
+        # Every peer at the lower bound of its range, on the oldest supported Node.js
+        include:
+          - node-version: "22.13.0"
+            peer-floors: true
 
     services:
       postgres:
@@ -95,7 +100,7 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
         run: |
           node --version
-          npm run test:consumer -- --skip-build
+          npm run test:consumer -- --skip-build ${{ matrix.peer-floors && '--peer-floors' || '' }}
 
   swagger-compatibility:
     name: Swagger ${{ matrix.swagger-version }}

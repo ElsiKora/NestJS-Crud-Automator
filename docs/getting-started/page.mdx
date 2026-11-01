@@ -41,7 +41,7 @@ Keep the version ranges in the command, so npm does not pick a future major outs
 
 Crud Automator 5.0.0 moves to the current majors of its peers. NestJS 11, `@nestjs/swagger` 11 and TypeORM 0.3 are no longer supported; stay on 4.x until the application has moved. See [Migrating to 5.0](/docs/nestjs-crud-automator/guides/migrating-to-5-0) for every change in one place.
 
-- Peer ranges are `@nestjs/common` and `@nestjs/core` `>=12.3.2 <13`, `@nestjs/swagger` `>=12.0.0 <13`, `@nestjs/throttler` `>=6.7.1 <7` and `typeorm` `>=1.1.2 <2`. `class-transformer`, `class-validator` and `lodash` keep their ranges. Each lower bound is the release CI tests; for `@nestjs/swagger` CI also runs 12.0.0 and the latest 12.x.
+- Peer ranges are `@nestjs/common` and `@nestjs/core` `>=12.3.2 <13`, `@nestjs/swagger` `>=12.0.0 <13`, `@nestjs/throttler` `>=6.7.1 <7` and `typeorm` `>=1.1.2 <2`. `class-transformer`, `class-validator` and `lodash` keep their ranges. CI tests every lower bound: one consumer smoke job installs each peer at its floor, and the `@nestjs/swagger` job also runs 12.0.0 and the latest 12.x.
 - `engines.node` is `^22.13.0 || >=24.11.0`, the range TypeORM 1 declares. Node.js 20 is not supported.
 - The package ships one ES module build in `dist`. The `dist/esm` and `dist/cjs` folders and the `require` export condition are gone; `exports` has only `types` and `default`.
   - An ES module application imports it as before, with `moduleResolution` `bundler`, `node16` or `nodenext`: every relative import in the declarations carries its `.js` extension.

@@ -10,7 +10,9 @@
  * alias imports: SWC builds it to ES modules as the Nest CLI SWC builder does, and tsc only typechecks it with bundler resolution.
  * DATABASE_URL selects an existing database; otherwise a testcontainers Postgres is started and removed afterwards.
  *
- * Flags: --skip-build reuses the current dist, --keep leaves the temporary project in place.
+ * Flags: --skip-build reuses the current dist, --keep leaves the temporary project in place, --peer-floors installs
+ * every peerDependency at the lower bound of its range (and @nestjs/platform-fastify at the @nestjs/core floor) instead of
+ * the repository devDependency versions, and fails unless exactly those versions were installed.
  */
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -40,6 +42,33 @@ const ABSENT_PACKAGES = ["@nestjs/microservices", "@nestjs/platform-socket.io", 
 // The SWC toolchain is not a repository devDependency, so the smoke pins it exactly
 const SWC_TOOLCHAIN = { "@swc/cli": "0.8.1", "@swc/core": "1.16.18" };
 const ARGS = new Set(process.argv.slice(2));
+// Nest packages that must stay on the @nestjs/core release when the peers are pinned to their floors
+const NEST_FLOOR_FOLLOWERS = ["@nestjs/platform-fastify"];
+
+/**
+ * Returns the lower bound of every peerDependency range, such as 12.3.2 for ">=12.3.2 <13".
+ * @param {Record<string, string>} peerDependencies - The repository peerDependencies.
+ * @returns {Record<string, string>} Exact versions by package name.
+ */
+function getPeerFloors(peerDependencies) {
+	const floors = {};
+
+	for (const [name, range] of Object.entries(peerDependencies)) {
+		const floor = /^>=(\d+\.\d+\.\d+)\s/.exec(range)?.[1];
+
+		if (!floor) {
+			throw new Error(`The peer range of ${name} has no >= lower bound: ${range}`);
+		}
+
+		floors[name] = floor;
+	}
+
+	for (const name of NEST_FLOOR_FOLLOWERS) {
+		floors[name] = floors["@nestjs/core"];
+	}
+
+	return floors;
+}
 
 /**
  * Runs a command with inherited output and fails the smoke when it exits non-zero.
@@ -70,6 +99,10 @@ function createManifest(tarball) {
 		}
 
 		dependencies[name] = version;
+	}
+
+	if (ARGS.has("--peer-floors")) {
+		Object.assign(dependencies, getPeerFloors(repositoryManifest.peerDependencies));
 	}
 
 	return JSON.stringify({ dependencies, name: "crud-automator-consumer-smoke", private: true }, undefined, "\t");
@@ -108,6 +141,20 @@ try {
 
 	writeFileSync(path.join(workDirectory, "package.json"), createManifest(tarball));
 	run("npm", ["install", "--no-audit", "--no-fund", "--loglevel=error"], { cwd: workDirectory });
+
+	if (ARGS.has("--peer-floors")) {
+		const repositoryManifest = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8"));
+
+		for (const [name, floor] of Object.entries(getPeerFloors(repositoryManifest.peerDependencies))) {
+			const installed = JSON.parse(readFileSync(path.join(workDirectory, "node_modules", name, "package.json"), "utf8")).version;
+
+			if (installed !== floor) {
+				throw new Error(`${name} is ${installed}, not its floor ${floor}`);
+			}
+
+			process.stdout.write(`peer floor ${name}@${installed}\n`);
+		}
+	}
 
 	for (const name of ABSENT_PACKAGES) {
 		if (existsSync(path.join(workDirectory, "node_modules", name))) {
