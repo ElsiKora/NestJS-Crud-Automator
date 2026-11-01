@@ -1159,6 +1159,51 @@ describe("ApiRouteRuntime generated transactions", () => {
 		});
 
 		it.each([
+			["text", "not a date"],
+			["an invalid Date", new Date(Number.NaN)],
+		])("rolls back a create result whose date and time key holds %s", async (_name: string, storedValue: Date | string) => {
+			const transaction = createRouteTransactionFixture([STORED_ROW], [{ propertyName: "createdAt", type: "timestamptz" }]);
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+			const options = createCompositeOptions(service, { source: "response" });
+
+			options.entityMetadata.columns = [
+				{ isPrimary: true, name: "id", type: "varchar" },
+				{ isPrimary: true, name: "createdAt" as never, type: "timestamptz" },
+			];
+			mockStoredRow(service, { createdAt: storedValue, id: "route-transaction-1" });
+
+			await expect(ApiRouteRuntime.executeGenerated(options)).rejects.toThrow("Generated create result holds an invalid date in primary column createdAt");
+			expect(service.get).not.toHaveBeenCalled();
+			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+		});
+
+		it("writes the parsed date and time key of the body before the transaction and the write", async () => {
+			const transaction = createRouteTransactionFixture([STORED_ROW], [{ propertyName: "createdAt", type: "timestamptz" }]);
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+			const options = createScopedCreateOptions(service, undefined);
+
+			Object.defineProperty(service, "repository", { value: createStoredRowRepository([STORED_ROW], [{ propertyName: "createdAt", type: "timestamptz" }], transaction.dataSource) });
+			options.targets.body = { createdAt: "2026-01-02T03:04:05.678Z", id: "route-transaction-1" } as never;
+
+			await ApiRouteRuntime.executeGenerated(options);
+
+			expect(vi.mocked(service.create).mock.calls[0]?.[0]).toEqual({ createdAt: "2026-01-02T03:04:05.678Z", id: "route-transaction-1" });
+		});
+
+		it("refuses a date and time key the column cannot store before the transaction and the write", async () => {
+			const transaction = createRouteTransactionFixture();
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+			const options = createScopedCreateOptions(service, undefined);
+
+			Object.defineProperty(service, "repository", { value: createStoredRowRepository([STORED_ROW], [{ propertyName: "createdAt", type: "timestamptz" }], transaction.dataSource) });
+			options.targets.body = { createdAt: "2026-01-02T03:04:05.678", id: "route-transaction-1" } as never;
+
+			await expect(ApiRouteRuntime.executeGenerated(options)).rejects.toBeInstanceOf(BadRequestException);
+			expect(service.create).not.toHaveBeenCalled();
+			expect(transaction.dataSource.createQueryRunner).not.toHaveBeenCalled();
+		});
+
+		it.each([
 			["before", "after"],
 			["after", "before"],
 		])("ignores a nested create with another input that reports its row %s the protected create", async (nestedOrder: string) => {

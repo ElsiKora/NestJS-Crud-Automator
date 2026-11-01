@@ -202,6 +202,40 @@ describe("ApiController", () => {
 		expect(Reflect.getMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, SecurableController)).toBe(true);
 	});
 
+	describe("create temporal key driver", () => {
+		const UNSUPPORTED_REPOSITORY = { manager: { dataSource: { driver: { normalizeType: (column: { type: string }): string => column.type }, options: { type: "mssql" } } }, metadata: { name: "FactoryEntity", primaryColumns: [{ propertyName: "at", type: "datetime2" }] } };
+
+		function createController(routes: object, onModuleInit?: () => void): { onModuleInit: () => unknown } {
+			class TemporalKeyController {
+				public service = { repository: UNSUPPORTED_REPOSITORY } as unknown as ApiServiceBase<any>;
+			}
+
+			if (onModuleInit) {
+				Object.assign(TemporalKeyController.prototype, { onModuleInit });
+			}
+
+			const Decorated = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes })(TemporalKeyController);
+
+			return new Decorated() as unknown as { onModuleInit: () => unknown };
+		}
+
+		it("fails startup for a generated create on an unsupported driver", () => {
+			expect(() => createController({}).onModuleInit()).toThrow("cannot identify its date and time primary column at on the mssql driver");
+		});
+
+		it("does not check a controller whose create is not generated", () => {
+			expect(() => createController({ [EApiRouteType.CREATE]: { generation: { isEnabled: false } } }).onModuleInit()).not.toThrow();
+		});
+
+		it("still runs the module init hook of the controller", () => {
+			const onModuleInit = vi.fn();
+
+			createController({ [EApiRouteType.CREATE]: { generation: { isEnabled: false } } }, onModuleInit).onModuleInit();
+
+			expect(onModuleInit).toHaveBeenCalledTimes(1);
+		});
+	});
+
 	it("preserves controller name and constructor behavior", () => {
 		class BaseController {
 			public service: FactoryService = new FactoryService();
