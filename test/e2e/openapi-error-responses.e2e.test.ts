@@ -6,6 +6,7 @@ import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import type { Repository } from "typeorm";
 
 import { ForbiddenException, HttpStatus, Inject, Injectable, UnauthorizedException, UnprocessableEntityException, ValidationPipe } from "@nestjs/common";
+import { HttpAdapterHost } from "@nestjs/core";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
@@ -29,6 +30,7 @@ import {
 	ApiService,
 	ApiServiceBase,
 	ApiSubscriberModule,
+	CorrelationIDResponseBodyExceptionFilter,
 	CorrelationIDResponseBodyInterceptor,
 	DtoGenerateException,
 	EApiAuthenticationType,
@@ -49,7 +51,7 @@ import {
 type TSwaggerMethod = "delete" | "get" | "patch" | "post" | "put";
 
 interface IExceptionFilterMode {
-	filters: Array<ExceptionFilter>;
+	createFilters: (application: INestApplication) => Array<ExceptionFilter>;
 	name: string;
 }
 
@@ -432,7 +434,10 @@ const GUARD_CASES: Array<IWireCase> = SECURED_OPERATIONS.flatMap((operation: (ty
 ]);
 
 // The exception filter is optional, so every mode must keep the schema equal to the wire
-const EXCEPTION_FILTER_MODES: Array<IExceptionFilterMode> = [{ filters: [], name: "without an exception filter" }];
+const EXCEPTION_FILTER_MODES: Array<IExceptionFilterMode> = [
+	{ createFilters: (): Array<ExceptionFilter> => [], name: "without an exception filter" },
+	{ createFilters: (application: INestApplication): Array<ExceptionFilter> => [new CorrelationIDResponseBodyExceptionFilter(application.get(HttpAdapterHost))], name: "with CorrelationIDResponseBodyExceptionFilter" },
+];
 
 /**
  * Drops OpenAPI `nullable: false`, its default, which Ajv rejects next to a schema combinator.
@@ -499,7 +504,7 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 		app = moduleReference.createNestApplication(new FastifyAdapter());
 		app.useGlobalPipes(new ValidationPipe({ transform: true }));
 		app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
-		app.useGlobalFilters(...mode.filters);
+		app.useGlobalFilters(...mode.createFilters(app));
 		await app.init();
 		await app.getHttpAdapter().getInstance().ready();
 		fastify = app.getHttpAdapter().getInstance();
