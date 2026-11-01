@@ -191,7 +191,7 @@ describe("PAGE and CURSOR reads of a temporal primary key with joins and filters
 
 				expect(rejected.statusCode, JSON.stringify(rejected.json())).toBe(HttpStatus.BAD_REQUEST);
 				expect(JSON.stringify(rejected.json())).toContain("INVALID_FILTER");
-				expect((await fastify.inject({ method: "GET", url: `/${path}&bookedAt[operator]=gte&bookedAt[value]=2024-03-01T10:00:00Z` })).statusCode).toBe(HttpStatus.OK);
+				expect((await fastify.inject({ method: "GET", url: `/${path}&bookedAt[operator]=gte&bookedAt[value]=2024-03-01T10:00:00.000Z` })).statusCode).toBe(HttpStatus.OK);
 			}
 		} finally {
 			process.env.TZ = PROCESS_TIMEZONE;
@@ -199,17 +199,18 @@ describe("PAGE and CURSOR reads of a temporal primary key with joins and filters
 	});
 
 	it.each([
-		["a value", "bookedAt[operator]=gte&bookedAt[value]=2024-03-01T10:00:00", "bookedAt[operator]=gte&bookedAt[value]=2024-03-01T10:00:00Z"],
-		["a between pair", "bookedAt[operator]=between&bookedAt[values]=2024-03-01T10:00:00Z&bookedAt[values]=2024-03-02T10:00:00", "bookedAt[operator]=between&bookedAt[values]=2024-03-01T10:00:00Z&bookedAt[values]=2024-03-02T15:30:00%2B05:30"],
-		["a relation path", "account.openedAt[operator]=gte&account.openedAt[value]=2024-03-01T10:00:00", "account.openedAt[operator]=gte&account.openedAt[value]=2024-03-01T15:30:00%2B0530"],
-	])("answers 400 for a zone-less date-time in %s on a default GET_LIST route", async (_label: string, rejectedQuery: string, acceptedQuery: string) => {
+		["a zone-less value", "bookedAt[operator]=gte&bookedAt[value]=2024-03-01T10:00:00", "bookedAt[operator]=gte&bookedAt[value]=2024-03-01T10:00:00.000Z"],
+		["an offset value", "bookedAt[operator]=gte&bookedAt[value]=2024-03-01T15:30:00%2B05:30", "bookedAt[operator]=gte&bookedAt[value]=2024-03-01T10:00:00.000Z"],
+		["a range value", "bookedAt[operator]=between&bookedAt[values]=2024-03-01T10:00:00.000Z&bookedAt[values]=2024-03-01T10:00:00", "bookedAt[operator]=between&bookedAt[values]=2024-03-01T10:00:00.000Z&bookedAt[values]=2024-03-01T15:30:00.000Z"],
+		["a relation path", "account.openedAt[operator]=gte&account.openedAt[value]=2024-03-01T15:30:00%2B0530", "account.openedAt[operator]=gte&account.openedAt[value]=2024-03-01T10:00:00.000Z"],
+	])("answers 400 for a date-time other than a UTC instant in %s on a default GET_LIST route", async (_label: string, rejectedQuery: string, acceptedQuery: string) => {
 		process.env.TZ = "Asia/Kolkata";
 
 		try {
 			const rejected = await fastify.inject({ method: "GET", url: `/temporal-ledgers-default?limit=2&page=1&${rejectedQuery}` });
 
 			expect(rejected.statusCode, JSON.stringify(rejected.json())).toBe(HttpStatus.BAD_REQUEST);
-			expect(JSON.stringify(rejected.json())).toContain("INVALID_FILTER");
+			expect(JSON.stringify(rejected.json())).toContain("must be in YYYY-MM-DDTHH:mm:ss.sssZ format");
 
 			const accepted = await fastify.inject({ method: "GET", url: `/temporal-ledgers-default?limit=2&page=1&${acceptedQuery}` });
 
@@ -219,13 +220,12 @@ describe("PAGE and CURSOR reads of a temporal primary key with joins and filters
 		}
 	});
 
-	it.each(["0000-01-01T00:00:00Z", "2024-02-30T10:00:00Z", "2024-03-01T25:00:00Z"])("answers 400 for the date-time %s that names no calendar instant on every GET_LIST route", async (value: string) => {
+	it.each(["0000-01-01T00:00:00.000Z", "2024-02-30T10:00:00.000Z", "2024-03-01T25:00:00.000Z"])("answers 400 for the date-time %s that names no calendar instant on every GET_LIST route", async (value: string) => {
 		for (const path of ["temporal-ledgers-page?limit=2&page=1", "temporal-ledgers-cursor?limit=2", "temporal-ledgers-default?limit=2&page=1"]) {
 			const rejected = await fastify.inject({ method: "GET", url: `/${path}&bookedAt[operator]=gte&bookedAt[value]=${value}` });
 
 			expect(rejected.statusCode, `${path} ${JSON.stringify(rejected.json())}`).toBe(HttpStatus.BAD_REQUEST);
-			// The legacy DTO turns away a value no Date can read before the calendar check runs.
-			expect(JSON.stringify(rejected.json())).toContain(path.startsWith("temporal-ledgers-default") && Number.isNaN(Date.parse(value)) ? "bookedAt[value] must be a Date instance" : "INVALID_FILTER");
+			expect(JSON.stringify(rejected.json())).toMatch(/INVALID_FILTER|must be in YYYY-MM-DDTHH:mm:ss\.sssZ format/u);
 		}
 	});
 
@@ -233,7 +233,7 @@ describe("PAGE and CURSOR reads of a temporal primary key with joins and filters
 		process.env.TZ = "Asia/Kolkata";
 
 		try {
-			const rejected = await fastify.inject({ method: "GET", url: "/temporal-ledgers-default?limit=20&page=1&account.openedAt[operator]=isnull&account.openedAt[value]=2024-03-01T10:00:00" });
+			const rejected = await fastify.inject({ method: "GET", url: "/temporal-ledgers-default?limit=20&page=1&account.openedAt[operator]=isnull&account.openedAt[value]=2024-03-01T10:00:00.000Z" });
 
 			expect(rejected.statusCode, JSON.stringify(rejected.json())).toBe(HttpStatus.BAD_REQUEST);
 			expect(rejected.json()).toEqual({ error: "Bad Request", message: ['group "account.openedAt" with isnull operation should not have any values'], statusCode: HttpStatus.BAD_REQUEST });

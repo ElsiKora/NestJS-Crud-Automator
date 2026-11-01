@@ -1245,7 +1245,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(() => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ "unsafeTimestamp[operator]": EFilterOperation.BETWEEN, "unsafeTimestamp[values]": ["2024-03-01T10:00:00", "2024-02-30T10:00:00"] }, dateTimePaths)).toThrow("INVALID_FILTER");
 	});
 
-	it("keeps parsing a zone-less date-time filter value in the process zone", () => {
+	it("rejects a zone-less date-time filter value on a timestamp column in a non-UTC process zone", () => {
 		const storageMetadata: IApiEntity<CursorStorageQueryEntity> = GenerateEntityInformation<CursorStorageQueryEntity>(CursorStorageQueryEntity as unknown as IApiBaseEntity);
 		const routeConfig = {
 			request: {
@@ -1260,7 +1260,8 @@ describe("typed GET_LIST query plan and runtime", () => {
 		process.env.TZ = "Asia/Kolkata";
 
 		try {
-			expect(ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1, "unsafeTimestamp[operator]": EFilterOperation.GTE, "unsafeTimestamp[value]": "2024-03-01T10:00:00" }, plan).ast?.nodes[0]?.value).toEqual(new Date("2024-03-01T04:30:00.000Z"));
+			expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1, "unsafeTimestamp[operator]": EFilterOperation.GTE, "unsafeTimestamp[value]": "2024-03-01T10:00:00" }, plan)).toThrow("INVALID_FILTER");
+			expect(ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1, "unsafeTimestamp[operator]": EFilterOperation.GTE, "unsafeTimestamp[value]": "2024-03-01T04:30:00.000Z" }, plan).ast?.nodes[0]?.value).toEqual(new Date("2024-03-01T04:30:00.000Z"));
 		} finally {
 			if (originalTimezone === undefined) {
 				delete process.env.TZ;

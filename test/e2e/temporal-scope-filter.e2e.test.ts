@@ -85,7 +85,8 @@ describe("a client filter and an authorization scope on the same transformed tim
 		process.env.TZ = timezone;
 
 		try {
-			const response = await get(`/temporal-stamps?limit=10&page=1&orderBy=sequence&orderDirection=asc&localStampedAt[operator]=gte&localStampedAt[value]=${ROWS[1]?.localStampedAt as string}`);
+			// The client names the instant of the wall-clock time; the bound Date renders back to that wall-clock text.
+			const response = await get(`/temporal-stamps?limit=10&page=1&orderBy=sequence&orderDirection=asc&localStampedAt[operator]=gte&localStampedAt[value]=${new Date(ROWS[1]?.localStampedAt as string).toISOString()}`);
 			const body: TStampPage = response.json() as TStampPage;
 			const expected: Array<string> = ROWS.filter(({ localStampedAt, stampedAt }: TStampRow): boolean => localStampedAt >= (ROWS[1]?.localStampedAt as string) && localStampedAt < E2E_TEMPORAL_STAMP_LOCAL_SCOPE_LIMIT && stampedAt < E2E_TEMPORAL_STAMP_SCOPE_LIMIT).map(({ id }: TStampRow): string => id);
 
