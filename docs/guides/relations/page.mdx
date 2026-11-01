@@ -301,7 +301,7 @@ export class DepositDetailController {
 
 The type-only import does not load the child file, so the side-effect import stays. Declaring the key on the root with `declare issuer?: IssuerEntity` does not compile under `useDefineForClassFields` and `noImplicitOverride`, because the child then redeclares an inherited property.
 
-`relations.response` does not deliver a to-many relation. There are two ways to serve one.
+`relations.response` delivers only the references of a to-many child relation, `[{ "id": "a1" }]` or `["a1"]`, the same way as on any other entity. There are two ways to serve the related rows themselves.
 
 A generated controller on the child table, scoped by the owner path parameter, needs no manual DTO and costs a second request:
 
