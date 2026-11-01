@@ -86,7 +86,14 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		name: keyof E;
 	}> = [];
 
+	// A generated update writes a to-many relation as the full new set, so its body never declares one.
+	const isUpdateBody: boolean = (method === EApiRouteType.PARTIAL_UPDATE || method === EApiRouteType.UPDATE) && dtoType === EApiDtoType.BODY;
+
 	for (const column of entityMetadata.columns) {
+		if (isUpdateBody && ((column.type as string) === "one-to-many" || (column.type as string) === "many-to-many")) {
+			continue;
+		}
+
 		if (column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] && DtoIsPropertyShouldBeMarked(method, dtoType, column.name as string, column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties, column.isPrimary, currentGuard)) {
 			markedProperties.push({
 				isPrimary: column.isPrimary,

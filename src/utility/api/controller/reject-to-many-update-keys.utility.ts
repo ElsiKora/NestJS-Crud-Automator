@@ -1,0 +1,123 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiControllerTableInheritanceVariant } from "@interface/class/api/controller/table-inheritance";
+import type { IApiEntity } from "@interface/entity";
+import type { Type } from "@nestjs/common";
+import type { TTypeOrmRelationMetadataArguments } from "@type/utility/typeorm";
+import type { DeepPartial } from "typeorm";
+
+import { EErrorStringAction } from "@enum/utility";
+import { BadRequestException, HttpStatus } from "@nestjs/common";
+import { ErrorString } from "@utility/error/string.utility";
+import { getMetadataArgsStorage } from "typeorm";
+
+const TO_MANY_UPDATE_REJECTION_REASON: string = "to-many reference is not allowed on update";
+
+/**
+ * Rejects a generated UPDATE or PARTIAL_UPDATE body that carries a to-many relation key, `null` included.
+ * TypeORM saves such a value as the full new set, so the rule reads the TypeORM relations of the entity, its parent classes,
+ * its embedded columns at any depth, and, on a table inheritance root, every discriminator variant. It ignores `relations.request` and its include.
+ * @param {IApiBaseEntity} entity - Entity class of the route.
+ * @param {IApiEntity<E>} entityMetadata - Entity metadata; its table inheritance plan names the variants a root route can write.
+ * @param {DeepPartial<E> | undefined} body - Request body after route-before subscribers.
+ * @throws {BadRequestException} When the body has a to-many relation key whose value is not undefined; `propertyName` is its dotted path
+ * @template E - The entity type
+ */
+export function ApiControllerRejectToManyUpdateKeys<E extends IApiBaseEntity>(entity: IApiBaseEntity, entityMetadata: IApiEntity<E>, body: DeepPartial<E> | undefined): void {
+	if (!body) {
+		return;
+	}
+
+	const variantEntities: Array<IApiBaseEntity> = (entityMetadata.tableInheritance?.variants ?? []).map((variant: IApiControllerTableInheritanceVariant): IApiBaseEntity => variant.entity);
+	const toManyPaths: Set<string> = new Set<string>();
+
+	for (const target of [entity, ...variantEntities]) {
+		collectToManyPaths(target, [], new Set<unknown>(), toManyPaths);
+	}
+
+	for (const path of toManyPaths) {
+		if (!isPathPresent(body, path.split("."))) {
+			continue;
+		}
+
+		throw new BadRequestException({
+			details: {
+				propertyName: path,
+				reason: TO_MANY_UPDATE_REJECTION_REASON,
+			},
+			error: "Bad Request",
+			message: ErrorString({ entity, type: EErrorStringAction.INVALID_REFERENCE }),
+			statusCode: HttpStatus.BAD_REQUEST,
+		});
+	}
+}
+
+/**
+ * Adds the dotted paths of every one-to-many and many-to-many relation declared on a class, its parents and its embedded columns.
+ * @param {unknown} target - Entity or embedded class.
+ * @param {Array<string>} prefix - Property path of the embedded column that holds the class.
+ * @param {Set<unknown>} visiting - Embedded classes on the current path, so a self-referencing embedded stops.
+ * @param {Set<string>} paths - Collected paths.
+ */
+function collectToManyPaths(target: unknown, prefix: Array<string>, visiting: Set<unknown>, paths: Set<string>): void {
+	if (visiting.has(target)) {
+		return;
+	}
+
+	const hierarchy: Array<Type<unknown>> = [];
+	let current: unknown = target;
+
+	while (typeof current === "function" && current !== Function.prototype) {
+		hierarchy.push(current as Type<unknown>);
+		current = Object.getPrototypeOf(current);
+	}
+
+	visiting.add(target);
+
+	for (const relation of getMetadataArgsStorage().filterRelations(hierarchy)) {
+		if (isToManyRelation(relation)) {
+			paths.add([...prefix, relation.propertyName].join("."));
+		}
+	}
+
+	for (const embedded of getMetadataArgsStorage().filterEmbeddeds(hierarchy)) {
+		collectToManyPaths(embedded.type(), [...prefix, embedded.propertyName], visiting, paths);
+	}
+
+	visiting.delete(target);
+}
+
+/**
+ * Checks whether a body holds a value other than undefined at a property path; an array on the path is checked element by element.
+ * @param {unknown} value - Body or nested body value.
+ * @param {Array<string>} path - Remaining property path segments.
+ * @returns {boolean} True when some value at the path is present.
+ */
+function isPathPresent(value: unknown, path: Array<string>): boolean {
+	if (Array.isArray(value)) {
+		return value.some((item: unknown): boolean => isPathPresent(item, path));
+	}
+
+	if (value === null || typeof value !== "object") {
+		return false;
+	}
+
+	const segment: string = path[0] ?? "";
+	const rest: Array<string> = path.slice(1);
+
+	if (!Object.prototype.hasOwnProperty.call(value, segment)) {
+		return false;
+	}
+
+	const next: unknown = (value as Record<string, unknown>)[segment];
+
+	return rest.length === 0 ? next !== undefined : isPathPresent(next, rest);
+}
+
+/**
+ * Checks whether TypeORM relation metadata describes a one-to-many or many-to-many relation.
+ * @param {TTypeOrmRelationMetadataArguments} relation - TypeORM relation metadata.
+ * @returns {boolean} True for a to-many relation.
+ */
+function isToManyRelation(relation: TTypeOrmRelationMetadataArguments): boolean {
+	return relation.relationType === "one-to-many" || relation.relationType === "many-to-many";
+}

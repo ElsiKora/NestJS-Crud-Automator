@@ -5,7 +5,7 @@ import type { FindOneOptions, FindOptionsRelations } from "typeorm";
 
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiServiceBase } from "@class/api";
-import { EApiControllerRelationReferenceShape, EApiRouteType } from "@enum/decorator/api";
+import { EApiControllerRelationReferenceShape } from "@enum/decorator/api";
 import { ApiControllerHandleRequestRelations } from "@utility/api/controller/handle-request-relations.utility";
 import { Column, Entity, JoinTable, ManyToMany, ManyToOne, OneToMany, PrimaryGeneratedColumn, type Relation } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
@@ -42,8 +42,14 @@ class RelationCollectionNote {
 	public collection!: Relation<RelationCollectionEntity>;
 }
 
+abstract class RelationCollectionBase {
+	@JoinTable({ name: "relation_collection_owners" })
+	@ManyToMany(() => RelationOwner)
+	public owners!: Array<RelationOwner>;
+}
+
 @Entity("relation_collections")
-class RelationCollectionEntity {
+class RelationCollectionEntity extends RelationCollectionBase {
 	@PrimaryGeneratedColumn("uuid")
 	public id!: string;
 
@@ -52,10 +58,6 @@ class RelationCollectionEntity {
 
 	@ManyToOne(() => RelationOwner)
 	public owner!: RelationOwner;
-
-	@JoinTable({ name: "relation_collection_owners" })
-	@ManyToMany(() => RelationOwner)
-	public owners!: Array<RelationOwner>;
 }
 
 class RelationOwnerService extends ApiServiceBase<RelationOwner> {
@@ -903,54 +905,15 @@ describe("ApiControllerHandleRequestRelations", () => {
 			},
 		};
 
-		it.each([
-			["create", EApiRouteType.CREATE],
-			["custom", undefined],
-		])("hydrates to-many references into one-element arrays on %s routes", async (_name: string, routeType: EApiRouteType | undefined) => {
+		it("hydrates to-many references into one-element arrays", async () => {
 			const ownerService = new RelationOwnerService();
 			const parameters: Record<string, unknown> = { notes: "note-1", owner: "owner-1", owners: "owner-1" };
 
-			await ApiControllerHandleRequestRelations({ ownerService } as never, collectionProperties, collectionRelationConfig as never, parameters as never, routeType);
+			await ApiControllerHandleRequestRelations({ ownerService } as never, collectionProperties, collectionRelationConfig as never, parameters as never);
 
 			expect(parameters.notes).toEqual([{ id: "owner-1", name: "Owner" }]);
 			expect(parameters.owners).toEqual([{ id: "owner-1", name: "Owner" }]);
 			expect(parameters.owner).toEqual({ id: "owner-1", name: "Owner" });
-		});
-
-		it.each([
-			[EApiRouteType.PARTIAL_UPDATE, "notes"],
-			[EApiRouteType.PARTIAL_UPDATE, "owners"],
-			[EApiRouteType.UPDATE, "notes"],
-			[EApiRouteType.UPDATE, "owners"],
-		])("rejects a to-many reference on %s routes before loading it (%s)", async (routeType: EApiRouteType, propertyName: string) => {
-			const ownerService = new RelationOwnerService();
-			const getSpy = vi.spyOn(ownerService, "get");
-			const parameters: Record<string, unknown> = { [propertyName]: "owner-1" };
-
-			await expect(ApiControllerHandleRequestRelations({ ownerService } as never, collectionProperties, collectionRelationConfig as never, parameters as never, routeType)).rejects.toMatchObject({
-				response: {
-					details: {
-						expectedShape: EApiControllerRelationReferenceShape.SCALAR,
-						propertyName,
-						referenceKey: "id",
-					},
-					message: "RELATIONCOLLECTIONENTITY_INVALID_REFERENCE",
-					statusCode: 400,
-				},
-			});
-			expect(getSpy).not.toHaveBeenCalled();
-			expect(parameters[propertyName]).toBe("owner-1");
-		});
-
-		it.each([EApiRouteType.PARTIAL_UPDATE, EApiRouteType.UPDATE])("keeps to-one references and absent to-many references working on %s routes", async (routeType: EApiRouteType) => {
-			const ownerService = new RelationOwnerService();
-			const parameters: Record<string, unknown> = { notes: null, owner: "owner-1" };
-
-			await ApiControllerHandleRequestRelations({ ownerService } as never, collectionProperties, collectionRelationConfig as never, parameters as never, routeType);
-
-			expect(parameters.owner).toEqual({ id: "owner-1", name: "Owner" });
-			expect(parameters.notes).toBeNull();
-			expect(parameters).not.toHaveProperty("owners");
 		});
 	});
 });
