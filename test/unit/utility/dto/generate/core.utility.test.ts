@@ -626,14 +626,14 @@ describe("DtoGenerate", () => {
 		}
 	});
 
-	it("wraps a single [values] item of the legacy generated query DTO into a one-item array", () => {
+	it("wraps a single [values] item of the legacy generated query DTO into a valid one-item array", () => {
 		const entityMetadata = GenerateEntityInformation<DtoEntity>(DtoEntity as unknown as IApiBaseEntity);
 		const queryDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "SingleValuesDto");
 		const query = plainToInstance(queryDto as ClassConstructor<Record<string, unknown>>, { limit: 10, "owner.externalId[operator]": EFilterOperation.IN, "owner.externalId[values]": "123e4567-e89b-12d3-a456-426614174000", page: 1 });
 		const errors = validateSync(query as object).filter((error) => error.property === "owner.externalId[values]");
 
 		expect(query["owner.externalId[values]"]).toEqual(["123e4567-e89b-12d3-a456-426614174000"]);
-		expect(errors.map((error) => Object.keys(error.constraints ?? {}))).toEqual([["arrayMinSize"]]);
+		expect(errors).toEqual([]);
 	});
 
 	it("preserves PAGE response constructor identity isolation across query plans", () => {

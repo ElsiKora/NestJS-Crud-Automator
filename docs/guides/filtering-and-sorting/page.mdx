@@ -25,7 +25,7 @@ A PAGE route without a typed `filter` validates its own QUERY DTO, generated or 
 | Missing `limit` or `page`, or a value outside `1..100`                                                                           | `400`  |
 | Filter operator not allowed for the column type, or an invalid `[value]` or `[values]` item                                      | `400`  |
 | Filter group with a value but no operator, or an operator other than `isnull` or `notnull` with no value                         | `400`  |
-| Fewer than two `[values]` items for a membership or `between` operator, including a single `[values]` item                       | `400`  |
+| A `between` filter without exactly two `[values]` items, or an `in` or `notin` filter with more than 100                         | `400`  |
 
 The body is the one a default `ValidationPipe` returns:
 
@@ -53,7 +53,10 @@ From 5.0.0, the rules above apply on every such route. Change these requests if 
 
 - `orderDirection=ASC` or `DESC`: send lowercase. Hosts without a pipe used to accept the uppercase form.
 - `limit` or `page` above 100, `limit=0` or `page=0`, or a request without `limit` or `page`: send values from 1 to 100. Hosts without a pipe used to serve any `page`.
-- A membership or `between` filter with one item, such as `status[operator]=in&status[values]=active`: use `eq`, or send two or more items. A single numeric item used to return `500`.
+- A `between` filter with one item or more than two, such as `age[operator]=between&age[values]=18`: send exactly two items. A single numeric item used to return `500`.
+
+An `in` or `notin` filter with one item, such as `status[operator]=in&status[values]=active`, now filters by that one value on every route, as typed plans already did. A host `ValidationPipe` used to reject it with `400`, and a single numeric item without a pipe used to return `500`.
+
 - `isnull` or `notnull` with a value: remove the value. `isnull` or `notnull` without a value used to be ignored and now filters, so those requests return fewer rows.
 
 With a transforming host pipe, a date filter used to fail on PostgreSQL and return no rows on SQLite. It now behaves the same with or without a pipe. A route-before subscriber now always sees the raw query on these routes, not the instance a transforming pipe produced.

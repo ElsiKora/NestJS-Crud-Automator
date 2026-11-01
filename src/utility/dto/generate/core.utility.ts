@@ -202,7 +202,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 					isArray: true,
 					isUniqueItems: false,
 					maxItems: DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES,
-					minItems: isTypedFilterPlan ? FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT : DTO_GENERATE_CONSTANT.MINIMUM_FILTER_PROPERTIES,
+					minItems: FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT,
 				} as TApiPropertyDescribeProperties;
 
 				const decoratorsArray: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, metadataArray, property.entityMetadata, dtoType, property.name, currentGuard);
