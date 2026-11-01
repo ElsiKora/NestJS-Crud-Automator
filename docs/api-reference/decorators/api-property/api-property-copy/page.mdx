@@ -36,6 +36,7 @@ ApiPropertyCopy<E>({
 - Supports guard-aware decorator generation so field-level guards remain in sync.
 - Relation response copies generate a relation object whose nested `id` description is relation-aware, e.g. `DepositEntity currency identifier` instead of `DepositEntity identifier`.
 - Request relation copies keep the existing UUID reference behavior.
+- A nested DTO that the copy generates is named after the DTO that holds the property: `<Host><Property>DTO` for a relation and `<Host><Property><Variant>DTO` for a dynamic object variant, where `<Host>` is the DTO class name without a trailing `DTO`. Two DTOs that copy one relation get two names, so both can appear in one document. See [Generated Schema Names](/docs/nestjs-crud-automator/core-concepts/dtos#generated-schema-names).
 
 ## Example
 
@@ -78,6 +79,8 @@ If `DepositEntity.currency` is described as a relation, the copied response sche
 currency.description === "DepositEntity currency";
 currency.id.description === "DepositEntity currency identifier";
 ```
+
+The relation object is the component `DepositResponseDtoCurrencyDTO`, named after `DepositResponseDto`.
 
 ## Related resources
 

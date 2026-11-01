@@ -3,6 +3,7 @@ import "reflect-metadata";
 import type { TestingModule } from "@nestjs/testing";
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
+import { ApiPropertyCopy } from "@decorator/api/property/copy.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiRouteCustom } from "@decorator/api/route-custom.decorator";
@@ -13,7 +14,7 @@ import { RouterModule } from "@nestjs/core";
 import { Transport } from "@nestjs/microservices";
 import { ApiExtraModels, ApiOkResponse, ApiProperty, ApiQuery } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../../../src/module/api";
@@ -40,6 +41,24 @@ class SchemaBootItemEntity {
 	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({ description: "name", exampleValue: "Name", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING })
 	public name!: string;
+}
+
+@Entity("schema_boot_owners")
+class SchemaBootOwnerEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+}
+
+@Entity("schema_boot_owned_items")
+class SchemaBootOwnedItemEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@ManyToOne(() => SchemaBootOwnerEntity)
+	@ApiPropertyDescribe({ description: "owner", type: EApiPropertyDescribeType.RELATION })
+	public owner!: SchemaBootOwnerEntity;
 }
 
 const DISABLED: { generation: { isEnabled: false } } = { generation: { isEnabled: false } };
@@ -336,6 +355,41 @@ describe("schema name check at bootstrap", () => {
 			}
 
 			await expect(start({ controllers: [createDuplicateController(), SchemaBootPlainModelController] })).rejects.toThrow('OpenAPI component name "SchemaBootPlainModelDTO" belongs to two different classes: the 200 response of route get in controller SchemaBootPlainModelController, and an extra model of controller SchemaBootPlainModelController');
+		});
+
+		it("starts with two hand-written DTOs on two custom routes that copy one relation", async () => {
+			class SchemaBootCopyOneDTO {
+				@ApiPropertyCopy({ dtoType: EApiDtoType.RESPONSE, entity: SchemaBootOwnedItemEntity, method: EApiRouteType.GET, propertyName: "owner" })
+				public owner!: SchemaBootOwnerEntity;
+			}
+
+			class SchemaBootCopyTwoDTO {
+				@ApiPropertyCopy({ dtoType: EApiDtoType.RESPONSE, entity: SchemaBootOwnedItemEntity, method: EApiRouteType.GET, propertyName: "owner" })
+				public owner!: SchemaBootOwnerEntity;
+			}
+
+			@ApiController<SchemaBootOwnedItemEntity>({ entity: SchemaBootOwnedItemEntity, path: "copy", routes: NO_GENERATED_ROUTES })
+			class SchemaBootCopyController {
+				public service!: never;
+
+				@ApiRouteCustom<SchemaBootOwnedItemEntity>({
+					resource: { action: "custom.one", entity: SchemaBootOwnedItemEntity },
+					response: { status: HttpStatus.OK, type: SchemaBootCopyOneDTO },
+					route: { method: RequestMethod.GET, path: "one", type: EApiRouteType.GET },
+				})
+				public one(): void {}
+
+				@ApiRouteCustom<SchemaBootOwnedItemEntity>({
+					resource: { action: "custom.two", entity: SchemaBootOwnedItemEntity },
+					response: { status: HttpStatus.OK, type: SchemaBootCopyTwoDTO },
+					route: { method: RequestMethod.GET, path: "two", type: EApiRouteType.GET },
+				})
+				public two(): void {}
+			}
+
+			const application: TestingModule = await start({ controllers: [SchemaBootCopyController] });
+
+			await application.close();
 		});
 
 		it("starts with one hand-written DTO class on routes of two controllers", async () => {

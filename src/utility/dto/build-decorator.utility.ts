@@ -22,13 +22,15 @@ import { DtoIsPropertyInfrastructureTimestamp } from "@utility/dto/is/property/i
  * @param {Type<CanActivate>} [currentGuard] - Optional authentication guard
  * @param {Record<string, Type<unknown>>} [generatedDTOs] - Optional record of dynamically generated DTOs
  * @param {string} [dtoNameBase] - Name of the parent DTO without the `DTO` suffix, used to name nested generated DTOs `<dtoNameBase><Property>DTO`
+ * @param {string} [dtoPropertyName] - Name of the DTO property that holds the value when it differs from the entity property, as in a property copied into a hand-written DTO; it names nested generated DTOs in place of `propertyName`
+ * @param {string} [hostDtoName] - Class name of the parent DTO for errors and origins, when it is not `<dtoNameBase>DTO`, as with a hand-written DTO
  * @returns {Array<PropertyDecorator> | undefined} Array of property decorators or undefined if property should not be included
  * @template E - The entity type
  * @template M - The API route type
  * @template D - The DTO type
  */
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
-export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, propertyName: string, currentGuard?: Type<CanActivate>, generatedDTOs?: Record<string, Type<unknown>>, dtoNameBase?: string): Array<PropertyDecorator> | undefined {
+export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, propertyName: string, currentGuard?: Type<CanActivate>, generatedDTOs?: Record<string, Type<unknown>>, dtoNameBase?: string, dtoPropertyName?: string, hostDtoName?: string): Array<PropertyDecorator> | undefined {
 	type TAllowed = TDtoGenerateIsAllowedCombination<M, D>;
 
 	type TPropertiesType = TAllowed extends true ? TApiPropertyDescribeDtoProperties : never;
@@ -59,12 +61,12 @@ export function DtoBuildDecorator<E, M extends EApiRouteType, D extends EApiDtoT
 				const newMetadata: TApiPropertyDescribeProperties = { ...dateMetadata, identifier: property.identifier };
 				const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, newMetadata, dtoType);
 
-				return DtoGenerateDecorator(newMetadata, entity, config, method, dtoType, propertyName, undefined, dtoNameBase);
+				return DtoGenerateDecorator(newMetadata, entity, config, method, dtoType, propertyName, undefined, dtoNameBase, dtoPropertyName, hostDtoName);
 			});
 		}
 	}
 
 	const config: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(method, propertyMetadata, dtoType);
 
-	return [DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName, generatedDTOs, dtoNameBase)];
+	return [DtoGenerateDecorator(propertyMetadata, entity, config, method, dtoType, propertyName, generatedDTOs, dtoNameBase, dtoPropertyName, hostDtoName)];
 }

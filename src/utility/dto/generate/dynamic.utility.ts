@@ -25,13 +25,14 @@ import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
  * @param {string} _propertyName - The name of the property
  * @param {Type<CanActivate>} [currentGuard] - Optional authentication guard
  * @param {string} [dtoNameBase] - Name of the parent DTO without the `DTO` suffix; each variant is named `<dtoNameBase><Property><Variant>DTO`, and its nested generated DTOs are named after the variant. Defaults to `<Entity><Method><DtoType>` outside a controller route
+ * @param {string} [hostDtoName] - Class name of the parent DTO for errors and origins, when it is not `<dtoNameBase>DTO`, as with a hand-written DTO.
  * @returns {Record<string, Type<unknown>> | undefined} A record of generated DTO classes or undefined if generation not needed
  * @template E - The entity type
  * @template M - The API route type
  * @template D - The DTO type
  */
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
-export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, _propertyName: string, currentGuard?: Type<CanActivate>, dtoNameBase?: string): Record<string, Type<unknown>> | undefined {
+export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, _propertyName: string, currentGuard?: Type<CanActivate>, dtoNameBase?: string, hostDtoName?: string): Record<string, Type<unknown>> | undefined {
 	if (propertyMetadata.type !== EApiPropertyDescribeType.OBJECT) {
 		return undefined;
 	}
@@ -65,10 +66,10 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 			}
 		}
 
-		const hostDtoName: string = `${resolvedDtoNameBase}DTO`;
+		const resolvedHostDtoName: string = hostDtoName ?? `${resolvedDtoNameBase}DTO`;
 
 		for (const { data, name } of dataForGeneration) {
-			const variantDtoNameBase: string = `${resolvedDtoNameBase}${DtoSchemaNameGetSegment(_propertyName, hostDtoName)}${DtoSchemaNameGetSegment(name, hostDtoName)}`;
+			const variantDtoNameBase: string = `${resolvedDtoNameBase}${DtoSchemaNameGetSegment(_propertyName, resolvedHostDtoName)}${DtoSchemaNameGetSegment(name, resolvedHostDtoName)}`;
 
 			class GeneratedDTO {
 				constructor() {
@@ -86,7 +87,7 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 				}
 			}
 
-			DtoSetGeneratedName(GeneratedDTO, `${variantDtoNameBase}DTO`, `variant ${name} of property ${_propertyName} in ${resolvedDtoNameBase}DTO`);
+			DtoSetGeneratedName(GeneratedDTO, `${variantDtoNameBase}DTO`, `variant ${name} of property ${_propertyName} in ${resolvedHostDtoName}`);
 
 			const nestedDTOs: Record<string, Record<string, Type<unknown>>> = {};
 			const allNestedTypes: Array<Type<unknown>> = [];

@@ -13,7 +13,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiController, ApiSubscriberModule, EApiRouteType } from "../../src/index";
-import { E2eDtoNameAdminItemController, E2eDtoNameCustomItemController, E2eDtoNameItemEntity, E2eDtoNameItemService, E2eDtoNameOwnerEntity, E2eDtoNamePublicItemController, E2eDtoNameRecordController, E2eDtoNameRecordEntity, E2eDtoNameRecordService } from "./controller-dto-names";
+import { E2eDtoNameAdminItemController, E2eDtoNameCopyController, E2eDtoNameCustomItemController, E2eDtoNameItemEntity, E2eDtoNameItemService, E2eDtoNameOwnerEntity, E2eDtoNamePublicItemController, E2eDtoNameRecordController, E2eDtoNameRecordEntity, E2eDtoNameRecordService } from "./controller-dto-names";
 
 const COMPONENT_REFERENCE_PREFIX: string = "#/components/schemas/";
 const UUID_PATTERN: RegExp = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
@@ -94,6 +94,18 @@ interface ISchema {
 	allOf?: Array<ISchema>;
 	items?: ISchema;
 	properties?: Record<string, ISchema>;
+}
+
+/**
+ * Asserts that every component reference of a document points at a component of that document.
+ * @param {OpenAPIObject} openApiDocument - The generated document.
+ * @returns {void}
+ */
+function expectEveryReferenceToResolve(openApiDocument: OpenAPIObject): void {
+	const references: Array<string> = [...JSON.stringify(openApiDocument).matchAll(/"#\/components\/schemas\/([^"]+)"/g)].map((match: RegExpExecArray): string => match[1] as string);
+
+	expect(references.length).toBeGreaterThan(0);
+	expect(references.filter((name: string): boolean => !openApiDocument.components?.schemas?.[name])).toEqual([]);
 }
 
 describe("generated DTO names with two controllers on one entity (E2E)", () => {
@@ -183,6 +195,10 @@ describe("generated DTO names with two controllers on one entity (E2E)", () => {
 		expect(getPropertyNames(resolveSchema(listSchema.properties?.items?.items))).toEqual(wireFields);
 	});
 
+	it("resolves every component reference", () => {
+		expectEveryReferenceToResolve(document);
+	});
+
 	it("gives each controller its own response component names", () => {
 		const names: Array<string> = ["/admin/dto-name-items/{id}", "/public/dto-name-items/{id}", "/admin/dto-name-items", "/public/dto-name-items"].map((path: string): string => getResponseSchema(path).name);
 
@@ -220,6 +236,10 @@ describe("generated DTO names with one controller on an entity (E2E)", () => {
 
 	afterAll(async () => {
 		await app?.close();
+	});
+
+	it("resolves every component reference", () => {
+		expectEveryReferenceToResolve(document);
 	});
 
 	it("matches the previous document apart from the generated component names", () => {
@@ -261,6 +281,10 @@ describe("generated DTO names of a custom route next to a generated route (E2E)"
 
 	afterAll(async () => {
 		await app?.close();
+	});
+
+	it("resolves every component reference", () => {
+		expectEveryReferenceToResolve(document);
 	});
 
 	it("names the custom route DTOs after their handler methods, so they stay apart from each other and from the generated route DTOs", () => {
@@ -306,5 +330,50 @@ describe("controller names that cannot start generated DTO names (E2E)", () => {
 				},
 			})(anonymousController),
 		).toThrow('Controller with path "anonymous/dto-name-items" is an anonymous class');
+	});
+});
+
+describe("generated DTO names of properties copied into hand-written DTOs (E2E)", () => {
+	let app: INestApplication | undefined;
+	let document: OpenAPIObject;
+
+	beforeAll(async () => {
+		const moduleReference = await Test.createTestingModule({
+			controllers: [E2eDtoNameCopyController],
+			imports: [TypeOrmModule.forRoot({ database: ":memory:", dropSchema: true, entities: [E2eDtoNameOwnerEntity, E2eDtoNameRecordEntity], logging: false, synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature([E2eDtoNameRecordEntity]), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
+			providers: [E2eDtoNameRecordService],
+		}).compile();
+
+		app = moduleReference.createNestApplication(new FastifyAdapter());
+		await app.init();
+		document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
+	});
+
+	afterAll(async () => {
+		await app?.close();
+	});
+
+	const reference = (schemaName: string, propertyName: string): string | undefined => {
+		const property: ISchema | undefined = (document.components?.schemas?.[schemaName] as ISchema | undefined)?.properties?.[propertyName];
+
+		return property?.$ref ?? (property as { allOf?: Array<ISchema> } | undefined)?.allOf?.[0]?.$ref ?? (property as { oneOf?: Array<ISchema> } | undefined)?.oneOf?.[0]?.$ref;
+	};
+
+	it("resolves every component reference", () => {
+		expectEveryReferenceToResolve(document);
+	});
+
+	it("names one entity property copied into two properties of one host DTO after each host property", () => {
+		expect(reference("E2eDtoNameCopyHostDTO", "owner")).toBe(`${COMPONENT_REFERENCE_PREFIX}E2eDtoNameCopyHostOwnerDTO`);
+		expect(reference("E2eDtoNameCopyHostDTO", "previousOwner")).toBe(`${COMPONENT_REFERENCE_PREFIX}E2eDtoNameCopyHostPreviousOwnerDTO`);
+		expect(reference("E2eDtoNameCopyHostDTO", "details")).toBe(`${COMPONENT_REFERENCE_PREFIX}E2eDtoNameCopyHostDetailsVariantDTO`);
+		expect(reference("E2eDtoNameCopyHostDTO", "previousDetails")).toBe(`${COMPONENT_REFERENCE_PREFIX}E2eDtoNameCopyHostPreviousDetailsVariantDTO`);
+		expect(document.components?.schemas).toHaveProperty("E2eDtoNameCopyHostDetailsVariantDTO");
+		expect(document.components?.schemas).toHaveProperty("E2eDtoNameCopyHostPreviousDetailsVariantDTO");
+	});
+
+	it("names the copies of one entity property in GET and GET_LIST contexts of one host DTO after each host property", () => {
+		expect(reference("E2eDtoNameCopyContextDTO", "owner")).toBe(`${COMPONENT_REFERENCE_PREFIX}E2eDtoNameCopyContextOwnerDTO`);
+		expect(reference("E2eDtoNameCopyContextDTO", "listOwner")).toBe(`${COMPONENT_REFERENCE_PREFIX}E2eDtoNameCopyContextListOwnerDTO`);
 	});
 });

@@ -1,4 +1,5 @@
 export { E2eDtoNameAdminItemController, E2eDtoNamePublicItemController } from "./controller";
+export { E2eDtoNameCopyContextDTO, E2eDtoNameCopyController, E2eDtoNameCopyHostDTO } from "./copy.controller";
 export { E2eDtoNameCustomItemController } from "./custom.controller";
 export { E2eDtoNameItemEntity } from "./entity";
 export { E2eDtoNameAdminGuard, E2eDtoNamePublicGuard } from "./guard";

@@ -7,13 +7,20 @@ import type { TApiPropertyCopyProperties } from "@type/decorator/api/property/co
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { applyDecorators } from "@nestjs/common";
+import { ApiExtraModels } from "@nestjs/swagger";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
+import { DtoSchemaNameStripSuffix } from "@utility/dto/schema-name/strip-suffix.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { QueueAutoContextRetry } from "@utility/queue-auto-context-retry.utility";
 import { ResolveDecoratorContext } from "@utility/resolve";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
+
+/**
+ * Copied decorators per host DTO class, route, DTO type and host property, so applying one copy to one host property again reuses the nested generated DTOs.
+ */
+const copiedDecoratorCache: WeakMap<object, Map<string, { decorators: Array<PropertyDecorator>; guard: unknown; metadata: unknown }>> = new WeakMap<object, Map<string, { decorators: Array<PropertyDecorator>; guard: unknown; metadata: unknown }>>();
 
 /**
  * Copies every generated decorator (Swagger metadata, validators, transformers, DTO hooks) from an entity property
@@ -25,6 +32,10 @@ import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-enti
  * - Guard-aware decorator copies (pass the guard used during auto DTO generation)
  * - Metadata extension (supply `metadata` to merge additional describe fields)
  * - Auto context resolution for nested DTOs generated through the CRUD automator pipeline
+ *
+ * A nested DTO that the copy generates (a relation or a dynamic object variant) is named after the host DTO and the host property:
+ * `<Host><Property>DTO` or `<Host><Property><Variant>DTO`, where `<Host>` is the host class name without a trailing `DTO` in any case
+ * and `<Property>` is the decorated property of the host, so one entity property copied into two host properties gets two names.
  * @example
  * ```ts
  * class DepositCallbackRequestBodyDto {
@@ -98,14 +109,39 @@ export function ApiPropertyCopy<E>(properties: TApiPropertyCopyProperties<E>): P
 				propertyMetadata = { ...propertyMetadata, ...(metadata as TApiPropertyDescribeProperties) } as TApiPropertyDescribeProperties;
 			}
 
-			const generatedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(resolvedMethod, propertyMetadata, entityMetadata, resolvedDtoType, propertyName as string, guard);
+			const host: Type<unknown> = (typeof decoratorTarget === "function" ? decoratorTarget : decoratorTarget.constructor) as Type<unknown>;
+			const hostPropertyName: string = String(key);
+			const cacheKey: string = `${resolvedMethod}:${resolvedDtoType}:${hostPropertyName}`;
+			const cached: { decorators: Array<PropertyDecorator>; guard: unknown; metadata: unknown } | undefined = copiedDecoratorCache.get(host)?.get(cacheKey);
 
-			const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(resolvedMethod, propertyMetadata, entityMetadata, resolvedDtoType, propertyName as string, guard, generatedDTOs);
+			if (cached && cached.guard === guard && cached.metadata === metadata) {
+				applyDecorators(...cached.decorators)(target, key);
+
+				return;
+			}
+
+			const dtoNameBase: string = DtoSchemaNameStripSuffix(host.name);
+			const generatedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(resolvedMethod, propertyMetadata, entityMetadata, resolvedDtoType, hostPropertyName, guard, dtoNameBase, host.name);
+
+			// Only a `$ref` points at a dynamic variant, so Swagger finds the component through the extra models of the host.
+			if (generatedDTOs) {
+				ApiExtraModels(...Object.values(generatedDTOs))(host);
+			}
+
+			const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(resolvedMethod, propertyMetadata, entityMetadata, resolvedDtoType, propertyName as string, guard, generatedDTOs, dtoNameBase, hostPropertyName, host.name);
 
 			if (!decorators || decorators.length === 0) {
 				throw ErrorException(`No decorators generated for property ${String(propertyName)} in entity ${resolvedEntity.name}`);
 			}
 
+			let hostCache: Map<string, { decorators: Array<PropertyDecorator>; guard: unknown; metadata: unknown }> | undefined = copiedDecoratorCache.get(host);
+
+			if (!hostCache) {
+				hostCache = new Map<string, { decorators: Array<PropertyDecorator>; guard: unknown; metadata: unknown }>();
+				copiedDecoratorCache.set(host, hostCache);
+			}
+
+			hostCache.set(cacheKey, { decorators, guard, metadata });
 			applyDecorators(...decorators)(target, key);
 		};
 

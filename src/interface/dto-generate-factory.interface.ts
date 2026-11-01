@@ -4,5 +4,5 @@ import type { Type } from "@nestjs/common";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 export interface IDtoGenerateFactory<E> {
-	create(metadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method?: EApiRouteType, dtoType?: EApiDtoType, propertyName?: string, generatedDTOs?: Record<string, Type<unknown>>, dtoNameBase?: string): PropertyDecorator;
+	create(metadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method?: EApiRouteType, dtoType?: EApiDtoType, propertyName?: string, generatedDTOs?: Record<string, Type<unknown>>, dtoNameBase?: string, dtoPropertyName?: string, hostDtoName?: string): PropertyDecorator;
 }
