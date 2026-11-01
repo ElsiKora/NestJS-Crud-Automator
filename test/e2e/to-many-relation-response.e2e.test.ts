@@ -16,6 +16,9 @@ import {
 	E2eToManyAuthorEntity,
 	E2eToManyCommentEntity,
 	E2eToManyEnvelopePostController,
+	E2eToManyItemsDescribedEntity,
+	E2eToManyItemsInheritedEntity,
+	E2eToManyItemsRelationEntity,
 	E2eToManyLedgerEntity,
 	E2eToManyLedgerService,
 	E2eToManyObjectCodePostController,
@@ -101,7 +104,7 @@ describe("To-many response relations (E2E)", () => {
 				TypeOrmModule.forRoot({
 					database: ":memory:",
 					dropSchema: true,
-					entities: [E2eToManyAuthorEntity, E2eToManyCommentEntity, E2eToManyEnvelopePostController, E2eToManyLedgerEntity, E2eToManyOrderEntity, E2eToManyOrderItemEntity, E2eToManyPostEntity, E2eToManyReviewEntity, E2eToManyTagEntity],
+					entities: [E2eToManyAuthorEntity, E2eToManyCommentEntity, E2eToManyItemsDescribedEntity, E2eToManyItemsInheritedEntity, E2eToManyItemsRelationEntity, E2eToManyLedgerEntity, E2eToManyOrderEntity, E2eToManyOrderItemEntity, E2eToManyPostEntity, E2eToManyReviewEntity, E2eToManyTagEntity],
 					logging: false,
 					synchronize: true,
 					type: "better-sqlite3",
@@ -291,6 +294,13 @@ describe("To-many response relations (E2E)", () => {
 			expect(response.body).not.toContain(AUTHOR_SECRET);
 		});
 
+		it.each(["items-relation", "items-described", "items-inherited"])("treats the response as the entity on an undeclared route whose entity owns items through /%s", async (path: string) => {
+			const body = (await send("GET", `/to-many-envelope-posts/undeclared-${path}`, HttpStatus.OK)) as unknown as { items: Array<unknown>; owner: unknown };
+
+			expect(body.items).toEqual([{ owner: { code: "nested-kept", id: "nested" } }]);
+			expect(body.owner).toEqual({ id: "top-level" });
+		});
+
 		it("treats the response as the entity on a declared non-list route type", async () => {
 			const body = (await send("GET", "/to-many-envelope-posts/declared-entity", HttpStatus.OK)) as unknown as { author: unknown; items: Array<unknown> };
 
@@ -350,6 +360,19 @@ describe("To-many response relations (E2E)", () => {
 			expect(totalCount).toBe(items.length);
 			expectOrder(items.find((item: IOrderWire): boolean => item.id === ORDER) as IOrderWire, "object");
 			expect(response.body).not.toContain(AUTHOR_SECRET);
+		});
+
+		it("collapses listed rows into references when an undeclared route includes the entity's own items relation", async () => {
+			const response = await fastify.inject({ method: "GET", url: "/to-many-object-orders/custom-list-undeclared" });
+			const { items, totalCount } = response.json() as { items: Array<unknown>; totalCount: number };
+
+			expect(response.statusCode).toBe(HttpStatus.OK);
+			expect(totalCount).toBe(items.length);
+			expect(items).toContainEqual({ id: ORDER });
+
+			for (const item of items) {
+				expect(Object.keys(item as object)).toEqual(["id"]);
+			}
 		});
 
 		it.each([

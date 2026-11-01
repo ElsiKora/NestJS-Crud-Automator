@@ -3,7 +3,7 @@ import { Expose, Type } from "class-transformer";
 
 import { ApiController, ApiRouteCustom, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiRouteType, EFilterOrderDirection } from "../../../src/index";
 
-import { E2eToManyCursorParentEntity, E2eToManyLedgerEntity, E2eToManyOrderEntity, E2eToManyPostEntity } from "./entity";
+import { E2eToManyCursorParentEntity, E2eToManyItemsDescribedEntity, E2eToManyItemsInheritedEntity, E2eToManyItemsRelationEntity, E2eToManyLedgerEntity, E2eToManyOrderEntity, E2eToManyPostEntity } from "./entity";
 import { E2eToManyCursorParentService, E2eToManyLedgerService, E2eToManyOrderService, E2eToManyPostService } from "./service";
 
 const DISABLED_DELETE = { [EApiRouteType.DELETE]: { generation: { isEnabled: false } } } as const;
@@ -127,6 +127,36 @@ export class E2eToManyEnvelopePostController {
 	public declaredEntity(): unknown {
 		return { author: { code: "top-level-secret", id: "top-level" }, items: [{ author: { code: "nested-kept", id: "nested" } }] };
 	}
+
+	@ApiRouteCustom<E2eToManyItemsRelationEntity>({
+		relations: { response: { load: { include: { owner: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } },
+		resource: { action: "toMany.envelopeUndeclaredItemsRelation", entity: E2eToManyItemsRelationEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.GET, path: "undeclared-items-relation" },
+	} as never)
+	public undeclaredItemsRelation(): unknown {
+		return { items: [{ owner: { code: "nested-kept", id: "nested" } }], owner: { code: "top-level-secret", id: "top-level" } };
+	}
+
+	@ApiRouteCustom<E2eToManyItemsDescribedEntity>({
+		relations: { response: { load: { include: { owner: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } },
+		resource: { action: "toMany.envelopeUndeclaredItemsDescribed", entity: E2eToManyItemsDescribedEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.GET, path: "undeclared-items-described" },
+	} as never)
+	public undeclaredItemsDescribed(): unknown {
+		return { items: [{ owner: { code: "nested-kept", id: "nested" } }], owner: { code: "top-level-secret", id: "top-level" } };
+	}
+
+	@ApiRouteCustom<E2eToManyItemsInheritedEntity>({
+		relations: { response: { load: { include: { owner: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } },
+		resource: { action: "toMany.envelopeUndeclaredItemsInherited", entity: E2eToManyItemsInheritedEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.GET, path: "undeclared-items-inherited" },
+	} as never)
+	public undeclaredItemsInherited(): unknown {
+		return { items: [{ owner: { code: "nested-kept", id: "nested" } }], owner: { code: "top-level-secret", id: "top-level" } };
+	}
 }
 
 @ApiController<E2eToManyPostEntity>({
@@ -192,6 +222,18 @@ export class E2eToManyObjectOrderController {
 		route: { method: RequestMethod.GET, path: "custom-list", type: EApiRouteType.GET_LIST },
 	} as never)
 	public async customList(): Promise<unknown> {
+		const items: Array<E2eToManyOrderEntity> = await this.service.repository.find({ order: { title: "ASC" } });
+
+		return { items, totalCount: items.length };
+	}
+
+	@ApiRouteCustom<E2eToManyOrderEntity>({
+		relations: { response: { load: { include: ORDER_INCLUDE }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } },
+		resource: { action: "toMany.customOrderListUndeclared", entity: E2eToManyOrderEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.GET, path: "custom-list-undeclared" },
+	} as never)
+	public async customListUndeclared(): Promise<unknown> {
 		const items: Array<E2eToManyOrderEntity> = await this.service.repository.find({ order: { title: "ASC" } });
 
 		return { items, totalCount: items.length };
