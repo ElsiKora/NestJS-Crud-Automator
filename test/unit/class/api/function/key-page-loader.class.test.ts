@@ -4,7 +4,9 @@ import { ApiFunctionKeyPageLoader } from "@class/api/function/key-page-loader.cl
 import { KeyPageAccountEntity } from "@test/unit/class/api/function/fixture/key-page-account.entity";
 import { KeyPageAuditorEntity } from "@test/unit/class/api/function/fixture/key-page-auditor.entity";
 import { KeyPageBatchEntity } from "@test/unit/class/api/function/fixture/key-page-batch.entity";
+import { KEY_PAGE_CALENDAR_INPUTS, KeyPageCalendarEntity } from "@test/unit/class/api/function/fixture/key-page-calendar.entity";
 import { KeyPageCreatedEntity } from "@test/unit/class/api/function/fixture/key-page-created.entity";
+import { KeyPageDayEntity } from "@test/unit/class/api/function/fixture/key-page-day.entity";
 import { KeyPageEntryEntity } from "@test/unit/class/api/function/fixture/key-page-entry.entity";
 import { KeyPageHolderEntity } from "@test/unit/class/api/function/fixture/key-page-holder.entity";
 import { KEY_PAGE_INSTANT_INPUTS, KeyPageInstantEntity } from "@test/unit/class/api/function/fixture/key-page-instant.entity";
@@ -24,7 +26,7 @@ const HISTORIC_KEY: string = "1800-06-01 14:30:17+02:30:17";
 const LEDGER_ID: string = "00000000-0000-4000-8000-000000000001";
 
 const createDataSource = async (relationLoadStrategy?: "join" | "query"): Promise<DataSource> => {
-	const dataSource: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageAuditorEntity, KeyPageBatchEntity, KeyPageEntryEntity, KeyPageHolderEntity, KeyPageInstantEntity, KeyPageJournalEntity, KeyPageLedgerEntity, KeyPageReceiptEntity, KeyPageWalletEntity], type: "postgres", ...(relationLoadStrategy ? { relationLoadStrategy } : {}) });
+	const dataSource: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageAuditorEntity, KeyPageBatchEntity, KeyPageCalendarEntity, KeyPageDayEntity, KeyPageEntryEntity, KeyPageHolderEntity, KeyPageInstantEntity, KeyPageJournalEntity, KeyPageLedgerEntity, KeyPageReceiptEntity, KeyPageWalletEntity], type: "postgres", ...(relationLoadStrategy ? { relationLoadStrategy } : {}) });
 
 	// Metadata is enough to build SQL; the tests never connect.
 	await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
@@ -230,6 +232,18 @@ describe("ApiFunctionKeyPageLoader", () => {
 		expect(rawQueries[0]?.sql).toContain('"KeyPageLedgerEntity"."postedAt"::text AS "key_1"');
 		expect(entityQueries[0]?.parameters).toEqual([LEDGER_ID, HISTORIC_KEY]);
 		expect(() => ApiFunctionKeyPageLoader.assertRelationLoad(cockroachLedgers, { relationLoadStrategy: "query", relations: { account: true } })).toThrow('relation "account" of entity "KeyPageLedgerEntity" with relationLoadStrategy "query" cannot load');
+	});
+
+	it("pages an entity with a date primary key in two steps over text keys", async () => {
+		stubQueries();
+		await ApiFunctionKeyPageLoader.findMany(dataSource.getRepository(KeyPageDayEntity), { relations: { calendar: true }, skip: 1, take: 2 });
+
+		expect(rawQueries[0]?.sql).toContain('"KeyPageDayEntity"."day"::text AS "key_0"');
+	});
+
+	it('rejects a "query" relation over a date join column and over a date primary key', () => {
+		expect(() => ApiFunctionKeyPageLoader.assertRelationLoad(dataSource.getRepository(KeyPageCalendarEntity), { relationLoadStrategy: "query", relations: { days: true } })).toThrow('relation "days" of entity "KeyPageCalendarEntity" with relationLoadStrategy "query" cannot load because its query filters by the PostgreSQL date or timestamp column "calendarOpenedOn" of entity "KeyPageDayEntity"');
+		expect(() => ApiFunctionKeyPageLoader.assertRelationLoad(dataSource.getRepository(KeyPageDayEntity), { relationLoadStrategy: "query", relations: { calendar: true } })).toThrow('relation "calendar" of entity "KeyPageDayEntity" with relationLoadStrategy "query" cannot load because its query filters by the PostgreSQL date or timestamp column "day" of entity "KeyPageDayEntity"');
 	});
 
 	it("sorts nulls of the key step the way the find order asks", async () => {
@@ -595,6 +609,14 @@ describe("ApiFunctionKeyPageLoader", () => {
 			for (const read of [findOne, findAndCount]) {
 				expect((read.mock.calls[0]?.[0] as { where: { plainAt: { value: unknown } } }).where.plainAt.value).toBe("1800-06-01T12:00:00.000Z");
 			}
+		});
+
+		it("hands the transformer of a date column each Date of a composed condition once", async () => {
+			KEY_PAGE_CALENDAR_INPUTS.length = 0;
+			await ApiFunctionKeyPageLoader.findMany(dataSource.getRepository(KeyPageCalendarEntity), { where: { dueOn: And(MoreThanOrEqual(new Date("2024-03-01T00:00:00.000Z")), LessThan(new Date("2024-04-01T00:00:00.000Z"))) } });
+
+			expect(entityQueries.at(-1)?.parameters).toEqual(["2024-03-01", "2024-04-01"]);
+			expect(KEY_PAGE_CALENDAR_INPUTS).toEqual([new Date("2024-03-01T00:00:00.000Z"), new Date("2024-04-01T00:00:00.000Z")]);
 		});
 
 		it("leaves the driver's parameter types to MSSQL on a composed condition it binds", async () => {
