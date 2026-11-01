@@ -1,0 +1,61 @@
+# Migrating To 5.0
+
+Crud Automator 5.0.0 moves to NestJS 12, `@nestjs/swagger` 12 and TypeORM 1, ships as ES modules only, and tightens several runtime contracts. This page lists every breaking change. Each section links to the Migration Notes of the page that describes the change in full. Stay on 4.x until the application has moved to the new peers.
+
+## Runtime And Peers
+
+| Requirement         | 4.x          | 5.0                       |
+| ------------------- | ------------ | ------------------------- |
+| Node.js             | 20 and later | `^22.13.0 \|\| >=24.11.0` |
+| `@nestjs/common`    | 11           | `>=12.3.2 <13`            |
+| `@nestjs/core`      | 11           | `>=12.3.2 <13`            |
+| `@nestjs/swagger`   | 11           | `>=12.0.0 <13`            |
+| `@nestjs/throttler` | 6            | `>=6.7.1 <7`              |
+| `typeorm`           | 0.3          | `>=1.1.2 <2`              |
+
+1. Upgrade Node.js, NestJS, `@nestjs/swagger` and TypeORM first, following their own migration guides.
+2. Install peers with explicit ranges. Every peer now has an upper bound at the next major, and upgrading a peer past it only prints `npm warn ERESOLVE overriding peer dependency`; check the tree with `npm ls`.
+3. Replace `@nestjs/swagger/dist/*` imports with the package root. Swagger 12 exports only `.` and `./plugin`.
+4. Regenerate API clients: `multipleOf` on a numeric query parameter moves from the parameter object into its `schema`.
+
+See [Getting Started: Migration Notes](/docs/nestjs-crud-automator/getting-started#migration-notes).
+
+## ES Modules Only
+
+The package has one ES module build in `dist`. `dist/esm`, `dist/cjs` and the `require` export condition are gone; `exports` has only `types` and `default`.
+
+- An ES module application imports the package as before, with `moduleResolution` `bundler`, `node16` or `nodenext`.
+- A CommonJS application keeps `require("@elsikora/nestjs-crud-automator")`. Node.js loads it through `require(esm)`, and TypeScript with `module: commonjs` and `node10` resolution finds the types through the top-level `types` field.
+- Deep imports such as `@elsikora/nestjs-crud-automator/dist/cjs/...` no longer resolve. Import from the package root.
+
+See [Getting Started: Migration Notes](/docs/nestjs-crud-automator/getting-started#migration-notes).
+
+## Query Criteria That Would Widen A Query
+
+A generated `get`, `getList`, `getMany` or `update` call fails with `InternalServerErrorException` when its `where` has an `undefined` or `null` value, an empty relation object, an empty OR array or an empty OR branch. Before 5.0.0, TypeORM 0.3 dropped those conditions, so `get({ where: { id: undefined } })` returned the first row.
+
+Remove a condition instead of setting it to `undefined`, and use `IsNull()` instead of `null`. See [Services: Migration Notes](/docs/nestjs-crud-automator/core-concepts/services#migration-notes).
+
+## Error Bodies
+
+- Every error body that passes through `CorrelationIDResponseBodyInterceptor` has `correlationID`, `error`, `message`, `statusCode` and `timestamp`, and the OpenAPI exception schemas declare `error` as required. `message` and `error` have no pattern.
+- A field the body sets keeps its value only when it has the contract type: `statusCode` is an integer equal to the response status, `message` is a string or an array of strings, `error` is a string. Anything else, `null` included, is replaced: `statusCode` by the response status, `message` by the status text, `error` by the status text from `STATUS_CODES`. Keep structured error data in a field of its own.
+- A sanitized `500` has `error: "Internal Server Error"` and `message: "Internal server error"`. Before 5.0.0, `error` was `"Internal server error"`.
+- A thrown object counts as an http-errors value only with an integer `statusCode` from `400` to `599`, and its `message` is sent only with `expose: true`. An `HttpException` status must be an integer from `200` to `599`; any other value answers the sanitized `500`.
+- Failures outside the handler chain, such as a `401` or `403` from a guard or middleware, an unmatched route and a malformed body, get the same contract through `CorrelationIDResponseBodyExceptionFilter`. Register it with `app.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(app.get(HttpAdapterHost)))`, before any filter of your own.
+- Outside HTTP, such as an RPC handler or a gateway, the interceptor and the filter pass the call through and log one warning per component.
+- The exception the interceptor rethrows holds the original failure as `cause`. An exception filter that logs the whole exception now also logs SQL text and parameters; log `FormatErrorEvidenceForLog(exception.cause)` instead.
+
+See [Error Handling: Migration Notes](/docs/nestjs-crud-automator/guides/error-handling#migration-notes).
+
+## No `.env` Loading
+
+Importing the package no longer runs `dotenv`'s `config()`, and the package has no `dotenv` dependency. `NCD_LOG_LEVEL` and every other variable come from `process.env` only. Load the file in the application, for example with `node --env-file=.env` or `@nestjs/config`. See [Utilities: Migration Notes](/docs/nestjs-crud-automator/api-reference/utilities#migration-notes).
+
+## Subscribers Removed On Close
+
+`app.close()` removes the application's subscribers from the registry. Work in your own `onApplicationShutdown` can run without subscribers, depending on module order; move work that needs them to `beforeApplicationShutdown`. See [Lifecycle: Migration Notes](/docs/nestjs-crud-automator/subscriber-system/lifecycle#migration-notes).
+
+## Checking The Upgrade
+
+CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext` and a CommonJS application with `node10` are typechecked and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.

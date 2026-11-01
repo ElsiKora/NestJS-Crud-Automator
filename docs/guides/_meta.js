@@ -7,6 +7,7 @@ export default {
 	"filtering-and-sorting": "Filtering and Sorting",
 	"migrating-to-3-0": "Migrating to 3.0",
 	"migrating-to-4-0": "Migrating to 4.0",
+	"migrating-to-5-0": "Migrating to 5.0",
 	pagination: "Pagination",
 	relations: "Relations",
 	"release-notes-3-0": "3.0 Release Notes",
