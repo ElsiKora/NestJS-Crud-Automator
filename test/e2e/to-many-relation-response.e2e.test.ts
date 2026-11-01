@@ -12,11 +12,35 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eToManyAuthorEntity, E2eToManyCommentEntity, E2eToManyObjectPostController, E2eToManyPostEntity, E2eToManyPostService, E2eToManyReviewEntity, E2eToManyScalarPostController, E2eToManyTagEntity } from "./to-many-relation-response";
+import {
+	E2eToManyAuthorEntity,
+	E2eToManyCommentEntity,
+	E2eToManyLedgerEntity,
+	E2eToManyLedgerService,
+	E2eToManyObjectCodePostController,
+	E2eToManyObjectLedgerController,
+	E2eToManyObjectOrderController,
+	E2eToManyObjectPostController,
+	E2eToManyOrderEntity,
+	E2eToManyOrderItemEntity,
+	E2eToManyOrderService,
+	E2eToManyPostEntity,
+	E2eToManyPostService,
+	E2eToManyReviewEntity,
+	E2eToManyScalarLedgerController,
+	E2eToManyScalarOrderController,
+	E2eToManyScalarPostController,
+	E2eToManyTagEntity,
+} from "./to-many-relation-response";
 
 const AUTHOR: string = "11111111-1111-4111-8111-111111111111";
+const AUTHOR_SECRET: string = "AUTHOR-SECRET";
 const COMMENT_FIRST: string = "22222222-2222-4222-8222-222222222221";
 const COMMENT_SECOND: string = "22222222-2222-4222-8222-222222222222";
+const LEDGER: string = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+const ORDER: string = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
+const ORDER_ITEM_FIRST: string = "55555555-5555-4555-8555-555555555551";
+const ORDER_ITEM_SECOND: string = "55555555-5555-4555-8555-555555555552";
 const POST_EMPTY: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
 const POST_FULL: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
 const REVIEW: string = "44444444-4444-4444-8444-444444444441";
@@ -35,7 +59,7 @@ describe("To-many response relations (E2E)", () => {
 	let app: INestApplication | undefined;
 	let document: OpenAPIObject;
 	let fastify: {
-		inject: (options: { method: string; url: string }) => Promise<{ json: () => unknown; statusCode: number }>;
+		inject: (options: { method: string; payload?: object; url: string }) => Promise<{ body: string; json: () => unknown; statusCode: number }>;
 	};
 
 	const getPost = async (path: string, id: string): Promise<IPostWire> => {
@@ -54,6 +78,14 @@ describe("To-many response relations (E2E)", () => {
 		return (response.json() as { items: Array<IPostWire> }).items;
 	};
 
+	const send = async (method: string, url: string, expectedStatus: HttpStatus, payload?: object): Promise<IPostWire> => {
+		const response = await fastify.inject({ method, payload, url });
+
+		expect(response.statusCode).toBe(expectedStatus);
+
+		return response.json() as IPostWire;
+	};
+
 	const getSchemaProperties = (schemaName: string): Record<string, TSwaggerSchemaObject> => (document.components?.schemas?.[schemaName] as TSwaggerSchemaObject).properties as Record<string, TSwaggerSchemaObject>;
 
 	const expectReferences = (actual: unknown, expected: Array<unknown>): void => {
@@ -63,21 +95,21 @@ describe("To-many response relations (E2E)", () => {
 
 	beforeAll(async () => {
 		const moduleReference = await Test.createTestingModule({
-			controllers: [E2eToManyObjectPostController, E2eToManyScalarPostController],
+			controllers: [E2eToManyObjectCodePostController, E2eToManyObjectLedgerController, E2eToManyObjectOrderController, E2eToManyObjectPostController, E2eToManyScalarLedgerController, E2eToManyScalarOrderController, E2eToManyScalarPostController],
 			imports: [
 				TypeOrmModule.forRoot({
 					database: ":memory:",
 					dropSchema: true,
-					entities: [E2eToManyAuthorEntity, E2eToManyCommentEntity, E2eToManyPostEntity, E2eToManyReviewEntity, E2eToManyTagEntity],
+					entities: [E2eToManyAuthorEntity, E2eToManyCommentEntity, E2eToManyLedgerEntity, E2eToManyOrderEntity, E2eToManyOrderItemEntity, E2eToManyPostEntity, E2eToManyReviewEntity, E2eToManyTagEntity],
 					logging: false,
 					synchronize: true,
 					type: "better-sqlite3",
 				}),
-				TypeOrmModule.forFeature([E2eToManyPostEntity]),
+				TypeOrmModule.forFeature([E2eToManyLedgerEntity, E2eToManyOrderEntity, E2eToManyPostEntity]),
 				ApiAuthorizationModule.forRoot(),
 				ApiSubscriberModule,
 			],
-			providers: [E2eToManyPostService],
+			providers: [E2eToManyLedgerService, E2eToManyOrderService, E2eToManyPostService],
 		}).compile();
 
 		app = moduleReference.createNestApplication(new FastifyAdapter());
@@ -86,8 +118,11 @@ describe("To-many response relations (E2E)", () => {
 		fastify = app.getHttpAdapter().getInstance();
 
 		const { manager } = app.get(E2eToManyPostService).repository;
-		const author: E2eToManyAuthorEntity = await manager.save(E2eToManyAuthorEntity, { id: AUTHOR });
-		const tags: Array<E2eToManyTagEntity> = await manager.save(E2eToManyTagEntity, [{ id: TAG_FIRST }, { id: TAG_SECOND }]);
+		const author: E2eToManyAuthorEntity = await manager.save(E2eToManyAuthorEntity, { code: AUTHOR_SECRET, id: AUTHOR });
+		const tags: Array<E2eToManyTagEntity> = await manager.save(E2eToManyTagEntity, [
+			{ code: "tag-first", id: TAG_FIRST },
+			{ code: "tag-second", id: TAG_SECOND },
+		]);
 		const post: E2eToManyPostEntity = await manager.save(E2eToManyPostEntity, { author, id: POST_FULL, tags, title: "a-full" });
 
 		await manager.save(E2eToManyPostEntity, { id: POST_EMPTY, title: "b-empty" });
@@ -96,6 +131,14 @@ describe("To-many response relations (E2E)", () => {
 			{ id: COMMENT_SECOND, post },
 		]);
 		await manager.save(E2eToManyReviewEntity, { id: REVIEW, post });
+
+		const order: E2eToManyOrderEntity = await manager.save(E2eToManyOrderEntity, { id: ORDER, owner: author, title: "a-order" });
+
+		await manager.save(E2eToManyOrderItemEntity, [
+			{ code: "item-secret", id: ORDER_ITEM_FIRST, order },
+			{ code: "item-secret", id: ORDER_ITEM_SECOND, order },
+		]);
+		await manager.save(E2eToManyLedgerEntity, { id: LEDGER, items: ["x", "y"], owner: author, title: "a-ledger" });
 	});
 
 	afterAll(async () => {
@@ -182,5 +225,129 @@ describe("To-many response relations (E2E)", () => {
 		expect(properties.comments?.format).toBe("uuid");
 		expect(properties.tags?.type).toBe("string");
 		expect(properties.tags?.format).toBe("uuid");
+	});
+
+	describe("write routes", () => {
+		it.each([
+			["PATCH", "to-many-object-posts", [{ id: COMMENT_FIRST }, { id: COMMENT_SECOND }], [{ id: TAG_FIRST }, { id: TAG_SECOND }], { id: AUTHOR }],
+			["PUT", "to-many-object-posts", [{ id: COMMENT_FIRST }, { id: COMMENT_SECOND }], [{ id: TAG_FIRST }, { id: TAG_SECOND }], { id: AUTHOR }],
+			["PATCH", "to-many-scalar-posts", [COMMENT_FIRST, COMMENT_SECOND], [TAG_FIRST, TAG_SECOND], AUTHOR],
+			["PUT", "to-many-scalar-posts", [COMMENT_FIRST, COMMENT_SECOND], [TAG_FIRST, TAG_SECOND], AUTHOR],
+		])("projects relations on %s /%s", async (method: string, path: string, comments: Array<unknown>, tags: Array<unknown>, author: unknown) => {
+			const post = await send(method, `/${path}/${POST_FULL}`, HttpStatus.OK, { title: "a-full" });
+
+			expectReferences(post.comments, comments);
+			expectReferences(post.tags, tags);
+			expect(post.author).toEqual(author);
+		});
+
+		it.each(["to-many-object-posts", "to-many-scalar-posts"])("returns empty to-many relations on POST /%s", async (path: string) => {
+			const post = await send("POST", `/${path}`, HttpStatus.CREATED, { title: `z-created-${path}` });
+
+			expect(post.comments).toEqual([]);
+			expect(post.reviews).toEqual([]);
+			expect(post.tags).toEqual([]);
+			expect(post.author).toBeNull();
+		});
+	});
+
+	describe("custom routes", () => {
+		it("projects to-many relations into object references", async () => {
+			const post = await send("GET", `/to-many-object-posts/custom/${POST_FULL}`, HttpStatus.OK);
+
+			expectReferences(post.comments, [{ id: COMMENT_FIRST }, { id: COMMENT_SECOND }]);
+			expectReferences(post.tags, [{ id: TAG_FIRST }, { id: TAG_SECOND }]);
+		});
+
+		it("projects to-many relations into scalar references", async () => {
+			const post = await send("GET", `/to-many-scalar-posts/custom/${POST_FULL}`, HttpStatus.OK);
+
+			expectReferences(post.comments, [COMMENT_FIRST, COMMENT_SECOND]);
+			expectReferences(post.tags, [TAG_FIRST, TAG_SECOND]);
+		});
+	});
+
+	it("gives empty objects for an OBJECT reference on a key the relation DTO does not expose", async () => {
+		const post = await send("GET", `/to-many-object-code-posts/${POST_FULL}`, HttpStatus.OK);
+
+		expect(post.tags).toEqual([{}, {}]);
+		expect(post.author).toEqual({});
+	});
+
+	describe("entity property named items", () => {
+		interface IOrderWire {
+			id: string;
+			items: unknown;
+			owner: unknown;
+		}
+
+		const expectOrder = (order: IOrderWire, shape: "object" | "scalar"): void => {
+			expectReferences(order.items, shape === "object" ? [{ id: ORDER_ITEM_FIRST }, { id: ORDER_ITEM_SECOND }] : [ORDER_ITEM_FIRST, ORDER_ITEM_SECOND]);
+			expect(order.owner).toEqual(shape === "object" ? { id: AUTHOR } : AUTHOR);
+		};
+
+		it.each([
+			["to-many-object-orders", "object"],
+			["to-many-scalar-orders", "scalar"],
+		] as const)("projects an items relation on /%s", async (path: string, shape: "object" | "scalar") => {
+			const url = `/${path}/${ORDER}`;
+
+			expectOrder((await send("GET", url, HttpStatus.OK)) as unknown as IOrderWire, shape);
+			expectOrder((await send("PATCH", url, HttpStatus.OK, { title: "a-order" })) as unknown as IOrderWire, shape);
+			expectOrder((await send("PUT", url, HttpStatus.OK, { title: "a-order" })) as unknown as IOrderWire, shape);
+
+			const list = (await send("GET", `/${path}?limit=10&page=1&orderBy=title&orderDirection=ASC`, HttpStatus.OK)) as unknown as { items: Array<IOrderWire> };
+
+			expectOrder(list.items[0] as IOrderWire, shape);
+		});
+
+		it.each(["to-many-object-orders", "to-many-scalar-orders"])("returns an empty items relation on POST /%s", async (path: string) => {
+			const order = (await send("POST", `/${path}`, HttpStatus.CREATED, { owner: AUTHOR, title: `z-created-${path}` })) as unknown as IOrderWire;
+
+			expect(order.items).toEqual([]);
+			expect(order.owner).toEqual(path === "to-many-object-orders" ? { id: AUTHOR } : AUTHOR);
+		});
+
+		it("projects an items relation on a custom route without leaking related fields", async () => {
+			const response = await fastify.inject({ method: "GET", url: `/to-many-object-orders/custom/${ORDER}` });
+
+			expect(response.statusCode).toBe(HttpStatus.OK);
+			expectOrder(response.json() as IOrderWire, "object");
+			expect(response.body).not.toContain(AUTHOR_SECRET);
+			expect(response.body).not.toContain("item-secret");
+		});
+
+		it("reads a custom route response as a list envelope only when it declares GET_LIST", async () => {
+			const response = await fastify.inject({ method: "GET", url: "/to-many-object-orders/custom-list" });
+			const { items, totalCount } = response.json() as { items: Array<IOrderWire>; totalCount: number };
+
+			expect(response.statusCode).toBe(HttpStatus.OK);
+			expect(totalCount).toBe(items.length);
+			expectOrder(items.find((item: IOrderWire): boolean => item.id === ORDER) as IOrderWire, "object");
+			expect(response.body).not.toContain(AUTHOR_SECRET);
+		});
+
+		it.each([
+			["to-many-object-ledgers", { id: AUTHOR }],
+			["to-many-scalar-ledgers", AUTHOR],
+		])("projects the owner next to a JSON items column on /%s", async (path: string, owner: unknown) => {
+			const url = `/${path}/${LEDGER}`;
+			const responses = [await send("GET", url, HttpStatus.OK), await send("PATCH", url, HttpStatus.OK, { title: "a-ledger" }), await send("PUT", url, HttpStatus.OK, { title: "a-ledger" }), await send("POST", `/${path}`, HttpStatus.CREATED, { items: ["z"], owner: AUTHOR, title: `z-created-${path}` })];
+			const list = (await send("GET", `/${path}?limit=10&page=1&orderBy=title&orderDirection=ASC`, HttpStatus.OK)) as unknown as { items: Array<IOrderWire> };
+
+			for (const ledger of [...(responses as unknown as Array<IOrderWire>), list.items[0] as IOrderWire]) {
+				expect(ledger.owner).toEqual(owner);
+			}
+		});
+
+		it("projects the owner next to a JSON items column on a custom route", async () => {
+			const response = await fastify.inject({ method: "GET", url: `/to-many-object-ledgers/custom/${LEDGER}` });
+			const ledger = response.json() as IOrderWire;
+
+			expect(response.statusCode).toBe(HttpStatus.OK);
+			expect(ledger.items).toEqual(["x", "y"]);
+			expect(ledger.owner).toEqual({ id: AUTHOR });
+			expect(response.body).not.toContain(AUTHOR_SECRET);
+		});
 	});
 });

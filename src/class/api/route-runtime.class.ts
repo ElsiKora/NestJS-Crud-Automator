@@ -139,7 +139,7 @@ export class ApiRouteRuntime {
 		await ApiControllerHandleRequestRelations(controller, { entity: metadata.resource.entity, routes: {} }, runtimeProperties.relations?.request, body);
 	}
 
-	public static async executeCustomResponseRelations<E extends IApiBaseEntity, R>(controller: TApiControllerMethod<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: R): Promise<R> {
+	public static async executeCustomResponseRelations<E extends IApiBaseEntity, R>(controller: TApiControllerMethod<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: R, routeType?: EApiRouteType): Promise<R> {
 		if (!this.hasResponseRelationInclude(runtimeProperties.relations?.response?.load?.include)) {
 			return response;
 		}
@@ -154,7 +154,7 @@ export class ApiRouteRuntime {
 
 		const responseValue: unknown = response;
 
-		if (responseValue !== null && typeof responseValue === "object" && "items" in responseValue && Array.isArray((responseValue as { items?: unknown }).items)) {
+		if (routeType === EApiRouteType.GET_LIST && responseValue !== null && typeof responseValue === "object" && "items" in responseValue && Array.isArray((responseValue as { items?: unknown }).items)) {
 			const responseObject: { items: Array<unknown> } = responseValue as { items: Array<unknown> };
 			responseObject.items = await Promise.all(responseObject.items.map(async (item: unknown): Promise<unknown> => await this.loadCustomResponseRelations(controller.service, runtimeProperties, item)));
 
@@ -215,7 +215,7 @@ export class ApiRouteRuntime {
 
 	private static async executeCustomResponse<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>, entityInstance: E, contextData: IApiRouteRuntimeContextData<E>, result: R): Promise<R> {
 		const action: string = options.metadata.resource.action;
-		const responseTarget: TApiControllerTransformDataObjectToTransform<E> = { response: ApiRouteProjectRelationResponse(options.runtimeProperties.relations?.response, result) as Partial<E> };
+		const responseTarget: TApiControllerTransformDataObjectToTransform<E> = { response: ApiRouteProjectRelationResponse(options.runtimeProperties.relations?.response, result, options.metadata.route.type) as Partial<E> };
 		let authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined = AuthorizationDecisionResolveFromRequest(contextData.authenticationRequest);
 
 		const controllerProperties: IApiControllerProperties<E> = {
@@ -569,7 +569,7 @@ export class ApiRouteRuntime {
 		assertCursorResponseInvariant(transformedResponse);
 		const identityPlan: IApiControllerIdentityPlan | undefined = this.resolveIdentityPlan(options.controller, options.methodName);
 		const dto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(options.properties, options.entityMetadata, options.method, routeConfig, queryPlan, identityPlan);
-		const projectedResponse: unknown = ApiRouteProjectRelationResponse(routeConfig.relations?.response, transformedResponse);
+		const projectedResponse: unknown = ApiRouteProjectRelationResponse(routeConfig.relations?.response, transformedResponse, options.method);
 
 		assertCursorResponseInvariant(projectedResponse);
 		const serializedResponse: unknown = ApiControllerSerializeRouteResponse(routeConfig, dto, projectedResponse);

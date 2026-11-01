@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import { EApiControllerRelationReferenceShape } from "@enum/decorator/api";
+import { EApiControllerRelationReferenceShape, EApiRouteType } from "@enum/decorator/api";
 import { ApiRouteProjectRelationResponse } from "@utility/api/route/response/project-relation.utility";
 import { describe, expect, it } from "vitest";
 
@@ -64,7 +64,7 @@ describe("ApiRouteProjectRelationResponse", () => {
 			const config: never = buildConfig(EApiControllerRelationReferenceShape.SCALAR);
 
 			expect(ApiRouteProjectRelationResponse(config, [{ children: [{ id: "first" }] }])).toEqual([{ children: ["first"] }]);
-			expect(ApiRouteProjectRelationResponse(config, { items: [{ children: [{ id: "first" }] }], totalCount: 1 })).toEqual({ items: [{ children: ["first"] }], totalCount: 1 });
+			expect(ApiRouteProjectRelationResponse(config, { items: [{ children: [{ id: "first" }] }], totalCount: 1 }, EApiRouteType.GET_LIST)).toEqual({ items: [{ children: ["first"] }], totalCount: 1 });
 		});
 
 		it("is stable when an already projected response is projected again", () => {
@@ -104,5 +104,31 @@ describe("ApiRouteProjectRelationResponse", () => {
 		const response = { children: [{ id: "first" }], owner: { id: "owner" } };
 
 		expect(ApiRouteProjectRelationResponse(buildConfig(EApiControllerRelationReferenceShape.OBJECT), response)).toBe(response);
+	});
+
+	describe("items property", () => {
+		const buildItemsConfig = (shape: EApiControllerRelationReferenceShape): never =>
+			({
+				load: { include: { items: true, owner: true } },
+				reference: { shape },
+			}) as never;
+
+		it.each([undefined, EApiRouteType.CREATE, EApiRouteType.GET, EApiRouteType.PARTIAL_UPDATE, EApiRouteType.UPDATE])("projects the entity owning an items column on route %s", (routeType: EApiRouteType | undefined) => {
+			const response = { items: ["x", "y"], owner: { id: "owner", secret: "s" } };
+
+			expect(ApiRouteProjectRelationResponse({ load: { include: { owner: true } }, reference: { shape: EApiControllerRelationReferenceShape.OBJECT } } as never, response, routeType)).toEqual({ items: ["x", "y"], owner: { id: "owner" } });
+		});
+
+		it.each([EApiRouteType.CREATE, EApiRouteType.GET, EApiRouteType.PARTIAL_UPDATE, EApiRouteType.UPDATE])("projects an items relation of the entity on route %s", (routeType: EApiRouteType) => {
+			expect(ApiRouteProjectRelationResponse(buildItemsConfig(EApiControllerRelationReferenceShape.OBJECT), { items: [{ id: "first", secret: "s" }], owner: { id: "owner", secret: "s" } }, routeType)).toEqual({ items: [{ id: "first" }], owner: { id: "owner" } });
+			expect(ApiRouteProjectRelationResponse(buildItemsConfig(EApiControllerRelationReferenceShape.SCALAR), { items: [{ id: "first", secret: "s" }], owner: { id: "owner", secret: "s" } }, routeType)).toEqual({ items: ["first"], owner: "owner" });
+		});
+
+		it("reads items as the list envelope only on GET_LIST", () => {
+			const buildList = (): unknown => ({ items: [{ items: [{ id: "nested", secret: "s" }], owner: { id: "owner", secret: "s" } }], totalCount: 1 });
+
+			expect(ApiRouteProjectRelationResponse(buildItemsConfig(EApiControllerRelationReferenceShape.OBJECT), buildList(), EApiRouteType.GET_LIST)).toEqual({ items: [{ items: [{ id: "nested" }], owner: { id: "owner" } }], totalCount: 1 });
+			expect(ApiRouteProjectRelationResponse(buildItemsConfig(EApiControllerRelationReferenceShape.SCALAR), buildList(), EApiRouteType.GET_LIST)).toEqual({ items: [{ items: ["nested"], owner: "owner" }], totalCount: 1 });
+		});
 	});
 });

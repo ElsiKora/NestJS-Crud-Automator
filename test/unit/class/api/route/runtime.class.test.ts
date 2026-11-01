@@ -874,6 +874,7 @@ describe("ApiRouteRuntime", () => {
 				},
 			},
 			response,
+			EApiRouteType.GET_LIST,
 		);
 
 		expect(result).toBe(response);
