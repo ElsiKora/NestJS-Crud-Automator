@@ -1,7 +1,7 @@
 import "reflect-metadata";
 
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { Repository } from "typeorm";
+import type { EntityManager, Repository } from "typeorm";
 
 import { ApiServiceBase } from "@class/api";
 import { ApiController } from "@decorator/api/controller/decorator";
@@ -10,6 +10,8 @@ import { ApiService } from "@decorator/api/service/decorator";
 import { EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { Column, DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+import { createTransactionFixture } from "@test/unit/fixture";
 
 const CONTROLLER_ENTITY_ID: string = "11111111-1111-4111-8111-111111111111";
 
@@ -47,6 +49,18 @@ class ControllerEntity {
 	public count!: number;
 }
 
+// Generated CREATE runs in a route transaction, whose manager hands out this same repository.
+const repository: Repository<ControllerEntity> = {
+	find: vi.fn(async (): Promise<Array<ControllerEntity>> => [{ count: 1, id: "id-1", name: "saved" }]),
+	findAndCount: vi.fn(async (): Promise<[Array<ControllerEntity>, number]> => [[{ count: 1, id: "id-1", name: "item" }], 1]),
+	findOne: vi.fn(async (): Promise<ControllerEntity> => ({ count: 2, id: "id-1", name: "found" })),
+	metadata: { primaryColumns: [], relations: [] },
+	remove: vi.fn(async (entity: ControllerEntity): Promise<ControllerEntity> => entity),
+	save: vi.fn(async (entity: Partial<ControllerEntity>): Promise<ControllerEntity> => ({ count: entity.count ?? 1, id: entity.id ?? "id-1", name: entity.name ?? "saved" })),
+} as unknown as Repository<ControllerEntity>;
+
+Object.assign(repository, { manager: { dataSource: createTransactionFixture({ getRepository: vi.fn(() => repository) } as unknown as EntityManager).dataSource } });
+
 @ApiService({ entity: ControllerEntity })
 class ControllerService extends ApiServiceBase<ControllerEntity> {
 	public constructor(public readonly repository: Repository<ControllerEntity>) {
@@ -83,6 +97,9 @@ describe("ApiController (E2E)", () => {
 	beforeAll(async () => {
 		dataSource = await new DataSource({ database: ":memory:", entities: [ControllerEntity], synchronize: true, type: "better-sqlite3" }).initialize();
 		controllerRepository = dataSource.getRepository(ControllerEntity);
+		// The create checks its stored row through the transaction, past the stubs, so the row the stubbed save answers with is stored.
+		await controllerRepository.insert({ count: 1, id: CONTROLLER_ENTITY_ID, name: "saved" });
+		vi.spyOn(controllerRepository, "find").mockResolvedValue([{ count: 1, id: CONTROLLER_ENTITY_ID, name: "saved" }]);
 		vi.spyOn(controllerRepository, "findAndCount").mockResolvedValue([[{ count: 1, id: CONTROLLER_ENTITY_ID, name: "item" }], 1]);
 		vi.spyOn(controllerRepository, "findOne").mockResolvedValue({ count: 2, id: CONTROLLER_ENTITY_ID, name: "found" });
 		vi.spyOn(controllerRepository, "remove").mockImplementation(async (entity: unknown): Promise<never> => entity as never);

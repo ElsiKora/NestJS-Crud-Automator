@@ -618,12 +618,12 @@ describe("generated route transactions with PostgreSQL", () => {
 		expect(await dataSource.getRepository(RouteTransactionItemEntity).count()).toBe(0);
 	});
 
-	it("rejects a lock when SUPPORTS has no active transaction", async () => {
+	it("takes a request relation lock in the transaction a SUPPORTS create owns", async () => {
 		const itemService = new RouteTransactionItemService(dataSource.getRepository(RouteTransactionItemEntity));
 		const ownerService = new RouteTransactionOwnerService(dataSource.getRepository(RouteTransactionOwnerEntity));
 
-		await expect(ApiRouteRuntime.executeGenerated(createGeneratedCreateOptions(itemService, ownerService, "30000000-0000-4000-8000-000000000031", { mode: "pessimistic_read" }, EApiFunctionTransactionMode.SUPPORTS))).rejects.toThrow("Request relation locks require an active transaction");
-		expect(await dataSource.getRepository(RouteTransactionItemEntity).count()).toBe(0);
+		await expect(ApiRouteRuntime.executeGenerated(createGeneratedCreateOptions(itemService, ownerService, "30000000-0000-4000-8000-000000000031", { mode: "pessimistic_read" }, EApiFunctionTransactionMode.SUPPORTS))).resolves.toMatchObject({ id: "30000000-0000-4000-8000-000000000031" });
+		expect(await dataSource.getRepository(RouteTransactionItemEntity).countBy({ id: "30000000-0000-4000-8000-000000000031" })).toBe(1);
 	});
 
 	describe("scoped CREATE under SUPPORTS", () => {

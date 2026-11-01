@@ -3,7 +3,7 @@ import "reflect-metadata";
 import type { ExecutionContext, INestApplication, Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import type { Repository } from "typeorm";
+import type { Logger, Repository } from "typeorm";
 
 import { Inject, Injectable, Module } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
@@ -46,6 +46,26 @@ const IN_SCOPE: string = "scope-in";
 const OUT_OF_SCOPE: string = "scope-out";
 const CONCURRENT_REQUESTS: number = 60;
 const POOL_SIZE: number = 3;
+
+class CreateQueryLogger implements Logger {
+	public readonly queries: Array<string> = [];
+
+	public log(): void {}
+
+	public logMigration(): void {}
+
+	public logQuery(query: string): void {
+		this.queries.push(query);
+	}
+
+	public logQueryError(): void {}
+
+	public logQuerySlow(): void {}
+
+	public logSchemaBuild(): void {}
+}
+
+const queryLogger: CreateQueryLogger = new CreateQueryLogger();
 const POOL_READ_TIMEOUT_MS: number = 2000;
 
 function describeString(description: string): PropertyDecorator {
@@ -507,7 +527,8 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 					entities: [ScopedCompositeEntity, ScopedEventEntity, ScopedItemEntity, TriggerRegionEntity, ...temporalKeyFixtures.map((fixture: ITemporalKeyFixture): Type<object> => fixture.entity)],
 					extra: { max: POOL_SIZE },
 					host: container.getHost(),
-					logging: false,
+					logger: queryLogger,
+					logging: ["query"],
 					password: container.getPassword(),
 					port: container.getPort(),
 					synchronize: true,
@@ -586,11 +607,11 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 			expect(response.json()).toMatchObject({ id: "region-1", region: "eu" });
 		});
 
-		it("answers 500 when a trigger overwrites a primary value the create result still holds", async () => {
+		it("answers 500 and rolls back when a trigger overwrites a primary value the create result still holds", async () => {
 			const response = await fastify.inject({ method: "POST", payload: { id: "region-2", name: "Region", region: "us" }, url: "/create-scope-pg-region" });
 
 			expect(response.statusCode).toBe(500);
-			expect(await regions.findBy({ id: "region-2" })).toEqual([{ id: "region-2", name: "Region", region: "eu" }]);
+			expect(await regions.findBy({ id: "region-2" })).toEqual([]);
 		});
 
 		describe.each(["UTC", "Europe/Moscow", "America/New_York"])("in the %s time zone", (zone: string) => {
@@ -658,6 +679,23 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 		});
 	});
 
+	describe("transaction cost", () => {
+		it("runs a non-scoped create as the queries of a scoped create inside one transaction", async () => {
+			const readQueries = (): Array<string> => queryLogger.queries.splice(0).map((query: string): string => query.replace(/ WHERE .*$/su, ""));
+
+			queryLogger.queries.length = 0;
+			expect((await postItem("create-scope-pg", "cost-scoped", IN_SCOPE)).statusCode).toBe(201);
+			const scopedQueries: Array<string> = readQueries();
+			ScopedItemPolicy.where = {};
+			expect((await postItem("create-scope-pg", "cost-open", IN_SCOPE)).statusCode).toBe(201);
+			const queries: Array<string> = readQueries();
+
+			expect(queries).toEqual(scopedQueries);
+			// The save lookup, the insert, the identity read and the reload, as before the create owned a transaction, plus its boundaries.
+			expect(queries.map((query: string): string => query.split(" ")[0] ?? "")).toEqual(["START", "SELECT", "INSERT", "SELECT", "SELECT", "COMMIT"]);
+		});
+	});
+
 	describe("create function capability", () => {
 		it("rejects an undecorated create on a scoped route before the write", async () => {
 			const response = await postItem("create-scope-pg-undecorated", "raw-out", OUT_OF_SCOPE);
@@ -673,13 +711,13 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 			expect(await items.countBy({ id: "raw-in" })).toBe(0);
 		});
 
-		it("keeps an undecorated create on a non-scoped route", async () => {
+		it("rejects an undecorated create on a non-scoped route before the write", async () => {
 			ScopedItemPolicy.where = {};
 
 			const response = await postItem("create-scope-pg-undecorated", "raw-plain", OUT_OF_SCOPE);
 
-			expect(response.statusCode).toBe(201);
-			expect(await items.countBy({ id: "raw-plain" })).toBe(1);
+			expect(response.statusCode).toBe(500);
+			expect(await items.countBy({ id: "raw-plain" })).toBe(0);
 		});
 
 		it("rolls back a decorated create override", async () => {

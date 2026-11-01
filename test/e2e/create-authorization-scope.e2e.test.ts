@@ -353,6 +353,13 @@ describe("Generated CREATE authorization scope (E2E)", () => {
 			expect(await repository.findOneBy({ id: "item-none-route" })).toBeNull();
 		});
 
+		it("fails closed on a NONE route before writing a non-scoped row", async () => {
+			CreateScopePolicy.whereOverride = {};
+
+			expect(await createItem(NONE_ROUTE_PATH, "item-none-route-open", OUT_OF_SCOPE_TENANT_ID)).toBe(500);
+			expect(await repository.findOneBy({ id: "item-none-route-open" })).toBeNull();
+		});
+
 		it("fails closed on a NONE CREATE function before writing a scoped row", async () => {
 			expect(await createItem(NONE_FUNCTION_PATH, "item-none-function", IN_SCOPE_TENANT_ID)).toBe(500);
 			expect(await repository.findOneBy({ id: "item-none-function" })).toBeNull();
@@ -360,20 +367,20 @@ describe("Generated CREATE authorization scope (E2E)", () => {
 	});
 
 	describe("scope forms", () => {
-		it("treats an IAM Allow without conditions as non-scoped and opens no transaction", async () => {
+		it("treats an IAM Allow without conditions as non-scoped and commits it in its route transaction", async () => {
 			statements = [allowCreate];
 
 			expect(await createItem(IAM_SUPPORTS_PATH, "item-unscoped", OUT_OF_SCOPE_TENANT_ID)).toBe(201);
 			expect(await repository.findOneBy({ id: "item-unscoped" })).toMatchObject({ tenantId: OUT_OF_SCOPE_TENANT_ID });
-			expect(CreateScopeFunctionSubscriber.lifecycle).toEqual([]);
+			expect(CreateScopeFunctionSubscriber.lifecycle).toEqual(["commit:ROUTE"]);
 		});
 
-		it("treats an empty WHERE object as non-scoped and opens no transaction", async () => {
+		it("treats an empty WHERE object as non-scoped and commits it in its route transaction", async () => {
 			CreateScopePolicy.whereOverride = {};
 
-			expect(await createItem(NONE_ROUTE_PATH, "item-empty-where", OUT_OF_SCOPE_TENANT_ID)).toBe(201);
+			expect(await createItem(HOOKS_SUPPORTS_PATH, "item-empty-where", OUT_OF_SCOPE_TENANT_ID)).toBe(201);
 			expect(await repository.findOneBy({ id: "item-empty-where" })).toMatchObject({ tenantId: OUT_OF_SCOPE_TENANT_ID });
-			expect(CreateScopeFunctionSubscriber.lifecycle).toEqual([]);
+			expect(CreateScopeFunctionSubscriber.lifecycle).toEqual(["commit:ROUTE"]);
 		});
 
 		it("refuses every row under a match-nothing scope", async () => {

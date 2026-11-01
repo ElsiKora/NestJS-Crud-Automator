@@ -198,6 +198,13 @@ function createRouteTransactionFixture(storedRows: Array<RuntimeRouteEntity> = [
 	return createTransactionFixture({ getRepository: vi.fn(() => repository) } as unknown as EntityManager);
 }
 
+function storeCreatedRow(properties: Partial<RuntimeRouteEntity>): RuntimeRouteEntity {
+	ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.CREATE, properties);
+	ApiControllerGeneratedReadScopeStorage.captureCreatedEntity(properties, properties);
+
+	return properties as RuntimeRouteEntity;
+}
+
 function createRouteService(dataSource?: DataSource, storedRows: Array<RuntimeRouteEntity> = [STORED_ROW]): ApiServiceBase<RuntimeRouteEntity> {
 	const service: ApiServiceBase<RuntimeRouteEntity> = new ApiServiceBase<RuntimeRouteEntity>();
 
@@ -206,12 +213,7 @@ function createRouteService(dataSource?: DataSource, storedRows: Array<RuntimeRo
 		value: createStoredRowRepository(storedRows, [], dataSource),
 	});
 
-	vi.spyOn(service, "create").mockImplementation(async (properties: Partial<RuntimeRouteEntity>): Promise<RuntimeRouteEntity> => {
-		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.CREATE, properties);
-		ApiControllerGeneratedReadScopeStorage.captureCreatedEntity(properties, properties);
-
-		return properties as RuntimeRouteEntity;
-	});
+	vi.spyOn(service, "create").mockImplementation(async (properties: Partial<RuntimeRouteEntity>): Promise<RuntimeRouteEntity> => storeCreatedRow(properties));
 	vi.spyOn(service, "get").mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
 		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
 
@@ -360,7 +362,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 			expect(ApiFunctionContextStorage.getEventManager()).toBe(transaction.entityManager);
 			order.push("operation");
 
-			return properties as RuntimeRouteEntity;
+			return storeCreatedRow(properties);
 		});
 		vi.spyOn(service, "get").mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
 			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
@@ -640,7 +642,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 	it.each([
 		["omitted", undefined],
 		["SUPPORTS", EApiFunctionTransactionMode.SUPPORTS],
-	] as const)("does not open a route transaction when mode is %s", async (_label, mode) => {
+	] as const)("opens a route transaction for a create when mode is %s", async (_label, mode) => {
 		const transaction = createRouteTransactionFixture();
 		const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
 		const routeConfig: TApiControllerPropertiesRoute<RuntimeRouteEntity, EApiRouteType.CREATE> = mode
@@ -655,7 +657,8 @@ describe("ApiRouteRuntime generated transactions", () => {
 			id: "route-transaction-1",
 		});
 		expect(ApiFunctionContextStorage.getTransactionRegistry()).toBeUndefined();
-		expect(transaction.dataSource.createQueryRunner).not.toHaveBeenCalled();
+		expect(transaction.queryRunner.startTransaction).toHaveBeenCalledTimes(1);
+		expect(transaction.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
 	});
 
 	it.each([EApiFunctionTransactionMode.MANDATORY, EApiFunctionTransactionMode.REQUIRED, EApiFunctionTransactionMode.SUPPORTS])("joins an active manager for route mode %s without opening another transaction", async (mode) => {
@@ -666,7 +669,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 		vi.spyOn(service, "create").mockImplementation(async (properties: Partial<RuntimeRouteEntity>): Promise<RuntimeRouteEntity> => {
 			expect(ApiFunctionContextStorage.getEventManager()).toBe(outerTransaction.entityManager);
 
-			return properties as RuntimeRouteEntity;
+			return storeCreatedRow(properties);
 		});
 
 		await ApiFunctionTransactionScope.runWithDataSource(outerTransaction.dataSource, { name: "outer-route" }, async (): Promise<void> => {
@@ -695,7 +698,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 					callback: async (eventManager): Promise<RuntimeRouteEntity> => {
 						expect(eventManager).toBe(transaction.entityManager);
 
-						return properties as RuntimeRouteEntity;
+						return storeCreatedRow(properties);
 					},
 					entity: RuntimeRouteEntity,
 					functionType: EApiFunctionType.CREATE,
@@ -764,15 +767,12 @@ describe("ApiRouteRuntime generated transactions", () => {
 
 	it("runs NONE without a transaction and rejects NONE inside an active transaction", async () => {
 		const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService();
-		const options = createGeneratedCreateOptions(service, {
-			transaction: {
-				mode: EApiFunctionTransactionMode.NONE,
-			},
-		});
+		const options = createGeneratedReadOrDeleteOptions(service, EApiRouteType.DELETE);
 
-		await expect(ApiRouteRuntime.executeGenerated(options)).resolves.toMatchObject({
-			id: "route-transaction-1",
-		});
+		(options.properties.routes[EApiRouteType.DELETE] as { transaction: { mode: EApiFunctionTransactionMode } }).transaction.mode = EApiFunctionTransactionMode.NONE;
+
+		await expect(ApiRouteRuntime.executeGenerated(options)).resolves.toBeUndefined();
+		expect(service.delete).toHaveBeenCalledTimes(1);
 
 		const outerTransaction = createRouteTransactionFixture();
 
@@ -895,17 +895,6 @@ describe("ApiRouteRuntime generated transactions", () => {
 		it.each([
 			["an omitted scope", undefined],
 			["an empty WHERE object", {}],
-		])("opens no transaction under SUPPORTS for %s", async (_name: string, where: unknown) => {
-			const transaction = createRouteTransactionFixture();
-			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
-
-			await ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, where));
-
-			expect(service.create).toHaveBeenCalledTimes(1);
-			expect(transaction.dataSource.createQueryRunner).not.toHaveBeenCalled();
-		});
-
-		it.each([
 			["a scalar WHERE", { source: "response" }],
 			["a WHERE array", [{ source: "response" }, { source: "request" }]],
 			["a match-nothing WHERE", { id: In([]) }],
@@ -939,13 +928,15 @@ describe("ApiRouteRuntime generated transactions", () => {
 			expect(transaction.queryRunner.commitTransaction).not.toHaveBeenCalled();
 		});
 
-		it("keeps the 404 of a reload miss without a scope", async () => {
-			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService();
+		it("keeps the 404 of a reload miss without a scope and rolls back", async () => {
+			const transaction = createRouteTransactionFixture();
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
 			const reloadError: NotFoundException = new NotFoundException();
 
 			mockReloadMiss(service, reloadError);
 
 			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, undefined))).rejects.toBe(reloadError);
+			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
 		});
 
 		it("keeps a reload 404 that is not the read miss and rolls back", async () => {
@@ -1006,34 +997,30 @@ describe("ApiRouteRuntime generated transactions", () => {
 			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
 		});
 
-		it.each([EApiFunctionTransactionMode.NONE, "UNKNOWN" as EApiFunctionTransactionMode])("fails closed on a %s route before writing", async (mode: EApiFunctionTransactionMode) => {
+		it.each([
+			[EApiFunctionTransactionMode.NONE, "scoped", { source: "response" }],
+			[EApiFunctionTransactionMode.NONE, "non-scoped", undefined],
+			["UNKNOWN" as EApiFunctionTransactionMode, "scoped", { source: "response" }],
+		])("fails closed on a %s %s route before writing", async (mode: EApiFunctionTransactionMode, _name: string, where: unknown) => {
 			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService();
 
-			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }, { transaction: { mode } }))).rejects.toThrow("ApiRoute generated transaction mode cannot enforce an authorization scope on a write without a transaction");
+			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, where, { transaction: { mode } }))).rejects.toThrow("ApiRoute generated transaction mode cannot run a create without a transaction");
 			expect(service.create).not.toHaveBeenCalled();
 		});
 
-		it("rejects an unprotected create before the transaction and the write", async () => {
+		it.each([
+			["a scoped", { source: "response" }],
+			["a non-scoped", undefined],
+		])("rejects an unprotected create on %s route before the transaction and the write", async (_name: string, where: unknown) => {
 			const transaction = createRouteTransactionFixture();
 			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
 			const unprotectedCreate = vi.fn();
 
 			Object.defineProperty(service, "create", { value: unprotectedCreate });
 
-			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }))).rejects.toThrow("Generated create service function is not protected by its built-in decorator");
+			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, where))).rejects.toThrow("Generated create service function is not protected by its built-in decorator");
 			expect(unprotectedCreate).not.toHaveBeenCalled();
 			expect(transaction.dataSource.createQueryRunner).not.toHaveBeenCalled();
-		});
-
-		it("keeps an unprotected create on a non-scoped route", async () => {
-			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService();
-			const unprotectedCreate = vi.fn(async (): Promise<RuntimeRouteEntity> => ({ id: "route-transaction-1", source: "response" }));
-
-			Object.defineProperty(service, "create", { value: unprotectedCreate });
-
-			await ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, undefined));
-
-			expect(unprotectedCreate).toHaveBeenCalledTimes(1);
 		});
 
 		function createCompositeOptions(service: ApiServiceBase<RuntimeRouteEntity>, where: unknown): IApiRouteRuntimeGeneratedExecutionOptions<RuntimeRouteEntity, EApiRouteType.CREATE> {
@@ -1048,7 +1035,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 		}
 
 		it("reloads a composite key through every primary column", async () => {
-			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService();
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(createRouteTransactionFixture().dataSource);
 
 			await ApiRouteRuntime.executeGenerated(createCompositeOptions(service, undefined));
 
@@ -1119,11 +1106,13 @@ describe("ApiRouteRuntime generated transactions", () => {
 			expect(transaction.queryRunner.commitTransaction).not.toHaveBeenCalled();
 		});
 
-		it("checks the identity of a non-scoped create through the service repository", async () => {
-			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(undefined, []);
+		it("checks the identity of a non-scoped create through the transaction repository", async () => {
+			const transaction = createRouteTransactionFixture([]);
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
 
 			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, undefined))).rejects.toThrow("Generated create result must identify exactly one stored row");
 			expect(service.get).not.toHaveBeenCalled();
+			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
 		});
 
 		it.each([
@@ -1239,14 +1228,6 @@ describe("ApiRouteRuntime generated transactions", () => {
 
 			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }))).rejects.toThrow("Generated create must capture its stored row exactly once");
 			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
-		});
-
-		it("keeps a non-scoped NONE route outside any transaction", async () => {
-			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService();
-
-			await ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, {}, { transaction: { mode: EApiFunctionTransactionMode.NONE } }));
-
-			expect(service.create).toHaveBeenCalledTimes(1);
 		});
 
 		it("rejects an empty WHERE array before opening a transaction or writing", async () => {

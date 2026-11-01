@@ -29,7 +29,7 @@ import { LoggerUtility } from "@utility/logger.utility";
 import { Column, DataSource, Entity, getMetadataArgsStorage, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
-import { createGeneratedServiceDouble } from "@test/unit/fixture";
+import { createGeneratedServiceDouble, createTransactionFixture } from "@test/unit/fixture";
 
 const FACTORY_ENTITY_ID: string = "11111111-1111-4111-8111-111111111111";
 
@@ -78,11 +78,15 @@ class FactoryEntity {
 	public count!: number;
 }
 
+const storedRowRepository = { find: vi.fn(async () => [{ id: "id-1" }]), metadata: { primaryColumns: [] } };
+
 class FactoryService extends ApiServiceBase<FactoryEntity> {
 	public override create = vi.fn(async (properties: Partial<FactoryEntity>) => {
 		const created: FactoryEntity = { id: properties.id ?? "id-1", name: properties.name ?? "created", count: 1 } as FactoryEntity;
 
 		ApiControllerGeneratedInsertedKeyStorage.claim(properties, "FactoryEntity")?.({ id: created.id });
+		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.CREATE, properties);
+		ApiControllerGeneratedReadScopeStorage.captureCreatedEntity(properties, created);
 
 		return created;
 	});
@@ -91,7 +95,7 @@ class FactoryService extends ApiServiceBase<FactoryEntity> {
 
 		return { id: properties.where?.id ?? "id-1", name: "found", count: 2 } as FactoryEntity;
 	});
-	public readonly repository = { find: vi.fn(async () => [{ id: "id-1" }]), metadata: { primaryColumns: [] } } as unknown as Repository<FactoryEntity>;
+	public readonly repository = { ...storedRowRepository, manager: { dataSource: createTransactionFixture({ getRepository: vi.fn(() => storedRowRepository) } as never).dataSource } } as unknown as Repository<FactoryEntity>;
 	public override update = vi.fn(async (criteria: Partial<FactoryEntity>, properties: Partial<FactoryEntity>) => {
 		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.UPDATE, criteria);
 
