@@ -356,16 +356,14 @@ export class ApiRouteRuntime {
 						markAfterBoundary();
 						const createProperties: never = (targets.body ?? {}) as never;
 
-						// A scoped verdict checks the row the protected function stored, not a result its subscribers may replace.
-						const createdKey: Partial<Record<keyof E, unknown>> = createFunction
-							? await ApiControllerGeneratedReadScopeStorage.runCreate(
-									createProperties,
-									scopeWhere,
-									async (): Promise<E> => await Reflect.apply(createFunction, service, [createProperties]),
-									(entity: object): Partial<Record<keyof E, unknown>> => ApiControllerGeneratedCreateIdentityContract.capture(entity, primaryColumns),
-								)
-							: ApiControllerGeneratedCreateIdentityContract.capture(await service.create(createProperties), primaryColumns);
-						const identity: FindOptionsWhere<E> = await ApiControllerGeneratedCreateIdentityContract.identify(eventManager ? eventManager.getRepository<E>(options.properties.entity as EntityTarget<E>) : (service as { repository?: Repository<E> } & ApiServiceBase<E>).repository, createdKey);
+						// The reload checks the row the protected function stored, not a result its subscribers may replace.
+						const createdKey: Partial<Record<keyof E, unknown>> = await ApiControllerGeneratedReadScopeStorage.runCreate(
+							createProperties,
+							scopeWhere,
+							async (): Promise<E> => await Reflect.apply(createFunction, service, [createProperties]),
+							(entity: object): Partial<Record<keyof E, unknown>> => ApiControllerGeneratedCreateIdentityContract.capture(entity, primaryColumns),
+						);
+						const identity: FindOptionsWhere<E> = await ApiControllerGeneratedCreateIdentityContract.identify(eventManager?.getRepository<E>(options.properties.entity as EntityTarget<E>), createdKey);
 
 						const requestProperties: TApiFunctionGetProperties<E> = {
 							relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
@@ -385,7 +383,7 @@ export class ApiRouteRuntime {
 							}
 						});
 					},
-					isScopedWrite,
+					true,
 				);
 			}
 
@@ -679,7 +677,7 @@ export class ApiRouteRuntime {
 		return serializedResponse;
 	}
 
-	private static async executeGeneratedTransaction<E extends IApiBaseEntity, R extends EApiRouteType, T>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, routeConfig: TApiControllerPropertiesRoute<E, R>, callback: (eventManager: EntityManager | undefined) => Promise<T>, isScopedWrite: boolean = false): Promise<T> {
+	private static async executeGeneratedTransaction<E extends IApiBaseEntity, R extends EApiRouteType, T>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, routeConfig: TApiControllerPropertiesRoute<E, R>, callback: (eventManager: EntityManager | undefined) => Promise<T>, isTransactionRequired: boolean = false): Promise<T> {
 		const mode: EApiFunctionTransactionMode = routeConfig.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 		const activeEventManager: EntityManager | undefined = ApiFunctionContextStorage.getTransactionRegistry() ? ApiFunctionContextStorage.getEventManager() : undefined;
 
@@ -691,8 +689,8 @@ export class ApiRouteRuntime {
 			throw ErrorException("ApiRoute generated transaction mode MANDATORY requires an active transaction");
 		}
 
-		// A scoped write stays uncommitted until its scoped reload confirms the row, so SUPPORTS has to own a transaction here.
-		if ((mode === EApiFunctionTransactionMode.REQUIRED || (mode === EApiFunctionTransactionMode.SUPPORTS && isScopedWrite)) && !activeEventManager) {
+		// A create stays uncommitted until its reload confirms the stored row, so SUPPORTS has to own a transaction here.
+		if ((mode === EApiFunctionTransactionMode.REQUIRED || (mode === EApiFunctionTransactionMode.SUPPORTS && isTransactionRequired)) && !activeEventManager) {
 			const repository: Repository<E> | undefined = (options.controller.service as { repository?: Repository<E> } & ApiServiceBase<E>).repository;
 
 			if (!repository) {
@@ -711,8 +709,8 @@ export class ApiRouteRuntime {
 			});
 		}
 
-		if (isScopedWrite && !activeEventManager) {
-			throw ErrorException("ApiRoute generated transaction mode cannot enforce an authorization scope on a write without a transaction");
+		if (isTransactionRequired && !activeEventManager) {
+			throw ErrorException("ApiRoute generated transaction mode cannot run a create without a transaction");
 		}
 
 		return await callback(activeEventManager);
