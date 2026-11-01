@@ -12,7 +12,35 @@ import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/control
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { EnumValues } from "@utility/enum/values.utility";
 
+// An instant value names its zone: a calendar date, which JavaScript reads as UTC, or an ISO date-time ending in "Z" or an offset.
+const INSTANT_DATE_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}$/u;
+const INSTANT_DATE_TIME_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/u;
+const INSTANT_ZONE_PATTERN: RegExp = /(?:Z|[+-]\d{2}:?\d{2})$/iu;
+
 export class ApiControllerGetListQueryRuntime {
+	/**
+	 * Rejects a client filter value on an instant column that does not name its zone, on every GET_LIST route.
+	 * A plain date and a date-time with `Z` or a numeric offset with minutes pass; an operator that takes no value is not checked.
+	 * @param {Record<string, unknown>} query - Query as the request carries it
+	 * @param {ReadonlySet<string>} instantPaths - Filter paths whose columns store exact instants
+	 * @throws {BadRequestException} INVALID_FILTER when a value of such a path names no zone
+	 */
+	public static assertZonedInstantValues(query: Record<string, unknown>, instantPaths: ReadonlySet<string>): void {
+		for (const path of instantPaths) {
+			const operation: unknown = query[`${path}[operator]`];
+
+			if (!EnumIsValue(EFilterOperation, operation) || FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operation].operand === EFilterOperand.NONE) {
+				continue;
+			}
+
+			const values: ReadonlyArray<unknown> = [query[`${path}[value]`], query[`${path}[values]`]].flat();
+
+			if (values.some((value: unknown): boolean => this.isZoneLessInstantValue(value))) {
+				throw new BadRequestException("INVALID_FILTER");
+			}
+		}
+	}
+
 	public static compileWhere<E>(ast: IApiControllerGetListQueryAst): TApiFunctionGetListPropertiesWhere<E> {
 		const where: TApiFunctionGetListPropertiesWhere<E> = {};
 		const whereRecord: Record<string, unknown> = where;
@@ -51,6 +79,12 @@ export class ApiControllerGetListQueryRuntime {
 		return where;
 	}
 
+	/**
+	 * Parses a GET_LIST query against its compiled plan.
+	 * @param {Record<string, unknown>} query - Query as the request carries it
+	 * @param {IApiControllerGetListQueryPlan} plan - Compiled query plan of the route
+	 * @returns {IApiControllerGetListQueryRuntimeResult} The parsed query
+	 */
 	public static parse(query: Record<string, unknown>, plan: IApiControllerGetListQueryPlan): IApiControllerGetListQueryRuntimeResult {
 		const limit: number = this.parsePositiveInteger(query.limit, GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MINIMUM_LIST_LENGTH, GET_LIST_QUERY_DTO_FACTORY_CONSTANT.MAXIMUM_LIST_LENGTH, "limit");
 		const paginationMode: EApiControllerGetListQueryPaginationMode = ApiControllerGetListQueryGetPaginationMode(plan);
@@ -96,6 +130,15 @@ export class ApiControllerGetListQueryRuntime {
 		}
 
 		return Object.freeze(entries);
+	}
+
+	/**
+	 * A date-time string without a zone would take the zone of whoever parses it, which names no single instant.
+	 * @param {unknown} value - The raw filter value
+	 * @returns {boolean} True when the value is a string that is neither a plain date nor a date-time with a zone
+	 */
+	private static isZoneLessInstantValue(value: unknown): boolean {
+		return typeof value === "string" && !INSTANT_DATE_PATTERN.test(value) && !(INSTANT_DATE_TIME_PATTERN.test(value) && INSTANT_ZONE_PATTERN.test(value));
 	}
 
 	private static parseCursor(afterValue: unknown, beforeValue: unknown, pageValue: unknown): { after?: string; before?: string } {

@@ -1146,6 +1146,57 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(() => validateStorageField({ type: EApiPropertyDescribeType.NUMBER })).toThrow('CURSOR GET_LIST order field "field" must be a selected persisted column without a transformer');
 	});
 
+	it("rejects a zone-less date-time filter value on an instant path whatever the route plan is", () => {
+		const instantPaths: ReadonlySet<string> = new Set<string>(["account.openedAt", "safeTimestamptz"]);
+		const assertValue = (path: string, value: unknown, operation: EFilterOperation = EFilterOperation.GTE): void => ApiControllerGetListQueryRuntime.assertZonedInstantValues({ [`${path}[operator]`]: operation, [`${path}[value]`]: value }, instantPaths);
+
+		// Each zone-less form takes the zone of whoever parses it; "+05" has no minutes and JavaScript reads no instant from it.
+		for (const zoneLess of ["2024-03-01T10:00:00", "2024-03-01T10:00:00.123", "2024-03-01 10:00:00", "2024-03-01T10:00", "March 1, 2024 10:00:00", "2024-03-01T10:00:00+", "2024-03-01T15:30:00+05", "1709287200000", "2024-03"]) {
+			expect(() => assertValue("safeTimestamptz", zoneLess)).toThrow("INVALID_FILTER");
+			expect(() => assertValue("account.openedAt", zoneLess)).toThrow("INVALID_FILTER");
+		}
+
+		for (const zoned of ["2024-03-01T10:00:00Z", "2024-03-01T10:00:00z", "2024-03-01 10:00Z", "2024-03-01T15:30:00+05:30", "2024-03-01T15:30:00+0530", "2024-03-01T04:30:00-05:30", "2024-03-01"]) {
+			expect(() => assertValue("safeTimestamptz", zoned)).not.toThrow();
+		}
+
+		expect(() => ApiControllerGetListQueryRuntime.assertZonedInstantValues({ "safeTimestamptz[operator]": EFilterOperation.BETWEEN, "safeTimestamptz[values]": ["2024-03-01T10:00:00Z", "2024-03-01T10:00:00"] }, instantPaths)).toThrow("INVALID_FILTER");
+		expect(() => ApiControllerGetListQueryRuntime.assertZonedInstantValues({ "safeTimestamptz[operator]": EFilterOperation.IN, "safeTimestamptz[values]": "2024-03-01T10:00:00" }, instantPaths)).toThrow("INVALID_FILTER");
+		expect(() => ApiControllerGetListQueryRuntime.assertZonedInstantValues({ "safeTimestamptz[operator]": EFilterOperation.BETWEEN, "safeTimestamptz[values]": ["2024-03-01T10:00:00Z", "2024-03-02T10:00:00Z"] }, instantPaths)).not.toThrow();
+		// An operator that takes no value, or none the route reads, leaves its value unchecked.
+		expect(() => assertValue("safeTimestamptz", "2024-03-01T10:00:00", EFilterOperation.ISNULL)).not.toThrow();
+		expect(() => assertValue("safeTimestamptz", "2024-03-01T10:00:00", EFilterOperation.NOTNULL)).not.toThrow();
+		expect(() => assertValue("safeTimestamptz", "2024-03-01T10:00:00", "unknown" as EFilterOperation)).not.toThrow();
+		// Paths over other columns keep their values.
+		expect(() => assertValue("unsafeTimestamp", "2024-03-01T10:00:00")).not.toThrow();
+		expect(() => assertValue("safeTimestamptz", new Date("2024-03-01T10:00:00Z"))).not.toThrow();
+	});
+
+	it("keeps parsing a zone-less date-time filter value in the process zone", () => {
+		const storageMetadata: IApiEntity<CursorStorageQueryEntity> = GenerateEntityInformation<CursorStorageQueryEntity>(CursorStorageQueryEntity as unknown as IApiBaseEntity);
+		const routeConfig = {
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					filter: { fields: { unsafeTimestamp: { allowedOperations: [EFilterOperation.GTE], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT },
+				},
+			},
+		} as unknown as TApiControllerPropertiesRoute<CursorStorageQueryEntity, EApiRouteType.GET_LIST>;
+		const plan: IApiControllerGetListQueryPlan = ApiControllerGetListQueryPlanCompiler.compile(CursorQueryController, CursorStorageQueryEntity, storageMetadata, routeConfig)!;
+		const originalTimezone: string | undefined = process.env.TZ;
+
+		process.env.TZ = "Asia/Kolkata";
+
+		try {
+			expect(ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1, "unsafeTimestamp[operator]": EFilterOperation.GTE, "unsafeTimestamp[value]": "2024-03-01T10:00:00" }, plan).ast?.nodes[0]?.value).toEqual(new Date("2024-03-01T04:30:00.000Z"));
+		} finally {
+			if (originalTimezone === undefined) {
+				delete process.env.TZ;
+			} else {
+				process.env.TZ = originalTimezone;
+			}
+		}
+	});
+
 	it("lets a PAGE plan order by timestamptz and uuid columns", () => {
 		const instantMetadata: IApiEntity<TransformedInstantQueryEntity> = GenerateEntityInformation<TransformedInstantQueryEntity>(TransformedInstantQueryEntity as unknown as IApiBaseEntity);
 		const routeConfig = {

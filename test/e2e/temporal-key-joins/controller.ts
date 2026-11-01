@@ -70,3 +70,29 @@ export const createLedgerController = (options: TLedgerControllerOptions): new (
 
 	return E2eTemporalLedgerController;
 };
+
+/**
+ * Creates a ledger controller whose GET_LIST route keeps every default, so its filters take the legacy transform path.
+ * @returns {new () => unknown} The controller class
+ */
+export const createDefaultLedgerController = (): new () => unknown => {
+	@ApiController<E2eTemporalLedgerEntity>({
+		entity: E2eTemporalLedgerEntity,
+		name: "E2eTemporalDefaultLedgers",
+		path: "temporal-ledgers-default",
+		routes: {
+			[EApiRouteType.CREATE]: { generation: { isEnabled: false } },
+			[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
+			[EApiRouteType.GET]: { generation: { isEnabled: false } },
+			[EApiRouteType.GET_LIST]: {},
+			[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
+			[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
+		},
+	})
+	class E2eTemporalDefaultLedgerController {
+		@Inject(E2eTemporalLedgerService)
+		public readonly service!: E2eTemporalLedgerService;
+	}
+
+	return E2eTemporalDefaultLedgerController;
+};

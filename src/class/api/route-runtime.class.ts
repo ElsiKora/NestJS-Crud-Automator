@@ -24,9 +24,10 @@ import type { TApiControllerGetListQuery, TApiControllerPropertiesRoute } from "
 import type { TApiFunctionDeleteCriteria, TApiFunctionGetListProperties, TApiFunctionGetListPropertiesWhere, TApiFunctionGetManyProperties, TApiFunctionGetProperties, TApiFunctionUpdateCriteria } from "@type/decorator/api/function";
 import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 import type { TApiControllerTransformDataObjectToTransform } from "@type/utility";
+import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
-import type { DeepPartial, EntityManager, FindOptionsOrder, FindOptionsWhere, Repository } from "typeorm";
+import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsOrder, FindOptionsWhere, RelationMetadata } from "typeorm";
 
 import { ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
@@ -37,6 +38,7 @@ import { ApiFunctionContextStorage } from "@class/api/function/context-storage.c
 import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/runtime.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
+import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
 import { FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiDtoType } from "@enum/decorator/api";
@@ -61,6 +63,10 @@ import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge
 import { ErrorException } from "@utility/error/exception.utility";
 import { instanceToPlain, plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
+import { Repository } from "typeorm";
+
+// A filter value key names its path before "[value]" or "[values]", as the query carries it.
+const FILTER_VALUE_KEY_PATTERN: RegExp = /^(.+)\[values?\]$/u;
 
 export class ApiRouteRuntime {
 	public static async executeCustom<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>): Promise<R> {
@@ -386,6 +392,8 @@ export class ApiRouteRuntime {
 					cursorPlan = queryPlan as TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR>;
 				}
 
+				ApiControllerGetListQueryRuntime.assertZonedInstantValues(query, this.resolveInstantFilterPaths(options.controller.service, query));
+
 				const cursorRuntimeQuery: TApiControllerGetListCursorQueryRuntimeResult | undefined = cursorPlan ? (ApiControllerGetListQueryRuntime.parse(query, cursorPlan) as unknown as TApiControllerGetListCursorQueryRuntimeResult) : undefined;
 				const pageRuntimeQuery: IApiControllerGetListQueryRuntimeResult | undefined = !cursorPlan && queryPlan ? ApiControllerGetListQueryRuntime.parse(query, queryPlan) : undefined;
 				const runtimeQuery: IApiControllerGetListQueryRuntimeResult | TApiControllerGetListCursorQueryRuntimeResult | undefined = cursorRuntimeQuery ?? pageRuntimeQuery;
@@ -689,10 +697,50 @@ export class ApiRouteRuntime {
 		});
 	}
 
+	/**
+	 * Resolves the column a filter path names, through relations, by the active entity metadata.
+	 * @param {EntityMetadata} metadata - Metadata of the entity the path starts at
+	 * @param {string} path - Filter path as the query names it
+	 * @returns {TTypeOrmColumnMetadata | undefined} The column, or undefined when the path names none
+	 */
+	private static resolveFilterColumn(metadata: EntityMetadata, path: string): TTypeOrmColumnMetadata | undefined {
+		const [relationName, ...nestedNames]: Array<string> = path.split(".");
+		const relation: RelationMetadata | undefined = nestedNames.length > 0 ? metadata.findRelationWithPropertyPath(relationName ?? "") : undefined;
+
+		return relation ? this.resolveFilterColumn(relation.inverseEntityMetadata, nestedNames.join(".")) : metadata.findColumnWithPropertyPath(path);
+	}
+
 	private static resolveIdentityPlan(controller: object, methodName: string): IApiControllerIdentityPlan | undefined {
 		const handler: unknown = Reflect.get(controller, methodName);
 
 		return typeof handler === "function" ? ApiControllerIdentityPlanGet(handler) : undefined;
+	}
+
+	/**
+	 * Resolves the filter paths of a request whose columns store exact instants, by the column types the active driver normalizes.
+	 * It reads the query itself, so routes without a compiled filter plan resolve the same paths.
+	 * @param {unknown} service - Service of the route
+	 * @param {Record<string, unknown>} query - Query as the request carries it
+	 * @returns {ReadonlySet<string>} Filter paths over instant columns
+	 */
+	private static resolveInstantFilterPaths(service: unknown, query: Record<string, unknown>): ReadonlySet<string> {
+		const repository: unknown = (service as { repository?: unknown } | undefined)?.repository;
+		const instantPaths: Set<string> = new Set<string>();
+
+		if (!(repository instanceof Repository)) {
+			return instantPaths;
+		}
+
+		for (const key of Object.keys(query)) {
+			const path: string | undefined = FILTER_VALUE_KEY_PATTERN.exec(key)?.[1];
+			const column: TTypeOrmColumnMetadata | undefined = path ? this.resolveFilterColumn(repository.metadata, path) : undefined;
+
+			if (path && column && DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(repository.manager.dataSource.driver.normalizeType(column))) {
+				instantPaths.add(path);
+			}
+		}
+
+		return instantPaths;
 	}
 
 	private static resolvePrimaryKey<E extends IApiBaseEntity>(source: DeepPartial<E> | Partial<E> | undefined, entityMetadata: IApiEntity<E>): IApiControllerPrimaryColumn<E> {
