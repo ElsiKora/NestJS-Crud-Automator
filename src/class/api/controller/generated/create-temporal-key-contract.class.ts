@@ -26,8 +26,8 @@ const MILLISECONDS_PER_SECOND: number = 1000;
 
 const DECIMAL_BASE: number = 10;
 
-// Drivers whose date and time binding the generated create identity is verified against.
-const SUPPORTED_DRIVER_TYPES: ReadonlySet<string> = new Set<string>(["better-sqlite3", "cockroachdb", "mariadb", "mysql", "postgres", "sqlite"]);
+// Drivers that pass the temporal primary key matrix end to end.
+const SUPPORTED_DRIVER_TYPES: ReadonlySet<string> = new Set<string>(["cockroachdb", "mariadb", "postgres"]);
 
 /**
  * Parses the date and time primary key values of a create body once, so the row the create writes and the key that identifies it hold the same value.
