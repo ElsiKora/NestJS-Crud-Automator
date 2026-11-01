@@ -30,6 +30,7 @@ import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema
 import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
 import { ApiControllerReadPlanGet, ApiControllerReadPlanSet } from "@utility/api/controller/read";
 import { ApiControllerWriteDtoSwaggerWithReadPlan } from "@utility/api/controller/write/dto-swagger.utility";
+import { ApiRouteRebindInheritedCustom } from "@utility/api/route/rebind-inherited-custom.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
@@ -114,6 +115,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 
 	init(): void {
 		this.schemaPrefix = this.claimSchemaPrefix();
+		ApiRouteRebindInheritedCustom(this.target);
 
 		for (const method of Object.values(EApiRouteType)) {
 			this.createMethod(method);

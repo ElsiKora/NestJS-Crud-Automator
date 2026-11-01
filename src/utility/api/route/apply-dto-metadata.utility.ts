@@ -29,9 +29,9 @@ type TApiRouteRequestDto = TApiRouteDiscriminatedDtoProperties | Type<unknown>;
  * @param {IApiRouteMetadata<E>} metadata - Route metadata used to resolve generated DTOs.
  * @param {IApiRouteRuntimeProperties<E, undefined>} runtimeProperties - Runtime route config containing dto/autoDto.
  * @param {PropertyDescriptor} descriptor - Custom route method descriptor.
- * @returns {void}
+ * @returns {Record<string, Array<unknown>>} The Swagger metadata entries this call added to the handler, per metadata key.
  */
-export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: object, propertyKey: string | symbol, metadata: IApiRouteMetadata<E>, runtimeProperties: IApiRouteRuntimeProperties<E, undefined>, descriptor: PropertyDescriptor): void {
+export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: object, propertyKey: string | symbol, metadata: IApiRouteMetadata<E>, runtimeProperties: IApiRouteRuntimeProperties<E, undefined>, descriptor: PropertyDescriptor): Record<string, Array<unknown>> {
 	const handlerName: string = String(propertyKey);
 	const bodyDto: TApiRouteRequestDto | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.BODY, target.constructor, handlerName);
 	const parametersDtoConfig: TApiRouteRequestDto | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.PARAMETERS, target.constructor, handlerName);
@@ -84,9 +84,15 @@ export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: objec
 		swaggerDecorators.push(ApiBody({ type: bodyDto }));
 	}
 
+	const handler: object = descriptor.value as object;
+	const contributionKeys: Array<string> = [SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, SWAGGER_METADATA_CONSTANT.PARAMETERS];
+	const before: Array<Array<unknown>> = contributionKeys.map((key: string): Array<unknown> => (Reflect.getOwnMetadata(key, handler) as Array<unknown> | undefined) ?? []);
+
 	if (swaggerDecorators.length > 0) {
 		applyDecorators(...swaggerDecorators)(target, propertyKey, descriptor);
 	}
+
+	return Object.fromEntries(contributionKeys.map((key: string, index: number): [string, Array<unknown>] => [key, ((Reflect.getOwnMetadata(key, handler) as Array<unknown> | undefined) ?? []).filter((entry: unknown): boolean => !before[index]?.includes(entry))]));
 }
 
 /**

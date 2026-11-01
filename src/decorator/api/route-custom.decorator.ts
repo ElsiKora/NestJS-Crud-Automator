@@ -1,15 +1,18 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiRouteCustomProperties, IApiRouteMetadata, IApiRouteRuntimeProperties } from "@interface/decorator/api";
+import type { IDtoSchemaNameCustomRoute } from "@interface/utility/schema-name";
 import type { TApiControllerMethod } from "@type/class/controller-method.type";
 
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
+import { DTO_SCHEMA_NAME_CONSTANT } from "@constant/utility/dto/schema-name.constant";
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiControllerResponseTarget } from "@enum/decorator/api";
 import { ApiRouteRuntimeInterceptor } from "@interceptor/api-route-runtime.interceptor";
-import { applyDecorators, SetMetadata } from "@nestjs/common";
-import { ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
+import { applyDecorators, SetMetadata, UseFilters } from "@nestjs/common";
+import { EXCEPTION_FILTERS_METADATA, ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
 import { ApiRouteApplyDtoMetadata } from "@utility/api/route/apply-dto-metadata.utility";
+import { ApiRouteCreateAnonymousCheck } from "@utility/api/route/create-anonymous-check.utility";
 
 /**
  * Creates a custom API route with metadata, runtime properties, and route runtime interception.
@@ -75,7 +78,11 @@ export function ApiRouteCustom<E extends IApiBaseEntity>(properties: IApiRouteCu
 
 		descriptor.value = wrappedMethod;
 
-		ApiRouteApplyDtoMetadata(target, propertyKey, metadata, runtimeProperties, descriptor);
+		// A class without a name has no schema prefix; the decorated controller that inherits the handler names its request DTOs and drops the check, which fails startup otherwise.
+		const contribution: Record<string, Array<unknown>> = target.constructor.name === "" ? applyAnonymousCheck(target, propertyKey, descriptor, metadata.route.path) : ApiRouteApplyDtoMetadata(target, propertyKey, metadata, runtimeProperties, descriptor);
+		const customRoute: IDtoSchemaNameCustomRoute<E> = { contribution, metadata, runtimeProperties };
+
+		Reflect.defineMetadata(DTO_SCHEMA_NAME_CONSTANT.CUSTOM_ROUTE_METADATA_KEY, customRoute, wrappedMethod);
 		applyDecorators(
 			ApiMethod({
 				execution: {
@@ -87,6 +94,22 @@ export function ApiRouteCustom<E extends IApiBaseEntity>(properties: IApiRouteCu
 			SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, runtimeProperties),
 		)(target, propertyKey, descriptor);
 	};
+}
+
+/**
+ * Attaches the check that fails startup when the custom route of a class without a name is served as it is.
+ * @param {object} target - Controller prototype that owns the route method.
+ * @param {string | symbol} propertyKey - Route method property key.
+ * @param {PropertyDescriptor} descriptor - Route method descriptor.
+ * @param {string | undefined} routePath - Route path.
+ * @returns {Record<string, Array<unknown>>} The metadata entry a decorated controller removes from its copy of the handler.
+ */
+function applyAnonymousCheck(target: object, propertyKey: string | symbol, descriptor: PropertyDescriptor, routePath: string | undefined): Record<string, Array<unknown>> {
+	const check: ReturnType<typeof ApiRouteCreateAnonymousCheck> = ApiRouteCreateAnonymousCheck(String(propertyKey), routePath);
+
+	UseFilters(check)(target, propertyKey, descriptor);
+
+	return { [EXCEPTION_FILTERS_METADATA]: [check] };
 }
 
 /**

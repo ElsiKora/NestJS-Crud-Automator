@@ -1,5 +1,6 @@
 import "reflect-metadata";
 
+import type { ExceptionFilter } from "@nestjs/common";
 import type { TestingModule } from "@nestjs/testing";
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
@@ -9,7 +10,7 @@ import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiRouteCustom } from "@decorator/api/route-custom.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 
-import { Body, Controller, Get, HttpStatus, Module, Param, Post, Query, RequestMethod, Scope } from "@nestjs/common";
+import { Body, Catch, Controller, Get, HttpStatus, Injectable, Module, Param, Post, Query, RequestMethod, Scope, UseFilters } from "@nestjs/common";
 import { RouterModule } from "@nestjs/core";
 import { Transport } from "@nestjs/microservices";
 import { ApiExtraModels, ApiOkResponse, ApiProperty, ApiQuery } from "@nestjs/swagger";
@@ -78,8 +79,8 @@ const NO_GENERATED_ROUTES = { ...GET_ONLY_ROUTES, [EApiRouteType.GET]: DISABLED 
  * @param {{ controllers?: Array<new (...arguments_: Array<never>) => unknown>; imports?: Array<unknown> }} metadata - Controllers and modules of the application.
  * @returns {Promise<TestingModule>} The started application.
  */
-async function start(metadata: { controllers?: Array<new (...arguments_: Array<never>) => unknown>; imports?: Array<unknown> }): Promise<TestingModule> {
-	const application: TestingModule = await Test.createTestingModule({ controllers: metadata.controllers ?? [], imports: [ApiAuthorizationModule.forRoot(), ApiSubscriberModule, ...((metadata.imports ?? []) as Array<never>)] }).compile();
+async function start(metadata: { controllers?: Array<new (...arguments_: Array<never>) => unknown>; imports?: Array<unknown>; providers?: Array<new (...arguments_: Array<never>) => unknown> }): Promise<TestingModule> {
+	const application: TestingModule = await Test.createTestingModule({ controllers: metadata.controllers ?? [], imports: [ApiAuthorizationModule.forRoot(), ApiSubscriberModule, ...((metadata.imports ?? []) as Array<never>)], providers: metadata.providers ?? [] }).compile();
 
 	return application.init();
 }
@@ -174,6 +175,179 @@ describe("schema name check at bootstrap", () => {
 			Controller({ path: "scoped-second", scope: Scope.REQUEST })(second);
 
 			await expect(start({ controllers: [first, second] })).rejects.toThrow('have the same schema prefix "SchemaBootDup" in one application');
+		});
+	});
+
+	describe("custom routes of a class without a name", () => {
+		/**
+		 * Declares a class without a name with one custom route. TypeScript has no decorators on a class expression, so the decorators are called directly.
+		 * @returns {new () => { mine: (parameters: Record<string, string>) => void }} The class.
+		 */
+		const createAnonymousClass = (): new () => { mine: (parameters: Record<string, string>) => void } => {
+			const anonymous: new () => { mine: (parameters: Record<string, string>) => void } = (() =>
+				class {
+					public mine(_parameters: Record<string, string>): void {}
+				})();
+			const prototype: object = anonymous.prototype as object;
+
+			Param()(prototype, "mine", 0);
+
+			const descriptor: PropertyDescriptor = Object.getOwnPropertyDescriptor(prototype, "mine") as PropertyDescriptor;
+
+			ApiRouteCustom<SchemaBootItemEntity>({
+				autoDto: { [EApiDtoType.PARAMETERS]: {} },
+				resource: { action: "custom.mine", entity: SchemaBootItemEntity },
+				response: { status: HttpStatus.NO_CONTENT, type: undefined },
+				route: { method: RequestMethod.GET, path: "mine/:id", type: EApiRouteType.GET },
+			})(prototype, "mine", descriptor);
+			Object.defineProperty(prototype, "mine", descriptor);
+
+			return anonymous;
+		};
+
+		it("fails startup when such a class is served with a plain @Controller", async () => {
+			const anonymous: new () => unknown = createAnonymousClass();
+
+			Controller("anonymous-plain")(anonymous);
+
+			expect(anonymous.name).toBe("");
+			await expect(start({ controllers: [anonymous] })).rejects.toThrow('Custom route "mine" with path "mine/:id" is declared on a class without a name and served without @ApiController');
+		});
+
+		it("fails startup when a named plain @Controller inherits the route", async () => {
+			@Controller("anonymous-named-plain")
+			class SchemaBootAnonymousPlainController extends createAnonymousClass() {}
+
+			await expect(start({ controllers: [SchemaBootAnonymousPlainController] })).rejects.toThrow('Custom route "mine" with path "mine/:id" is declared on a class without a name and served without @ApiController');
+		});
+
+		it("starts when only a provider inherits the route, because nothing serves it", async () => {
+			@Injectable()
+			class SchemaBootAnonymousProvider extends createAnonymousClass() {}
+
+			await expect(start({ providers: [SchemaBootAnonymousProvider] })).resolves.toBeDefined();
+		});
+
+		it("starts when a provider and a decorated controller inherit one class, because the controller serves its own copy", async () => {
+			const anonymous: new () => { mine: (parameters: Record<string, string>) => void } = createAnonymousClass();
+
+			@Injectable()
+			class SchemaBootAnonymousSharedProvider extends anonymous {}
+
+			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "anonymous-shared", routes: NO_GENERATED_ROUTES })
+			class SchemaBootAnonymousSharedController extends anonymous {
+				public service!: never;
+			}
+
+			await expect(start({ controllers: [SchemaBootAnonymousSharedController], providers: [SchemaBootAnonymousSharedProvider] })).resolves.toBeDefined();
+		});
+
+		it("fails startup when a plain @Controller serves the route next to a provider that inherits it", async () => {
+			const anonymous: new () => { mine: (parameters: Record<string, string>) => void } = createAnonymousClass();
+
+			@Injectable()
+			class SchemaBootAnonymousPlainProvider extends anonymous {}
+
+			@Controller("anonymous-plain-provider")
+			class SchemaBootAnonymousProviderPlainController extends anonymous {}
+
+			await expect(start({ controllers: [SchemaBootAnonymousProviderPlainController], providers: [SchemaBootAnonymousPlainProvider] })).rejects.toThrow('Custom route "mine" with path "mine/:id" is declared on a class without a name and served without @ApiController');
+		});
+
+		it("fails startup when a plain @Controller in an imported module serves the route", async () => {
+			@Controller("anonymous-imported")
+			class SchemaBootAnonymousImportedController extends createAnonymousClass() {}
+
+			@Module({ controllers: [SchemaBootAnonymousImportedController] })
+			class SchemaBootAnonymousImportedModule {}
+
+			await expect(start({ imports: [SchemaBootAnonymousImportedModule] })).rejects.toThrow('Custom route "mine" with path "mine/:id" is declared on a class without a name and served without @ApiController');
+		});
+
+		it("starts when a plain @Controller replaces the route with a method of its own", async () => {
+			@Controller("anonymous-replaced")
+			class SchemaBootAnonymousReplacedController extends (createAnonymousClass() as new () => object) {
+				@Get("mine/:id")
+				public mine(@Param() _parameters: Record<string, string>): void {}
+			}
+
+			await expect(start({ controllers: [SchemaBootAnonymousReplacedController] })).resolves.toBeDefined();
+		});
+
+		it("starts when a plain @Controller replaces the route with a method of its own next to a provider that inherits the route", async () => {
+			const anonymous: new () => object = createAnonymousClass();
+
+			@Injectable()
+			class SchemaBootAnonymousReplacedPlainProvider extends anonymous {}
+
+			@Controller("anonymous-replaced-plain")
+			class SchemaBootAnonymousReplacedPlainController extends anonymous {
+				@Get("mine/:id")
+				public mine(@Param() _parameters: Record<string, string>): void {}
+			}
+
+			await expect(start({ controllers: [SchemaBootAnonymousReplacedPlainController], providers: [SchemaBootAnonymousReplacedPlainProvider] })).resolves.toBeDefined();
+		});
+
+		it("starts when a plain @Controller replaces the route with a filtered method of its own next to a provider that inherits the route", async () => {
+			const anonymous: new () => object = createAnonymousClass();
+
+			@Catch()
+			class SchemaBootAnonymousOwnFilter implements ExceptionFilter {
+				public catch(): void {}
+			}
+
+			@Injectable()
+			class SchemaBootAnonymousReplacedProvider extends anonymous {}
+
+			@Controller("anonymous-replaced-filtered")
+			class SchemaBootAnonymousReplacedFilteredController extends anonymous {
+				@Get("mine/:id")
+				@UseFilters(SchemaBootAnonymousOwnFilter)
+				public mine(@Param() _parameters: Record<string, string>): void {}
+			}
+
+			await expect(start({ controllers: [SchemaBootAnonymousReplacedFilteredController], providers: [SchemaBootAnonymousReplacedProvider] })).resolves.toBeDefined();
+		});
+
+		it("fails decoration naming the controller when an inherited handler leaves nothing for generated DTO names", () => {
+			const anonymous: new () => object = (() =>
+				class {
+					public _(_parameters: Record<string, string>): void {}
+				})();
+			const prototype: object = anonymous.prototype as object;
+
+			Param()(prototype, "_", 0);
+
+			const descriptor: PropertyDescriptor = Object.getOwnPropertyDescriptor(prototype, "_") as PropertyDescriptor;
+
+			ApiRouteCustom<SchemaBootItemEntity>({
+				autoDto: { [EApiDtoType.PARAMETERS]: {} },
+				resource: { action: "custom.mine", entity: SchemaBootItemEntity },
+				response: { status: HttpStatus.NO_CONTENT, type: undefined },
+				route: { method: RequestMethod.GET, path: "mine/:id", type: EApiRouteType.GET },
+			})(prototype, "_", descriptor);
+			Object.defineProperty(prototype, "_", descriptor);
+
+			expect(() => {
+				@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "anonymous-empty-handler", routes: NO_GENERATED_ROUTES })
+				class SchemaBootAnonymousEmptyHandlerController extends anonymous {
+					public service!: never;
+				}
+
+				return SchemaBootAnonymousEmptyHandlerController;
+			}).toThrow('Handler "_" of SchemaBootAnonymousEmptyHandlerController leaves nothing');
+		});
+
+		it("drops the check when a decorated controller inherits the route, also when it extends a plain class in between", async () => {
+			class SchemaBootAnonymousMiddle extends createAnonymousClass() {}
+
+			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "anonymous-decorated", routes: NO_GENERATED_ROUTES })
+			class SchemaBootAnonymousDecoratedController extends SchemaBootAnonymousMiddle {
+				public service!: never;
+			}
+
+			await expect(start({ controllers: [SchemaBootAnonymousDecoratedController] })).resolves.toBeDefined();
 		});
 	});
 
