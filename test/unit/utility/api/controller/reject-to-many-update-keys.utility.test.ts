@@ -1,7 +1,6 @@
 import "reflect-metadata";
 
 import { ApiControllerRejectToManyUpdateKeys } from "@utility/api/controller/reject-to-many-update-keys.utility";
-import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { ChildEntity, Column, Entity, JoinTable, ManyToMany, ManyToOne, OneToMany, PrimaryGeneratedColumn, type Relation, TableInheritance } from "typeorm";
 import { describe, expect, it } from "vitest";
 
@@ -80,7 +79,7 @@ class RejectToManyCard extends RejectToManyDetail {
 }
 
 describe("ApiControllerRejectToManyUpdateKeys", () => {
-	const reject = (body: Record<string, unknown> | undefined): void => ApiControllerRejectToManyUpdateKeys(RejectToManyPost, GenerateEntityInformation<RejectToManyPost>(RejectToManyPost), body as never);
+	const reject = (body: Record<string, unknown> | undefined): void => ApiControllerRejectToManyUpdateKeys(RejectToManyPost, body as never);
 
 	it.each([
 		["an inherited ManyToMany reference", "tags", "tag-1"],
@@ -114,11 +113,13 @@ describe("ApiControllerRejectToManyUpdateKeys", () => {
 		expect(() => reject({ meta: null })).not.toThrow();
 	});
 
-	it.each([null, "tag-1"])("rejects a variant's to-many key on a table inheritance root route (%s)", (value: null | string) => {
-		const rootMetadata = { ...GenerateEntityInformation<RejectToManyDetail>(RejectToManyDetail), tableInheritance: { variants: [{ discriminatorValue: "CARD", entity: RejectToManyCard, entityMetadata: GenerateEntityInformation(RejectToManyCard) }] } };
+	it.each([null, "tag-1"])("rejects a child entity's to-many key on a table inheritance root route from TypeORM metadata alone (%s)", (value: null | string) => {
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyDetail, { cardTags: value, label: "changed" } as never)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "cardTags", reason: "to-many reference is not allowed on update" } }) }));
+	});
 
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyDetail, rootMetadata as never, { cardTags: value, label: "changed" } as never)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "cardTags", reason: "to-many reference is not allowed on update" } }) }));
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyDetail, GenerateEntityInformation<RejectToManyDetail>(RejectToManyDetail), { cardTags: value } as never)).not.toThrow();
+	it("rejects its own to-many key on a child entity route and accepts its columns", () => {
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCard, { label: "changed" } as never)).not.toThrow();
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCard, { cardTags: null } as never)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "cardTags", reason: "to-many reference is not allowed on update" } }) }));
 	});
 
 	it("accepts columns, to-one references, undefined to-many keys and no body", () => {

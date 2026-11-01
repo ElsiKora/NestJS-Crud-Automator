@@ -295,7 +295,7 @@ export class ApiRouteRuntime {
 		const method: EApiRouteType = options.method;
 
 		if (method === EApiRouteType.PARTIAL_UPDATE || method === EApiRouteType.UPDATE) {
-			ApiControllerRejectToManyUpdateKeys(options.properties.entity, options.entityMetadata, targets.body);
+			ApiControllerRejectToManyUpdateKeys(options.properties.entity, targets.body);
 			await this.executeGeneratedRequestPipeline(options, targets, [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.BODY]);
 			const service: ApiServiceBase<E> = options.controller.service;
 			const updateFunction: (this: ApiServiceBase<E>, criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: never) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.UPDATE, EApiFunctionType.UPDATE, options.properties.entity);

@@ -1,12 +1,11 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiControllerTableInheritanceVariant } from "@interface/class/api/controller/table-inheritance";
-import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TTypeOrmRelationMetadataArguments } from "@type/utility/typeorm";
 import type { DeepPartial } from "typeorm";
 
 import { EErrorStringAction } from "@enum/utility";
 import { BadRequestException, HttpStatus } from "@nestjs/common";
+import { DatabaseTypeOrmGetChildEntities } from "@utility/database/typeorm/get/child-entities.utility";
 import { ErrorString } from "@utility/error/string.utility";
 import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
 import { getMetadataArgsStorage } from "typeorm";
@@ -16,22 +15,20 @@ const TO_MANY_UPDATE_REJECTION_REASON: string = "to-many reference is not allowe
 /**
  * Rejects a generated UPDATE or PARTIAL_UPDATE body that carries a to-many relation key, `null` included.
  * TypeORM saves such a value as the full new set, so the rule reads the TypeORM relations of the entity, its parent classes,
- * its embedded columns at any depth, and, on a table inheritance root, every discriminator variant. It ignores `relations.request` and its include.
+ * its embedded columns at any depth, and every `@ChildEntity` that extends it. It ignores `relations.request` and its include.
  * @param {IApiBaseEntity} entity - Entity class of the route.
- * @param {IApiEntity<E>} entityMetadata - Entity metadata; its table inheritance plan names the variants a root route can write.
- * @param {DeepPartial<E> | undefined} body - Request body after route-before subscribers.
+ * @param {DeepPartial<E> | Partial<E> | undefined} body - Request body after route BEFORE subscribers.
  * @throws {BadRequestException} When the body has a to-many relation key whose value is not undefined; `propertyName` is its dotted path
  * @template E - The entity type
  */
-export function ApiControllerRejectToManyUpdateKeys<E extends IApiBaseEntity>(entity: IApiBaseEntity, entityMetadata: IApiEntity<E>, body: DeepPartial<E> | undefined): void {
+export function ApiControllerRejectToManyUpdateKeys<E extends IApiBaseEntity>(entity: IApiBaseEntity, body: DeepPartial<E> | Partial<E> | undefined): void {
 	if (!body) {
 		return;
 	}
 
-	const variantEntities: Array<IApiBaseEntity> = (entityMetadata.tableInheritance?.variants ?? []).map((variant: IApiControllerTableInheritanceVariant): IApiBaseEntity => variant.entity);
 	const toManyPaths: Set<string> = new Set<string>();
 
-	for (const target of [entity, ...variantEntities]) {
+	for (const target of [entity, ...DatabaseTypeOrmGetChildEntities(entity)]) {
 		collectToManyPaths(target, [], new Set<unknown>(), toManyPaths);
 	}
 

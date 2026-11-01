@@ -3,11 +3,12 @@ import type { IApiControllerTableInheritancePlan, IApiControllerTableInheritance
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
-import type { TTypeOrmColumnMetadataArguments, TTypeOrmDiscriminatorValueMetadataArguments, TTypeOrmInheritanceMetadataArguments, TTypeOrmTableMetadataArguments } from "@type/utility/typeorm";
+import type { TTypeOrmColumnMetadataArguments, TTypeOrmDiscriminatorValueMetadataArguments, TTypeOrmInheritanceMetadataArguments } from "@type/utility/typeorm";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DatabaseTypeOrmGetChildEntities } from "@utility/database/typeorm/get/child-entities.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { getMetadataArgsStorage } from "typeorm";
@@ -30,7 +31,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 			return;
 		}
 
-		const missingChildEntities: Array<string> = this.findChildEntities(plan.rootEntity)
+		const missingChildEntities: Array<string> = DatabaseTypeOrmGetChildEntities(plan.rootEntity)
 			.filter((child: Type<unknown>): boolean => !plan.childEntities.includes(child))
 			.map((child: Type<unknown>): string => child.name)
 			.toSorted((left: string, right: string): number => (left < right ? -1 : 1));
@@ -56,7 +57,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 			return undefined;
 		}
 
-		const childEntities: Array<Type<unknown>> = this.findChildEntities(root);
+		const childEntities: Array<Type<unknown>> = DatabaseTypeOrmGetChildEntities(root);
 		const discriminatorPropertyName: string = inheritance.column?.name ?? "type";
 
 		if (childEntities.length === 0) {
@@ -138,17 +139,6 @@ export class ApiControllerTableInheritancePlanCompiler {
 
 			suffixOwners.set(suffix, discriminatorValue);
 		}
-	}
-
-	/**
-	 * Lists the `@ChildEntity` classes that extend the root, in TypeORM registration order.
-	 * @param {Type<unknown>} root - Table inheritance root class.
-	 * @returns {Array<Type<unknown>>} Child entity classes known to TypeORM so far.
-	 */
-	private static findChildEntities(root: Type<unknown>): Array<Type<unknown>> {
-		return getMetadataArgsStorage()
-			.tables.map(({ target, type }: TTypeOrmTableMetadataArguments): Type<unknown> | undefined => (type === "entity-child" && this.isConstructor(target) && target.prototype instanceof root ? target : undefined))
-			.filter((target: Type<unknown> | undefined): target is Type<unknown> => target !== undefined);
 	}
 
 	/**
