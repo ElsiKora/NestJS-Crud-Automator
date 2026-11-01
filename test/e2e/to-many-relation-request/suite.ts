@@ -272,6 +272,14 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 			}
 		});
 
+		it("leaves no empty schema that nothing references in the components", () => {
+			const schemas = (document.components?.schemas ?? {}) as Record<string, TSwaggerSchemaObject>;
+			const serialized: string = JSON.stringify({ components: document.components, paths: document.paths });
+			const emptyOrphans: Array<string> = Object.keys(schemas).filter((name: string): boolean => Object.keys(schemas[name]?.properties ?? {}).length === 0 && !serialized.includes(`"#/components/schemas/${name}"`));
+
+			expect(emptyOrphans).toEqual([]);
+		});
+
 		it.each(["E2eHydrationPostEntityUpdateBodyDTO", "E2eHydrationPostEntityPartialUpdateBodyDTO"])("leaves to-many relations out of %s", (schemaName: string) => {
 			const properties = (document.components?.schemas?.[schemaName] as TSwaggerSchemaObject).properties as Record<string, TSwaggerSchemaObject>;
 

@@ -99,7 +99,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 				ApiControllerApplyDecoratorsWithIdentityPlan(targetMethod, this.ENTITY, this.properties, method, methodName, routeConfig, routeDecorators, queryPlan, identityPlan);
 			}
 
-			ApiControllerWriteDtoSwaggerWithReadPlan(this.target, this.ENTITY, this.properties, method, routeConfig, this.ENTITY, queryPlan, readPlan, identityPlan);
+			ApiControllerWriteDtoSwaggerWithReadPlan(this.target, this.ENTITY, this.properties, method, routeConfig, queryPlan, readPlan, identityPlan);
 		}
 	}
 

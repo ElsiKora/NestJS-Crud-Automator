@@ -31,7 +31,7 @@ abstract class InheritedSwaggerBaseEntity {
 class InheritedSwaggerEntity extends InheritedSwaggerBaseEntity {}
 
 describe("ApiControllerWriteDtoSwagger", () => {
-	it("registers relation DTOs in swagger extra models", () => {
+	it("registers route DTOs without an empty component per relation", () => {
 		const entityMetadata: IApiEntity<{ name?: string }> = {
 			columns: [{ isPrimary: true, name: "id" as never, type: "uuid" }],
 			name: "SwaggerEntity",
@@ -63,7 +63,8 @@ describe("ApiControllerWriteDtoSwagger", () => {
 		const models = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, target) as Array<{ name?: string }>;
 		const modelNames = models.map((model) => model?.name);
 
-		expect(modelNames).toEqual(expect.arrayContaining([SwaggerDto.name, "SwaggerEntityGetBodyownerDTO"]));
+		expect(modelNames).toContain(SwaggerDto.name);
+		expect(modelNames).not.toContain("SwaggerEntityGetBodyownerDTO");
 	});
 
 	it("does not register an orphan relation component for a globally hidden inherited property", () => {
