@@ -18,6 +18,10 @@ const disabledRoutes = {
 } as const;
 
 class SameNameLateQueryDto {
+	public "owner.label[operator]"?: string;
+
+	public "owner.label[value]"?: string;
+
 	public limit?: number;
 
 	public page?: number;

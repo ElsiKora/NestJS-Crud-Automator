@@ -121,7 +121,8 @@ describe.each<{ driver: "better-sqlite3" | "postgres" }>([{ driver: "better-sqli
 			expect(await count("")).toBe(1);
 			expect(await count("&owner.onlyOnB%5Boperator%5D=eq&owner.onlyOnB%5Bvalue%5D=y")).toBe(1);
 			expect(await count("&owner.onlyOnB%5Boperator%5D=eq&owner.onlyOnB%5Bvalue%5D=x")).toBe(0);
-			expect(await count("&owner.onlyOnA%5Boperator%5D=eq&owner.onlyOnA%5Bvalue%5D=x")).toBe(1);
+			// A field only the other same-named class declares is not a filter of this route, so it is refused rather than answered unfiltered.
+			expect((await fastify.inject({ method: "GET", url: "/same-name-relation-holders?limit=10&page=1&owner.onlyOnA%5Boperator%5D=eq&owner.onlyOnA%5Bvalue%5D=x" })).statusCode).toBe(400);
 		});
 
 		it("publishes the path and relation filters of its own class in OpenAPI", () => {
@@ -414,6 +415,7 @@ describe("String relation target that names several entity classes (E2E)", () =>
 
 			expect((await fastify.inject({ method: "GET", url: `/same-name-late-typed-holders?${relationFilter("label")}` })).statusCode).toBe(200);
 			expect((await fastify.inject({ method: "GET", url: `/same-name-late-typed-holders?${relationFilter("lateOnly")}` })).statusCode).toBe(400);
+			expect((await fastify.inject({ method: "GET", url: `/same-name-late-manual-holders?${relationFilter("label")}` })).statusCode).toBe(200);
 
 			await import("./same-name-entities/late-arrival/late-owner");
 		});

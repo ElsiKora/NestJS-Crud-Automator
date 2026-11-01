@@ -1,6 +1,6 @@
 import { Inject } from "@nestjs/common";
 import { Type } from "class-transformer";
-import { IsInt, Min } from "class-validator";
+import { IsInt, IsOptional, Min } from "class-validator";
 
 import { ApiController, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType, EFilterOperation, EFilterOrderDirection } from "../../../src/index";
 
@@ -39,8 +39,35 @@ export class E2eListScalarDefaultKeyController {
 	public readonly service!: E2eListScalarKeyService;
 }
 
-// Declares no filter property, so only the route's own value parser holds the filter values the request carries.
+// Declares its filter properties without value rules, so only the route's own value parser holds the filter values the request carries.
 export class E2eListScalarManualQueryDto {
+	@IsOptional()
+	public "account.id[operator]"?: string;
+
+	@IsOptional()
+	public "account.id[value]"?: string;
+
+	@IsOptional()
+	public "account.id[values]"?: Array<string>;
+
+	@IsOptional()
+	public "accountId[operator]"?: string;
+
+	@IsOptional()
+	public "accountId[value]"?: string;
+
+	@IsOptional()
+	public "accountId[values]"?: Array<string>;
+
+	@IsOptional()
+	public "amount[operator]"?: string;
+
+	@IsOptional()
+	public "amount[value]"?: string;
+
+	@IsOptional()
+	public "amount[values]"?: Array<string>;
+
 	@IsInt()
 	@Min(1)
 	@Type(() => Number)
