@@ -1,9 +1,9 @@
-import { BadRequestException, Body, HttpStatus, Inject, RequestMethod } from "@nestjs/common";
+import { BadRequestException, Body, HttpStatus, Inject, Param, RequestMethod } from "@nestjs/common";
 
 import { ApiController, ApiControllerObservable, ApiRouteCustom, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiRouteType, EErrorStringAction } from "../../../src/index";
 
-import { E2eHydrationPostEntity } from "./entity";
-import { E2eHydrationAttachmentService, E2eHydrationNoteService, E2eHydrationOwnerService, E2eHydrationPostService, E2eHydrationTagService } from "./service";
+import { E2eHydrationDetailEntity, E2eHydrationPostEntity } from "./entity";
+import { E2eHydrationAttachmentService, E2eHydrationDetailService, E2eHydrationNoteService, E2eHydrationOwnerService, E2eHydrationPostService, E2eHydrationTagService } from "./service";
 
 const REQUEST_INCLUDE = { attachments: true, notes: true, owner: true, profile: true, tags: true } as const;
 const REQUEST_RELATIONS = { load: { include: REQUEST_INCLUDE }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.SCALAR } } as const;
@@ -41,6 +41,30 @@ export class E2eHydrationPostController {
 	} as never)
 	public inspectBody(@Body() body: Record<string, unknown>): unknown {
 		return { owner: body.owner, tags: body.tags };
+	}
+
+	@ApiRouteCustom<E2eHydrationPostEntity>({
+		relations: { request: REQUEST_RELATIONS },
+		resource: { action: "hydration.custom-update", entity: E2eHydrationPostEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.PUT, path: "custom/:id", type: EApiRouteType.UPDATE },
+	} as never)
+	public async customUpdate(@Param("id") id: string, @Body() body: Record<string, unknown>): Promise<unknown> {
+		await this.service.update({ id }, body as never);
+
+		return { id };
+	}
+
+	@ApiRouteCustom<E2eHydrationPostEntity>({
+		relations: { request: REQUEST_RELATIONS },
+		resource: { action: "hydration.custom-partial-update", entity: E2eHydrationPostEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.PATCH, path: "custom/:id", type: EApiRouteType.PARTIAL_UPDATE },
+	} as never)
+	public async customPartialUpdate(@Param("id") id: string, @Body() body: Record<string, unknown>): Promise<unknown> {
+		await this.service.update({ id }, body as never);
+
+		return { id };
 	}
 }
 
@@ -106,4 +130,22 @@ const ORDERED_ROUTE = {
 } as never)
 export class E2eHydrationOrderedPostController {
 	public constructor(@Inject(E2eHydrationPostService) public readonly service: E2eHydrationPostService) {}
+}
+
+/** Table inheritance root that writes but generates no read response, so no read plan lists its variants. */
+@ApiController<E2eHydrationDetailEntity>({
+	entity: E2eHydrationDetailEntity,
+	name: "E2eHydrationDetails",
+	path: "hydration-details",
+	routes: {
+		[EApiRouteType.CREATE]: { generation: { isEnabled: false } },
+		[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
+		[EApiRouteType.GET]: { generation: { isEnabled: false } },
+		[EApiRouteType.GET_LIST]: { generation: { isEnabled: false } },
+		[EApiRouteType.PARTIAL_UPDATE]: {},
+		[EApiRouteType.UPDATE]: {},
+	},
+} as never)
+export class E2eHydrationDetailController {
+	public constructor(@Inject(E2eHydrationDetailService) public readonly service: E2eHydrationDetailService) {}
 }

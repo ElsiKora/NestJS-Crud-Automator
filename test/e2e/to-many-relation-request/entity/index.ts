@@ -1,4 +1,8 @@
 export { E2eHydrationAttachmentEntity } from "./attachment.entity";
+export { E2eHydrationBankDetailMeta } from "./bank-detail-meta.embedded";
+export { E2eHydrationBankDetailEntity } from "./bank-detail.entity";
+export { E2eHydrationCardDetailEntity } from "./card-detail.entity";
+export { E2eHydrationDetailEntity } from "./detail.entity";
 export { E2eHydrationNoteEntity } from "./note.entity";
 export { E2eHydrationOwnerEntity } from "./owner.entity";
 export { E2eHydrationPostMeta } from "./post-meta.embedded";
