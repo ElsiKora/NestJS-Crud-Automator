@@ -572,8 +572,7 @@ export class ApiRouteRuntime {
 			if (target === EApiControllerRequestTarget.PARAMETERS) {
 				ApiControllerTransformRouteData<E>(transformTargets, options.properties, { parameters: targets.parameters }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
 				await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.PARAMETERS] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, options.properties, targets.parameters ?? {});
-				const handler: unknown = Reflect.get(options.controller, options.methodName);
-				const parametersRule: IApiControllerParametersRule | undefined = typeof handler === "function" ? ApiControllerParametersDtoGet(handler) : undefined;
+				const parametersRule: IApiControllerParametersRule | undefined = this.resolveParametersRule(options.controller, options.methodName);
 
 				// Subscribers and transformers may replace typed path values, so the values the route uses are checked once more.
 				if (parametersRule) {
@@ -811,7 +810,7 @@ export class ApiRouteRuntime {
 			return options.targets;
 		}
 
-		const parameters: Partial<E> | undefined = await ApiControllerParametersResolveRequest<E>(options.targets.authenticationRequest, Reflect.get(options.controller, options.methodName), options.targets.parameters);
+		const parameters: Partial<E> | undefined = await ApiControllerParametersResolveRequest<E>(options.targets.authenticationRequest, this.resolveParametersRule(options.controller, options.methodName), options.targets.parameters);
 
 		return { ...options.targets, parameters };
 	}
@@ -820,6 +819,18 @@ export class ApiRouteRuntime {
 		const handler: unknown = Reflect.get(controller, methodName);
 
 		return typeof handler === "function" ? ApiControllerIdentityPlanGet(handler) : undefined;
+	}
+
+	/**
+	 * Returns the path value rule of a generated route, which the controller decorator attached to the handler it generated.
+	 * @param {object} controller - Controller instance.
+	 * @param {string} methodName - Generated route method name.
+	 * @returns {IApiControllerParametersRule | undefined} Path value rule of the route.
+	 */
+	private static resolveParametersRule(controller: object, methodName: string): IApiControllerParametersRule | undefined {
+		const handler: unknown = Reflect.get(controller, methodName);
+
+		return typeof handler === "function" ? ApiControllerParametersDtoGet(handler) : undefined;
 	}
 
 	private static resolvePrimaryKey<E extends IApiBaseEntity>(source: DeepPartial<E> | Partial<E> | undefined, entityMetadata: IApiEntity<E>): IApiControllerPrimaryColumn<E> {

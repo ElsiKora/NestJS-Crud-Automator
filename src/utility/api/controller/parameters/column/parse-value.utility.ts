@@ -1,3 +1,4 @@
+import type { IApiControllerParametersColumnValue } from "@interface/class/api/controller";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
@@ -20,9 +21,9 @@ const columnValueDtoCache: WeakMap<object, Map<string, null | Type<unknown>>> = 
  * @param {IApiEntity<E>} entityMetadata - Entity metadata.
  * @param {string} columnName - Entity property name.
  * @param {bigint | boolean | number | string} value - Scalar value to parse.
- * @returns {Promise<{ isDescribed: boolean; isValid: boolean; value: unknown }>} The converted value; `isDescribed` is false for an undescribed, relation, object or array column, which is left to the database.
+ * @returns {Promise<IApiControllerParametersColumnValue>} The converted value; `isDescribed` is false for an undescribed, relation, object or array column, which is left to the database.
  */
-export async function ApiControllerParametersParseColumnValue<E>(entityMetadata: IApiEntity<E>, columnName: string, value: bigint | boolean | number | string): Promise<{ isDescribed: boolean; isValid: boolean; value: unknown }> {
+export async function ApiControllerParametersParseColumnValue<E>(entityMetadata: IApiEntity<E>, columnName: string, value: bigint | boolean | number | string): Promise<IApiControllerParametersColumnValue> {
 	const dto: null | Type<unknown> = resolveColumnValueDto(entityMetadata, columnName);
 
 	if (!dto) {

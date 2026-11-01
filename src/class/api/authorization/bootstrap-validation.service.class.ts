@@ -6,6 +6,7 @@ import type { InstanceWrapper } from "@nestjs/core/internal";
 
 import { ApiAuthorizationHookPermissionCache } from "@class/api/authorization/hook";
 import { ApiAuthorizationIamAttachmentCache, ApiAuthorizationIamDocumentCache } from "@class/api/authorization/iam";
+import { ApiAuthorizationParametersRuleRegistry } from "@class/api/authorization/parameters-rule-registry.class";
 import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
 import { AUTHORIZATION_GATEWAY_METADATA_CONSTANT, AUTHORIZATION_MICROSERVICE_METADATA_CONSTANT, AUTHORIZATION_MODULE_OPTIONS_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
@@ -19,7 +20,7 @@ import { Inject, Injectable, OnApplicationBootstrap, Optional, RequestMethod } f
 import { METHOD_METADATA, MODULE_PATH, PATH_METADATA, VERSION_METADATA } from "@nestjs/common/internal";
 import { DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
 import { ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
-import { ApiControllerParametersDtoGet, ApiControllerParametersDtoSet } from "@utility/api/controller/parameters/dto";
+import { ApiControllerParametersDtoGet } from "@utility/api/controller/parameters/dto";
 import { AuthorizationIsHandlerAuthorized } from "@utility/authorization/is-handler-authorized.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -42,12 +43,15 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		@Inject(AUTHORIZATION_MODULE_OPTIONS_TOKEN)
 		@Optional()
 		private readonly moduleOptions: IApiAuthorizationModuleOptions = {},
+		@Optional()
+		private readonly parametersRuleRegistry: ApiAuthorizationParametersRuleRegistry = new ApiAuthorizationParametersRuleRegistry(),
 	) {}
 
 	public onApplicationBootstrap(): void {
 		this.hookPermissionCache.configure(this.moduleOptions.cache);
 		this.iamAttachmentCache.configure(this.moduleOptions.cache);
 		this.iamDocumentCache.configure(this.moduleOptions.cache);
+		this.parametersRuleRegistry.clear();
 		const controllerWrappers: Array<InstanceWrapper> = this.discoveryService.getControllers();
 
 		authorizationBootstrapValidationLogger.verbose(`Starting authorization bootstrap validation for ${controllerWrappers.length} controllers.`);
@@ -60,7 +64,8 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
-	 * Attaches the path value rule to each IAM custom route whose resource path names one of its path parameters, so the guard validates that value and renders its canonical text.
+	 * Registers the path value rule of each IAM custom route whose resource path names one of its path parameters, so the guard validates that value and renders its canonical text.
+	 * The rule is built and kept for this controller class: a handler inherited from a base class is shared with its other subclasses, whose resource paths may differ.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
 	 * @param {EApiAuthorizationMode} defaultMode - Controller authorization mode.
 	 * @param {string} resourcePath - IAM resource path of the controller.
@@ -70,18 +75,10 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	private applyCustomRouteParameterRules(metatype: new (...arguments_: Array<unknown>) => unknown, defaultMode: EApiAuthorizationMode, resourcePath: string): void {
 		const controllerPathParameters: Array<string> = this.resolvePathParameters(Reflect.getMetadata(PATH_METADATA, metatype));
 
-		const methodNames: Set<string> = new Set<string>();
+		for (const methodName of this.collectMethodNames(metatype)) {
+			const handler: unknown = (metatype.prototype as Record<string, unknown>)[methodName];
 
-		// The controller decorator may extend the declared class, so the handlers are collected along the prototype chain.
-		for (let prototype: null | object = metatype.prototype as object; prototype && prototype !== Object.prototype; prototype = Object.getPrototypeOf(prototype) as null | object) {
-			for (const name of Object.getOwnPropertyNames(prototype)) {
-				methodNames.add(name);
-			}
-		}
-
-		for (const methodName of methodNames) {
-			const handler: unknown = methodName === "constructor" ? undefined : (metatype.prototype as Record<string, unknown>)[methodName];
-
+			// A generated route carries its own rule, built from the controller entity when the controller is declared.
 			if (typeof handler !== "function" || ApiControllerParametersDtoGet(handler)) {
 				continue;
 			}
@@ -104,7 +101,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			});
 
 			if (rule) {
-				ApiControllerParametersDtoSet(handler, rule);
+				this.parametersRuleRegistry.set(metatype, handler, rule);
 			}
 		}
 	}
@@ -231,6 +228,25 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		}
 
 		return (Reflect.getMetadata(`${MODULE_PATH}${this.modulesContainer.applicationId}`, moduleMetatype) as string | undefined) ?? (Reflect.getMetadata(MODULE_PATH, moduleMetatype) as string | undefined) ?? "";
+	}
+
+	/**
+	 * Lists the method names of a controller class, own and inherited, so a route declared on a base class is checked for each controller that serves it.
+	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
+	 * @returns {Array<string>} Method names, without `constructor`.
+	 */
+	private collectMethodNames(metatype: new (...arguments_: Array<unknown>) => unknown): Array<string> {
+		const methodNames: Set<string> = new Set<string>();
+
+		for (let prototype: null | object = metatype.prototype as object; prototype && prototype !== Object.prototype; prototype = Object.getPrototypeOf(prototype) as null | object) {
+			for (const name of Object.getOwnPropertyNames(prototype)) {
+				if (name !== "constructor") {
+					methodNames.add(name);
+				}
+			}
+		}
+
+		return [...methodNames];
 	}
 
 	/**

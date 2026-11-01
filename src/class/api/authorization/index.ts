@@ -4,6 +4,7 @@ export { ApiAuthorizationEngine } from "./engine.class";
 export { ApiAuthorizationGuard } from "./guard.class";
 export * from "./hook";
 export * from "./iam";
+export { ApiAuthorizationParametersRuleRegistry } from "./parameters-rule-registry.class";
 export * from "./policy";
 export { ApiAuthorizationRuntime } from "./runtime.class";
 export { ApiAuthorizationSimulator } from "./simulator.class";

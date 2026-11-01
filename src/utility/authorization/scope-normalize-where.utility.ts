@@ -1,4 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiControllerParametersColumnValue } from "@interface/class/api/controller";
 import type { IApiEntity } from "@interface/entity";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { FindOptionsWhere } from "typeorm";
@@ -58,7 +59,7 @@ async function normalizeWhereBranch<E extends IApiBaseEntity>(branch: FindOption
 		}
 
 		if (typeof key === "string" && "value" in descriptor && isScalarWhereValue(descriptor.value)) {
-			const parsed: { isDescribed: boolean; isValid: boolean; value: unknown } = await ApiControllerParametersParseColumnValue(entityMetadata, key, descriptor.value);
+			const parsed: IApiControllerParametersColumnValue = await ApiControllerParametersParseColumnValue(entityMetadata, key, descriptor.value);
 
 			if (parsed.isDescribed) {
 				descriptor.value = parsed.isValid ? parsed.value : In([]);

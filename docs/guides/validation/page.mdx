@@ -549,7 +549,24 @@ public summary(@Param("id") id: string): Promise<ItemSummaryDto> {
 }
 ```
 
+A custom route declared on a base class is checked and validated for each securable controller that serves it, by that controller's own `resourcePath`. Two subclasses that name different placeholders each get their own rule, and an undescribed placeholder fails the startup of the subclass that names it, whatever the registration order.
+
 UUID values of the entity's `UUID` columns are lower-cased in request bodies of generated `CREATE`, `UPDATE`, and `PARTIAL_UPDATE` routes and in typed list filters too, so they are stored and compared lower-case on every database.
+
+### With and Without a Host Pipe
+
+The route enforces some rules itself and leaves others to a host `ValidationPipe`:
+
+| Request part                                                                  | Without a host pipe                                                         | With a host `ValidationPipe`         |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------ |
+| Path values of generated routes                                               | Validated and canonicalized by the route                                    | Same                                 |
+| Path parameters that the IAM `resourcePath` of a securable custom route names | Validated and canonicalized by the guard                                    | Same                                 |
+| GET_LIST query with a configured `filter`, `order`, or `pagination` section   | Parsed strictly by the route                                                | Same                                 |
+| GET_LIST query without such a section                                         | Not validated                                                               | Validated by the generated QUERY DTO |
+| Request bodies of generated and custom routes                                 | Not validated; UUID columns of generated write bodies are still lower-cased | Validated by the body DTO            |
+| Query DTOs and other path parameters of custom routes                         | Not validated                                                               | Validated by the route's DTO         |
+
+The body and query rules in this guide, such as canonical integers, `true` and `false` only for `BOOLEAN`, and a single value for a single-value field, are what the generated and copied DTOs accept when a host pipe applies them. `BOOLEAN` properties read the request value itself, so `enableImplicitConversion` in the host pipe does not turn `"false"` into `true`.
 
 PARAMETERS transformers, `validators`, and `BEFORE` subscribers can still replace path values, so the route checks the values it is about to use once more after them. A transformer that writes `not-a-uuid` into a `UUID` key gets the `400`, not a database error.
 
@@ -600,7 +617,8 @@ Before 5.0.0, generated routes left path values to the host `ValidationPipe`. Wi
 Check your application:
 
 - Clients and tests that expected `404` or `500` for a malformed id now get `400`.
-- Integer text is accepted only in canonical form, in path values, query filters, `limit`, `page`, and request bodies. `016`, `0x10`, `16.0`, `1.6e1`, `1e3`, and `007` now return `400`.
+- Path values and typed GET_LIST query plans are validated by the route in every mode. Request bodies, custom route query DTOs, and a GET_LIST query without `filter`, `order`, or `pagination` configuration are validated only by a host `ValidationPipe`; the rules below apply to them when one is installed. See [With and Without a Host Pipe](#with-and-without-a-host-pipe).
+- Integer text is accepted only in canonical form: in path values and typed query plans always, and in query DTOs and request bodies under a host pipe. `016`, `0x10`, `16.0`, `1.6e1`, `1e3`, and `007` now return `400`.
 - An integer `NUMBER` property with `maximum` above `Number.MAX_SAFE_INTEGER` or `minimum` below `Number.MIN_SAFE_INTEGER` fails at startup with an error that names `BIGINT_STRING`. Describe `bigint` columns as `EApiPropertyStringType.BIGINT_STRING`. `NUMBER_CONSTANT.MAX_BIGINT` and `NUMBER_CONSTANT.MIN_BIGINT` are removed.
 - `DATE` request values (path, query DTO, body) stay validated `YYYY-MM-DD` strings instead of becoming `Date`, so a date-only `read.scope` value matches its row in every server time zone. `TIME` values stay strings too. Only `DATE_TIME` values become `Date`.
 - Request UUIDs are lower-cased in path values, typed list filters, and the bodies of generated write routes, and they are stored lower-case. A PostgreSQL `uuid` column needs nothing. A column described as `UUID` but stored as text (`varchar`, `char`, or any SQLite column) that already holds upper-case values must be lower-cased once, or those rows cannot be read through a path or filter any more:
@@ -610,15 +628,15 @@ Check your application:
   UPDATE items SET owner_id = lower(owner_id) WHERE owner_id <> lower(owner_id);
   ```
 
-  Lower-case the foreign keys that point at a lower-cased key in the same migration.
+  Lower-case the foreign keys that point at a lower-cased key in the same migration. On PostgreSQL, updating a text primary key that foreign keys reference fails while the constraint is checked per row: declare those constraints `ON UPDATE CASCADE`, or make them `DEFERRABLE` and run `SET CONSTRAINTS ALL DEFERRED` in the migration transaction before both updates.
 
-- `BOOLEAN` values in paths, query DTOs, typed list filters, and bodies accept only `true` and `false`, as JSON booleans or as that exact text. `1`, `0`, `yes`, `no`, and `TRUE` now return `400`.
-- A single integer value sent as a list, such as `{ "count": ["7"] }` or `?count=1&count=2` for a single-value query field, now returns `400` instead of using the first item.
+- `BOOLEAN` values accept only `true` and `false`, as JSON booleans or as that exact text: in paths and typed list filters always, and in query DTOs and bodies under a host pipe, with or without `enableImplicitConversion`. `1`, `0`, `yes`, `no`, and `TRUE` now return `400`, and `"false"` is never read as `true`.
+- A single integer value sent as a list, such as `{ "count": ["7"] }` or `?count=1&count=2` for a single-value query field, now returns `400` under a host pipe instead of using the first item.
 - Authorization sees the canonical text of path values in `request.parameters`, `resourcePath`, and `${request.parameters.*}`: `16` for `/items/16`, a lower-case UUID, `true` or `false`, and ISO 8601 UTC with milliseconds for `DATE_TIME`. Before 5.0.0 it saw the raw text, a `DATE_TIME` Deny on `request.parameters` never matched another spelling, and a `BOOLEAN` placeholder rendered as `*`. `read.scope`, subscribers, and the service receive typed values: numbers for `NUMBER` keys. HOOKS and IAM scope values merged against a column are converted to its type.
 - On a securable route `request.params` holds the canonical text after `ApiAuthorizationGuard`. A guard that runs before it still sees the raw text.
 - `BEFORE_ERROR` subscribers see the raw string when the path check itself fails, and typed values otherwise.
 - A configured PARAMETERS DTO no longer decides how a path value is converted. The column rule converts it, then the DTO validates the converted value with `forbidUnknownValues: false`, so it can narrow what is accepted but never widen it: an `@ApiProperty()`-only DTO accepts `/items/1`, `@IsInt()` without `@Type` accepts `/items/1` with or without a guard or a host pipe, and `/items/016` returns `400` even with `@IsInt() @Type(() => Number)`. The route's Nest parameter type and its OpenAPI path parameters now come from the DTO generated from the columns.
-- A securable custom route whose IAM `resourcePath` names one of its path parameters must describe that parameter in its PARAMETERS DTO with `ApiPropertyCopy`, or the application fails at startup with an error that names the placeholder. The value is then validated before authorization: `/016`, `/1.6e1`, and `/abc` return `400` where they used to pass a Deny on `/16`.
+- A securable custom route whose IAM `resourcePath` names one of its path parameters must describe that parameter in its PARAMETERS DTO with `ApiPropertyCopy`, or the application fails at startup with an error that names the placeholder. The value is then validated before authorization: `/016`, `/1.6e1`, and `/abc` return `400` where they used to pass a Deny on `/16`. A custom route inherited from a base class is checked for each securable subclass by its own `resourcePath`.
 - A value that a PARAMETERS transformer or a `BEFORE` subscriber writes into the path must fit the described column type.
 - CURSOR tokens bind the path values of the route. They now hash the typed values, so cursors issued before 5.0.0 on routes with `read.scope` path values return `400 CURSOR_NOT_VALID` once; clients restart from the first window.
 - A missing `read.scope` or identity path value returns the `ValidationPipe` body (`message: ["<parameter> should not be null or undefined"]`) instead of the string `INVALID_PARAMETERS`.

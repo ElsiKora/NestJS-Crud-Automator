@@ -3,19 +3,21 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationRequestMetadata } from "@interface/class/api/authorization/request-metadata.interface";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
+import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorator/api";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
+import { ApiAuthorizationParametersRuleRegistry } from "@class/api/authorization/parameters-rule-registry.class";
 import { ApiAuthorizationRuntime } from "@class/api/authorization/runtime.class";
 import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/authorization/metadata-decision.constant";
 import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiPolicyEffect } from "@enum/class/authorization";
 import { IApiAuthorizationDecision } from "@interface/class/api/authorization";
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Optional } from "@nestjs/common";
 import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
 import { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
-import { ApiControllerParametersResolveRequest } from "@utility/api/controller/parameters";
+import { ApiControllerParametersDtoGet, ApiControllerParametersResolveRequest } from "@utility/api/controller/parameters";
 import { AuthorizationSerializeParameters } from "@utility/authorization/serialize-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -25,7 +27,11 @@ const authorizationGuardLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuth
 
 @Injectable()
 export class ApiAuthorizationGuard implements CanActivate {
-	public constructor(private readonly runtime: ApiAuthorizationRuntime) {}
+	public constructor(
+		private readonly runtime: ApiAuthorizationRuntime,
+		@Optional()
+		private readonly parametersRuleRegistry: ApiAuthorizationParametersRuleRegistry = new ApiAuthorizationParametersRuleRegistry(),
+	) {}
 
 	public async canActivate(context: ExecutionContext): Promise<boolean> {
 		if (!this.isControllerSecurable(context)) {
@@ -51,7 +57,9 @@ export class ApiAuthorizationGuard implements CanActivate {
 		const authenticationRequest: IApiAuthenticationRequest = request as unknown as IApiAuthenticationRequest;
 		const identityPlan: IApiControllerIdentityPlan | undefined = ApiControllerIdentityPlanGet(context.getHandler());
 		// Path values are validated before authorization; authorization sees their canonical text, and so does every later reader of request.params.
-		const parameters: Partial<IApiBaseEntity> | undefined = await ApiControllerParametersResolveRequest<IApiBaseEntity>(request, context.getHandler(), request.params as Partial<IApiBaseEntity> | undefined);
+		// A custom route rule belongs to the controller class, because a handler inherited by several controllers is one shared function.
+		const parametersRule: IApiControllerParametersRule | undefined = this.parametersRuleRegistry.get(context.getClass(), context.getHandler()) ?? ApiControllerParametersDtoGet(context.getHandler());
+		const parameters: Partial<IApiBaseEntity> | undefined = await ApiControllerParametersResolveRequest<IApiBaseEntity>(request, parametersRule, request.params as Partial<IApiBaseEntity> | undefined);
 		this.rewriteRequestParameters(request, parameters);
 		const requestMetadata: IApiAuthorizationRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode> = this.resolveRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(request, parameters, identityPlan);
 

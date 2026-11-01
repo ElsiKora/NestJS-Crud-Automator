@@ -222,7 +222,7 @@ function buildResponseDecorators(properties: TApiPropertyBooleanProperties): Arr
 
 /**
  * Builds decorators for type transformation from request text to boolean.
- * Only `true` and `false`, as booleans or as that exact text, are converted; any other value is kept for `IsBoolean` to reject, so `1`, `no`, and `TRUE` return `400`.
+ * Only `true` and `false`, as booleans or as that exact text, are converted; any other value is kept for `IsBoolean` to reject, so `1`, `no`, and `TRUE` return `400`, with or without implicit conversion in the host pipe.
  * @param {TApiPropertyBooleanProperties} properties - The property configuration
  * @returns {Array<PropertyDecorator>} An array of type transformation decorators
  * @private
@@ -232,22 +232,25 @@ function buildTransformDecorators(properties: TApiPropertyBooleanProperties): Ar
 		return [];
 	}
 
+	// The request value is read from the source object: under `enableImplicitConversion` the transformer receives `Boolean(value)`, which is true for any non-empty text, such as "false".
 	if (properties.isArray) {
 		return [
 			ClassTransformerAutomatorTransform(
-				({ value }: { value: unknown }): unknown => {
-					if (value === null || value === undefined) {
-						return value;
+				({ key, obj, value }: { key: string; obj: Record<string, unknown>; value: unknown }): unknown => {
+					const rawValue: unknown = Object.hasOwn(obj, key) ? obj[key] : value;
+
+					if (rawValue === null || rawValue === undefined) {
+						return rawValue;
 					}
 
-					return Array.isArray(value) ? value.map((item: unknown): unknown => parseBooleanValue(item)) : [parseBooleanValue(value)];
+					return Array.isArray(rawValue) ? rawValue.map((item: unknown): unknown => parseBooleanValue(item)) : [parseBooleanValue(rawValue)];
 				},
 				{ toClassOnly: true },
 			),
 		];
 	}
 
-	return [ClassTransformerAutomatorTransform(({ value }: { value: unknown }): unknown => parseBooleanValue(value), { toClassOnly: true })];
+	return [ClassTransformerAutomatorTransform(({ key, obj, value }: { key: string; obj: Record<string, unknown>; value: unknown }): unknown => parseBooleanValue(Object.hasOwn(obj, key) ? obj[key] : value), { toClassOnly: true })];
 }
 
 /**
