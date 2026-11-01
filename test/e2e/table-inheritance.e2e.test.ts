@@ -259,6 +259,8 @@ describe("table inheritance read responses (E2E)", () => {
 			expect(Object.keys(card.properties)).toEqual(expect.arrayContaining(["bankName", "cardNumber", "id", "kind"]));
 			expect(Object.keys(card.properties)).not.toContain("qrPayload");
 			expect(schemas.PaymentDetailEntityGetResponseQrDTO).toBeDefined();
+			expect((card.properties.issuer as { allOf: Array<{ $ref: string }> }).allOf).toEqual([{ $ref: "#/components/schemas/PaymentDetailEntityGetResponseCardTransferIssuerDTO" }]);
+			expect(schemas.PaymentDetailEntityGetResponseCardTransferIssuerDTO).toBeDefined();
 		});
 
 		it("describes page list items as oneOf with a discriminator mapping", () => {

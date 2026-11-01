@@ -202,6 +202,166 @@ class PlanLateRootEntity {
 @ChildEntity("EARLY")
 class PlanLateEarlyEntity extends PlanLateRootEntity {}
 
+enum EPlanNumericKind {
+	ONE = 1,
+}
+
+@Entity("plan_default_column_roots")
+@TableInheritance()
+class PlanDefaultColumnRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("A")
+class PlanDefaultColumnChildEntity extends PlanDefaultColumnRootEntity {}
+
+@Entity("plan_inheritance_enum_roots")
+@TableInheritance({ column: { enum: EPlanOutsideKind, name: "kind", type: "enum" } })
+class PlanInheritanceEnumRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("kind")
+	public kind!: string;
+}
+
+@ChildEntity("OUTSIDE")
+class PlanInheritanceEnumChildEntity extends PlanInheritanceEnumRootEntity {}
+
+@Entity("plan_column_enum_roots")
+@TableInheritance({ column: { name: "kind", type: "varchar" } })
+class PlanColumnEnumRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ enum: EPlanOutsideKind, type: "enum" })
+	@StringDescribe("kind")
+	public kind!: string;
+}
+
+@ChildEntity("OUTSIDE")
+class PlanColumnEnumChildEntity extends PlanColumnEnumRootEntity {}
+
+abstract class PlanAncestorColumnBase {
+	@Column({ enum: EPlanOutsideKind, type: "enum" })
+	@StringDescribe("kind")
+	public kind!: string;
+}
+
+@Entity("plan_ancestor_column_roots")
+@TableInheritance({ column: { name: "kind", type: "varchar" } })
+class PlanAncestorColumnRootEntity extends PlanAncestorColumnBase {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+}
+
+@ChildEntity("OUTSIDE")
+class PlanAncestorColumnChildEntity extends PlanAncestorColumnRootEntity {}
+
+@Entity("plan_numeric_enum_roots")
+@TableInheritance({ column: { enum: EPlanNumericKind, name: "kind", type: "enum" } })
+class PlanNumericEnumRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ enum: EPlanNumericKind, type: "enum" })
+	@StringDescribe("kind")
+	public kind!: EPlanNumericKind;
+}
+
+@ChildEntity("ONE")
+class PlanNumericEnumChildEntity extends PlanNumericEnumRootEntity {}
+
+@Entity("plan_array_enum_roots")
+@TableInheritance({ column: { enum: ["A", "B"], name: "kind", type: "enum" } })
+class PlanArrayEnumRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ enum: ["A", "B"], type: "enum" })
+	@StringDescribe("kind")
+	public kind!: string;
+}
+
+@ChildEntity("A")
+class PlanArrayEnumChildEntity extends PlanArrayEnumRootEntity {}
+
+@Entity("plan_unselected_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class PlanUnselectedRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ select: false, type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("A")
+class PlanUnselectedChildEntity extends PlanUnselectedRootEntity {}
+
+@Entity("plan_integer_roots")
+@TableInheritance({ column: { name: "type", type: "int" } })
+class PlanIntegerRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "int" })
+	@StringDescribe("type")
+	public type!: number;
+}
+
+@ChildEntity("7")
+class PlanIntegerChildEntity extends PlanIntegerRootEntity {}
+
+@Entity("plan_non_string_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class PlanNonStringRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity(1)
+class PlanNonStringChildEntity extends PlanNonStringRootEntity {}
+
+@Entity("plan_items_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class PlanItemsRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("ITEMS")
+class PlanItemsChildEntity extends PlanItemsRootEntity {}
+
+@Entity("plan_invalid_name_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class PlanInvalidNameRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("myType foo")
+class PlanInvalidNameChildEntity extends PlanInvalidNameRootEntity {}
+
 @Entity("plan_plain_entities")
 class PlanPlainEntity {
 	@PrimaryGeneratedColumn("uuid")
@@ -258,6 +418,16 @@ describe("ApiControllerTableInheritancePlanCompiler", () => {
 			expect(explicitVariant?.entityMetadata.columns.map(({ name }: IApiEntityColumn<unknown>): string => String(name))).toEqual(expect.arrayContaining(["id", "type", "explicitField"]));
 		});
 
+		it("uses the TypeORM default discriminator name", () => {
+			expect(PlanDefaultColumnChildEntity).toBeDefined();
+			expect(compile(PlanDefaultColumnRootEntity)?.discriminatorPropertyName).toBe("type");
+		});
+
+		it("reads an array enum", () => {
+			expect(variantValues(compile(PlanArrayEnumRootEntity))).toEqual(["A"]);
+			expect(compile(PlanArrayEnumRootEntity)?.variants[0]?.entity).toBe(PlanArrayEnumChildEntity);
+		});
+
 		it("keeps a plain response for a root without children but still arms the startup check", () => {
 			const plan: IApiControllerTableInheritancePlan | undefined = compile(PlanChildlessRootEntity);
 
@@ -307,7 +477,41 @@ describe("ApiControllerTableInheritancePlanCompiler", () => {
 		});
 
 		it("rejects a non-string discriminator value", () => {
-			expect(() => compile(PlanNumericRootEntity)).toThrow(`Generated polymorphic responses require a non-empty string discriminator value on ${PlanNumericChildEntity.name}`);
+			expect(() => compile(PlanNonStringRootEntity)).toThrow(`Generated polymorphic responses require a non-empty string discriminator value on ${PlanNonStringChildEntity.name}`);
+		});
+
+		it("rejects a numeric discriminator column, whatever the child values", () => {
+			expect(PlanNumericChildEntity).toBeDefined();
+			expect(PlanIntegerChildEntity).toBeDefined();
+			expect(() => compile(PlanNumericRootEntity)).toThrow(`Table inheritance root ${PlanNumericRootEntity.name} must store its discriminator column "type" as a string`);
+			expect(() => compile(PlanIntegerRootEntity)).toThrow(`Table inheritance root ${PlanIntegerRootEntity.name} must store its discriminator column "type" as a string`);
+		});
+
+		it("rejects an unselected discriminator column", () => {
+			expect(PlanUnselectedChildEntity).toBeDefined();
+			expect(() => compile(PlanUnselectedRootEntity)).toThrow(`Table inheritance root ${PlanUnselectedRootEntity.name} must select its discriminator column "type", remove select: false`);
+		});
+
+		it("rejects a value that turns a list variant into the list wrapper name", () => {
+			expect(PlanItemsChildEntity).toBeDefined();
+			expect(() => compile(PlanItemsRootEntity)).toThrow(`Discriminator value "ITEMS" of ${PlanItemsRootEntity.name} produces the DTO name ${PlanItemsRootEntity.name}GetListResponseItemsDTO, which is the generated GET_LIST wrapper name`);
+		});
+
+		it("rejects a value that is not a valid OpenAPI component name", () => {
+			expect(PlanInvalidNameChildEntity).toBeDefined();
+			expect(() => compile(PlanInvalidNameRootEntity)).toThrow(`Discriminator value "myType foo" of ${PlanInvalidNameRootEntity.name} produces the DTO name suffix "MyType foo", which is not a valid OpenAPI component name`);
+		});
+
+		it.each([
+			["the inheritance options", PlanInheritanceEnumRootEntity, PlanInheritanceEnumChildEntity],
+			["the root column", PlanColumnEnumRootEntity, PlanColumnEnumChildEntity],
+			["an ancestor column", PlanAncestorColumnRootEntity, PlanAncestorColumnChildEntity],
+		])("reads the discriminator enum from %s", (_source: string, root: object, child: { name: string }) => {
+			expect(() => compile(root)).toThrow(`Child entity ${child.name} discriminator value is not in the "kind" column enum`);
+		});
+
+		it("ignores the reverse keys of a numeric enum", () => {
+			expect(() => compile(PlanNumericEnumRootEntity)).toThrow(`Child entity ${PlanNumericEnumChildEntity.name} discriminator value is not in the "kind" column enum`);
 		});
 
 		it("rejects a discriminator column without description", () => {

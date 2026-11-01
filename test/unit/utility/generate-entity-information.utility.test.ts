@@ -89,6 +89,16 @@ abstract class InfoInheritancePlainBase extends InfoInheritanceIntermediateEntit
 @ChildEntity("NESTED")
 class InfoInheritanceNestedEntity extends InfoInheritancePlainBase {}
 
+@Entity()
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class InfoUnnamedRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+}
+
+@ChildEntity("UNNAMED")
+class InfoUnnamedChildEntity extends InfoUnnamedRootEntity {}
+
 describe("GenerateEntityInformation", () => {
 	it("builds entity metadata with table name and primary key", () => {
 		const metadata = GenerateEntityInformation<InfoEntity>(InfoEntity as unknown as IApiBaseEntity);
@@ -125,6 +135,12 @@ describe("GenerateEntityInformation", () => {
 
 		expect(metadata.tableName).toBe("info_inheritance_roots");
 		expect(metadata.primaryKey?.name).toBe("id");
+	});
+
+	it("names the root table of a child entity after the root class when the root has no table name", () => {
+		const metadata = GenerateEntityInformation<InfoUnnamedChildEntity>(InfoUnnamedChildEntity as unknown as IApiBaseEntity);
+
+		expect(metadata.tableName).toBe("info_unnamed_root_entity");
 	});
 
 	it("preserves TypeORM relation target metadata", () => {

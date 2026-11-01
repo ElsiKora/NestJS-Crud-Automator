@@ -1,3 +1,5 @@
+import type { PaymentDetailCardTransferEntity } from "./card-transfer.entity";
+
 import { Inject } from "@nestjs/common";
 
 import { ApiController, ApiControllerObservable, ApiControllerSecurable, EApiAuthenticationType, EApiAuthorizationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiRouteType, EFilterOperation, EFilterOrderDirection } from "../../../src/index";
@@ -13,12 +15,11 @@ import { PaymentDetailService } from "./service";
 
 const disabledRoute = { generation: { isEnabled: false } } as const;
 const security = { authentication: { guard: TestAuthGuard, type: EApiAuthenticationType.USER } };
-// The relation lives on a child entity, so it is not a key of the root find options.
-const issuerRelation = { response: { load: { include: { issuer: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } } as never;
+const issuerRelation = { response: { load: { include: { issuer: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } } as const;
 
 @ApiControllerObservable()
 @ApiControllerSecurable()
-@ApiController<PaymentDetailEntity>({
+@ApiController<PaymentDetailEntity & Partial<PaymentDetailCardTransferEntity>>({
 	authorization: { defaultMode: EApiAuthorizationMode.HOOKS },
 	entity: PaymentDetailEntity,
 	name: "PaymentDetails",

@@ -2,11 +2,12 @@ import "reflect-metadata";
 
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerTableInheritancePlan } from "@interface/class/api/controller/table-inheritance";
 import type { IApiEntity } from "@interface/entity";
 
 import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
-import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetDto, ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
 import { describe, expect, it } from "vitest";
 
 import { SharedItemDto as FirstSharedItemDto } from "./fixture/first-shared-item.dto";
@@ -129,5 +130,16 @@ describe("ApiControllerGetDto", () => {
 
 		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response } })).not.toThrow();
 		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response } }, cursorPlan)).toThrow("another item constructor or pagination mode");
+	});
+
+	it("rejects an item response DTO configuration outside the GET_LIST response", () => {
+		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, { dto: { response: { itemType: GetDtoItemDto } } } as never)).toThrow("Custom item response DTO configuration is supported only for the GET_LIST RESPONSE DTO");
+	});
+
+	it("keeps a manual response DTO on a read route of a table inheritance root", () => {
+		const tableInheritance: IApiControllerTableInheritancePlan = { childEntities: [], discriminatorPropertyName: "type", rootEntity: GetDtoEntity, variants: [{ discriminatorValue: "A", entity: GetDtoEntity, entityMetadata: entityMetadata as IApiEntity<unknown> }] };
+
+		expect(ApiControllerGetResponseDto(properties, { ...entityMetadata, tableInheritance }, EApiRouteType.GET, { dto: { response: GetDtoListDto } })).toBe(GetDtoListDto);
+		expect(ApiControllerGetResponseDto(properties, { ...entityMetadata, tableInheritance }, EApiRouteType.GET_LIST, { dto: { response: GetDtoListDto } })).toBe(GetDtoListDto);
 	});
 });

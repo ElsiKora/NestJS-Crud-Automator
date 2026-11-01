@@ -8,6 +8,8 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 import { ApiControllerGetListQueryPlanCompiler } from "@class/api/controller/get-list/query";
 import { ApiControllerTableInheritancePlanCompiler } from "@class/api/controller/table-inheritance-plan-compiler.class";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
+import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
+import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
 import { EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOrderDirection } from "@enum/filter";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
@@ -127,12 +129,21 @@ class CursorHiddenChildEntity extends CursorHiddenRootEntity {
 	declare public rank: number;
 }
 
+class CursorHiddenItemDto {
+	@ApiPropertyUUID({ description: "id", entity: CursorHiddenRootEntity, isRequired: true, isResponse: true })
+	public id!: string;
+
+	@ApiPropertyNumber({ description: "rank", entity: CursorHiddenRootEntity, exampleValue: 1, format: EApiPropertyNumberType.INTEGER, isRequired: true, isResponse: true, maximum: 100, minimum: 0, multipleOf: 1 })
+	public rank!: number;
+}
+
 class CursorTableInheritanceController {}
 
-function compileCursorPlan(entity: object, orderField: string): unknown {
+function compileCursorPlan(entity: object, orderField: string, responseDto?: unknown): unknown {
 	const entityMetadata: IApiEntity<IApiBaseEntity> = GenerateEntityInformation<IApiBaseEntity>(entity as unknown as IApiBaseEntity);
 	const properties: IApiControllerProperties<IApiBaseEntity> = { entity, routes: { [EApiRouteType.GET_LIST]: {} } } as unknown as IApiControllerProperties<IApiBaseEntity>;
 	const routeConfig: TApiControllerPropertiesRoute<IApiBaseEntity, EApiRouteType.GET_LIST> = {
+		...(responseDto ? { dto: { [EApiDtoType.RESPONSE]: responseDto } } : {}),
 		request: {
 			[EApiControllerRequestTarget.QUERY]: {
 				order: {
@@ -170,5 +181,9 @@ describe("CURSOR GET_LIST over a table inheritance root", () => {
 	it("rejects a variant hiding the order field from the generated response", () => {
 		expect(CursorHiddenChildEntity).toBeDefined();
 		expect(() => compileCursorPlan(CursorHiddenRootEntity, "rank")).toThrow('CURSOR GET_LIST order field "rank" must be unconditionally raw-exposed in the generated response');
+	});
+
+	it("leaves response exposure to a manual response DTO", () => {
+		expect(compileCursorPlan(CursorHiddenRootEntity, "rank", { itemType: CursorHiddenItemDto })).toBeDefined();
 	});
 });

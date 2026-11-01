@@ -81,7 +81,7 @@ export function ApiControllerWriteDtoSwaggerWithReadPlan<E extends IApiBaseEntit
 	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, queryPlan, readPlan, identityPlan);
 	const responseDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(properties, entity, method, routeConfig, queryPlan, identityPlan);
 
-	const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, ...(ApiRouteIsDiscriminatedDtoProperties(responseDto) ? responseDto.type : [responseDto])];
+	const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, ...(ApiRouteIsDiscriminatedDtoProperties(responseDto) ? [] : [responseDto])];
 
 	for (const dto of dtoList) {
 		for (const swaggerDto of dto ? [dto, ...GetRegisteredAutoDtoChildrenRecursive(dto.prototype as object)] : []) {

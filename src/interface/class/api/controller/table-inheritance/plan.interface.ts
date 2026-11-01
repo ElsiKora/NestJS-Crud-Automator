@@ -1,10 +1,9 @@
 import type { IApiControllerTableInheritanceVariant } from "@interface/class/api/controller/table-inheritance/variant.interface";
+import type { Type } from "@nestjs/common";
 
 export interface IApiControllerTableInheritancePlan {
-	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
-	childEntities: ReadonlyArray<Function>;
+	childEntities: ReadonlyArray<Type<unknown>>;
 	discriminatorPropertyName: string;
-	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
-	rootEntity: Function;
+	rootEntity: Type<unknown>;
 	variants: ReadonlyArray<IApiControllerTableInheritanceVariant>;
 }

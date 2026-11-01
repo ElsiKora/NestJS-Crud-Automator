@@ -10,13 +10,13 @@ import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/ro
 
 import { ApiControllerTableInheritancePlanCompiler } from "@class/api/controller/table-inheritance-plan-compiler.class";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiControllerGetListQueryPaginationMode, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus } from "@nestjs/common";
 import { ApiRouteSerializeResponse } from "@utility/api/route/response/serialize.utility";
 import { DtoGenerateTableInheritanceResponse } from "@utility/dto/generate/table-inheritance-response.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { instanceToPlain, plainToInstance } from "class-transformer";
-import { ChildEntity, Column, Entity, PrimaryGeneratedColumn, TableInheritance } from "typeorm";
+import { ChildEntity, Column, Entity, ManyToOne, PrimaryGeneratedColumn, TableInheritance } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 enum EResponseKind {
@@ -59,6 +59,86 @@ class ResponseQrEntity extends ResponseRootEntity {
 	@Column({ type: "varchar" })
 	@StringDescribe("qr payload")
 	public qrPayload!: string;
+}
+
+@Entity("response_hidden_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class ResponseHiddenRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({
+		description: "type",
+		exampleValue: "A",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 64,
+		minLength: 1,
+		pattern: "/^.+$/",
+		properties: { [EApiRouteType.GET]: { [EApiDtoType.RESPONSE]: { isEnabled: false } } },
+		type: EApiPropertyDescribeType.STRING,
+	})
+	public type!: string;
+}
+
+@ChildEntity("A")
+class ResponseHiddenChildEntity extends ResponseHiddenRootEntity {}
+
+@Entity("response_collision_issuers")
+class ResponseCollisionIssuerEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+}
+
+@Entity("response_collision_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class ResponseCollisionRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@ApiPropertyDescribe({ description: "issuer", type: EApiPropertyDescribeType.RELATION })
+	@ManyToOne(() => ResponseCollisionIssuerEntity)
+	public issuer!: ResponseCollisionIssuerEntity;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("CARD_TRANSFER")
+class ResponseCollisionCardTransferEntity extends ResponseCollisionRootEntity {}
+
+@ChildEntity("CARD_TRANSFER_ISSUER")
+class ResponseCollisionCardTransferIssuerEntity extends ResponseCollisionRootEntity {}
+
+@Entity("response_proto_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class ResponseProtoRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("__proto__")
+class ResponseProtoChildEntity extends ResponseProtoRootEntity {}
+
+class ResponseValidatorConstraint {
+	public validate(): boolean {
+		return true;
+	}
+}
+
+function generateFor(entity: object, method: EApiRouteType = EApiRouteType.GET): TApiRouteDiscriminatedDtoProperties | Type<unknown> {
+	const metadata: IApiEntity<IApiBaseEntity> = GenerateEntityInformation<IApiBaseEntity>(entity as IApiBaseEntity);
+	const entityProperties: IApiControllerProperties<IApiBaseEntity> = { entity, routes: { [EApiRouteType.GET]: {} } } as unknown as IApiControllerProperties<IApiBaseEntity>;
+
+	return DtoGenerateTableInheritanceResponse(entity, metadata, ApiControllerTableInheritancePlanCompiler.compile(entityProperties, metadata) as IApiControllerTableInheritancePlan, method);
 }
 
 class ResponseGuard implements CanActivate {
@@ -174,11 +254,41 @@ describe("DtoGenerateTableInheritanceResponse", () => {
 		});
 	});
 
+	describe("startup checks", () => {
+		it("rejects a discriminator hidden from the generated response", () => {
+			expect(ResponseHiddenChildEntity).toBeDefined();
+			expect(() => generateFor(ResponseHiddenRootEntity)).toThrow(`Table inheritance root ${ResponseHiddenRootEntity.name} must expose its discriminator column "type" in GET and GET_LIST responses`);
+		});
+
+		it("rejects a variant DTO named like a relation DTO of another variant", () => {
+			expect(ResponseCollisionCardTransferEntity).toBeDefined();
+			expect(ResponseCollisionCardTransferIssuerEntity).toBeDefined();
+			expect(() => generateFor(ResponseCollisionRootEntity)).toThrow(`Table inheritance root ${ResponseCollisionRootEntity.name} generates two different DTOs named ${ResponseCollisionRootEntity.name}GetResponseCardTransferIssuerDTO`);
+			expect(() => generateFor(ResponseCollisionRootEntity, EApiRouteType.GET_LIST)).toThrow(`generates two different DTOs named ${ResponseCollisionRootEntity.name}GetListResponseCardTransferIssuerDTO`);
+		});
+
+		it("keeps a __proto__ discriminator value as a mapping key", () => {
+			const { discriminator }: TApiRouteDiscriminatedDtoProperties = generateFor(ResponseProtoRootEntity) as TApiRouteDiscriminatedDtoProperties;
+			const metadata: Pick<IApiRouteMetadata<ResponseProtoRootEntity>, "response"> = { response: { discriminator, serialization: { isEnabled: true }, status: HttpStatus.OK, type: Object.values(discriminator.mapping) } } as unknown as Pick<IApiRouteMetadata<ResponseProtoRootEntity>, "response">;
+
+			expect(ResponseProtoChildEntity).toBeDefined();
+			expect(Object.getPrototypeOf(discriminator.mapping)).toBe(Object.prototype);
+			expect(Object.keys(discriminator.mapping)).toEqual([ResponseProtoRootEntity.name, "__proto__"]);
+			expect(instanceToPlain(ApiRouteSerializeResponse(metadata, { id: ROW_ID, type: "__proto__" }))).toEqual({ id: ROW_ID, type: "__proto__" });
+		});
+	});
+
 	describe("cache", () => {
 		it("returns the same response for the same inputs", () => {
 			expect(generateGet()).toBe(generateGet());
 			expect(generateList()).toBe(generateList());
 			expect(generateList(cursorQueryPlan)).toBe(generateList(cursorQueryPlan));
+		});
+
+		it("keeps responses with validators apart", () => {
+			const validated: TApiRouteDiscriminatedDtoProperties = DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, plan, EApiRouteType.GET, { validators: [{ constraintClass: ResponseValidatorConstraint }] }) as TApiRouteDiscriminatedDtoProperties;
+
+			expect(validated.discriminator.mapping[EResponseKind.QR]).not.toBe(generateGet().discriminator.mapping[EResponseKind.QR]);
 		});
 
 		it("keeps guarded responses apart", () => {
