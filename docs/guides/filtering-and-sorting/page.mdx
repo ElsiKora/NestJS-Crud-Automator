@@ -28,6 +28,7 @@ A PAGE route without a typed `filter` validates its own QUERY DTO, generated or 
 | Filter group with a value but no operator, or an operator other than `isnull` or `notnull` with no value                         | `400`  |
 | A `between` filter without exactly two `[values]` items, or an `in` or `notin` filter with more than 100                         | `400`  |
 | A `<field>[operator]`, `<field>[value]` or `<field>[values]` key for a field the DTO does not publish                            | `400`  |
+| Any other query key the DTO does not publish, such as `_=1730000000`, `utm_source=x` or `name[foo]=x`                            | `400`  |
 
 The body is the one a default `ValidationPipe` returns:
 
@@ -41,7 +42,7 @@ The body is the one a default `ValidationPipe` returns:
 
 `isnull` and `notnull` take no value: `age[operator]=isnull` applies the filter, and adding `age[value]` returns `400`.
 
-A filter group key the DTO does not publish returns `400` with one `property <key> should not exist` message per key, before the other messages, as a `ValidationPipe` with `forbidNonWhitelisted` words it. This covers a misspelled field such as `nmae[value]=x`, the root primary key (`id[...]`, see [UUID Operations](#uuid-operations)), a relation itself such as `author[...]`, an unknown relation field such as `author.nope[...]`, and a column hidden from the QUERY DTO. A manual QUERY DTO publishes only the properties it declares, with validators or as class fields, so it accepts only the filter groups it declares. A client that misspells a filter gets `400` instead of the unfiltered list:
+The DTO publishes `limit`, `page`, `orderBy`, `orderDirection` and its filter groups, and nothing else. Every other query key returns `400` with one `property <key> should not exist` message per key, before the other messages, as a `ValidationPipe` with `forbidNonWhitelisted` words it. For filter groups this covers a misspelled field such as `nmae[value]=x`, the root primary key (`id[...]`, see [UUID Operations](#uuid-operations)), a relation itself such as `author[...]`, an unknown relation field such as `author.nope[...]`, a field on a to-many relation such as `tags.name[...]`, and a column hidden from the QUERY DTO. It also covers plain keys such as a cache-buster `_=1730000000`, a tracking `utm_source=x`, or `name[foo]=x`. A manual QUERY DTO publishes only the properties it declares, with validators, Swagger decorators or as class fields, and the names it exposes with `@Expose`, so it accepts only those keys. A client that misspells a filter gets `400` instead of the unfiltered list:
 
 ```json
 {
@@ -51,7 +52,7 @@ A filter group key the DTO does not publish returns `400` with one `property <ke
 }
 ```
 
-Other keys the DTO does not describe, such as `utm_source=x` or `name[foo]=x`, are ignored as a default `ValidationPipe` ignores them. A route with a typed filter rejects every key outside its plan, these included, with `400 FILTER_NOT_VALID`.
+A route with a typed filter rejects the same keys, every key outside its plan, with `400 FILTER_NOT_VALID`. Both routes therefore reject unknown keys; only the body differs.
 
 ### Migration Notes
 
@@ -75,6 +76,8 @@ An `in` or `notin` filter with one item, such as `status[operator]=in&status[val
 - `isnull` or `notnull` with a value: remove the value. `isnull` or `notnull` without a value used to be ignored and now filters, so those requests return fewer rows.
 - A filter group for a field the DTO does not publish, such as a misspelled field or `id[...]`: correct or remove it. The route used to ignore the group and return the unfiltered list, with or without a host pipe. To filter by the primary key, add a typed `filter` to the route.
 - A filter on an entity column that a manual QUERY DTO does not declare: declare the `[operator]` and `[value]` or `[values]` properties on the DTO. The route used to apply it from entity metadata.
+- A filter through a to-many relation, such as `tags.name[...]` on a `@OneToMany` or `@ManyToMany` property: use a typed plan's to-one paths, a generated controller on the child table, or a custom method. The generated QUERY DTO and OpenAPI used to publish these filters and the route applied them; the DTO now publishes and the route applies one-hop to-one paths only, as typed plans do.
+- Any other query key the DTO does not publish, such as a cache-buster `_=1730000000` (jQuery `cache: false` and some HTTP clients add one), `utm_source` and other tracking parameters, or a misspelled plain key: remove it, or declare it on a manual QUERY DTO. The route used to ignore these keys.
 
 The route validates the raw request query, not the value a host pipe returns. A custom pipe that rewrites the query, for example one that lowercases `orderDirection=ASC`, no longer rescues such a request: the route still answers `400`. Fix the client, or rewrite the query in a route-before subscriber, whose result the route validates.
 
@@ -443,7 +446,7 @@ GET /posts?author.username[operator]=eq&author.username[value]=john_doe
 
 Top-level relation filters such as `author[operator]=eq&author[value]=...` are not generated or transformed. Use `author.id[...]` for relation id filters.
 
-Only one relation level is generated. Relation fields and object fields on the related entity are skipped.
+Only one relation level is generated, through to-one relations (`@ManyToOne`, `@OneToOne`). To-many relations, and relation fields and object fields on the related entity, are skipped; a request for them returns `400`.
 
 ## Multiple Filters
 

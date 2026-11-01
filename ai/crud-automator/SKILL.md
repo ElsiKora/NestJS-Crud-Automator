@@ -124,7 +124,7 @@ Use local source as the contract:
 - Response relation config: `relations.response.reference` and `relations.response.load.include` with optional `relationLoadStrategy`.
 - `OBJECT` and `SCALAR` are the supported destructive response reference projections. Do not assume `FULL` or `PRESERVE` modes exist.
 - HTTP generated relation filters use explicit one-level paths such as `author.id[...]` and `author.username[...]`; top-level `author[...]` is not generated or transformed. A typed plan can narrow these paths but cannot enable deeper or to-many paths.
-- Generated relation filters skip relation fields and object fields on the related entity.
+- Generated relation filters skip to-many relations, and relation fields and object fields on the related entity; a route without a typed filter answers them, and any other query key its QUERY DTO does not publish (`_=…`, `utm_source`), with `400 property <key> should not exist`.
 - For nested request or response relations, use TypeORM relation object maps in `load.include`.
 - Nested request include objects are only passed to the direct relation service as TypeORM `relations`; nested request references are not recursively hydrated.
 

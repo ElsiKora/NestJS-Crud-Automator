@@ -399,7 +399,7 @@ The same syntax works for scalar fields on the related entity:
 GET /posts?author.username[operator]=eq&author.username[value]=john_doe
 ```
 
-Generated relation filters support one relation level. Relation fields and object fields on the related entity are not generated as nested query filters.
+Generated relation filters support one level through a to-one relation (`@ManyToOne`, `@OneToOne`). To-many relations, and relation fields and object fields on the related entity, are not generated as nested query filters, and a request for them returns `400`.
 
 Top-level relation filters such as `author[operator]=eq&author[value]=...` are not part of the generated query contract. Use `author.id[...]` instead.
 
