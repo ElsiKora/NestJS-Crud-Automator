@@ -129,6 +129,13 @@ describe("ApiPropertyNumber", () => {
 		expect(validateSync(instance)).toHaveLength(0);
 	});
 
+	it("wraps a single array value into a one-item array before converting it", () => {
+		const instance = plainToInstance(NumberArrayDto, { values: "2" });
+
+		expect(instance.values).toEqual([2]);
+		expect(validateSync(instance).map((error) => Object.keys(error.constraints ?? {}))).toEqual([["arrayMinSize"]]);
+	});
+
 	it("validates double formats with divisibility rules", () => {
 		const instance = plainToInstance(NumberDoubleDto, { ratio: "1.3" });
 

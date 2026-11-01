@@ -47,6 +47,10 @@ const LIMIT_TYPE_MESSAGES: Array<string> = ["limit must be an integer number", "
 const PAGE_TYPE_MESSAGES: Array<string> = ["page must be an integer number", "page must not be less than 1", "page must not be greater than 100", "page must be divisible by 1"];
 const RANK_OPERATOR_MESSAGE: string = "rank[operator] must be one of the following values: between, eq, gt, gte, in, isnull, lt, lte, ne, notin, notnull";
 
+const ONE_ITEM_MESSAGE: (group: string) => string = (group: string): string => `${group}[values] must contain at least 2 elements`;
+
+const BETWEEN_MESSAGE: (group: string) => string = (group: string): string => `group "${group}" with between operation requires exactly 2 values`;
+
 const REJECTED_CASES: Array<{ messages: Array<string>; query: string }> = [
 	{ messages: [ORDER_BY_MESSAGE], query: `${PAGE}&orderBy=nope&orderDirection=asc` },
 	{ messages: [ORDER_BY_MESSAGE], query: `${PAGE}&orderBy=unsortable&orderDirection=desc` },
@@ -70,6 +74,17 @@ const REJECTED_CASES: Array<{ messages: Array<string>; query: string }> = [
 	{ messages: ["each value in status[values] must be one of the following values: active, archived"], query: `${PAGE}&status[operator]=in&status[values]=nope&status[values]=archived` },
 	{ messages: ["label[value] must match /^[A-Za-z0-9 ]+$/ regular expression"], query: `${PAGE}&label[operator]=cont&label[value]=%25%25` },
 	{ messages: ['group "note" with isnull operation should not have any values'], query: `${PAGE}&note[operator]=isnull&note[value]=x` },
+	{ messages: [ONE_ITEM_MESSAGE("rank")], query: `${PAGE}&rank[operator]=in&rank[values]=1` },
+	{ messages: [ONE_ITEM_MESSAGE("rank")], query: `${PAGE}&rank[operator]=notin&rank[values]=1` },
+	{ messages: [ONE_ITEM_MESSAGE("rank"), BETWEEN_MESSAGE("rank")], query: `${PAGE}&rank[operator]=between&rank[values]=1` },
+	{ messages: [ONE_ITEM_MESSAGE("status")], query: `${PAGE}&status[operator]=in&status[values]=active` },
+	{ messages: [ONE_ITEM_MESSAGE("status")], query: `${PAGE}&status[operator]=notin&status[values]=active` },
+	{ messages: [ONE_ITEM_MESSAGE("label")], query: `${PAGE}&label[operator]=in&label[values]=Alpha` },
+	{ messages: [ONE_ITEM_MESSAGE("isFeatured")], query: `${PAGE}&isFeatured[operator]=in&isFeatured[values]=1` },
+	{ messages: [ONE_ITEM_MESSAGE("createdAt"), BETWEEN_MESSAGE("createdAt")], query: `${PAGE}&createdAt[operator]=between&createdAt[values]=2024-01-01T00:00:00.000Z` },
+	{ messages: [ONE_ITEM_MESSAGE("releasedOn"), BETWEEN_MESSAGE("releasedOn")], query: `${PAGE}&releasedOn[operator]=between&releasedOn[values]=2024-01-01` },
+	{ messages: [ONE_ITEM_MESSAGE("rank"), 'group "rank" with value suffix must have an operator suffix [operator]'], query: `${PAGE}&rank[values]=1` },
+	{ messages: [ONE_ITEM_MESSAGE("status"), 'group "status" with value suffix must have an operator suffix [operator]'], query: `${PAGE}&status[values]=active` },
 	{ messages: ["createdAt[value] must be a Date instance"], query: `${PAGE}&createdAt[operator]=gt&createdAt[value]=nope` },
 ];
 
