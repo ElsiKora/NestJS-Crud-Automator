@@ -5,7 +5,7 @@ import { EApiPropertyDateIdentifier, EApiPropertyDateType } from "@enum/decorato
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 class DateEntity {}
 
@@ -50,6 +50,44 @@ class DateOptionalArrayDto {
 	public dates?: Date[];
 }
 
+class CalendarDateDto {
+	@ApiPropertyDate({
+		description: "happensOn",
+		entity: DateEntity,
+		format: EApiPropertyDateType.DATE,
+		identifier: EApiPropertyDateIdentifier.DATE,
+		isNullable: true,
+		isRequired: true,
+	})
+	public happensOn!: null | string;
+}
+
+class TimeDto {
+	@ApiPropertyDate({
+		description: "opensAt",
+		entity: DateEntity,
+		format: EApiPropertyDateType.TIME,
+		identifier: EApiPropertyDateIdentifier.DATE,
+		isRequired: false,
+	})
+	public opensAt?: string;
+}
+
+class TimeArrayDto {
+	@ApiPropertyDate({
+		description: "slots",
+		entity: DateEntity,
+		format: EApiPropertyDateType.TIME,
+		identifier: EApiPropertyDateIdentifier.DATE,
+		isArray: true,
+		isRequired: true,
+		isUniqueItems: false,
+		maxItems: 3,
+		minItems: 1,
+	})
+	public slots!: Array<string>;
+}
+
 class DateResponseDto {
 	@ApiPropertyDate({
 		description: "updatedAt",
@@ -82,7 +120,7 @@ describe("ApiPropertyDate", () => {
 		const instance = plainToInstance(DateDto, { createdAt: "not-a-date" });
 		const errors = validateSync(instance);
 
-		expect(errors[0]?.constraints?.isDate).toBeDefined();
+		expect(errors[0]?.constraints).toEqual({ isDateFormatValue: "createdAt must be in YYYY-MM-DDTHH:mm:ss.sssZ format" });
 	});
 
 	it("validates array size constraints", () => {
@@ -105,6 +143,107 @@ describe("ApiPropertyDate", () => {
 
 		expect(typeof instance.updatedAt).toBe("string");
 		expect(validateSync(instance, { forbidUnknownValues: false })).toHaveLength(0);
+	});
+
+	describe("request values in the published form", () => {
+		const originalTimeZone: string | undefined = process.env.TZ;
+
+		afterEach(() => {
+			process.env.TZ = originalTimeZone;
+		});
+
+		it.each(["America/New_York", "Asia/Kolkata", "UTC"])("keeps a DATE value as calendar text in %s", (timeZone: string) => {
+			process.env.TZ = timeZone;
+
+			const instance = plainToInstance(CalendarDateDto, { happensOn: "2026-03-01" });
+
+			expect(instance.happensOn).toBe("2026-03-01");
+			expect(validateSync(instance)).toHaveLength(0);
+		});
+
+		it("keeps a null DATE value on a nullable property", () => {
+			const instance = plainToInstance(CalendarDateDto, { happensOn: null });
+
+			expect(instance.happensOn).toBeNull();
+			expect(validateSync(instance)).toHaveLength(0);
+		});
+
+		it.each(["2026-02-30", "2026-13-01", "2026-03-01T00:00:00.000Z", "20260301", "2026-3-1", "Mar 1 2026", "", 20_260_301, true, {}])("rejects %j as a DATE value without converting it", (value: unknown) => {
+			const instance = plainToInstance(CalendarDateDto, { happensOn: value });
+
+			expect(instance.happensOn).toEqual(value);
+			expect(validateSync(instance).map((error) => error.constraints)).toEqual([{ isDateFormatValue: "happensOn must be in YYYY-MM-DD format" }]);
+		});
+
+		it.each(["America/New_York", "Asia/Kolkata"])("parses a DATE_TIME value to the same instant in %s", (timeZone: string) => {
+			process.env.TZ = timeZone;
+
+			const instance = plainToInstance(DateDto, { createdAt: "2026-03-01T12:34:56.789Z" });
+
+			expect(instance.createdAt).toBeInstanceOf(Date);
+			expect(instance.createdAt.toISOString()).toBe("2026-03-01T12:34:56.789Z");
+			expect(validateSync(instance)).toHaveLength(0);
+		});
+
+		it.each(["2026-03-01T12:34:56Z", "2026-03-01T12:34:56.789+01:00", "2026-03-01T12:34:56.789", "2026-03-01", "2026-02-30T12:00:00.000Z", "2026-03-01T24:00:00.000Z", "2026-03-01T12:34:56X789Z", "", 1_772_368_496_789])("rejects %j as a DATE_TIME value without converting it", (value: unknown) => {
+			const instance = plainToInstance(DateDto, { createdAt: value });
+
+			expect(instance.createdAt).toEqual(value);
+			expect(validateSync(instance).map((error) => error.constraints)).toEqual([{ isDateFormatValue: "createdAt must be in YYYY-MM-DDTHH:mm:ss.sssZ format" }]);
+		});
+
+		it.each(["00:00:00", "09:30:00", "23:59:59"])("keeps the TIME value %s as text", (value: string) => {
+			const instance = plainToInstance(TimeDto, { opensAt: value });
+
+			expect(instance.opensAt).toBe(value);
+			expect(validateSync(instance)).toHaveLength(0);
+		});
+
+		it("keeps an absent optional TIME value absent", () => {
+			const instance = plainToInstance(TimeDto, {});
+
+			expect(instance.opensAt).toBeUndefined();
+			expect(validateSync(instance)).toHaveLength(0);
+		});
+
+		it.each(["24:00:00", "12:60:00", "12:30:60", "9:30:00", "09:30", "09:30:00.000", "09:30:00Z", "2026-03-01T09:30:00.000Z", "", 930])("rejects %j as a TIME value without converting it", (value: unknown) => {
+			const instance = plainToInstance(TimeDto, { opensAt: value });
+
+			expect(instance.opensAt).toEqual(value);
+			expect(validateSync(instance).map((error) => error.constraints)).toEqual([{ isDateFormatValue: "opensAt must be in HH:mm:ss format" }]);
+		});
+
+		it("checks each value of a TIME array as text", () => {
+			const accepted = plainToInstance(TimeArrayDto, { slots: ["09:30:00", "18:00:00"] });
+			const rejected = plainToInstance(TimeArrayDto, { slots: ["09:30:00", "24:00:00"] });
+
+			expect(accepted.slots).toEqual(["09:30:00", "18:00:00"]);
+			expect(validateSync(accepted)).toHaveLength(0);
+			expect(rejected.slots).toEqual(["09:30:00", "24:00:00"]);
+			expect(validateSync(rejected).map((error) => error.constraints)).toEqual([{ isDateFormatValue: "each value in slots must be in HH:mm:ss format" }]);
+		});
+
+		it("parses each value of a DATE_TIME array and wraps a single value", () => {
+			class InstantArrayDto {
+				@ApiPropertyDate({
+					description: "instants",
+					entity: DateEntity,
+					format: EApiPropertyDateType.DATE_TIME,
+					identifier: EApiPropertyDateIdentifier.DATE,
+					isArray: true,
+					isRequired: true,
+					isUniqueItems: false,
+					maxItems: 3,
+					minItems: 1,
+				})
+				public instants!: Array<Date>;
+			}
+
+			const instance = plainToInstance(InstantArrayDto, { instants: "2026-03-01T00:00:00.000Z" });
+
+			expect(instance.instants.map((value: Date): string => value.toISOString())).toEqual(["2026-03-01T00:00:00.000Z"]);
+			expect(validateSync(instance)).toHaveLength(0);
+		});
 	});
 
 	it("throws on invalid array options", () => {
