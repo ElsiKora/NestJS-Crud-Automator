@@ -16,9 +16,10 @@ import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
  * @param {TDtoGenerateGetListResponseResourceClass} resourceClass - The class representing the entity being listed
  * @param {Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | TDtoGenerateGetListResponseResourceClass} responseResourceClass - The response DTO class for individual items, or every item variant with the discriminator selecting it
  * @param {string} name - The name for the generated DTO class
+ * @param {string} [origin] - Where the wrapper comes from, used by the OpenAPI component name check; defaults to the list response of the entity
  * @returns {Type<unknown>} A generated DTO class for paginated list responses
  */
-export function DtoGenerateGetListResponse(resourceClass: TDtoGenerateGetListResponseResourceClass, responseResourceClass: Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | TDtoGenerateGetListResponseResourceClass, name: string): Type<unknown> {
+export function DtoGenerateGetListResponse(resourceClass: TDtoGenerateGetListResponseResourceClass, responseResourceClass: Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | TDtoGenerateGetListResponseResourceClass, name: string, origin?: string): Type<unknown> {
 	const itemsProperties: Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | Pick<TApiPropertyObjectWithoutDiscriminatorProperties, "type"> = typeof responseResourceClass === "function" ? { type: responseResourceClass } : { discriminator: responseResourceClass.discriminator, type: responseResourceClass.type };
 
 	class ApiListGetResponse extends PickType(resourceClass, [] as const) {
@@ -82,7 +83,7 @@ export function DtoGenerateGetListResponse(resourceClass: TDtoGenerateGetListRes
 		totalPages!: number;
 	}
 
-	DtoSetGeneratedName(ApiListGetResponse, name, `the getList page response of entity ${resourceClass.name}`);
+	DtoSetGeneratedName(ApiListGetResponse, name, origin ?? `the getList page response of entity ${resourceClass.name}`);
 
 	return ApiListGetResponse;
 }

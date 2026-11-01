@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
+import { DtoSchemaNameGetRouteOrigin } from "@utility/dto/schema-name/route-origin.utility";
 import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { Validate } from "class-validator";
@@ -78,7 +79,7 @@ export function DtoGenerateIdentityReadParameters<E>(entityMetadata: IApiEntity<
 	const combinedSignature: string | undefined = readPlan ? createHash("sha256").update(identityPlan.signature).update(":").update(readPlan.signature).digest("hex") : undefined;
 	const schemaName: string = readPlan ? `${schemaPrefix}GetParameters${combinedSignature}DTO` : identityPlan.schemaName;
 
-	DtoSetGeneratedName(GeneratedIdentityReadParametersDTO, schemaName, `the get parameters DTO of entity ${String(entityMetadata.name)}`);
+	DtoSetGeneratedName(GeneratedIdentityReadParametersDTO, schemaName, DtoSchemaNameGetRouteOrigin(schemaPrefix, EApiRouteType.GET, EApiDtoType.PARAMETERS));
 
 	for (const parameter of parameters) {
 		const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((candidate: IApiEntityColumn<E>): boolean => String(candidate.name) === parameter.field);

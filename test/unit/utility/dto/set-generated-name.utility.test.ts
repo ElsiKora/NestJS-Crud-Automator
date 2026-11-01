@@ -18,13 +18,25 @@ describe("DtoSetGeneratedName", () => {
 		expect(() => DtoSetGeneratedName(GeneratedDTO, "SetGeneratedNameRepeatedDTO", "the first route")).not.toThrow();
 	});
 
-	it("fails when a different class already has the name, naming both sources", () => {
+	it("fails when a different class already has the name, naming both origins", () => {
 		class FirstDTO {}
 		class SecondDTO {}
 
 		DtoSetGeneratedName(FirstDTO, "SetGeneratedNameTakenDTO", "the first route");
 
-		expect(() => DtoSetGeneratedName(SecondDTO, "SetGeneratedNameTakenDTO", "the second route")).toThrow('Generated DTO name "SetGeneratedNameTakenDTO" belongs to two different DTO classes, generated for the first route and for the second route');
+		expect(() => DtoSetGeneratedName(SecondDTO, "SetGeneratedNameTakenDTO", "the second route")).toThrow('OpenAPI component name "SetGeneratedNameTakenDTO" belongs to two different classes: the first route, and the second route');
 		expect(SecondDTO.name).toBe("SecondDTO");
+	});
+
+	it("replaces the class of the same origin, because a re-evaluated module generates its classes again", () => {
+		class FirstEvaluationDTO {}
+		class SecondEvaluationDTO {}
+		class OtherOriginDTO {}
+
+		DtoSetGeneratedName(FirstEvaluationDTO, "SetGeneratedNameReevaluatedDTO", "the first route");
+
+		expect(() => DtoSetGeneratedName(SecondEvaluationDTO, "SetGeneratedNameReevaluatedDTO", "the first route")).not.toThrow();
+		expect(SecondEvaluationDTO.name).toBe("SetGeneratedNameReevaluatedDTO");
+		expect(() => DtoSetGeneratedName(OtherOriginDTO, "SetGeneratedNameReevaluatedDTO", "the second route")).toThrow('OpenAPI component name "SetGeneratedNameReevaluatedDTO" belongs to two different classes: the first route, and the second route');
 	});
 });

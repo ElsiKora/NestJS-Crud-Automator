@@ -24,6 +24,7 @@ import { DtoGenerateGetListItemsResponse, DtoGenerateGetListQueryProperties } fr
 import { DtoGetGetListQueryBaseClass } from "@utility/dto/get/get-list-query-base-class.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "@utility/dto/is/should-be-generated.utility";
+import { DtoSchemaNameGetRouteOrigin } from "@utility/dto/schema-name/route-origin.utility";
 import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { AtMostOneOfListedPropertiesValidator } from "@validator/at-most-one-of-listed-properties.validator";
@@ -170,7 +171,9 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		}
 	}
 
-	DtoSetGeneratedName(GeneratedDTO, responseVariantName ?? (queryPlan && method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? queryPlan.schemaName : `${dtoNameBase}DTO`), `the ${method} ${dtoType} DTO of entity ${String(entityMetadata.name)}`);
+	const routeOrigin: string = DtoSchemaNameGetRouteOrigin(schemaPrefix, routeName ?? method, dtoType);
+
+	DtoSetGeneratedName(GeneratedDTO, responseVariantName ?? (queryPlan && method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? queryPlan.schemaName : `${dtoNameBase}DTO`), responseVariantName ? `variant ${responseVariantName} of ${routeOrigin}` : routeOrigin);
 
 	DtoAutoContextPush(GeneratedDTO.prototype, method, dtoType);
 

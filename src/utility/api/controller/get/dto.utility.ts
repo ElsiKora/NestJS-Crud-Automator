@@ -162,7 +162,7 @@ function getGetListItemResponseDto<E extends IApiBaseEntity>(resourceClass: Obje
 		}
 
 		// @ts-ignore The existing list wrapper generator accepts the entity constructor at runtime.
-		const dto: Type<unknown> = DtoGenerateGetListResponse(resourceClass, config.itemType, defaultName);
+		const dto: Type<unknown> = DtoGenerateGetListResponse(resourceClass, config.itemType, defaultName, `the getList page response of controller prefix "${schemaPrefix}"`);
 		getListItemResponseDtoCache.set(cacheKey, dto);
 
 		return dto;
@@ -207,7 +207,7 @@ function getGetListItemResponseDto<E extends IApiBaseEntity>(resourceClass: Obje
 	}
 
 	// @ts-ignore The existing list wrapper generators accept the entity constructor at runtime.
-	const dto: Type<unknown> = DtoGenerateGetListCursorResponse(resourceClass, config.itemType, name);
+	const dto: Type<unknown> = DtoGenerateGetListCursorResponse(resourceClass, config.itemType, name, `the getList cursor response of controller prefix "${schemaPrefix}"`);
 	itemCache.set(cacheKey, dto);
 
 	return dto;

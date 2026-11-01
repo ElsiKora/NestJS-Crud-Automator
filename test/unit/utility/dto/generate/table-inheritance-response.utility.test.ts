@@ -264,8 +264,8 @@ describe("DtoGenerateTableInheritanceResponse", () => {
 		it("rejects a variant DTO named like a relation DTO of another variant", () => {
 			expect(ResponseCollisionCardTransferEntity).toBeDefined();
 			expect(ResponseCollisionCardTransferIssuerEntity).toBeDefined();
-			expect(() => generateFor(ResponseCollisionRootEntity)).toThrow(`Generated DTO name "${ResponseCollisionRootEntity.name}GetResponseCardTransferIssuerDTO" belongs to two different DTO classes`);
-			expect(() => generateFor(ResponseCollisionRootEntity, EApiRouteType.GET_LIST)).toThrow(`Generated DTO name "${ResponseCollisionRootEntity.name}GetListResponseCardTransferIssuerDTO" belongs to two different DTO classes`);
+			expect(() => generateFor(ResponseCollisionRootEntity)).toThrow(`OpenAPI component name "${ResponseCollisionRootEntity.name}GetResponseCardTransferIssuerDTO" belongs to two different classes`);
+			expect(() => generateFor(ResponseCollisionRootEntity, EApiRouteType.GET_LIST)).toThrow(`OpenAPI component name "${ResponseCollisionRootEntity.name}GetListResponseCardTransferIssuerDTO" belongs to two different classes`);
 		});
 
 		it("keeps a __proto__ discriminator value as a mapping key", () => {

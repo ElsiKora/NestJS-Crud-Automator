@@ -215,7 +215,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		const schemaPrefix: string = ApiControllerGetSchemaPrefix(this.target);
 		const owner: { controller: object; path: string } | undefined = ApiControllerFactory.SCHEMA_PREFIX_OWNERS.get(schemaPrefix);
 
-		if (owner && owner.controller !== this.target) {
+		// The same class name on the same path is the same controller evaluated again (webpack HMR, `vi.resetModules`), so it replaces the owner.
+		if (owner && owner.controller !== this.target && ((owner.controller as { name: string }).name !== this.target.name || owner.path !== this.PATH)) {
 			throw ErrorException(`Controllers ${(owner.controller as { name: string }).name} (path "${owner.path}") and ${this.target.name} (path "${this.PATH}") have the same schema prefix "${schemaPrefix}". Rename one of the controller classes, because the prefix starts every generated DTO and OpenAPI component name`);
 		}
 

@@ -8,6 +8,7 @@ import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { Inject, Injectable } from "@nestjs/common";
+import { ApiProperty } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
 import { ChildEntity, Column, Entity, PrimaryGeneratedColumn, TableInheritance } from "typeorm";
 import { describe, expect, it } from "vitest";
@@ -36,6 +37,55 @@ class StartupCheckRootEntity {
 
 @ChildEntity("EARLY")
 class StartupCheckEarlyEntity extends StartupCheckRootEntity {}
+
+/**
+ * Creates a plain Swagger address class, so each child entity gets a different class with one name.
+ * @returns {new () => object} The class.
+ */
+function createAddressClass(): new () => object {
+	class StartupCheckAddressDTO {
+		@ApiProperty({ type: String })
+		public street!: string;
+	}
+
+	return StartupCheckAddressDTO;
+}
+
+@Entity("address_check_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class AddressCheckRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({
+		description: "type",
+		exampleValue: "HOME",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 64,
+		minLength: 1,
+		pattern: "/^.+$/",
+		type: EApiPropertyDescribeType.STRING,
+	})
+	public type!: string;
+}
+
+@ChildEntity("HOME")
+class AddressCheckHomeEntity extends AddressCheckRootEntity {
+	@Column({ nullable: true, type: "simple-json" })
+	// eslint-disable-next-line @elsikora/typescript/no-explicit-any
+	@ApiPropertyDescribe({ dataType: createAddressClass(), description: "address", type: EApiPropertyDescribeType.OBJECT } as any)
+	public address?: object;
+}
+
+@ChildEntity("WORK")
+class AddressCheckWorkEntity extends AddressCheckRootEntity {
+	@Column({ nullable: true, type: "simple-json" })
+	// eslint-disable-next-line @elsikora/typescript/no-explicit-any
+	@ApiPropertyDescribe({ dataType: createAddressClass(), description: "address", type: EApiPropertyDescribeType.OBJECT } as any)
+	public address?: object;
+}
 
 @Injectable()
 class StartupCheckService extends ApiServiceBase<StartupCheckRootEntity & IApiBaseEntity> {}
@@ -91,5 +141,18 @@ describe("ApiController table inheritance startup check", () => {
 
 		await expect(compileWith(StartupCheckConstructorController)).rejects.toThrow(LATE_CHILD_MESSAGE);
 		await expect(compileWith(StartupCheckPropertyController)).rejects.toThrow(LATE_CHILD_MESSAGE);
+	});
+	it("fails startup for two child entities whose responses nest different classes with one name", () => {
+		class AddressCheckController {
+			public service!: StartupCheckService;
+		}
+
+		expect([AddressCheckHomeEntity, AddressCheckWorkEntity]).toHaveLength(2);
+		expect(() =>
+			ApiController<AddressCheckRootEntity & IApiBaseEntity>({
+				entity: AddressCheckRootEntity as never,
+				routes: { [EApiRouteType.GET]: {} },
+			})(AddressCheckController),
+		).toThrow('OpenAPI component name "StartupCheckAddressDTO" belongs to two different classes: property address in AddressCheckGetResponseHomeDTO, and property address in AddressCheckGetResponseWorkDTO');
 	});
 });

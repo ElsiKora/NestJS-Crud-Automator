@@ -10,7 +10,8 @@ import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiControllerObservable } from "@decorator/api/controller/observable.decorator";
 import { ApiControllerSecurable } from "@decorator/api/controller/securable.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiFunctionType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EApiDtoType, EApiFunctionType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { ApiProperty } from "@nestjs/swagger";
 import { KeyPageAccountEntity } from "@test/unit/class/api/function/fixture/key-page-account.entity";
 import { KeyPageAuditorEntity } from "@test/unit/class/api/function/fixture/key-page-auditor.entity";
 import { KeyPageBatchEntity } from "@test/unit/class/api/function/fixture/key-page-batch.entity";
@@ -300,7 +301,45 @@ describe("ApiController", () => {
 					path: "schema-name-order-lists",
 					routes: { ...getOnlyRoutes, [EApiRouteType.GET]: { generation: { isEnabled: false } }, [EApiRouteType.GET_LIST]: { dto: { response: { itemType: SchemaNameOrderItemDto, name: "SchemaNameOrderGetResponseDTO" } } } },
 				})(SchemaNameOrderListController),
-			).toThrow('Generated DTO name "SchemaNameOrderGetResponseDTO" belongs to two different DTO classes, generated for the get response DTO of entity FactoryEntity and for the getList page response of entity FactoryEntity');
+			).toThrow('OpenAPI component name "SchemaNameOrderGetResponseDTO" belongs to two different classes: the get response DTO of controller prefix "SchemaNameOrder", and the getList page response of controller prefix "SchemaNameOrderList"');
+		});
+		it("fails startup for two controller classes with one prefix on one path", () => {
+			class SchemaNameSamePathController {
+				public service: FactoryService = new FactoryService();
+			}
+
+			class SchemaNameSamePath {
+				public service: FactoryService = new FactoryService();
+			}
+
+			ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-same-path", routes: getOnlyRoutes })(SchemaNameSamePathController);
+
+			expect(() => ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-same-path", routes: getOnlyRoutes })(SchemaNameSamePath)).toThrow('Controllers SchemaNameSamePathController (path "schema-name-same-path") and SchemaNameSamePath (path "schema-name-same-path") have the same schema prefix "SchemaNameSamePath"');
+		});
+
+		it("fails startup when a hand-written DTO has the name of a generated DTO of another controller", () => {
+			class SchemaNameW1Controller {
+				public service: FactoryService = new FactoryService();
+			}
+
+			class SchemaNameW2Controller {
+				public service: FactoryService = new FactoryService();
+			}
+
+			class SchemaNameW1GetResponseDTO {
+				@ApiProperty({ type: String })
+				public id!: string;
+			}
+
+			ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-w1", routes: getOnlyRoutes })(SchemaNameW1Controller);
+
+			expect(() =>
+				ApiController<IApiBaseEntity>({
+					entity: FactoryEntity,
+					path: "schema-name-w2",
+					routes: { ...getOnlyRoutes, [EApiRouteType.GET]: { dto: { [EApiDtoType.RESPONSE]: SchemaNameW1GetResponseDTO } } },
+				})(SchemaNameW2Controller),
+			).toThrow('OpenAPI component name "SchemaNameW1GetResponseDTO" belongs to two different classes: the get response DTO of controller prefix "SchemaNameW1", and the get response DTO of controller prefix "SchemaNameW2"');
 		});
 	});
 });

@@ -67,7 +67,7 @@ export function DtoGenerateContextualManualDto(sourceDto: Type<unknown>, method:
 		}
 	}
 
-	DtoSetGeneratedName(GeneratedDTO, className, `property ${propertyPathSegment} of ${parentDtoName}`);
+	DtoSetGeneratedName(GeneratedDTO, className, `property ${propertyPathSegment} in ${parentDtoName}`);
 
 	Reflect.defineMetadata?.(
 		CONTEXTUAL_MANUAL_DTO_CONSTANT.METADATA_KEY,
