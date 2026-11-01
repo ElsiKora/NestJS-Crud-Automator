@@ -1,8 +1,8 @@
 import "reflect-metadata";
 
 import { ApiControllerRejectToManyUpdateKeys } from "@utility/api/controller/reject-to-many-update-keys.utility";
-import { ChildEntity, Column, Entity, JoinTable, ManyToMany, ManyToOne, OneToMany, PrimaryGeneratedColumn, type Relation, TableInheritance } from "typeorm";
-import { describe, expect, it } from "vitest";
+import { ChildEntity, Column, Entity, getMetadataArgsStorage, JoinTable, ManyToMany, ManyToOne, OneToMany, PrimaryGeneratedColumn, type Relation, TableInheritance } from "typeorm";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 @Entity("reject_to_many_tags")
 class RejectToManyTag {
@@ -78,7 +78,21 @@ class RejectToManyCard extends RejectToManyDetail {
 	public cardTags?: Array<RejectToManyTag>;
 }
 
+@Entity("reject_to_many_cached_posts")
+class RejectToManyCachedPost {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@JoinTable({ name: "reject_to_many_cached_post_tags" })
+	@ManyToMany(() => RejectToManyTag)
+	public tags?: Array<RejectToManyTag>;
+}
+
 describe("ApiControllerRejectToManyUpdateKeys", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	const reject = (body: Record<string, unknown> | undefined): void => ApiControllerRejectToManyUpdateKeys(RejectToManyPost, body as never);
 
 	it.each([
@@ -125,5 +139,22 @@ describe("ApiControllerRejectToManyUpdateKeys", () => {
 	it("accepts columns, to-one references, undefined to-many keys and no body", () => {
 		expect(() => reject({ notes: undefined, owner: "tag-1", title: "changed" })).not.toThrow();
 		expect(() => reject(undefined)).not.toThrow();
+	});
+
+	it("reads TypeORM metadata for an entity class once and reuses the paths on later calls", () => {
+		const storage = getMetadataArgsStorage();
+		const filterRelations = vi.spyOn(storage, "filterRelations");
+		const filterEmbeddeds = vi.spyOn(storage, "filterEmbeddeds");
+
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { tags: null } as never)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "tags", reason: "to-many reference is not allowed on update" } }) }));
+		expect(filterRelations).toHaveBeenCalled();
+
+		filterRelations.mockClear();
+		filterEmbeddeds.mockClear();
+
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { tags: null } as never)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "tags", reason: "to-many reference is not allowed on update" } }) }));
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { id: "post-1" } as never)).not.toThrow();
+		expect(filterRelations).not.toHaveBeenCalled();
+		expect(filterEmbeddeds).not.toHaveBeenCalled();
 	});
 });
