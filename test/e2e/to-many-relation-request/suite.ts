@@ -14,10 +14,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../src/index";
 import { E2eValidationPipe } from "../app/validation-pipe";
 
-import { E2eHydrationDetailController, E2eHydrationOrderedPostController, E2eHydrationPostController, E2eHydrationUnhydratedPostController, HYDRATION_ORDERED_VALIDATOR_CALLS } from "./controller";
+import { E2eHydrationDetailController, E2eHydrationObservedPostController, E2eHydrationOrderedPostController, E2eHydrationPostController, E2eHydrationUnhydratedPostController, HYDRATION_CUSTOM_REFUSED_TITLE, HYDRATION_CUSTOM_VALIDATOR_CALLS, HYDRATION_ORDERED_VALIDATOR_CALLS } from "./controller";
 import { E2eHydrationAttachmentEntity, E2eHydrationBankDetailEntity, E2eHydrationCardDetailEntity, E2eHydrationDetailEntity, E2eHydrationNoteEntity, E2eHydrationOwnerEntity, E2eHydrationPostEntity, E2eHydrationTagEntity } from "./entity";
 import { E2eHydrationAttachmentService, E2eHydrationDetailService, E2eHydrationNoteService, E2eHydrationOwnerService, E2eHydrationPostService, E2eHydrationTagService } from "./service";
-import { E2eHydrationPostRouteSubscriber } from "./subscriber";
+import { E2eHydrationPostRouteSubscriber, HYDRATION_REPLACED_BODY_TITLE } from "./subscriber";
 
 const ATTACHMENT: string = "55555555-5555-4555-8555-555555555551";
 const BANK_DETAIL: string = "77777777-7777-4777-8777-777777777772";
@@ -86,7 +86,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 
 		beforeAll(async () => {
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eHydrationDetailController, E2eHydrationOrderedPostController, E2eHydrationPostController, E2eHydrationUnhydratedPostController],
+				controllers: [E2eHydrationDetailController, E2eHydrationObservedPostController, E2eHydrationOrderedPostController, E2eHydrationPostController, E2eHydrationUnhydratedPostController],
 				imports: [TypeOrmModule.forRoot({ ...(await options.createDataSourceOptions()), dropSchema: true, entities: ENTITIES, logging: false, synchronize: true } as DataSourceOptions), TypeOrmModule.forFeature(ENTITIES), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [{ provide: APP_PIPE, useClass: E2eValidationPipe }, E2eHydrationAttachmentService, E2eHydrationDetailService, E2eHydrationNoteService, E2eHydrationOwnerService, E2eHydrationPostRouteSubscriber, E2eHydrationPostService, E2eHydrationTagService],
 			}).compile();
@@ -99,6 +99,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 		}, 120_000);
 
 		beforeEach(async () => {
+			HYDRATION_CUSTOM_VALIDATOR_CALLS.length = 0;
 			HYDRATION_ORDERED_VALIDATOR_CALLS.length = 0;
 			await manager.query("DELETE FROM e2e_hydration_bank_extras");
 			await manager.query("DELETE FROM e2e_hydration_bank_tags");
@@ -325,6 +326,57 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 
 				expect(response.statusCode).toBe(HttpStatus.OK);
 				expect(await readStoredPost(POST)).toEqual({ ...STORED_POST, owner: OWNER, title: "changed" });
+			});
+		});
+
+		describe.each(["PATCH", "PUT"])("%s on a custom update route with route subscribers, transformers and validators", (method: string) => {
+			it("rejects a to-many key that a BEFORE subscriber adds to the body", async () => {
+				const response = await fastify.inject({ method, payload: { title: `subscriber adds tags ${TAG_C}` }, url: `/hydration-observed-posts/${POST}` });
+
+				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+				expect((response.json() as { details?: unknown }).details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update" });
+				expect(HYDRATION_CUSTOM_VALIDATOR_CALLS).toEqual([]);
+				expect(await readStoredPost(POST)).toEqual(STORED_POST);
+			});
+
+			it("accepts a body whose to-many key a BEFORE subscriber drops", async () => {
+				const response = await fastify.inject({ method, payload: { tags: TAG_C, title: "subscriber drops tags" }, url: `/hydration-observed-posts/${POST}` });
+
+				expect(response.statusCode).toBe(HttpStatus.OK);
+				expect(await readStoredPost(POST)).toEqual({ ...STORED_POST, title: "subscriber drops tags" });
+			});
+
+			it("accepts a body that a BEFORE subscriber replaces with one without the to-many key", async () => {
+				const response = await fastify.inject({ method, payload: { tags: TAG_C, title: "subscriber replaces body" }, url: `/hydration-observed-posts/${POST}` });
+
+				expect(response.statusCode).toBe(HttpStatus.OK);
+				expect(await readStoredPost(POST)).toEqual({ ...STORED_POST, title: HYDRATION_REPLACED_BODY_TITLE });
+			});
+
+			it("rejects a to-many key before body transformers and validators run", async () => {
+				const response = await fastify.inject({ method, payload: { tags: TAG_C, title: HYDRATION_CUSTOM_REFUSED_TITLE }, url: `/hydration-observed-posts/${POST}` });
+				const body = response.json() as { details?: unknown; message: string };
+
+				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+				expect(body.message).toContain("INVALID_REFERENCE");
+				expect(body.details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update" });
+				expect(HYDRATION_CUSTOM_VALIDATOR_CALLS).toEqual([]);
+				expect(await readStoredPost(POST)).toEqual(STORED_POST);
+			});
+
+			it("runs body validators when no to-many key is present", async () => {
+				const refused = await fastify.inject({ method, payload: { title: HYDRATION_CUSTOM_REFUSED_TITLE }, url: `/hydration-observed-posts/${POST}` });
+
+				expect(refused.statusCode).toBe(HttpStatus.BAD_REQUEST);
+				expect((refused.json() as { message: string }).message).not.toContain("INVALID_REFERENCE");
+				expect(HYDRATION_CUSTOM_VALIDATOR_CALLS).toHaveLength(1);
+				expect(await readStoredPost(POST)).toEqual(STORED_POST);
+
+				const accepted = await fastify.inject({ method, payload: { title: "changed" }, url: `/hydration-observed-posts/${POST}` });
+
+				expect(accepted.statusCode).toBe(HttpStatus.OK);
+				expect(HYDRATION_CUSTOM_VALIDATOR_CALLS).toHaveLength(2);
+				expect(await readStoredPost(POST)).toEqual({ ...STORED_POST, title: "changed" });
 			});
 		});
 

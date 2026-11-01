@@ -149,3 +149,75 @@ export class E2eHydrationOrderedPostController {
 export class E2eHydrationDetailController {
 	public constructor(@Inject(E2eHydrationDetailService) public readonly service: E2eHydrationDetailService) {}
 }
+
+/** Records every body validator call on the observed custom update routes. */
+export const HYDRATION_CUSTOM_VALIDATOR_CALLS: Array<unknown> = [];
+
+/** Title the body validator of the observed custom update routes refuses, so a test can tell it ran. */
+export const HYDRATION_CUSTOM_REFUSED_TITLE: string = "refused by validator";
+
+const CUSTOM_ORDERED_REQUEST = {
+	[EApiControllerRequestTarget.BODY]: {
+		// Clears a to-many key; had it run before the guard, the guard would see nothing to reject.
+		transformers: [{ key: "tags", shouldSetValueEvenIfMissing: true, type: EApiControllerRequestTransformerType.STATIC, value: undefined }],
+		validators: [
+			{
+				errorType: EErrorStringAction.VALIDATION_ERROR,
+				exception: BadRequestException,
+				validationFunction: (payload: unknown): boolean => {
+					HYDRATION_CUSTOM_VALIDATOR_CALLS.push(payload);
+
+					return (payload as { title?: unknown }).title !== HYDRATION_CUSTOM_REFUSED_TITLE;
+				},
+			},
+		],
+	},
+} as const;
+
+/** Observable controller whose custom update routes forward the body, to pin where the to-many guard runs. */
+@ApiControllerObservable()
+@ApiController<E2eHydrationPostEntity>({
+	entity: E2eHydrationPostEntity,
+	name: "E2eHydrationObservedPosts",
+	path: "hydration-observed-posts",
+	routes: {
+		[EApiRouteType.CREATE]: { generation: { isEnabled: false } },
+		[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
+		[EApiRouteType.GET]: { generation: { isEnabled: false } },
+		[EApiRouteType.GET_LIST]: { generation: { isEnabled: false } },
+		[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
+		[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
+	},
+} as never)
+export class E2eHydrationObservedPostController {
+	public constructor(
+		@Inject(E2eHydrationPostService) public readonly service: E2eHydrationPostService,
+		@Inject(E2eHydrationTagService) public readonly tagsService: E2eHydrationTagService,
+	) {}
+
+	@ApiRouteCustom<E2eHydrationPostEntity>({
+		relations: { request: { load: { include: { tags: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.SCALAR } } },
+		request: CUSTOM_ORDERED_REQUEST,
+		resource: { action: "hydration.observed-update", entity: E2eHydrationPostEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.PUT, path: ":id", type: EApiRouteType.UPDATE },
+	} as never)
+	public async observedUpdate(@Param("id") id: string, @Body() body: Record<string, unknown>): Promise<unknown> {
+		await this.service.update({ id }, body as never);
+
+		return { id };
+	}
+
+	@ApiRouteCustom<E2eHydrationPostEntity>({
+		relations: { request: { load: { include: { tags: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.SCALAR } } },
+		request: CUSTOM_ORDERED_REQUEST,
+		resource: { action: "hydration.observed-partial-update", entity: E2eHydrationPostEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.PATCH, path: ":id", type: EApiRouteType.PARTIAL_UPDATE },
+	} as never)
+	public async observedPartialUpdate(@Param("id") id: string, @Body() body: Record<string, unknown>): Promise<unknown> {
+		await this.service.update({ id }, body as never);
+
+		return { id };
+	}
+}
