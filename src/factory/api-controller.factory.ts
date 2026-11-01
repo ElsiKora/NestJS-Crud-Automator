@@ -56,6 +56,10 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, this.properties, this.target);
 	}
 
+	/**
+	 * Fails startup when a table inheritance root lists no loaded child entity, since its polymorphic responses would have no variants.
+	 * @returns {void}
+	 */
 	assertTableInheritanceChildren(): void {
 		ApiControllerTableInheritancePlanCompiler.assertChildEntitiesLoaded(this.target.name, this.ENTITY.tableInheritance);
 	}

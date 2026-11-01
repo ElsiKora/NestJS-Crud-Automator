@@ -1,4 +1,4 @@
-import type { TApiPropertyObjectProperties, TTypeDiscriminator } from "@type/decorator/api/property";
+import type { TApiPropertyObjectWithDiscriminatorProperties, TApiPropertyObjectWithoutDiscriminatorProperties } from "@type/decorator/api/property";
 
 import { LIST_DTO_CONSTANT } from "@constant/dto";
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
@@ -13,12 +13,13 @@ import { TDtoGenerateGetListResponseResourceClass } from "@type/utility";
  * Creates a class with count, currentPage, items, totalCount, and totalPages properties,
  * all properly decorated with Swagger and validation decorators.
  * @param {TDtoGenerateGetListResponseResourceClass} resourceClass - The class representing the entity being listed
- * @param {Array<TDtoGenerateGetListResponseResourceClass> | TDtoGenerateGetListResponseResourceClass} responseResourceClass - The response DTO class for individual items, or every item variant
+ * @param {Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | TDtoGenerateGetListResponseResourceClass} responseResourceClass - The response DTO class for individual items, or every item variant with the discriminator selecting it
  * @param {string} name - The name for the generated DTO class
- * @param {TTypeDiscriminator} [itemDiscriminator] - Discriminator selecting the item DTO when items are polymorphic
  * @returns {Type<unknown>} A generated DTO class for paginated list responses
  */
-export function DtoGenerateGetListResponse(resourceClass: TDtoGenerateGetListResponseResourceClass, responseResourceClass: Array<TDtoGenerateGetListResponseResourceClass> | TDtoGenerateGetListResponseResourceClass, name: string, itemDiscriminator?: TTypeDiscriminator): Type<unknown> {
+export function DtoGenerateGetListResponse(resourceClass: TDtoGenerateGetListResponseResourceClass, responseResourceClass: Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | TDtoGenerateGetListResponseResourceClass, name: string): Type<unknown> {
+	const itemsProperties: Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | Pick<TApiPropertyObjectWithoutDiscriminatorProperties, "type"> = typeof responseResourceClass === "function" ? { type: responseResourceClass } : { discriminator: responseResourceClass.discriminator, type: responseResourceClass.type };
+
 	class ApiListGetResponse extends PickType(resourceClass, [] as const) {
 		@ApiPropertyNumber({
 			description: "Total number of items on page",
@@ -51,9 +52,8 @@ export function DtoGenerateGetListResponse(resourceClass: TDtoGenerateGetListRes
 			isUniqueItems: true,
 			maxItems: LIST_DTO_CONSTANT.MAXIMUM_LIST_LENGTH,
 			minItems: LIST_DTO_CONSTANT.MINIMUM_LIST_LENGTH,
-			...(itemDiscriminator ? { discriminator: itemDiscriminator } : {}),
-			type: responseResourceClass,
-		} as TApiPropertyObjectProperties)
+			...itemsProperties,
+		})
 		items!: Array<TDtoGenerateGetListResponseResourceClass>;
 
 		@ApiPropertyNumber({

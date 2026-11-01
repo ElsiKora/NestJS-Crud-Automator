@@ -82,7 +82,7 @@ export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, en
 		return discriminatedResponse;
 	}
 
-	const listResponse: Type<unknown> = DtoGenerateGetListItemsResponse(entity, entityMetadata, discriminatedResponse.type, queryPlan, discriminator);
+	const listResponse: Type<unknown> = DtoGenerateGetListItemsResponse(entity, entityMetadata, discriminatedResponse, queryPlan);
 
 	// class-transformer falls back to a plain object for an unmapped subtype, so each row is resolved first to fail closed.
 	Transform(

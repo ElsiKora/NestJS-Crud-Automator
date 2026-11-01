@@ -78,7 +78,9 @@ export class ApiControllerTableInheritancePlanCompiler {
 			throw ErrorException(`Table inheritance root ${root.name} must select its discriminator column "${discriminatorPropertyName}", remove select: false`);
 		}
 
-		if (this.isNumericColumnType(columnOptions.type ?? (Reflect.getMetadata("design:type", root.prototype as object, discriminatorPropertyName) as unknown))) {
+		const reflectedType: unknown = Reflect.getMetadata("design:type", root.prototype as object, discriminatorPropertyName);
+
+		if (this.isNumericColumnType(columnOptions.type ?? reflectedType)) {
 			throw ErrorException(`Table inheritance root ${root.name} must store its discriminator column "${discriminatorPropertyName}" as a string, generated polymorphic responses support string discriminator values only`);
 		}
 
@@ -86,7 +88,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 		const variants: Array<IApiControllerTableInheritanceVariant> = [];
 
 		for (const candidate of [root, ...childEntities]) {
-			const isLeaf: boolean = candidate !== root && !childEntities.some((child: Type<unknown>): boolean => (child.prototype as object) instanceof candidate);
+			const isLeaf: boolean = candidate !== root && !childEntities.some((child: Type<unknown>): boolean => child.prototype instanceof candidate);
 			const discriminatorValue: unknown = this.resolveDiscriminatorValue(candidate);
 			const isStorable: boolean = !storableValues || storableValues.includes(discriminatorValue);
 
@@ -149,7 +151,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 	 */
 	private static findChildEntities(root: Type<unknown>): Array<Type<unknown>> {
 		return getMetadataArgsStorage()
-			.tables.map(({ target, type }: TableMetadataArgs): Type<unknown> | undefined => (type === "entity-child" && this.isConstructor(target) && (target.prototype as object) instanceof root ? target : undefined))
+			.tables.map(({ target, type }: TableMetadataArgs): Type<unknown> | undefined => (type === "entity-child" && this.isConstructor(target) && target.prototype instanceof root ? target : undefined))
 			.filter((target: Type<unknown> | undefined): target is Type<unknown> => target !== undefined);
 	}
 
@@ -160,7 +162,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 	 * @returns {ColumnMetadataArgs | undefined} Column declaration, or undefined when only the inheritance options declare it.
 	 */
 	private static findDiscriminatorColumn(root: Type<unknown>, discriminatorPropertyName: string): ColumnMetadataArgs | undefined {
-		return getMetadataArgsStorage().columns.find(({ propertyName, target }: ColumnMetadataArgs): boolean => propertyName === discriminatorPropertyName && this.isConstructor(target) && (target === root || (root.prototype as object) instanceof target));
+		return getMetadataArgsStorage().columns.find(({ propertyName, target }: ColumnMetadataArgs): boolean => propertyName === discriminatorPropertyName && this.isConstructor(target) && (target === root || root.prototype instanceof target));
 	}
 
 	/**

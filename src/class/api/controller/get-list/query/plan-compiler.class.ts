@@ -941,6 +941,14 @@ export class ApiControllerGetListQueryPlanCompiler {
 		throw ErrorException(`CURSOR GET_LIST order field "${field.path}" is not supported by PostgreSQL CURSOR v1`);
 	}
 
+	/**
+	 * Validates every table inheritance variant against the CURSOR order fields, because rows of any child are paged together.
+	 * @template E - Entity type.
+	 * @param {IApiEntity<E>} entityMetadata - Root entity metadata carrying the compiled table inheritance plan.
+	 * @param {ReadonlyArray<string>} cursorFields - Order fields encoded in the cursor.
+	 * @param {TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>} routeConfig - GET_LIST route configuration.
+	 * @returns {void}
+	 */
 	private static validateCursorTableInheritanceVariants<E>(entityMetadata: IApiEntity<E>, cursorFields: ReadonlyArray<string>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>): void {
 		for (const variant of entityMetadata.tableInheritance?.variants ?? []) {
 			if (this.hasAfterLoadListener(variant.entity)) {
