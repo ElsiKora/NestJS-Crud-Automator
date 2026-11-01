@@ -7,4 +7,7 @@ export class KeyPageMssqlEntity {
 
 	@PrimaryColumn({ type: "varchar" })
 	public id!: string;
+
+	@Column({ type: "datetimeoffset" })
+	public settledAt!: Date;
 }

@@ -10,7 +10,7 @@ export const DATABASE_COLUMN_TYPE_CONSTANT: {
 	// A calendar date without a time of day.
 	DATE: new Set<string>(["date"]),
 	// A date and a time of day without a zone: the value is local wall-clock text.
-	DATE_TIME: new Set<string>(["datetime", "datetime2", "datetimeoffset", "smalldatetime", "timestamp", "timestamp without time zone"]),
-	// An exact instant: pg binds it exactly as canonical UTC text, never as a Date.
-	INSTANT: new Set<string>(["timestamptz", "timestamp with time zone"]),
+	DATE_TIME: new Set<string>(["datetime", "datetime2", "smalldatetime", "timestamp", "timestamp without time zone"]),
+	// An exact instant: the stored value keeps its offset or is normalized to UTC.
+	INSTANT: new Set<string>(["datetimeoffset", "timestamptz", "timestamp with time zone"]),
 });
