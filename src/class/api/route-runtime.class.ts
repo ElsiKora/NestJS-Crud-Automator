@@ -55,7 +55,7 @@ import { ApiControllerReadPlanGet, ApiControllerReadScopeWhere } from "@utility/
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
 import { ApiControllerTransformData } from "@utility/api/controller/transform-data.utility";
 import { ApiControllerValidateRequest } from "@utility/api/controller/validate-request.utility";
-import { ApiRouteProjectRelationResponse, ApiRouteValidationFlattenErrors } from "@utility/api/route";
+import { ApiRouteProjectRelationResponse, ApiRouteResponseIsListEnvelope, ApiRouteValidationFlattenErrors } from "@utility/api/route";
 import { ApiRouteCreateDiscriminatedDtoValidationFailure, ApiRouteIsDiscriminatedDtoProperties, ApiRoutePrepareDiscriminatedDtoPayload, ApiRouteResolveDiscriminatedDto, ApiRouteValidateDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { ApiRouteSerializeResponse } from "@utility/api/route/response/serialize.utility";
 import { AuthorizationDecisionApplyResult, AuthorizationDecisionAttachResource, AuthorizationDecisionResolveFromRequest } from "@utility/authorization/decision";
@@ -139,7 +139,7 @@ export class ApiRouteRuntime {
 		await ApiControllerHandleRequestRelations(controller, { entity: metadata.resource.entity, routes: {} }, runtimeProperties.relations?.request, body);
 	}
 
-	public static async executeCustomResponseRelations<E extends IApiBaseEntity, R>(controller: TApiControllerMethod<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: R, routeType?: EApiRouteType): Promise<R> {
+	public static async executeCustomResponseRelations<E extends IApiBaseEntity, R>(controller: TApiControllerMethod<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: R, routeType?: EApiRouteType, entity?: Type<unknown>): Promise<R> {
 		if (!this.hasResponseRelationInclude(runtimeProperties.relations?.response?.load?.include)) {
 			return response;
 		}
@@ -154,8 +154,8 @@ export class ApiRouteRuntime {
 
 		const responseValue: unknown = response;
 
-		if (routeType === EApiRouteType.GET_LIST && responseValue !== null && typeof responseValue === "object" && "items" in responseValue && Array.isArray((responseValue as { items?: unknown }).items)) {
-			const responseObject: { items: Array<unknown> } = responseValue as { items: Array<unknown> };
+		if (ApiRouteResponseIsListEnvelope(responseValue, routeType, entity)) {
+			const responseObject: { items: Array<unknown> } = responseValue;
 			responseObject.items = await Promise.all(responseObject.items.map(async (item: unknown): Promise<unknown> => await this.loadCustomResponseRelations(controller.service, runtimeProperties, item)));
 
 			return response;
@@ -215,7 +215,7 @@ export class ApiRouteRuntime {
 
 	private static async executeCustomResponse<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>, entityInstance: E, contextData: IApiRouteRuntimeContextData<E>, result: R): Promise<R> {
 		const action: string = options.metadata.resource.action;
-		const responseTarget: TApiControllerTransformDataObjectToTransform<E> = { response: ApiRouteProjectRelationResponse(options.runtimeProperties.relations?.response, result, options.metadata.route.type) as Partial<E> };
+		const responseTarget: TApiControllerTransformDataObjectToTransform<E> = { response: ApiRouteProjectRelationResponse(options.runtimeProperties.relations?.response, result, options.metadata.route.type, options.metadata.resource.entity) as Partial<E> };
 		let authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined = AuthorizationDecisionResolveFromRequest(contextData.authenticationRequest);
 
 		const controllerProperties: IApiControllerProperties<E> = {

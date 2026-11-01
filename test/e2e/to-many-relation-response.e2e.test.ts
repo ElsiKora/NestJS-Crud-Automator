@@ -15,6 +15,7 @@ import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
 import {
 	E2eToManyAuthorEntity,
 	E2eToManyCommentEntity,
+	E2eToManyEnvelopePostController,
 	E2eToManyLedgerEntity,
 	E2eToManyLedgerService,
 	E2eToManyObjectCodePostController,
@@ -95,12 +96,12 @@ describe("To-many response relations (E2E)", () => {
 
 	beforeAll(async () => {
 		const moduleReference = await Test.createTestingModule({
-			controllers: [E2eToManyObjectCodePostController, E2eToManyObjectLedgerController, E2eToManyObjectOrderController, E2eToManyObjectPostController, E2eToManyScalarLedgerController, E2eToManyScalarOrderController, E2eToManyScalarPostController],
+			controllers: [E2eToManyEnvelopePostController, E2eToManyObjectCodePostController, E2eToManyObjectLedgerController, E2eToManyObjectOrderController, E2eToManyObjectPostController, E2eToManyScalarLedgerController, E2eToManyScalarOrderController, E2eToManyScalarPostController],
 			imports: [
 				TypeOrmModule.forRoot({
 					database: ":memory:",
 					dropSchema: true,
-					entities: [E2eToManyAuthorEntity, E2eToManyCommentEntity, E2eToManyLedgerEntity, E2eToManyOrderEntity, E2eToManyOrderItemEntity, E2eToManyPostEntity, E2eToManyReviewEntity, E2eToManyTagEntity],
+					entities: [E2eToManyAuthorEntity, E2eToManyCommentEntity, E2eToManyEnvelopePostController, E2eToManyLedgerEntity, E2eToManyOrderEntity, E2eToManyOrderItemEntity, E2eToManyPostEntity, E2eToManyReviewEntity, E2eToManyTagEntity],
 					logging: false,
 					synchronize: true,
 					type: "better-sqlite3",
@@ -272,6 +273,30 @@ describe("To-many response relations (E2E)", () => {
 
 		expect(post.tags).toEqual([{}, {}]);
 		expect(post.author).toEqual({});
+	});
+
+	describe("custom route list envelopes", () => {
+		interface IEnvelopeWire {
+			items: Array<{ author: unknown; id: string }>;
+			totalCount: number;
+		}
+
+		it.each(["undeclared", "declared-list"])("projects relations of envelope items through a DTO exposing a secret on /%s", async (path: string) => {
+			const response = await fastify.inject({ method: "GET", url: `/to-many-envelope-posts/${path}` });
+			const { items, totalCount } = response.json() as IEnvelopeWire;
+
+			expect(response.statusCode).toBe(HttpStatus.OK);
+			expect(totalCount).toBe(items.length);
+			expect(items.find((item: { id: string }): boolean => item.id === POST_FULL)?.author).toEqual({ id: AUTHOR });
+			expect(response.body).not.toContain(AUTHOR_SECRET);
+		});
+
+		it("treats the response as the entity on a declared non-list route type", async () => {
+			const body = (await send("GET", "/to-many-envelope-posts/declared-entity", HttpStatus.OK)) as unknown as { author: unknown; items: Array<unknown> };
+
+			expect(body.items).toEqual([{ author: { code: "nested-kept", id: "nested" } }]);
+			expect(body.author).toEqual({ id: "top-level" });
+		});
 	});
 
 	describe("entity property named items", () => {

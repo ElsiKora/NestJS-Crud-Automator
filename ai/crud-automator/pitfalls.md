@@ -119,7 +119,7 @@ Do not rely on the order of to-many elements: it is not guaranteed. Do not expec
 
 TypeORM `lazy: true` relations are not supported in responses: they serialize to `{}`. Use a non-lazy relation with `load.include`.
 
-Do not expect a `{ items }` response to be recognized by shape. Only a GET_LIST route, generated or custom with `route: { type: EApiRouteType.GET_LIST }`, is read as an envelope; everywhere else `items` is a property of the entity. A custom route that returns an envelope without declaring that type does not reload or project its items.
+Do not expect a `{ items }` response to be recognized by shape alone. A GET_LIST route, generated or custom with `route: { type: EApiRouteType.GET_LIST }`, reads it as an envelope, and any other declared type reads `items` as a property of the entity. A custom route without a declared type reads it as an envelope unless its `resource.entity` owns an `items` property; such a route that returns an envelope must declare GET_LIST or its items are not reloaded or projected.
 
 ## Relation Load Config Drift
 

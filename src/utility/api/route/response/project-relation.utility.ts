@@ -1,22 +1,25 @@
+import type { EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerPropertiesRouteBaseRelationsResponse } from "@interface/decorator/api";
+import type { Type } from "@nestjs/common";
 
-import { EApiControllerRelationReferenceShape, EApiRouteType } from "@enum/decorator/api";
+import { EApiControllerRelationReferenceShape } from "@enum/decorator/api";
+import { ApiRouteResponseIsListEnvelope } from "@utility/api/route/response/is-list-envelope.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
  * Projects loaded relation objects into the configured response reference shape.
  * To-many relations are projected element by element, so the array itself is preserved.
- * Only a GET_LIST response is read as an `{ items }` envelope: on any other route `items` is a property of the entity.
  * @template E - Entity type that owns the relation configuration.
  * @template R - Response value type.
  * @param {IApiControllerPropertiesRouteBaseRelationsResponse<E> | undefined} relationConfig - Response relation projection configuration.
  * @param {R} response - Response value to project.
- * @param {EApiRouteType} [routeType] - Type of the route producing the response.
+ * @param {EApiRouteType} [routeType] - Declared type of the route producing the response.
+ * @param {Type<unknown>} [entity] - Entity of the route producing the response.
  * @returns {R} Response value with projected relation references.
  */
-export function ApiRouteProjectRelationResponse<E extends IApiBaseEntity, R>(relationConfig: IApiControllerPropertiesRouteBaseRelationsResponse<E> | undefined, response: R, routeType?: EApiRouteType): R {
+export function ApiRouteProjectRelationResponse<E extends IApiBaseEntity, R>(relationConfig: IApiControllerPropertiesRouteBaseRelationsResponse<E> | undefined, response: R, routeType?: EApiRouteType, entity?: Type<unknown>): R {
 	if (!relationConfig?.load?.include || Object.keys(relationConfig.load.include).length === 0) {
 		return response;
 	}
@@ -38,8 +41,8 @@ export function ApiRouteProjectRelationResponse<E extends IApiBaseEntity, R>(rel
 	} else {
 		const responseValue: unknown = response;
 
-		if (routeType === EApiRouteType.GET_LIST && responseValue !== null && typeof responseValue === "object" && "items" in responseValue && Array.isArray((responseValue as { items?: unknown }).items)) {
-			for (const item of (responseValue as { items: Array<unknown> }).items) {
+		if (ApiRouteResponseIsListEnvelope(responseValue, routeType, entity)) {
+			for (const item of responseValue.items) {
 				if (item === null || typeof item !== "object") {
 					continue;
 				}

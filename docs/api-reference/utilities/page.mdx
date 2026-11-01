@@ -361,7 +361,7 @@ Serializes custom route responses according to `@ApiRouteCustom` response metada
 
 ### ApiRouteProjectRelationResponse
 
-Projects configured response relations to scalar or object references. To-many relations are projected element by element, so the array is preserved. Pass the route type as the third argument: only `EApiRouteType.GET_LIST` reads the response as an `{ items }` envelope.
+Projects configured response relations to scalar or object references. To-many relations are projected element by element, so the array is preserved. Pass the route type and entity as the third and fourth arguments: `EApiRouteType.GET_LIST` reads the response as an `{ items }` envelope, another type as the entity, and an undeclared type as an envelope unless the entity owns an `items` property.
 
 **Location:** `src/utility/api/route/response/project-relation.utility.ts`
 

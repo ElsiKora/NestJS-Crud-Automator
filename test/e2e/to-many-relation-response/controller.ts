@@ -1,4 +1,5 @@
 import { HttpStatus, Inject, Param, RequestMethod } from "@nestjs/common";
+import { Expose, Type } from "class-transformer";
 
 import { ApiController, ApiRouteCustom, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiRouteType, EFilterOrderDirection } from "../../../src/index";
 
@@ -27,6 +28,32 @@ const buildRoutes = (include: object, shape: EApiControllerRelationReferenceShap
 	};
 };
 
+class E2eToManySecretAuthorDto {
+	@Expose()
+	public code?: null | string;
+
+	@Expose()
+	public id!: string;
+}
+
+class E2eToManySecretPostDto {
+	@Expose()
+	@Type(() => E2eToManySecretAuthorDto)
+	public author?: E2eToManySecretAuthorDto;
+
+	@Expose()
+	public id!: string;
+}
+
+class E2eToManySecretEnvelopeDto {
+	@Expose()
+	@Type(() => E2eToManySecretPostDto)
+	public items!: Array<E2eToManySecretPostDto>;
+
+	@Expose()
+	public totalCount!: number;
+}
+
 const POST_INCLUDE = { author: true, comments: true, reviews: true, tags: true } as const;
 const ORDER_INCLUDE = { items: true, owner: true } as const;
 const LEDGER_INCLUDE = { owner: true } as const;
@@ -48,6 +75,57 @@ export class E2eToManyObjectPostController {
 	} as never)
 	public async customRead(@Param("id") postId: string): Promise<unknown> {
 		return await this.service.get({ where: { id: postId } });
+	}
+}
+
+@ApiController<E2eToManyPostEntity>({
+	entity: E2eToManyPostEntity,
+	name: "E2eToManyEnvelopePosts",
+	path: "to-many-envelope-posts",
+	routes: {
+		...DISABLED_DELETE,
+		[EApiRouteType.CREATE]: { generation: { isEnabled: false } },
+		[EApiRouteType.GET]: { generation: { isEnabled: false } },
+		[EApiRouteType.GET_LIST]: { generation: { isEnabled: false } },
+		[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
+		[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
+	},
+} as never)
+export class E2eToManyEnvelopePostController {
+	public constructor(@Inject(E2eToManyPostService) public readonly service: E2eToManyPostService) {}
+
+	@ApiRouteCustom<E2eToManyPostEntity>({
+		relations: { response: { load: { include: { author: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } },
+		resource: { action: "toMany.envelopeUndeclared", entity: E2eToManyPostEntity },
+		response: { serialization: { isEnabled: true }, status: HttpStatus.OK, type: E2eToManySecretEnvelopeDto },
+		route: { method: RequestMethod.GET, path: "undeclared" },
+	} as never)
+	public async undeclared(): Promise<unknown> {
+		const items: Array<E2eToManyPostEntity> = await this.service.repository.find({ order: { title: "ASC" } });
+
+		return { items, totalCount: items.length };
+	}
+
+	@ApiRouteCustom<E2eToManyPostEntity>({
+		relations: { response: { load: { include: { author: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } },
+		resource: { action: "toMany.envelopeDeclaredList", entity: E2eToManyPostEntity },
+		response: { serialization: { isEnabled: true }, status: HttpStatus.OK, type: E2eToManySecretEnvelopeDto },
+		route: { method: RequestMethod.GET, path: "declared-list", type: EApiRouteType.GET_LIST },
+	} as never)
+	public async declaredList(): Promise<unknown> {
+		const items: Array<E2eToManyPostEntity> = await this.service.repository.find({ order: { title: "ASC" } });
+
+		return { items, totalCount: items.length };
+	}
+
+	@ApiRouteCustom<E2eToManyPostEntity>({
+		relations: { response: { load: { include: { author: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } },
+		resource: { action: "toMany.envelopeDeclaredEntity", entity: E2eToManyPostEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.GET, path: "declared-entity", type: EApiRouteType.GET },
+	} as never)
+	public declaredEntity(): unknown {
+		return { author: { code: "top-level-secret", id: "top-level" }, items: [{ author: { code: "nested-kept", id: "nested" } }] };
 	}
 }
 

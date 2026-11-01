@@ -63,7 +63,7 @@ export function ApiRouteCustom<E extends IApiBaseEntity>(properties: IApiRouteCu
 				await ApiRouteRuntime.executeCustomRequestRelations(this, metadata, runtimeProperties, body);
 				const response: unknown = await originalMethod.apply(this, methodArguments);
 
-				return await ApiRouteRuntime.executeCustomResponseRelations(this, runtimeProperties, response, metadata.route.type);
+				return await ApiRouteRuntime.executeCustomResponseRelations(this, runtimeProperties, response, metadata.route.type, metadata.resource.entity);
 			},
 			"name",
 			{ value: originalMethod.name },
