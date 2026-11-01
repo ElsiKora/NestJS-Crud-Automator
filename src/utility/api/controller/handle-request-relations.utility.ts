@@ -1,21 +1,24 @@
 import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties, IApiControllerPropertiesRouteBaseRelationsRequest } from "@interface/decorator/api";
+import type { Type } from "@nestjs/common";
 import type { TApiControllerMethod } from "@type/class";
 import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
 import type { TApiServiceKeys } from "@type/decorator/api/service";
+import type { TTypeOrmRelationMetadataArguments } from "@type/utility/typeorm";
 import type { DeepPartial, FindOneOptions, FindOptionsRelations } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
-import { EApiControllerRelationReferenceShape } from "@enum/decorator/api";
+import { EApiControllerRelationReferenceShape, EApiRouteType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { BadRequestException, HttpStatus } from "@nestjs/common";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { ErrorString } from "@utility/error/string.utility";
 import { GetEntityColumns } from "@utility/get/entity-columns.utility";
+import { getMetadataArgsStorage } from "typeorm";
 
 /**
  * Manages loading related entities when processing API requests.
@@ -25,12 +28,13 @@ import { GetEntityColumns } from "@utility/get/entity-columns.utility";
  * @param {IApiControllerProperties<E>} properties - Controller configuration properties
  * @param {IApiControllerPropertiesRouteBaseRelationsRequest<E> | undefined} relationConfig - Configuration for relation loading
  * @param {DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E>} parameters - The request parameters containing relation IDs
+ * @param {EApiRouteType} [routeType] - Generated route type; custom routes pass none
  * @returns {Promise<void>} A promise that resolves when all relations are loaded
- * @throws {BadRequestException} When the request relation reference shape is invalid
+ * @throws {BadRequestException} When the request relation reference shape is invalid or an update route references a to-many relation
  * @throws {Error} When service configuration is invalid or services are not found
  * @template E - The entity type
  */
-export async function ApiControllerHandleRequestRelations<E extends IApiBaseEntity>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: IApiControllerPropertiesRouteBaseRelationsRequest<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode>): Promise<void> {
+export async function ApiControllerHandleRequestRelations<E extends IApiBaseEntity>(controllerMethod: TApiControllerMethod<E>, properties: IApiControllerProperties<E>, relationConfig: IApiControllerPropertiesRouteBaseRelationsRequest<E> | undefined, parameters: DeepPartial<E> | Partial<E> | TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode>, routeType?: EApiRouteType): Promise<void> {
 	const loadConfig: IApiControllerPropertiesRouteBaseRelationsRequest<E>["load"] | undefined = relationConfig?.load;
 	const referenceConfig: IApiControllerPropertiesRouteBaseRelationsRequest<E>["reference"] | undefined = relationConfig?.reference;
 
@@ -45,6 +49,7 @@ export async function ApiControllerHandleRequestRelations<E extends IApiBaseEnti
 	validateReferenceConfig(referenceConfig);
 
 	const relationNames: Set<string> = new Set<string>(GetEntityColumns<E>({ entity: properties.entity, shouldTakeRelationsOnly: true }).filter((propertyName: keyof E): propertyName is keyof E & string => typeof propertyName === "string"));
+	const toManyRelationNames: Set<string> = getToManyRelationNames(properties.entity);
 	const parametersRecord: Record<string, unknown> = parameters as Record<string, unknown>;
 	const includedRelationEntries: Array<[string, unknown]> = getIncludedRelationEntries(loadConfig.include);
 	const relationLocks: unknown = loadConfig.locks;
@@ -95,6 +100,13 @@ export async function ApiControllerHandleRequestRelations<E extends IApiBaseEnti
 			continue;
 		}
 
+		const referenceKey: string = referenceConfig.key ?? "id";
+		const isToManyRelation: boolean = toManyRelationNames.has(propertyName);
+
+		if (isToManyRelation && (routeType === EApiRouteType.PARTIAL_UPDATE || routeType === EApiRouteType.UPDATE)) {
+			throw buildRelationReferenceBadRequestException(properties.entity, propertyName, referenceConfig.shape, referenceKey);
+		}
+
 		const nestedInclude: FindOptionsRelations<IApiBaseEntity> | undefined = resolveNestedInclude(propertyName, includeValue);
 		const serviceName: keyof TApiServiceKeys<E> = resolveRelationServiceName(propertyName, loadConfig.services);
 		const service: unknown = controllerMethod[serviceName];
@@ -107,7 +119,6 @@ export async function ApiControllerHandleRequestRelations<E extends IApiBaseEnti
 			throw ErrorException(`Service ${serviceName as string} is not an instance of ApiServiceBase`);
 		}
 
-		const referenceKey: string = referenceConfig.key ?? "id";
 		const referenceValue: unknown = resolveRelationReferenceValue(properties.entity, propertyName, parametersRecord[propertyName], referenceConfig.shape, referenceKey);
 
 		const requestProperties: TApiFunctionGetProperties<IApiBaseEntity> = {
@@ -137,7 +148,7 @@ export async function ApiControllerHandleRequestRelations<E extends IApiBaseEnti
 			throw ErrorException(`Service ${serviceName as string} returned an empty relation entity`);
 		}
 
-		parametersRecord[propertyName] = entity;
+		parametersRecord[propertyName] = isToManyRelation ? [entity] : entity;
 	}
 }
 
@@ -173,6 +184,28 @@ function getIncludedRelationEntries(include: unknown): Array<[string, unknown]> 
 	}
 
 	return Object.entries(include as Record<string, unknown>);
+}
+
+/**
+ * Returns the names of one-to-many and many-to-many relations declared on an entity or one of its parents.
+ * @param {IApiBaseEntity} entity - Entity class to inspect.
+ * @returns {Set<string>} To-many relation property names.
+ */
+function getToManyRelationNames(entity: IApiBaseEntity): Set<string> {
+	const hierarchy: Array<Type<unknown>> = [];
+	let current: unknown = entity;
+
+	while (typeof current === "function" && current !== Function.prototype) {
+		hierarchy.push(current as Type<unknown>);
+		current = Object.getPrototypeOf(current);
+	}
+
+	return new Set<string>(
+		getMetadataArgsStorage()
+			.filterRelations(hierarchy)
+			.filter((relation: TTypeOrmRelationMetadataArguments): boolean => relation.relationType === "one-to-many" || relation.relationType === "many-to-many")
+			.map((relation: TTypeOrmRelationMetadataArguments): string => relation.propertyName),
+	);
 }
 
 /**

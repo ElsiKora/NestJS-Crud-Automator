@@ -310,7 +310,7 @@ export class ApiRouteRuntime {
 				const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
 
 				return await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<E> => {
-					await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {});
+					await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {}, options.method);
 					const primaryKey: IApiControllerPrimaryColumn<E> = this.resolvePrimaryKey(targets.body, options.entityMetadata);
 					markAfterBoundary();
 					const createResponse: E = await options.controller.service.create((targets.body ?? {}) as never);
@@ -631,7 +631,7 @@ export class ApiRouteRuntime {
 	): Promise<E> {
 		const responseLoad: IApiControllerPropertiesRouteBaseRelationsResponseLoad<E> | undefined = routeConfig.relations?.response?.load;
 
-		await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {});
+		await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {}, options.method);
 		const primaryKey: IApiControllerPrimaryColumn<E> = this.resolvePrimaryKey(targets.parameters, options.entityMetadata);
 		const requestCriteria: TApiFunctionUpdateCriteria<E> = { [primaryKey.key]: primaryKey.value } as TApiFunctionUpdateCriteria<E>;
 		const scopedCriteria: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(requestCriteria, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
