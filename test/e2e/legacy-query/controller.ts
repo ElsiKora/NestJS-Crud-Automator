@@ -1,5 +1,6 @@
 import { Inject } from "@nestjs/common";
-import { Type } from "class-transformer";
+import { ApiProperty } from "@nestjs/swagger";
+import { Expose, Type } from "class-transformer";
 import { IsIn, IsInt, IsOptional, Max, Min } from "class-validator";
 
 import { ApiController, ApiControllerObservable, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType, EFilterOperation, EFilterOrderDirection } from "../../../src/index";
@@ -38,6 +39,43 @@ export class E2eLegacyQueryManualDto {
 	@Min(1)
 	@Type(() => Number)
 	public page!: number;
+}
+
+export class E2eLegacyQuerySlimItemDto {
+	@ApiProperty()
+	@Expose()
+	public id!: string;
+
+	@ApiProperty()
+	@Expose()
+	public label!: string;
+
+	@ApiProperty()
+	@Expose()
+	public status!: string;
+}
+
+export class E2eLegacyQuerySlimListDto {
+	@ApiProperty()
+	@Expose()
+	public count!: number;
+
+	@ApiProperty()
+	@Expose()
+	public currentPage!: number;
+
+	@ApiProperty({ type: [E2eLegacyQuerySlimItemDto] })
+	@Expose()
+	@Type(() => E2eLegacyQuerySlimItemDto)
+	public items!: Array<E2eLegacyQuerySlimItemDto>;
+
+	@ApiProperty()
+	@Expose()
+	public totalCount!: number;
+
+	@ApiProperty()
+	@Expose()
+	public totalPages!: number;
 }
 
 @ApiControllerObservable()
@@ -113,6 +151,37 @@ export class E2eLegacyQueryTypedItemController {
 	},
 })
 export class E2eLegacyQueryCursorItemController {
+	@Inject(E2eLegacyQueryItemService)
+	public readonly service!: E2eLegacyQueryItemService;
+}
+
+@ApiController<E2eLegacyQueryItemEntity>({
+	entity: E2eLegacyQueryItemEntity,
+	name: "E2eLegacyQuerySlimItems",
+	path: "legacy-query/slim-items",
+	routes: {
+		...disabledRoutes,
+		[EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: E2eLegacyQuerySlimListDto } },
+	},
+})
+export class E2eLegacyQuerySlimItemController {
+	@Inject(E2eLegacyQueryItemService)
+	public readonly service!: E2eLegacyQueryItemService;
+}
+
+@ApiController<E2eLegacyQueryItemEntity>({
+	entity: E2eLegacyQueryItemEntity,
+	name: "E2eLegacyQueryTypedSlimItems",
+	path: "legacy-query/typed-slim-items",
+	routes: {
+		...disabledRoutes,
+		[EApiRouteType.GET_LIST]: {
+			dto: { [EApiDtoType.RESPONSE]: { itemType: E2eLegacyQuerySlimItemDto } },
+			request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { rank: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } },
+		},
+	},
+})
+export class E2eLegacyQueryTypedSlimItemController {
 	@Inject(E2eLegacyQueryItemService)
 	public readonly service!: E2eLegacyQueryItemService;
 }

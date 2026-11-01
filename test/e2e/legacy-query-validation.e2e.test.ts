@@ -14,7 +14,7 @@ import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eLegacyQueryCursorItemController, E2eLegacyQueryItemController, E2eLegacyQueryItemEntity, E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQueryTypedItemController, EE2eLegacyQueryStatus } from "./legacy-query";
+import { E2eLegacyQueryCursorItemController, E2eLegacyQueryItemController, E2eLegacyQueryItemEntity, E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQuerySlimItemController, E2eLegacyQueryTypedItemController, E2eLegacyQueryTypedSlimItemController, EE2eLegacyQueryStatus } from "./legacy-query";
 
 class LegacyQueryLogger implements Logger {
 	public readonly queries: Array<string> = [];
@@ -52,6 +52,8 @@ const PAGE: string = "limit=10&page=1";
 const ITEMS: string = "/legacy-query/items";
 const ORDERABLE_FIELDS: Array<string> = ["id", "label", "rank", "status", "note", "releasedOn", "createdAt"];
 const ORDER_BY_MESSAGE: string = `orderBy must be one of the following values: ${ORDERABLE_FIELDS.join(", ")}`;
+const SLIM_ORDERABLE_FIELDS: Array<string> = ["id", "label", "status"];
+const SLIM_ORDER_BY_MESSAGE: string = `orderBy must be one of the following values: ${SLIM_ORDERABLE_FIELDS.join(", ")}`;
 const ORDER_DIRECTION_MESSAGE: string = "orderDirection must be one of the following values: asc, desc";
 const LIMIT_TYPE_MESSAGES: Array<string> = ["limit must be an integer number", "limit must not be less than 1", "limit must not be greater than 100", "limit must be divisible by 1"];
 const PAGE_TYPE_MESSAGES: Array<string> = ["page must be an integer number", "page must not be less than 1", "page must not be greater than 100", "page must be divisible by 1"];
@@ -141,7 +143,7 @@ describe.each([
 		beforeAll(async () => {
 			const entities: Array<new () => unknown> = [E2eLegacyQueryItemEntity];
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eLegacyQueryItemController, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQueryTypedItemController, E2eLegacyQueryCursorItemController],
+				controllers: [E2eLegacyQueryItemController, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQueryTypedItemController, E2eLegacyQueryCursorItemController, E2eLegacyQuerySlimItemController, E2eLegacyQueryTypedSlimItemController],
 				imports: [TypeOrmModule.forRoot(container ? { dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber],
 			}).compile();
@@ -220,8 +222,22 @@ describe.each([
 		it.each([
 			{ fields: ORDERABLE_FIELDS, path: ITEMS },
 			{ fields: ORDERABLE_FIELDS, path: "/legacy-query/typed-items" },
+			{ fields: SLIM_ORDERABLE_FIELDS, path: "/legacy-query/slim-items" },
+			{ fields: SLIM_ORDERABLE_FIELDS, path: "/legacy-query/typed-slim-items" },
 		])("publishes exactly the orderable columns as the $path orderBy enum", ({ fields, path }: { fields: Array<string>; path: string }) => {
 			expect(getOrderByEnum(SwaggerModule.createDocument(app as INestApplication, new DocumentBuilder().build()), path)).toEqual(fields);
+		});
+
+		it.each(["asc", "desc"])("orders only by fields a manual list response publishes with orderDirection=%s", async (orderDirection: string) => {
+			await expectRejected(`/legacy-query/slim-items?${PAGE}&orderBy=rank&orderDirection=${orderDirection}`, [SLIM_ORDER_BY_MESSAGE]);
+			const typedRank = await fastify.inject({ method: "GET", url: `/legacy-query/typed-slim-items?${PAGE}&orderBy=rank&orderDirection=${orderDirection}` });
+
+			expect(typedRank.json()).toEqual({ error: "Bad Request", message: createPipe ? [SLIM_ORDER_BY_MESSAGE] : "INVALID_ORDER", statusCode: HttpStatus.BAD_REQUEST });
+			expect(queryLogger.queries).toEqual([]);
+			const labels: Array<string> = orderDirection === "asc" ? ["Alpha", "Beta", "Gamma"] : ["Gamma", "Beta", "Alpha"];
+
+			expect(await listLabels(`/legacy-query/slim-items?${PAGE}&orderBy=label&orderDirection=${orderDirection}`)).toEqual(labels);
+			expect(await listLabels(`/legacy-query/typed-slim-items?${PAGE}&orderBy=label&orderDirection=${orderDirection}`)).toEqual(labels);
 		});
 
 		it("validates a value a before subscriber wrote, and reports the failure to before-error subscribers", async () => {

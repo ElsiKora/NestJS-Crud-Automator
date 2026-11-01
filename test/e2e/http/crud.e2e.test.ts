@@ -58,7 +58,7 @@ describe("CRUD routes (E2E)", () => {
 		fastify.inject({
 			headers,
 			method: "GET",
-			url: "/custom-item-response-items?limit=10&page=1&orderBy=id&orderDirection=asc",
+			url: "/custom-item-response-items?limit=10&page=1",
 		});
 	const seedFilterItems = async () => {
 		await createItem({
@@ -372,12 +372,19 @@ describe("CRUD routes (E2E)", () => {
 		const listResponse = await fastify.inject({
 			headers: adminHeaders,
 			method: "GET",
+			url: "/custom-response-items?limit=10&page=1",
+		});
+		// The manual wrapper publishes resourceId, not id, so id is no order field.
+		const orderedResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
 			url: "/custom-response-items?limit=10&page=1&orderBy=id&orderDirection=asc",
 		});
 
+		expect(orderedResponse.statusCode).toBe(400);
 		expect(listResponse.statusCode).toBe(200);
 		expect(listResponse.json()).toEqual({
-			entries: [
+			entries: expect.arrayContaining([
 				{
 					displayName: "CustomListOne",
 					owner: E2E_OWNER_ID,
@@ -388,7 +395,7 @@ describe("CRUD routes (E2E)", () => {
 					owner: E2E_OWNER_ID,
 					resourceId: "custom-list-2",
 				},
-			],
+			]),
 			page: 1,
 			pageCount: 1,
 			totalItems: 2,
@@ -413,12 +420,19 @@ describe("CRUD routes (E2E)", () => {
 		]);
 
 		const listResponse = await getCustomItemResponseList();
+		// The manual item type publishes resourceId, not id, so id is no order field.
+		const orderedResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/custom-item-response-items?limit=10&page=1&orderBy=id&orderDirection=asc",
+		});
 
+		expect(orderedResponse.statusCode).toBe(400);
 		expect(listResponse.statusCode).toBe(200);
 		expect(listResponse.json()).toEqual({
 			count: 2,
 			currentPage: 1,
-			items: [
+			items: expect.arrayContaining([
 				{
 					displayName: "CustomItemListOne",
 					owner: E2E_OWNER_ID,
@@ -429,7 +443,7 @@ describe("CRUD routes (E2E)", () => {
 					owner: E2E_OWNER_ID,
 					resourceId: "custom-item-list-2",
 				},
-			],
+			]),
 			totalCount: 2,
 			totalPages: 1,
 		});
