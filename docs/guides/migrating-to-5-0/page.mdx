@@ -266,6 +266,18 @@ export class ApiValidationFilter extends BaseExceptionFilter {
 
 Register it with `app.useGlobalFilters(new ApiValidationFilter(app.get(HttpAdapterHost)))`. See [Error Handling: Translating Request Validation Failures](/docs/nestjs-crud-automator/guides/error-handling#translating-request-validation-failures).
 
+## List Query Rules
+
+A generated `GET_LIST` route validates its query against the published OpenAPI schema itself, with or without a host `ValidationPipe`, and typed and legacy routes apply the same rule. A request outside it returns `400` before any SQL runs. Change these requests if your clients send them:
+
+- `orderDirection` is lowercase `asc` or `desc`, and `orderBy` and `orderDirection` are sent together or not at all.
+- `limit` and `page` are required, and `limit` is at most 100. `isnull` and `notnull` take no value.
+- Filter values follow the entity property: number bounds, string length, format and pattern.
+- A `date` column filter is `YYYY-MM-DD` text, a `time` column filter is `HH:mm:ss` text, and both are compared as written in every time zone. A date-time filter is the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`, as `Date.prototype.toISOString()` writes it; a value without milliseconds, with an offset or without a zone returns `400`.
+- A membership filter with one value, such as `status[operator]=in&status[values]=active`, now works.
+
+`DTO_GENERATE_CONSTANT.MINIMUM_FILTER_PROPERTIES` is removed. A typed filter config no longer needs a cast to list comparison operations on a `string` date, time or decimal property, and a typed `defaultCondition` on a `date` or `time` field takes text, not a `Date`. See [Filtering and Sorting: Migration Notes](/docs/nestjs-crud-automator/guides/filtering-and-sorting#migration-notes) and [Typed Plan Migration Notes](/docs/nestjs-crud-automator/guides/filtering-and-sorting#typed-plan-migration-notes).
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.
