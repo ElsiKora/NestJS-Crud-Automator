@@ -168,7 +168,7 @@ describe("ApiPropertyDate", () => {
 			expect(validateSync(instance)).toHaveLength(0);
 		});
 
-		it.each(["2026-02-30", "2026-13-01", "2026-03-01T00:00:00.000Z", "20260301", "2026-3-1", "Mar 1 2026", "", 20_260_301, true, {}])("rejects %j as a DATE value without converting it", (value: unknown) => {
+		it.each(["2026-02-30", "2026-13-01", "2026-03-01T00:00:00.000Z", "20260301", "2026-3-1", "Mar 1 2026", "", 20_260_301, true, {}, [["2026-03-01"]]])("rejects %j as a DATE value without converting it", (value: unknown) => {
 			const instance = plainToInstance(CalendarDateDto, { happensOn: value });
 
 			expect(instance.happensOn).toEqual(value);
@@ -185,7 +185,7 @@ describe("ApiPropertyDate", () => {
 			expect(validateSync(instance)).toHaveLength(0);
 		});
 
-		it.each(["2026-03-01T12:34:56Z", "2026-03-01T12:34:56.789+01:00", "2026-03-01T12:34:56.789", "2026-03-01", "2026-02-30T12:00:00.000Z", "2026-03-01T24:00:00.000Z", "2026-03-01T12:34:56X789Z", "", 1_772_368_496_789])("rejects %j as a DATE_TIME value without converting it", (value: unknown) => {
+		it.each(["2026-03-01T12:34:56Z", "2026-03-01T12:34:56.789+01:00", "2026-03-01T12:34:56.789", "2026-03-01", "2026-02-30T12:00:00.000Z", "2026-03-01T24:00:00.000Z", "2026-03-01T12:34:56X789Z", "March 1 2026", "1", "", 0, 1_772_368_496_789, [["2026-03-01T12:34:56.789Z"]]])("rejects %j as a DATE_TIME value without converting it", (value: unknown) => {
 			const instance = plainToInstance(DateDto, { createdAt: value });
 
 			expect(instance.createdAt).toEqual(value);
@@ -206,7 +206,7 @@ describe("ApiPropertyDate", () => {
 			expect(validateSync(instance)).toHaveLength(0);
 		});
 
-		it.each(["24:00:00", "12:60:00", "12:30:60", "9:30:00", "09:30", "09:30:00.000", "09:30:00Z", "2026-03-01T09:30:00.000Z", "", 930])("rejects %j as a TIME value without converting it", (value: unknown) => {
+		it.each(["24:00:00", "12:60:00", "12:30:60", "9:30:00", "09:30", "09:30:00.000", "09:30:00Z", "2026-03-01T09:30:00.000Z", "", 930, [["09:30:00"]]])("rejects %j as a TIME value without converting it", (value: unknown) => {
 			const instance = plainToInstance(TimeDto, { opensAt: value });
 
 			expect(instance.opensAt).toEqual(value);

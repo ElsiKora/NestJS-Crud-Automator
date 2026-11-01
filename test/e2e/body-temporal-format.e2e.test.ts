@@ -76,9 +76,9 @@ const DATE_TIME_MESSAGE: string = "startsAt must be in YYYY-MM-DDTHH:mm:ss.sssZ 
 const TIME_MESSAGE: string = "opensAt must be in HH:mm:ss format";
 
 const REJECTED_CASES: Array<IRejectedCase> = [
-	...["2026-02-30", "2026-13-01", "2026-03-01T00:00:00.000Z", "2026-03-01T00:00:00", "20260301", "2026-3-1", "Mar 1 2026", "", 20_260_301].map((value: number | string): IRejectedCase => ({ message: DATE_MESSAGE, property: "happensOn", value })),
-	...["2026-03-01T12:34:56Z", "2026-03-01T12:34:56.789+01:00", "2026-03-01T12:34:56.789", "2026-03-01", "2026-02-30T12:00:00.000Z", "2026-03-01T24:00:00.000Z", "2026-03-01T12:34:56X789Z", "Mar 1 2026", "", 1_772_368_496_789].map((value: number | string): IRejectedCase => ({ message: DATE_TIME_MESSAGE, property: "startsAt", value })),
-	...["24:00:00", "12:60:00", "12:30:60", "9:30:00", "09:30", "09:30:00.000", "09:30:00Z", "2026-03-01T09:30:00.000Z", "", 930].map((value: number | string): IRejectedCase => ({ message: TIME_MESSAGE, property: "opensAt", value })),
+	...["2026-02-30", "2026-13-01", "2026-03-01T00:00:00.000Z", "2026-03-01T00:00:00", "20260301", "2026-3-1", "Mar 1 2026", "", 20_260_301, ["2026-03-01"]].map((value: unknown): IRejectedCase => ({ message: DATE_MESSAGE, property: "happensOn", value })),
+	...["2026-03-01T12:34:56Z", "2026-03-01T12:34:56.789+01:00", "2026-03-01T12:34:56.789", "2026-03-01", "2026-02-30T12:00:00.000Z", "2026-03-01T24:00:00.000Z", "2026-03-01T12:34:56X789Z", "Mar 1 2026", "March 1 2026", "1", "", 0, 1_772_368_496_789, ["2026-03-01T12:34:56.789Z"]].map((value: unknown): IRejectedCase => ({ message: DATE_TIME_MESSAGE, property: "startsAt", value })),
+	...["24:00:00", "12:60:00", "12:30:60", "9:30:00", "09:30", "09:30:00.000", "09:30:00Z", "2026-03-01T09:30:00.000Z", "", 930, ["09:30:00"]].map((value: unknown): IRejectedCase => ({ message: TIME_MESSAGE, property: "opensAt", value })),
 ];
 
 describe.each([
