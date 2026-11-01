@@ -1,7 +1,7 @@
 import type { TApiControllerGetListQuery, TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanOrder, IApiControllerGetListQueryPlanOrderField, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
 
-import { EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperation } from "@enum/filter";
 import { describe, expect, it } from "vitest";
 
@@ -251,5 +251,37 @@ describe("typed GET_LIST query public contract", () => {
 		};
 
 		expect(route).toBeDefined();
+	});
+
+	it("allows every operation the describe kind of a field supports, whatever its TypeScript type", () => {
+		const route: TApiControllerPropertiesRoute<ITypedQueryEntity, EApiRouteType.GET_LIST> = {
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					filter: {
+						fields: {
+							amount: {
+								allowedOperations: [EFilterOperation.BETWEEN, EFilterOperation.GT, EFilterOperation.IN],
+								isEnabled: true,
+							},
+							occurredOn: {
+								allowedOperations: [EFilterOperation.EQ, EFilterOperation.GTE],
+								defaultCondition: { operator: EFilterOperation.GTE, value: "2024-01-01" },
+								isEnabled: true,
+								missingBehavior: EApiControllerGetListQueryFilterMissingBehavior.USE_DEFAULT,
+							},
+							releasedOn: {
+								allowedOperations: [EFilterOperation.BETWEEN, EFilterOperation.EQ, EFilterOperation.GTE, EFilterOperation.LT],
+								defaultCondition: { operator: EFilterOperation.BETWEEN, values: ["2024-01-01", "2024-12-31"] },
+								isEnabled: true,
+								missingBehavior: EApiControllerGetListQueryFilterMissingBehavior.USE_DEFAULT,
+							},
+						},
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+				},
+			},
+		};
+
+		expect(route.request?.[EApiControllerRequestTarget.QUERY]).toBeDefined();
 	});
 });
