@@ -142,17 +142,20 @@ describe("ApiController table inheritance startup check", () => {
 		await expect(compileWith(StartupCheckConstructorController)).rejects.toThrow(LATE_CHILD_MESSAGE);
 		await expect(compileWith(StartupCheckPropertyController)).rejects.toThrow(LATE_CHILD_MESSAGE);
 	});
-	it("fails startup for two child entities whose responses nest different classes with one name", () => {
+	it("fails startup for two child entities whose responses nest different classes with one name", async () => {
 		class AddressCheckController {
-			public service!: StartupCheckService;
+			@Inject(StartupCheckService)
+			public readonly service!: StartupCheckService;
 		}
 
 		expect([AddressCheckHomeEntity, AddressCheckWorkEntity]).toHaveLength(2);
-		expect(() =>
-			ApiController<AddressCheckRootEntity & IApiBaseEntity>({
-				entity: AddressCheckRootEntity as never,
-				routes: { [EApiRouteType.GET]: {} },
-			})(AddressCheckController),
-		).toThrow('OpenAPI component name "StartupCheckAddressDTO" belongs to two different classes: property address in AddressCheckGetResponseHomeDTO, and property address in AddressCheckGetResponseWorkDTO');
+
+		const DecoratedController: typeof AddressCheckController = ApiController<AddressCheckRootEntity & IApiBaseEntity>({
+			entity: AddressCheckRootEntity as never,
+			routes: { [EApiRouteType.GET]: {} },
+		})(AddressCheckController);
+		const application: TestingModule = await compileWith(DecoratedController);
+
+		await expect(application.init()).rejects.toThrow('OpenAPI component name "StartupCheckAddressDTO" belongs to two different classes: property address in AddressCheckGetResponseHomeDTO, and property address in AddressCheckGetResponseWorkDTO');
 	});
 });

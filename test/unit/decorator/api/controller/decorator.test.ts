@@ -19,6 +19,7 @@ import { KeyPageEntryEntity } from "@test/unit/class/api/function/fixture/key-pa
 import { KeyPageHolderEntity } from "@test/unit/class/api/function/fixture/key-page-holder.entity";
 import { KeyPageJournalEntity } from "@test/unit/class/api/function/fixture/key-page-journal.entity";
 import { KeyPageReceiptEntity } from "@test/unit/class/api/function/fixture/key-page-receipt.entity";
+import { ApiControllerAssertSchemaNames } from "@utility/api/controller/assert-schema-names.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { Column, DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
@@ -261,15 +262,17 @@ describe("ApiController", () => {
 			expect(responseType?.name).toBe("SchemaNameInvoiceGetResponseDTO");
 		});
 
-		it("fails startup for two controller classes with the same name and names both paths", () => {
+		it("decorates two controller classes with the same name, and the bootstrap check of an application with both fails, naming both paths", () => {
 			const createController = (): { new (): { service: FactoryService } } =>
 				class SchemaNameDuplicateController {
 					public service: FactoryService = new FactoryService();
 				};
 
-			ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "admin/schema-name-duplicates", routes: getOnlyRoutes })(createController());
+			const AdminController: { new (): { service: FactoryService } } = ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "admin/schema-name-duplicates", routes: getOnlyRoutes })(createController());
+			const PublicController: { new (): { service: FactoryService } } = ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-duplicates", routes: getOnlyRoutes })(createController());
 
-			expect(() => ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-duplicates", routes: getOnlyRoutes })(createController())).toThrow('Controllers SchemaNameDuplicateController (path "admin/schema-name-duplicates") and SchemaNameDuplicateController (path "schema-name-duplicates") have the same schema prefix "SchemaNameDuplicate"');
+			expect(() => ApiControllerAssertSchemaNames([{ controller: AdminController }])).not.toThrow();
+			expect(() => ApiControllerAssertSchemaNames([{ controller: AdminController }, { controller: PublicController }])).toThrow('Controllers SchemaNameDuplicateController (path "admin/schema-name-duplicates") and SchemaNameDuplicateController (path "schema-name-duplicates") have the same schema prefix "SchemaNameDuplicate" in one application');
 		});
 
 		it("fails startup for an anonymous controller class", () => {
@@ -282,7 +285,7 @@ describe("ApiController", () => {
 			expect(() => ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-anonymous", routes: getOnlyRoutes })(anonymousController)).toThrow('Controller with path "schema-name-anonymous" is an anonymous class');
 		});
 
-		it("fails startup when two generated DTO classes get the same name", () => {
+		it("fails the bootstrap check when two generated DTO classes get the same name", () => {
 			class SchemaNameOrderController {
 				public service: FactoryService = new FactoryService();
 			}
@@ -293,17 +296,16 @@ describe("ApiController", () => {
 
 			class SchemaNameOrderItemDto {}
 
-			ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-orders", routes: getOnlyRoutes })(SchemaNameOrderController);
+			const OrderController: typeof SchemaNameOrderController = ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-orders", routes: getOnlyRoutes })(SchemaNameOrderController);
+			const OrderListController: typeof SchemaNameOrderListController = ApiController<IApiBaseEntity>({
+				entity: FactoryEntity,
+				path: "schema-name-order-lists",
+				routes: { ...getOnlyRoutes, [EApiRouteType.GET]: { generation: { isEnabled: false } }, [EApiRouteType.GET_LIST]: { dto: { response: { itemType: SchemaNameOrderItemDto, name: "SchemaNameOrderGetResponseDTO" } } } },
+			})(SchemaNameOrderListController);
 
-			expect(() =>
-				ApiController<IApiBaseEntity>({
-					entity: FactoryEntity,
-					path: "schema-name-order-lists",
-					routes: { ...getOnlyRoutes, [EApiRouteType.GET]: { generation: { isEnabled: false } }, [EApiRouteType.GET_LIST]: { dto: { response: { itemType: SchemaNameOrderItemDto, name: "SchemaNameOrderGetResponseDTO" } } } },
-				})(SchemaNameOrderListController),
-			).toThrow('OpenAPI component name "SchemaNameOrderGetResponseDTO" belongs to two different classes: the get response DTO of controller prefix "SchemaNameOrder", and the getList page response of controller prefix "SchemaNameOrderList"');
+			expect(() => ApiControllerAssertSchemaNames([{ controller: OrderController }, { controller: OrderListController }])).toThrow('OpenAPI component name "SchemaNameOrderGetResponseDTO" belongs to two different classes: the get response DTO of controller prefix "SchemaNameOrder", and the getList page response of controller prefix "SchemaNameOrderList"');
 		});
-		it("fails startup for two controller classes with one prefix on one path", () => {
+		it("fails the bootstrap check for two controller classes with one prefix on one path", () => {
 			class SchemaNameSamePathController {
 				public service: FactoryService = new FactoryService();
 			}
@@ -312,12 +314,13 @@ describe("ApiController", () => {
 				public service: FactoryService = new FactoryService();
 			}
 
-			ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-same-path", routes: getOnlyRoutes })(SchemaNameSamePathController);
+			const FirstController: typeof SchemaNameSamePathController = ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-same-path", routes: getOnlyRoutes })(SchemaNameSamePathController);
+			const SecondController: typeof SchemaNameSamePath = ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-same-path", routes: getOnlyRoutes })(SchemaNameSamePath);
 
-			expect(() => ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-same-path", routes: getOnlyRoutes })(SchemaNameSamePath)).toThrow('Controllers SchemaNameSamePathController (path "schema-name-same-path") and SchemaNameSamePath (path "schema-name-same-path") have the same schema prefix "SchemaNameSamePath"');
+			expect(() => ApiControllerAssertSchemaNames([{ controller: FirstController }, { controller: SecondController }])).toThrow('Controllers SchemaNameSamePathController (path "schema-name-same-path") and SchemaNameSamePath (path "schema-name-same-path") have the same schema prefix "SchemaNameSamePath" in one application');
 		});
 
-		it("fails startup when a hand-written DTO has the name of a generated DTO of another controller", () => {
+		it("fails the bootstrap check when a hand-written DTO has the name of a generated DTO of another controller", () => {
 			class SchemaNameW1Controller {
 				public service: FactoryService = new FactoryService();
 			}
@@ -331,15 +334,14 @@ describe("ApiController", () => {
 				public id!: string;
 			}
 
-			ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-w1", routes: getOnlyRoutes })(SchemaNameW1Controller);
+			const W1Controller: typeof SchemaNameW1Controller = ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-w1", routes: getOnlyRoutes })(SchemaNameW1Controller);
+			const W2Controller: typeof SchemaNameW2Controller = ApiController<IApiBaseEntity>({
+				entity: FactoryEntity,
+				path: "schema-name-w2",
+				routes: { ...getOnlyRoutes, [EApiRouteType.GET]: { dto: { [EApiDtoType.RESPONSE]: SchemaNameW1GetResponseDTO } } },
+			})(SchemaNameW2Controller);
 
-			expect(() =>
-				ApiController<IApiBaseEntity>({
-					entity: FactoryEntity,
-					path: "schema-name-w2",
-					routes: { ...getOnlyRoutes, [EApiRouteType.GET]: { dto: { [EApiDtoType.RESPONSE]: SchemaNameW1GetResponseDTO } } },
-				})(SchemaNameW2Controller),
-			).toThrow('OpenAPI component name "SchemaNameW1GetResponseDTO" belongs to two different classes: the get response DTO of controller prefix "SchemaNameW1", and the get response DTO of controller prefix "SchemaNameW2"');
+			expect(() => ApiControllerAssertSchemaNames([{ controller: W1Controller }, { controller: W2Controller }])).toThrow('OpenAPI component name "SchemaNameW1GetResponseDTO" belongs to two different classes: the get response DTO of controller prefix "SchemaNameW1", and the 200 response of route get in controller SchemaNameW2Controller');
 		});
 	});
 });

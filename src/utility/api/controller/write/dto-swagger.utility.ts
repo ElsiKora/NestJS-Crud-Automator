@@ -14,7 +14,6 @@ import { EApiDtoType } from "@enum/decorator/api";
 import { ApiControllerGetDtoWithReadPlan, ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
-import { DtoSchemaNameGetRouteOrigin, DtoSchemaNameRegisterClasses } from "@utility/dto/schema-name";
 import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
 
 /**
@@ -57,25 +56,6 @@ export function ApiControllerWriteDtoSwaggerWithReadPlan<E extends IApiBaseEntit
 	const responseDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(properties, entity, method, routeConfig, schemaPrefix, queryPlan, identityPlan);
 
 	const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, ...(ApiRouteIsDiscriminatedDtoProperties(responseDto) ? [] : [responseDto])];
-	const responseOrigin: string = DtoSchemaNameGetRouteOrigin(schemaPrefix, method, EApiDtoType.RESPONSE);
-
-	for (const [dtoType, dto] of [
-		[EApiDtoType.PARAMETERS, requestDto],
-		[EApiDtoType.QUERY, queryDto],
-		[EApiDtoType.BODY, bodyDto],
-	] as const) {
-		if (dto) {
-			DtoSchemaNameRegisterClasses(dto, DtoSchemaNameGetRouteOrigin(schemaPrefix, method, dtoType));
-		}
-	}
-
-	if (ApiRouteIsDiscriminatedDtoProperties(responseDto)) {
-		for (const variant of responseDto.type) {
-			DtoSchemaNameRegisterClasses(variant, `variant ${variant.name} of ${responseOrigin}`);
-		}
-	} else if (responseDto) {
-		DtoSchemaNameRegisterClasses(responseDto, responseOrigin);
-	}
 
 	for (const dto of dtoList) {
 		for (const swaggerDto of dto ? [dto, ...GetRegisteredAutoDtoChildrenRecursive(dto.prototype as object)] : []) {

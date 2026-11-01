@@ -274,10 +274,18 @@ describe("generated DTO names of a custom route next to a generated route (E2E)"
 });
 
 describe("controller names that cannot start generated DTO names (E2E)", () => {
-	it("fails startup for two controller classes named UserController, naming both paths", async () => {
-		await import("./controller-dto-names/duplicate/admin-user.controller");
+	it("fails startup for an application with two controller classes named UserController, naming both paths", async () => {
+		const { UserController: AdminUserController }: typeof import("./controller-dto-names/duplicate/admin-user.controller") = await import("./controller-dto-names/duplicate/admin-user.controller");
+		const { UserController: PublicUserController }: typeof import("./controller-dto-names/duplicate/public-user.controller") = await import("./controller-dto-names/duplicate/public-user.controller");
+		const moduleReference = await Test.createTestingModule({
+			controllers: [AdminUserController, PublicUserController],
+			imports: [TypeOrmModule.forRoot({ database: ":memory:", dropSchema: true, entities: [E2eDtoNameItemEntity], logging: false, synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature([E2eDtoNameItemEntity]), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
+			providers: [E2eDtoNameItemService],
+		}).compile();
+		const application: INestApplication = moduleReference.createNestApplication(new FastifyAdapter());
 
-		await expect(import("./controller-dto-names/duplicate/public-user.controller")).rejects.toThrow('Controllers UserController (path "admin/users") and UserController (path "public/users") have the same schema prefix "User"');
+		await expect(application.init()).rejects.toThrow('Controllers UserController in module RootTestModule (path "admin/users") and UserController in module RootTestModule (path "public/users") have the same schema prefix "User" in one application');
+		await moduleReference.close();
 	});
 
 	it("fails startup for an anonymous controller class", () => {

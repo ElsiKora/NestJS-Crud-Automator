@@ -18,7 +18,8 @@ import { DtoGenerateGetListItemsResponse } from "@utility/dto/generate/get-list"
 import { ErrorException } from "@utility/error/exception.utility";
 import { Transform } from "class-transformer";
 
-const tableInheritanceResponseCache: Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>> = new Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>>();
+// Keyed by root entity class, so a re-evaluated entity module generates its responses again.
+const tableInheritanceResponseCache: WeakMap<ObjectLiteral, Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>>> = new WeakMap<ObjectLiteral, Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>>>();
 
 /**
  * Generates the polymorphic GET or GET_LIST response of a table inheritance root.
@@ -47,7 +48,11 @@ export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, en
 		queryPlanSignature: isCursor ? EApiControllerGetListQueryPaginationMode.CURSOR : undefined,
 		responseVariantName: plan.variants.map(({ discriminatorValue, entityMetadata: { name } }: IApiControllerTableInheritanceVariant): string => `${discriminatorValue}:${String(name)}`).join(","),
 	});
-	const cached: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = tableInheritanceResponseCache.get(cacheKey);
+	const entityResponseCache: Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>> = tableInheritanceResponseCache.get(entity) ?? new Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>>();
+
+	tableInheritanceResponseCache.set(entity, entityResponseCache);
+
+	const cached: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = entityResponseCache.get(cacheKey);
 
 	if (cached) {
 		return cached;
@@ -77,7 +82,7 @@ export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, en
 	ApiRouteValidateDiscriminatedDtoProperties(discriminatedResponse, `Table inheritance root ${String(entityMetadata.name)} response`);
 
 	if (method !== EApiRouteType.GET_LIST) {
-		tableInheritanceResponseCache.set(cacheKey, discriminatedResponse);
+		entityResponseCache.set(cacheKey, discriminatedResponse);
 
 		return discriminatedResponse;
 	}
@@ -95,7 +100,7 @@ export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, en
 		},
 		{ toClassOnly: true },
 	)(listResponse.prototype as object, "items");
-	tableInheritanceResponseCache.set(cacheKey, listResponse);
+	entityResponseCache.set(cacheKey, listResponse);
 
 	return listResponse;
 }

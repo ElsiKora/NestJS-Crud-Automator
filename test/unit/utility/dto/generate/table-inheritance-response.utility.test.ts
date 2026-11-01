@@ -5,6 +5,7 @@ import type { IApiControllerGetListQueryPlan } from "@interface/class/api/contro
 import type { IApiControllerTableInheritancePlan } from "@interface/class/api/controller/table-inheritance";
 import type { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
+import type { IDtoSchemaNameRoot } from "@interface/utility/schema-name";
 import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 
@@ -14,6 +15,7 @@ import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiPropertyDesc
 import { HttpStatus } from "@nestjs/common";
 import { ApiRouteSerializeResponse } from "@utility/api/route/response/serialize.utility";
 import { DtoGenerateTableInheritanceResponse } from "@utility/dto/generate/table-inheritance-response.utility";
+import { DtoSchemaNameAssertUnique } from "@utility/dto/schema-name";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { instanceToPlain, plainToInstance } from "class-transformer";
 import { ChildEntity, Column, Entity, ManyToOne, PrimaryGeneratedColumn, TableInheritance } from "typeorm";
@@ -261,11 +263,15 @@ describe("DtoGenerateTableInheritanceResponse", () => {
 			expect(() => generateFor(ResponseHiddenRootEntity)).toThrow(`Table inheritance root ${ResponseHiddenRootEntity.name} must expose its discriminator column "type" in GET and GET_LIST responses`);
 		});
 
-		it("rejects a variant DTO named like a relation DTO of another variant", () => {
+		it("gives a variant DTO the name of a relation DTO of another variant, which the bootstrap check rejects", () => {
 			expect(ResponseCollisionCardTransferEntity).toBeDefined();
 			expect(ResponseCollisionCardTransferIssuerEntity).toBeDefined();
-			expect(() => generateFor(ResponseCollisionRootEntity)).toThrow(`OpenAPI component name "${ResponseCollisionRootEntity.name}GetResponseCardTransferIssuerDTO" belongs to two different classes`);
-			expect(() => generateFor(ResponseCollisionRootEntity, EApiRouteType.GET_LIST)).toThrow(`OpenAPI component name "${ResponseCollisionRootEntity.name}GetListResponseCardTransferIssuerDTO" belongs to two different classes`);
+
+			const { type: getVariants }: TApiRouteDiscriminatedDtoProperties = generateFor(ResponseCollisionRootEntity) as TApiRouteDiscriminatedDtoProperties;
+			const listResponse: Type<unknown> = generateFor(ResponseCollisionRootEntity, EApiRouteType.GET_LIST) as Type<unknown>;
+
+			expect(() => DtoSchemaNameAssertUnique(getVariants.map((variant: Type<unknown>): IDtoSchemaNameRoot => ({ origin: "the get response", type: variant })))).toThrow(`OpenAPI component name "${ResponseCollisionRootEntity.name}GetResponseCardTransferIssuerDTO" belongs to two different classes`);
+			expect(() => DtoSchemaNameAssertUnique([{ origin: "the getList response", type: listResponse }])).toThrow(`OpenAPI component name "${ResponseCollisionRootEntity.name}GetListResponseCardTransferIssuerDTO" belongs to two different classes`);
 		});
 
 		it("keeps a __proto__ discriminator value as a mapping key", () => {

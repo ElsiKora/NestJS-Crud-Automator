@@ -32,7 +32,8 @@ import { HasPairedCustomSuffixesFieldsValidator } from "@validator/has/paired-cu
 import { Transform } from "class-transformer";
 import { Validate } from "class-validator";
 
-const dtoGenerateCache: Map<string, Type<unknown>> = new Map<string, Type<unknown>>();
+// Keyed by entity class, so a re-evaluated entity module (webpack HMR, `vi.resetModules`) generates its DTOs again instead of reusing ones built from the old class.
+const dtoGenerateCache: WeakMap<ObjectLiteral, Map<string, Type<unknown>>> = new WeakMap<ObjectLiteral, Map<string, Type<unknown>>>();
 
 /**
  * Core utility for DTO generation that determines which properties should be included in the DTO.
@@ -72,7 +73,11 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		routeName,
 	});
 
-	const cached: Type<unknown> | undefined = dtoGenerateCache.get(cacheKey);
+	const entityDtoCache: Map<string, Type<unknown>> = dtoGenerateCache.get(entity) ?? new Map<string, Type<unknown>>();
+
+	dtoGenerateCache.set(entity, entityDtoCache);
+
+	const cached: Type<unknown> | undefined = entityDtoCache.get(cacheKey);
 	const namePrefix: string = routeName ? `${schemaPrefix}${routeName}` : schemaPrefix;
 	const dtoNameBase: string = responseVariantName?.replace(/DTO$/, "") ?? `${schemaPrefix}${routeName ?? CamelCaseString(method)}${CamelCaseString(dtoType)}`;
 
@@ -293,7 +298,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 
 	const result: Type<unknown> = isGetListResponse && !responseVariantName ? DtoGenerateGetListItemsResponse(entity, GeneratedDTO, schemaPrefix, queryPlan) : GeneratedDTO;
 
-	dtoGenerateCache.set(cacheKey, result);
+	entityDtoCache.set(cacheKey, result);
 
 	return result;
 }

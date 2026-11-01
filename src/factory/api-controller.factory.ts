@@ -14,11 +14,13 @@ import type { DeepPartial } from "typeorm";
 import { ApiControllerGetListQueryPlanCompiler } from "@class/api/controller/get-list/query";
 import { ApiControllerIdentityPlanCompiler } from "@class/api/controller/identity-plan-compiler.class";
 import { ApiControllerReadPlanCompiler } from "@class/api/controller/read-plan-compiler.class";
+import { ApiControllerSchemaNameCheck } from "@class/api/controller/schema-name-check.class";
 import { ApiControllerTableInheritancePlanCompiler } from "@class/api/controller/table-inheritance-plan-compiler.class";
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
+import { DTO_SCHEMA_NAME_CONSTANT } from "@constant/utility/dto/schema-name.constant";
 import { EApiRouteType } from "@enum/decorator/api";
-import { Controller } from "@nestjs/common";
+import { Controller, UseFilters } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/api";
 import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/controller/apply/decorators.utility";
@@ -32,8 +34,6 @@ import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
 export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> {
-	private static readonly SCHEMA_PREFIX_OWNERS: Map<string, { controller: object; path: string }> = new Map<string, { controller: object; path: string }>();
-
 	protected get targetPrototype(): InstanceType<TApiControllerTargetMethod<E, M>> {
 		return this.target.prototype as InstanceType<TApiControllerTargetMethod<E, M>>;
 	}
@@ -201,28 +201,21 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	/**
-	 * Claims the schema prefix of the decorated controller class, which starts every generated DTO and OpenAPI component name.
-	 * Fails startup when the class has no name or another controller class already has the same prefix, since their generated DTOs would share component names.
-	 * The routes read the claimed prefix at runtime, so a subclass or mixin of the decorated class serializes with the DTOs that the document shows.
+	 * Resolves the schema prefix of the decorated controller class, which starts every generated DTO and OpenAPI component name,
+	 * marks the class as the owner of the prefix, and attaches the check that compares the controllers of each application at bootstrap.
+	 * The routes read the resolved prefix at runtime, so a subclass or mixin of the decorated class serializes with the DTOs that the document shows.
 	 * @returns {string} The schema prefix of the controller.
-	 * @throws {Error} When the controller class has no name or its schema prefix belongs to another controller class.
+	 * @throws {Error} When the controller class has no name.
 	 */
 	private claimSchemaPrefix(): string {
 		if (this.target.name.length === 0) {
 			throw ErrorException(`Controller with path "${this.PATH}" is an anonymous class. Declare a named controller class, because its name starts every generated DTO and OpenAPI component name`);
 		}
 
-		const schemaPrefix: string = ApiControllerGetSchemaPrefix(this.target);
-		const owner: { controller: object; path: string } | undefined = ApiControllerFactory.SCHEMA_PREFIX_OWNERS.get(schemaPrefix);
+		Reflect.defineMetadata(DTO_SCHEMA_NAME_CONSTANT.CONTROLLER_METADATA_KEY, this.target, this.target);
+		UseFilters(ApiControllerSchemaNameCheck)(this.target);
 
-		// The same class name on the same path is the same controller evaluated again (webpack HMR, `vi.resetModules`), so it replaces the owner.
-		if (owner && owner.controller !== this.target && ((owner.controller as { name: string }).name !== this.target.name || owner.path !== this.PATH)) {
-			throw ErrorException(`Controllers ${(owner.controller as { name: string }).name} (path "${owner.path}") and ${this.target.name} (path "${this.PATH}") have the same schema prefix "${schemaPrefix}". Rename one of the controller classes, because the prefix starts every generated DTO and OpenAPI component name`);
-		}
-
-		ApiControllerFactory.SCHEMA_PREFIX_OWNERS.set(schemaPrefix, { controller: this.target, path: this.PATH });
-
-		return schemaPrefix;
+		return ApiControllerGetSchemaPrefix(this.target);
 	}
 
 	private defineUpdateRouteMethod(method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.PARTIAL_UPDATE> | TApiControllerMethodName<typeof EApiRouteType.UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
