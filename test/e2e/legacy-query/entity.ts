@@ -64,6 +64,32 @@ export class E2eLegacyQueryItemEntity {
 	@Column({ type: "varchar" })
 	public undescribed!: string;
 
+	@Column({ type: "int" })
+	@ApiPropertyDescribe({
+		description: "listed in responses, disabled as a list query field",
+		exampleValue: 1,
+		format: EApiPropertyNumberType.INTEGER,
+		maximum: 1000,
+		minimum: 0,
+		multipleOf: 1,
+		properties: { [EApiRouteType.GET_LIST]: { [EApiDtoType.QUERY]: { isEnabled: false } } },
+		type: EApiPropertyDescribeType.NUMBER,
+	})
+	public queryDisabled!: number;
+
+	@Column({ type: "int" })
+	@ApiPropertyDescribe({
+		description: "hidden from list responses",
+		exampleValue: 1,
+		format: EApiPropertyNumberType.INTEGER,
+		maximum: 1000,
+		minimum: 0,
+		multipleOf: 1,
+		properties: { [EApiRouteType.GET_LIST]: { [EApiDtoType.RESPONSE]: { isEnabled: false } } },
+		type: EApiPropertyDescribeType.NUMBER,
+	})
+	public responseHidden!: number;
+
 	@Column({ nullable: true, type: "varchar" })
 	@ApiPropertyDescribe({
 		description: "note",

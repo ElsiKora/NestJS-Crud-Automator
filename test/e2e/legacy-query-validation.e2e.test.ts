@@ -146,9 +146,9 @@ describe.each([
 			fastify = app.getHttpAdapter().getInstance();
 
 			await app.get(E2eLegacyQueryItemService).repository.save([
-				{ createdAt: new Date("2024-01-01T00:00:00.000Z"), isFeatured: true, label: "Alpha", note: "Noted", rank: 1, releasedOn: "2024-01-01", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "z", unsortable: "z" },
-				{ createdAt: new Date("2024-02-02T00:00:00.000Z"), isFeatured: false, label: "Beta", rank: 2, releasedOn: "2024-02-02", status: EE2eLegacyQueryStatus.ARCHIVED, undescribed: "y", unsortable: "y" },
-				{ createdAt: new Date("2024-03-03T00:00:00.000Z"), isFeatured: false, label: "Gamma", rank: 3, releasedOn: "2024-03-03", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "x", unsortable: "x" },
+				{ createdAt: new Date("2024-01-01T00:00:00.000Z"), isFeatured: true, label: "Alpha", note: "Noted", queryDisabled: 3, responseHidden: 2, rank: 1, releasedOn: "2024-01-01", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "z", unsortable: "z" },
+				{ createdAt: new Date("2024-02-02T00:00:00.000Z"), isFeatured: false, label: "Beta", queryDisabled: 1, responseHidden: 3, rank: 2, releasedOn: "2024-02-02", status: EE2eLegacyQueryStatus.ARCHIVED, undescribed: "y", unsortable: "y" },
+				{ createdAt: new Date("2024-03-03T00:00:00.000Z"), isFeatured: false, label: "Gamma", queryDisabled: 2, responseHidden: 1, rank: 3, releasedOn: "2024-03-03", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "x", unsortable: "x" },
 			] as Array<E2eLegacyQueryItemEntity>);
 		});
 
@@ -190,6 +190,16 @@ describe.each([
 		it.each(["asc", "desc"])("does not reveal hidden column values through row order with orderDirection=%s", async (orderDirection: string) => {
 			await expectRejected(`${ITEMS}?${PAGE}&orderBy=unsortable&orderDirection=${orderDirection}`, [ORDER_BY_MESSAGE]);
 			await expectRejected(`${ITEMS}?${PAGE}&orderBy=undescribed&orderDirection=${orderDirection}`, [ORDER_BY_MESSAGE]);
+			await expectRejected(`${ITEMS}?${PAGE}&orderBy=queryDisabled&orderDirection=${orderDirection}`, [ORDER_BY_MESSAGE]);
+			await expectRejected(`${ITEMS}?${PAGE}&orderBy=responseHidden&orderDirection=${orderDirection}`, [ORDER_BY_MESSAGE]);
+			const typedResponseHidden = await fastify.inject({ method: "GET", url: `/legacy-query/typed-items?${PAGE}&orderBy=responseHidden&orderDirection=${orderDirection}` });
+
+			expect(typedResponseHidden.json()).toEqual({ error: "Bad Request", message: createPipe ? [ORDER_BY_MESSAGE] : "INVALID_ORDER", statusCode: HttpStatus.BAD_REQUEST });
+			expect(queryLogger.queries).toEqual([]);
+			const typedQueryDisabled = await fastify.inject({ method: "GET", url: `/legacy-query/typed-items?${PAGE}&orderBy=queryDisabled&orderDirection=${orderDirection}` });
+
+			expect(typedQueryDisabled.json()).toEqual({ error: "Bad Request", message: createPipe ? [ORDER_BY_MESSAGE] : "INVALID_ORDER", statusCode: HttpStatus.BAD_REQUEST });
+			expect(queryLogger.queries).toEqual([]);
 		});
 
 		it("validates a value a before subscriber wrote, and reports the failure to before-error subscribers", async () => {
