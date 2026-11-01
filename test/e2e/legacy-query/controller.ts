@@ -136,8 +136,8 @@ export class E2eLegacyQueryOrderOnlyItemController {
 							note: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.ISNULL, EFilterOperation.NOTNULL], isEnabled: true },
 							rank: { allowedOperations: [EFilterOperation.BETWEEN, EFilterOperation.EQ, EFilterOperation.GT, EFilterOperation.IN, EFilterOperation.NOTIN], isEnabled: true },
 							// A date column is a string property, so the config type offers only string operations; the runtime compares it as a date.
-							releasedOn: { allowedOperations: [EFilterOperation.BETWEEN, EFilterOperation.EQ, EFilterOperation.GTE, EFilterOperation.LT], isEnabled: true } as never,
-							opensAt: { allowedOperations: [EFilterOperation.BETWEEN, EFilterOperation.EQ, EFilterOperation.GTE, EFilterOperation.LT], isEnabled: true } as never,
+							releasedOn: { allowedOperations: [EFilterOperation.BETWEEN, EFilterOperation.EQ, EFilterOperation.GTE, EFilterOperation.LT], isEnabled: true },
+							opensAt: { allowedOperations: [EFilterOperation.BETWEEN, EFilterOperation.EQ, EFilterOperation.GTE, EFilterOperation.LT], isEnabled: true },
 							status: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN], isEnabled: true },
 						},
 						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
