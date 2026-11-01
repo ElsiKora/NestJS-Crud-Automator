@@ -12,8 +12,9 @@ import { KeyPageJournalEntity } from "@test/unit/class/api/function/fixture/key-
 import { KeyPageLedgerEntity } from "@test/unit/class/api/function/fixture/key-page-ledger.entity";
 import { KeyPageReceiptEntity } from "@test/unit/class/api/function/fixture/key-page-receipt.entity";
 import { KeyPageWalletEntity } from "@test/unit/class/api/function/fixture/key-page-wallet.entity";
+import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
 import { LoggerUtility } from "@utility/logger.utility";
-import { Between, DataSource, Equal, In, LessThan, LessThanOrEqual, MoreThan, MoreThanOrEqual, Not, SelectQueryBuilder } from "typeorm";
+import { And, Between, DataSource, Equal, In, IsNull, LessThan, LessThanOrEqual, MoreThan, MoreThanOrEqual, Not, SelectQueryBuilder } from "typeorm";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 type TCapturedQuery = { parameters: Array<unknown>; sql: string };
@@ -413,6 +414,7 @@ describe("ApiFunctionKeyPageLoader", () => {
 			["Between", Between(INSTANT, LATER), ["1800-06-01T12:00:01.000Z", "1800-06-01T12:00:06.000Z"], 2],
 			["In", In([INSTANT, LATER]), ["1800-06-01T12:00:01.000Z", "1800-06-01T12:00:06.000Z"], 2],
 			["Not of MoreThan", Not(MoreThan(INSTANT)), ["1800-06-01T12:00:01.000Z"], 1],
+			["And of MoreThanOrEqual and Equal", And(MoreThanOrEqual(INSTANT), Equal(LATER)), ["1800-06-01T12:00:01.000Z", "1800-06-01T12:00:06.000Z"], 2],
 		])("hands the transformer each Date of %s once and binds canonical UTC text", async (_label, condition, parameters, transformerCalls) => {
 			expect(await bindParameters({ transformedAt: condition })).toEqual(parameters);
 			expect(KEY_PAGE_INSTANT_INPUTS).toHaveLength(transformerCalls);
@@ -447,6 +449,11 @@ describe("ApiFunctionKeyPageLoader", () => {
 			expect(find.mock.calls[0]?.[0]).toBe(options);
 		});
 
+		it("hands the transformer no operand of an operator that binds none", async () => {
+			expect(await bindParameters({ transformedAt: And(MoreThanOrEqual(INSTANT), Not(IsNull())) })).toEqual(["1800-06-01T12:00:01.000Z"]);
+			expect(KEY_PAGE_INSTANT_INPUTS).toEqual([INSTANT]);
+		});
+
 		it("hands the transformer the list operand of a single-parameter operator whole, as TypeORM does", async () => {
 			await bindParameters({ taggedAt: Equal([INSTANT] as never) });
 
@@ -455,6 +462,13 @@ describe("ApiFunctionKeyPageLoader", () => {
 
 		it("binds what a transformer returns for a Date when it is not a Date", async () => {
 			expect(await bindParameters({ textAt: INSTANT })).toEqual(["1800-06-01T12:00:00.000+00:00"]);
+		});
+
+		it("binds a client filter merged with an authorization scope on the same transformed column once", async () => {
+			const where: unknown = AuthorizationScopeMergeWhere({ transformedAt: MoreThanOrEqual(INSTANT) } as never, { transformedAt: LATER } as never);
+
+			expect(await bindParameters(where)).toEqual(["1800-06-01T12:00:01.000Z", "1800-06-01T12:00:06.000Z"]);
+			expect(KEY_PAGE_INSTANT_INPUTS).toEqual([INSTANT, LATER]);
 		});
 
 		it("runs every transformer of a column in order", async () => {

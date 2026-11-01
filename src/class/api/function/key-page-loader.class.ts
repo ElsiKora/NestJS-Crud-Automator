@@ -446,7 +446,7 @@ export class ApiFunctionKeyPageLoader {
 			return this.hasDate((value as FindOperator<unknown>).value);
 		}
 
-		return Array.isArray(value) && value.some((item: unknown): boolean => item instanceof Date);
+		return Array.isArray(value) && value.some((item: unknown): boolean => this.hasDate(item));
 	}
 
 	/**
