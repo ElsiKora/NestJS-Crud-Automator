@@ -9,6 +9,7 @@ import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiPolicyConditi
 import { EApiRouteType } from "@enum/decorator/api";
 import { Injectable } from "@nestjs/common";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization";
+import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -504,41 +505,24 @@ export class ApiAuthorizationIamEngine {
 		};
 	}
 
+	/**
+	 * Writes a condition operand as the canonical text the condition compares, so a typed resource value and the text of a path value compare equal.
+	 * @param {unknown} value - Request, resource or principal value.
+	 * @returns {string} Canonical text, or an empty string for a value with no text form.
+	 */
 	private normalizeComparable(value: unknown): string {
-		if (value === undefined || value === null) {
-			return "";
-		}
-
-		if (typeof value === "string") {
-			return value;
-		}
-
-		if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") {
-			return value.toString();
-		}
-
-		return "";
+		return AuthorizationSerializeValue(value) ?? "";
 	}
 
 	/**
-	 * Renders a typed resource or path value into its resource-string form, so a NUMBER path value `16` renders as `16` like the string it was parsed from.
-	 * @param {unknown} value - Resource field or typed path value.
-	 * @returns {string | undefined} Rendered value, or undefined when the value cannot be rendered.
+	 * Renders a resource or path value into its resource-string form, with the same canonical text that `request.parameters` carries.
+	 * @param {unknown} value - Resource field or path value.
+	 * @returns {string | undefined} Rendered value, or undefined when the value is empty or has no text form.
 	 */
 	private renderResourceValue(value: unknown): string | undefined {
-		if (typeof value === "string") {
-			return value.length > 0 ? value : undefined;
-		}
+		const text: string | undefined = AuthorizationSerializeValue(value);
 
-		if ((typeof value === "number" && Number.isFinite(value)) || typeof value === "bigint") {
-			return value.toString();
-		}
-
-		if (value instanceof Date && !Number.isNaN(value.getTime())) {
-			return value.toISOString();
-		}
-
-		return undefined;
+		return text === "" ? undefined : text;
 	}
 
 	private resolveConditionValue(

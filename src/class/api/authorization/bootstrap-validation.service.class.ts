@@ -1,4 +1,7 @@
 import type { IApiAuthorizationModuleOptions } from "@interface/class/api/authorization";
+import type { IApiControllerParametersRule } from "@interface/class/api/controller";
+import type { IApiRouteRuntimeProperties } from "@interface/decorator/api";
+import type { Type } from "@nestjs/common";
 import type { InstanceWrapper } from "@nestjs/core/internal";
 
 import { ApiAuthorizationHookPermissionCache } from "@class/api/authorization/hook";
@@ -8,12 +11,15 @@ import { AUTHORIZATION_GATEWAY_METADATA_CONSTANT, AUTHORIZATION_MICROSERVICE_MET
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { EApiAuthorizationMode } from "@enum/class/authorization";
+import { EApiDtoType } from "@enum/decorator/api";
 import { EApiRouteType } from "@enum/decorator/api/route";
 import { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorator/api";
 import { Inject, Injectable, OnApplicationBootstrap, Optional, RequestMethod } from "@nestjs/common";
 import { METHOD_METADATA, MODULE_PATH, PATH_METADATA, VERSION_METADATA } from "@nestjs/common/internal";
 import { DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
+import { ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
+import { ApiControllerParametersDtoGet, ApiControllerParametersDtoSet } from "@utility/api/controller/parameters/dto";
 import { AuthorizationIsHandlerAuthorized } from "@utility/authorization/is-handler-authorized.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -51,6 +57,56 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		}
 
 		authorizationBootstrapValidationLogger.verbose("Authorization bootstrap validation finished.");
+	}
+
+	/**
+	 * Attaches the path value rule to each IAM custom route whose resource path names one of its path parameters, so the guard validates that value and renders its canonical text.
+	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
+	 * @param {EApiAuthorizationMode} defaultMode - Controller authorization mode.
+	 * @param {string} resourcePath - IAM resource path of the controller.
+	 * @returns {void}
+	 * @throws {Error} When a placeholder that is a path parameter is not described by the route's PARAMETERS DTO.
+	 */
+	private applyCustomRouteParameterRules(metatype: new (...arguments_: Array<unknown>) => unknown, defaultMode: EApiAuthorizationMode, resourcePath: string): void {
+		const controllerPathParameters: Array<string> = this.resolvePathParameters(Reflect.getMetadata(PATH_METADATA, metatype));
+
+		const methodNames: Set<string> = new Set<string>();
+
+		// The controller decorator may extend the declared class, so the handlers are collected along the prototype chain.
+		for (let prototype: null | object = metatype.prototype as object; prototype && prototype !== Object.prototype; prototype = Object.getPrototypeOf(prototype) as null | object) {
+			for (const name of Object.getOwnPropertyNames(prototype)) {
+				methodNames.add(name);
+			}
+		}
+
+		for (const methodName of methodNames) {
+			const handler: unknown = methodName === "constructor" ? undefined : (metatype.prototype as Record<string, unknown>)[methodName];
+
+			if (typeof handler !== "function" || ApiControllerParametersDtoGet(handler)) {
+				continue;
+			}
+
+			const metadata: IApiRouteMetadata<IApiBaseEntity> | undefined = (Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, handler) ?? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, metatype.prototype as object, methodName)) as IApiRouteMetadata<IApiBaseEntity> | undefined;
+
+			if (!metadata || (metadata.security?.authorization?.mode ?? defaultMode) !== EApiAuthorizationMode.IAM) {
+				continue;
+			}
+
+			const runtimeProperties: IApiRouteRuntimeProperties<IApiBaseEntity> | undefined = Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, handler) as IApiRouteRuntimeProperties<IApiBaseEntity> | undefined;
+			const dto: unknown = (runtimeProperties?.dto as Partial<Record<EApiDtoType, unknown>> | undefined)?.[EApiDtoType.PARAMETERS];
+
+			const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({
+				controllerName: metatype.name,
+				dto: typeof dto === "function" ? (dto as Type<unknown>) : undefined,
+				methodName,
+				pathParameters: [...controllerPathParameters, ...this.resolvePathParameters(Reflect.getMetadata(PATH_METADATA, handler))],
+				resourcePath,
+			});
+
+			if (rule) {
+				ApiControllerParametersDtoSet(handler, rule);
+			}
+		}
 	}
 
 	/**
@@ -177,6 +233,17 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		return (Reflect.getMetadata(`${MODULE_PATH}${this.modulesContainer.applicationId}`, moduleMetatype) as string | undefined) ?? (Reflect.getMetadata(MODULE_PATH, moduleMetatype) as string | undefined) ?? "";
 	}
 
+	/**
+	 * Lists the `:name` parameters of a Nest path.
+	 * @param {unknown} path - Nest `path` metadata: a string or a list of strings.
+	 * @returns {Array<string>} Parameter names.
+	 */
+	private resolvePathParameters(path: unknown): Array<string> {
+		const paths: Array<unknown> = Array.isArray(path) ? path : [path];
+
+		return paths.flatMap((entry: unknown): Array<string> => (typeof entry === "string" ? [...entry.matchAll(/:(\w+)/g)].map((match: RegExpExecArray): string => match[1] ?? "") : []));
+	}
+
 	private validateController(controllerWrapper: InstanceWrapper): void {
 		const metatype: (new (...arguments_: Array<unknown>) => unknown) | null = controllerWrapper.metatype as (new (...arguments_: Array<unknown>) => unknown) | null;
 
@@ -262,6 +329,10 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			}
 
 			this.validateResourceDefinition(metatype.name, authorization.resourceDefinition);
+		}
+
+		if (authorization.resourceDefinition) {
+			this.applyCustomRouteParameterRules(metatype, authorization.defaultMode, authorization.resourceDefinition.resourcePath);
 		}
 	}
 

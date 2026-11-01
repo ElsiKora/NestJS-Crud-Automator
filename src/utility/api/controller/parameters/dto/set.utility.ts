@@ -1,13 +1,13 @@
-import type { Type } from "@nestjs/common";
+import type { IApiControllerParametersRule } from "@interface/class/api/controller";
 
 import { API_CONTROLLER_PARAMETERS_DTO_METADATA_KEY } from "./metadata-key.constant";
 
 /**
- * Stores the PARAMETERS DTO of a generated route on its handler, so the authorization guard and the route runtime read the same DTO.
- * @param {object} handler - Exact generated handler function.
- * @param {Type<unknown>} dto - Generated or configured PARAMETERS DTO of the route.
+ * Stores the path value rule of a route on its handler, so the authorization guard and the route runtime apply the same rule.
+ * @param {object} handler - Exact controller handler function.
+ * @param {IApiControllerParametersRule} rule - DTO built from the described column types, and the configured PARAMETERS DTO that may narrow it.
  * @returns {void}
  */
-export function ApiControllerParametersDtoSet(handler: object, dto: Type<unknown>): void {
-	Reflect.defineMetadata(API_CONTROLLER_PARAMETERS_DTO_METADATA_KEY, dto, handler);
+export function ApiControllerParametersDtoSet(handler: object, rule: IApiControllerParametersRule): void {
+	Reflect.defineMetadata(API_CONTROLLER_PARAMETERS_DTO_METADATA_KEY, rule, handler);
 }

@@ -19,11 +19,11 @@ const UUID_VALUE_PATTERN: RegExp = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i
 export function ApiControllerGetListQueryParseValue(value: unknown, metadata: Readonly<TApiPropertyDescribeProperties>): unknown {
 	switch (metadata.type) {
 		case EApiPropertyDescribeType.BOOLEAN: {
-			if (value === true || value === "true" || value === "1") {
+			if (value === true || value === "true") {
 				return true;
 			}
 
-			if (value === false || value === "false" || value === "0") {
+			if (value === false || value === "false") {
 				return false;
 			}
 
@@ -98,7 +98,7 @@ export function ApiControllerGetListQueryParseValue(value: unknown, metadata: Re
 
 		case EApiPropertyDescribeType.UUID: {
 			if (typeof value === "string" && UUID_VALUE_PATTERN.test(value)) {
-				return value;
+				return value.toLowerCase();
 			}
 
 			break;

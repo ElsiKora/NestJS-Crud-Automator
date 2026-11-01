@@ -600,7 +600,20 @@ const document = {
 };
 ```
 
-`${request.parameters.*}` and `resourcePath` placeholders read the typed path values of the route. `ApiAuthorizationGuard` validates and converts them with the route's PARAMETERS DTO before it evaluates anything, so on an integer `NUMBER` key `request.parameters.id` is the number `16` and `{id}` renders as `16`. A malformed or non-canonical value such as `016` or `1e3` is rejected with `400` before evaluation, so it cannot name the same row as `16` and slip past a Deny on `item/16`. Request UUIDs are lower-cased for the same reason. Scope values from conditions and hooks, such as the literal `"16"` in `"resource.id": "16"`, are converted to the column type before they merge with the route's identity and `read.scope` values.
+`request.parameters`, `${request.parameters.*}`, and `resourcePath` placeholders read the canonical text of the route's validated path values. `ApiAuthorizationGuard` validates each value by the rule of its described column before it evaluates anything, then writes it as text:
+
+| Column type        | Text authorization sees         |
+| ------------------ | ------------------------------- |
+| integer `NUMBER`   | canonical decimal, such as `16` |
+| `UUID`             | lower-case                      |
+| `BOOLEAN`          | `true` or `false`               |
+| `DATE` (date-time) | ISO 8601 UTC with milliseconds  |
+| `DATE` (date)      | `YYYY-MM-DD`, as given          |
+| `STRING`, `ENUM`   | the validated text              |
+
+So `{id}` renders as `16`, `{at}` as `2024-03-10T12:00:00.000Z` for both `2024-03-10T12:00:00Z` and `2024-03-10T12:00:00.000Z`, and `{active}` as `true`. A malformed or non-canonical value such as `016`, `1e3`, or `1` for a boolean is rejected with `400` before evaluation, so it cannot name the same row as `16` and slip past a Deny on `item/16`. A `resource.*` value compares by the same text, so the recipe `"resource.at": "${request.parameters.at}"` matches a `DATE_TIME` column. Scope values from conditions and hooks, such as the literal `"16"` in `"resource.id": "16"`, are converted to the column type before they merge with the route's identity and `read.scope` values. Handlers, subscribers, and the service still receive the typed values.
+
+Securable `@ApiRouteCustom` routes follow the same rule for each path parameter their `resourcePath` names: describe it in the route's PARAMETERS DTO with `ApiPropertyCopy`, or the application fails at startup. The guard writes the canonical text back to `request.params`, so the handler's `@Param()` reads the value IAM saw. A guard that runs before `ApiAuthorizationGuard` still sees the raw text; see [Validation](/docs/nestjs-crud-automator/guides/validation#generated-route-path-parameters).
 
 IAM behavior is intentionally strict:
 
@@ -842,11 +855,13 @@ IAM Deny statements are compiled into row exclusions instead of being applied to
 
 From 5.0.0 a securable controller with a plain Nest route, a `@MessagePattern`, `@EventPattern` or `@SubscribeMessage` handler or a handler replaced on the instance without its guards does not start, and neither does an application with a securable controller and no `ApiAuthorizationModule`. Before 5.0.0 such a handler was served with no authorization, or took the identity from the message when it also had `@ApiMethod`, and startup said nothing. Declare an HTTP route with `@ApiRouteCustom` or `@ApiMethod`, move a route or a pattern handler to a controller that is not securable, remove the replacement, and import the module. See [Every Served Route Goes Through Authorization](#every-served-route-goes-through-authorization).
 
-Path values reach authorization typed:
+Path values reach authorization validated, as canonical text:
 
-- `ApiAuthorizationGuard` validates path values with the route's PARAMETERS DTO before evaluation. A malformed value returns `400` with the `ValidationPipe` body instead of being evaluated as a string.
-- `request.parameters.*` holds typed values (numbers for integer `NUMBER` keys, lower-case UUIDs, `YYYY-MM-DD` strings for `DATE`), and numeric placeholders now render in `resourcePath`. Before 5.0.0 the recipe `"resource.id": "${request.parameters.id}"` returned `404` on a `NUMBER` key, because the string `"16"` never matched the number `16`.
-- Integer path values are accepted only in canonical form, so `016`, `16.0`, or `1.6e1` can no longer address a row that a Deny names as `16`.
+- `ApiAuthorizationGuard` validates path values by the rule of their described columns before evaluation. A malformed value returns `400` with the `ValidationPipe` body instead of being evaluated as a string.
+- `request.parameters.*` holds canonical text: decimal integers, lower-case UUIDs, `true` or `false`, ISO 8601 UTC with milliseconds for date-time values, and `YYYY-MM-DD` for date values. `resourcePath` renders the same text, and a `resource.*` condition compares a loaded or planned column value by it. Before 5.0.0 the recipe `"resource.id": "${request.parameters.id}"` returned `404` on a `NUMBER` key, a `DATE_TIME` Deny on `request.parameters` missed other spellings, and a `BOOLEAN` placeholder rendered as `*`.
+- Integer path values are accepted only in canonical form, so `016`, `16.0`, or `1.6e1` can no longer address a row that a Deny names as `16`. Boolean path values are only `true` or `false`.
+- `request.params` holds the canonical text after `ApiAuthorizationGuard`. A guard that runs before it sees the raw text.
+- A securable custom route whose `resourcePath` names one of its path parameters must describe it with `ApiPropertyCopy` in its PARAMETERS DTO, or the application fails at startup. Before 5.0.0 `/016`, `/1.6e1`, or an upper-case UUID passed a Deny on the canonical value.
 - Scope values merged against a column, from conditions or hooks, are converted to the column type; a value the column cannot hold becomes a match-nothing condition.
 
 See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the hooks policy contract and the [controller decorator docs](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) for marker behavior.

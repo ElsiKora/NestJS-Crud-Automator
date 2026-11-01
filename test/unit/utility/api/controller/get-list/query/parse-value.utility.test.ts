@@ -24,8 +24,8 @@ describe("ApiControllerGetListQueryParseValue", () => {
 		expect(ApiControllerGetListQueryParseValue("1.5", DOUBLE_METADATA)).toBe(1.5);
 	});
 
-	it("keeps a uuid as written", () => {
-		expect(ApiControllerGetListQueryParseValue("AAAAAAAA-aaaa-4aaa-8aaa-aaaaaaaaaaaa", UUID_METADATA)).toBe("AAAAAAAA-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+	it("lower-cases a uuid, as a database compares either letter case as one value", () => {
+		expect(ApiControllerGetListQueryParseValue("AAAAAAAA-aaaa-4aaa-8aaa-aaaaaaaaaaaa", UUID_METADATA)).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
 	});
 
 	it.each(["", "not-a-uuid", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa", 1, null])("rejects %j as a uuid", (value: unknown) => {

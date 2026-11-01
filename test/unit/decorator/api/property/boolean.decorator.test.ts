@@ -77,9 +77,16 @@ describe("ApiPropertyBoolean", () => {
 		expect(emptyErrors[0]?.constraints?.arrayMinSize).toBeDefined();
 		expect(emptyErrors[0]?.constraints?.arrayNotEmpty).toBeDefined();
 
-		const instance = plainToInstance(BooleanArrayDto, { flags: ["1", "0"] });
+		const instance = plainToInstance(BooleanArrayDto, { flags: ["true", "false"] });
 		expect(instance.flags).toEqual([true, false]);
 		expect(validateSync(instance)).toHaveLength(0);
+	});
+
+	it("keeps any text other than true or false in boolean arrays for the validator", () => {
+		const instance = plainToInstance(BooleanArrayDto, { flags: ["1", "0"] });
+
+		expect(instance.flags).toEqual(["1", "0"]);
+		expect(validateSync(instance)[0]?.constraints?.isBoolean).toBeDefined();
 	});
 
 	it("throws on invalid array options", () => {

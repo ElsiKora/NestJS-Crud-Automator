@@ -4,6 +4,7 @@ import type { IApiAuthenticationRequest } from "@interface/api/authentication-re
 import type { IApiAuthorizationDecision } from "@interface/class/api/authorization";
 import type { IApiControllerGetListQueryAstNode, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
+import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiRouteRuntimeContextData, IApiRouteRuntimeCustomExecutionOptions, IApiRouteRuntimeGeneratedExecutionOptions, IApiRouteRuntimeGeneratedTargets, IApiRouteRuntimeHttpRequest } from "@interface/class/api/route";
 import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route/error-execution-context.interface";
@@ -65,6 +66,7 @@ import { ApiControllerRejectToManyUpdateKeys } from "@utility/api/controller/rej
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
 import { ApiControllerTransformData, ApiControllerTransformRouteData } from "@utility/api/controller/transform-data.utility";
 import { ApiControllerValidateRequest } from "@utility/api/controller/validate-request.utility";
+import { ApiControllerWriteLowerCaseUuid } from "@utility/api/controller/write/lower-case-uuid.utility";
 import { ApiRouteProjectRelationResponse, ApiRouteValidationFlattenErrors } from "@utility/api/route";
 import { ApiRouteCreateDiscriminatedDtoValidationFailure, ApiRouteIsDiscriminatedDtoProperties, ApiRoutePrepareDiscriminatedDtoPayload, ApiRouteResolveDiscriminatedDto, ApiRouteValidateDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { ApiRouteResponseIsListEnvelope } from "@utility/api/route/response/is-list-envelope.utility";
@@ -571,11 +573,11 @@ export class ApiRouteRuntime {
 				ApiControllerTransformRouteData<E>(transformTargets, options.properties, { parameters: targets.parameters }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
 				await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.PARAMETERS] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, options.properties, targets.parameters ?? {});
 				const handler: unknown = Reflect.get(options.controller, options.methodName);
-				const parametersDto: Type<unknown> | undefined = typeof handler === "function" ? ApiControllerParametersDtoGet(handler) : undefined;
+				const parametersRule: IApiControllerParametersRule | undefined = typeof handler === "function" ? ApiControllerParametersDtoGet(handler) : undefined;
 
 				// Subscribers and transformers may replace typed path values, so the values the route uses are checked once more.
-				if (parametersDto) {
-					targets.parameters = await ApiControllerParametersValidate<E>(parametersDto, targets.parameters);
+				if (parametersRule) {
+					targets.parameters = await ApiControllerParametersValidate<E>(parametersRule, targets.parameters);
 				}
 			}
 
@@ -586,6 +588,7 @@ export class ApiRouteRuntime {
 
 			if (target === EApiControllerRequestTarget.BODY) {
 				ApiControllerTransformRouteData<E>(transformTargets, options.properties, { body: targets.body }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
+				ApiControllerWriteLowerCaseUuid<E>(options.entityMetadata, targets.body);
 				await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.BODY] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, options.properties, (targets.body ?? {}) as Partial<E>);
 			}
 		}

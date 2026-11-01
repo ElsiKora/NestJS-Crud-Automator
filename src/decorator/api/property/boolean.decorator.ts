@@ -221,97 +221,51 @@ function buildResponseDecorators(properties: TApiPropertyBooleanProperties): Arr
 }
 
 /**
- * Builds decorators for type transformation including handling various input types to boolean
+ * Builds decorators for type transformation from request text to boolean.
+ * Only `true` and `false`, as booleans or as that exact text, are converted; any other value is kept for `IsBoolean` to reject, so `1`, `no`, and `TRUE` return `400`.
  * @param {TApiPropertyBooleanProperties} properties - The property configuration
  * @returns {Array<PropertyDecorator>} An array of type transformation decorators
  * @private
  */
 function buildTransformDecorators(properties: TApiPropertyBooleanProperties): Array<PropertyDecorator> {
-	const decorators: Array<PropertyDecorator> = [];
-
-	if (!properties.isResponse) {
-		if (properties.isArray) {
-			decorators.push(
-				ClassTransformerAutomatorTransform(
-					({ value }: { value: unknown }) => {
-						if (value === null || value === undefined) {
-							return value;
-						}
-
-						if (!Array.isArray(value)) {
-							const singleValue: unknown = value;
-
-							if (singleValue === undefined || singleValue === null) return singleValue;
-
-							if (typeof singleValue === "boolean") return [singleValue];
-
-							if (typeof singleValue === "number") return [singleValue !== 0];
-
-							if (typeof singleValue === "string") {
-								const normalized: string = singleValue.toLowerCase().trim();
-
-								if (normalized === "true" || normalized === "1") return [true];
-
-								if (normalized === "false" || normalized === "0") return [false];
-
-								return [Boolean(normalized)];
-							}
-
-							return [false];
-						}
-
-						return value.map((_value: unknown) => {
-							if (_value === undefined || _value === null) return false;
-
-							if (typeof _value === "boolean") return _value;
-
-							if (typeof _value === "number") return _value !== 0;
-
-							if (typeof _value === "string") {
-								const normalized: string = _value.toLowerCase().trim();
-
-								if (normalized === "true" || normalized === "1") return true;
-
-								if (normalized === "false" || normalized === "0") return false;
-
-								return Boolean(normalized);
-							}
-
-							return false;
-						});
-					},
-					{ toClassOnly: true },
-				),
-			);
-		} else {
-			decorators.push(
-				ClassTransformerAutomatorTransform(
-					({ value }: { value: unknown }) => {
-						if (value === undefined || value === null) return value;
-
-						if (typeof value === "boolean") return value;
-
-						if (typeof value === "number") return value !== 0;
-
-						if (typeof value === "string") {
-							value = value.toLowerCase().trim();
-
-							if (value === "true" || value === "1") return true;
-
-							if (value === "false" || value === "0") return false;
-
-							return Boolean(value);
-						}
-
-						return false;
-					},
-					{ toClassOnly: true },
-				),
-			);
-		}
+	if (properties.isResponse) {
+		return [];
 	}
 
-	return decorators;
+	if (properties.isArray) {
+		return [
+			ClassTransformerAutomatorTransform(
+				({ value }: { value: unknown }): unknown => {
+					if (value === null || value === undefined) {
+						return value;
+					}
+
+					return Array.isArray(value) ? value.map((item: unknown): unknown => parseBooleanValue(item)) : [parseBooleanValue(value)];
+				},
+				{ toClassOnly: true },
+			),
+		];
+	}
+
+	return [ClassTransformerAutomatorTransform(({ value }: { value: unknown }): unknown => parseBooleanValue(value), { toClassOnly: true })];
+}
+
+/**
+ * Converts one request value to a boolean when it is `true` or `false`, as a boolean or as that exact text.
+ * @param {unknown} value - Raw request value.
+ * @returns {unknown} The boolean, or the value itself for the validator to reject.
+ * @private
+ */
+function parseBooleanValue(value: unknown): unknown {
+	if (value === "true") {
+		return true;
+	}
+
+	if (value === "false") {
+		return false;
+	}
+
+	return value;
 }
 
 /**

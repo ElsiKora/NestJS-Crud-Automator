@@ -383,7 +383,7 @@ export class PostAuthorSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 
 ## Custom Guards
 
-Create custom guards for specific requirements:
+Create custom guards for specific requirements. A guard that reads a path value must run after `ApiAuthorizationGuard`: until it runs, `request.params` holds the raw text, such as `016`, an upper-case UUID, or `not-a-uuid`. `ApiAuthorizationGuard` validates the value by the column rule and writes its canonical text back to `request.params`, so a guard in the `AFTER_AUTHORIZATION` stage of a securable controller reads the value authorization checked:
 
 ```typescript filename="auth/guards/owner.guard.ts" copy
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from "@nestjs/common";
@@ -396,7 +396,8 @@ export class OwnerGuard implements CanActivate {
 	async canActivate(context: ExecutionContext): Promise<boolean> {
 		const request = context.switchToHttp().getRequest();
 		const user = request.user;
-		const resourceId = request.params.id;
+		// Validated canonical text: this guard runs after ApiAuthorizationGuard.
+		const resourceId: string = request.params.id;
 
 		if (!user) {
 			throw new ForbiddenException("Authentication required");
@@ -414,6 +415,16 @@ export class OwnerGuard implements CanActivate {
 		return true;
 	}
 }
+```
+
+Register it after authorization on the route that needs it:
+
+```typescript filename="post.controller.ts" copy
+routes: {
+	[EApiRouteType.PARTIAL_UPDATE]: {
+		execution: { guards: [{ guard: OwnerGuard, stage: EApiRouteGuardStage.AFTER_AUTHORIZATION }] },
+	},
+},
 ```
 
 ## Guard Stages

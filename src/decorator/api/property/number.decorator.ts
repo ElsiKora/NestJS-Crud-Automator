@@ -351,7 +351,10 @@ function buildTransformDecorators(properties: TApiPropertyNumberProperties): Arr
 							return value;
 						}
 
-						return parseNumberValue(properties.format, obj[key] ?? value);
+						const rawValue: unknown = obj[key] ?? value;
+
+						// A single value given as a list, such as `{ n: ["007"] }` or `?n=1&n=2`, is kept as the list for the validator to reject.
+						return Array.isArray(rawValue) ? rawValue : parseNumberValue(properties.format, rawValue);
 					},
 					{ toClassOnly: true },
 				),

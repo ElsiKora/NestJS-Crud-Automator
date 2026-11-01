@@ -54,7 +54,9 @@ export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>
 	let routeArgumentsMetadata: unknown = {};
 	const parameterTypes: Array<unknown> = [];
 
-	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
+	// Path values are always converted by the rule of the described columns; a configured PARAMETERS DTO only validates the converted values.
+	const configuredRequestDto: Type<unknown> | undefined = routeConfig.dto?.[EApiDtoType.PARAMETERS];
+	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, configuredRequestDto ? ({ ...routeConfig, dto: { ...routeConfig.dto, [EApiDtoType.PARAMETERS]: undefined } } as TApiControllerPropertiesRoute<E, typeof method>) : routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
 	const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.QUERY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
 	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
 
@@ -62,7 +64,7 @@ export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>
 		const handler: unknown = Reflect.get(targetPrototype, methodName);
 
 		if (typeof handler === "function") {
-			ApiControllerParametersDtoSet(handler, requestDto);
+			ApiControllerParametersDtoSet(handler, { configuredDto: configuredRequestDto, dto: requestDto });
 		}
 
 		routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.PARAM, parameterIndex);

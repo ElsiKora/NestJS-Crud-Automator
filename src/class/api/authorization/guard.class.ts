@@ -16,6 +16,7 @@ import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
 import { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ApiControllerParametersResolveRequest } from "@utility/api/controller/parameters";
+import { AuthorizationSerializeParameters } from "@utility/authorization/serialize-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { DeepPartial } from "typeorm";
@@ -49,8 +50,9 @@ export class ApiAuthorizationGuard implements CanActivate {
 		const request: TApiAuthorizationGuardRequest = context.switchToHttp().getRequest<TApiAuthorizationGuardRequest>();
 		const authenticationRequest: IApiAuthenticationRequest = request as unknown as IApiAuthenticationRequest;
 		const identityPlan: IApiControllerIdentityPlan | undefined = ApiControllerIdentityPlanGet(context.getHandler());
-		// Path values are validated and typed before authorization, so IAM resources, conditions and scopes see the same values as the route.
+		// Path values are validated before authorization; authorization sees their canonical text, and so does every later reader of request.params.
 		const parameters: Partial<IApiBaseEntity> | undefined = await ApiControllerParametersResolveRequest<IApiBaseEntity>(request, context.getHandler(), request.params as Partial<IApiBaseEntity> | undefined);
+		this.rewriteRequestParameters(request, parameters);
 		const requestMetadata: IApiAuthorizationRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode> = this.resolveRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(request, parameters, identityPlan);
 
 		const decision: IApiAuthorizationDecision<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>> = await this.runtime.evaluate({
@@ -161,7 +163,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 			body: request.body as DeepPartial<E> | undefined,
 			headers: this.resolveHeaders(request.headers),
 			ip: typeof request.ip === "string" ? request.ip : undefined,
-			parameters: identityPlan ? this.resolveIdentityParameters<E>(parameters, identityPlan) : parameters,
+			parameters: AuthorizationSerializeParameters(identityPlan ? this.resolveIdentityParameters<E>(parameters, identityPlan) : parameters) as Partial<E> | undefined,
 			query: request.query as TApiControllerGetListQuery<E, M> | undefined,
 		};
 	}
@@ -177,5 +179,25 @@ export class ApiAuthorizationGuard implements CanActivate {
 		authorizationGuardLogger.error(`ApiControllerSecurable handler "${handlerName}" requires method-level ApiRouteMetadata`);
 
 		throw ErrorException(`ApiControllerSecurable handler "${handlerName}" requires method-level ApiRouteMetadata`);
+	}
+
+	/**
+	 * Writes the canonical text of each validated path value back to the request, so a handler `@Param()` reads the value authorization saw.
+	 * @param {TApiAuthorizationGuardRequest} request - HTTP request.
+	 * @param {Partial<IApiBaseEntity> | undefined} parameters - Validated path values.
+	 * @returns {void}
+	 */
+	private rewriteRequestParameters(request: TApiAuthorizationGuardRequest, parameters: Partial<IApiBaseEntity> | undefined): void {
+		const requestParameters: unknown = request.params;
+
+		if (!requestParameters || typeof requestParameters !== "object") {
+			return;
+		}
+
+		for (const [key, text] of Object.entries(AuthorizationSerializeParameters(parameters) ?? {})) {
+			if (Object.hasOwn(requestParameters, key)) {
+				Reflect.set(requestParameters, key, text);
+			}
+		}
 	}
 }

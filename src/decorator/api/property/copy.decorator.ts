@@ -7,6 +7,7 @@ import type { TApiPropertyCopyProperties } from "@type/decorator/api/property/co
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { applyDecorators } from "@nestjs/common";
+import { API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY } from "@utility/api/controller/parameters/dto/metadata-key.constant";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
 import { DtoSchemaNameStripSuffix } from "@utility/dto/schema-name/strip-suffix.utility";
@@ -107,6 +108,9 @@ export function ApiPropertyCopy<E>(properties: TApiPropertyCopyProperties<E>): P
 			if (metadata) {
 				propertyMetadata = { ...propertyMetadata, ...(metadata as TApiPropertyDescribeProperties) } as TApiPropertyDescribeProperties;
 			}
+
+			// The described source column lets a custom route check this property with the column rule of path values.
+			Reflect.defineMetadata(API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY, { entityMetadata, metadata: propertyMetadata }, target, key);
 
 			const host: Type<unknown> = (typeof decoratorTarget === "function" ? decoratorTarget : decoratorTarget.constructor) as Type<unknown>;
 			const hostPropertyName: string = String(key);

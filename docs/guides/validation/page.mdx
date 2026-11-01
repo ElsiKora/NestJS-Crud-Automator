@@ -510,12 +510,46 @@ Generated `GET`, `UPDATE`, `PARTIAL_UPDATE`, and `DELETE` routes, and generated 
 
 - a `UUID` value must be a UUID (versions 1 to 8, nil or max, either letter case) and is lower-cased;
 - an integer `NUMBER` value must be written in canonical decimal form and stay between `minimum` and `maximum`, so `016`, `%2016` (` 16`), `0x10`, `16.0`, `1.6e1`, `1e3`, and `007` are rejected instead of naming row `16` or `1000`;
+- a `BOOLEAN` value must be `true` or `false`, so `1`, `no`, and `TRUE` are rejected;
 - a `DATE` value must be a real `YYYY-MM-DD` day and stays that string;
-- `STRING`, `ENUM`, and `BOOLEAN` values follow their own described rules.
+- `STRING` and `ENUM` values follow their own described rules.
 
-A value that fails returns `400` with the same body a Nest `ValidationPipe` returns, for example `message: ["id must be a UUID"]`, and no SQL is sent. The messages name the parameter but do not echo the value. The body is the same with or without a host pipe. A configured PARAMETERS DTO (`dto[EApiDtoType.PARAMETERS]`) is checked the same way.
+A value that fails returns `400` with the same body a Nest `ValidationPipe` returns, for example `message: ["id must be a UUID"]`, and no SQL is sent. The messages name the parameter but do not echo the value. The body is the same with or without a host pipe.
 
-Path values are validated and converted once per request, before authorization. `ApiAuthorizationGuard`, IAM `resourcePath` rendering, `${request.parameters.*}` conditions, `read.scope`, route subscribers, and the service all read the same typed values: a `NUMBER` path value is the number `16`, and `pp:item/{id}` renders as `pp:item/16`. A malformed value is rejected by the guard with the same `400` body. A route without `@ApiControllerSecurable()` runs the check before route `BEFORE` subscribers; when the check fails, `BEFORE_ERROR` subscribers see the raw string.
+A configured PARAMETERS DTO (`dto[EApiDtoType.PARAMETERS]`) does not change how a path value is converted. The value is first converted by the rule of its described column, as above. The configured DTO then validates the converted value, with `forbidUnknownValues: false`. It can reject more values, never accept one the column rule rejects:
+
+- a DTO with only `@ApiProperty()` accepts `/items/1`;
+- `@IsInt()` without `@Type(() => Number)` accepts `/items/1`, with or without a guard or a host pipe, because it sees the number `1`;
+- `/items/016` returns `400` even with `@IsInt() @Type(() => Number)`;
+- `@Max(10)` rejects `/items/11`.
+
+The route's Nest parameter type is the DTO generated from the columns, so a host `ValidationPipe` and the OpenAPI path parameters follow the column rule too.
+
+Path values are validated and converted once per request, before authorization. `read.scope`, route subscribers, and the service read the typed values: a `NUMBER` path value is the number `16`. Authorization reads the canonical text of the same values, so every spelling of one value names one resource. `request.parameters`, `resourcePath` rendering, and `${request.parameters.*}` substitution use the same text: an integer is decimal text (`16`), a UUID is lower-case, a boolean is `true` or `false`, a `DATE_TIME` is ISO 8601 UTC with milliseconds (`2024-03-10T12:00:00.000Z`), and a `DATE` stays `YYYY-MM-DD`. `pp:item/{id}` renders as `pp:item/16` for `/items/16`, and `/items/016` never reaches the policy. On a securable route the guard also writes that text back to `request.params`, so a handler `@Param()` reads the value authorization saw. A malformed value is rejected by the guard with the same `400` body. A route without `@ApiControllerSecurable()` runs the check before route `BEFORE` subscribers; when the check fails, `BEFORE_ERROR` subscribers see the raw string.
+
+A guard of yours that runs before `ApiAuthorizationGuard`, such as the authentication guard or a guard in an earlier `EApiRouteGuardStage`, sees the raw path text: `016`, an upper-case UUID, or `not-a-uuid`. Do not authorize on `request.params` there. Read the validated value after `ApiAuthorizationGuard`, or compare only canonical text that you check yourself.
+
+Securable custom routes (`@ApiRouteCustom`) follow the same rule for the path parameters their IAM `resourcePath` names. Each such placeholder must be a property of the route's PARAMETERS DTO copied from the entity column with `ApiPropertyCopy`, otherwise the application fails at startup with an error that names the placeholder. The guard validates those values by the column rule before authorization, so `/016` and `/1.6e1` return `400` and an upper-case UUID is lower-cased, and it writes the canonical text back to `request.params`:
+
+```typescript filename="item.controller.ts" copy
+class ItemReadParametersDto {
+	@ApiPropertyCopy({ dtoType: EApiDtoType.PARAMETERS, entity: () => ItemEntity, method: EApiRouteType.GET, propertyName: "id" })
+	public id!: number;
+}
+
+@ApiRouteCustom({
+	dto: { [EApiDtoType.PARAMETERS]: ItemReadParametersDto },
+	resource: { action: "read", entity: ItemEntity },
+	route: { method: RequestMethod.GET, path: ":id/summary" },
+	security: { authorization: { mode: EApiAuthorizationMode.IAM } },
+	// documentation and response as usual
+})
+public summary(@Param("id") id: string): Promise<ItemSummaryDto> {
+	// id is the canonical text IAM matched, such as "16".
+}
+```
+
+UUID values of the entity's `UUID` columns are lower-cased in request bodies of generated `CREATE`, `UPDATE`, and `PARTIAL_UPDATE` routes and in typed list filters too, so they are stored and compared lower-case on every database.
 
 PARAMETERS transformers, `validators`, and `BEFORE` subscribers can still replace path values, so the route checks the values it is about to use once more after them. A transformer that writes `not-a-uuid` into a `UUID` key gets the `400`, not a database error.
 
@@ -569,10 +603,22 @@ Check your application:
 - Integer text is accepted only in canonical form, in path values, query filters, `limit`, `page`, and request bodies. `016`, `0x10`, `16.0`, `1.6e1`, `1e3`, and `007` now return `400`.
 - An integer `NUMBER` property with `maximum` above `Number.MAX_SAFE_INTEGER` or `minimum` below `Number.MIN_SAFE_INTEGER` fails at startup with an error that names `BIGINT_STRING`. Describe `bigint` columns as `EApiPropertyStringType.BIGINT_STRING`. `NUMBER_CONSTANT.MAX_BIGINT` and `NUMBER_CONSTANT.MIN_BIGINT` are removed.
 - `DATE` request values (path, query DTO, body) stay validated `YYYY-MM-DD` strings instead of becoming `Date`, so a date-only `read.scope` value matches its row in every server time zone. `TIME` values stay strings too. Only `DATE_TIME` values become `Date`.
-- Request UUIDs are lower-cased.
-- `ApiAuthorizationGuard`, IAM resources and conditions, `read.scope`, subscribers, and the service receive typed path values: numbers for `NUMBER` keys. Code that compared them as strings must compare the typed values. HOOKS and IAM scope values merged against a column are converted to its type.
+- Request UUIDs are lower-cased in path values, typed list filters, and the bodies of generated write routes, and they are stored lower-case. A PostgreSQL `uuid` column needs nothing. A column described as `UUID` but stored as text (`varchar`, `char`, or any SQLite column) that already holds upper-case values must be lower-cased once, or those rows cannot be read through a path or filter any more:
+
+  ```sql
+  UPDATE items SET id = lower(id) WHERE id <> lower(id);
+  UPDATE items SET owner_id = lower(owner_id) WHERE owner_id <> lower(owner_id);
+  ```
+
+  Lower-case the foreign keys that point at a lower-cased key in the same migration.
+
+- `BOOLEAN` values in paths, query DTOs, typed list filters, and bodies accept only `true` and `false`, as JSON booleans or as that exact text. `1`, `0`, `yes`, `no`, and `TRUE` now return `400`.
+- A single integer value sent as a list, such as `{ "count": ["7"] }` or `?count=1&count=2` for a single-value query field, now returns `400` instead of using the first item.
+- Authorization sees the canonical text of path values in `request.parameters`, `resourcePath`, and `${request.parameters.*}`: `16` for `/items/16`, a lower-case UUID, `true` or `false`, and ISO 8601 UTC with milliseconds for `DATE_TIME`. Before 5.0.0 it saw the raw text, a `DATE_TIME` Deny on `request.parameters` never matched another spelling, and a `BOOLEAN` placeholder rendered as `*`. `read.scope`, subscribers, and the service receive typed values: numbers for `NUMBER` keys. HOOKS and IAM scope values merged against a column are converted to its type.
+- On a securable route `request.params` holds the canonical text after `ApiAuthorizationGuard`. A guard that runs before it still sees the raw text.
 - `BEFORE_ERROR` subscribers see the raw string when the path check itself fails, and typed values otherwise.
-- A configured PARAMETERS DTO is now checked by Crud Automator too, not only by the host pipe.
+- A configured PARAMETERS DTO no longer decides how a path value is converted. The column rule converts it, then the DTO validates the converted value with `forbidUnknownValues: false`, so it can narrow what is accepted but never widen it: an `@ApiProperty()`-only DTO accepts `/items/1`, `@IsInt()` without `@Type` accepts `/items/1` with or without a guard or a host pipe, and `/items/016` returns `400` even with `@IsInt() @Type(() => Number)`. The route's Nest parameter type and its OpenAPI path parameters now come from the DTO generated from the columns.
+- A securable custom route whose IAM `resourcePath` names one of its path parameters must describe that parameter in its PARAMETERS DTO with `ApiPropertyCopy`, or the application fails at startup with an error that names the placeholder. The value is then validated before authorization: `/016`, `/1.6e1`, and `/abc` return `400` where they used to pass a Deny on `/16`.
 - A value that a PARAMETERS transformer or a `BEFORE` subscriber writes into the path must fit the described column type.
 - CURSOR tokens bind the path values of the route. They now hash the typed values, so cursors issued before 5.0.0 on routes with `read.scope` path values return `400 CURSOR_NOT_VALID` once; clients restart from the first window.
 - A missing `read.scope` or identity path value returns the `ValidationPipe` body (`message: ["<parameter> should not be null or undefined"]`) instead of the string `INVALID_PARAMETERS`.

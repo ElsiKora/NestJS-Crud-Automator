@@ -16,7 +16,7 @@ class ResolveRequestDto {
 }
 
 const handler = (): void => {};
-ApiControllerParametersDtoSet(handler, ResolveRequestDto);
+ApiControllerParametersDtoSet(handler, { dto: ResolveRequestDto });
 
 describe("ApiControllerParametersResolveRequest", () => {
 	it("types the path values once per request and hands every reader a copy of the same values", async () => {
