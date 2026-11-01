@@ -9,7 +9,7 @@ import { HttpStatus } from "@nestjs/common";
 /**
  * Resolves every error status a generated route can return with its configuration.
  * Every route can answer `400` (request DTO validation and package checks) and `500`. Row routes answer `404`, and CREATE does when it loads request relations; GET_LIST never does.
- * CREATE and both updates can answer `409`. `401` needs an authentication guard and `403` a guard that can refuse; the securable authorization `403` is added by the controller.
+ * CREATE and both updates can answer `409`. `ApiMethod` adds the statuses of guards, throttling, and the body parser from the route metadata, and the controller adds the securable authorization `403`.
  * Each request validator the route runs adds the status of its exception.
  * @param {EApiRouteType} routeType - Generated route type.
  * @param {TApiControllerPropertiesRoute<E, EApiRouteType>} routeConfig - Route configuration.
@@ -26,15 +26,6 @@ export function ApiControllerGetErrorStatuses<E>(routeType: EApiRouteType, route
 
 	if (routeType === EApiRouteType.CREATE || routeType === EApiRouteType.PARTIAL_UPDATE || routeType === EApiRouteType.UPDATE) {
 		statuses.add(HttpStatus.CONFLICT);
-	}
-
-	if (routeConfig.security?.authentication) {
-		statuses.add(HttpStatus.UNAUTHORIZED);
-	}
-
-	// Nest answers 403 for any guard that returns false
-	if (routeConfig.security?.authentication || (routeConfig.execution?.guards?.length ?? 0) > 0) {
-		statuses.add(HttpStatus.FORBIDDEN);
 	}
 
 	const requestTargets: Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E, EApiControllerGetListQueryPaginationMode>>> | undefined = routeConfig.request as Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E, EApiControllerGetListQueryPaginationMode>>> | undefined;

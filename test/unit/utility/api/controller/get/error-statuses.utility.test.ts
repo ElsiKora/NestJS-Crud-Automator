@@ -30,16 +30,11 @@ describe("ApiControllerGetErrorStatuses", () => {
 		expect(ApiControllerGetErrorStatuses<ErrorStatusesEntity>(routeType, {}, false)).toEqual(expected);
 	});
 
-	it("adds 401 and 403 for an authentication guard", () => {
-		const routeConfig: TApiControllerPropertiesRoute<ErrorStatusesEntity, EApiRouteType> = { security: { authentication } };
+	// ApiMethod is the one source of the guard statuses, for generated and custom routes alike
+	it("leaves 401 and 403 of guards to ApiMethod", () => {
+		const routeConfig: TApiControllerPropertiesRoute<ErrorStatusesEntity, EApiRouteType> = { execution: { guards: [ErrorStatusesGuard] }, security: { authentication } };
 
-		expect(ApiControllerGetErrorStatuses(EApiRouteType.GET, routeConfig, false)).toEqual([HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.INTERNAL_SERVER_ERROR]);
-	});
-
-	it("adds only 403 for route execution guards", () => {
-		const routeConfig: TApiControllerPropertiesRoute<ErrorStatusesEntity, EApiRouteType> = { execution: { guards: [ErrorStatusesGuard] } };
-
-		expect(ApiControllerGetErrorStatuses(EApiRouteType.GET_LIST, routeConfig, false)).toEqual([HttpStatus.BAD_REQUEST, HttpStatus.FORBIDDEN, HttpStatus.INTERNAL_SERVER_ERROR]);
+		expect(ApiControllerGetErrorStatuses(EApiRouteType.GET, routeConfig, false)).toEqual([HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND, HttpStatus.INTERNAL_SERVER_ERROR]);
 	});
 
 	it("adds 404 to CREATE only for an enabled request relation load", () => {
