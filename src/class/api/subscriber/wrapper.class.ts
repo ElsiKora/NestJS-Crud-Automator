@@ -20,6 +20,11 @@ export class SubscriberWrapper<T> {
 		return this.subscribers.length;
 	}
 
+	/**
+	 * Removes a subscriber by identity and keeps the order of the remaining subscribers.
+	 * @param {T} subscriber - Subscriber instance to remove.
+	 * @returns {void}
+	 */
 	public removeSubscriber(subscriber: T): void {
 		this.subscribers = this.subscribers.filter((entry: { subscriber: T }) => entry.subscriber !== subscriber);
 	}

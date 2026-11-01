@@ -165,6 +165,48 @@ describe("ApiSubscriberRegistry", () => {
 		expect(internalRegistry.ROUTE_SUBSCRIBERS.has(RouteEntityEmptyWrapperTest.name)).toBe(false);
 	});
 
+	it("unregisters a function subscriber of any entity while other entities are registered", () => {
+		class FirstFunctionEntityTest {}
+		class SecondFunctionEntityTest {}
+		class ThirdFunctionEntityTest {}
+
+		const firstSubscriber = {} as IApiSubscriberFunction<FirstFunctionEntityTest>;
+		const secondSubscriber = {} as IApiSubscriberFunction<SecondFunctionEntityTest>;
+		const thirdSubscriber = {} as IApiSubscriberFunction<ThirdFunctionEntityTest>;
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FirstFunctionEntityTest }, firstSubscriber);
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: SecondFunctionEntityTest }, secondSubscriber);
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: ThirdFunctionEntityTest }, thirdSubscriber);
+
+		apiSubscriberRegistry.unregisterFunctionSubscriber(thirdSubscriber);
+		apiSubscriberRegistry.unregisterFunctionSubscriber(secondSubscriber);
+
+		expect(apiSubscriberRegistry.getFunctionSubscribers<FirstFunctionEntityTest>(FirstFunctionEntityTest.name)).toEqual([firstSubscriber]);
+		expect(apiSubscriberRegistry.getFunctionSubscribers<SecondFunctionEntityTest>(SecondFunctionEntityTest.name)).toEqual([]);
+		expect(apiSubscriberRegistry.getFunctionSubscribers<ThirdFunctionEntityTest>(ThirdFunctionEntityTest.name)).toEqual([]);
+	});
+
+	it("unregisters a route subscriber of any entity while other entities are registered", () => {
+		class FirstRouteEntityTest {}
+		class SecondRouteEntityTest {}
+		class ThirdRouteEntityTest {}
+
+		const firstSubscriber = {} as IApiSubscriberRoute<FirstRouteEntityTest>;
+		const secondSubscriber = {} as IApiSubscriberRoute<SecondRouteEntityTest>;
+		const thirdSubscriber = {} as IApiSubscriberRoute<ThirdRouteEntityTest>;
+
+		apiSubscriberRegistry.registerRouteSubscriber({ entity: FirstRouteEntityTest }, firstSubscriber);
+		apiSubscriberRegistry.registerRouteSubscriber({ entity: SecondRouteEntityTest }, secondSubscriber);
+		apiSubscriberRegistry.registerRouteSubscriber({ entity: ThirdRouteEntityTest }, thirdSubscriber);
+
+		apiSubscriberRegistry.unregisterRouteSubscriber(thirdSubscriber);
+		apiSubscriberRegistry.unregisterRouteSubscriber(secondSubscriber);
+
+		expect(apiSubscriberRegistry.getRouteSubscribers<FirstRouteEntityTest>(FirstRouteEntityTest.name)).toEqual([firstSubscriber]);
+		expect(apiSubscriberRegistry.getRouteSubscribers<SecondRouteEntityTest>(SecondRouteEntityTest.name)).toEqual([]);
+		expect(apiSubscriberRegistry.getRouteSubscribers<ThirdRouteEntityTest>(ThirdRouteEntityTest.name)).toEqual([]);
+	});
+
 	it("ignores a subscriber that is not registered", () => {
 		class FunctionEntityUnknownTest {}
 		class RouteEntityUnknownTest {}

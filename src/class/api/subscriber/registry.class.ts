@@ -86,10 +86,23 @@ class ApiSubscriberRegistry {
 		subscriberRegistryLogger.debug(`Registered route subscriber entities: [${[...this.ROUTE_SUBSCRIBERS.values()].map((registeredWrapper: SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>>) => registeredWrapper.getName()).join(", ")}]`);
 	}
 
+	/**
+	 * Removes a function subscriber by identity from every entity it is registered for.
+	 * @template E - Entity type handled by the subscriber.
+	 * @param {IApiSubscriberFunction<E>} subscriber - Subscriber instance to remove.
+	 * @returns {void}
+	 */
 	public unregisterFunctionSubscriber<E extends IApiBaseEntity>(subscriber: IApiSubscriberFunction<E>): void {
 		this.removeSubscriber(this.FUNCTION_SUBSCRIBERS, subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>);
 	}
 
+	/**
+	 * Removes a route subscriber by identity from every entity it is registered for.
+	 * @template E - Entity type handled by the subscriber.
+	 * @template M - Pagination mode of the subscriber's GET_LIST hooks.
+	 * @param {IApiSubscriberRoute<E, EApiRouteSubscriberAuthorizationExpectation, M>} subscriber - Subscriber instance to remove.
+	 * @returns {void}
+	 */
 	public unregisterRouteSubscriber<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(subscriber: IApiSubscriberRoute<E, EApiRouteSubscriberAuthorizationExpectation, M>): void {
 		this.removeSubscriber(this.ROUTE_SUBSCRIBERS, subscriber as unknown as IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>);
 	}
@@ -120,6 +133,13 @@ class ApiSubscriberRegistry {
 		return isControllerMatching && isRouteMatching && isActionMatching;
 	}
 
+	/**
+	 * Removes a subscriber from all wrappers of a registry map and drops the wrappers that become empty.
+	 * @template T - Subscriber type stored in the wrappers.
+	 * @param {Map<string, SubscriberWrapper<T>>} wrappers - Registry map keyed by entity name.
+	 * @param {T} subscriber - Subscriber instance to remove.
+	 * @returns {void}
+	 */
 	private removeSubscriber<T>(wrappers: Map<string, SubscriberWrapper<T>>, subscriber: T): void {
 		for (const [entityName, wrapper] of wrappers) {
 			wrapper.removeSubscriber(subscriber);

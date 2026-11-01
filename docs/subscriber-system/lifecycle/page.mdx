@@ -364,18 +364,32 @@ async onBeforeCreate(
 ```
 1. onModuleDestroy hooks
 2. beforeApplicationShutdown hooks
-3. HTTP server closes and waits for in-flight requests
+3. HTTP server closes
 4. onApplicationShutdown hooks: subscribers are removed
 ```
 
-Requests still in flight at step 3 keep their subscribers until they finish. After close, the application's subscribers no longer run, so a later application in the same process, such as the next test or a hot reload, runs only its own subscribers.
+Step 3 waits for the server to close, not for route handlers. A request whose connection stays open until its response keeps its subscribers. After close, the application's subscribers no longer run, so a later application in the same process, such as the next test or a hot reload, runs only its own subscribers.
 
 Removal is by subscriber instance, so closing one application leaves another live application's subscribers registered.
 
 Limits:
 
+- A handler can finish after `app.close()` when its client disconnected during the request or the adapter uses `new FastifyAdapter({ forceCloseConnections: true })`. Its connection no longer holds the server open, so subscribers can be removed while it runs, and hooks it reaches after that, such as after-subscribers, are silently skipped. Automator does not track running requests.
 - Two applications alive at the same time in one process still share the registry. Until one of them closes, a matching operation in either application runs the subscribers of both.
-- Nest does not order `onApplicationShutdown` hooks of unrelated modules against this removal. A service call made from another provider's `onApplicationShutdown` can run without subscribers; put final work that needs them in `beforeApplicationShutdown`.
+- Removal runs only when close reaches `onApplicationShutdown`. Subscribers can stay registered if another provider's hook throws during close, or if `TestingModule.init()` fails during bootstrap after discovery has run.
+
+### Migration Notes
+
+Before 4.8.0, subscribers were never removed. From 4.8.0, work in your own `onApplicationShutdown`, such as a final audit write or an outbox flush, can run without subscribers. Nest runs this hook by module depth, shallower modules first; at the same depth, a module imported later runs first. So a provider sees subscribers only if its module runs before `ApiSubscriberModule`:
+
+| Provider's module                                 | Subscribers during its `onApplicationShutdown` |
+| ------------------------------------------------- | ---------------------------------------------- |
+| Shallower, including the root module              | Registered                                     |
+| Same depth, imported after `ApiSubscriberModule`  | Registered                                     |
+| Same depth, imported before `ApiSubscriberModule` | Removed                                        |
+| Deeper than `ApiSubscriberModule`                 | Removed                                        |
+
+Do not rely on import order. Move work that needs subscribers to `beforeApplicationShutdown`, which runs before step 3.
 
 ## Best Practices
 

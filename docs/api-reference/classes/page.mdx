@@ -281,7 +281,7 @@ Service for discovering, registering, and removing subscribers.
 
 **Usage:** Automatically used by `ApiSubscriberModule`.
 
-**Lifecycle:** Registers the application's subscribers in `onModuleInit` and removes them in `onApplicationShutdown`, after the HTTP server has finished in-flight requests. `app.close()` runs this hook without `enableShutdownHooks()`. Two applications alive at the same time in one process still share the registry. See [Lifecycle - Application Shutdown](/docs/nestjs-crud-automator/subscriber-system/lifecycle#application-shutdown).
+**Lifecycle:** Registers the application's subscribers in `onModuleInit` and removes them in `onApplicationShutdown`, after the HTTP server has closed. `app.close()` runs this hook without `enableShutdownHooks()`. A handler whose client disconnected, or one running under `FastifyAdapter({ forceCloseConnections: true })`, can finish after that and silently skip its remaining subscribers. Two applications alive at the same time in one process still share the registry. See [Lifecycle - Application Shutdown](/docs/nestjs-crud-automator/subscriber-system/lifecycle#application-shutdown).
 
 ### ApiSubscriberRegistry
 

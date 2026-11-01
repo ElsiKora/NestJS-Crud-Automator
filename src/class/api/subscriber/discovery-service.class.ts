@@ -28,7 +28,8 @@ export class ApiSubscriberDiscoveryService implements OnApplicationShutdown, OnM
 
 	/**
 	 * Removes the subscribers this application registered.
-	 * Nest closes the HTTP server before this hook, so in-flight requests keep their subscribers; `onModuleDestroy` would run too early.
+	 * Nest closes the HTTP server before this hook, so a request whose connection stays open until its response keeps its subscribers; `onModuleDestroy` would run too early.
+	 * A handler can outlive the server close when its client disconnected or the adapter uses `forceCloseConnections`; its later subscriber lookups then find nothing.
 	 */
 	onApplicationShutdown(): void {
 		for (const subscriber of this.REGISTERED_FUNCTION_SUBSCRIBERS) {

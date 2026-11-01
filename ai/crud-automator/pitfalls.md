@@ -61,9 +61,13 @@ UPDATE exposes a detached, top-level frozen shallow `context.DATA.currentEntity`
 
 ## Subscriber Registry Lifetime
 
-`apiSubscriberRegistry` is process-wide. `ApiSubscriberModule` removes an application's subscribers in `onApplicationShutdown`, after the HTTP server finished in-flight requests, and `app.close()` runs that hook without `enableShutdownHooks()`. Do not add a reset, a manual unregister, or an `onModuleDestroy` removal for sequential applications; an application that is not closed keeps its subscribers registered.
+`apiSubscriberRegistry` is process-wide. `ApiSubscriberModule` removes an application's subscribers in `onApplicationShutdown`, after the HTTP server closed, and `app.close()` runs that hook without `enableShutdownHooks()`. Do not add a reset, a manual unregister, or an `onModuleDestroy` removal for sequential applications; an application that is not closed keeps its subscribers registered.
 
-Two applications alive at the same time in one process still share the registry: until one closes, a matching operation in either runs the subscribers of both. Do not call services that need subscribers from another provider's `onApplicationShutdown`, because Nest does not order it against the removal; use `beforeApplicationShutdown`.
+The server close does not wait for handlers. A handler whose client disconnected, or one running under `FastifyAdapter({ forceCloseConnections: true })`, can finish after `app.close()` and silently skip its remaining subscribers, such as after-subscribers. Automator does not track running requests.
+
+Two applications alive at the same time in one process still share the registry: until one closes, a matching operation in either runs the subscribers of both. Subscribers can also stay registered if another provider's hook throws during close or `TestingModule.init()` fails during bootstrap.
+
+Do not call services that need subscribers from another provider's `onApplicationShutdown`, such as an audit write or outbox flush. Nest runs this hook by module depth, shallower first, and at the same depth a later import runs first, so whether subscribers are still registered depends on `imports` order. Use `beforeApplicationShutdown`.
 
 ## Principal-Dependent Guards Before Authentication
 
