@@ -124,6 +124,18 @@ type TApiAuthorizationRuleTransformPayload<E extends IApiBaseEntity> = Array<unk
 
 Authorization transforms receive the payload produced by the route action and may return a replacement payload of the same public response family, including either the PAGE count envelope or the flat CURSOR envelope.
 
+## OpenAPI Types
+
+```typescript
+type TSwaggerComponentSchema = NonNullable<NonNullable<OpenAPIObject["components"]>["schemas"]>[string];
+type TSwaggerReferenceObject = Extract<TSwaggerComponentSchema, { $ref: string }>;
+type TSwaggerSchemaObject = Exclude<TSwaggerComponentSchema, TSwaggerReferenceObject>;
+type TSwaggerHeadersObject = NonNullable<NonNullable<OpenAPIObject["components"]>["headers"]>;
+type TSwaggerSecurityRequirementObject = NonNullable<OpenAPIObject["security"]>[number];
+```
+
+Each type is derived from the public `OpenAPIObject` of the installed `@nestjs/swagger`, so it works on every supported 11.x release, including the ones whose root does not export the OpenAPI interfaces. `TSwaggerComponentSchema` is one entry of `components.schemas`, either a schema or a `$ref`. `TSwaggerSchemaObject` and `TSwaggerReferenceObject` split it into those two branches. Do not import them from `@nestjs/swagger/dist/*`: those paths are closed from 11.4.3.
+
 ## Related resources
 
 - [Interfaces](/docs/nestjs-crud-automator/api-reference/interfaces)

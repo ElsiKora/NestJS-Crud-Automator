@@ -309,12 +309,14 @@ Observation is a separate diagnostic projection. It neither expands the ordinary
 
 ## Peer Ranges
 
-- Every peer dependency has an upper bound at the next major of what CI tests: NestJS packages and `@nestjs/swagger` `<12`, `@nestjs/throttler` `<7`, `fastify` `<6`, `lodash` `<5`, `typeorm` `<1`, `class-transformer` `<0.6`, `class-validator` `<0.16`. NestJS 12 and TypeORM 1 are not supported.
+- Every peer dependency has an upper bound and keeps its lower bound. For 1.x and later lines the bound is the next major: `@nestjs/common`, `@nestjs/core`, and `@nestjs/swagger` `<12`, `@nestjs/throttler` `<7`, `fastify` `<6`, `lodash` `<5`. For 0.x lines it is the next minor: `class-transformer` `<0.6`, `class-validator` `<0.16`. `typeorm` is `<1`. NestJS 12 and TypeORM 1 are not supported.
+- CI installs every peer at the latest release inside its range; only `@nestjs/swagger` also runs against older releases (11.0.3 and 11.4.2). Other lower bounds are declared, not tested.
+- `@nestjs/passport` and `@nestjs/platform-fastify` are not peers: no source file imports them. Install peers with explicit ranges; an unversioned `npm install` picks NestJS 12 and TypeORM 1.
 - `@nestjs/swagger` is supported as `>=11.0.3 <12`. `@nestjs/swagger` 12 requires NestJS 12 and is not supported.
 - Crud Automator imports only the public `@nestjs/swagger` entry point. Its `dist/*` paths are closed by the `exports` map from 11.4.3 on, and CI fails on any import of them.
-- `TSwaggerHeadersObject`, `TSwaggerReferenceObject`, `TSwaggerSchemaObject`, and `TSwaggerSecurityRequirementObject` are derived from the public `OpenAPIObject` type and exported from the package root.
+- `TSwaggerComponentSchema` (one `components.schemas` entry), `TSwaggerHeadersObject`, `TSwaggerReferenceObject`, `TSwaggerSchemaObject`, and `TSwaggerSecurityRequirementObject` are derived from the public `OpenAPIObject` type and exported from the package root.
 - Generated documents vary with the installed Swagger release, not with Automator: from 11.4.3 `multipleOf` on a numeric query parameter sits inside its `schema`; before 11.3.0 object properties have no `type: object`; before 11.2.4 array filter value items carry `type: string` instead of `minLength`/`maxLength`.
-- `SWAGGER_METADATA_CONSTANT` (`src/constant/swagger`) is internal and holds the Swagger metadata keys Automator reads and writes. Those strings are Swagger internals, so CI runs the unit suite and a Swagger e2e against the lowest supported version, 11.4.2, and the latest 11.x.
+- `SWAGGER_METADATA_CONSTANT` (`src/constant/swagger`) is internal and holds the Swagger metadata keys Automator reads and writes. Those strings are Swagger internals, so CI runs the unit suite and two Swagger e2e files (`swagger.e2e.test.ts`, `typed-query-swagger.e2e.test.ts`) against the lowest supported version 11.0.3, against 11.4.2, and against the latest 11.x.
 
 ## 3.0 Export Migration
 

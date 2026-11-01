@@ -20,8 +20,6 @@ Version `3.0.2` is the published baseline before the current generated-route wor
 Make sure you have the following dependencies installed in your NestJS project:
 
 - `@nestjs/common` and `@nestjs/core` (>=11.1.24 <12)
-- `@nestjs/passport` (>=11.0.5 <12)
-- `@nestjs/platform-fastify` (>=11.1.24 <12)
 - `@nestjs/swagger` (>=11.0.3 <12)
 - `@nestjs/throttler` (>=6.5.0 <7)
 - TypeORM (>=0.3.20 <1)
@@ -33,8 +31,10 @@ Make sure you have the following dependencies installed in your NestJS project:
 Install peer dependencies if they are not already in your project:
 
 ```bash copy
-npm install @nestjs/common @nestjs/core @nestjs/passport @nestjs/platform-fastify @nestjs/swagger @nestjs/throttler typeorm class-transformer class-validator fastify lodash
+npm install @nestjs/common@^11.1.24 @nestjs/core@^11.1.24 @nestjs/swagger@^11.0.3 @nestjs/throttler@^6.5.0 typeorm@^0.3.20 class-transformer@^0.5.1 class-validator@^0.15.1 fastify@^5.8.5 lodash@^4.18.1
 ```
+
+Keep the version ranges in the command: without them npm installs the latest releases, such as NestJS 12 and TypeORM 1, which are outside the supported ranges.
 
 `@nestjs/swagger` 12 requires NestJS 12 and is not supported. Every `@nestjs/swagger` 11 release from `11.0.3` up is supported.
 
@@ -47,8 +47,9 @@ Crud Automator now uses only the public `@nestjs/swagger` entry point:
 - An application pinned to `@nestjs/swagger` 11.4.2 or older because of that error can move to any 11.x release.
 - This change does not alter generated OpenAPI documents, but moving between `@nestjs/swagger` releases can. From 11.4.3, `multipleOf` on a numeric query parameter moves from the parameter object into its `schema`. Releases before 11.3.0 omit `type: object` on object properties, and releases before 11.2.4 describe the items of array filter values with `type: string` instead of `minLength` and `maxLength`. Regenerate API clients when you change the `@nestjs/swagger` version.
 - The peer range now ends below 12, so a package manager reports a peer conflict for `@nestjs/swagger` 12. Stay on 11.x until Crud Automator supports NestJS 12.
-- Every peer dependency now has an upper bound and no lower bound changed. These ranges narrowed: `@nestjs/common`, `@nestjs/core`, `@nestjs/passport`, and `@nestjs/platform-fastify` to below 12, `@nestjs/throttler` to below 7, `class-transformer` to below 0.6, `class-validator` to below 0.16, `fastify` to below 6, `lodash` to below 5, and `typeorm` to below 1. A package manager reports a peer conflict for anything newer, such as NestJS 12 or TypeORM 1, because those versions are not tested.
-- `TSwaggerHeadersObject`, `TSwaggerReferenceObject`, `TSwaggerSchemaObject`, and `TSwaggerSecurityRequirementObject` are exported from the package root. Each one is the matching OpenAPI type from the installed `@nestjs/swagger`, so use them in application code that needs those types on every supported release.
+- Every peer dependency now has an upper bound and no lower bound changed. These ranges narrowed: `@nestjs/common` and `@nestjs/core` to below 12, `@nestjs/throttler` to below 7, `class-transformer` to below 0.6, `class-validator` to below 0.16, `fastify` to below 6, `lodash` to below 5, and `typeorm` to below 1. Installing a newer release, such as NestJS 12 or TypeORM 1, next to Crud Automator now fails with `ERESOLVE` in npm, or leaves an unmet peer warning in package managers that do not enforce peers, because those releases are not tested. Install peers with the version ranges shown above.
+- `@nestjs/passport` and `@nestjs/platform-fastify` are no longer peer dependencies: Crud Automator does not import either package. Install them only when your application uses Passport or the Fastify adapter. Route guards remain any Nest `CanActivate` class, so Passport `AuthGuard` classes keep working.
+- `TSwaggerComponentSchema`, `TSwaggerHeadersObject`, `TSwaggerReferenceObject`, `TSwaggerSchemaObject`, and `TSwaggerSecurityRequirementObject` are exported from the package root. Each one is the matching OpenAPI type from the installed `@nestjs/swagger`, so use them in application code that needs those types on every supported release. `TSwaggerComponentSchema` is one entry of `components.schemas`: a schema object or a reference object. See [Types](/docs/nestjs-crud-automator/api-reference/types#openapi-types).
 
 ## Basic Usage
 

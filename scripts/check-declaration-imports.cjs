@@ -53,4 +53,4 @@ if (privateSwaggerImportPaths.length > 0) {
 	process.exit(1);
 }
 
-process.stdout.write("Generated declaration imports are package-relative.\n");
+process.stdout.write("Generated declarations are package-relative, and no generated .js or .d.ts file imports private @nestjs/swagger paths.\n");

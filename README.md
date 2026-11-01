@@ -76,8 +76,6 @@ Version `3.0.2` is the published baseline before the current generated-route wor
 Make sure you have the following dependencies installed in your NestJS project:
 
 - NestJS `@nestjs/common` and `@nestjs/core` `>=11.1.24 <12`
-- `@nestjs/passport` `>=11.0.5 <12`
-- `@nestjs/platform-fastify` `>=11.1.24 <12`
 - `@nestjs/swagger` `>=11.0.3 <12`
 - `@nestjs/throttler` `>=6.5.0 <7`
 - TypeORM `>=0.3.20 <1`
@@ -89,8 +87,10 @@ Make sure you have the following dependencies installed in your NestJS project:
 You might need to install these peer dependencies if they're not already in your project:
 
 ```bash
-npm install @nestjs/common @nestjs/core @nestjs/passport @nestjs/platform-fastify @nestjs/swagger @nestjs/throttler typeorm class-transformer class-validator fastify lodash
+npm install @nestjs/common@^11.1.24 @nestjs/core@^11.1.24 @nestjs/swagger@^11.0.3 @nestjs/throttler@^6.5.0 typeorm@^0.3.20 class-transformer@^0.5.1 class-validator@^0.15.1 fastify@^5.8.5 lodash@^4.18.1
 ```
+
+Keep the version ranges in the command: without them npm installs the latest releases, such as NestJS 12 and TypeORM 1, which are outside the supported ranges.
 
 `@nestjs/swagger` 12 requires NestJS 12 and is not supported. Every `@nestjs/swagger` 11 release from `11.0.3` up is supported, including the releases from `11.4.3` that restrict package imports through an `exports` map. See the [migration notes](https://elsikora.com/docs/nestjs-crud-automator/getting-started#migration-notes).
 
