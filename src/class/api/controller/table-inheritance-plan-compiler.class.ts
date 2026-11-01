@@ -16,7 +16,7 @@ import { GenerateEntityInformation } from "@utility/generate-entity-information.
 import { getMetadataArgsStorage } from "typeorm";
 
 const TABLE_INHERITANCE_NUMERIC_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["bigint", "dec", "decimal", "double", "double precision", "fixed", "float", "float4", "float8", "int", "int2", "int4", "int8", "integer", "mediumint", "money", "number", "numeric", "real", "smallint", "tinyint", "unsigned big int"]);
-const OPEN_API_COMPONENT_NAME_PATTERN: RegExp = /^[\w.-]+$/;
+const TABLE_INHERITANCE_DISCRIMINATOR_VALUE_PATTERN: RegExp = /^[\w-]+$/;
 
 export class ApiControllerTableInheritancePlanCompiler {
 	/**
@@ -63,7 +63,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 		const discriminatorPropertyName: string = inheritance.column?.name ?? "type";
 
 		if (childEntities.length === 0) {
-			return { childEntities, discriminatorPropertyName, rootEntity: root, variants: [] };
+			throw ErrorException(`Table inheritance root ${root.name} has no child entity loaded when the controller is decorated. Import the child entity files before the controller.`);
 		}
 
 		const discriminatorColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>): boolean => column.name === discriminatorPropertyName);
@@ -72,15 +72,14 @@ export class ApiControllerTableInheritancePlanCompiler {
 			throw ErrorException(`Table inheritance root ${root.name} must declare and describe its discriminator column "${discriminatorPropertyName}"`);
 		}
 
-		const columnOptions: ColumnMetadataArgs["options"] = { ...inheritance.column, ...this.findDiscriminatorColumn(root, discriminatorPropertyName)?.options };
+		// TypeORM ignores the inheritance column options once the root declares the column as a property.
+		const columnOptions: ColumnMetadataArgs["options"] = this.findDiscriminatorColumn(root, discriminatorPropertyName)?.options ?? inheritance.column ?? {};
 
 		if (columnOptions.select === false) {
 			throw ErrorException(`Table inheritance root ${root.name} must select its discriminator column "${discriminatorPropertyName}", remove select: false`);
 		}
 
-		const reflectedType: unknown = Reflect.getMetadata("design:type", root.prototype as object, discriminatorPropertyName);
-
-		if (this.isNumericColumnType(columnOptions.type ?? reflectedType)) {
+		if (this.isNumericColumnType(columnOptions.type)) {
 			throw ErrorException(`Table inheritance root ${root.name} must store its discriminator column "${discriminatorPropertyName}" as a string, generated polymorphic responses support string discriminator values only`);
 		}
 
@@ -113,8 +112,8 @@ export class ApiControllerTableInheritancePlanCompiler {
 	}
 
 	/**
-	 * Rejects discriminator values whose DTO name suffix is empty, repeated, not a valid OpenAPI component name,
-	 * or turns a GET_LIST variant into the name of the list wrapper.
+	 * Rejects discriminator values with characters outside `[A-Za-z0-9_-]`, which the DTO name would drop or carry into an invalid OpenAPI name,
+	 * and values whose DTO name suffix is empty, repeated, or turns a GET_LIST variant into the name of the list wrapper.
 	 * @param {Type<unknown>} root - Table inheritance root class.
 	 * @param {string} rootName - Root entity name that prefixes every generated DTO name.
 	 * @param {ReadonlyArray<IApiControllerTableInheritanceVariant>} variants - Variants sorted by discriminator value.
@@ -125,15 +124,15 @@ export class ApiControllerTableInheritancePlanCompiler {
 		const suffixOwners: Map<string, string> = new Map<string, string>();
 
 		for (const { discriminatorValue } of variants) {
+			if (!TABLE_INHERITANCE_DISCRIMINATOR_VALUE_PATTERN.test(discriminatorValue)) {
+				throw ErrorException(`Discriminator value "${discriminatorValue}" of ${root.name} must use only letters, digits, "_" and "-", because it becomes part of generated DTO names`);
+			}
+
 			const suffix: string = CamelCaseString(discriminatorValue);
 			const owner: string | undefined = suffixOwners.get(suffix);
 
 			if (suffix === "" || owner !== undefined) {
 				throw ErrorException(`Discriminator values of ${root.name} must produce unique non-empty DTO name suffixes, "${discriminatorValue}" conflicts with "${owner ?? ""}"`);
-			}
-
-			if (!OPEN_API_COMPONENT_NAME_PATTERN.test(suffix)) {
-				throw ErrorException(`Discriminator value "${discriminatorValue}" of ${root.name} produces the DTO name suffix "${suffix}", which is not a valid OpenAPI component name`);
 			}
 
 			if (`${listNamePrefix}${suffix}DTO` === `${listNamePrefix}ItemsDTO`) {
@@ -177,7 +176,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 
 	/**
 	 * Tells whether a TypeORM column type stores numbers.
-	 * @param {unknown} columnType - Column type option, or the reflected property type when the option is omitted.
+	 * @param {unknown} columnType - Column type option; `@Column` fills it from the reflected property type when it is omitted.
 	 * @returns {boolean} Whether the column stores numbers.
 	 */
 	private static isNumericColumnType(columnType: unknown): boolean {

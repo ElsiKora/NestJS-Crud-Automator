@@ -4,6 +4,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerTableInheritancePlan, IApiControllerTableInheritanceVariant } from "@interface/class/api/controller/table-inheritance";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
+import type { ColumnType } from "typeorm";
 
 import { ApiControllerTableInheritancePlanCompiler } from "@class/api/controller/table-inheritance-plan-compiler.class";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
@@ -134,7 +135,7 @@ class PlanCollisionRootEntity {
 @ChildEntity("CARD_TRANSFER")
 class PlanCollisionFirstEntity extends PlanCollisionRootEntity {}
 
-@ChildEntity("Card Transfer")
+@ChildEntity("card-transfer")
 class PlanCollisionSecondEntity extends PlanCollisionRootEntity {}
 
 @Entity("plan_empty_suffix_roots")
@@ -164,6 +165,34 @@ class PlanNumericRootEntity {
 
 @ChildEntity(1)
 class PlanNumericChildEntity extends PlanNumericRootEntity {}
+
+@Entity("plan_reflected_number_roots")
+@TableInheritance({ column: { name: "type" } })
+class PlanReflectedNumberRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column()
+	@StringDescribe("type")
+	public type!: number;
+}
+
+@ChildEntity("A")
+class PlanReflectedNumberChildEntity extends PlanReflectedNumberRootEntity {}
+
+@Entity("plan_upper_case_type_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class PlanUpperCaseTypeRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "INT" as ColumnType })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("A")
+class PlanUpperCaseTypeChildEntity extends PlanUpperCaseTypeRootEntity {}
 
 @Entity("plan_undescribed_roots")
 @TableInheritance({ column: { name: "type", type: "varchar" } })
@@ -362,6 +391,34 @@ class PlanInvalidNameRootEntity {
 @ChildEntity("myType foo")
 class PlanInvalidNameChildEntity extends PlanInvalidNameRootEntity {}
 
+@Entity("plan_spaced_name_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class PlanSpacedNameRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("my type")
+class PlanSpacedNameChildEntity extends PlanSpacedNameRootEntity {}
+
+@Entity("plan_dotted_name_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class PlanDottedNameRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("card.transfer")
+class PlanDottedNameChildEntity extends PlanDottedNameRootEntity {}
+
 @Entity("plan_plain_entities")
 class PlanPlainEntity {
 	@PrimaryGeneratedColumn("uuid")
@@ -428,11 +485,9 @@ describe("ApiControllerTableInheritancePlanCompiler", () => {
 			expect(compile(PlanArrayEnumRootEntity)?.variants[0]?.entity).toBe(PlanArrayEnumChildEntity);
 		});
 
-		it("keeps a plain response for a root without children but still arms the startup check", () => {
-			const plan: IApiControllerTableInheritancePlan | undefined = compile(PlanChildlessRootEntity);
-
-			expect(plan?.variants).toEqual([]);
-			expect(plan?.rootEntity).toBe(PlanChildlessRootEntity);
+		it("takes the discriminator options from the root column, as TypeORM does, instead of the inheritance options", () => {
+			expect(PlanInheritanceEnumChildEntity).toBeDefined();
+			expect(variantValues(compile(PlanInheritanceEnumRootEntity))).toEqual(["OUTSIDE", PlanInheritanceEnumRootEntity.name]);
 		});
 	});
 
@@ -468,7 +523,7 @@ describe("ApiControllerTableInheritancePlanCompiler", () => {
 		it("rejects values that collapse to one DTO name suffix", () => {
 			expect(PlanCollisionFirstEntity).toBeDefined();
 			expect(PlanCollisionSecondEntity).toBeDefined();
-			expect(() => compile(PlanCollisionRootEntity)).toThrow(/must produce unique non-empty DTO name suffixes, "Card Transfer" conflicts with "CARD_TRANSFER"/);
+			expect(() => compile(PlanCollisionRootEntity)).toThrow(/must produce unique non-empty DTO name suffixes, "card-transfer" conflicts with "CARD_TRANSFER"/);
 		});
 
 		it("rejects a value without a DTO name suffix", () => {
@@ -487,6 +542,18 @@ describe("ApiControllerTableInheritancePlanCompiler", () => {
 			expect(() => compile(PlanIntegerRootEntity)).toThrow(`Table inheritance root ${PlanIntegerRootEntity.name} must store its discriminator column "type" as a string`);
 		});
 
+		it.each([
+			["a number property without a column type", PlanReflectedNumberRootEntity, PlanReflectedNumberChildEntity],
+			["an upper-case numeric column type", PlanUpperCaseTypeRootEntity, PlanUpperCaseTypeChildEntity],
+		])("rejects %s as a numeric discriminator column", (_case: string, root: { name: string }, child: object) => {
+			expect(child).toBeDefined();
+			expect(() => compile(root)).toThrow(`Table inheritance root ${root.name} must store its discriminator column "type" as a string`);
+		});
+
+		it("rejects a root without a loaded child entity", () => {
+			expect(() => compile(PlanChildlessRootEntity)).toThrow(`Table inheritance root ${PlanChildlessRootEntity.name} has no child entity loaded when the controller is decorated. Import the child entity files before the controller.`);
+		});
+
 		it("rejects an unselected discriminator column", () => {
 			expect(PlanUnselectedChildEntity).toBeDefined();
 			expect(() => compile(PlanUnselectedRootEntity)).toThrow(`Table inheritance root ${PlanUnselectedRootEntity.name} must select its discriminator column "type", remove select: false`);
@@ -497,13 +564,16 @@ describe("ApiControllerTableInheritancePlanCompiler", () => {
 			expect(() => compile(PlanItemsRootEntity)).toThrow(`Discriminator value "ITEMS" of ${PlanItemsRootEntity.name} produces the DTO name ${PlanItemsRootEntity.name}GetListResponseItemsDTO, which is the generated GET_LIST wrapper name`);
 		});
 
-		it("rejects a value that is not a valid OpenAPI component name", () => {
-			expect(PlanInvalidNameChildEntity).toBeDefined();
-			expect(() => compile(PlanInvalidNameRootEntity)).toThrow(`Discriminator value "myType foo" of ${PlanInvalidNameRootEntity.name} produces the DTO name suffix "MyType foo", which is not a valid OpenAPI component name`);
+		it.each([
+			["myType foo", PlanInvalidNameRootEntity, PlanInvalidNameChildEntity],
+			["my type", PlanSpacedNameRootEntity, PlanSpacedNameChildEntity],
+			["card.transfer", PlanDottedNameRootEntity, PlanDottedNameChildEntity],
+		])("rejects the value %s with a character outside letters, digits, _ and -", (value: string, root: { name: string }, child: object) => {
+			expect(child).toBeDefined();
+			expect(() => compile(root)).toThrow(`Discriminator value "${value}" of ${root.name} must use only letters, digits, "_" and "-", because it becomes part of generated DTO names`);
 		});
 
 		it.each([
-			["the inheritance options", PlanInheritanceEnumRootEntity, PlanInheritanceEnumChildEntity],
 			["the root column", PlanColumnEnumRootEntity, PlanColumnEnumChildEntity],
 			["an ancestor column", PlanAncestorColumnRootEntity, PlanAncestorColumnChildEntity],
 		])("reads the discriminator enum from %s", (_source: string, root: object, child: { name: string }) => {
