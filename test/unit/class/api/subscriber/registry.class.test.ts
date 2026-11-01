@@ -99,4 +99,86 @@ describe("ApiSubscriberRegistry", () => {
 		expect(apiSubscriberRegistry.getFunctionSubscriberProperties(functionSubscriber)).toBe(properties);
 		expect(apiSubscriberRegistry.getFunctionSubscriberProperties({} as IApiSubscriberFunction<FunctionEntityPropertiesTest>)).toBeUndefined();
 	});
+
+	it("unregisters only the given function subscriber and keeps the priority order of the rest", () => {
+		class FunctionEntityUnregisterTest {}
+
+		const highPrioritySubscriber = {} as IApiSubscriberFunction<FunctionEntityUnregisterTest>;
+		const removedSubscriber = {} as IApiSubscriberFunction<FunctionEntityUnregisterTest>;
+		const firstLowPrioritySubscriber = {} as IApiSubscriberFunction<FunctionEntityUnregisterTest>;
+		const secondLowPrioritySubscriber = {} as IApiSubscriberFunction<FunctionEntityUnregisterTest>;
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntityUnregisterTest, priority: 1 }, firstLowPrioritySubscriber);
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntityUnregisterTest, priority: 5 }, removedSubscriber);
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntityUnregisterTest, priority: 1 }, secondLowPrioritySubscriber);
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntityUnregisterTest, priority: 10 }, highPrioritySubscriber);
+
+		apiSubscriberRegistry.unregisterFunctionSubscriber(removedSubscriber);
+
+		const subscribers = apiSubscriberRegistry.getFunctionSubscribers<FunctionEntityUnregisterTest>(FunctionEntityUnregisterTest.name);
+
+		expect(subscribers).toHaveLength(3);
+		expect(subscribers[0]).toBe(highPrioritySubscriber);
+		expect(subscribers[1]).toBe(firstLowPrioritySubscriber);
+		expect(subscribers[2]).toBe(secondLowPrioritySubscriber);
+		expect(apiSubscriberRegistry.getFunctionSubscriberProperties(removedSubscriber)).toBeUndefined();
+	});
+
+	it("unregisters only the given route subscriber and keeps the priority order of the rest", () => {
+		class RouteEntityUnregisterTest {}
+
+		const highPrioritySubscriber = {} as IApiSubscriberRoute<RouteEntityUnregisterTest>;
+		const removedSubscriber = {} as IApiSubscriberRoute<RouteEntityUnregisterTest>;
+		const firstLowPrioritySubscriber = {} as IApiSubscriberRoute<RouteEntityUnregisterTest>;
+		const secondLowPrioritySubscriber = {} as IApiSubscriberRoute<RouteEntityUnregisterTest>;
+
+		apiSubscriberRegistry.registerRouteSubscriber({ entity: RouteEntityUnregisterTest, priority: 1 }, firstLowPrioritySubscriber);
+		apiSubscriberRegistry.registerRouteSubscriber({ entity: RouteEntityUnregisterTest, priority: 5 }, removedSubscriber);
+		apiSubscriberRegistry.registerRouteSubscriber({ entity: RouteEntityUnregisterTest, priority: 1 }, secondLowPrioritySubscriber);
+		apiSubscriberRegistry.registerRouteSubscriber({ entity: RouteEntityUnregisterTest, priority: 10 }, highPrioritySubscriber);
+
+		apiSubscriberRegistry.unregisterRouteSubscriber(removedSubscriber);
+
+		const subscribers = apiSubscriberRegistry.getRouteSubscribers<RouteEntityUnregisterTest>(RouteEntityUnregisterTest.name);
+
+		expect(subscribers).toHaveLength(3);
+		expect(subscribers[0]).toBe(highPrioritySubscriber);
+		expect(subscribers[1]).toBe(firstLowPrioritySubscriber);
+		expect(subscribers[2]).toBe(secondLowPrioritySubscriber);
+	});
+
+	it("drops an entity wrapper once its last subscriber is unregistered", () => {
+		class FunctionEntityEmptyWrapperTest {}
+		class RouteEntityEmptyWrapperTest {}
+
+		const internalRegistry = apiSubscriberRegistry as unknown as { FUNCTION_SUBSCRIBERS: Map<string, unknown>; ROUTE_SUBSCRIBERS: Map<string, unknown> };
+		const functionSubscriber = {} as IApiSubscriberFunction<FunctionEntityEmptyWrapperTest>;
+		const routeSubscriber = {} as IApiSubscriberRoute<RouteEntityEmptyWrapperTest>;
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntityEmptyWrapperTest }, functionSubscriber);
+		apiSubscriberRegistry.registerRouteSubscriber({ entity: RouteEntityEmptyWrapperTest }, routeSubscriber);
+
+		apiSubscriberRegistry.unregisterFunctionSubscriber(functionSubscriber);
+		apiSubscriberRegistry.unregisterRouteSubscriber(routeSubscriber);
+
+		expect(internalRegistry.FUNCTION_SUBSCRIBERS.has(FunctionEntityEmptyWrapperTest.name)).toBe(false);
+		expect(internalRegistry.ROUTE_SUBSCRIBERS.has(RouteEntityEmptyWrapperTest.name)).toBe(false);
+	});
+
+	it("ignores a subscriber that is not registered", () => {
+		class FunctionEntityUnknownTest {}
+		class RouteEntityUnknownTest {}
+
+		const functionSubscriber = {} as IApiSubscriberFunction<FunctionEntityUnknownTest>;
+		const routeSubscriber = {} as IApiSubscriberRoute<RouteEntityUnknownTest>;
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntityUnknownTest }, functionSubscriber);
+		apiSubscriberRegistry.registerRouteSubscriber({ entity: RouteEntityUnknownTest }, routeSubscriber);
+
+		apiSubscriberRegistry.unregisterFunctionSubscriber({} as IApiSubscriberFunction<FunctionEntityUnknownTest>);
+		apiSubscriberRegistry.unregisterRouteSubscriber({} as IApiSubscriberRoute<RouteEntityUnknownTest>);
+
+		expect(apiSubscriberRegistry.getFunctionSubscribers<FunctionEntityUnknownTest>(FunctionEntityUnknownTest.name)).toEqual([functionSubscriber]);
+		expect(apiSubscriberRegistry.getRouteSubscribers<RouteEntityUnknownTest>(RouteEntityUnknownTest.name)).toEqual([routeSubscriber]);
+	});
 });

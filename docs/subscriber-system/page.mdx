@@ -173,6 +173,8 @@ export class PostSlugSubscriber extends ApiFunctionSubscriberBase<PostEntity> {
 export class PostModule {}
 ```
 
+Subscribers stay registered until the application closes. See [Application Shutdown](/docs/nestjs-crud-automator/subscriber-system/lifecycle#application-shutdown).
+
 ## Execution Order
 
 Understanding the execution order is critical:

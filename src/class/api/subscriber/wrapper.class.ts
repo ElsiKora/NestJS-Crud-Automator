@@ -19,4 +19,8 @@ export class SubscriberWrapper<T> {
 	public getSubscriberCount(): number {
 		return this.subscribers.length;
 	}
+
+	public removeSubscriber(subscriber: T): void {
+		this.subscribers = this.subscribers.filter((entry: { subscriber: T }) => entry.subscriber !== subscriber);
+	}
 }

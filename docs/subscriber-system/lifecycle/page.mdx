@@ -357,6 +357,26 @@ async onBeforeCreate(
 }
 ```
 
+## Application Shutdown
+
+`ApiSubscriberModule` adds an application's subscribers to the process-wide `apiSubscriberRegistry` in `onModuleInit` and removes them in `onApplicationShutdown`. No consumer code is required. `app.close()` runs this hook without `enableShutdownHooks()`, which only makes process signals follow the same order:
+
+```
+1. onModuleDestroy hooks
+2. beforeApplicationShutdown hooks
+3. HTTP server closes and waits for in-flight requests
+4. onApplicationShutdown hooks: subscribers are removed
+```
+
+Requests still in flight at step 3 keep their subscribers until they finish. After close, the application's subscribers no longer run, so a later application in the same process, such as the next test or a hot reload, runs only its own subscribers.
+
+Removal is by subscriber instance, so closing one application leaves another live application's subscribers registered.
+
+Limits:
+
+- Two applications alive at the same time in one process still share the registry. Until one of them closes, a matching operation in either application runs the subscribers of both.
+- Nest does not order `onApplicationShutdown` hooks of unrelated modules against this removal. A service call made from another provider's `onApplicationShutdown` can run without subscribers; put final work that needs them in `beforeApplicationShutdown`.
+
 ## Best Practices
 
 ### 1. Use Priority Wisely

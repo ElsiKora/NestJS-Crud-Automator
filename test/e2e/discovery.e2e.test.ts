@@ -112,4 +112,34 @@ describe("Discovery services (E2E)", () => {
 		expect(apiSubscriberRegistry.getFunctionSubscribers(SubscriberEntity.name)).toHaveLength(1);
 		expect(apiSubscriberRegistry.getRouteSubscribers(SubscriberEntity.name)).toHaveLength(1);
 	});
+
+	it("removes the subscribers it registered once on application shutdown", () => {
+		const functionSubscriber = new FunctionSubscriber();
+		const routeSubscriber = new RouteSubscriber();
+		const functionSpy = vi.spyOn(apiSubscriberRegistry, "unregisterFunctionSubscriber");
+		const routeSpy = vi.spyOn(apiSubscriberRegistry, "unregisterRouteSubscriber");
+		const discoveryService = {
+			getProviders: () => [
+				{ instance: functionSubscriber, metatype: FunctionSubscriber, name: "FunctionSubscriber" },
+				{ instance: routeSubscriber, metatype: RouteSubscriber, name: "RouteSubscriber" },
+			],
+		} as unknown as DiscoveryService;
+
+		const service = new ApiSubscriberDiscoveryService(discoveryService);
+
+		service.onModuleInit();
+
+		expect(apiSubscriberRegistry.getFunctionSubscribers(SubscriberEntity.name)).toContain(functionSubscriber);
+		expect(apiSubscriberRegistry.getRouteSubscribers(SubscriberEntity.name)).toContain(routeSubscriber);
+
+		service.onApplicationShutdown();
+		service.onApplicationShutdown();
+
+		expect(functionSpy).toHaveBeenCalledTimes(1);
+		expect(functionSpy).toHaveBeenCalledWith(functionSubscriber);
+		expect(routeSpy).toHaveBeenCalledTimes(1);
+		expect(routeSpy).toHaveBeenCalledWith(routeSubscriber);
+		expect(apiSubscriberRegistry.getFunctionSubscribers(SubscriberEntity.name)).not.toContain(functionSubscriber);
+		expect(apiSubscriberRegistry.getRouteSubscribers(SubscriberEntity.name)).not.toContain(routeSubscriber);
+	});
 });

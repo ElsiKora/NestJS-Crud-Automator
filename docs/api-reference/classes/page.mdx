@@ -275,19 +275,21 @@ The operation failed and rollback handling also produced a database, post-rollba
 
 ### ApiSubscriberDiscoveryService
 
-Service for discovering and registering subscribers.
+Service for discovering, registering, and removing subscribers.
 
 **Location:** `src/class/api/subscriber/discovery-service.class.ts`
 
 **Usage:** Automatically used by `ApiSubscriberModule`.
 
+**Lifecycle:** Registers the application's subscribers in `onModuleInit` and removes them in `onApplicationShutdown`, after the HTTP server has finished in-flight requests. `app.close()` runs this hook without `enableShutdownHooks()`. Two applications alive at the same time in one process still share the registry. See [Lifecycle - Application Shutdown](/docs/nestjs-crud-automator/subscriber-system/lifecycle#application-shutdown).
+
 ### ApiSubscriberRegistry
 
-Registry for storing subscriber instances.
+Process-wide registry for storing subscriber instances.
 
 **Location:** `src/class/api/subscriber/registry.class.ts`
 
-**Internal Use:** Manages subscriber registration and retrieval.
+**Internal Use:** Manages subscriber registration, removal by instance, and retrieval.
 
 ### ApiSubscriberExecutor
 

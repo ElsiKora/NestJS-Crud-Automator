@@ -1,10 +1,14 @@
+import type { EApiControllerGetListQueryPaginationMode, EApiRouteSubscriberAuthorizationExpectation } from "@enum/decorator/api";
+import type { IApiSubscriberFunction } from "@interface/class/api/subscriber/function";
+import type { IApiSubscriberRoute } from "@interface/class/api/subscriber/route.interface";
+
 import { ApiFunctionSubscriberBase } from "@class/api/subscriber/function-base.class";
 import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
 import { ApiRouteSubscriberBase } from "@class/api/subscriber/route-base.class";
 import { SUBSCRIBER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/subscriber.constant";
 import { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import { IApiFunctionSubscriberProperties, IApiRouteSubscriberProperties } from "@interface/decorator/api/subscriber";
-import { Injectable, OnModuleInit } from "@nestjs/common";
+import { Injectable, OnApplicationShutdown, OnModuleInit } from "@nestjs/common";
 import { DiscoveryService } from "@nestjs/core";
 import { InstanceWrapper } from "@nestjs/core/injector/instance-wrapper";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -12,8 +16,33 @@ import { LoggerUtility } from "@utility/logger.utility";
 const subscriberLogger: LoggerUtility = LoggerUtility.getLogger("ApiSubscriberDiscoveryService");
 
 @Injectable()
-export class ApiSubscriberDiscoveryService implements OnModuleInit {
-	constructor(private readonly discoveryService: DiscoveryService) {}
+export class ApiSubscriberDiscoveryService implements OnApplicationShutdown, OnModuleInit {
+	private readonly REGISTERED_FUNCTION_SUBSCRIBERS: Set<IApiSubscriberFunction<IApiBaseEntity>>;
+
+	private readonly REGISTERED_ROUTE_SUBSCRIBERS: Set<IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>>;
+
+	constructor(private readonly discoveryService: DiscoveryService) {
+		this.REGISTERED_FUNCTION_SUBSCRIBERS = new Set();
+		this.REGISTERED_ROUTE_SUBSCRIBERS = new Set();
+	}
+
+	/**
+	 * Removes the subscribers this application registered.
+	 * Nest closes the HTTP server before this hook, so in-flight requests keep their subscribers; `onModuleDestroy` would run too early.
+	 */
+	onApplicationShutdown(): void {
+		for (const subscriber of this.REGISTERED_FUNCTION_SUBSCRIBERS) {
+			apiSubscriberRegistry.unregisterFunctionSubscriber(subscriber);
+		}
+
+		for (const subscriber of this.REGISTERED_ROUTE_SUBSCRIBERS) {
+			apiSubscriberRegistry.unregisterRouteSubscriber<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(subscriber);
+		}
+
+		subscriberLogger.verbose(`Removed ${this.REGISTERED_FUNCTION_SUBSCRIBERS.size} function and ${this.REGISTERED_ROUTE_SUBSCRIBERS.size} route subscribers.`);
+		this.REGISTERED_FUNCTION_SUBSCRIBERS.clear();
+		this.REGISTERED_ROUTE_SUBSCRIBERS.clear();
+	}
 
 	onModuleInit(): void {
 		subscriberLogger.verbose("Starting subscriber discovery...");
@@ -29,8 +58,9 @@ export class ApiSubscriberDiscoveryService implements OnModuleInit {
 		for (const wrapper of functionSubscribers) {
 			// eslint-disable-next-line @elsikora/typescript/no-non-null-assertion
 			const properties: IApiFunctionSubscriberProperties<IApiBaseEntity> = Reflect.getMetadata(SUBSCRIBER_API_DECORATOR_CONSTANT.FUNCTION_METADATA_KEY, wrapper.metatype!) as IApiFunctionSubscriberProperties<IApiBaseEntity>;
-			// eslint-disable-next-line @elsikora/typescript/no-unsafe-argument
-			apiSubscriberRegistry.registerFunctionSubscriber(properties, wrapper.instance);
+			const subscriber: IApiSubscriberFunction<IApiBaseEntity> = wrapper.instance as IApiSubscriberFunction<IApiBaseEntity>;
+			apiSubscriberRegistry.registerFunctionSubscriber(properties, subscriber);
+			this.REGISTERED_FUNCTION_SUBSCRIBERS.add(subscriber);
 			subscriberLogger.verbose(`Registered function subscriber ${wrapper.name} for entity ${properties.entity.name} with priority ${properties.priority ?? 0}`);
 		}
 	}
@@ -41,8 +71,9 @@ export class ApiSubscriberDiscoveryService implements OnModuleInit {
 		for (const wrapper of routeSubscribers) {
 			// eslint-disable-next-line @elsikora/typescript/no-non-null-assertion
 			const properties: IApiRouteSubscriberProperties<IApiBaseEntity> = Reflect.getMetadata(SUBSCRIBER_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, wrapper.metatype!) as IApiRouteSubscriberProperties<IApiBaseEntity>;
-			// eslint-disable-next-line @elsikora/typescript/no-unsafe-argument
-			apiSubscriberRegistry.registerRouteSubscriber(properties, wrapper.instance);
+			const subscriber: IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode> = wrapper.instance as IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>;
+			apiSubscriberRegistry.registerRouteSubscriber<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(properties, subscriber);
+			this.REGISTERED_ROUTE_SUBSCRIBERS.add(subscriber);
 			subscriberLogger.verbose(`Registered route subscriber ${wrapper.name} for entity ${properties.entity.name} with priority ${properties.priority ?? 0}`);
 		}
 	}

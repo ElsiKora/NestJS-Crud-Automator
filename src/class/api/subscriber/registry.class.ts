@@ -86,6 +86,14 @@ class ApiSubscriberRegistry {
 		subscriberRegistryLogger.debug(`Registered route subscriber entities: [${[...this.ROUTE_SUBSCRIBERS.values()].map((registeredWrapper: SubscriberWrapper<IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>>) => registeredWrapper.getName()).join(", ")}]`);
 	}
 
+	public unregisterFunctionSubscriber<E extends IApiBaseEntity>(subscriber: IApiSubscriberFunction<E>): void {
+		this.removeSubscriber(this.FUNCTION_SUBSCRIBERS, subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>);
+	}
+
+	public unregisterRouteSubscriber<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(subscriber: IApiSubscriberRoute<E, EApiRouteSubscriberAuthorizationExpectation, M>): void {
+		this.removeSubscriber(this.ROUTE_SUBSCRIBERS, subscriber as unknown as IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>);
+	}
+
 	private isFunctionSubscriberMatching(properties: IApiFunctionSubscriberProperties<IApiBaseEntity> | undefined, functionType?: EApiFunctionType, action?: string): boolean {
 		if (!properties?.functions?.length) {
 			return true;
@@ -110,6 +118,16 @@ class ApiSubscriberRegistry {
 		const isActionMatching: boolean = !properties.actions?.length || (action !== undefined && properties.actions.includes(action));
 
 		return isControllerMatching && isRouteMatching && isActionMatching;
+	}
+
+	private removeSubscriber<T>(wrappers: Map<string, SubscriberWrapper<T>>, subscriber: T): void {
+		for (const [entityName, wrapper] of wrappers) {
+			wrapper.removeSubscriber(subscriber);
+
+			if (wrapper.getSubscriberCount() === 0) {
+				wrappers.delete(entityName);
+			}
+		}
 	}
 }
 

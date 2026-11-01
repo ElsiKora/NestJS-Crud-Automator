@@ -59,6 +59,12 @@ UPDATE exposes a detached, top-level frozen shallow `context.DATA.currentEntity`
 
 `EApiRouteSubscriberAuthorizationExpectation.REQUIRED` narrows before-route subscriber helper types only. It does not authenticate the request or run authorization by itself; the observed route must already guarantee auth through route security/runtime configuration.
 
+## Subscriber Registry Lifetime
+
+`apiSubscriberRegistry` is process-wide. `ApiSubscriberModule` removes an application's subscribers in `onApplicationShutdown`, after the HTTP server finished in-flight requests, and `app.close()` runs that hook without `enableShutdownHooks()`. Do not add a reset, a manual unregister, or an `onModuleDestroy` removal for sequential applications; an application that is not closed keeps its subscribers registered.
+
+Two applications alive at the same time in one process still share the registry: until one closes, a matching operation in either runs the subscribers of both. Do not call services that need subscribers from another provider's `onApplicationShutdown`, because Nest does not order it against the removal; use `beforeApplicationShutdown`.
+
 ## Principal-Dependent Guards Before Authentication
 
 Plain `execution.guards` entries run before `security.authentication.guard`, so `request.user` is not set yet. Do not run the authentication guard twice or move it into `execution.guards`; declare the dependent guard as `{ guard, stage: EApiRouteGuardStage.AFTER_AUTHENTICATION }` (or `AFTER_AUTHORIZATION` when it needs the authorization decision). Global guards registered with `APP_GUARD`, such as a globally registered `ThrottlerGuard`, always run before the whole staged route chain and never see the principal. The stock `ThrottlerGuard` tracks `request.ip`; override `getTracker` to key limits by the principal.
