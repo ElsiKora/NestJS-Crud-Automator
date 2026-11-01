@@ -1,0 +1,200 @@
+import "reflect-metadata";
+
+import type { INestApplication } from "@nestjs/common";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import type { Logger } from "typeorm";
+
+import { HttpStatus, ValidationPipe } from "@nestjs/common";
+import { FastifyAdapter } from "@nestjs/platform-fastify";
+import { Test } from "@nestjs/testing";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
+import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
+import { E2eLegacyQueryItemController, E2eLegacyQueryItemEntity, E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, EE2eLegacyQueryStatus } from "./legacy-query";
+
+class LegacyQueryLogger implements Logger {
+	public readonly queries: Array<string> = [];
+
+	public log(): void {}
+
+	public logMigration(): void {}
+
+	public logQuery(query: string): void {
+		this.queries.push(query);
+	}
+
+	public logQueryError(_error: Error | string, query: string): void {
+		this.queries.push(query);
+	}
+
+	public logQuerySlow(): void {}
+
+	public logSchemaBuild(): void {}
+}
+
+interface IHostPipeCase {
+	createPipe?: () => ValidationPipe;
+	name: string;
+}
+
+const PAGE: string = "limit=10&page=1";
+const ITEMS: string = "/legacy-query/items";
+const ORDER_BY_MESSAGE: string = "orderBy must be one of the following values: id, label, rank, status, note, releasedOn, createdAt";
+const ORDER_DIRECTION_MESSAGE: string = "orderDirection must be one of the following values: asc, desc";
+const LIMIT_TYPE_MESSAGES: Array<string> = ["limit must be an integer number", "limit must not be less than 1", "limit must not be greater than 100", "limit must be divisible by 1"];
+const PAGE_TYPE_MESSAGES: Array<string> = ["page must be an integer number", "page must not be less than 1", "page must not be greater than 100", "page must be divisible by 1"];
+const RANK_OPERATOR_MESSAGE: string = "rank[operator] must be one of the following values: between, eq, gt, gte, in, isnull, lt, lte, ne, notin, notnull";
+
+const REJECTED_CASES: Array<{ messages: Array<string>; query: string }> = [
+	{ messages: [ORDER_BY_MESSAGE], query: `${PAGE}&orderBy=nope&orderDirection=asc` },
+	{ messages: [ORDER_BY_MESSAGE], query: `${PAGE}&orderBy=unsortable&orderDirection=desc` },
+	{ messages: [ORDER_BY_MESSAGE], query: `${PAGE}&orderBy=undescribed&orderDirection=desc` },
+	{ messages: [ORDER_BY_MESSAGE], query: `${PAGE}&orderBy=label%3B%20DROP&orderDirection=asc` },
+	{ messages: [ORDER_BY_MESSAGE], query: `${PAGE}&orderBy=label&orderBy=rank&orderDirection=asc` },
+	{ messages: [ORDER_DIRECTION_MESSAGE], query: `${PAGE}&orderBy=label&orderDirection=sideways` },
+	{ messages: [ORDER_DIRECTION_MESSAGE], query: `${PAGE}&orderBy=label&orderDirection=ASC` },
+	{ messages: LIMIT_TYPE_MESSAGES, query: "limit=abc&page=1" },
+	{ messages: LIMIT_TYPE_MESSAGES, query: "page=1" },
+	{ messages: ["limit must not be less than 1"], query: "limit=0&page=1" },
+	{ messages: ["limit must not be greater than 100"], query: "limit=1000&page=1" },
+	{ messages: PAGE_TYPE_MESSAGES, query: "limit=10&page=abc" },
+	{ messages: PAGE_TYPE_MESSAGES, query: "limit=10" },
+	{ messages: [RANK_OPERATOR_MESSAGE, 'Invalid operator "bogus" for group "rank"'], query: `${PAGE}&rank[operator]=bogus&rank[value]=1` },
+	{ messages: [RANK_OPERATOR_MESSAGE], query: `${PAGE}&rank[operator]=cont&rank[value]=1` },
+	{ messages: ["rank[value] must be an integer number", "rank[value] must not be less than 0", "rank[value] must not be greater than 1000", "rank[value] must be divisible by 1"], query: `${PAGE}&rank[operator]=eq&rank[value]=abc` },
+	{ messages: ['group "rank" with value suffix must have an operator suffix [operator]'], query: `${PAGE}&rank[value]=1` },
+	{ messages: ['group "rank" with operator suffix must have at least one value with suffix [value, values]'], query: `${PAGE}&rank[operator]=eq` },
+	{ messages: ["status[value] must be one of the following values: active, archived"], query: `${PAGE}&status[operator]=eq&status[value]=nope` },
+	{ messages: ["each value in status[values] must be one of the following values: active, archived"], query: `${PAGE}&status[operator]=in&status[values]=nope&status[values]=archived` },
+	{ messages: ["label[value] must match /^[A-Za-z0-9 ]+$/ regular expression"], query: `${PAGE}&label[operator]=cont&label[value]=%25%25` },
+	{ messages: ['group "note" with isnull operation should not have any values'], query: `${PAGE}&note[operator]=isnull&note[value]=x` },
+	{ messages: ["createdAt[value] must be a Date instance"], query: `${PAGE}&createdAt[operator]=gt&createdAt[value]=nope` },
+];
+
+const ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
+	{ labels: ["Alpha", "Beta", "Gamma"], query: `${PAGE}&orderBy=label&orderDirection=asc` },
+	{ labels: ["Gamma", "Beta", "Alpha"], query: `${PAGE}&orderBy=rank&orderDirection=desc` },
+	{ labels: ["Gamma", "Beta"], query: "limit=2&page=1&orderBy=rank&orderDirection=desc" },
+	{ labels: ["Alpha"], query: "limit=2&page=2&orderBy=rank&orderDirection=desc" },
+	{ labels: ["Beta", "Gamma"], query: `${PAGE}&rank[operator]=gt&rank[value]=1&orderBy=label&orderDirection=asc` },
+	{ labels: ["Alpha", "Beta"], query: `${PAGE}&rank[operator]=between&rank[values]=1&rank[values]=2&orderBy=label&orderDirection=asc` },
+	{ labels: ["Alpha", "Gamma"], query: `${PAGE}&status[operator]=eq&status[value]=active&orderBy=label&orderDirection=asc` },
+	{ labels: ["Alpha", "Beta", "Gamma"], query: `${PAGE}&status[operator]=in&status[values]=active&status[values]=archived&orderBy=label&orderDirection=asc` },
+	{ labels: ["Alpha"], query: `${PAGE}&label[operator]=cont&label[value]=lph` },
+	{ labels: ["Alpha", "Beta", "Gamma"], query: `${PAGE}&createdAt[operator]=gt&createdAt[value]=2020-01-01T00:00:00.000Z&orderBy=label&orderDirection=asc` },
+	{ labels: ["Alpha"], query: `${PAGE}&isFeatured[operator]=eq&isFeatured[value]=1` },
+	{ labels: ["Beta", "Gamma"], query: `${PAGE}&isFeatured[operator]=eq&isFeatured[value]=0&orderBy=label&orderDirection=asc` },
+	{ labels: ["Beta"], query: `${PAGE}&releasedOn[operator]=eq&releasedOn[value]=2024-02-02` },
+	{ labels: ["Beta", "Gamma"], query: `${PAGE}&note[operator]=isnull&orderBy=label&orderDirection=asc` },
+	{ labels: ["Alpha"], query: `${PAGE}&note[operator]=notnull` },
+	{ labels: ["Alpha", "Beta", "Gamma"], query: `${PAGE}&campaign=spring&orderBy=label&orderDirection=asc` },
+];
+
+describe.each([
+	{ databaseName: "SQLite", isPostgres: false },
+	{ databaseName: "PostgreSQL", isPostgres: true },
+])("legacy GET_LIST query validation on $databaseName (E2E)", ({ isPostgres }: { databaseName: string; isPostgres: boolean }) => {
+	let container: StartedPostgreSqlContainer | undefined;
+
+	beforeAll(async () => {
+		if (isPostgres) {
+			container = await new PostgreSqlContainer("postgres:17-alpine").start();
+		}
+	}, 120_000);
+
+	afterAll(async () => {
+		await container?.stop();
+	});
+
+	describe.each<IHostPipeCase>([{ name: "no host pipe" }, { createPipe: () => new ValidationPipe(), name: "a default host ValidationPipe" }, { createPipe: () => new ValidationPipe({ transform: true, whitelist: true }), name: "a transforming, whitelisting host ValidationPipe" }])("with $name", ({ createPipe }: IHostPipeCase) => {
+		let app: INestApplication | undefined;
+		let fastify: { inject: (options: { method: string; url: string }) => Promise<{ json: () => unknown; statusCode: number }> };
+		const queryLogger: LegacyQueryLogger = new LegacyQueryLogger();
+
+		beforeAll(async () => {
+			const entities: Array<new () => unknown> = [E2eLegacyQueryItemEntity];
+			const moduleReference = await Test.createTestingModule({
+				controllers: [E2eLegacyQueryItemController, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController],
+				imports: [TypeOrmModule.forRoot(container ? { dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
+				providers: [E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber],
+			}).compile();
+
+			app = moduleReference.createNestApplication(new FastifyAdapter());
+
+			if (createPipe) {
+				app.useGlobalPipes(createPipe());
+			}
+
+			await app.init();
+			fastify = app.getHttpAdapter().getInstance();
+
+			await app.get(E2eLegacyQueryItemService).repository.save([
+				{ createdAt: new Date("2024-01-01T00:00:00.000Z"), isFeatured: true, label: "Alpha", note: "Noted", rank: 1, releasedOn: "2024-01-01", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "z", unsortable: "z" },
+				{ createdAt: new Date("2024-02-02T00:00:00.000Z"), isFeatured: false, label: "Beta", rank: 2, releasedOn: "2024-02-02", status: EE2eLegacyQueryStatus.ARCHIVED, undescribed: "y", unsortable: "y" },
+				{ createdAt: new Date("2024-03-03T00:00:00.000Z"), isFeatured: false, label: "Gamma", rank: 3, releasedOn: "2024-03-03", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "x", unsortable: "x" },
+			] as Array<E2eLegacyQueryItemEntity>);
+		});
+
+		beforeEach(() => {
+			queryLogger.queries.length = 0;
+			E2eLegacyQueryItemSubscriber.beforeErrors = [];
+		});
+
+		afterAll(async () => {
+			await app?.close();
+		});
+
+		const expectRejected = async (url: string, messages: Array<string>): Promise<void> => {
+			const response = await fastify.inject({ method: "GET", url });
+
+			expect(response.json()).toEqual({ error: "Bad Request", message: messages, statusCode: HttpStatus.BAD_REQUEST });
+			expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+			expect(queryLogger.queries).toEqual([]);
+		};
+
+		const listLabels = async (url: string): Promise<Array<string>> => {
+			const response = await fastify.inject({ method: "GET", url });
+
+			expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.OK);
+
+			return (response.json() as { items: Array<{ label: string }> }).items.map((item: { label: string }): string => item.label);
+		};
+
+		it.each(REJECTED_CASES)("answers $query with the ValidationPipe body before any SQL", async ({ messages, query }: { messages: Array<string>; query: string }) => {
+			await expectRejected(`${ITEMS}?${query}`, messages);
+		});
+
+		it.each(ACCEPTED_CASES)("serves $query", async ({ labels, query }: { labels: Array<string>; query: string }) => {
+			expect(await listLabels(`${ITEMS}?${query}`)).toEqual(labels);
+		});
+
+		it.each(["asc", "desc"])("does not reveal hidden column values through row order with orderDirection=%s", async (orderDirection: string) => {
+			await expectRejected(`${ITEMS}?${PAGE}&orderBy=unsortable&orderDirection=${orderDirection}`, [ORDER_BY_MESSAGE]);
+			await expectRejected(`${ITEMS}?${PAGE}&orderBy=undescribed&orderDirection=${orderDirection}`, [ORDER_BY_MESSAGE]);
+		});
+
+		it("validates a value a before subscriber wrote, and reports the failure to before-error subscribers", async () => {
+			const url: string = `${ITEMS}?${PAGE}&subscriberOrderBy=undescribed`;
+
+			await expectRejected(url, [ORDER_BY_MESSAGE]);
+
+			expect(E2eLegacyQueryItemSubscriber.beforeErrors).toEqual(["BadRequestException"]);
+		});
+
+		it("validates a manual QUERY DTO and keeps its class defaults", async () => {
+			await expectRejected(`/legacy-query/manual-items?limit=99&page=1`, ["limit must not be greater than 50"]);
+			await expectRejected(`/legacy-query/manual-items?limit=1&page=1&orderBy=rank&orderDirection=asc`, ["orderBy must be one of the following values: label"]);
+
+			expect(await listLabels("/legacy-query/manual-items?page=1&orderBy=label&orderDirection=asc")).toEqual(["Alpha"]);
+		});
+
+		it("validates legacy filters on a route whose plan only types the order", async () => {
+			await expectRejected(`/legacy-query/order-only-items?${PAGE}&status[operator]=eq&status[value]=nope`, ["status[value] must be one of the following values: active, archived"]);
+
+			expect(await listLabels(`/legacy-query/order-only-items?${PAGE}&status[operator]=eq&status[value]=archived`)).toEqual(["Beta"]);
+			expect(await listLabels(`/legacy-query/order-only-items?${PAGE}&orderBy=rank&orderDirection=desc`)).toEqual(["Gamma", "Beta", "Alpha"]);
+		});
+	});
+});

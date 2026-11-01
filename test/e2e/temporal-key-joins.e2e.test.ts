@@ -200,7 +200,7 @@ describe("PAGE and CURSOR reads of a temporal primary key with joins and filters
 
 	it.each([
 		["a value", "bookedAt[operator]=gte&bookedAt[value]=2024-03-01T10:00:00", "bookedAt[operator]=gte&bookedAt[value]=2024-03-01T10:00:00Z"],
-		["an in-list value", "bookedAt[operator]=in&bookedAt[values]=2024-03-01T10:00:00Z&bookedAt[values]=2024-03-01T10:00:00", "bookedAt[operator]=in&bookedAt[values]=2024-03-01T10:00:00Z&bookedAt[values]=2024-03-01T15:30:00%2B05:30"],
+		["a between pair", "bookedAt[operator]=between&bookedAt[values]=2024-03-01T10:00:00Z&bookedAt[values]=2024-03-02T10:00:00", "bookedAt[operator]=between&bookedAt[values]=2024-03-01T10:00:00Z&bookedAt[values]=2024-03-02T15:30:00%2B05:30"],
 		["a relation path", "account.openedAt[operator]=gte&account.openedAt[value]=2024-03-01T10:00:00", "account.openedAt[operator]=gte&account.openedAt[value]=2024-03-01T15:30:00%2B0530"],
 	])("answers 400 for a zone-less date-time in %s on a default GET_LIST route", async (_label: string, rejectedQuery: string, acceptedQuery: string) => {
 		process.env.TZ = "Asia/Kolkata";
@@ -224,15 +224,21 @@ describe("PAGE and CURSOR reads of a temporal primary key with joins and filters
 			const rejected = await fastify.inject({ method: "GET", url: `/${path}&bookedAt[operator]=gte&bookedAt[value]=${value}` });
 
 			expect(rejected.statusCode, `${path} ${JSON.stringify(rejected.json())}`).toBe(HttpStatus.BAD_REQUEST);
-			expect(JSON.stringify(rejected.json())).toContain("INVALID_FILTER");
+			// The legacy DTO turns away a value no Date can read before the calendar check runs.
+			expect(JSON.stringify(rejected.json())).toContain(path.startsWith("temporal-ledgers-default") && Number.isNaN(Date.parse(value)) ? "bookedAt[value] must be a Date instance" : "INVALID_FILTER");
 		}
 	});
 
-	it("ignores the value of an operator that takes none on a default GET_LIST route", async () => {
+	it("refuses a value on an operator that takes none with the legacy body on a default GET_LIST route", async () => {
 		process.env.TZ = "Asia/Kolkata";
 
 		try {
-			const response = await fastify.inject({ method: "GET", url: "/temporal-ledgers-default?limit=20&page=1&account.openedAt[operator]=isnull&account.openedAt[value]=2024-03-01T10:00:00" });
+			const rejected = await fastify.inject({ method: "GET", url: "/temporal-ledgers-default?limit=20&page=1&account.openedAt[operator]=isnull&account.openedAt[value]=2024-03-01T10:00:00" });
+
+			expect(rejected.statusCode, JSON.stringify(rejected.json())).toBe(HttpStatus.BAD_REQUEST);
+			expect(rejected.json()).toEqual({ error: "Bad Request", message: ['group "account.openedAt" with isnull operation should not have any values'], statusCode: HttpStatus.BAD_REQUEST });
+
+			const response = await fastify.inject({ method: "GET", url: "/temporal-ledgers-default?limit=20&page=1&account.openedAt[operator]=isnull" });
 
 			expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.OK);
 			expect((response.json() as { totalCount: number }).totalCount).toBe(ROWS.length);

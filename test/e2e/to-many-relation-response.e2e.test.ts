@@ -75,7 +75,7 @@ describe("To-many response relations (E2E)", () => {
 	};
 
 	const listPosts = async (path: string): Promise<Array<IPostWire>> => {
-		const response = await fastify.inject({ method: "GET", url: `/${path}?limit=10&page=1&orderBy=title&orderDirection=ASC` });
+		const response = await fastify.inject({ method: "GET", url: `/${path}?limit=10&page=1&orderBy=title&orderDirection=asc` });
 
 		expect(response.statusCode).toBe(HttpStatus.OK);
 
@@ -331,7 +331,7 @@ describe("To-many response relations (E2E)", () => {
 			expectOrder((await send("PATCH", url, HttpStatus.OK, { title: "a-order" })) as unknown as IOrderWire, shape);
 			expectOrder((await send("PUT", url, HttpStatus.OK, { title: "a-order" })) as unknown as IOrderWire, shape);
 
-			const list = (await send("GET", `/${path}?limit=10&page=1&orderBy=title&orderDirection=ASC`, HttpStatus.OK)) as unknown as { items: Array<IOrderWire> };
+			const list = (await send("GET", `/${path}?limit=10&page=1&orderBy=title&orderDirection=asc`, HttpStatus.OK)) as unknown as { items: Array<IOrderWire> };
 
 			expectOrder(list.items[0] as IOrderWire, shape);
 		});
@@ -381,7 +381,7 @@ describe("To-many response relations (E2E)", () => {
 		])("projects the owner next to a JSON items column on /%s", async (path: string, owner: unknown) => {
 			const url = `/${path}/${LEDGER}`;
 			const responses = [await send("GET", url, HttpStatus.OK), await send("PATCH", url, HttpStatus.OK, { title: "a-ledger" }), await send("PUT", url, HttpStatus.OK, { title: "a-ledger" }), await send("POST", `/${path}`, HttpStatus.CREATED, { items: ["z"], owner: AUTHOR, title: `z-created-${path}` })];
-			const list = (await send("GET", `/${path}?limit=10&page=1&orderBy=title&orderDirection=ASC`, HttpStatus.OK)) as unknown as { items: Array<IOrderWire> };
+			const list = (await send("GET", `/${path}?limit=10&page=1&orderBy=title&orderDirection=asc`, HttpStatus.OK)) as unknown as { items: Array<IOrderWire> };
 
 			for (const ledger of [...(responses as unknown as Array<IOrderWire>), list.items[0] as IOrderWire]) {
 				expect(ledger.owner).toEqual(owner);

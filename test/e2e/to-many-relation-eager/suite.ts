@@ -143,7 +143,7 @@ export function describeEagerRelationSuite(name: string, options: IE2eEagerSuite
 				});
 
 				it("PAGE GET_LIST returns eager relations as references", async () => {
-					const response = await fastify.inject({ headers: HEADERS, method: "GET", url: `${base}?limit=10&page=1&orderBy=rank&orderDirection=ASC` });
+					const response = await fastify.inject({ headers: HEADERS, method: "GET", url: `${base}?limit=10&page=1&orderBy=rank&orderDirection=asc` });
 					const body = response.json() as { items: Array<TWirePost>; totalCount: number };
 
 					expect(response.statusCode).toBe(HttpStatus.OK);
