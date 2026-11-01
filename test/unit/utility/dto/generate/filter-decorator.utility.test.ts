@@ -2,7 +2,7 @@ import type { IApiEntity } from "@interface/entity";
 
 import { EApiPropertyDescribeType } from "@enum/decorator/api";
 import { EFilterOperation, EFilterOperationBoolean, EFilterOperationRelation, EFilterOperationUuid } from "@enum/filter";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DtoGenerateFilterDecorator } from "@utility/dto/generate/filter-decorator.utility";
 import { describe, expect, it } from "vitest";
 
@@ -26,21 +26,21 @@ class FilterDto {
 
 describe("DtoGenerateFilterDecorator", () => {
 	it("maps boolean properties to boolean filter enum", () => {
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, FilterDto.prototype, "flag");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, FilterDto.prototype, "flag");
 
 		expect(metadata).toBeDefined();
 		expect(metadata?.enum).toEqual(Object.values(EFilterOperationBoolean));
 	});
 
 	it("maps relation properties to relation filter enum", () => {
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, FilterDto.prototype, "owner");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, FilterDto.prototype, "owner");
 
 		expect(metadata).toBeDefined();
 		expect(metadata?.enum).toEqual(Object.values(EFilterOperationRelation));
 	});
 
 	it("maps uuid properties to a uuid filter enum with membership operators", () => {
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, FilterDto.prototype, "externalId");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, FilterDto.prototype, "externalId");
 
 		expect(metadata?.enum).toEqual(Object.values(EFilterOperationUuid));
 		expect(metadata?.enum).toEqual(expect.arrayContaining([EFilterOperation.IN, EFilterOperation.NOTIN]));

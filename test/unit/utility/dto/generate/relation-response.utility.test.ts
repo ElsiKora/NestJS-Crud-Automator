@@ -1,7 +1,7 @@
 import type { IApiEntity } from "@interface/entity";
 
 import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DtoGenerateRelationResponse } from "@utility/dto/generate/relation-response.utility";
 import { describe, expect, it } from "vitest";
 
@@ -21,7 +21,7 @@ describe("DtoGenerateRelationResponse", () => {
 
 	it("decorates the id property", () => {
 		const dto = DtoGenerateRelationResponse(entity, EApiRouteType.GET, EApiDtoType.RESPONSE, "owner");
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, dto.prototype, "id");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto.prototype, "id");
 
 		expect(metadata).toBeDefined();
 	});
@@ -30,7 +30,7 @@ describe("DtoGenerateRelationResponse", () => {
 		const dto = DtoGenerateRelationResponse(entity, EApiRouteType.GET, EApiDtoType.RESPONSE, "owner", {
 			relationDescription: "owner",
 		});
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, dto.prototype, "id");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto.prototype, "id");
 
 		expect(metadata.description).toBe("Order owner identifier");
 		expect(metadata.description).not.toBe("Order identifier");
@@ -38,7 +38,7 @@ describe("DtoGenerateRelationResponse", () => {
 
 	it("uses the relation property name when relation description is missing", () => {
 		const dto = DtoGenerateRelationResponse(entity, EApiRouteType.GET, EApiDtoType.RESPONSE, "owner");
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, dto.prototype, "id");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto.prototype, "id");
 
 		expect(metadata.description).toBe("Order owner identifier");
 	});

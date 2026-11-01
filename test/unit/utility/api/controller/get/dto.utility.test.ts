@@ -5,7 +5,7 @@ import type { IApiControllerGetListQueryPlan } from "@interface/class/api/contro
 import type { IApiEntity } from "@interface/entity";
 
 import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { describe, expect, it } from "vitest";
 
@@ -50,7 +50,7 @@ describe("ApiControllerGetDto", () => {
 				},
 			},
 		});
-		const itemsMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, dto?.prototype, "items");
+		const itemsMetadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto?.prototype, "items");
 
 		expect(dto?.name).toBe("GetDtoEntityGetListResponseGetDtoItemDto");
 		expect(itemsMetadata?.type).toBe(GetDtoItemDto);
@@ -103,13 +103,13 @@ describe("ApiControllerGetDto", () => {
 			},
 			cursorPlan,
 		);
-		const itemsMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, dto?.prototype, "items");
+		const itemsMetadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto?.prototype, "items");
 
 		expect(dto?.name).toBe("GetDtoEntityGetListResponseGetDtoItemDtoCursor");
 		expect(itemsMetadata?.type).toBe(GetDtoItemDto);
-		expect(Reflect.hasMetadata(DECORATORS.API_MODEL_PROPERTIES, dto?.prototype, "nextCursor")).toBe(true);
-		expect(Reflect.hasMetadata(DECORATORS.API_MODEL_PROPERTIES, dto?.prototype, "previousCursor")).toBe(true);
-		expect(Reflect.hasMetadata(DECORATORS.API_MODEL_PROPERTIES, dto?.prototype, "totalCount")).toBe(false);
+		expect(Reflect.hasMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto?.prototype, "nextCursor")).toBe(true);
+		expect(Reflect.hasMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto?.prototype, "previousCursor")).toBe(true);
+		expect(Reflect.hasMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto?.prototype, "totalCount")).toBe(false);
 	});
 
 	it("keys generated CURSOR wrappers by item constructor identity rather than class name", () => {
@@ -120,8 +120,8 @@ describe("ApiControllerGetDto", () => {
 		const second = ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: SecondSharedItemDto, name: "SecondSharedCursorResponse" } } }, cursorPlan);
 
 		expect(first).not.toBe(second);
-		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, first?.prototype, "items")?.type).toBe(FirstSharedItemDto);
-		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, second?.prototype, "items")?.type).toBe(SecondSharedItemDto);
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, first?.prototype, "items")?.type).toBe(FirstSharedItemDto);
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, second?.prototype, "items")?.type).toBe(SecondSharedItemDto);
 	});
 
 	it("rejects one explicit wrapper schema name shared by PAGE and CURSOR envelopes", () => {

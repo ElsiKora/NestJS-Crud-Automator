@@ -3,7 +3,7 @@ import "reflect-metadata";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { ApiPropertyCopy } from "@decorator/api/property/copy.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
@@ -145,7 +145,7 @@ describe("ApiPropertyCopy", () => {
 			public name!: string;
 		}
 
-		const swaggerMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, CopyDto.prototype, "name");
+		const swaggerMetadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, CopyDto.prototype, "name");
 		const errors = validateSync(plainToInstance(CopyDto, { name: 1 }));
 
 		expect(swaggerMetadata).toMatchObject({ description: "CopyEntity name", type: "string" });
@@ -163,9 +163,9 @@ describe("ApiPropertyCopy", () => {
 			public currency!: CopyCurrencyEntity;
 		}
 
-		const relationMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, CopyRelationResponseDto.prototype, "currency");
+		const relationMetadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, CopyRelationResponseDto.prototype, "currency");
 		const relationDto = relationMetadata.type;
-		const idMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, relationDto.prototype, "id");
+		const idMetadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, relationDto.prototype, "id");
 
 		expect(relationMetadata.description).toBe("CopyDepositEntity currency");
 		expect(idMetadata.description).toBe("CopyDepositEntity currency identifier");
@@ -183,7 +183,7 @@ describe("ApiPropertyCopy", () => {
 			public currency!: string;
 		}
 
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, CopyRelationRequestDto.prototype, "currency");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, CopyRelationRequestDto.prototype, "currency");
 
 		expect(metadata.description).toBe("CopyDepositEntity currency");
 		expect(metadata.type).toBe("string");
@@ -308,7 +308,7 @@ describe("ApiPropertyCopy", () => {
 
 		DtoAutoContextPush(CopyDto.prototype, EApiRouteType.CREATE, EApiDtoType.BODY);
 
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, CopyDto.prototype, "name");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, CopyDto.prototype, "name");
 		expect(metadata).toBeDefined();
 	});
 

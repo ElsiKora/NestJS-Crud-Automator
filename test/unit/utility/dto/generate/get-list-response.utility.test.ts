@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DtoGenerateGetListResponse } from "@utility/dto/generate/get-list";
 import { describe, expect, it } from "vitest";
 
@@ -18,7 +18,7 @@ describe("DtoGenerateGetListResponse", () => {
 	it("decorates list response properties", () => {
 		const dto = DtoGenerateGetListResponse(ListEntity, ListEntity, "CustomListDTO");
 
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, dto.prototype, "items");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto.prototype, "items");
 		expect(metadata).toBeDefined();
 	});
 });

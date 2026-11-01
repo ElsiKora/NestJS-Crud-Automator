@@ -22,7 +22,7 @@ Make sure you have the following dependencies installed in your NestJS project:
 - `@nestjs/common` and `@nestjs/core` (>=11.1.24)
 - `@nestjs/passport` (>=11.0.5)
 - `@nestjs/platform-fastify` (>=11.1.24)
-- `@nestjs/swagger` (>=11.0.3)
+- `@nestjs/swagger` (>=11.0.3 <12)
 - `@nestjs/throttler` (>=6.5.0)
 - TypeORM (>=0.3.20)
 - Fastify (>=5.8.5)
@@ -35,6 +35,19 @@ Install peer dependencies if they are not already in your project:
 ```bash copy
 npm install @nestjs/common @nestjs/core @nestjs/passport @nestjs/platform-fastify @nestjs/swagger @nestjs/throttler typeorm class-transformer class-validator fastify lodash
 ```
+
+`@nestjs/swagger` 12 requires NestJS 12 and is not supported. Every `@nestjs/swagger` 11 release from `11.0.3` up is supported.
+
+### Migration Notes
+
+Earlier releases declared `@nestjs/swagger` as `>=11.0.3` but imported its private `dist` paths. `@nestjs/swagger` 11.4.3 added an `exports` map that closes those paths, so importing Crud Automator on 11.4.3 or newer failed with `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+
+Crud Automator now uses only the public `@nestjs/swagger` entry point:
+
+- An application pinned to `@nestjs/swagger` 11.4.2 or older because of that error can move to any 11.x release.
+- This change does not alter generated OpenAPI documents, but moving between `@nestjs/swagger` releases can. From 11.4.3, `multipleOf` on a numeric query parameter moves from the parameter object into its `schema`. Releases before 11.3.0 omit `type: object` on object properties, and releases before 11.2.4 describe the items of array filter values with `type: string` instead of `minLength` and `maxLength`. Regenerate API clients when you change the `@nestjs/swagger` version.
+- The peer range now ends below 12, so a package manager reports a peer conflict for `@nestjs/swagger` 12. Stay on 11.x until Crud Automator supports NestJS 12.
+- `TSwaggerHeadersObject`, `TSwaggerReferenceObject`, `TSwaggerSchemaObject`, and `TSwaggerSecurityRequirementObject` are exported from the package root. Each one is the matching OpenAPI type from the installed `@nestjs/swagger`, so use them in application code that needs those types on every supported release.
 
 ## Basic Usage
 

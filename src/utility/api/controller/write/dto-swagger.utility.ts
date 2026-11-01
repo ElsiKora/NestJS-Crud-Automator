@@ -12,8 +12,8 @@ import type { TApiPropertyDescribeProperties } from "@type/decorator/api/propert
 
 import { MetadataStorage } from "@class/metadata-storage.class";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { EApiDtoType, EApiPropertyDescribeType } from "@enum/decorator/api";
-import { DECORATORS } from "@nestjs/swagger/dist/constants.js";
 import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
@@ -51,7 +51,7 @@ export function ApiControllerWriteDtoSwagger<E extends IApiBaseEntity>(target: o
  * @returns {void}
  */
 export function ApiControllerWriteDtoSwaggerWithReadPlan<E extends IApiBaseEntity>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, entityMetadata: IApiEntity<E>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan): void {
-	const swaggerModels: Array<unknown> = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, target) ?? []) as Array<unknown>;
+	const swaggerModels: Array<unknown> = (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, target) ?? []) as Array<unknown>;
 	const entityNames: Array<string> = [];
 
 	if (typeof properties.entity === "function") {
@@ -131,7 +131,7 @@ export function ApiControllerWriteDtoSwaggerWithReadPlan<E extends IApiBaseEntit
 					}
 				}
 
-			Reflect.defineMetadata(DECORATORS.API_EXTRA_MODELS, swaggerModels, target);
+			Reflect.defineMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, swaggerModels, target);
 		}
 	}
 }

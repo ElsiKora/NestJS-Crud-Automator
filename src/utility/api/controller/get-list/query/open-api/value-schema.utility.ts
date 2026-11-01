@@ -1,5 +1,5 @@
-import type { SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
+import type { TSwaggerSchemaObject } from "@type/swagger";
 
 import { EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { EnumValues } from "@utility/enum/values.utility";
@@ -8,9 +8,9 @@ import { ErrorException } from "@utility/error/exception.utility";
 /**
  * Builds the scalar OpenAPI value schema shared by every operator branch for a field.
  * @param {TApiPropertyDescribeProperties} metadata - Entity property metadata resolved into the query plan.
- * @returns {SchemaObject} OpenAPI schema for one scalar filter operand.
+ * @returns {TSwaggerSchemaObject} OpenAPI schema for one scalar filter operand.
  */
-export function ApiControllerGetListQueryOpenApiValueSchema(metadata: TApiPropertyDescribeProperties): SchemaObject {
+export function ApiControllerGetListQueryOpenApiValueSchema(metadata: TApiPropertyDescribeProperties): TSwaggerSchemaObject {
 	if (metadata.type === EApiPropertyDescribeType.OBJECT || metadata.type === EApiPropertyDescribeType.RELATION) {
 		throw ErrorException("GET_LIST query OpenAPI schemas support scalar fields only");
 	}

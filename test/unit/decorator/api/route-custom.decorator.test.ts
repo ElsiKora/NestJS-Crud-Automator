@@ -11,7 +11,7 @@ import { ApiRouteRuntimeInterceptor } from "@interceptor/api-route-runtime.inter
 import { Header, HttpStatus, Req, RequestMethod, SetMetadata, UseGuards, UseInterceptors } from "@nestjs/common";
 import { GUARDS_METADATA, HEADERS_METADATA, INTERCEPTORS_METADATA } from "@nestjs/common/constants";
 import { ApiResponse } from "@nestjs/swagger";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_TEST_METADATA_CONSTANT } from "@test/unit/fixture";
 import { describe, expect, it } from "vitest";
 
 import { RouteCustomController, RouteCustomEmailResponseDto, RouteCustomEntity, RouteCustomPhoneResponseDto } from "./route-custom/fixture";
@@ -149,7 +149,7 @@ describe("ApiRouteCustom", () => {
 
 		const metadata = (Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, descriptor.value) ?? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, RouteCustomController.prototype.handler) ?? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, RouteCustomController.prototype, "handler")) as Record<string, unknown>;
 		const runtimeProperties = (Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, descriptor.value) ?? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, RouteCustomController.prototype.handler) ?? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, RouteCustomController.prototype, "handler")) as Record<string, unknown>;
-		const responses = (Reflect.getMetadata(DECORATORS.API_RESPONSE, descriptor.value) ?? Reflect.getMetadata(DECORATORS.API_RESPONSE, RouteCustomController.prototype.handler) ?? Reflect.getMetadata(DECORATORS.API_RESPONSE, RouteCustomController.prototype, "handler")) as Record<number, Record<string, unknown>>;
+		const responses = (Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, descriptor.value) ?? Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, RouteCustomController.prototype.handler) ?? Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, RouteCustomController.prototype, "handler")) as Record<number, Record<string, unknown>>;
 
 		expect(metadata.response).toEqual({
 			errors: undefined,
@@ -297,14 +297,14 @@ describe("ApiRouteCustom", () => {
 		})(Controller.prototype, "handler", descriptor);
 
 		const handler: (...arguments_: Array<unknown>) => unknown = descriptor.value as (...arguments_: Array<unknown>) => unknown;
-		const parameters: Array<Record<string, unknown>> = Reflect.getMetadata(DECORATORS.API_PARAMETERS, handler) as Array<Record<string, unknown>>;
+		const parameters: Array<Record<string, unknown>> = Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PARAMETERS, handler) as Array<Record<string, unknown>>;
 
 		expect(Reflect.getMetadata(healthMetadataKey, handler)).toBe(true);
 		expect(Reflect.getMetadata(HEADERS_METADATA, handler)).toEqual([{ name: "Cache-Control", value: "no-cache" }]);
 		expect(Reflect.getMetadata(GUARDS_METADATA, handler)).toEqual([ExistingGuard, ExecutionGuard, ApiAuthorizationGuard]);
 		expect(Reflect.getMetadata(INTERCEPTORS_METADATA, handler)).toEqual([ExistingInterceptor, ExecutionInterceptor, ApiRouteRuntimeInterceptor]);
-		expect(Reflect.getMetadata(DECORATORS.API_CONSUMES, handler)).toEqual(["application/vnd.test+json"]);
-		expect(Reflect.getMetadata(DECORATORS.API_PRODUCES, handler)).toEqual(["application/vnd.test+json"]);
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.CONSUMES, handler)).toEqual(["application/vnd.test+json"]);
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES, handler)).toEqual(["application/vnd.test+json"]);
 		expect(parameters).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
@@ -319,7 +319,7 @@ describe("ApiRouteCustom", () => {
 				}),
 			]),
 		);
-		const responses: Record<number, Record<string, unknown>> = Reflect.getMetadata(DECORATORS.API_RESPONSE, handler) as Record<number, Record<string, unknown>>;
+		const responses: Record<number, Record<string, unknown>> = Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, handler) as Record<number, Record<string, unknown>>;
 
 		expect(responses[HttpStatus.SERVICE_UNAVAILABLE]).toEqual({
 			description: "Health check failed.",

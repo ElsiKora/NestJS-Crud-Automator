@@ -12,7 +12,7 @@ import { EApiAuthenticationType, EApiRouteGuardStage, EApiRouteType } from "@enu
 import { GUARDS_METADATA, INTERCEPTORS_METADATA } from "@nestjs/common/constants";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_TEST_METADATA_CONSTANT } from "@test/unit/fixture";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { MethodController, MethodEmailPayloadDto, MethodEmailResponseDto, MethodEntity, MethodPhonePayloadDto, MethodPhoneResponseDto } from "./method/fixture";
@@ -58,11 +58,11 @@ const applyDecorator = (decorator: ReturnType<typeof ApiMethod>): void => {
 
 const readHandlerMetadata = <T>(metadataKey: string): T | undefined => (Reflect.getMetadata(metadataKey, MethodController.prototype, "handler") ?? Reflect.getMetadata(metadataKey, MethodController.prototype.handler)) as T | undefined;
 
-const readApiResponses = (): Record<string, Record<string, unknown>> => readHandlerMetadata<Record<string, Record<string, unknown>>>(DECORATORS.API_RESPONSE) ?? {};
+const readApiResponses = (): Record<string, Record<string, unknown>> => readHandlerMetadata<Record<string, Record<string, unknown>>>(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE) ?? {};
 
 describe("ApiMethod", () => {
 	beforeEach(() => {
-		for (const metadataKey of [DECORATORS.API_CONSUMES, DECORATORS.API_EXTRA_MODELS, DECORATORS.API_PARAMETERS, DECORATORS.API_PRODUCES, DECORATORS.API_RESPONSE, DECORATORS.API_SECURITY, GUARDS_METADATA, INTERCEPTORS_METADATA, METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY]) {
+		for (const metadataKey of [SWAGGER_TEST_METADATA_CONSTANT.CONSUMES, SWAGGER_TEST_METADATA_CONSTANT.EXTRA_MODELS, SWAGGER_TEST_METADATA_CONSTANT.PARAMETERS, SWAGGER_TEST_METADATA_CONSTANT.PRODUCES, SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, SWAGGER_TEST_METADATA_CONSTANT.SECURITY, GUARDS_METADATA, INTERCEPTORS_METADATA, METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY]) {
 			Reflect.deleteMetadata(metadataKey, MethodController.prototype, "handler");
 			Reflect.deleteMetadata(metadataKey, MethodController.prototype.handler);
 		}
@@ -114,7 +114,7 @@ describe("ApiMethod", () => {
 		applyDecorator(ApiMethod({ metadata }));
 
 		const guards = readHandlerMetadata<Array<unknown>>(GUARDS_METADATA);
-		const securities = readHandlerMetadata<Array<Record<string, Array<string>>>>(DECORATORS.API_SECURITY);
+		const securities = readHandlerMetadata<Array<Record<string, Array<string>>>>(SWAGGER_TEST_METADATA_CONSTANT.SECURITY);
 
 		expect(guards).toEqual(expect.arrayContaining([CustomGuard, ApiAuthorizationGuard]));
 		expect(securities).toEqual(expect.arrayContaining([{ bearer: [] }, { apiKey: [] }]));
@@ -186,9 +186,9 @@ describe("ApiMethod", () => {
 
 		expect(readHandlerMetadata<Array<unknown>>(GUARDS_METADATA)).toEqual([ExecutionGuard, ApiAuthorizationGuard]);
 		expect(readHandlerMetadata<Array<unknown>>(INTERCEPTORS_METADATA)).toEqual([ExecutionInterceptor]);
-		expect(readHandlerMetadata<Array<string>>(DECORATORS.API_CONSUMES)).toEqual(["application/vnd.test+json"]);
-		expect(readHandlerMetadata<Array<string>>(DECORATORS.API_PRODUCES)).toEqual(["application/vnd.test+json"]);
-		expect(readHandlerMetadata<Array<Record<string, unknown>>>(DECORATORS.API_PARAMETERS)).toEqual([
+		expect(readHandlerMetadata<Array<string>>(SWAGGER_TEST_METADATA_CONSTANT.CONSUMES)).toEqual(["application/vnd.test+json"]);
+		expect(readHandlerMetadata<Array<string>>(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES)).toEqual(["application/vnd.test+json"]);
+		expect(readHandlerMetadata<Array<Record<string, unknown>>>(SWAGGER_TEST_METADATA_CONSTANT.PARAMETERS)).toEqual([
 			expect.objectContaining({
 				in: "header",
 				name: "X-Signature",
@@ -288,7 +288,7 @@ describe("ApiMethod", () => {
 			}),
 		);
 
-		expect(readHandlerMetadata<Array<Record<string, Array<string>>>>(DECORATORS.API_SECURITY)).toEqual([
+		expect(readHandlerMetadata<Array<Record<string, Array<string>>>>(SWAGGER_TEST_METADATA_CONSTANT.SECURITY)).toEqual([
 			{
 				userRefreshTokenCookie: [],
 				userSessionCsrf: [],
@@ -319,7 +319,7 @@ describe("ApiMethod", () => {
 			}),
 		);
 
-		expect(readHandlerMetadata<Array<Record<string, Array<string>>>>(DECORATORS.API_SECURITY)).toEqual([
+		expect(readHandlerMetadata<Array<Record<string, Array<string>>>>(SWAGGER_TEST_METADATA_CONSTANT.SECURITY)).toEqual([
 			{
 				userAccessToken: [],
 				userRefreshTokenCookie: [],
@@ -345,7 +345,7 @@ describe("ApiMethod", () => {
 			}),
 		);
 
-		expect(readHandlerMetadata<Array<Record<string, Array<string>>>>(DECORATORS.API_SECURITY)).toEqual([{}]);
+		expect(readHandlerMetadata<Array<Record<string, Array<string>>>>(SWAGGER_TEST_METADATA_CONSTANT.SECURITY)).toEqual([{}]);
 	});
 
 	it("writes multiple security requirement objects for alternative schemes", () => {
@@ -372,7 +372,7 @@ describe("ApiMethod", () => {
 			}),
 		);
 
-		expect(readHandlerMetadata<Array<Record<string, Array<string>>>>(DECORATORS.API_SECURITY)).toEqual([
+		expect(readHandlerMetadata<Array<Record<string, Array<string>>>>(SWAGGER_TEST_METADATA_CONSTANT.SECURITY)).toEqual([
 			{
 				userAccessToken: [],
 			},
@@ -414,8 +414,8 @@ describe("ApiMethod", () => {
 			}),
 		);
 
-		const responses = readHandlerMetadata<unknown>(DECORATORS.API_RESPONSE);
-		const extraModels = readHandlerMetadata<Array<unknown>>(DECORATORS.API_EXTRA_MODELS);
+		const responses = readHandlerMetadata<unknown>(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE);
+		const extraModels = readHandlerMetadata<Array<unknown>>(SWAGGER_TEST_METADATA_CONSTANT.EXTRA_MODELS);
 
 		expect(JSON.stringify(responses)).toContain("oneOf");
 		expect(JSON.stringify(responses)).toContain("channel");

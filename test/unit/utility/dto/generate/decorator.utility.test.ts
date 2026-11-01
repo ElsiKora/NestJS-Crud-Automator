@@ -2,7 +2,7 @@ import type { IApiEntity } from "@interface/entity";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DtoGenerateDecorator } from "@utility/dto/generate/decorator.utility";
 import { describe, expect, it } from "vitest";
 
@@ -29,7 +29,7 @@ describe("DtoGenerateDecorator", () => {
 		const target = {};
 		decorator(target, "name");
 
-		const swagger = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, target, "name");
+		const swagger = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, target, "name");
 		expect(swagger).toBeDefined();
 	});
 

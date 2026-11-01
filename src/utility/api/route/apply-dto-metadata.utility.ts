@@ -5,12 +5,12 @@ import type { Type } from "@nestjs/common";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { EApiDtoType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum.js";
 import { ApiBody, ApiExtraModels } from "@nestjs/swagger";
-import { DECORATORS } from "@nestjs/swagger/dist/constants.js";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema, ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
@@ -76,7 +76,7 @@ export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: objec
 				schema: ApiRouteBuildDiscriminatedDtoOpenApiSchema(bodyDto, "ApiRouteCustom body"),
 			}),
 		);
-	} else if (bodyDto && bodyArgumentIndex === undefined && !((Reflect.getMetadata(DECORATORS.API_PARAMETERS, descriptor.value as object) as Array<{ in?: string }> | undefined) ?? []).some((parameter: { in?: string }): boolean => parameter.in === "body")) {
+	} else if (bodyDto && bodyArgumentIndex === undefined && !((Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.PARAMETERS, descriptor.value as object) as Array<{ in?: string }> | undefined) ?? []).some((parameter: { in?: string }): boolean => parameter.in === "body")) {
 		swaggerDecorators.push(ApiBody({ type: bodyDto }));
 	}
 

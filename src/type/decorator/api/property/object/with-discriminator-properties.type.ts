@@ -1,10 +1,10 @@
 import type { Type } from "@nestjs/common";
-import type { ReferenceObject, SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 import type { TApiPropertyBaseProperties } from "@type/decorator/api/property/base";
+import type { TSwaggerReferenceObject, TSwaggerSchemaObject } from "@type/swagger";
 import type { ClassConstructor } from "class-transformer";
 
 export type TApiPropertyObjectWithDiscriminatorProperties = {
-	additionalProperties?: boolean | ReferenceObject | SchemaObject;
+	additionalProperties?: boolean | TSwaggerReferenceObject | TSwaggerSchemaObject;
 	discriminator: TTypeDiscriminator;
 	shouldValidateNested?: boolean;
 	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type

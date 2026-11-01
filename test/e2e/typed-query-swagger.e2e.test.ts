@@ -2,7 +2,7 @@ import "reflect-metadata";
 
 import type { INestApplication } from "@nestjs/common";
 import type { OpenAPIObject } from "@nestjs/swagger";
-import type { SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
+import type { TSwaggerSchemaObject } from "@type/swagger";
 
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
@@ -40,16 +40,16 @@ describe("typed GET_LIST Swagger contract (E2E)", () => {
 		const nameFilter = parameters.find((parameter) => "name" in parameter && parameter.name === "name");
 		const orderBy = parameters.find((parameter) => "name" in parameter && parameter.name === "orderBy");
 		const countSchema = countFilter && !("$ref" in countFilter) && countFilter.schema && !("$ref" in countFilter.schema) ? countFilter.schema : undefined;
-		const countBranches: Array<SchemaObject> = (countSchema?.oneOf ?? []).filter((branch): branch is SchemaObject => !("$ref" in branch));
-		const findCountBranch = (operation: EFilterOperation): SchemaObject | undefined =>
-			countBranches.find((branch: SchemaObject): boolean => {
+		const countBranches: Array<TSwaggerSchemaObject> = (countSchema?.oneOf ?? []).filter((branch): branch is TSwaggerSchemaObject => !("$ref" in branch));
+		const findCountBranch = (operation: EFilterOperation): TSwaggerSchemaObject | undefined =>
+			countBranches.find((branch: TSwaggerSchemaObject): boolean => {
 				const operator = branch.properties?.operator;
 
 				return operator !== undefined && !("$ref" in operator) && operator.enum?.includes(operation) === true;
 			});
-		const betweenBranch: SchemaObject | undefined = findCountBranch(EFilterOperation.BETWEEN);
-		const equalBranch: SchemaObject | undefined = findCountBranch(EFilterOperation.EQ);
-		const greaterThanBranch: SchemaObject | undefined = findCountBranch(EFilterOperation.GT);
+		const betweenBranch: TSwaggerSchemaObject | undefined = findCountBranch(EFilterOperation.BETWEEN);
+		const equalBranch: TSwaggerSchemaObject | undefined = findCountBranch(EFilterOperation.EQ);
+		const greaterThanBranch: TSwaggerSchemaObject | undefined = findCountBranch(EFilterOperation.GT);
 
 		expect(countFilter).toMatchObject({
 			explode: true,

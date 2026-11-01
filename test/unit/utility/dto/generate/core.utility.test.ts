@@ -12,7 +12,7 @@ import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator"
 import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperation, EFilterOperationString, EFilterOperationUuid } from "@enum/filter";
 import { ValidationPipe } from "@nestjs/common";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { instanceToPlain, plainToInstance } from "class-transformer";
@@ -435,7 +435,7 @@ describe("DtoGenerate", () => {
 		const createBodyInstance = new createBodyDto() as Record<string, unknown>;
 		const queryInstance = new queryDto() as Record<string, unknown>;
 		const responseInstance = new responseDto() as Record<string, unknown>;
-		const querySwaggerProperties: ReadonlyArray<string> | undefined = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES_ARRAY, queryDto.prototype);
+		const querySwaggerProperties: ReadonlyArray<string> | undefined = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES_ARRAY, queryDto.prototype);
 		const queryValidationProperties: ReadonlyArray<string> = getMetadataStorage()
 			.getTargetValidationMetadatas(queryDto, "", true, false)
 			.map((metadata): string => metadata.propertyName);
@@ -447,8 +447,8 @@ describe("DtoGenerate", () => {
 		expect(entityMetadata.columns.some((column) => column.name === "internalReference")).toBe(true);
 		expect(createBodyInstance).not.toHaveProperty("internalReference");
 		expect(responseInstance).not.toHaveProperty("internalReference");
-		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, createBodyDto.prototype, "internalReference")).toBeUndefined();
-		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, responseDto.prototype, "internalReference")).toBeUndefined();
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, createBodyDto.prototype, "internalReference")).toBeUndefined();
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, responseDto.prototype, "internalReference")).toBeUndefined();
 		expect(queryInstance && "name[value]" in queryInstance).toBe(true);
 		expect(queryInstance && "name[operator]" in queryInstance).toBe(true);
 		expect(queryInstance && "internalReference[value]" in queryInstance).toBe(false);
@@ -471,8 +471,8 @@ describe("DtoGenerate", () => {
 		expect(queryInstance && "owner.metadata[value]" in queryInstance).toBe(false);
 		expect(queryInstance && "owner.metadata[operator]" in queryInstance).toBe(false);
 
-		const ownerExternalIdOperatorMetadata = queryDto ? Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, queryDto.prototype, "owner.externalId[operator]") : undefined;
-		const ownerNameOperatorMetadata = queryDto ? Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, queryDto.prototype, "owner.name[operator]") : undefined;
+		const ownerExternalIdOperatorMetadata = queryDto ? Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, queryDto.prototype, "owner.externalId[operator]") : undefined;
+		const ownerNameOperatorMetadata = queryDto ? Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, queryDto.prototype, "owner.name[operator]") : undefined;
 
 		expect(ownerExternalIdOperatorMetadata?.enum).toEqual(Object.values(EFilterOperationUuid));
 		expect(ownerNameOperatorMetadata?.enum).toEqual(Object.values(EFilterOperationString));
@@ -547,11 +547,11 @@ describe("DtoGenerate", () => {
 
 			for (const propertyName of infrastructurePropertyNames) {
 				expect(propertyName in instance).toBe(false);
-				expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, writeBodyDto.prototype, propertyName)).toBeUndefined();
+				expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, writeBodyDto.prototype, propertyName)).toBeUndefined();
 			}
 
 			expect("createdAt" in instance).toBe(true);
-			expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, writeBodyDto.prototype, "createdAt")).toBeDefined();
+			expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, writeBodyDto.prototype, "createdAt")).toBeDefined();
 		}
 
 		const validationPipe = new ValidationPipe({
@@ -718,10 +718,10 @@ describe("DtoGenerate", () => {
 		const entityMetadata = GenerateEntityInformation<ManualNestedPolicyEntity>(ManualNestedPolicyEntity as unknown as IApiBaseEntity);
 		const bodyDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY);
 		const responseDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE);
-		const bodyDocumentDto = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, bodyDto?.prototype, "document")?.type as ClassConstructor<ManualPolicyDocumentDto>;
-		const responseDocumentDto = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, responseDto?.prototype, "document")?.type as ClassConstructor<ManualPolicyDocumentDto>;
-		const bodyStatementDto = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, bodyDocumentDto?.prototype, "Statement")?.type as ClassConstructor<ManualPolicyStatementDto>;
-		const responseStatementDto = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, responseDocumentDto?.prototype, "Statement")?.type as ClassConstructor<ManualPolicyStatementDto>;
+		const bodyDocumentDto = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, bodyDto?.prototype, "document")?.type as ClassConstructor<ManualPolicyDocumentDto>;
+		const responseDocumentDto = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, responseDto?.prototype, "document")?.type as ClassConstructor<ManualPolicyDocumentDto>;
+		const bodyStatementDto = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, bodyDocumentDto?.prototype, "Statement")?.type as ClassConstructor<ManualPolicyStatementDto>;
+		const responseStatementDto = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, responseDocumentDto?.prototype, "Statement")?.type as ClassConstructor<ManualPolicyStatementDto>;
 
 		expect(bodyDocumentDto).toBeDefined();
 		expect(responseDocumentDto).toBeDefined();
@@ -762,7 +762,7 @@ describe("DtoGenerate", () => {
 			},
 		});
 		const errors = validateSync(invalidInstance);
-		const versionMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, ManualPolicyDocumentDto.prototype, "Version");
+		const versionMetadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, ManualPolicyDocumentDto.prototype, "Version");
 
 		expect(JSON.stringify(errors)).toContain("isString");
 		expect(

@@ -2,7 +2,7 @@ import type { Type } from "@nestjs/common";
 import type { TApiDiscriminatorValidateConfigProperties } from "@type/utility/api";
 import type { ClassConstructor } from "class-transformer";
 
-import { DECORATORS } from "@nestjs/swagger/dist/constants.js";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
@@ -30,7 +30,7 @@ export function ApiDiscriminatorValidateConfig(properties: TApiDiscriminatorVali
 	}
 
 	const mappedVariants: Array<ClassConstructor<unknown>> = Object.values(properties.discriminator.mapping);
-	const apiModelPropertiesMetadataKey: string = DECORATORS.API_MODEL_PROPERTIES;
+	const apiModelPropertiesMetadataKey: string = SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES;
 
 	for (const [key, mappedType] of Object.entries(properties.discriminator.mapping)) {
 		if (typeof mappedType !== "function") {

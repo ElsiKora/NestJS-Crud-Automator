@@ -1,2 +1,3 @@
 export { resetApiSubscriberRegistry } from "./subscriber-registry";
+export { SWAGGER_TEST_METADATA_CONSTANT } from "./swagger-metadata";
 export { createTransactionFixture } from "./transaction";

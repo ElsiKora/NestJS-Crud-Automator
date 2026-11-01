@@ -2,7 +2,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiMethodProperties } from "@interface/decorator/api";
 import type { IApiRouteSecurityRequirement } from "@interface/decorator/api/route";
 import type { CanActivate, Type } from "@nestjs/common";
-import type { SecurityRequirementObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
+import type { TSwaggerSecurityRequirementObject } from "@type/swagger";
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
@@ -202,7 +202,7 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 	}
 
 	for (const securityRequirement of metadata.security?.authentication?.securityRequirements ?? []) {
-		const openApiSecurityRequirement: SecurityRequirementObject = buildOpenApiSecurityRequirement(securityRequirement);
+		const openApiSecurityRequirement: TSwaggerSecurityRequirementObject = buildOpenApiSecurityRequirement(securityRequirement);
 
 		decorators.push(ApiSecurity(openApiSecurityRequirement));
 	}
@@ -276,10 +276,10 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 /**
  * Converts grouped route auth metadata into one OpenAPI security requirement object.
  * @param {IApiRouteSecurityRequirement} securityRequirement - Route auth requirement group.
- * @returns {SecurityRequirementObject} OpenAPI security requirement object.
+ * @returns {TSwaggerSecurityRequirementObject} OpenAPI security requirement object.
  */
-function buildOpenApiSecurityRequirement(securityRequirement: IApiRouteSecurityRequirement): SecurityRequirementObject {
-	const openApiSecurityRequirement: SecurityRequirementObject = {};
+function buildOpenApiSecurityRequirement(securityRequirement: IApiRouteSecurityRequirement): TSwaggerSecurityRequirementObject {
+	const openApiSecurityRequirement: TSwaggerSecurityRequirementObject = {};
 
 	for (const strategy of [...(securityRequirement.bearerStrategies ?? []), ...(securityRequirement.cookieStrategies ?? []), ...(securityRequirement.securityStrategies ?? [])]) {
 		openApiSecurityRequirement[strategy] = [];

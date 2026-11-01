@@ -9,5 +9,6 @@ export type * from "./decorator/api/property";
 export type * from "./decorator/api/route";
 export type * from "./decorator/api/service";
 export type * from "./factory/api/controller";
+export type * from "./swagger";
 export type * from "./utility";
 export type * from "./validator/has-paired-custom-suffixes-fields";

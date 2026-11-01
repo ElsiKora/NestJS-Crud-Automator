@@ -1,6 +1,6 @@
 import type { Type } from "@nestjs/common";
-import type { SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
+import type { TSwaggerSchemaObject } from "@type/swagger";
 
 import { getSchemaPath } from "@nestjs/swagger";
 import { ApiRouteValidateDiscriminatedDtoProperties } from "@utility/api/route/discriminator/validate-dto-properties.utility";
@@ -9,9 +9,9 @@ import { ApiRouteValidateDiscriminatedDtoProperties } from "@utility/api/route/d
  * Builds an OpenAPI oneOf schema with discriminator metadata for route-level DTO variants.
  * @param {TApiRouteDiscriminatedDtoProperties} properties - Route-level discriminated DTO config.
  * @param {string} context - Error message context.
- * @returns {SchemaObject} OpenAPI schema for a discriminated root DTO.
+ * @returns {TSwaggerSchemaObject} OpenAPI schema for a discriminated root DTO.
  */
-export function ApiRouteBuildDiscriminatedDtoOpenApiSchema(properties: TApiRouteDiscriminatedDtoProperties, context: string): SchemaObject {
+export function ApiRouteBuildDiscriminatedDtoOpenApiSchema(properties: TApiRouteDiscriminatedDtoProperties, context: string): TSwaggerSchemaObject {
 	ApiRouteValidateDiscriminatedDtoProperties(properties, context);
 
 	return {

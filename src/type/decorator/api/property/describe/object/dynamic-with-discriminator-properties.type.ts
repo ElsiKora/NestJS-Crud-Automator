@@ -1,12 +1,12 @@
 import type { EApiPropertyDescribeType } from "@enum/decorator/api";
-import type { ReferenceObject, SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 import type { TApiPropertyDescribeArrayOptionalProperties, TApiPropertyDescribeArrayRequiredProperties } from "@type/decorator/api/property/describe/array";
 import type { TApiPropertyDescribeBaseProperties } from "@type/decorator/api/property/describe/base-properties.type";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property/describe/properties.type";
 import type { TTypeDynamicDiscriminator } from "@type/decorator/api/property/object";
+import type { TSwaggerReferenceObject, TSwaggerSchemaObject } from "@type/swagger";
 
 export type TApiPropertyDescribeObjectDynamicWithDiscriminatorProperties = {
-	additionalProperties?: boolean | ReferenceObject | SchemaObject;
+	additionalProperties?: boolean | TSwaggerReferenceObject | TSwaggerSchemaObject;
 	dataType: Record<string, Record<string, TApiPropertyDescribeProperties>>;
 	description: string;
 	discriminator: TTypeDynamicDiscriminator;

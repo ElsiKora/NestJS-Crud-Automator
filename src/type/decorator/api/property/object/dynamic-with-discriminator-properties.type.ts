@@ -1,9 +1,9 @@
 import type { Type } from "@nestjs/common";
-import type { ReferenceObject, SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 import type { TApiPropertyBaseProperties } from "@type/decorator/api/property/base";
+import type { TSwaggerReferenceObject, TSwaggerSchemaObject } from "@type/swagger";
 
 export type TApiPropertyObjectDynamicWithDiscriminatorProperties = {
-	additionalProperties?: boolean | ReferenceObject | SchemaObject;
+	additionalProperties?: boolean | TSwaggerReferenceObject | TSwaggerSchemaObject;
 	discriminator: TTypeDynamicDiscriminator;
 	generatedDTOs: Record<string, Type<unknown>>;
 	isDynamicallyGenerated: boolean;

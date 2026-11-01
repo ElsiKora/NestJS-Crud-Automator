@@ -6,7 +6,7 @@ import { MetadataStorage } from "@class/metadata-storage.class";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { ApiControllerWriteDtoSwagger } from "@utility/api/controller/write/dto-swagger.utility";
 import { describe, expect, it } from "vitest";
 
@@ -60,7 +60,7 @@ describe("ApiControllerWriteDtoSwagger", () => {
 
 		ApiControllerWriteDtoSwagger(target, entityMetadata, properties, EApiRouteType.GET, routeConfig as never, entityMetadata);
 
-		const models = Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, target) as Array<{ name?: string }>;
+		const models = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, target) as Array<{ name?: string }>;
 		const modelNames = models.map((model) => model?.name);
 
 		expect(modelNames).toEqual(expect.arrayContaining([SwaggerDto.name, "SwaggerEntityGetBodyownerDTO"]));
@@ -89,7 +89,7 @@ describe("ApiControllerWriteDtoSwagger", () => {
 
 		ApiControllerWriteDtoSwagger(target, entityMetadata, properties, EApiRouteType.CREATE, routeConfig as never, entityMetadata);
 
-		const modelNames = (Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, target) as Array<{ name?: string }>).map((model) => model?.name);
+		const modelNames = (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, target) as Array<{ name?: string }>).map((model) => model?.name);
 
 		expect(modelNames).toContain(SwaggerDto.name);
 		expect(modelNames).not.toContain("InheritedSwaggerEntityCreateBodyownerDTO");

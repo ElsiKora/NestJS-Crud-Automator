@@ -42,3 +42,43 @@ jobs:
           path: |
             coverage/
             reports/
+
+  swagger-compatibility:
+    name: Swagger ${{ matrix.swagger-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        swagger-version: ["11.0.3", "11.4.2", "11.x"]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install @nestjs/swagger ${{ matrix.swagger-version }}
+        run: |
+          npm install --no-save "@nestjs/swagger@${{ matrix.swagger-version }}"
+          node -p "require('./node_modules/@nestjs/swagger/package.json').version"
+
+      - name: Run type check
+        run: npm run lint:types
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Run Swagger E2E tests
+        run: npm run test:e2e -- test/e2e/swagger.e2e.test.ts test/e2e/typed-query-swagger.e2e.test.ts
+
+      - name: Load built package
+        run: |
+          node -e "require('./dist/cjs/index.js')"
+          node --input-type=module -e "await import('./dist/esm/index.js')"

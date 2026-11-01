@@ -6,7 +6,7 @@ import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { EApiPropertyStringType } from "@enum/decorator/api";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { describe, expect, it } from "vitest";
 
 class StringEntity {}
@@ -100,7 +100,7 @@ const validatorFormats: Array<{ format: EApiPropertyStringType; valid: unknown; 
 describe("ApiPropertyString", () => {
 	it("writes swagger metadata and trims pattern delimiters", () => {
 		const StringDto = buildStringDto(EApiPropertyStringType.STRING);
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, StringDto.prototype, "value");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, StringDto.prototype, "value");
 
 		expect(metadata?.pattern).toBe("^.+$");
 		expect(metadata?.minLength).toBe(1);

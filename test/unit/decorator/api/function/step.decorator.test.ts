@@ -11,10 +11,9 @@ import { SUBSCRIBER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/subsc
 import { ApiFunctionStep } from "@decorator/api/function/step.decorator";
 import { EApiFunctionTransactionMode } from "@enum/decorator/api";
 import { GUARDS_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants.js";
-import { DECORATORS } from "@nestjs/swagger/dist/constants.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createTransactionFixture } from "@test/unit/fixture";
+import { createTransactionFixture, SWAGGER_TEST_METADATA_CONSTANT } from "@test/unit/fixture";
 
 class StepDecoratorEntity {
 	public id?: string;
@@ -119,8 +118,8 @@ describe("ApiFunctionStep", () => {
 		expect(Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, StepDecoratorService.prototype.publicStep)).toBeUndefined();
 		expect(Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, StepDecoratorService.prototype.publicStep)).toBeUndefined();
 		expect(Reflect.getMetadata(SUBSCRIBER_API_DECORATOR_CONSTANT.FUNCTION_METADATA_KEY, StepDecoratorService)).toBeUndefined();
-		expect(Reflect.getMetadata(DECORATORS.API_OPERATION, StepDecoratorService.prototype.publicStep)).toBeUndefined();
-		expect(Reflect.getMetadata(DECORATORS.API_SECURITY, StepDecoratorService.prototype.publicStep)).toBeUndefined();
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.OPERATION, StepDecoratorService.prototype.publicStep)).toBeUndefined();
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.SECURITY, StepDecoratorService.prototype.publicStep)).toBeUndefined();
 		expect(Reflect.getMetadata(GUARDS_METADATA, StepDecoratorService.prototype.publicStep)).toBeUndefined();
 	});
 

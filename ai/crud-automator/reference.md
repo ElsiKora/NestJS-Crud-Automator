@@ -307,6 +307,14 @@ Observation is a separate diagnostic projection. It neither expands the ordinary
 - IAM conditions accept only `EApiPolicyConditionOperator` values with scalar operands. Allow `resource.*` keys compile for `StringEquals`/`StringEqualsIfExists` on `isFilterable` fields; matched Deny `resource.*` keys compile for all four operators into negated OR branches that keep exactly the rows the in-memory evaluator allows (`StringEquals`/`StringEqualsIfExists` → `<> value OR IS NULL`, `StringNotEquals`/`StringNotEqualsIfExists` → `= value`) ANDed with the Allow scope. Values that are `""` or resolve to `null`/`""`, non-compilable Deny keys, scopes over `AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES`, and `resource.*` Deny on CREATE (or a `<namespace>:create` custom action) are an explicit deny. On list requests (GET_LIST or a `<namespace>:list` custom action), a Deny with a row-specific `Resource` compiles to `field <> id` or an escaped `NOT LIKE 'prefix%'` (STRING-described fields only, excluding the BIGINT_STRING and UUID formats), both keeping NULL placeholders; unmappable patterns are an explicit deny. Custom routes get the merged result in `decision.scope`.
 - Array-form authorization `where` values are OR branches and must be non-empty arrays of non-empty plain objects. `AuthorizationScopeMergeWhere` rejects `[]` and empty branches before TypeORM instead of treating them as an unconstrained query. It normalizes scalar leaves to exact `Equal(...)` predicates whenever another scope is merged; use an explicit `Equal(value)` for JSON/JSONB, geometry, or another object-valued scalar.
 
+## Swagger Peer Range
+
+- `@nestjs/swagger` is supported as `>=11.0.3 <12`. `@nestjs/swagger` 12 requires NestJS 12 and is not supported.
+- Crud Automator imports only the public `@nestjs/swagger` entry point. Its `dist/*` paths are closed by the `exports` map from 11.4.3 on, and CI fails on any import of them.
+- `TSwaggerHeadersObject`, `TSwaggerReferenceObject`, `TSwaggerSchemaObject`, and `TSwaggerSecurityRequirementObject` are derived from the public `OpenAPIObject` type and exported from the package root.
+- Generated documents vary with the installed Swagger release, not with Automator: from 11.4.3 `multipleOf` on a numeric query parameter sits inside its `schema`; before 11.3.0 object properties have no `type: object`; before 11.2.4 array filter value items carry `type: string` instead of `minLength`/`maxLength`.
+- `SWAGGER_METADATA_CONSTANT` (`src/constant/swagger`) is internal and holds the Swagger metadata keys Automator reads and writes. Those strings are Swagger internals, so CI runs the unit suite and a Swagger e2e against the lowest supported version, 11.4.2, and the latest 11.x.
+
 ## 3.0 Export Migration
 
 - Replace `TApiGetDefaultStringFormatPropertiesBigIntStringSign` with `EApiGetDefaultStringFormatPropertiesBigIntStringSign`.

@@ -4,7 +4,7 @@ import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
 import { EApiPropertyDataType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { describe, expect, it } from "vitest";
 
 class NumberEntity {}
@@ -86,7 +86,7 @@ class NumberResponseDto {
 
 describe("ApiPropertyNumber", () => {
 	it("writes swagger options for integer numbers", () => {
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, NumberDto.prototype, "count");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, NumberDto.prototype, "count");
 
 		expect(metadata?.type).toBe(EApiPropertyDataType.INTEGER);
 		expect(metadata?.format).toBe("int32");
@@ -139,7 +139,7 @@ describe("ApiPropertyNumber", () => {
 	});
 
 	it("does not expose multipleOf in response swagger metadata", () => {
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, NumberResponseDto.prototype, "total");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, NumberResponseDto.prototype, "total");
 
 		expect(metadata?.multipleOf).toBeUndefined();
 	});

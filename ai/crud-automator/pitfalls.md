@@ -197,6 +197,10 @@ Do not combine requested relations, effective TypeORM `relationLoadStrategy: "qu
 
 The package does not ship a consumer-side typed URL/bracket-filter builder in the current 3.x contract. Keep that helper in the consumer when needed instead of mistaking the server-owned typed query plan for a client API.
 
+## Private Swagger Imports
+
+Do not import `@nestjs/swagger/dist/*`, not even for types: the paths are closed from 11.4.3 on. Use the package root, or the `TSwagger*` OpenAPI types from Crud Automator for types the root of an older 11.x release does not export. Keep `@nestjs/swagger` on 11.x; version 12 requires NestJS 12 and is not supported.
+
 ## Removed 3.0 Exports
 
 Use `EApiGetDefaultStringFormatPropertiesBigIntStringSign` instead of the removed `TApiGetDefaultStringFormatPropertiesBigIntStringSign` type. Do not import the removed `EHasPairedCustomSuffixesFieldsArgumentType`, `THasPairedCustomSuffixesFieldsOperationConfig`, or `VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT`; `HasPairedCustomSuffixesFieldsValidator` remains public. Import supported symbols from the package root.

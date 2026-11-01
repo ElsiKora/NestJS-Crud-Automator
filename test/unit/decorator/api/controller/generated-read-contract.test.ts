@@ -20,7 +20,7 @@ import { EErrorStringAction } from "@enum/utility";
 import { BadRequestException } from "@nestjs/common";
 import { PARAMTYPES_METADATA, PATH_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
 import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { ApiControllerApplyDecorators } from "@utility/api/controller/apply/decorators.utility";
 import { ApiControllerApplyMetadata } from "@utility/api/controller/apply/metadata.utility";
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
@@ -1522,10 +1522,10 @@ describe("generated read contract", () => {
 		expect(listParametersDto).toBeDefined();
 		expect(Object.keys(new (getParametersDto as new () => Record<string, unknown>)())).toEqual(expect.arrayContaining(["id", "tenantId"]));
 		expect(Object.keys(new (listParametersDto as new () => Record<string, unknown>)())).toEqual(["tenantId"]);
-		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, getParametersDto?.prototype, "tenantId")).toMatchObject({ format: "uuid", type: "string" });
-		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, listParametersDto?.prototype, "tenantId")).toMatchObject({ format: "uuid", type: "string" });
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, getParametersDto?.prototype, "tenantId")).toMatchObject({ format: "uuid", type: "string" });
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, listParametersDto?.prototype, "tenantId")).toMatchObject({ format: "uuid", type: "string" });
 
-		const extraModelNames = ((Reflect.getMetadata(DECORATORS.API_EXTRA_MODELS, type) ?? []) as Array<{ name?: string }>).map(({ name }: { name?: string }): string | undefined => name);
+		const extraModelNames = ((Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, type) ?? []) as Array<{ name?: string }>).map(({ name }: { name?: string }): string | undefined => name);
 
 		expect(extraModelNames).toEqual(expect.arrayContaining([getParametersDto?.name, listParametersDto?.name]));
 	});
@@ -1541,7 +1541,7 @@ describe("generated read contract", () => {
 		expect(ApiControllerIdentityPlanGet(controllerType.prototype.get)).toMatchObject({ field: "id", parameter: "gameId" });
 		expect(parametersDto).toBeDefined();
 		expect(Object.keys(new (parametersDto as new () => Record<string, unknown>)())).toEqual(["gameId"]);
-		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, parametersDto?.prototype, "gameId")).toMatchObject({ format: "uuid", type: "string" });
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, parametersDto?.prototype, "gameId")).toMatchObject({ format: "uuid", type: "string" });
 
 		const parameters = plainToInstance(parametersDto as new () => Record<string, unknown>, { gameId: ENTITY_ID });
 		const invalidParameters = plainToInstance(parametersDto as new () => Record<string, unknown>, { gameId: "not-a-uuid" });
@@ -1798,8 +1798,8 @@ describe("generated read contract", () => {
 
 		expect(cachedAllowedDto).toBe(allowedDto);
 		expect(deniedDto).not.toBe(allowedDto);
-		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, allowedDto.prototype, "tenantAlias")).toMatchObject({ format: "uuid", type: "string" });
-		expect(Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, deniedDto.prototype, "tenantAlias")).toBeUndefined();
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, allowedDto.prototype, "tenantAlias")).toMatchObject({ format: "uuid", type: "string" });
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, deniedDto.prototype, "tenantAlias")).toBeUndefined();
 	});
 
 	it("preserves the exact legacy order shape for a filter-only query plan", async () => {
@@ -2094,7 +2094,7 @@ describe("generated read contract", () => {
 		const controllerType = type as { prototype: object };
 		const listTypes = Reflect.getMetadata(PARAMTYPES_METADATA, controllerType.prototype, "getList") as Array<new () => Record<string, unknown>>;
 		const queryDto = listTypes[1];
-		const clientOrderByMetadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, queryDto?.prototype, "orderBy") as { enum?: Record<string, string> } | undefined;
+		const clientOrderByMetadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, queryDto?.prototype, "orderBy") as { enum?: Record<string, string> } | undefined;
 		const clientOrderFields = Object.values(clientOrderByMetadata?.enum ?? {});
 
 		expect(clientOrderFields).toEqual(expect.arrayContaining(["label", "sequence"]));

@@ -1,7 +1,7 @@
 import "reflect-metadata";
 
 import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
 import { instanceToInstance, plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
@@ -110,7 +110,7 @@ class OpenDiscriminatorDto {
 
 describe("ApiPropertyObject", () => {
 	it("writes swagger metadata for single objects", () => {
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, ParentDto.prototype, "payload");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, ParentDto.prototype, "payload");
 
 		expect(metadata?.type).toBe(ChildDto);
 		expect(metadata?.description).toContain("ObjectEntity");
@@ -235,7 +235,7 @@ describe("ApiPropertyObject", () => {
 	});
 
 	it("keeps explicit response-only objects readOnly in swagger", () => {
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, FreeformResponseDto.prototype, "payload");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, FreeformResponseDto.prototype, "payload");
 
 		expect(metadata?.readOnly).toBe(true);
 	});
@@ -280,7 +280,7 @@ describe("ApiPropertyObject", () => {
 	});
 
 	it("writes swagger oneOf and discriminator info for polymorphic objects", () => {
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, DiscriminatorDto.prototype, "pet");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, DiscriminatorDto.prototype, "pet");
 
 		expect(metadata?.oneOf).toHaveLength(2);
 		expect(metadata?.discriminator?.propertyName).toBe("kind");
@@ -332,7 +332,7 @@ describe("ApiPropertyObject", () => {
 	});
 
 	it("handles dynamically generated discriminator mappings", () => {
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, DynamicDto.prototype, "dynamic");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, DynamicDto.prototype, "dynamic");
 
 		expect(metadata?.oneOf).toHaveLength(1);
 		expect(metadata?.discriminator?.propertyName).toBe("kind");

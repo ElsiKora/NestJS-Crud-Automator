@@ -2,7 +2,7 @@ import "reflect-metadata";
 
 import type { INestApplication } from "@nestjs/common";
 import type { OpenAPIObject } from "@nestjs/swagger";
-import type { SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
+import type { TSwaggerSchemaObject } from "@type/swagger";
 
 import { HttpStatus } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
@@ -122,8 +122,8 @@ describe("UUID membership GET_LIST filters (E2E)", () => {
 		const currencyFilter = parameters.find((parameter) => "name" in parameter && parameter.name === "currency.id");
 		const currencySchema = currencyFilter && !("$ref" in currencyFilter) && currencyFilter.schema && !("$ref" in currencyFilter.schema) ? currencyFilter.schema : undefined;
 		const operators: Array<string> = (currencySchema?.oneOf ?? [])
-			.filter((branch): branch is SchemaObject => !("$ref" in branch))
-			.flatMap((branch: SchemaObject): Array<string> => {
+			.filter((branch): branch is TSwaggerSchemaObject => !("$ref" in branch))
+			.flatMap((branch: TSwaggerSchemaObject): Array<string> => {
 				const operator = branch.properties?.operator;
 
 				return operator !== undefined && !("$ref" in operator) ? ((operator.enum ?? []) as Array<string>) : [];

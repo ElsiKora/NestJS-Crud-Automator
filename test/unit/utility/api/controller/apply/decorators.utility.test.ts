@@ -7,7 +7,7 @@ import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiAuthenticationType, EApiDtoType, EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
 import { GUARDS_METADATA, INTERCEPTORS_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_TEST_METADATA_CONSTANT } from "@test/unit/fixture";
 import { ApiControllerApplyDecorators } from "@utility/api/controller/apply/decorators.utility";
 import { describe, expect, it } from "vitest";
 
@@ -75,7 +75,7 @@ describe("ApiControllerApplyDecorators", () => {
 				},
 			},
 		});
-		expect(Reflect.getMetadata(DECORATORS.API_RESPONSE, targetMethod)?.[HttpStatus.OK]?.headers).toEqual({
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, targetMethod)?.[HttpStatus.OK]?.headers).toEqual({
 			"X-Request-Id": {
 				description: "Request correlation id.",
 				schema: {
@@ -83,7 +83,7 @@ describe("ApiControllerApplyDecorators", () => {
 				},
 			},
 		});
-		expect(Reflect.getMetadata(DECORATORS.API_SECURITY, targetMethod)).toEqual([
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.SECURITY, targetMethod)).toEqual([
 			{
 				userRefreshTokenCookie: [],
 				userSessionCsrf: [],
@@ -118,7 +118,7 @@ describe("ApiControllerApplyDecorators", () => {
 				},
 			},
 		});
-		expect(Reflect.getMetadata(DECORATORS.API_RESPONSE, targetMethod)?.[HttpStatus.NO_CONTENT]?.headers).toEqual({
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, targetMethod)?.[HttpStatus.NO_CONTENT]?.headers).toEqual({
 			"Set-Cookie": {
 				description: "Clears refresh token cookie.",
 				schema: {
@@ -154,10 +154,10 @@ describe("ApiControllerApplyDecorators", () => {
 
 		expect(Reflect.getMetadata(GUARDS_METADATA, targetMethod)).toEqual([DecoratorExecutionGuard, ApiAuthorizationGuard]);
 		expect(Reflect.getMetadata(INTERCEPTORS_METADATA, targetMethod)).toEqual([DecoratorExecutionInterceptor]);
-		expect(Reflect.getMetadata(DECORATORS.API_CONSUMES, targetMethod)).toEqual(["application/vnd.generated+json"]);
-		expect(Reflect.getMetadata(DECORATORS.API_PRODUCES, targetMethod)).toEqual(["application/vnd.generated+json"]);
-		expect(Reflect.getMetadata(DECORATORS.API_PARAMETERS, targetMethod)).toEqual([expect.objectContaining({ in: "header", name: "X-Route-Proof", required: true })]);
-		expect(Reflect.getMetadata(DECORATORS.API_RESPONSE, targetMethod)?.[HttpStatus.PAYLOAD_TOO_LARGE]).toEqual({ description: "Generated request is too large." });
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.CONSUMES, targetMethod)).toEqual(["application/vnd.generated+json"]);
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES, targetMethod)).toEqual(["application/vnd.generated+json"]);
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PARAMETERS, targetMethod)).toEqual([expect.objectContaining({ in: "header", name: "X-Route-Proof", required: true })]);
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, targetMethod)?.[HttpStatus.PAYLOAD_TOO_LARGE]).toEqual({ description: "Generated request is too large." });
 	});
 
 	it("orders staged generated route guards around authentication and authorization", () => {

@@ -3,7 +3,7 @@ import "reflect-metadata";
 import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { describe, expect, it } from "vitest";
 
 const StatusEnum = { ACTIVE: "active", INACTIVE: "inactive" } as const;
@@ -38,7 +38,7 @@ class EnumArrayDto {
 
 describe("ApiPropertyEnum", () => {
 	it("writes swagger enum options", () => {
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, EnumDto.prototype, "status");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, EnumDto.prototype, "status");
 
 		expect(metadata?.enum).toEqual(expect.arrayContaining(["active", "inactive"]));
 		expect(metadata?.example).toBe("active");

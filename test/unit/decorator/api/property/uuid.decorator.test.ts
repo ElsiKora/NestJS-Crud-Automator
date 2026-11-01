@@ -4,7 +4,7 @@ import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
 import { EApiPropertyStringType } from "@enum/decorator/api";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { describe, expect, it } from "vitest";
 
 class UuidEntity {}
@@ -42,7 +42,7 @@ class UuidArrayDto {
 
 describe("ApiPropertyUUID", () => {
 	it("writes swagger metadata", () => {
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, UuidDto.prototype, "id");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, UuidDto.prototype, "id");
 
 		expect(metadata?.format).toBe(EApiPropertyStringType.UUID);
 		expect(metadata?.minLength).toBe(metadata?.maxLength);

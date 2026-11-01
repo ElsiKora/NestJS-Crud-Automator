@@ -4,7 +4,7 @@ import { ApiPropertyBoolean } from "@decorator/api/property/boolean.decorator";
 import { EApiPropertyDataType } from "@enum/decorator/api";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
-import { DECORATORS } from "@nestjs/swagger/dist/constants";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { describe, expect, it } from "vitest";
 
 class BooleanEntity {}
@@ -42,7 +42,7 @@ class BooleanArrayDto {
 
 describe("ApiPropertyBoolean", () => {
 	it("writes swagger options for single values", () => {
-		const metadata = Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, BooleanDto.prototype, "isActive");
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, BooleanDto.prototype, "isActive");
 
 		expect(metadata?.type).toBe(EApiPropertyDataType.BOOLEAN);
 		expect(metadata?.required).toBe(true);

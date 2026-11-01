@@ -1,6 +1,6 @@
 import type { EFilterOperation } from "@enum/filter";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
-import type { SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
+import type { TSwaggerSchemaObject } from "@type/swagger";
 
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
@@ -27,12 +27,12 @@ export function ApiControllerGetListQueryOpenApiDecorators(plan: IApiControllerG
 			continue;
 		}
 
-		const valueSchema: SchemaObject = ApiControllerGetListQueryOpenApiValueSchema(field.metadata);
+		const valueSchema: TSwaggerSchemaObject = ApiControllerGetListQueryOpenApiValueSchema(field.metadata);
 
-		const branches: Array<SchemaObject> = field.allowedOperations.map((operation: EFilterOperation): SchemaObject => {
+		const branches: Array<TSwaggerSchemaObject> = field.allowedOperations.map((operation: EFilterOperation): TSwaggerSchemaObject => {
 			const operand: EFilterOperand = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operation].operand;
 
-			const properties: Record<string, SchemaObject> = {
+			const properties: Record<string, TSwaggerSchemaObject> = {
 				operator: {
 					enum: [operation],
 					type: "string",
@@ -55,9 +55,9 @@ export function ApiControllerGetListQueryOpenApiDecorators(plan: IApiControllerG
 				required.push("values");
 			}
 
-			const additionalPropertiesKey: keyof SchemaObject = "additionalProperties";
+			const additionalPropertiesKey: keyof TSwaggerSchemaObject = "additionalProperties";
 
-			const branch: SchemaObject = {
+			const branch: TSwaggerSchemaObject = {
 				[additionalPropertiesKey]: false,
 				properties,
 				required,

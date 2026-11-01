@@ -6,6 +6,8 @@ const path = require("path");
 
 const declarationRoots = ["dist/esm", "dist/cjs"].map((directoryPath) => path.resolve(directoryPath));
 const invalidDeclarationPaths = [];
+const privateSwaggerImportPaths = [];
+const privateSwaggerImportPattern = /@nestjs\/swagger\/dist/;
 
 function scanDirectory(directoryPath) {
 	for (const entry of fs.readdirSync(directoryPath, { withFileTypes: true })) {
@@ -16,11 +18,17 @@ function scanDirectory(directoryPath) {
 			continue;
 		}
 
-		if (!entry.name.endsWith(".d.ts")) {
+		if (!entry.name.endsWith(".d.ts") && !entry.name.endsWith(".js")) {
 			continue;
 		}
 
-		if (fs.readFileSync(entryPath, "utf8").includes("node_modules/")) {
+		const fileContent = fs.readFileSync(entryPath, "utf8");
+
+		if (privateSwaggerImportPattern.test(fileContent)) {
+			privateSwaggerImportPaths.push(path.relative(process.cwd(), entryPath));
+		}
+
+		if (entry.name.endsWith(".d.ts") && fileContent.includes("node_modules/")) {
 			invalidDeclarationPaths.push(path.relative(process.cwd(), entryPath));
 		}
 	}
@@ -37,6 +45,11 @@ for (const declarationRoot of declarationRoots) {
 
 if (invalidDeclarationPaths.length > 0) {
 	process.stderr.write(`Generated declarations contain local node_modules paths:\n${invalidDeclarationPaths.map((filePath) => `- ${filePath}`).join("\n")}\n`);
+	process.exit(1);
+}
+
+if (privateSwaggerImportPaths.length > 0) {
+	process.stderr.write(`Generated output imports private @nestjs/swagger paths:\n${privateSwaggerImportPaths.map((filePath) => `- ${filePath}`).join("\n")}\n`);
 	process.exit(1);
 }
 
