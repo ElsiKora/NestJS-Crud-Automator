@@ -1,6 +1,6 @@
 import type { ValueTransformer } from "typeorm";
 
-import { API_CONTROLLER_TIMESTAMPTZ_COLUMN_TYPES } from "@constant/api-controller-cursor.constant";
+import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
 import { DATABASE_DRIVER_TYPE_CONSTANT } from "@constant/database-driver-type.constant";
 import { ErrorException } from "@utility/error/exception.utility";
 
@@ -27,5 +27,5 @@ export function DatabaseTypeOrmBindInstant(value: unknown, columnType: string, d
 		transformed = columnTransformer.to(transformed) as unknown;
 	}
 
-	return transformed instanceof Date && API_CONTROLLER_TIMESTAMPTZ_COLUMN_TYPES.has(columnType) && DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(driverType) ? transformed.toISOString() : transformed;
+	return transformed instanceof Date && DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType) && DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(driverType) ? transformed.toISOString() : transformed;
 }

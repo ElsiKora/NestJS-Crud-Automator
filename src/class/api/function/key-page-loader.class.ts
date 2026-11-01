@@ -3,14 +3,13 @@ import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { DataSource, Driver, EntityMetadata, FindManyOptions, FindOneOptions, FindOperator, ObjectLiteral, QueryRunner, RelationMetadata, Repository, SelectQueryBuilder } from "typeorm";
 
 import { ApiFunctionBoundOperator } from "@class/api/function/bound-operator.class";
-import { API_CONTROLLER_TIMESTAMPTZ_COLUMN_TYPES } from "@constant/api-controller-cursor.constant";
+import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
 import { DATABASE_DRIVER_TYPE_CONSTANT } from "@constant/database-driver-type.constant";
 import { DatabaseTypeOrmBindInstant } from "@utility/database/typeorm/bind/instant.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { InstanceChecker } from "typeorm";
 
-const KEY_PAGE_TEMPORAL_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["date", "timestamp without time zone", "timestamp with time zone"]);
 const KEY_PAGE_ALIAS: string = "crud_automator_key_page";
 const KEY_PAGE_PARAMETER_PREFIX: string = "crud_automator_page_key";
 
@@ -281,7 +280,7 @@ export class ApiFunctionKeyPageLoader {
 		const columnType: string = driver.normalizeType(column);
 		const driverType: string = driver.options.type;
 
-		if (!API_CONTROLLER_TIMESTAMPTZ_COLUMN_TYPES.has(columnType) || !DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(driverType) || !this.hasDate(condition)) {
+		if (!DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType) || !DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(driverType) || !this.hasDate(condition)) {
 			return condition;
 		}
 
@@ -487,7 +486,9 @@ export class ApiFunctionKeyPageLoader {
 	 * @returns {boolean} Whether the column is a PostgreSQL date or timestamp
 	 */
 	private static isTemporalColumn<E extends ObjectLiteral>(repository: Repository<E>, column: TTypeOrmColumnMetadata): boolean {
-		return KEY_PAGE_TEMPORAL_COLUMN_TYPES.has(repository.manager.dataSource.driver.normalizeType(column));
+		const columnType: string = repository.manager.dataSource.driver.normalizeType(column);
+
+		return DATABASE_COLUMN_TYPE_CONSTANT.DATE.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.DATE_TIME.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType);
 	}
 
 	/**

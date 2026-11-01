@@ -6,6 +6,7 @@ import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { EntitySubscriberInterface, EntityTarget, Repository } from "typeorm";
 
 import { API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN, API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
+import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
 import { EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
 import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
 import { EnumValues } from "@utility/enum/values.utility";
@@ -17,7 +18,6 @@ const POSTGRES_BIGINT_OID: number = 20;
 const POSTGRES_SMALLINT_OID: number = 21;
 const POSTGRES_INTEGER_OID: number = 23;
 const POSTGRES_TIMESTAMPTZ_OID: number = 1184;
-const POSTGRES_TIMESTAMPTZ_STORAGE_TYPE: string = "timestamp with time zone";
 const POSTGRES_UUID_OID: number = 2950;
 const POSTGRES_BIGINT_PROBE: string = "9007199254740992";
 const SIGNED_BIGINT_MAXIMUM: bigint = 9_223_372_036_854_775_807n;
@@ -52,7 +52,7 @@ const EXACT_STORAGE_TYPES_BY_DRIVER: Readonly<Record<string, Readonly<Record<str
 		BOOLEAN: new Set<string>(["boolean"]),
 		ENUM_NUMBER: new Set<string>(["integer", "smallint"]),
 		INTEGER: new Set<string>(["integer", "smallint"]),
-		TIMESTAMPTZ: new Set<string>([POSTGRES_TIMESTAMPTZ_STORAGE_TYPE]),
+		TIMESTAMPTZ: DATABASE_COLUMN_TYPE_CONSTANT.INSTANT,
 		UUID: new Set<string>(["uuid"]),
 	}),
 });
@@ -159,7 +159,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 		} else if (storageContract === "UUID" && normalizedStorageType === "uuid") {
 			oid = POSTGRES_UUID_OID;
 			probes = Object.freeze(["00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002", "ffffffff-ffff-ffff-ffff-ffffffffffff"].map((probe: string): Readonly<[string, unknown]> => this.createPostgresParserProbe(probe, probe)));
-		} else if (storageContract === "TIMESTAMPTZ" && normalizedStorageType === POSTGRES_TIMESTAMPTZ_STORAGE_TYPE) {
+		} else if (storageContract === "TIMESTAMPTZ" && DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(normalizedStorageType)) {
 			oid = POSTGRES_TIMESTAMPTZ_OID;
 			probes = Object.freeze([
 				this.createPostgresParserProbe("1969-12-31 23:59:59.999+00", new Date("1969-12-31T23:59:59.999Z")),
