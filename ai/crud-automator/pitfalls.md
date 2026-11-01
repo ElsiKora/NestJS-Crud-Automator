@@ -278,6 +278,10 @@ From 5.0.0, generated GET and GET_LIST over such a root no longer produce the 4.
 
 From 5.0.0 `IApiBaseEntity` is `object`, a breaking change: it has no index signature and no `name`, and a `declare module` augmentation of it gives `TS2300`. Declare every key on the entity, or on your own interface that extends `IApiBaseEntity`. Do not read undeclared keys with `(entity as Record<string, unknown>)[key]`, which is `TS2352` on a non-generic entity; use `keyof E` or `Reflect.get`. An `entity` option, `ErrorString` and `GenerateEntityInformation` take a `TApiEntityReference`: it refuses `{ foo: 1 }` and an instance of a class without a `name`, but not `{}` or a function, so `@ApiController` catches those when the class is decorated. In code generic over `E`, write `{ limit, page } as TApiControllerGetListQuery<E>` for `getList` and `"ownerId" as keyof E` or no argument for `scopeToOwner`.
 
+## Describe Metadata By Class Name
+
+`MetadataStorage` keys `@ApiPropertyDescribe` metadata by class, not by class name. Pass the class to `setMetadata` and `getMetadata`; `getMetadata(Class)` and `getMetadata(Class, property)` already include the class's ancestors, so do not loop over ancestor names. `getAllEntitiesMetadata()` returns a `Map` keyed by class. For a `{ name }` reference such as a string relation target or an `EntitySchema`, call `ResolveMetadataTarget(reference)` first; a name that matches no `@Entity` class or several fails startup with `Metadata target "<name>" ...`, so pass the class or give the classes distinct names. Before 5.0.0 the last class registered under a name replaced the metadata of every other class with that name.
+
 ## Removed 3.0 Exports
 
 Use `EApiGetDefaultStringFormatPropertiesBigIntStringSign` instead of the removed `TApiGetDefaultStringFormatPropertiesBigIntStringSign` type. Do not import the removed `EHasPairedCustomSuffixesFieldsArgumentType`, `THasPairedCustomSuffixesFieldsOperationConfig`, or `VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT`; `HasPairedCustomSuffixesFieldsValidator` remains public. Import supported symbols from the package root.

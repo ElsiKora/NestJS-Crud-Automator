@@ -177,7 +177,7 @@ Abstract base class for all subscribers.
 
 ### MetadataStorage
 
-Singleton class for storing and retrieving entity property metadata.
+Singleton class for storing and retrieving entity property metadata. Metadata is keyed by the class, never by its name, and a class sees its own metadata merged with its ancestors'.
 
 **Location:** `src/class/metadata-storage.class.ts`
 
@@ -191,29 +191,31 @@ Returns the singleton instance.
 const storage = MetadataStorage.getInstance();
 ```
 
-#### `setMetadata(entityName, propertyKey, key, value)`
+#### `setMetadata(target, propertyKey, key, value)`
 
-Stores metadata for a property.
+Stores metadata for a property the class declares itself.
 
 ```typescript
-storage.setMetadata("UserEntity", "username", "API_PROPERTY_DESCRIBE_METADATA_KEY", { ... });
+storage.setMetadata(UserEntity, "username", "API_PROPERTY_DESCRIBE_METADATA_KEY", { ... });
 ```
 
-#### `getMetadata(entityName, propertyKey?, key?)`
+#### `getMetadata(target, propertyKey?, key?)`
 
-Retrieves all entity metadata, one property metadata entry, or one metadata key.
+Retrieves all metadata of the class and its ancestors, one property metadata entry, or one metadata key. A property described on the class wins over the same property on an ancestor.
 
 ```typescript
-const metadata = storage.getMetadata("UserEntity", "username", "API_PROPERTY_DESCRIBE_METADATA_KEY");
+const metadata = storage.getMetadata(UserEntity, "username", "API_PROPERTY_DESCRIBE_METADATA_KEY");
 ```
 
 #### `getAllEntitiesMetadata()`
 
-Retrieves metadata for every registered entity.
+Retrieves the metadata each registered class declares itself, as a `Map` keyed by class.
 
 ```typescript
-const allMetadata = storage.getAllEntitiesMetadata();
+const userMetadata = storage.getAllEntitiesMetadata().get(UserEntity);
 ```
+
+To read metadata for a `{ name }` entity reference, resolve it to the class with [`ResolveMetadataTarget`](/docs/nestjs-crud-automator/api-reference/utilities#resolvemetadatatarget) first.
 
 **Related:**
 

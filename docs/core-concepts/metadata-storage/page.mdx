@@ -26,7 +26,7 @@ export class UserEntity {
 Behind the scenes, `@ApiPropertyDescribe` calls:
 
 ```typescript
-MetadataStorage.getInstance().setMetadata("UserEntity", "username", "API_PROPERTY_DESCRIBE_METADATA_KEY", {
+MetadataStorage.getInstance().setMetadata(UserEntity, "username", "API_PROPERTY_DESCRIBE_METADATA_KEY", {
 	type: EApiPropertyDescribeType.STRING,
 	description: "Username",
 	format: EApiPropertyStringType.STRING,
@@ -50,19 +50,51 @@ This guarantees that metadata is stored and retrieved consistently regardless of
 
 ## Storage Structure
 
-Metadata is organized hierarchically:
+Metadata is keyed by the class itself, not by its name:
 
 ```
 MetadataStorage
-├── EntityName1
+├── UserEntity (class)
 │   ├── propertyName1
 │   │   └── metadata-key → metadata value
 │   └── propertyName2
 │       └── metadata-key → metadata value
-└── EntityName2
+└── PostEntity (class)
     └── propertyName1
         └── metadata-key → metadata value
 ```
+
+Two classes with the same name keep separate metadata. A class declared later with the name of an entity or of one of its base classes, for example in a test or in another module, does not change that entity's metadata.
+
+## Inheritance
+
+A class sees its own metadata merged with the metadata of its ancestor classes. The ancestors are found by walking the class's prototype chain, so base classes and mixins count and classes that only share a name with an ancestor do not. When a class and an ancestor describe the same property, the description nearest to the class wins.
+
+```typescript
+abstract class BaseEntity {
+	@ApiPropertyDescribe({ type: EApiPropertyDescribeType.UUID, description: "Identifier" })
+	id: string;
+}
+
+@Entity("users")
+export class UserEntity extends BaseEntity {
+	@ApiPropertyDescribe({ type: EApiPropertyDescribeType.STRING, description: "Username" /* ... */ })
+	username: string;
+}
+
+MetadataStorage.getInstance().getMetadata(UserEntity); // { id: ..., username: ... }
+MetadataStorage.getInstance().getMetadata(BaseEntity); // { id: ... }
+```
+
+## Entity References by Name
+
+Code paths that receive an entity as a `{ name }` reference, such as a string relation target `@ManyToOne("UserEntity", ...)` or an `EntitySchema`, resolve it to a class before they read metadata. `ResolveMetadataTarget` does that:
+
+- a class is used as is;
+- an `EntitySchema` resolves to its `target` class;
+- a name resolves through TypeORM entity metadata to the one `@Entity` class with that name.
+
+A name that matches no entity class, or several entity classes, fails at startup with an error that names the target, such as `Metadata target "UserEntity" matches 2 entity classes in TypeORM metadata. Pass the entity class instead of its name.` Pass the class instead of the name.
 
 ## Metadata Retrieval
 
@@ -71,7 +103,7 @@ MetadataStorage
 Retrieve metadata for a specific property:
 
 ```typescript
-const metadata = MetadataStorage.getInstance().getMetadata("UserEntity", "username", "API_PROPERTY_DESCRIBE_METADATA_KEY");
+const metadata = MetadataStorage.getInstance().getMetadata(UserEntity, "username", "API_PROPERTY_DESCRIBE_METADATA_KEY");
 
 // Returns:
 // {
@@ -85,24 +117,25 @@ const metadata = MetadataStorage.getInstance().getMetadata("UserEntity", "userna
 // }
 ```
 
-When an entity extends a base class, DTO generation checks metadata for the concrete entity and its ancestors. This lets shared base properties keep their `@ApiPropertyDescribe` configuration while still being included in the concrete entity's generated DTOs and Swagger schemas.
+When the entity extends a base class, the lookup also checks its ancestors (see [Inheritance](#inheritance)). This lets shared base properties keep their `@ApiPropertyDescribe` configuration while still being included in the concrete entity's generated DTOs and Swagger schemas.
 
 ### Get All Entity Metadata
 
-Retrieve metadata for all properties of an entity:
+Retrieve metadata for all properties of an entity, including the properties of its ancestors:
 
 ```typescript
-const allMetadata = MetadataStorage.getInstance().getMetadata("UserEntity");
+const allMetadata = MetadataStorage.getInstance().getMetadata(UserEntity);
 
 // Returns object with all properties and their metadata
 ```
 
 ### Get All Registered Entities
 
-Retrieve metadata for every registered entity:
+Retrieve the metadata each registered class declares itself, without its ancestors' metadata, as a `Map` keyed by class:
 
 ```typescript
 const allEntitiesMetadata = MetadataStorage.getInstance().getAllEntitiesMetadata();
+const userMetadata = allEntitiesMetadata.get(UserEntity);
 ```
 
 ## Usage in Library
@@ -120,8 +153,8 @@ When generating DTOs, the library retrieves property metadata to determine:
 
 ```typescript
 // Simplified example of DTO generation
-function generateDto(entityName: string) {
-	const metadata = MetadataStorage.getInstance().getMetadata(entityName);
+function generateDto(entity: TMetadataStorageTarget) {
+	const metadata = MetadataStorage.getInstance().getMetadata(entity);
 
 	if (!metadata) return;
 
@@ -152,10 +185,10 @@ import { MetadataStorage } from "@elsikora/nestjs-crud-automator";
 const storage = MetadataStorage.getInstance();
 
 // Store custom metadata
-storage.setMetadata("CustomEntity", "customProperty", "custom-key", { customData: "value" });
+storage.setMetadata(CustomEntity, "customProperty", "custom-key", { customData: "value" });
 
 // Retrieve custom metadata
-const customMetadata = storage.getMetadata("CustomEntity", "customProperty", "custom-key");
+const customMetadata = storage.getMetadata(CustomEntity, "customProperty", "custom-key");
 ```
 
 ## Metadata Keys
@@ -185,7 +218,7 @@ To inspect stored metadata during development:
 import { MetadataStorage } from "@elsikora/nestjs-crud-automator";
 
 // Get all metadata for an entity
-const userMetadata = MetadataStorage.getInstance().getMetadata("UserEntity");
+const userMetadata = MetadataStorage.getInstance().getMetadata(UserEntity);
 console.log("User Entity Metadata:", JSON.stringify(userMetadata, null, 2));
 ```
 
@@ -201,7 +234,7 @@ console.log("User Entity Metadata:", JSON.stringify(userMetadata, null, 2));
 
 1. **Always use decorators**: Prefer `@ApiPropertyDescribe` over direct MetadataStorage manipulation
 2. **Avoid runtime modifications**: Metadata should be static and defined at design time
-3. **Use consistent entity names**: Ensure entity class names match the names used in metadata queries
+3. **Pass classes, not names**: Read metadata with the entity class; resolve a `{ name }` reference with `ResolveMetadataTarget` first
 4. **Leverage type safety**: Use TypeScript types when working with metadata
 
 ## Extending MetadataStorage
@@ -209,20 +242,29 @@ console.log("User Entity Metadata:", JSON.stringify(userMetadata, null, 2));
 For advanced use cases, you can extend metadata storage functionality:
 
 ```typescript
-import { MetadataStorage } from "@elsikora/nestjs-crud-automator";
+import { MetadataStorage, type TMetadataStorageTarget } from "@elsikora/nestjs-crud-automator";
 
 class CustomMetadataManager {
 	private storage = MetadataStorage.getInstance();
 
-	storeCustomMetadata(entityName: string, propertyName: string, customData: any): void {
-		this.storage.setMetadata(entityName, propertyName, "custom-metadata-key", customData);
+	storeCustomMetadata(entity: TMetadataStorageTarget, propertyName: string, customData: any): void {
+		this.storage.setMetadata(entity, propertyName, "custom-metadata-key", customData);
 	}
 
-	getCustomMetadata(entityName: string, propertyName: string): any {
-		return this.storage.getMetadata(entityName, propertyName, "custom-metadata-key");
+	getCustomMetadata(entity: TMetadataStorageTarget, propertyName: string): any {
+		return this.storage.getMetadata(entity, propertyName, "custom-metadata-key");
 	}
 }
 ```
+
+## Migration Notes
+
+Before 5.0.0, MetadataStorage was keyed by class name and the last write won. A class declared later with the name of an entity or of one of its base classes replaced that entity's property metadata, so generated DTOs, validation, Swagger schemas, and IAM scope compilation could use the other class's descriptions. From 5.0.0, metadata is keyed by class:
+
+- `setMetadata`, `getMetadata`, and their callers take the class instead of its name. Replace `getMetadata("UserEntity", ...)` with `getMetadata(UserEntity, ...)`; for a `{ name }` reference, call `getMetadata(ResolveMetadataTarget(reference), ...)`.
+- `getMetadata(Class)` and `getMetadata(Class, property)` include the metadata of the class's ancestors. Code that read each ancestor's name in a loop can read the class once.
+- `getAllEntitiesMetadata()` returns a `Map` keyed by class instead of a record keyed by name. Read entries with `.get(UserEntity)` or iterate the map.
+- A `{ name }` entity reference, such as a string relation target, that matches no `@Entity` class or several `@Entity` classes with that name fails startup with `Metadata target "<name>" ...`. Pass the class, or give the classes distinct names.
 
 ## Next Steps
 
