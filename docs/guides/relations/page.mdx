@@ -618,7 +618,9 @@ await userService.create({
 
 ## Migration Notes
 
-Response projection of to-many relations now keeps the array. Routes with a `OneToMany` or `ManyToMany` relation in `relations.response.load.include` change on the wire, whether the relation is described as `RELATION` or as an `OBJECT` array. TypeORM `lazy: true` relations are the exception: they stay `{}`, because they are not supported in responses.
+### 5.0.0
+
+From 5.0.0, response projection of to-many relations keeps the array. Routes with a `OneToMany` or `ManyToMany` relation in `relations.response.load.include` change on the wire, whether the relation is described as `RELATION` or as an `OBJECT` array. TypeORM `lazy: true` relations are the exception: they stay `{}`, because they are not supported in responses.
 
 | Reference | Before               | After                          |
 | --------- | -------------------- | ------------------------------ |
@@ -631,9 +633,9 @@ Generated Swagger changes with it: a to-many `RELATION` in a response schema is 
 
 This covers every response schema with a to-many `RELATION`, including routes that do not load it. There the key stays absent from the wire while the schema now says required array, as it said required object before, so a client that trusts the schema and calls `post.comments.map(...)` throws where the response itself did not change. Load the relation on that route, disable the property for that route's response, or read it defensively.
 
-`{ items }` is no longer read from the shape of a response alone. An entity with an `items` property, such as `Order.items`, now has its relations projected on GET, CREATE, UPDATE, PARTIAL_UPDATE and custom routes. Before, they were skipped: an unserialized response could return the full related row, and `SCALAR` returned an object. A custom route that returns a `{ items, totalCount }` envelope keeps working without a declared type, unless its `resource.entity` owns an `items` property: such a route must declare `route: { type: EApiRouteType.GET_LIST }`. A custom route that declares another type, such as `GET`, no longer has its `{ items }` read as an envelope.
+From 5.0.0, `{ items }` is no longer read from the shape of a response alone. An entity with an `items` property, such as `Order.items`, now has its relations projected on GET, CREATE, UPDATE, PARTIAL_UPDATE and custom routes. Before, they were skipped: an unserialized response could return the full related row, and `SCALAR` returned an object. A custom route that returns a `{ items, totalCount }` envelope keeps working without a declared type, unless its `resource.entity` owns an `items` property: such a route must declare `route: { type: EApiRouteType.GET_LIST }`. A custom route that declares another type, such as `GET`, no longer has its `{ items }` read as an envelope.
 
-Request hydration of to-many references changes too. The request schema is unchanged: a reference is still one value.
+From 5.0.0, request hydration of to-many references changes too. The request schema is unchanged: a reference is still one value.
 
 | Route                  | Before                                                                  | After                                      |
 | ---------------------- | ----------------------------------------------------------------------- | ------------------------------------------ |
