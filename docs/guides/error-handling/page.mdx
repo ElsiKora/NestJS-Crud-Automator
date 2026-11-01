@@ -28,9 +28,11 @@ The interceptor:
 
 1. Checks for `x-correlation-id` header in incoming requests
 2. Generates a UUID if header is missing
-3. Adds correlation ID to all error responses
-4. Adds timestamp to error responses
-5. Handles HttpException, ThrottlerException, and generic errors
+3. Adds correlation ID to error responses from the handler chain
+4. Adds timestamp to those error responses
+5. Handles HttpException, ThrottlerException, and generic errors thrown inside the handler chain
+
+Guards run before interceptors, so an exception thrown by a guard skips the interceptor. See [Rate Limiting Errors](#rate-limiting-errors).
 
 ## Error Response Format
 
@@ -343,12 +345,23 @@ import { ThrottlerModule } from "@nestjs/throttler";
 export class AppModule {}
 ```
 
-The CorrelationIDResponseBodyInterceptor automatically handles ThrottlerException:
+Guards run before interceptors, so a `429` from `ThrottlerGuard` does not pass through the CorrelationIDResponseBodyInterceptor. The response has no `correlationID`, `timestamp`, or `x-correlation-id` header:
 
 ```json
 {
 	"statusCode": 429,
-	"message": "Too Many Requests",
+	"message": "ThrottlerException: Too Many Requests"
+}
+```
+
+An exception filter receives that `ThrottlerException` itself, with no `cause`, and its `getResponse()` is a plain string.
+
+The interceptor handles a `ThrottlerException` only when it is thrown inside the handler chain, such as from a pipe, a route handler, or a service:
+
+```json
+{
+	"statusCode": 429,
+	"message": "ThrottlerException: Too Many Requests",
 	"error": "Too Many Requests",
 	"timestamp": 1704067200000,
 	"correlationID": "550e8400-e29b-41d4-a716-446655440000"
