@@ -1,14 +1,15 @@
 import "reflect-metadata";
 
 import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType } from "../../../../src/index";
-import { Column, Entity, JoinTable, ManyToMany, ManyToOne, OneToMany, PrimaryGeneratedColumn, type Relation } from "typeorm";
+import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn, type Relation } from "typeorm";
 
+import { E2eHydrationAttachmentEntity } from "./attachment.entity";
 import { E2eHydrationNoteEntity } from "./note.entity";
 import { E2eHydrationOwnerEntity } from "./owner.entity";
-import { E2eHydrationTagEntity } from "./tag.entity";
+import { E2eHydrationTaggedEntity } from "./tagged.entity";
 
 @Entity("e2e_hydration_posts")
-export class E2eHydrationPostEntity {
+export class E2eHydrationPostEntity extends E2eHydrationTaggedEntity {
 	@PrimaryGeneratedColumn("uuid")
 	@ApiPropertyDescribe({
 		description: "id",
@@ -36,17 +37,16 @@ export class E2eHydrationPostEntity {
 	public owner?: null | Relation<E2eHydrationOwnerEntity>;
 
 	@ApiPropertyDescribe({
+		description: "attachments",
+		type: EApiPropertyDescribeType.RELATION,
+	})
+	@OneToMany(() => E2eHydrationAttachmentEntity, (attachment: E2eHydrationAttachmentEntity): Relation<E2eHydrationPostEntity> => attachment.post)
+	public attachments?: Array<E2eHydrationAttachmentEntity>;
+
+	@ApiPropertyDescribe({
 		description: "notes",
 		type: EApiPropertyDescribeType.RELATION,
 	})
 	@OneToMany(() => E2eHydrationNoteEntity, (note: E2eHydrationNoteEntity): null | Relation<E2eHydrationPostEntity> | undefined => note.post)
 	public notes?: Array<E2eHydrationNoteEntity>;
-
-	@ApiPropertyDescribe({
-		description: "tags",
-		type: EApiPropertyDescribeType.RELATION,
-	})
-	@JoinTable({ name: "e2e_hydration_post_tags" })
-	@ManyToMany(() => E2eHydrationTagEntity)
-	public tags?: Array<E2eHydrationTagEntity>;
 }

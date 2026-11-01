@@ -5,7 +5,14 @@ import { InjectRepository } from "@nestjs/typeorm";
 
 import { ApiService, ApiServiceBase } from "../../../src/index";
 
-import { E2eHydrationNoteEntity, E2eHydrationOwnerEntity, E2eHydrationPostEntity, E2eHydrationTagEntity } from "./entity";
+import { E2eHydrationAttachmentEntity, E2eHydrationNoteEntity, E2eHydrationOwnerEntity, E2eHydrationPostEntity, E2eHydrationTagEntity } from "./entity";
+
+@Injectable()
+@ApiService({ entity: E2eHydrationAttachmentEntity })
+export class E2eHydrationAttachmentService extends ApiServiceBase<E2eHydrationAttachmentEntity> {
+	@InjectRepository(E2eHydrationAttachmentEntity)
+	public readonly repository!: Repository<E2eHydrationAttachmentEntity>;
+}
 
 @Injectable()
 @ApiService({ entity: E2eHydrationNoteEntity })

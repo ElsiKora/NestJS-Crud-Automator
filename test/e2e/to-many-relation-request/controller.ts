@@ -3,9 +3,9 @@ import { Body, HttpStatus, Inject, RequestMethod } from "@nestjs/common";
 import { ApiController, ApiRouteCustom, EApiControllerRelationReferenceShape, EApiRouteType } from "../../../src/index";
 
 import { E2eHydrationPostEntity } from "./entity";
-import { E2eHydrationNoteService, E2eHydrationOwnerService, E2eHydrationPostService, E2eHydrationTagService } from "./service";
+import { E2eHydrationAttachmentService, E2eHydrationNoteService, E2eHydrationOwnerService, E2eHydrationPostService, E2eHydrationTagService } from "./service";
 
-const REQUEST_INCLUDE = { notes: true, owner: true, tags: true } as const;
+const REQUEST_INCLUDE = { attachments: true, notes: true, owner: true, tags: true } as const;
 const REQUEST_RELATIONS = { load: { include: REQUEST_INCLUDE }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.SCALAR } } as const;
 const RESPONSE_RELATIONS = { load: { include: REQUEST_INCLUDE }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } as const;
 const RELATIONS = { request: REQUEST_RELATIONS, response: RESPONSE_RELATIONS } as const;
@@ -26,6 +26,7 @@ const RELATIONS = { request: REQUEST_RELATIONS, response: RESPONSE_RELATIONS } a
 export class E2eHydrationPostController {
 	public constructor(
 		@Inject(E2eHydrationPostService) public readonly service: E2eHydrationPostService,
+		@Inject(E2eHydrationAttachmentService) public readonly attachmentsService: E2eHydrationAttachmentService,
 		@Inject(E2eHydrationNoteService) public readonly notesService: E2eHydrationNoteService,
 		@Inject(E2eHydrationOwnerService) public readonly ownerService: E2eHydrationOwnerService,
 		@Inject(E2eHydrationTagService) public readonly tagsService: E2eHydrationTagService,
