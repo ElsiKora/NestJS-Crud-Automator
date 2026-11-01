@@ -11,5 +11,9 @@ export interface IApiRouteRuntimeGeneratedExecutionOptions<E extends IApiBaseEnt
 	method: R;
 	methodName: string;
 	properties: IApiControllerProperties<E>;
+	/**
+	 * Schema prefix of the decorated controller class, claimed once when the class is decorated; a subclass or mixin instance keeps the prefix of the class that declared the routes.
+	 */
+	schemaPrefix: string;
 	targets: IApiRouteRuntimeGeneratedTargets<E>;
 }

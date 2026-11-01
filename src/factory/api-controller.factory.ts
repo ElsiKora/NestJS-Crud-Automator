@@ -121,9 +121,11 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	protected [EApiRouteType.CREATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.CREATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+		const schemaPrefix: string = this.schemaPrefix;
+
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
-				return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, targets: { authenticationRequest, body, headers, ip } })) as E;
+				return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, schemaPrefix, targets: { authenticationRequest, body, headers, ip } })) as E;
 			},
 			"name",
 			{ value: methodName },
@@ -131,9 +133,11 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	protected [EApiRouteType.DELETE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.DELETE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+		const schemaPrefix: string = this.schemaPrefix;
+
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<void> {
-				await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, targets: { authenticationRequest, headers, ip, parameters } });
+				await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, schemaPrefix, targets: { authenticationRequest, headers, ip, parameters } });
 			},
 			"name",
 			{ value: methodName },
@@ -141,9 +145,11 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	protected [EApiRouteType.GET](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+		const schemaPrefix: string = this.schemaPrefix;
+
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
-				return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, targets: { authenticationRequest, headers, ip, parameters } })) as E;
+				return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, schemaPrefix, targets: { authenticationRequest, headers, ip, parameters } })) as E;
 			},
 			"name",
 			{ value: methodName },
@@ -151,6 +157,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	protected [EApiRouteType.GET_LIST](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET_LIST>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+		const schemaPrefix: string = this.schemaPrefix;
+
 		const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanGet(this.targetPrototype, methodName);
 
 		if (readPlan) {
@@ -161,7 +169,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 					const queryPlan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanGet(Object.getPrototypeOf(this) as object, methodName);
 					const runtimeQuery: TApiControllerGetListQuery<E, M> = queryPlan && !queryPlan.filter.isLegacy && requestQuery ? requestQuery : query;
 
-					return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, targets: { authenticationRequest, headers, ip, parameters, query: runtimeQuery as TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> } })) as TApiControllerGetListResponse<E, M>;
+					return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, schemaPrefix, targets: { authenticationRequest, headers, ip, parameters, query: runtimeQuery as TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> } })) as TApiControllerGetListResponse<E, M>;
 				},
 				"name",
 				{ value: methodName },
@@ -177,7 +185,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 				const queryPlan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanGet(Object.getPrototypeOf(this) as object, methodName);
 				const runtimeQuery: TApiControllerGetListQuery<E, M> = queryPlan && !queryPlan.filter.isLegacy && requestQuery ? requestQuery : query;
 
-				return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, targets: { authenticationRequest, headers, ip, query: runtimeQuery as TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> } })) as TApiControllerGetListResponse<E, M>;
+				return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, schemaPrefix, targets: { authenticationRequest, headers, ip, query: runtimeQuery as TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> } })) as TApiControllerGetListResponse<E, M>;
 			},
 			"name",
 			{ value: methodName },
@@ -195,6 +203,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	/**
 	 * Claims the schema prefix of the decorated controller class, which starts every generated DTO and OpenAPI component name.
 	 * Fails startup when the class has no name or another controller class already has the same prefix, since their generated DTOs would share component names.
+	 * The routes read the claimed prefix at runtime, so a subclass or mixin of the decorated class serializes with the DTOs that the document shows.
 	 * @returns {string} The schema prefix of the controller.
 	 * @throws {Error} When the controller class has no name or its schema prefix belongs to another controller class.
 	 */
@@ -216,9 +225,11 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	private defineUpdateRouteMethod(method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.PARTIAL_UPDATE> | TApiControllerMethodName<typeof EApiRouteType.UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
+		const schemaPrefix: string = this.schemaPrefix;
+
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
-				return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, targets: { authenticationRequest, body, headers, ip, parameters } })) as E;
+				return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, schemaPrefix, targets: { authenticationRequest, body, headers, ip, parameters } })) as E;
 			},
 			"name",
 			{ value: methodName },

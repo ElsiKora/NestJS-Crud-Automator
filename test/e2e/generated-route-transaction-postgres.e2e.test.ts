@@ -255,6 +255,7 @@ function createGeneratedCreateOptions(itemService: RouteTransactionItemService, 
 				},
 			},
 		},
+		schemaPrefix: "RuntimeRoute",
 		targets: {
 			body: {
 				id: itemId,
@@ -312,6 +313,7 @@ function createGeneratedGetListOptions(itemService: RouteTransactionItemService)
 				},
 			},
 		},
+		schemaPrefix: "RuntimeRoute",
 		targets: {
 			headers: {},
 			ip: "127.0.0.1",

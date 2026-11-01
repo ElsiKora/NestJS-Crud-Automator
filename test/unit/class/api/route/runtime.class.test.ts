@@ -962,6 +962,7 @@ describe("ApiRouteRuntime", () => {
 					},
 				},
 			},
+			schemaPrefix: "RuntimeRoute",
 			targets: {
 				headers: {},
 				ip: "127.0.0.1",
@@ -1019,6 +1020,7 @@ describe("ApiRouteRuntime", () => {
 					},
 				},
 			},
+			schemaPrefix: "RuntimeRoute",
 			targets: {
 				authenticationRequest: {
 					authorizationDecision: {
@@ -1093,6 +1095,7 @@ describe("ApiRouteRuntime", () => {
 					},
 				},
 			},
+			schemaPrefix: "RuntimeRoute",
 			targets: {
 				headers: {},
 				ip: "127.0.0.1",

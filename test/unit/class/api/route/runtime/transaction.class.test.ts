@@ -64,6 +64,7 @@ function createGeneratedCreateOptions(
 				} as never,
 			},
 		},
+		schemaPrefix: "RuntimeRoute",
 		targets: {
 			body,
 			headers: {},
@@ -110,6 +111,7 @@ function createGeneratedUpdateOptions(service: ApiServiceBase<RuntimeRouteEntity
 				},
 			} as never,
 		},
+		schemaPrefix: "RuntimeRoute",
 		targets: {
 			body: {
 				relation: "request" as never,
@@ -167,6 +169,7 @@ function createGeneratedReadOrDeleteOptions(service: ApiServiceBase<RuntimeRoute
 				},
 			} as never,
 		},
+		schemaPrefix: "RuntimeRoute",
 		targets: {
 			headers: {},
 			ip: "127.0.0.1",

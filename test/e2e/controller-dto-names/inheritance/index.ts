@@ -1,0 +1,1 @@
+export { E2eDtoNameAnonymousMixinController, E2eDtoNameBaseCrudController, E2eDtoNameChildCrudController, E2eDtoNameLoggedKaController, E2eDtoNameLoggedKbController, E2eDtoNameMixinBaseController } from "./controller";
