@@ -107,6 +107,10 @@ Use explicit `ApiPropertyCopy` when a manual DTO intentionally needs the hidden 
 
 When two entity files import each other, type their relation properties as `Relation<T>` (`import type { Relation } from "typeorm"`) in examples, tests and consumer code; in a native ES module application it is required. With `emitDecoratorMetadata` (SWC `decoratorMetadata`), a plain `author: UserEntity` is read while the ES module loads and fails with `ReferenceError: Cannot access 'UserEntity' before initialization`, SWC's `typeof` guard included; CommonJS hides the cycle. The package reads `design:type` only in `filter-order-by-from-entity.utility.ts`, for columns without an explicit `type`. `test/consumer/cyclic` and the SWC consumer `test/consumer/swc` cover it in the consumer smoke.
 
+## To-Many Request Relations
+
+A `relations.request` reference to a `OneToMany` or `ManyToMany` relation is one value, as for to-one. CREATE hydrates it into a one-element array and binds that row. UPDATE and PARTIAL_UPDATE reject it with `400` `INVALID_REFERENCE` before loading or writing anything, because saving a one-element array would replace the whole set. Do not send a to-many reference on an update; an update body without the key leaves stored rows untouched. Change to-many sets in a custom route. In `@ApiRouteCustom` handlers, read a hydrated to-many body property as an array: `body.tags` is `[tag]`, not `tag`.
+
 ## To-Many Response Relations
 
 `relations.response` projects `OneToMany` and `ManyToMany` element by element: `OBJECT` gives `[{ id }]`, `SCALAR` gives `[id]`, and a relation with no rows gives `[]`. Null elements stay in place. Do not expect the fields of related rows: the projection is destructive for to-many exactly as for to-one. To return more than the reference, omit Automator response loading and use a manual response DTO or transformer.

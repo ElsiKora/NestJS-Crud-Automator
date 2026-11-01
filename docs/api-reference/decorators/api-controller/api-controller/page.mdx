@@ -31,7 +31,7 @@ Routes also accept:
 - `security.authorization` – authorization mode and optional per-route overrides.
 - `request` / `response` – target-scoped pipe and serializer overrides for each CRUD action. A generated GET_LIST QUERY target also accepts optional `filter`, `order`, and `pagination` sections that compile into one immutable DTO/runtime/OpenAPI query plan.
 - `identity` – GET-only top-level `{ parameter }` configuration for exposing the entity primary key under a different safe path-parameter name. It remains a primary-key lookup and does not rename the response.
-- `relations` – include-driven request hydration and response loading. `relations.request.load.locks` can apply native `pessimistic_read` or `pessimistic_write` locks to enabled direct relation includes inside an active Automator transaction.
+- `relations` – include-driven request hydration and response loading. A to-many request reference binds one row on CREATE and is rejected with `400` `INVALID_REFERENCE` on UPDATE and PARTIAL_UPDATE. `relations.request.load.locks` can apply native `pessimistic_read` or `pessimistic_write` locks to enabled direct relation includes inside an active Automator transaction.
 - `transaction.mode` – generated-route transaction behavior using `EApiFunctionTransactionMode`. Omitted config and `SUPPORTS` open no route transaction; `REQUIRED` opens or joins, `MANDATORY` requires an active owner, and `NONE` rejects one.
 - `generation.decorators` – additional method or property decorators applied after the factory finishes.
 - `generation.isEnabled: false` – disables a route. Omitting a route key does not disable it; the factory generates omitted routes with default configuration.

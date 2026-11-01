@@ -466,6 +466,18 @@ The generated request DTO of a `RELATION` is a single UUID property. With a glob
 
 The generated response DTO of a relation exposes only `id`, so a response `OBJECT` reference with any other `key` currently gives `{}`, or `[{}]` for a to-many relation: the serializer strips the key. Use `SCALAR` for a key other than `id`, or a manual response DTO that exposes that key.
 
+### To-Many Request References
+
+A request reference to a `OneToMany` or `ManyToMany` relation is still a single value: the generated request schema and its validation are the same as for a to-one relation, so a request names one related row. Hydration depends on the route:
+
+| Route                            | `"tags": "t1"` in the body                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------------------------- |
+| CREATE                           | Becomes `tags: [tag]`, so the new row is bound to that one tag                              |
+| UPDATE, PARTIAL_UPDATE           | Rejected with `400` `INVALID_REFERENCE` before any relation is loaded or any row is written |
+| Custom route (`@ApiRouteCustom`) | The handler receives `body.tags` as `[tag]`                                                 |
+
+Updates reject the reference because TypeORM saves an array as the full new set: a one-element array would detach every other related row, setting a nullable foreign key to `null` or failing on a `NOT NULL` one. An update body without the to-many key leaves the stored rows untouched, and to-one references keep hydrating as before. To add, remove or replace related rows, use a custom route that changes the set explicitly.
+
 ## Custom Route Relations
 
 `@ApiRouteCustom` uses the same `relations.request` and `relations.response` contract as generated routes:
@@ -494,7 +506,7 @@ async assignAuthor(@Body() body: Partial<PostEntity>): Promise<PostEntity> {
 }
 ```
 
-Custom route request relations are hydrated from the method body payload before the handler runs. Generated-route `transaction` configuration does not apply to custom routes; custom functions, steps, or named scopes continue to own their transactions. If custom relation config uses `locks`, hydration must already run under an active Automator transaction. Response relation reload requires `controller.service` to extend `ApiServiceBase`; response values without an `id` are returned unchanged. Response relations can be reloaded and projected for single entities, arrays, and get-list style `{ items }` envelopes. A custom route with `route: { type: EApiRouteType.GET_LIST }` always reads `{ items }` as an envelope, and one that declares any other type reads it as a property of the entity. Without a declared type, `{ items }` is an envelope unless the route's `resource.entity` owns an `items` property. Generated CREATE always reloads the created entity through `service.get(...)`; configured response relations are included when present. UPDATE and PARTIAL_UPDATE reload only when response relation loading is configured; DELETE returns no response body to project.
+Custom route request relations are hydrated from the method body payload before the handler runs; a to-many reference arrives as a one-element array. Generated-route `transaction` configuration does not apply to custom routes; custom functions, steps, or named scopes continue to own their transactions. If custom relation config uses `locks`, hydration must already run under an active Automator transaction. Response relation reload requires `controller.service` to extend `ApiServiceBase`; response values without an `id` are returned unchanged. Response relations can be reloaded and projected for single entities, arrays, and get-list style `{ items }` envelopes. A custom route with `route: { type: EApiRouteType.GET_LIST }` always reads `{ items }` as an envelope, and one that declares any other type reads it as a property of the entity. Without a declared type, `{ items }` is an envelope unless the route's `resource.entity` owns an `items` property. Generated CREATE always reloads the created entity through `service.get(...)`; configured response relations are included when present. UPDATE and PARTIAL_UPDATE reload only when response relation loading is configured; DELETE returns no response body to project.
 
 ## Performance Optimization
 
@@ -620,6 +632,16 @@ Generated Swagger changes with it: a to-many `RELATION` in a response schema is 
 This covers every response schema with a to-many `RELATION`, including routes that do not load it. There the key stays absent from the wire while the schema now says required array, as it said required object before, so a client that trusts the schema and calls `post.comments.map(...)` throws where the response itself did not change. Load the relation on that route, disable the property for that route's response, or read it defensively.
 
 `{ items }` is no longer read from the shape of a response alone. An entity with an `items` property, such as `Order.items`, now has its relations projected on GET, CREATE, UPDATE, PARTIAL_UPDATE and custom routes. Before, they were skipped: an unserialized response could return the full related row, and `SCALAR` returned an object. A custom route that returns a `{ items, totalCount }` envelope keeps working without a declared type, unless its `resource.entity` owns an `items` property: such a route must declare `route: { type: EApiRouteType.GET_LIST }`. A custom route that declares another type, such as `GET`, no longer has its `{ items }` read as an envelope.
+
+Request hydration of to-many references changes too. The request schema is unchanged: a reference is still one value.
+
+| Route                  | Before                                                                  | After                                      |
+| ---------------------- | ----------------------------------------------------------------------- | ------------------------------------------ |
+| CREATE                 | `ManyToMany` silently not bound, `OneToMany` failed with `500`          | Bound to the referenced row                |
+| UPDATE, PARTIAL_UPDATE | `ManyToMany` silently ignored with `200`, `OneToMany` failed with `500` | `400` `INVALID_REFERENCE`, nothing written |
+| Custom route           | `body.tags` was the single entity                                       | `body.tags` is `[entity]`                  |
+
+A custom route handler that read a to-many request relation as one entity must read the first element of the array. A client that sent a to-many reference on an update and relied on the `200` must drop the key or move the change to a custom route.
 
 ## Next Steps
 
