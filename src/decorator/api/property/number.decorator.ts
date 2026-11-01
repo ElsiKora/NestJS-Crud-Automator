@@ -300,7 +300,7 @@ function buildResponseDecorators(properties: TApiPropertyNumberProperties): Arra
 
 /**
  * Builds decorators for type transformation from string to number.
- * Handles both single values and arrays with appropriate transformers.
+ * Handles both single values and arrays with appropriate transformers; an array property wraps a single value into a one-item array first.
  * @param {TApiPropertyNumberProperties} properties - The property configuration
  * @returns {Array<PropertyDecorator>} An array of type transformation decorators
  * @private
@@ -312,12 +312,12 @@ function buildTransformDecorators(properties: TApiPropertyNumberProperties): Arr
 		if (properties.isArray) {
 			decorators.push(
 				Transform(
-					({ value }: { value: Array<string> | null | undefined }) => {
+					({ value }: { value: Array<string> | null | string | undefined }) => {
 						if (value === undefined || value === null) {
 							return value;
 						}
 
-						return value.map(Number);
+						return (Array.isArray(value) ? value : [value]).map(Number);
 					},
 					{ toClassOnly: true },
 				),

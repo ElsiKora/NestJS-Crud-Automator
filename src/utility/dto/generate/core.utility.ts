@@ -205,9 +205,8 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 
 				const decoratorsArray: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, metadataArray, property.entityMetadata, dtoType, property.name, currentGuard);
 
-				if (isTypedFilterPlan) {
-					Transform(({ value }: { value: unknown }): unknown => (value === undefined || Array.isArray(value) ? value : [value]), { toClassOnly: true })(GeneratedDTO.prototype, `${property.name}[values]`);
-				}
+				// The query parser yields a string for a single item, so it becomes a one-item array before conversion and the cardinality validators decide.
+				Transform(({ value }: { value: unknown }): unknown => (value === undefined || value === null || Array.isArray(value) ? value : [value]), { toClassOnly: true })(GeneratedDTO.prototype, `${property.name}[values]`);
 
 				if (decoratorsArray) {
 					for (const [, decorator] of decoratorsArray.entries()) {
