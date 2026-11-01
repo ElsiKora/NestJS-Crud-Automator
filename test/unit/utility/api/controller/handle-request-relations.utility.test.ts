@@ -351,7 +351,7 @@ describe("ApiControllerHandleRequestRelations", () => {
 					propertyName: "owner",
 					referenceKey: "id",
 				},
-				message: "RELATIONENTITY_INVALID_REFERENCE",
+				message: "RELATIONENTITY_REFERENCE_NOT_VALID",
 				statusCode: 400,
 			},
 		});
@@ -375,7 +375,7 @@ describe("ApiControllerHandleRequestRelations", () => {
 					propertyName: "owner",
 					referenceKey: "id",
 				},
-				message: "RELATIONENTITY_INVALID_REFERENCE",
+				message: "RELATIONENTITY_REFERENCE_NOT_VALID",
 				statusCode: 400,
 			},
 		});
@@ -399,7 +399,7 @@ describe("ApiControllerHandleRequestRelations", () => {
 					propertyName: "owner",
 					referenceKey: "name",
 				},
-				message: "RELATIONENTITY_INVALID_REFERENCE",
+				message: "RELATIONENTITY_REFERENCE_NOT_VALID",
 				statusCode: 400,
 			},
 		});
@@ -423,7 +423,7 @@ describe("ApiControllerHandleRequestRelations", () => {
 					propertyName: "owner",
 					referenceKey: "id",
 				},
-				message: "RELATIONENTITY_INVALID_REFERENCE",
+				message: "RELATIONENTITY_REFERENCE_NOT_VALID",
 				statusCode: 400,
 			},
 		});
@@ -447,7 +447,7 @@ describe("ApiControllerHandleRequestRelations", () => {
 					propertyName: "owner",
 					referenceKey: "id",
 				},
-				message: "RELATIONENTITY_INVALID_REFERENCE",
+				message: "RELATIONENTITY_REFERENCE_NOT_VALID",
 				statusCode: 400,
 			},
 		});

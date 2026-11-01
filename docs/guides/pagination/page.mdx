@@ -144,7 +144,7 @@ GET /brands/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/games?limit=1&after=<nextCursor
 GET /brands/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/games?limit=1&before=<previousCursor>
 ```
 
-`after` and `before` are optional but mutually exclusive. Sending both, an empty cursor, a non-canonical cursor, or `page` returns `400 INVALID_CURSOR`. A client may change `limit` between windows.
+`after` and `before` are optional but mutually exclusive. Sending both, an empty cursor, a non-canonical cursor, or `page` returns `400 CURSOR_NOT_VALID`. A client may change `limit` between windows.
 
 The first window performs one `service.getMany(...)` query with `take = limit + 1`. A request containing a cursor performs that window query and exactly one opposite-direction `take: 1` probe. No cursor rows, read model, provider, extra service, or signing keys are required.
 
@@ -166,7 +166,7 @@ Cursor tokens are strict canonical, unsigned Base64URL values. They contain a ve
 - normalized actual filter AST, including applied static defaults;
 - effective default or client order plus tie-breakers.
 
-The query-plan signature includes each filter field's allowed operations, so widening what a field accepts (for example, UUID fields gained `in`/`notin`) changes the generated query schema name and makes cursor tokens minted before that upgrade fail once with `400 INVALID_CURSOR`; clients simply restart from the first window.
+The query-plan signature includes each filter field's allowed operations, so widening what a field accepts (for example, UUID fields gained `in`/`notin`) changes the generated query schema name and makes cursor tokens minted before that upgrade fail once with `400 CURSOR_NOT_VALID`; clients simply restart from the first window.
 
 It intentionally excludes `limit` and HOOKS/IAM scope. Path scope, filters, and current HOOKS/IAM authorization are recalculated and AND-merged on every request, including the opposite probe. A token is a navigation position, not an authorization credential.
 

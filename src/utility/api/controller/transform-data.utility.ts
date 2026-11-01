@@ -214,7 +214,7 @@ function processTransformer<E extends IApiBaseEntity>(transformer: TApiControlle
 						throw new InternalServerErrorException(
 							ErrorString({
 								entity: properties.entity,
-								type: EErrorStringAction.INVALID_DYNAMIC_VALUE_SPECIFIED,
+								type: EErrorStringAction.DYNAMIC_VALUE_NOT_VALID,
 							}),
 						);
 					}
@@ -223,7 +223,7 @@ function processTransformer<E extends IApiBaseEntity>(transformer: TApiControlle
 				throw new InternalServerErrorException(
 					ErrorString({
 						entity: properties.entity,
-						type: EErrorStringAction.INVALID_DYNAMIC_VALUE_SPECIFIED,
+						type: EErrorStringAction.DYNAMIC_VALUE_NOT_VALID,
 					}),
 				);
 			}

@@ -670,7 +670,7 @@ interface IApiRequestValidator<E, M extends EApiControllerGetListQueryPagination
 
 The pagination generic defaults to PAGE. A validator attached to a CURSOR query target receives `TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode.CURSOR>` instead.
 
-`errorType` accepts `EErrorStringAction` only, and the failure code is built without a property, so `EErrorStringCompositeAction` values do not work here. See [Property-Level Error Codes](/docs/nestjs-crud-automator/guides/error-handling#property-level-error-codes).
+`errorType` accepts `EErrorStringAction` only, and the failure code is built without a property, so `EErrorStringCompositeAction` values do not work here. See [Property-Level Error Codes](/docs/nestjs-crud-automator/guides/error-handling#rejected-value-codes).
 
 **Related:**
 

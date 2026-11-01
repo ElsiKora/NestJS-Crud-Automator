@@ -1646,7 +1646,7 @@ describe("generated read contract", () => {
 		const { controller } = createIdentityAliasController();
 		const inheritedIdentity = Object.create({ gameId: ENTITY_ID }) as Record<string, unknown>;
 
-		await expect(controller.get(inheritedIdentity, {}, "127.0.0.1")).rejects.toThrow("INVALID_PARAMETERS");
+		await expect(controller.get(inheritedIdentity, {}, "127.0.0.1")).rejects.toThrow("PARAMETERS_NOT_VALID");
 		expect(controller.service.get).not.toHaveBeenCalled();
 	});
 
@@ -1781,7 +1781,7 @@ describe("generated read contract", () => {
 			signature: "hostile-read-scope-plan",
 		});
 
-		expect(() => ApiControllerReadScopeWhere({}, readPlan)).toThrow("INVALID_PARAMETERS");
+		expect(() => ApiControllerReadScopeWhere({}, readPlan)).toThrow("PARAMETERS_NOT_VALID");
 	});
 
 	it("isolates generated PARAMETERS DTO cache entries by controller name", () => {

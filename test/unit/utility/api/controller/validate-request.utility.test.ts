@@ -24,7 +24,7 @@ describe("ApiControllerValidateRequest", () => {
 		const target = {
 			validators: [
 				{
-					errorType: EErrorStringAction.INVALID_DATA,
+					errorType: EErrorStringAction.DATA_NOT_VALID,
 					exception: BadRequestException,
 					validationFunction: () => false,
 				},
@@ -41,12 +41,12 @@ describe("ApiControllerValidateRequest", () => {
 					errorType: EErrorStringAction.BAD_REQUEST,
 					exception: BadRequestException,
 					validationFunction: () => {
-						throw new BadRequestException(ErrorString({ entity: ValidateEntity, property: "id", type: EErrorStringCompositeAction.INVALID }));
+						throw new BadRequestException(ErrorString({ entity: ValidateEntity, property: "id", type: EErrorStringCompositeAction.NOT_VALID }));
 					},
 				},
 			],
 		};
 
-		await expect(ApiControllerValidateRequest(target, properties, { id: "1" })).rejects.toThrow("VALIDATEENTITY_INVALID_ID");
+		await expect(ApiControllerValidateRequest(target, properties, { id: "1" })).rejects.toThrow("VALIDATEENTITY_ID_NOT_VALID");
 	});
 });

@@ -198,7 +198,7 @@ export class ApiControllerGetListCursorRuntime {
 
 	private static createWindowWhere<E extends IApiBaseEntity>(order: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry>, values: ReadonlyArray<unknown>, direction: "after" | "before"): Array<FindOptionsWhere<E>> {
 		if (order.length === 0 || order.length !== values.length) {
-			throw new BadRequestException("INVALID_CURSOR");
+			throw new BadRequestException("CURSOR_NOT_VALID");
 		}
 
 		return order.map((entry: IApiControllerGetListQueryPlanOrderEntry, index: number): FindOptionsWhere<E> => {
@@ -264,7 +264,7 @@ export class ApiControllerGetListCursorRuntime {
 
 			return values;
 		} catch {
-			throw new BadRequestException("INVALID_CURSOR");
+			throw new BadRequestException("CURSOR_NOT_VALID");
 		}
 	}
 
@@ -302,7 +302,7 @@ export class ApiControllerGetListCursorRuntime {
 			}
 		}
 
-		throw new BadRequestException("INVALID_CURSOR");
+		throw new BadRequestException("CURSOR_NOT_VALID");
 	}
 
 	private static encode(item: IApiBaseEntity, contextHash: string, plan: TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR>, order: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry>, validateStorageValue: TApiControllerGetListCursorExecutionOptions<IApiBaseEntity>["validateStorageValue"]): string {
@@ -355,7 +355,7 @@ export class ApiControllerGetListCursorRuntime {
 		}
 
 		if (!cursorValues) {
-			throw new BadRequestException("INVALID_CURSOR");
+			throw new BadRequestException("CURSOR_NOT_VALID");
 		}
 
 		const probeDirection: "after" | "before" = options.direction === "after" ? "before" : "after";
@@ -421,7 +421,7 @@ export class ApiControllerGetListCursorRuntime {
 		const field: TApiControllerGetListQueryCompiledOrderField | undefined = entry ? plan.order.serverFields[entry.field] : undefined;
 
 		if (!field) {
-			throw new BadRequestException("INVALID_CURSOR");
+			throw new BadRequestException("CURSOR_NOT_VALID");
 		}
 
 		return field;

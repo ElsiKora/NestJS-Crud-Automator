@@ -18,13 +18,13 @@ export function ApiControllerReadScopeWhere<E extends IApiBaseEntity>(parameters
 
 	for (const mapping of readPlan.parameters) {
 		if (!Object.hasOwn(parameterRecord, mapping.parameter)) {
-			throw new BadRequestException("INVALID_PARAMETERS");
+			throw new BadRequestException("PARAMETERS_NOT_VALID");
 		}
 
 		const value: unknown = parameterRecord[mapping.parameter];
 
 		if (value === undefined || value === null) {
-			throw new BadRequestException("INVALID_PARAMETERS");
+			throw new BadRequestException("PARAMETERS_NOT_VALID");
 		}
 
 		Object.defineProperty(scope, mapping.field, {

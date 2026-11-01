@@ -266,7 +266,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 		const invalidInstance: Record<string, unknown> = Object.assign(new queryDto() as Record<string, unknown>, invalidQuery);
 
 		expect((await validate(invalidInstance)).some((error): boolean => error.property === "id[value]")).toBe(true);
-		expect(() => ApiControllerGetListQueryRuntime.parse(invalidQuery, plan)).toThrow("INVALID_FILTER");
+		expect(() => ApiControllerGetListQueryRuntime.parse(invalidQuery, plan)).toThrow("FILTER_NOT_VALID");
 	});
 
 	describe("UUID membership filters", () => {
@@ -334,18 +334,18 @@ describe("typed GET_LIST query plan and runtime", () => {
 			expect(ApiControllerGetListQueryRuntime.compileWhere<UuidRelationTransactionEntity>(direct.ast!)).toEqual({ id: In([IDENTIFIER_A]) });
 		});
 
-		it.each(["currency.id", "id"])("rejects a non-UUID membership item on %s with INVALID_FILTER", (path: string) => {
+		it.each(["currency.id", "id"])("rejects a non-UUID membership item on %s with FILTER_NOT_VALID", (path: string) => {
 			const plan: IApiControllerGetListQueryPlan = compileUuidRelationPlan({ [path]: { allowedOperations: [EFilterOperation.IN], isEnabled: true } });
 
-			expect(() => ApiControllerGetListQueryRuntime.parse({ [`${path}[operator]`]: EFilterOperation.IN, [`${path}[values]`]: [IDENTIFIER_A, "not-a-uuid"], limit: 10, page: 1 }, plan)).toThrow("INVALID_FILTER");
+			expect(() => ApiControllerGetListQueryRuntime.parse({ [`${path}[operator]`]: EFilterOperation.IN, [`${path}[values]`]: [IDENTIFIER_A, "not-a-uuid"], limit: 10, page: 1 }, plan)).toThrow("FILTER_NOT_VALID");
 		});
 
-		it.each(["currency.id", "id"])("rejects an empty or oversized UUID membership list on %s with INVALID_FILTER", (path: string) => {
+		it.each(["currency.id", "id"])("rejects an empty or oversized UUID membership list on %s with FILTER_NOT_VALID", (path: string) => {
 			const plan: IApiControllerGetListQueryPlan = compileUuidRelationPlan({ [path]: { allowedOperations: [EFilterOperation.IN], isEnabled: true } });
 			const oversized: Array<string> = Array.from({ length: DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES + 1 }, (_value: unknown, index: number): string => `123e4567-e89b-12d3-a456-${String(index).padStart(12, "0")}`);
 
 			for (const values of [[], oversized]) {
-				expect(() => ApiControllerGetListQueryRuntime.parse({ [`${path}[operator]`]: EFilterOperation.IN, [`${path}[values]`]: values, limit: 10, page: 1 }, plan)).toThrow("INVALID_FILTER");
+				expect(() => ApiControllerGetListQueryRuntime.parse({ [`${path}[operator]`]: EFilterOperation.IN, [`${path}[values]`]: values, limit: 10, page: 1 }, plan)).toThrow("FILTER_NOT_VALID");
 			}
 		});
 
@@ -525,7 +525,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 				},
 				rejectedPlan,
 			),
-		).toThrow("INVALID_FILTER");
+		).toThrow("FILTER_NOT_VALID");
 	});
 
 	it.each([
@@ -611,8 +611,8 @@ describe("typed GET_LIST query plan and runtime", () => {
 			name: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
 		});
 
-		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 0, page: 1 }, plan)).toThrow("INVALID_LIMIT");
-		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1.5 }, plan)).toThrow("INVALID_PAGE");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 0, page: 1 }, plan)).toThrow("LIMIT_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1.5 }, plan)).toThrow("PAGE_NOT_VALID");
 	});
 
 	it.each([
@@ -636,7 +636,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 				},
 				plan,
 			),
-		).toThrow("INVALID_FILTER");
+		).toThrow("FILTER_NOT_VALID");
 	});
 
 	it("accepts numeric enum values without accepting reverse-mapping names", () => {
@@ -664,7 +664,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 				},
 				plan,
 			),
-		).toThrow("INVALID_FILTER");
+		).toThrow("FILTER_NOT_VALID");
 	});
 
 	it("applies a typed static default only when the group is absent", () => {
@@ -689,7 +689,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 
 		expect(result.ast?.nodes).toEqual([expect.objectContaining({ path: "count", value: 7 })]);
 		expect(clientResult.ast?.nodes).toEqual([expect.objectContaining({ path: "count", value: 5 })]);
-		expect(() => ApiControllerGetListQueryRuntime.parse({ "count[operator]": EFilterOperation.EQ, limit: 10, page: 1 }, plan)).toThrow("INVALID_FILTER");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ "count[operator]": EFilterOperation.EQ, limit: 10, page: 1 }, plan)).toThrow("FILTER_NOT_VALID");
 	});
 
 	it("validates integer and membership defaults at bootstrap", () => {
@@ -827,7 +827,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 				},
 				plan,
 			),
-		).toThrow("INVALID_FILTER");
+		).toThrow("FILTER_NOT_VALID");
 		expect(() =>
 			ApiControllerGetListQueryRuntime.parse(
 				{
@@ -838,7 +838,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 				},
 				plan,
 			),
-		).toThrow("INVALID_FILTER");
+		).toThrow("FILTER_NOT_VALID");
 		expect(() =>
 			ApiControllerGetListQueryRuntime.parse(
 				{
@@ -849,7 +849,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 				},
 				plan,
 			),
-		).toThrow("INVALID_FILTER");
+		).toThrow("FILTER_NOT_VALID");
 		expect(() =>
 			ApiControllerGetListQueryRuntime.parse(
 				{
@@ -860,7 +860,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 				},
 				plan,
 			),
-		).toThrow("INVALID_FILTER");
+		).toThrow("FILTER_NOT_VALID");
 		expect(() =>
 			ApiControllerGetListQueryRuntime.parse(
 				{
@@ -871,7 +871,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 				},
 				plan,
 			),
-		).toThrow("INVALID_FILTER");
+		).toThrow("FILTER_NOT_VALID");
 
 		const membership = ApiControllerGetListQueryRuntime.parse(
 			{
@@ -924,7 +924,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 			name: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
 		});
 
-		expect(() => ApiControllerGetListQueryRuntime.parse({ [key]: "x", limit: 10, page: 1 }, plan)).toThrow("INVALID_FILTER");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ [key]: "x", limit: 10, page: 1 }, plan)).toThrow("FILTER_NOT_VALID");
 	});
 
 	it("preserves strict metadata order validation when only filter is configured", () => {
@@ -935,9 +935,9 @@ describe("typed GET_LIST query plan and runtime", () => {
 
 		expect(result.orderBy).toBe("count");
 		expect(result.orderDirection).toBe(EFilterOrderDirection.DESC);
-		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection: "DESC", page: 1 }, plan)).toThrow("INVALID_ORDER");
-		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "missing", orderDirection: "asc", page: 1 }, plan)).toThrow("INVALID_ORDER");
-		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", page: 1 }, plan)).toThrow("INVALID_ORDER");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection: "DESC", page: 1 }, plan)).toThrow("ORDER_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "missing", orderDirection: "asc", page: 1 }, plan)).toThrow("ORDER_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", page: 1 }, plan)).toThrow("ORDER_NOT_VALID");
 	});
 
 	it.each(["ASC", "Desc", "DESC"])("rejects orderDirection %s outside the lowercase enum", (orderDirection: string) => {
@@ -964,9 +964,9 @@ describe("typed GET_LIST query plan and runtime", () => {
 
 		expect(result.orderBy).toBe("count");
 		expect(result.orderDirection).toBe(EFilterOrderDirection.DESC);
-		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection: "DESC", page: 1 }, plan)).toThrow("INVALID_ORDER");
-		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "code", orderDirection: "asc", page: 1 }, plan)).toThrow("INVALID_ORDER");
-		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "owner.name", orderDirection: "asc", page: 1 }, plan)).toThrow("INVALID_ORDER");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection: "DESC", page: 1 }, plan)).toThrow("ORDER_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "code", orderDirection: "asc", page: 1 }, plan)).toThrow("ORDER_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "owner.name", orderDirection: "asc", page: 1 }, plan)).toThrow("ORDER_NOT_VALID");
 	});
 
 	it("compiles a strict CURSOR contract without page or totals", async () => {
@@ -1001,8 +1001,8 @@ describe("typed GET_LIST query plan and runtime", () => {
 		instance.after = "cursor-a";
 		instance.before = "cursor-b";
 		expect((await validate(instance)).some((error): boolean => error.property === "object")).toBe(true);
-		expect(() => ApiControllerGetListQueryRuntime.parse({ after: "a", before: "b", limit: 2 }, plan)).toThrow("INVALID_CURSOR");
-		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 2, page: 1 }, plan)).toThrow("INVALID_CURSOR");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ after: "a", before: "b", limit: 2 }, plan)).toThrow("CURSOR_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 2, page: 1 }, plan)).toThrow("CURSOR_NOT_VALID");
 	});
 
 	it("omits generated client-order controls and refuses client order when a CURSOR plan enables no client order fields", async () => {
@@ -1040,7 +1040,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 			{ direction: EFilterOrderDirection.ASC, field: "rank" },
 			{ direction: EFilterOrderDirection.ASC, field: "id" },
 		]);
-		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 2, orderBy: "rank", orderDirection: "asc" }, plan)).toThrow("INVALID_ORDER");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 2, orderBy: "rank", orderDirection: "asc" }, plan)).toThrow("ORDER_NOT_VALID");
 	});
 
 	it("keeps explicit PAGE pagination on the existing page and count contract", () => {
@@ -1766,11 +1766,11 @@ describe("typed GET_LIST query plan and runtime", () => {
 		const otherControllerPlan: TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR> = { ...plan, controllerName: "OtherCursorController", schemaName: "OtherCursorControllerCursorQueryEntityGetListQueryDTO" };
 		const otherControllerContext = ApiControllerGetListCursorRuntime.createContextHash("cursor-items", undefined, otherControllerPlan, parsed.ast, parsed.order);
 
-		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash: otherContext, cursor: first.nextCursor as string, direction: "after", limit: 1, onBeforeQuery: rejectedBoundary, order: parsed.order, plan, run: rejectedRun })).rejects.toThrow("INVALID_CURSOR");
-		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash: otherParametersContext, cursor: first.nextCursor as string, direction: "after", limit: 1, onBeforeQuery: rejectedBoundary, order: parsed.order, plan, run: rejectedRun })).rejects.toThrow("INVALID_CURSOR");
-		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash: otherReadPlanContext, cursor: first.nextCursor as string, direction: "after", limit: 1, onBeforeQuery: rejectedBoundary, order: parsed.order, plan, run: rejectedRun })).rejects.toThrow("INVALID_CURSOR");
-		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash: otherControllerContext, cursor: first.nextCursor as string, direction: "after", limit: 1, onBeforeQuery: rejectedBoundary, order: parsed.order, plan, run: rejectedRun })).rejects.toThrow("INVALID_CURSOR");
-		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash, cursor: `${String(first.nextCursor)}=`, direction: "after", limit: 1, onBeforeQuery: rejectedBoundary, order: parsed.order, plan, run: rejectedRun })).rejects.toThrow("INVALID_CURSOR");
+		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash: otherContext, cursor: first.nextCursor as string, direction: "after", limit: 1, onBeforeQuery: rejectedBoundary, order: parsed.order, plan, run: rejectedRun })).rejects.toThrow("CURSOR_NOT_VALID");
+		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash: otherParametersContext, cursor: first.nextCursor as string, direction: "after", limit: 1, onBeforeQuery: rejectedBoundary, order: parsed.order, plan, run: rejectedRun })).rejects.toThrow("CURSOR_NOT_VALID");
+		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash: otherReadPlanContext, cursor: first.nextCursor as string, direction: "after", limit: 1, onBeforeQuery: rejectedBoundary, order: parsed.order, plan, run: rejectedRun })).rejects.toThrow("CURSOR_NOT_VALID");
+		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash: otherControllerContext, cursor: first.nextCursor as string, direction: "after", limit: 1, onBeforeQuery: rejectedBoundary, order: parsed.order, plan, run: rejectedRun })).rejects.toThrow("CURSOR_NOT_VALID");
+		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash, cursor: `${String(first.nextCursor)}=`, direction: "after", limit: 1, onBeforeQuery: rejectedBoundary, order: parsed.order, plan, run: rejectedRun })).rejects.toThrow("CURSOR_NOT_VALID");
 		expect(rejectedRun).not.toHaveBeenCalled();
 		expect(rejectedBoundary).not.toHaveBeenCalled();
 
@@ -1846,7 +1846,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 		const forgedCursor = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 		const rejectedRun = vi.fn(async (): Promise<Array<CursorQueryEntity>> => []);
 
-		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash, cursor: forgedCursor, direction: "after", limit: 1, onBeforeQuery: vi.fn(), order: parsed.order, plan, run: rejectedRun })).rejects.toThrow("INVALID_CURSOR");
+		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash, cursor: forgedCursor, direction: "after", limit: 1, onBeforeQuery: vi.fn(), order: parsed.order, plan, run: rejectedRun })).rejects.toThrow("CURSOR_NOT_VALID");
 		expect(rejectedRun).not.toHaveBeenCalled();
 	});
 

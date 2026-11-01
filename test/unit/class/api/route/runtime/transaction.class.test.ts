@@ -376,7 +376,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 					[EApiControllerRequestTarget.BODY]: {
 						validators: [
 							{
-								errorType: EErrorStringAction.INVALID_ARGUMENT,
+								errorType: EErrorStringAction.ARGUMENT_NOT_VALID,
 								exception: BadRequestException,
 								validationFunction: (): boolean => {
 									expect(ApiFunctionContextStorage.getTransactionRegistry()).toBeUndefined();
@@ -476,7 +476,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 				[EApiControllerRequestTarget.BODY]: {
 					validators: [
 						{
-							errorType: EErrorStringAction.INVALID_ARGUMENT,
+							errorType: EErrorStringAction.ARGUMENT_NOT_VALID,
 							exception: BadRequestException,
 							validationFunction: (): boolean => {
 								expect(ApiFunctionContextStorage.getEventManager()).toBeUndefined();
@@ -765,7 +765,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 						[EApiControllerRequestTarget.BODY]: {
 							validators: [
 								{
-									errorType: EErrorStringAction.INVALID_ARGUMENT,
+									errorType: EErrorStringAction.ARGUMENT_NOT_VALID,
 									exception: BadRequestException,
 									validationFunction: (): boolean => false,
 								},

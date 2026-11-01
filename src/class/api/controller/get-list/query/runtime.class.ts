@@ -70,7 +70,7 @@ export class ApiControllerGetListQueryRuntime {
 			const [relationName, nestedName]: Array<string | undefined> = path;
 
 			if (!relationName || !nestedName) {
-				throw new BadRequestException("INVALID_FILTER");
+				throw new BadRequestException("FILTER_NOT_VALID");
 			}
 
 			const relationWhere: Record<string, unknown> = (whereRecord[relationName] ?? {}) as Record<string, unknown>;
@@ -171,16 +171,16 @@ export class ApiControllerGetListQueryRuntime {
 
 	private static parseCursor(afterValue: unknown, beforeValue: unknown, pageValue: unknown): { after?: string; before?: string } {
 		if (pageValue !== undefined) {
-			throw new BadRequestException("INVALID_CURSOR");
+			throw new BadRequestException("CURSOR_NOT_VALID");
 		}
 
 		if (afterValue !== undefined && beforeValue !== undefined) {
-			throw new BadRequestException("INVALID_CURSOR");
+			throw new BadRequestException("CURSOR_NOT_VALID");
 		}
 
 		if (afterValue !== undefined) {
 			if (typeof afterValue !== "string" || afterValue.length === 0) {
-				throw new BadRequestException("INVALID_CURSOR");
+				throw new BadRequestException("CURSOR_NOT_VALID");
 			}
 
 			return { after: afterValue };
@@ -188,7 +188,7 @@ export class ApiControllerGetListQueryRuntime {
 
 		if (beforeValue !== undefined) {
 			if (typeof beforeValue !== "string" || beforeValue.length === 0) {
-				throw new BadRequestException("INVALID_CURSOR");
+				throw new BadRequestException("CURSOR_NOT_VALID");
 			}
 
 			return { before: beforeValue };
@@ -205,7 +205,7 @@ export class ApiControllerGetListQueryRuntime {
 			const [, rawPath, rawSuffix]: Array<string | undefined> = match ?? [];
 
 			if (!rawPath || !rawSuffix || rawPath.includes("[") || rawPath.includes("]")) {
-				throw new BadRequestException("INVALID_FILTER");
+				throw new BadRequestException("FILTER_NOT_VALID");
 			}
 
 			const path: string = rawPath;
@@ -213,13 +213,13 @@ export class ApiControllerGetListQueryRuntime {
 			const field: IApiControllerGetListQueryPlanFilterField | undefined = plan.filter.fields[path];
 
 			if (!field?.isEnabled) {
-				throw new BadRequestException("INVALID_FILTER");
+				throw new BadRequestException("FILTER_NOT_VALID");
 			}
 
 			const group: IApiControllerGetListQueryRawGroup = (groups[path] ??= {});
 
 			if (group[suffix] !== undefined) {
-				throw new BadRequestException("INVALID_FILTER");
+				throw new BadRequestException("FILTER_NOT_VALID");
 			}
 
 			group[suffix] = value;
@@ -263,22 +263,22 @@ export class ApiControllerGetListQueryRuntime {
 		const operation: unknown = group.operator;
 
 		if (!EnumIsValue(EFilterOperation, operation)) {
-			throw new BadRequestException("INVALID_FILTER");
+			throw new BadRequestException("FILTER_NOT_VALID");
 		}
 
 		if (!field.allowedOperations.includes(operation)) {
-			throw new BadRequestException("INVALID_FILTER");
+			throw new BadRequestException("FILTER_NOT_VALID");
 		}
 
 		const descriptor: IApiControllerGetListQueryOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operation];
 
 		if (!descriptor.kinds.includes(field.type) || (descriptor.operand === EFilterOperand.NONE && !field.isNullable)) {
-			throw new BadRequestException("INVALID_FILTER");
+			throw new BadRequestException("FILTER_NOT_VALID");
 		}
 
 		if (descriptor.operand === EFilterOperand.NONE) {
 			if (group.value !== undefined || group.values !== undefined) {
-				throw new BadRequestException("INVALID_FILTER");
+				throw new BadRequestException("FILTER_NOT_VALID");
 			}
 
 			return Object.freeze({ operation, path: field.path });
@@ -286,7 +286,7 @@ export class ApiControllerGetListQueryRuntime {
 
 		if (descriptor.operand === EFilterOperand.VALUE) {
 			if (group.value === undefined || Array.isArray(group.value) || group.values !== undefined) {
-				throw new BadRequestException("INVALID_FILTER");
+				throw new BadRequestException("FILTER_NOT_VALID");
 			}
 
 			return Object.freeze({
@@ -297,13 +297,13 @@ export class ApiControllerGetListQueryRuntime {
 		}
 
 		if (group.value !== undefined || group.values === undefined) {
-			throw new BadRequestException("INVALID_FILTER");
+			throw new BadRequestException("FILTER_NOT_VALID");
 		}
 
 		const rawValues: ReadonlyArray<unknown> = Array.isArray(group.values) ? group.values : [group.values];
 
 		if (rawValues.length < FILTER_OPERATOR_REGISTRY_CONSTANT.VALUES_MINIMUM_OPERAND_COUNT || (descriptor.operand === EFilterOperand.PAIR && rawValues.length !== FILTER_OPERATOR_REGISTRY_CONSTANT.PAIR_OPERAND_COUNT) || (descriptor.operand === EFilterOperand.VALUES && rawValues.length > DTO_GENERATE_CONSTANT.MAXIMUM_FILTER_PROPERTIES)) {
-			throw new BadRequestException("INVALID_FILTER");
+			throw new BadRequestException("FILTER_NOT_VALID");
 		}
 
 		return Object.freeze({
@@ -319,15 +319,15 @@ export class ApiControllerGetListQueryRuntime {
 		}
 
 		if (typeof orderByValue !== "string" || typeof orderDirectionValue !== "string") {
-			throw new BadRequestException("INVALID_ORDER");
+			throw new BadRequestException("ORDER_NOT_VALID");
 		}
 
 		if (!EnumIsValue(EFilterOrderDirection, orderDirectionValue)) {
-			throw new BadRequestException("INVALID_ORDER");
+			throw new BadRequestException("ORDER_NOT_VALID");
 		}
 
 		if (!plan.order.fields[orderByValue]?.isEnabled || plan.order.resolvePublishedFields?.().has(orderByValue) === false) {
-			throw new BadRequestException("INVALID_ORDER");
+			throw new BadRequestException("ORDER_NOT_VALID");
 		}
 
 		return {
@@ -346,7 +346,7 @@ export class ApiControllerGetListQueryRuntime {
 		}
 
 		if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
-			throw new BadRequestException(`INVALID_${name.toUpperCase()}`);
+			throw new BadRequestException(`${name.toUpperCase()}_NOT_VALID`);
 		}
 
 		return parsed;

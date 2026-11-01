@@ -789,13 +789,13 @@ export class ApiRouteRuntime {
 		const parameters: Record<string, unknown> | undefined = source as Record<string, unknown> | undefined;
 
 		if (!parameters || !Object.hasOwn(parameters, identityPlan.parameter)) {
-			throw new BadRequestException("INVALID_PARAMETERS");
+			throw new BadRequestException("PARAMETERS_NOT_VALID");
 		}
 
 		const value: unknown = parameters[identityPlan.parameter];
 
 		if (value === undefined || value === null) {
-			throw new BadRequestException("INVALID_PARAMETERS");
+			throw new BadRequestException("PARAMETERS_NOT_VALID");
 		}
 
 		const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((entityColumn: IApiEntityColumn<E>): boolean => String(entityColumn.name) === identityPlan.field);

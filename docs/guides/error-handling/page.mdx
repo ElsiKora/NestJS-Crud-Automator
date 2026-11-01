@@ -93,26 +93,29 @@ A body over the [request body limits](/docs/nestjs-crud-automator/guides/validat
 Configured typed GET_LIST plans return stable `400` codes independently of the host application's `ValidationPipe`:
 
 - `FILTER_REQUIRED` when a filter configured with `missingBehavior: REJECT` is absent;
-- `INVALID_FILTER` for an invalid path, operation, operand, value, or cardinality;
-- `INVALID_ORDER` for invalid `orderBy` or `orderDirection`;
-- `INVALID_LIMIT` and `INVALID_PAGE` for invalid PAGE pagination;
-- `INVALID_CURSOR` for a malformed, non-canonical, context-mismatched, empty, or conflicting CURSOR input, including `page` in CURSOR mode.
+- `FILTER_NOT_VALID` for an invalid path, operation, operand, value, or cardinality;
+- `ORDER_NOT_VALID` for invalid `orderBy` or `orderDirection`;
+- `LIMIT_NOT_VALID` and `PAGE_NOT_VALID` for invalid PAGE pagination;
+- `CURSOR_NOT_VALID` for a malformed, non-canonical, context-mismatched, empty, or conflicting CURSOR input, including `page` in CURSOR mode.
 
 Unknown or disabled typed-query fields fail closed instead of being silently ignored.
 
-## Property-Level Error Codes
+## Rejected Value Codes
 
-`EErrorStringCompositeAction` builds a code for one property of an entity through `ErrorString({ entity, property, type })`. Three of its values cover rejected input:
+Every code for a rejected value has one form: the name of what was rejected, then `_NOT_VALID`. The error string enums have no `INVALID_*`, `WRONG_*`, `MALFORMED_*`, or `BAD_{property}` values.
 
-| Value              | Example code                        | Use it for                                                                                                                                                                                      |
-| ------------------ | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `INVALID`          | `USERENTITY_INVALID_EMAIL`          | The value of one property is rejected.                                                                                                                                                          |
-| `NOT_VALID`        | `USERENTITY_EMAIL_NOT_VALID`        | The same meaning as `INVALID`, in the word order of `{PROPERTY}_NOT_*` codes.                                                                                                                   |
-| `VALIDATION_ERROR` | `USERENTITY_EMAIL_VALIDATION_ERROR` | A rule that spans the request or several fields failed, reported against a property. `EErrorStringAction.VALIDATION_ERROR` gives `USERENTITY_VALIDATION_ERROR` when no single property applies. |
+| Source                                                                                     | Example code                        | Use it for                                                             |
+| ------------------------------------------------------------------------------------------ | ----------------------------------- | ---------------------------------------------------------------------- |
+| `EErrorStringCompositeAction.NOT_VALID`                                                    | `USERENTITY_EMAIL_NOT_VALID`        | The value of one property is rejected.                                 |
+| `EErrorStringCompositeAction.FORMAT_NOT_VALID`, `LENGTH_NOT_VALID`, `STATE_NOT_VALID`, ... | `USERENTITY_EMAIL_FORMAT_NOT_VALID` | One named aspect of a property is rejected.                            |
+| `EErrorStringAction.X_NOT_VALID`                                                           | `USERENTITY_PASSWORD_NOT_VALID`     | A value is rejected and the code names it without a separate property. |
+| `EErrorStringAction.VALIDATION_ERROR`                                                      | `USERENTITY_VALIDATION_ERROR`       | A rule that spans the request or several fields failed.                |
 
-`INVALID` and `NOT_VALID` differ only in word order. A project picks one form and does not mix them. New projects use `INVALID`, which matches the codes the package emits itself. Use `NOT_VALID` when your codes are already built as `{PROPERTY}_NOT_*`.
+`ErrorString` builds composite codes through `ErrorString({ entity, property, type })` and entity codes through `ErrorString({ entity, type })`.
 
-The package emits no property-level code of its own, and its existing codes such as `INVALID_FILTER`, `INVALID_CURSOR`, and `{ENTITY}_INVALID_REFERENCE` stay as they are.
+The package's own rejection codes follow the same form: `FILTER_NOT_VALID`, `ORDER_NOT_VALID`, `CURSOR_NOT_VALID`, `LIMIT_NOT_VALID`, `PAGE_NOT_VALID`, `PARAMETERS_NOT_VALID`, and `{ENTITY}_REFERENCE_NOT_VALID`.
+
+HTTP status names such as `BAD_REQUEST`, `NOT_ACCEPTABLE`, and `BAD_GATEWAY` keep their names. So do codes that name a specific reason, such as `TOO_LONG`, `UNSUPPORTED`, or `EXPIRED`.
 
 Composite values do not work in `IApiRequestValidator.errorType`. That field accepts `EErrorStringAction` only, and the failure code is built without a property. To return a property-level code from a request validator, throw it from `validationFunction`:
 
@@ -122,7 +125,7 @@ const emailValidator: IApiRequestValidator<UserEntity> = {
 	exception: BadRequestException,
 	validationFunction: (payload) => {
 		if (!isEmail((payload as Partial<UserEntity>).email)) {
-			throw new BadRequestException(ErrorString({ entity: UserEntity, property: "email", type: EErrorStringCompositeAction.INVALID }));
+			throw new BadRequestException(ErrorString({ entity: UserEntity, property: "email", type: EErrorStringCompositeAction.NOT_VALID }));
 		}
 
 		return true;
@@ -576,6 +579,39 @@ async fetchExternalData(id: string): Promise<Data> {
 ```
 
 ## Migration Notes
+
+### Rejected value codes in 5.0.0
+
+From 5.0.0 every rejected value code uses the `{NAME}_NOT_VALID` form described in [Rejected Value Codes](#rejected-value-codes). Responses change:
+
+| Before 5.0.0                               | From 5.0.0                                 |
+| ------------------------------------------ | ------------------------------------------ |
+| `INVALID_FILTER`                           | `FILTER_NOT_VALID`                         |
+| `INVALID_ORDER`                            | `ORDER_NOT_VALID`                          |
+| `INVALID_CURSOR`                           | `CURSOR_NOT_VALID`                         |
+| `INVALID_LIMIT`, `INVALID_PAGE`            | `LIMIT_NOT_VALID`, `PAGE_NOT_VALID`        |
+| `INVALID_PARAMETERS`                       | `PARAMETERS_NOT_VALID`                     |
+| `{ENTITY}_INVALID_REFERENCE`               | `{ENTITY}_REFERENCE_NOT_VALID`             |
+| `{ENTITY}_INVALID_DYNAMIC_VALUE_SPECIFIED` | `{ENTITY}_DYNAMIC_VALUE_NOT_VALID`         |
+| `KEY_FOR_TRANSFORM_NOT_IN_OBJECT`          | `{ENTITY}_KEY_FOR_TRANSFORM_NOT_IN_OBJECT` |
+
+The enum keys change too, so code that uses a removed key no longer compiles:
+
+1. `EErrorStringAction.INVALID_X` and `EErrorStringAction.X_INVALID` become `X_NOT_VALID`. For example, `INVALID_DATA` becomes `DATA_NOT_VALID` and `CSRF_TOKEN_INVALID` becomes `CSRF_TOKEN_NOT_VALID`.
+2. `WRONG_X` and `MALFORMED_X` become `X_NOT_VALID`. `INCORRECT_PASSWORD` becomes `PASSWORD_NOT_VALID`.
+3. Keys that meant the same thing are merged:
+   - `INVALID_DATA_SPECIFIED` and `MALFORMED_DATA` into `DATA_NOT_VALID`;
+   - `WRONG_FORMAT` into `FORMAT_NOT_VALID`;
+   - `WRONG_STATE` into `STATE_NOT_VALID`;
+   - the `INVALID_X`/`X_INVALID` pairs for `SESSION`, `SIGNATURE`, `TRANSACTION`, `QUERY_PARAMETER`, and `VERIFICATION_CODE`;
+   - `MALFORMED_JSON`, `MALFORMED_REQUEST`, `MALFORMED_URL`, and `MALFORMED_XML` into the matching `X_NOT_VALID`.
+4. `INVALID_SIGNATURE` rendered without the entity. Its merged key, `SIGNATURE_NOT_VALID`, renders as `{ENTITY}_SIGNATURE_NOT_VALID`.
+5. `INVALID_HASHING_ALGORITM_CONFIGURED` becomes `HASHING_ALGORITHM_NOT_VALID`, which renders without the entity.
+6. `EErrorStringCompositeAction.INVALID`, `BAD`, and `MALFORMED` merge into `NOT_VALID`: `USERENTITY_INVALID_EMAIL` becomes `USERENTITY_EMAIL_NOT_VALID`. `INVALID_FORMAT`, `INVALID_LENGTH`, `INVALID_REQUEST`, `INVALID_RESPONSE`, and `INVALID_STATE` become `FORMAT_NOT_VALID`, `LENGTH_NOT_VALID`, `REQUEST_NOT_VALID`, `RESPONSE_NOT_VALID`, and `STATE_NOT_VALID`, with the property first.
+
+Update clients and error mappings that match these strings.
+
+### Exception cause
 
 Before 5.0.0, the exception rethrown by `CorrelationIDResponseBodyInterceptor` carried no cause. From 5.0.0 it holds the original failure, so an exception filter that logs or serializes the whole exception starts receiving SQL text and parameters from a `QueryFailedError`. The cause itself does not change HTTP responses.
 

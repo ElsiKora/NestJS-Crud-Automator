@@ -1051,15 +1051,15 @@ describe("CRUD routes (E2E)", () => {
 	});
 
 	it.each([
-		["code[operator]=eq&code[value]=code-a&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
-		["owner.name.extra[operator]=eq&owner.name.extra[value]=Owner&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
-		["tags.id[operator]=eq&tags.id[value]=tag-1&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
-		["name[operatr]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
-		["name[operator]=eq&name[value][extra]=fn-Alpha", "INVALID_FILTER"],
-		["name[operator]=gt&name[value]=fn-Alpha", "INVALID_FILTER"],
-		["count[operator]=between&count[values]=1&count[values]=2&count[values]=3&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
-		["count[operator]=eq&count[value]=1.5&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
-		["name[operator]=eq&name[value]=fn-Alpha&orderBy=owner.name&orderDirection=asc", "INVALID_ORDER"],
+		["code[operator]=eq&code[value]=code-a&name[operator]=eq&name[value]=fn-Alpha", "FILTER_NOT_VALID"],
+		["owner.name.extra[operator]=eq&owner.name.extra[value]=Owner&name[operator]=eq&name[value]=fn-Alpha", "FILTER_NOT_VALID"],
+		["tags.id[operator]=eq&tags.id[value]=tag-1&name[operator]=eq&name[value]=fn-Alpha", "FILTER_NOT_VALID"],
+		["name[operatr]=eq&name[value]=fn-Alpha", "FILTER_NOT_VALID"],
+		["name[operator]=eq&name[value][extra]=fn-Alpha", "FILTER_NOT_VALID"],
+		["name[operator]=gt&name[value]=fn-Alpha", "FILTER_NOT_VALID"],
+		["count[operator]=between&count[values]=1&count[values]=2&count[values]=3&name[operator]=eq&name[value]=fn-Alpha", "FILTER_NOT_VALID"],
+		["count[operator]=eq&count[value]=1.5&name[operator]=eq&name[value]=fn-Alpha", "FILTER_NOT_VALID"],
+		["name[operator]=eq&name[value]=fn-Alpha&orderBy=owner.name&orderDirection=asc", "ORDER_NOT_VALID"],
 	])("rejects invalid typed query contract input: %s", async (query, errorCode) => {
 		const response = await fastify.inject({
 			headers: adminHeaders,
@@ -1080,7 +1080,7 @@ describe("CRUD routes (E2E)", () => {
 		});
 
 		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-		expect(JSON.stringify(response.json())).toContain("INVALID_FILTER");
+		expect(JSON.stringify(response.json())).toContain("FILTER_NOT_VALID");
 	});
 
 	it("sorts list responses by count", async () => {

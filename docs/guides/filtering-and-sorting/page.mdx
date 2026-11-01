@@ -151,13 +151,13 @@ Nest guards and host pipes run before controller entry. Inside Automator's gener
 Typed-query failures use stable `400` codes:
 
 - `FILTER_REQUIRED` — a field configured with `missingBehavior: REJECT` is absent.
-- `INVALID_FILTER` — a filter path, operator, operand, value, or cardinality violates the compiled plan.
-- `INVALID_ORDER` — `orderBy` or `orderDirection` violates the compiled plan.
+- `FILTER_NOT_VALID` — a filter path, operator, operand, value, or cardinality violates the compiled plan.
+- `ORDER_NOT_VALID` — `orderBy` or `orderDirection` violates the compiled plan.
 
 A host `ValidationPipe` validates the same generated query DTO before the route runs, so with one the client gets the pipe's `400` body for a value outside the DTO, such as `orderBy must be one of the following values: ...`, instead of these codes. Both are `400` before any SQL.
 
-- `INVALID_LIMIT` / `INVALID_PAGE` — PAGE input is missing, non-integer, or outside the generated bounds.
-- `INVALID_CURSOR` — CURSOR direction/token input is malformed, conflicting, non-canonical, or belongs to another route/path/filter/order context.
+- `LIMIT_NOT_VALID` / `PAGE_NOT_VALID` — PAGE input is missing, non-integer, or outside the generated bounds.
+- `CURSOR_NOT_VALID` — CURSOR direction/token input is malformed, conflicting, non-canonical, or belongs to another route/path/filter/order context.
 
 After the typed parser, the route validates its generated QUERY DTO from the raw request query, as on a route without a typed filter. A value the parser accepts but the DTO rejects, such as `count[value]=5000` above the entity `maximum`, returns the `ValidationPipe` body, not one of the codes above. Both checks run whether or not the host registers a `ValidationPipe`, so a typed route accepts the same queries with or without one.
 

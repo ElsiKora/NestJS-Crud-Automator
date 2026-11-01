@@ -209,6 +209,8 @@ The runtime parser rejects invalid input independently of the host `ValidationPi
 - `INVALID_ORDER` for invalid ordering;
 - `INVALID_LIMIT` and `INVALID_PAGE` for invalid pagination.
 
+From 5.0.0 these codes are `FILTER_NOT_VALID`, `ORDER_NOT_VALID`, `LIMIT_NOT_VALID`, and `PAGE_NOT_VALID`; see [Rejected Value Codes in 5.0.0](/docs/nestjs-crud-automator/guides/error-handling#rejected-value-codes-in-500).
+
 The package does not provide a consumer-side typed URL/bracket-filter builder in 3.0. Build client query strings in the consumer or retain a local typed helper if required; this does not affect the server-owned typed route contract.
 
 ## BigInt Sign and Retired Exports

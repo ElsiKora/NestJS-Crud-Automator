@@ -129,7 +129,7 @@ function buildRelationReferenceBadRequestException(entity: IApiBaseEntity, prope
 			referenceKey,
 		},
 		error: "Bad Request",
-		message: ErrorString({ entity, type: EErrorStringAction.INVALID_REFERENCE }),
+		message: ErrorString({ entity, type: EErrorStringAction.REFERENCE_NOT_VALID }),
 		statusCode: HttpStatus.BAD_REQUEST,
 	});
 }
