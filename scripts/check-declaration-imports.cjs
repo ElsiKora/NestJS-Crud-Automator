@@ -3,6 +3,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const ts = require("typescript");
 
 const outputRoot = path.resolve("dist");
 const manifest = JSON.parse(fs.readFileSync(path.resolve("package.json"), "utf8"));
@@ -17,6 +18,7 @@ const specifierPattern = /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimpo
 // JSDoc and line comments carry example imports that are not part of the module graph
 const commentLinePattern = /^\s*(?:\*|\/\/|\/\*)/;
 const exportKeysCache = new Map();
+const sideEffectProblems = [];
 
 /**
  * Returns the explicit (non-wildcard) subpath keys of a package's exports map, or undefined when it has none.
@@ -74,6 +76,43 @@ function getPackageImportProblem(specifier) {
 	return exportKeys.has(`./${subpath}`) ? undefined : `"./${subpath}" is not an explicit key of the ${packageName} exports map`;
 }
 
+/**
+ * Finds console output, process.stdout and process.stderr writes, and .env loading in emitted JavaScript.
+ * The package logs only through LoggerUtility and reads configuration only from process.env, so none of these may appear.
+ * The file is parsed, so comments and JSDoc examples do not count.
+ * @param {string} filePath - Path of the emitted file, for the parser.
+ * @param {string} fileContent - Emitted JavaScript.
+ * @returns {Array<string>} One description per occurrence, with its line number.
+ */
+function getSideEffectProblems(filePath, fileContent) {
+	const sourceFile = ts.createSourceFile(filePath, fileContent, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+	const problems = [];
+
+	const report = (node, description) => {
+		problems.push(`${description} at line ${String(sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1)}`);
+	};
+
+	const visit = (node) => {
+		if (ts.isIdentifier(node) && node.text === "console" && !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)) {
+			report(node, "console");
+		} else if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "process" && ["stderr", "stdout"].includes(node.name.text)) {
+			report(node, `process.${node.name.text}`);
+		} else if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "process" && ts.isStringLiteralLike(node.argumentExpression) && ["stderr", "stdout"].includes(node.argumentExpression.text)) {
+			report(node, `process.${node.argumentExpression.text}`);
+		} else if (ts.isIdentifier(node) && node.text === "loadEnvFile") {
+			report(node, "loadEnvFile");
+		} else if (ts.isStringLiteralLike(node) && (node.text === "dotenv" || node.text.startsWith("dotenv/") || /(^|[\\/])\.env(\.|$)/.test(node.text))) {
+			report(node, `"${node.text}"`);
+		}
+
+		ts.forEachChild(node, visit);
+	};
+
+	visit(sourceFile);
+
+	return problems;
+}
+
 function scanDirectory(directoryPath) {
 	for (const entry of fs.readdirSync(directoryPath, { withFileTypes: true })) {
 		const entryPath = path.join(directoryPath, entry.name);
@@ -92,6 +131,12 @@ function scanDirectory(directoryPath) {
 
 		if (entry.name.endsWith(".d.ts") && fileContent.includes("node_modules/")) {
 			invalidDeclarationPaths.push(relativePath);
+		}
+
+		if (entry.name.endsWith(".js")) {
+			for (const problem of getSideEffectProblems(entryPath, fileContent)) {
+				sideEffectProblems.push(`${relativePath}: ${problem}`);
+			}
 		}
 
 		for (const line of fileContent.split("\n")) {
@@ -148,9 +193,14 @@ if (invalidPackageImports.length > 0) {
 	process.exit(1);
 }
 
+if (sideEffectProblems.length > 0) {
+	process.stderr.write(`Generated output writes to the console or process streams, or loads a .env file:\n${sideEffectProblems.map((entry) => `- ${entry}`).join("\n")}\n`);
+	process.exit(1);
+}
+
 if (extensionlessImports.length > 0) {
 	process.stderr.write(`Generated output has relative imports without a .js extension or without a matching file:\n${extensionlessImports.map((entry) => `- ${entry}`).join("\n")}\n`);
 	process.exit(1);
 }
 
-process.stdout.write("Generated declarations are package-relative, every package import is a declared dependency's root or explicit exports key, and every relative import has a .js extension and a matching file.\n");
+process.stdout.write("Generated declarations are package-relative, every package import is a declared dependency's root or explicit exports key, and every relative import has a .js extension and a matching file, and nothing writes to the console or process streams or loads a .env file.\n");
