@@ -31,4 +31,13 @@ export class E2eDtoNameCustomItemController {
 		security: { authentication: { guard: E2eDtoNamePublicGuard, type: EApiAuthenticationType.USER } },
 	})
 	public getPublic(@Param() _parameters: Record<string, string>): void {}
+
+	@ApiRouteCustom<E2eDtoNameItemEntity>({
+		autoDto: { [EApiDtoType.PARAMETERS]: {} },
+		resource: { action: "custom.getMine", entity: E2eDtoNameItemEntity },
+		response: { status: HttpStatus.NO_CONTENT, type: undefined },
+		route: { method: RequestMethod.GET, path: "mine/:id", type: EApiRouteType.GET },
+		security: { authentication: { guard: E2eDtoNamePublicGuard, type: EApiAuthenticationType.USER } },
+	})
+	public getMine(@Param() _parameters: Record<string, string>): void {}
 }

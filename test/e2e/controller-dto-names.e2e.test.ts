@@ -263,10 +263,11 @@ describe("generated DTO names of a custom route next to a generated route (E2E)"
 		await app?.close();
 	});
 
-	it("names the custom route DTOs after its handler method, so they stay apart from the generated route DTOs", () => {
+	it("names the custom route DTOs after their handler methods, so they stay apart from each other and from the generated route DTOs", () => {
 		const schemaNames: Array<string> = Object.keys(document.components?.schemas ?? {});
 
 		expect(schemaNames).toContain("E2eDtoNameCustomItemGetPublicParametersDTO");
+		expect(schemaNames).toContain("E2eDtoNameCustomItemGetMineParametersDTO");
 		expect(schemaNames).toContain("E2eDtoNameCustomItemGetResponseDTO");
 		expect(schemaNames.filter((name: string): boolean => name.startsWith("E2eDtoNameCustomItemGetParameters"))).toHaveLength(1);
 	});
