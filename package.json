@@ -123,17 +123,17 @@
 		"vitest": "^4.1.8"
 	},
 	"peerDependencies": {
-		"@nestjs/common": ">=11.1.24",
-		"@nestjs/core": ">=11.1.24",
-		"@nestjs/passport": ">=11.0.5",
-		"@nestjs/platform-fastify": ">=11.1.24",
+		"@nestjs/common": ">=11.1.24 <12",
+		"@nestjs/core": ">=11.1.24 <12",
+		"@nestjs/passport": ">=11.0.5 <12",
+		"@nestjs/platform-fastify": ">=11.1.24 <12",
 		"@nestjs/swagger": ">=11.0.3 <12",
-		"@nestjs/throttler": ">=6.5.0",
-		"class-transformer": ">=0.5.1",
-		"class-validator": ">=0.15.1",
-		"fastify": ">=5.8.5",
-		"lodash": ">=4.18.1",
-		"typeorm": ">=0.3.20"
+		"@nestjs/throttler": ">=6.5.0 <7",
+		"class-transformer": ">=0.5.1 <0.6",
+		"class-validator": ">=0.15.1 <0.16",
+		"fastify": ">=5.8.5 <6",
+		"lodash": ">=4.18.1 <5",
+		"typeorm": ">=0.3.20 <1"
 	},
 	"engines": {
 		"node": ">=20.0.0"

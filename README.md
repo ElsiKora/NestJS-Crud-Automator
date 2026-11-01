@@ -75,16 +75,16 @@ Version `3.0.2` is the published baseline before the current generated-route wor
 
 Make sure you have the following dependencies installed in your NestJS project:
 
-- NestJS `@nestjs/common` and `@nestjs/core` `>=11.1.24`
-- `@nestjs/passport` `>=11.0.5`
-- `@nestjs/platform-fastify` `>=11.1.24`
+- NestJS `@nestjs/common` and `@nestjs/core` `>=11.1.24 <12`
+- `@nestjs/passport` `>=11.0.5 <12`
+- `@nestjs/platform-fastify` `>=11.1.24 <12`
 - `@nestjs/swagger` `>=11.0.3 <12`
-- `@nestjs/throttler` `>=6.5.0`
-- TypeORM `>=0.3.20`
-- Fastify `>=5.8.5`
-- `class-validator` `>=0.15.1`
-- `class-transformer` `>=0.5.1`
-- `lodash` `>=4.18.1`
+- `@nestjs/throttler` `>=6.5.0 <7`
+- TypeORM `>=0.3.20 <1`
+- Fastify `>=5.8.5 <6`
+- `class-validator` `>=0.15.1 <0.16`
+- `class-transformer` `>=0.5.1 <0.6`
+- `lodash` `>=4.18.1 <5`
 
 You might need to install these peer dependencies if they're not already in your project:
 
