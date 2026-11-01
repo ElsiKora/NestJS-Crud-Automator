@@ -684,7 +684,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 	}
 
 	private static isToOneRelation<E>(column: IApiEntityColumn<E>): boolean {
-		return column.type === ("many-to-one" as never) || column.type === ("one-to-one" as never);
+		return column.type === "many-to-one" || column.type === "one-to-one";
 	}
 
 	private static isUnsafeCursorFieldName(fieldName: string): boolean {

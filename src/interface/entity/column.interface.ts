@@ -1,4 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { TTypeOrmRelationMetadataArguments } from "@type/utility/typeorm";
 import type { ColumnType } from "typeorm";
 
 export interface IApiEntityColumn<E> {
@@ -8,5 +9,6 @@ export interface IApiEntityColumn<E> {
 	relation?: {
 		target: IApiBaseEntity;
 	};
-	type: ColumnType;
+	/** Column type, or the TypeORM relation type of a relation property. */
+	type: ColumnType | TTypeOrmRelationMetadataArguments["relationType"];
 }

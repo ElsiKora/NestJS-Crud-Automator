@@ -2,7 +2,6 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TTypeOrmColumnMetadataArguments, TTypeOrmRelationMetadataArguments, TTypeOrmTableMetadataArguments } from "@type/utility/typeorm";
-import type { ColumnType } from "typeorm";
 
 import { MetadataStorage } from "@class/metadata-storage.class";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -134,7 +133,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 							target: relationTarget,
 						}
 					: undefined,
-				type: relationType as ColumnType,
+				type: relationType,
 			};
 		}),
 	];

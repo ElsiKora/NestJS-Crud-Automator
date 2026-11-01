@@ -90,7 +90,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	const isUpdateBody: boolean = (method === EApiRouteType.PARTIAL_UPDATE || method === EApiRouteType.UPDATE) && dtoType === EApiDtoType.BODY;
 
 	for (const column of entityMetadata.columns) {
-		if (isUpdateBody && ((column.type as string) === "one-to-many" || (column.type as string) === "many-to-many")) {
+		if (isUpdateBody && (column.type === "one-to-many" || column.type === "many-to-many")) {
 			continue;
 		}
 
