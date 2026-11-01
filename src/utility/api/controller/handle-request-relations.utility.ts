@@ -1,7 +1,6 @@
 import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties, IApiControllerPropertiesRouteBaseRelationsRequest } from "@interface/decorator/api";
-import type { Type } from "@nestjs/common";
 import type { TApiControllerMethod } from "@type/class";
 import type { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import type { TApiFunctionGetProperties } from "@type/decorator/api/function";
@@ -17,6 +16,7 @@ import { BadRequestException, HttpStatus } from "@nestjs/common";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { ErrorString } from "@utility/error/string.utility";
+import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
 import { getMetadataArgsStorage } from "typeorm";
 
 /**
@@ -175,15 +175,7 @@ function buildRelationReferenceBadRequestException(entity: IApiBaseEntity, prope
  * @returns {Array<TTypeOrmRelationMetadataArguments>} Relation metadata of the class hierarchy.
  */
 function getEntityRelations(entity: IApiBaseEntity): Array<TTypeOrmRelationMetadataArguments> {
-	const hierarchy: Array<Type<unknown>> = [];
-	let current: unknown = entity;
-
-	while (typeof current === "function" && current !== Function.prototype) {
-		hierarchy.push(current as Type<unknown>);
-		current = Object.getPrototypeOf(current);
-	}
-
-	return getMetadataArgsStorage().filterRelations(hierarchy);
+	return getMetadataArgsStorage().filterRelations(GetClassHierarchy(entity));
 }
 
 /**

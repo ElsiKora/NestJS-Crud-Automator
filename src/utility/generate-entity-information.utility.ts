@@ -1,10 +1,12 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
+import type { Type } from "@nestjs/common";
 import type { TTypeOrmColumnMetadataArguments, TTypeOrmRelationMetadataArguments, TTypeOrmTableMetadataArguments } from "@type/utility/typeorm";
 import type { ColumnType } from "typeorm";
 
 import { MetadataStorage } from "@class/metadata-storage.class";
 import { ErrorException } from "@utility/error/exception.utility";
+import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
 import { DefaultNamingStrategy, getMetadataArgsStorage } from "typeorm";
 
 /**
@@ -26,44 +28,22 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 			return new DefaultNamingStrategy().tableName(entity.name ?? "UnknownResource", table.name);
 		}
 
-		let current: unknown = Object.getPrototypeOf(table.target);
-
-		while (typeof current === "function" && current !== Function.prototype) {
-			const candidate: unknown = current;
-			const parentTable: TTypeOrmTableMetadataArguments | undefined = getMetadataArgsStorage().tables.find(({ target }: TTypeOrmTableMetadataArguments): boolean => target === candidate);
+		for (const ancestor of GetClassHierarchy(table.target).slice(1)) {
+			const parentTable: TTypeOrmTableMetadataArguments | undefined = getMetadataArgsStorage().tables.find(({ target }: TTypeOrmTableMetadataArguments): boolean => target === ancestor);
 
 			if (parentTable && parentTable.type !== "entity-child") {
-				return new DefaultNamingStrategy().tableName(current.name, parentTable.name);
+				return new DefaultNamingStrategy().tableName(ancestor.name, parentTable.name);
 			}
-
-			current = Object.getPrototypeOf(current);
 		}
 
 		throw ErrorException(`Table inheritance root for child entity ${String(entity.name)} not found in metadata storage`);
 	})();
 
 	const storage: MetadataStorage = MetadataStorage.getInstance();
-	const entityHierarchy: Array<new (...arguments_: Array<unknown>) => unknown> = [];
-	const entityNames: Array<string> = [];
+	const entityHierarchy: Array<Type<unknown>> = GetClassHierarchy(entity);
+	const entityNames: Array<string> = entityHierarchy.map((current: Type<unknown>): string => current.name);
 
-	if (typeof entity === "function") {
-		let current: (new (...arguments_: Array<unknown>) => unknown) | undefined = entity as unknown as new (...arguments_: Array<unknown>) => unknown;
-
-		while (current) {
-			entityHierarchy.push(current);
-			entityNames.push(current.name);
-
-			const parentPrototype: null | object = Object.getPrototypeOf(current.prototype) as null | object;
-			const parentConstructor: unknown = parentPrototype ? Reflect.get(parentPrototype, "constructor") : undefined;
-			const parent: (new (...arguments_: Array<unknown>) => unknown) | undefined = typeof parentConstructor === "function" ? (parentConstructor as new (...arguments_: Array<unknown>) => unknown) : undefined;
-
-			if (!parent || parent === Object) {
-				break;
-			}
-
-			current = parent;
-		}
-	} else if (entity.name) {
+	if (entityHierarchy.length === 0 && entity.name) {
 		entityNames.push(entity.name);
 	}
 
@@ -78,7 +58,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 
 		const targetEntity: new (...arguments_: Array<unknown>) => unknown = target as unknown as new (...arguments_: Array<unknown>) => unknown;
 
-		return entityHierarchy.some((currentEntity: new (...arguments_: Array<unknown>) => unknown): boolean => currentEntity === targetEntity || currentEntity.name === targetEntity.name) || entityNames.includes(targetEntity.name);
+		return entityHierarchy.some((currentEntity: Type<unknown>): boolean => currentEntity === targetEntity || currentEntity.name === targetEntity.name) || entityNames.includes(targetEntity.name);
 	});
 
 	const relationList: Array<TTypeOrmRelationMetadataArguments> = getMetadataArgsStorage().relations.filter(({ target }: TTypeOrmRelationMetadataArguments): boolean => {
@@ -92,7 +72,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 
 		const targetEntity: new (...arguments_: Array<unknown>) => unknown = target as unknown as new (...arguments_: Array<unknown>) => unknown;
 
-		return entityHierarchy.some((currentEntity: new (...arguments_: Array<unknown>) => unknown): boolean => currentEntity === targetEntity || currentEntity.name === targetEntity.name) || entityNames.includes(targetEntity.name);
+		return entityHierarchy.some((currentEntity: Type<unknown>): boolean => currentEntity === targetEntity || currentEntity.name === targetEntity.name) || entityNames.includes(targetEntity.name);
 	});
 
 	const entityColumns: Array<IApiEntityColumn<E>> = [

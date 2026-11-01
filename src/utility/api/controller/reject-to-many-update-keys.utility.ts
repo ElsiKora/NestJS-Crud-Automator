@@ -8,6 +8,7 @@ import type { DeepPartial } from "typeorm";
 import { EErrorStringAction } from "@enum/utility";
 import { BadRequestException, HttpStatus } from "@nestjs/common";
 import { ErrorString } from "@utility/error/string.utility";
+import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
 import { getMetadataArgsStorage } from "typeorm";
 
 const TO_MANY_UPDATE_REJECTION_REASON: string = "to-many reference is not allowed on update";
@@ -63,13 +64,7 @@ function collectToManyPaths(target: unknown, prefix: Array<string>, visiting: Se
 		return;
 	}
 
-	const hierarchy: Array<Type<unknown>> = [];
-	let current: unknown = target;
-
-	while (typeof current === "function" && current !== Function.prototype) {
-		hierarchy.push(current as Type<unknown>);
-		current = Object.getPrototypeOf(current);
-	}
+	const hierarchy: Array<Type<unknown>> = GetClassHierarchy(target);
 
 	visiting.add(target);
 

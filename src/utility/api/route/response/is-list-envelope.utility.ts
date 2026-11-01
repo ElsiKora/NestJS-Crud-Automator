@@ -2,6 +2,7 @@ import type { Type } from "@nestjs/common";
 
 import { MetadataStorage } from "@class/metadata-storage.class";
 import { EApiRouteType } from "@enum/decorator/api";
+import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
 import { getMetadataArgsStorage } from "typeorm";
 
 const ENVELOPE_PROPERTY_NAME: string = "items";
@@ -34,13 +35,7 @@ export function ApiRouteResponseIsListEnvelope(response: unknown, routeType?: EA
  * @returns {boolean} Whether the property is declared.
  */
 function hasEntityProperty(entity: Type<unknown>, propertyName: string): boolean {
-	const hierarchy: Array<Type<unknown>> = [];
-	let current: unknown = entity;
-
-	while (typeof current === "function" && current !== Function.prototype) {
-		hierarchy.push(current as Type<unknown>);
-		current = Object.getPrototypeOf(current);
-	}
+	const hierarchy: Array<Type<unknown>> = GetClassHierarchy(entity);
 
 	return (
 		getMetadataArgsStorage()
