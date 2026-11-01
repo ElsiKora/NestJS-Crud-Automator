@@ -217,7 +217,7 @@ The root must declare the discriminator as a property with `@Column` and `@ApiPr
 
 Rows with a value that has no variant fail with `500`, so adding a value to the column enum without a child entity breaks reads of those rows until the child exists. A subscriber or response transform that removes the discriminator from a loaded row fails the request the same way.
 
-Generated GET and GET_LIST over such a root no longer produce the `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` Swagger components, and `GenerateEntityInformation(Child).tableName` returns the root table. Regenerate OpenAPI clients, or keep a manual RESPONSE DTO on the route.
+From 5.0.0, generated GET and GET_LIST over such a root no longer produce the `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` Swagger components, and `GenerateEntityInformation(Child).tableName` returns the root table. Regenerate OpenAPI clients, or keep a manual RESPONSE DTO on the route.
 
 ## Removed 3.0 Exports
 

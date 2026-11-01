@@ -397,7 +397,7 @@ Relations declared on a child entity are covered in [Relations](/docs/nestjs-cru
 
 ### Migration Notes
 
-An existing generated controller over a table inheritance root changes in these ways:
+From 5.0.0, an existing generated controller over a table inheritance root changes in these ways:
 
 - GET and GET_LIST return the full polymorphic shape instead of silently stripped variant columns, and their Swagger schemas are `oneOf`. Clients that depend on the reduced shape need a manual RESPONSE DTO on the route.
 - The Swagger components `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` are no longer generated. GET refers to the variant DTOs such as `<Root>GetResponseCardTransferDTO`, and the GET_LIST wrapper `<Root>GetListResponseItemsDTO` keeps its name with `oneOf` items. Regenerate OpenAPI clients, or keep a manual RESPONSE DTO on the route to keep the old components.
