@@ -26,8 +26,8 @@ describe("DtoGenerateException", () => {
 		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES_ARRAY, DtoGenerateException(HttpStatus.NOT_FOUND).prototype as object)).toEqual([":correlationID", ":error", ":message", ":statusCode", ":timestamp"]);
 	});
 
-	it("requires only message and statusCode on guard statuses", () => {
-		for (const status of [HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.TOO_MANY_REQUESTS]) {
+	it("requires only message and statusCode on statuses that can arise before the interceptor", () => {
+		for (const status of [HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.PAYLOAD_TOO_LARGE, HttpStatus.UNSUPPORTED_MEDIA_TYPE, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.INTERNAL_SERVER_ERROR]) {
 			for (const key of ["correlationID", "error", "timestamp"]) {
 				expect(getProperty(status, key), `${String(status)} ${key}`).toMatchObject({ description: expect.stringContaining("CorrelationIDResponseBodyExceptionFilter") as string, required: false });
 			}
@@ -37,8 +37,8 @@ describe("DtoGenerateException", () => {
 		}
 	});
 
-	it("requires every field on statuses that pass through the interceptor", () => {
-		for (const status of [HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND, HttpStatus.CONFLICT, HttpStatus.INTERNAL_SERVER_ERROR]) {
+	it("requires every field on statuses that only pass through the interceptor", () => {
+		for (const status of [HttpStatus.NOT_FOUND, HttpStatus.CONFLICT, HttpStatus.UNPROCESSABLE_ENTITY]) {
 			for (const key of ["correlationID", "error", "message", "statusCode", "timestamp"]) {
 				expect(getProperty(status, key), `${String(status)} ${key}`).toMatchObject({ required: true });
 			}
