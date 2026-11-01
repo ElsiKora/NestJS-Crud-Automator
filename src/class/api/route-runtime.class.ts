@@ -404,12 +404,12 @@ export class ApiRouteRuntime {
 				const pageRuntimeQuery: IApiControllerGetListQueryRuntimeResult | undefined = !cursorPlan && queryPlan ? ApiControllerGetListQueryRuntime.parse(requestQuery, queryPlan) : undefined;
 				const runtimeQuery: IApiControllerGetListQueryRuntimeResult | TApiControllerGetListCursorQueryRuntimeResult | undefined = cursorRuntimeQuery ?? pageRuntimeQuery;
 				const queryDto: Type<unknown> | undefined = !queryPlan || queryPlan.filter.isLegacy ? ApiControllerGetDtoWithReadPlan(options.properties, options.entityMetadata, options.method, EApiDtoType.QUERY, routeConfig, options.schemaPrefix, queryPlan, readPlan) : undefined;
+				// Only the database query uses the validated copy; subscribers keep the query that route-before subscribers produced.
 				const query: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> = queryDto ? await ApiControllerGetListQueryValidate(queryDto, requestQuery) : requestQuery;
 
 				// Date-time values the DTO or plan accepted must also name a calendar instant before any query.
 				ApiControllerGetListQueryRuntime.assertDateTimeFilterValues(requestQuery, this.resolveDateTimeFilterPaths(options.controller.service, requestQuery));
 
-				targets.query = query;
 				const service: ApiServiceBase<E> = options.controller.service;
 				const getManyFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetManyProperties<E>) => Promise<Array<E>>) | undefined = cursorRuntimeQuery ? ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_MANY, EApiFunctionType.GET_MANY, options.properties.entity) : undefined;
 				const getListFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetListProperties<E>) => Promise<unknown>) | undefined = cursorRuntimeQuery ? undefined : ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_LIST, EApiFunctionType.GET_LIST, options.properties.entity);
