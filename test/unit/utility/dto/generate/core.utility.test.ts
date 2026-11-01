@@ -348,6 +348,76 @@ class DtoEntity {
 	public owner!: DtoRelatedEntity;
 }
 
+const NESTED_RELATION_OWNER_DESCRIBE = {
+	description: "owner",
+	type: EApiPropertyDescribeType.RELATION,
+} as const;
+
+const NESTED_RELATION_KIND_DESCRIBE = {
+	description: "kind",
+	exampleValue: "V1",
+	format: EApiPropertyStringType.STRING,
+	maxLength: 50,
+	minLength: 1,
+	pattern: "/^.+$/",
+	type: EApiPropertyDescribeType.STRING,
+} as const;
+
+@Entity("nested_relation_dto_entities")
+class NestedRelationDtoEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		description: "id",
+		type: EApiPropertyDescribeType.UUID,
+	})
+	public id!: string;
+
+	@Column({ type: "json", nullable: true })
+	// eslint-disable-next-line @elsikora/typescript/no-explicit-any
+	@ApiPropertyDescribe({
+		dataType: {
+			V1: {
+				meta: {
+					dataType: {
+						M1: {
+							kind: NESTED_RELATION_KIND_DESCRIBE,
+							owner: NESTED_RELATION_OWNER_DESCRIBE,
+						},
+					},
+					description: "meta",
+					discriminator: { mapping: { M1: "M1" }, propertyName: "kind", shouldKeepDiscriminatorProperty: true },
+					isDynamicallyGenerated: true,
+					type: EApiPropertyDescribeType.OBJECT,
+				},
+				kind: NESTED_RELATION_KIND_DESCRIBE,
+				owner: NESTED_RELATION_OWNER_DESCRIBE,
+			},
+			"v2-beta": {
+				kind: NESTED_RELATION_KIND_DESCRIBE,
+				owner: NESTED_RELATION_OWNER_DESCRIBE,
+			},
+		},
+		description: "details",
+		discriminator: { mapping: { V1: "V1", "v2-beta": "v2-beta" }, propertyName: "kind", shouldKeepDiscriminatorProperty: true },
+		isDynamicallyGenerated: true,
+		type: EApiPropertyDescribeType.OBJECT,
+	} as any)
+	public details?: Record<string, unknown>;
+
+	@ManyToOne(() => DtoRelatedEntity)
+	@ApiPropertyDescribe(NESTED_RELATION_OWNER_DESCRIBE)
+	public owner!: DtoRelatedEntity;
+
+	@ManyToOne(() => DtoRelatedEntity)
+	@ApiPropertyDescribe(NESTED_RELATION_OWNER_DESCRIBE)
+	// eslint-disable-next-line @elsikora/typescript/naming-convention
+	public created_by!: DtoRelatedEntity;
+
+	@ManyToOne(() => DtoRelatedEntity)
+	@ApiPropertyDescribe(NESTED_RELATION_OWNER_DESCRIBE)
+	public userID!: DtoRelatedEntity;
+}
+
 @Entity("timestamp_dto_entities")
 class TimestampDtoEntity {
 	@PrimaryGeneratedColumn("uuid")
@@ -437,6 +507,33 @@ describe("DtoGenerate", () => {
 		expect(secondListResponseDto.name).toBe("SecondDtoGetListResponseItemsDTO");
 		expect(getNestedNames(firstResponseDto)).toEqual(["FirstDtoGetResponseOwnerDTO", "FirstDtoGetResponseDynamicVariantDTO"]);
 		expect(getNestedNames(secondResponseDto)).toEqual(["SecondDtoGetResponseOwnerDTO", "SecondDtoGetResponseDynamicVariantDTO"]);
+	});
+
+	it("names every nested generated DTO after its parent DTO and property, so a relation inside an object variant keeps apart from the same relation at the root", () => {
+		const entityMetadata = GenerateEntityInformation<NestedRelationDtoEntity>(NestedRelationDtoEntity as unknown as IApiBaseEntity);
+		const responseDto: ClassConstructor<unknown> | undefined = DtoGenerate(NestedRelationDtoEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "NestedRelation") as ClassConstructor<unknown> | undefined;
+		const getPropertyTypeName = (dto: ClassConstructor<unknown> | undefined, propertyName: string): string | undefined => (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto?.prototype ?? {}, propertyName) as { type?: { name: string } } | undefined)?.type?.name;
+		const getExtraModel = (dto: ClassConstructor<unknown> | undefined, name: string): ClassConstructor<unknown> | undefined => ((Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, dto ?? {}) as Array<ClassConstructor<unknown>> | undefined) ?? []).find((model: ClassConstructor<unknown>): boolean => model.name === name);
+		const detailsVariant: ClassConstructor<unknown> | undefined = getExtraModel(responseDto, "NestedRelationGetResponseDetailsV1DTO");
+		const metaVariant: ClassConstructor<unknown> | undefined = getExtraModel(detailsVariant, "NestedRelationGetResponseDetailsV1MetaM1DTO");
+
+		expect(getPropertyTypeName(responseDto, "owner")).toBe("NestedRelationGetResponseOwnerDTO");
+		expect(detailsVariant).toBeDefined();
+		expect(getPropertyTypeName(detailsVariant, "owner")).toBe("NestedRelationGetResponseDetailsV1OwnerDTO");
+		expect(metaVariant).toBeDefined();
+		expect(getPropertyTypeName(metaVariant, "owner")).toBe("NestedRelationGetResponseDetailsV1MetaM1OwnerDTO");
+	});
+
+	it("builds every nested name segment from the property or variant name with separators removed and every other letter kept as written", () => {
+		const entityMetadata = GenerateEntityInformation<NestedRelationDtoEntity>(NestedRelationDtoEntity as unknown as IApiBaseEntity);
+		const responseDto: ClassConstructor<unknown> | undefined = DtoGenerate(NestedRelationDtoEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "NestedRelation") as ClassConstructor<unknown> | undefined;
+		const getPropertyTypeName = (dto: ClassConstructor<unknown> | undefined, propertyName: string): string | undefined => (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto?.prototype ?? {}, propertyName) as { type?: { name: string } } | undefined)?.type?.name;
+		const betaVariant: ClassConstructor<unknown> | undefined = ((Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, responseDto ?? {}) as Array<ClassConstructor<unknown>> | undefined) ?? []).find((model: ClassConstructor<unknown>): boolean => model.name === "NestedRelationGetResponseDetailsV2BetaDTO");
+
+		expect(getPropertyTypeName(responseDto, "created_by")).toBe("NestedRelationGetResponseCreatedByDTO");
+		expect(getPropertyTypeName(responseDto, "userID")).toBe("NestedRelationGetResponseUserIDDTO");
+		expect(betaVariant).toBeDefined();
+		expect(getPropertyTypeName(betaVariant, "owner")).toBe("NestedRelationGetResponseDetailsV2BetaOwnerDTO");
 	});
 
 	it("generates cached DTOs for request, query, and response types", () => {

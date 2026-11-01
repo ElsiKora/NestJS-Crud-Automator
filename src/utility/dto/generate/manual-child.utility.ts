@@ -3,10 +3,11 @@ import type { Type } from "@nestjs/common";
 import type { TManualDtoPropertyMetadata } from "@type/utility/dto/manual-property-metadata.type";
 
 import { CONTEXTUAL_MANUAL_DTO_CONSTANT } from "@constant/dto/contextual-manual.constant";
-import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
 import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
 import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/get.utility";
+import { DtoSchemaNameGetSegment } from "@utility/dto/schema-name/get-segment.utility";
+import { DtoSchemaNameStripSuffix } from "@utility/dto/schema-name/strip-suffix.utility";
 import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 
 const contextualManualDtoCache: WeakMap<Type<unknown>, Map<string, Type<unknown>>> = new WeakMap<Type<unknown>, Map<string, Type<unknown>>>();
@@ -36,9 +37,7 @@ export function DtoGenerateContextualManualDto(sourceDto: Type<unknown>, method:
 		return sourceDto;
 	}
 
-	// eslint-disable-next-line @elsikora/typescript/no-magic-numbers
-	const parentDtoNameBase: string = parentDtoName.endsWith("DTO") ? parentDtoName.slice(0, -3) : parentDtoName;
-	const className: string = `${parentDtoNameBase}${CamelCaseString(propertyPathSegment)}DTO`;
+	const className: string = `${DtoSchemaNameStripSuffix(parentDtoName)}${DtoSchemaNameGetSegment(propertyPathSegment, parentDtoName)}DTO`;
 
 	// A generated relation DTO is already named for this route and property, so it needs no contextual copy.
 	if (sourceName === className) {

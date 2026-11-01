@@ -21,7 +21,7 @@ import { DtoIsPropertyInfrastructureTimestamp } from "@utility/dto/is/property/i
  * @param {string} propertyName - The name of the property
  * @param {Type<CanActivate>} [currentGuard] - Optional authentication guard
  * @param {Record<string, Type<unknown>>} [generatedDTOs] - Optional record of dynamically generated DTOs
- * @param {string} [dtoNameBase] - Name of the owning route DTO without the `DTO` suffix, used to name nested generated DTOs
+ * @param {string} [dtoNameBase] - Name of the parent DTO without the `DTO` suffix, used to name nested generated DTOs `<dtoNameBase><Property>DTO`
  * @returns {Array<PropertyDecorator> | undefined} Array of property decorators or undefined if property should not be included
  * @template E - The entity type
  * @template M - The API route type

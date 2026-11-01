@@ -19,6 +19,15 @@ describe("DtoGenerateRelationResponse", () => {
 		expect(dto.name).toBe("OrderGetResponseOwnerDTO");
 	});
 
+	it.each([
+		["created_by", "OrderGetResponseCreatedByDTO"],
+		["userID", "OrderGetResponseUserIDDTO"],
+		["HTMLContent", "OrderGetResponseHTMLContentDTO"],
+		["x-id", "OrderGetResponseXIdDTO"],
+	])("names the relation DTO of property %s %s, with separators removed and every other letter kept as written", (propertyName: string, name: string) => {
+		expect(DtoGenerateRelationResponse(entity, EApiRouteType.GET, EApiDtoType.RESPONSE, propertyName, { dtoNameBase: "OrderGetResponse" }).name).toBe(name);
+	});
+
 	it("decorates the id property", () => {
 		const dto = DtoGenerateRelationResponse(entity, EApiRouteType.GET, EApiDtoType.RESPONSE, "owner", { dtoNameBase: "DecoratedOrderGetResponse" });
 		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto.prototype, "id");

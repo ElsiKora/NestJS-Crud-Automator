@@ -98,6 +98,6 @@ describe("ApiControllerWriteDtoSwagger", () => {
 		const modelNames = (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, target) as Array<{ name?: string }>).map((model) => model?.name);
 
 		expect(modelNames).toContain(SwaggerDto.name);
-		expect(modelNames).not.toContain("SwaggerTestCreateBodyownerDTO");
+		expect(modelNames).not.toContain("SwaggerTestCreateBodyOwnerDTO");
 	});
 });
