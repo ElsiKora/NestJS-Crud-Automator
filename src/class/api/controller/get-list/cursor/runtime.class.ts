@@ -14,7 +14,7 @@ import { createHash } from "node:crypto";
 import { ApiControllerGeneratedGetManyContract } from "@class/api/controller/generated/get-many-contract.class";
 import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated/security-snapshot.class";
 import { API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
-import { EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
+import { EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
 import { EFilterOrderDirection } from "@enum/filter";
 import { BadRequestException } from "@nestjs/common";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
@@ -26,6 +26,7 @@ const CURSOR_CONTEXT_HASH_PATTERN: RegExp = /^[\da-f]{64}$/u;
 const CURSOR_TOKEN_PATTERN: RegExp = /^[\w-]+$/u;
 const CURSOR_VERSION: number = 1;
 const BIGINT_WIRE_PATTERN: RegExp = /^(?:0|-?[1-9]\d*)$/u;
+const TIMESTAMP_WIRE_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 const UUID_WIRE_PATTERN: RegExp = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/u;
 
 export class ApiControllerGetListCursorRuntime {
@@ -133,6 +134,8 @@ export class ApiControllerGetListCursorRuntime {
 					if (!descriptor?.enumerable || !("value" in descriptor)) {
 						throw new TypeError("Invalid protected cursor field");
 					}
+
+					Object.defineProperty(clone, field, ApiControllerGeneratedSecuritySnapshot.detach(descriptor));
 				}
 
 				return clone;
@@ -291,6 +294,14 @@ export class ApiControllerGetListCursorRuntime {
 			return value;
 		}
 
+		if (field.type === EApiPropertyDescribeType.DATE && "format" in field.metadata && field.metadata.format === EApiPropertyDateType.DATE_TIME && typeof value === "string" && TIMESTAMP_WIRE_PATTERN.test(value)) {
+			const date: Date = new Date(value);
+
+			if (!Number.isNaN(date.getTime()) && date.toISOString() === value) {
+				return date;
+			}
+		}
+
 		throw new BadRequestException("INVALID_CURSOR");
 	}
 
@@ -393,7 +404,8 @@ export class ApiControllerGetListCursorRuntime {
 			return Object.freeze(
 				order.map((entry: IApiControllerGetListQueryPlanOrderEntry): unknown => {
 					const field: TApiControllerGetListQueryCompiledOrderField = this.getOrderField(plan, entry);
-					const value: unknown = this.decodeValue(item[entry.field], field);
+					const rawValue: unknown = item[entry.field];
+					const value: unknown = this.decodeValue(rawValue instanceof Date ? rawValue.toISOString() : rawValue, field);
 
 					validateStorageValue(field, value);
 

@@ -21,7 +21,7 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT } from "@constant/safe-object-property-names.constant";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
-import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperand, EFilterOperation, EFilterOrderDirection } from "@enum/filter";
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
@@ -42,6 +42,8 @@ const CURSOR_BOOLEAN_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["bool"
 const CURSOR_ENUM_INTEGER_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["int", "int2", "int4", "integer", "smallint"]);
 const CURSOR_INTEGER_COLUMN_TYPES: ReadonlySet<string> = new Set<string>([...CURSOR_ENUM_INTEGER_COLUMN_TYPES, "number-constructor"]);
 const CURSOR_NON_PERSISTED_COLUMN_MODES: ReadonlySet<string> = new Set<string>(["array", "treeChildrenCount", "virtual", "virtual-property"]);
+const CURSOR_TIMESTAMP_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["date-constructor", "timestamp", "timestamptz", "timestamp without time zone", "timestamp with time zone"]);
+const CURSOR_TIMESTAMP_MAXIMUM_PRECISION: number = 3;
 const CURSOR_UUID_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["uuid"]);
 
 export class ApiControllerGetListQueryPlanCompiler {
@@ -806,10 +808,10 @@ export class ApiControllerGetListQueryPlanCompiler {
 	}
 
 	private static validateCursorPlan<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, order: TApiControllerGetListQueryCompiledOrder, cursorFields: ReadonlyArray<string>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>): void {
-		const primaryColumns: Array<IApiEntityColumn<E>> = entityMetadata.columns.filter((column: IApiEntityColumn<E>): boolean => column.isPrimary);
+		const primaryFields: ReadonlySet<string> = new Set<string>(entityMetadata.columns.filter((column: IApiEntityColumn<E>): boolean => column.isPrimary).map((column: IApiEntityColumn<E>): string => String(column.name)));
 
-		if (primaryColumns.length !== 1) {
-			throw ErrorException("CURSOR GET_LIST requires exactly one primary column");
+		if (primaryFields.size === 0) {
+			throw ErrorException("CURSOR GET_LIST requires a primary key");
 		}
 
 		if (order.isLegacy) {
@@ -820,16 +822,16 @@ export class ApiControllerGetListQueryPlanCompiler {
 			throw ErrorException("CURSOR GET_LIST entity cannot declare TypeORM after-load listeners");
 		}
 
-		const primaryField: string = String(primaryColumns[0]?.name);
+		const primaryFieldNames: string = [...primaryFields].join('", "');
 		const tieBreakers: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> = order.tieBreakers ?? [];
-		const finalTieBreaker: IApiControllerGetListQueryPlanOrderEntry | undefined = tieBreakers.at(-1);
+		const finalTieBreakers: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> = tieBreakers.slice(-primaryFields.size);
 
-		if (finalTieBreaker?.field !== primaryField) {
-			throw ErrorException(`CURSOR GET_LIST requires the sole primary field "${primaryField}" as the final explicit tie-breaker`);
+		if (finalTieBreakers.length !== primaryFields.size || finalTieBreakers.some((entry: IApiControllerGetListQueryPlanOrderEntry): boolean => !primaryFields.has(entry.field))) {
+			throw ErrorException(`CURSOR GET_LIST requires the complete primary key "${primaryFieldNames}" as the final explicit tie-breakers`);
 		}
 
-		if ((order.defaultOrder ?? []).some((entry: IApiControllerGetListQueryPlanOrderEntry): boolean => entry.field === primaryField) || tieBreakers.slice(0, -1).some((entry: IApiControllerGetListQueryPlanOrderEntry): boolean => entry.field === primaryField) || order.fields[primaryField]?.isEnabled === true) {
-			throw ErrorException(`CURSOR GET_LIST primary field "${primaryField}" may appear only as the final tie-breaker`);
+		if ((order.defaultOrder ?? []).some((entry: IApiControllerGetListQueryPlanOrderEntry): boolean => primaryFields.has(entry.field)) || tieBreakers.slice(0, -primaryFields.size).some((entry: IApiControllerGetListQueryPlanOrderEntry): boolean => primaryFields.has(entry.field)) || [...primaryFields].some((primaryField: string): boolean => order.fields[primaryField]?.isEnabled === true)) {
+			throw ErrorException(`CURSOR GET_LIST primary key "${primaryFieldNames}" may appear only as the final tie-breakers`);
 		}
 
 		const potentialFields: Set<string> = new Set<string>(cursorFields);
@@ -932,6 +934,22 @@ export class ApiControllerGetListQueryPlanCompiler {
 		if (field.type === EApiPropertyDescribeType.UUID) {
 			if (!CURSOR_UUID_COLUMN_TYPES.has(field.columnType)) {
 				throw ErrorException(`CURSOR GET_LIST UUID order field "${field.path}" requires native PostgreSQL UUID storage`);
+			}
+
+			return;
+		}
+
+		if (field.type === EApiPropertyDescribeType.DATE) {
+			if (!("format" in field.metadata) || field.metadata.format !== EApiPropertyDateType.DATE_TIME) {
+				throw ErrorException(`CURSOR GET_LIST date order field "${field.path}" supports only DATE_TIME metadata in PostgreSQL v1`);
+			}
+
+			if (!CURSOR_TIMESTAMP_COLUMN_TYPES.has(field.columnType)) {
+				throw ErrorException(`CURSOR GET_LIST date order field "${field.path}" requires PostgreSQL timestamp or timestamptz storage`);
+			}
+
+			if (typeof field.precision !== "number" || field.precision > CURSOR_TIMESTAMP_MAXIMUM_PRECISION) {
+				throw ErrorException(`CURSOR GET_LIST date order field "${field.path}" requires a declared column precision of at most ${CURSOR_TIMESTAMP_MAXIMUM_PRECISION} so a JS Date round-trips exactly`);
 			}
 
 			return;

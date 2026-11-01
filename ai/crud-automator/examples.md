@@ -222,7 +222,21 @@ The first request is `GET /brands/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/games?lim
 
 Use `after=<nextCursor>` to continue and `before=<previousCursor>` to go back. Do not send `page`, and do not send both cursor directions. The generated route uses `GameService.getMany`; it stores nothing in the database. Each token is valid only for the same controller route, UUID `brandId`, normalized filters, and effective order. Current HOOKS/IAM scope is recalculated for every request. The response keeps `position` because it participates in the protected raw order tuple.
 
-CURSOR v1 is PostgreSQL-only. Its TypeORM order declarations may be `boolean`; signed `smallint` or `integer`, including increment-generated columns whose PostgreSQL DDL uses `SMALLSERIAL`/`SERIAL`; numeric enums stored as `smallint`/`integer`; signed `bigint`, including increment-generated `BIGSERIAL` DDL, exposed as canonical decimal `BIGINT_STRING`; or native `uuid`. The SERIAL-family names are DDL forms, not TypeORM column type literals. CURSOR requires standard PostgreSQL text parsers. Every other storage type or driver fails closed for CURSOR, while PAGE behavior is unchanged.
+CURSOR v1 is PostgreSQL-only. Its TypeORM order declarations may be `boolean`; signed `smallint` or `integer`, including increment-generated columns whose PostgreSQL DDL uses `SMALLSERIAL`/`SERIAL`; numeric enums stored as `smallint`/`integer`; signed `bigint`, including increment-generated `BIGSERIAL` DDL, exposed as canonical decimal `BIGINT_STRING`; native `uuid`; or `timestamp` and `timestamptz` with a declared `precision` of at most 3, described as `DATE_TIME`. The SERIAL-family names are DDL forms, not TypeORM column type literals. CURSOR requires standard PostgreSQL text parsers. Every other storage type or driver fails closed for CURSOR, while PAGE behavior is unchanged.
+
+A composite primary key lists every component as the final tie-breakers:
+
+```typescript
+order: {
+	fields: {},
+	tieBreakers: [
+		{ direction: EFilterOrderDirection.DESC, field: "createdAt" }, // timestamptz(3)
+		{ direction: EFilterOrderDirection.ASC, field: "id" },
+	],
+	unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+},
+pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR },
+```
 
 ## Table Inheritance Read Responses
 

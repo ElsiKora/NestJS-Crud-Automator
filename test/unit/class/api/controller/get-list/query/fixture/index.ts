@@ -1,4 +1,6 @@
 export { CompositeCursorQueryEntity } from "./composite-cursor.entity";
+export { CompositeTimestampCursorQueryEntity } from "./composite-timestamp-cursor.entity";
+export { CompositeUnsetPrecisionCursorQueryEntity } from "./composite-unset-precision-cursor.entity";
 export { CursorAccessorQueryEntity } from "./cursor-accessor.entity";
 export { CursorCustomAccessorItemDto } from "./cursor-custom-accessor-item.dto";
 export { CursorCustomIncompleteItemDto } from "./cursor-custom-incomplete-item.dto";

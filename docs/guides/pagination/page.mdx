@@ -73,7 +73,39 @@ export class BrandGameController {
 }
 ```
 
-The entity must have exactly one primary column. Every possible default or client-selected order field must be a described, non-null, direct scalar. The primary column must appear once, only as the final explicit tie-breaker, and it must not be enabled in the client `fields` map.
+Every possible default or client-selected order field must be a described, non-null, direct scalar. The complete primary key, single or composite, must form the final explicit tie-breakers: each component appears exactly once, in any order among them, after every other order entry. No component may appear in `defaultOrder`, earlier in `tieBreakers`, or in the client `fields` map.
+
+A composite primary key lists every component:
+
+```typescript
+@Entity("wallet_transactions")
+export class WalletTransactionEntity {
+	@PrimaryColumn({ precision: 3, type: "timestamptz" })
+	@ApiPropertyDescribe({
+		format: EApiPropertyDateType.DATE_TIME,
+		identifier: EApiPropertyDateIdentifier.CREATED_AT,
+		type: EApiPropertyDescribeType.DATE,
+	})
+	createdAt!: Date;
+
+	@PrimaryColumn({ type: "uuid" })
+	@ApiPropertyDescribe({ description: "transaction", type: EApiPropertyDescribeType.UUID })
+	id!: string;
+}
+
+// Route configuration
+order: {
+	fields: {},
+	tieBreakers: [
+		{ direction: EFilterOrderDirection.DESC, field: "createdAt" },
+		{ direction: EFilterOrderDirection.ASC, field: "id" },
+	],
+	unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+},
+pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR },
+```
+
+The token carries one value per effective order entry, including each key component, and the context hash covers that whole order.
 
 ### First Window
 
@@ -150,13 +182,22 @@ CURSOR v1 deliberately supports only PostgreSQL with the standard text result pa
 - signed PostgreSQL `smallint` and `integer` TypeORM declarations exposed as safe JavaScript integers, including increment-generated columns whose DDL uses `SMALLSERIAL` or `SERIAL`;
 - numeric TypeScript enums backed by PostgreSQL `smallint` or `integer`;
 - signed PostgreSQL `bigint` TypeORM declarations exposed as canonical decimal `BIGINT_STRING` without conversion through `Number`, including increment-generated columns whose DDL uses `BIGSERIAL`;
-- native PostgreSQL `uuid` exposed as a canonical UUID string.
+- native PostgreSQL `uuid` exposed as a canonical UUID string;
+- PostgreSQL `timestamp` and `timestamptz` TypeORM declarations with a declared `precision` of at most 3, described as `EApiPropertyDateType.DATE_TIME` and hydrated as a JavaScript `Date`.
 
 `smallserial`, `serial`, and `bigserial` are PostgreSQL DDL forms, not TypeORM column type literals. Declare increment generation over the corresponding supported `smallint`, `integer`, or `bigint` type.
 
+A temporal order field must declare its precision because a JavaScript `Date` holds whole milliseconds only. An unset precision (PostgreSQL defaults to 6) or a precision above 3 fails at bootstrap with an error naming the field. The declared precision must match the physical column. Each seek compares `Date` values equal to the stored milliseconds, so rows sharing one timestamp page without duplicates or gaps through the following order entries.
+
+In a token, a temporal value is a canonical ISO-8601 UTC string with millisecond precision, such as `2026-01-31T12:00:00.000Z`. A non-canonical, impossible, or out-of-range value is `INVALID_CURSOR` before database access. The token form covers years 0000 through 9999; a stored value outside that range, including PostgreSQL `infinity`, fails closed when a window containing it is read.
+
+`timestamp` stores no offset, so the standard parser and parameter binding both use process-local wall-clock time. Every process serving one route must therefore run in the same time zone. A stored wall-clock value inside that zone's daylight-saving gap has no exact `Date`, so prefer `timestamptz`, or run in UTC, wherever other writers can produce such values. The `pg` `parseInputDatesAsUTC` default breaks this symmetry and fails closed for `timestamp` order fields.
+
+Client order selection follows the GET_LIST order baseline, which includes `timestamp` and `Date` columns but not `timestamptz`. A `timestamptz` field is available through `defaultOrder` and `tieBreakers`.
+
 PostgreSQL binary mode, custom `extra.types` parser configuration, every other PostgreSQL storage type, and every other database driver fail closed before CURSOR query I/O. This restriction applies only to protected CURSOR order/tie-breaker fields. It does not change PAGE behavior or PAGE's existing driver support.
 
-Temporal, general text, floating-point, and string-enum storage domains are deferred rather than transitionally supported. Any future expansion must be a separate slice rewritten from the current source, choose an exact database/type/parser matrix, and prove the public endpoint against real PostgreSQL E2E. Recovery object `202e2eab` contains superseded design evidence only and must not be restored wholesale.
+Sub-millisecond temporal, general text, floating-point, and string-enum storage domains are deferred rather than transitionally supported. Any future expansion must be a separate slice rewritten from the current source, choose an exact database/type/parser matrix, and prove the public endpoint against real PostgreSQL E2E. Recovery object `202e2eab` contains superseded design evidence only and must not be restored wholesale.
 
 A cursor is an opaque seek boundary, not ordinary request-field input. `ApiPropertyDescribe` still proves the primitive wire category and raw response exposure, but request-only minimum/maximum, length, pattern, and `multipleOf` constraints do not restrict the boundary. Generated tokens and incoming tokens are capped at 8,192 Base64URL characters, and bootstrap rejects a physical order tuple whose worst-case encoding cannot fit that bound.
 

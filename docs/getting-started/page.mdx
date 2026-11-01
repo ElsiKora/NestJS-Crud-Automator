@@ -294,7 +294,7 @@ export class ProviderGameController {
 
 Automator generates the PARAMETERS DTO and Swagger path metadata from the mapped entity field. A manual PARAMETERS DTO cannot be combined with `read.scope.parameters`. GET keeps its generated primary-key parameter in addition to the inherited scope. GET identity or GET_LIST query predicates are AND-merged with path scope and then HOOKS/IAM scope, so later layers cannot overwrite earlier conditions.
 
-For GET_LIST, a client `orderBy` replaces `defaultOrder`; `tieBreakers` are then appended with duplicate fields removed. A UUID `id` can be a server-only final tie-breaker without becoming a client-sort field. Default PAGE mode requires explicit `page` and `limit`. Opt-in CURSOR mode uses `limit` plus optional `after`/`before` and requires the sole primary column only as its final explicit tie-breaker.
+For GET_LIST, a client `orderBy` replaces `defaultOrder`; `tieBreakers` are then appended with duplicate fields removed. A UUID `id` can be a server-only final tie-breaker without becoming a client-sort field. Default PAGE mode requires explicit `page` and `limit`. Opt-in CURSOR mode uses `limit` plus optional `after`/`before` and requires the complete primary key, single or composite, as its final explicit tie-breakers.
 
 ## Swagger Documentation
 

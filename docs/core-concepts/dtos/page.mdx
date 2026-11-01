@@ -110,7 +110,7 @@ GET_LIST query DTOs remain dynamically generated from entity metadata. Optional 
 
 Omitting `filter` or `order` preserves that section's legacy metadata-driven behavior in PAGE mode; omitting `pagination` selects PAGE. A route plan cannot re-enable a field disabled by entity query metadata, and response visibility does not grant query exposure.
 
-PAGE requires `limit` and `page` integers from 1 through 100 and maps them to TypeORM `take` and `skip`. CURSOR requires `limit`, rejects `page`, and generates the flat `{ items, nextCursor, previousCursor }` response. Its explicit order must end with the sole primary column as a server-only tie-breaker, and all possible order fields must be described non-null direct scalars from the PostgreSQL-only v1 storage matrix in [Pagination](/docs/nestjs-crud-automator/guides/pagination). A client order pair replaces the defaults in either mode, then tie-breakers are appended and duplicate fields are removed. PAGE is unchanged.
+PAGE requires `limit` and `page` integers from 1 through 100 and maps them to TypeORM `take` and `skip`. CURSOR requires `limit`, rejects `page`, and generates the flat `{ items, nextCursor, previousCursor }` response. Its explicit order must end with the complete primary key, single or composite, as server-only tie-breakers, and all possible order fields must be described non-null direct scalars from the PostgreSQL-only v1 storage matrix in [Pagination](/docs/nestjs-crud-automator/guides/pagination). A client order pair replaces the defaults in either mode, then tie-breakers are appended and duplicate fields are removed. PAGE is unchanged.
 
 ### Read PARAMETERS DTOs
 

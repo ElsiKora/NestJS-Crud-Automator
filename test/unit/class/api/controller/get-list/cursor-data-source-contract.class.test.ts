@@ -7,6 +7,7 @@ import { ApiControllerGetListCursorDataSourceContract } from "@class/api/control
 import { EApiControllerGetListQueryPaginationMode, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
 import { EFilterOrderDirection } from "@enum/filter";
 import { CursorQueryEntity } from "@test/unit/class/api/controller/get-list/query/fixture/cursor.entity";
+import { types } from "pg";
 import { DataSource } from "typeorm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -39,6 +40,10 @@ function createPostgresTextParser(oid: number): (value: string) => unknown {
 
 	if (oid === 21 || oid === 23) {
 		return (value: string): number => Number(value);
+	}
+
+	if (oid === 1114 || oid === 1184) {
+		return types.getTypeParser(oid, "text");
 	}
 
 	return (value: string): string => value;
@@ -80,6 +85,23 @@ function createDriverRepository(type: string, field: TApiControllerGetListQueryC
 			target: CursorQueryEntity,
 		},
 	} as unknown as Repository<CursorQueryEntity>;
+}
+
+function createTimestampField(columnType: string): TApiControllerGetListQueryCompiledOrderField {
+	return {
+		columnMode: "regular",
+		columnType,
+		hasTransformer: false,
+		isColumnArray: false,
+		isEnabled: true,
+		isNullable: false,
+		isSelected: true,
+		isUnsigned: false,
+		metadata: { format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.CREATED_AT, type: EApiPropertyDescribeType.DATE },
+		path: "createdAt",
+		precision: 3,
+		type: EApiPropertyDescribeType.DATE,
+	};
 }
 
 function createStoragePlan(field: TApiControllerGetListQueryCompiledOrderField): TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR> {
@@ -338,6 +360,116 @@ describe("ApiControllerGetListCursorDataSourceContract", () => {
 		});
 
 		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).toThrow("text result parser is incompatible");
+	});
+
+	it.each([
+		["timestamp", "timestamp without time zone"],
+		["timestamptz", "timestamp with time zone"],
+		["timestamp with time zone", "timestamp with time zone"],
+		["timestamp without time zone", "timestamp without time zone"],
+		["date-constructor", "timestamp without time zone"],
+	])("accepts a %s order field behind the standard PostgreSQL text parser", (columnType, storageType) => {
+		const field = createTimestampField(columnType);
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => storageType });
+
+		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).not.toThrow();
+	});
+
+	it.each([
+		["timestamp without time zone", 1114],
+		["timestamp with time zone", 1184],
+	])("proves the standard %s parser keeps every millisecond exact", (_storageType, oid) => {
+		const parser = types.getTypeParser(oid, "text") as (value: string) => Date;
+
+		for (let millisecond: number = 0; millisecond < 1000; millisecond += 1) {
+			const fraction: string = millisecond.toString().padStart(3, "0").replace(/0+$/u, "");
+			const text: string = `2024-02-29 12:34:56${fraction ? `.${fraction}` : ""}${oid === 1184 ? "+00" : ""}`;
+
+			expect(parser(text).getMilliseconds()).toBe(millisecond);
+		}
+	});
+
+	it.each([
+		["timestamp without time zone", "timestamp", (value: string): Date => new Date(new Date(`${value.replace(" ", "T")}`).getTime() + 1)],
+		["timestamp with time zone", "timestamptz", (value: string): Date => new Date(new Date(value.replace(" ", "T").replace(/([+-]\d{2})$/u, "$1:00")).getTime() + 1)],
+		["timestamp without time zone", "timestamp", (value: string): string => value],
+		["timestamp with time zone", "timestamptz", (value: string): string => value],
+	] as const)("rejects a custom %s text parser", (storageType, columnType, parser) => {
+		const field = createTimestampField(columnType);
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => storageType, postgres: { types: { getTypeParser: (): typeof parser => parser } } });
+
+		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).toThrow("text result parser is incompatible");
+	});
+
+	it("rejects an offset-less timestamp when dates are bound as UTC but read as local time", () => {
+		const timestampField = createTimestampField("timestamp");
+		const timestamptzField = createTimestampField("timestamptz");
+		const defaults = { parseInputDatesAsUTC: true };
+		const timestampRepository = createDriverRepository("postgres", timestampField, { normalizeType: (): string => "timestamp without time zone", postgres: { defaults, types: { getTypeParser: createPostgresTextParser } } });
+		const timestamptzRepository = createDriverRepository("postgres", timestamptzField, { normalizeType: (): string => "timestamp with time zone", postgres: { defaults, types: { getTypeParser: createPostgresTextParser } } });
+
+		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(timestampRepository, createStoragePlan(timestampField))).toThrow("local input dates");
+		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(timestamptzRepository, createStoragePlan(timestamptzField))).not.toThrow();
+	});
+
+	it("rejects a temporal order field outside the active timestamp storage contract", () => {
+		const field = createTimestampField("date");
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => "date" });
+
+		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, createStoragePlan(field))).toThrow("no proven exact active database representation");
+
+		const timeField: TApiControllerGetListQueryCompiledOrderField = { ...createTimestampField("timestamptz"), metadata: { format: EApiPropertyDateType.TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE } };
+		const timeRepository = createDriverRepository("postgres", timeField, { normalizeType: (): string => "timestamp with time zone" });
+
+		expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(timeRepository, createStoragePlan(timeField))).toThrow("not supported by PostgreSQL CURSOR v1");
+	});
+
+	it("validates temporal cursor boundaries as exact Date values", () => {
+		const field = createTimestampField("timestamptz");
+		const repository = createDriverRepository("postgres", field, { normalizeType: (): string => "timestamp with time zone" });
+		const validate = ApiControllerGetListCursorDataSourceContract.createValueValidator(repository, createStoragePlan(field));
+
+		expect(() => validate(field, new Date("2024-02-29T12:34:56.789Z"))).not.toThrow();
+		expect(() => validate(field, new Date(Number.NaN))).toThrow("invalid active storage value");
+		expect(() => validate(field, "2024-02-29T12:34:56.789Z")).toThrow("invalid active storage value");
+		expect(() => validate(field, Number.POSITIVE_INFINITY)).toThrow("invalid active storage value");
+	});
+
+	it.each([
+		["createdAt then id", ["createdAt", "id"], false],
+		["id then createdAt", ["id", "createdAt"], false],
+		["a non-key tie-breaker first", ["group", "id", "createdAt"], false],
+		["a missing component", ["id"], true],
+		["a component before a non-key tie-breaker", ["createdAt", "group", "id"], true],
+	] as const)("requires the complete active primary key as the final tie-breakers: %s", (_label, tieBreakerFields, isRejected) => {
+		const createdAtField = createTimestampField("timestamptz");
+		const uuidField: TApiControllerGetListQueryCompiledOrderField = { ...createdAtField, columnType: "uuid", metadata: { description: "id", type: EApiPropertyDescribeType.UUID }, path: "id", precision: undefined, type: EApiPropertyDescribeType.UUID };
+		const integerField: TApiControllerGetListQueryCompiledOrderField = { ...createdAtField, columnType: "int", metadata: { description: "group", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 10, minimum: 0, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER }, path: "group", precision: undefined, type: EApiPropertyDescribeType.NUMBER };
+		const repository = createDriverRepository("postgres", createdAtField, { normalizeType: (column: { type?: unknown }): string => ({ int: "integer", timestamptz: "timestamp with time zone", uuid: "uuid" })[String(column.type)] ?? "" });
+		const [createdAtColumn] = repository.metadata.columns;
+		const idColumn = { ...createdAtColumn, precision: undefined, propertyPath: "id", type: "uuid" };
+		const groupColumn = { ...createdAtColumn, precision: undefined, propertyPath: "group", type: "int" };
+
+		repository.metadata.columns.push(idColumn as typeof createdAtColumn & object, groupColumn as typeof createdAtColumn & object);
+		repository.metadata.primaryColumns.push(idColumn as typeof createdAtColumn & object);
+
+		const plan: TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR> = {
+			...createStoragePlan(createdAtField),
+			order: {
+				defaultOrder: [],
+				fields: {},
+				isLegacy: false,
+				serverFields: { createdAt: createdAtField, group: integerField, id: uuidField },
+				tieBreakers: tieBreakerFields.map((field: string) => ({ direction: EFilterOrderDirection.ASC, field })),
+			},
+		};
+		const assertion = expect(() => ApiControllerGetListCursorDataSourceContract.assertSafe(repository, plan));
+
+		if (isRejected) {
+			assertion.toThrow("complete primary key");
+		} else {
+			assertion.not.toThrow();
+		}
 	});
 
 	it("checks token capacity per effective order alternative rather than summing mutually exclusive fields", () => {

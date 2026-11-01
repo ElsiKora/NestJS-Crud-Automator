@@ -31,6 +31,22 @@ export class CursorStorageQueryEntity {
 	@ApiPropertyDescribe({ description: "opaque cursor integer", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 10_000_000_000_000_000, minimum: -10_000_000_000_000_000, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER })
 	public opaqueInteger!: number;
 
+	@Column({ precision: 0, type: "timestamp" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public safeSecondTimestamp!: Date;
+
+	@Column({ precision: 3, type: "timestamp" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public safeTimestamp!: Date;
+
+	@Column({ precision: 3, type: "timestamptz" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public safeTimestamptz!: Date;
+
+	@Column({ precision: 3, type: Date })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public safeTimestampConstructor!: Date;
+
 	@Column({ type: "uuid" })
 	@ApiPropertyDescribe({ description: "safe UUID", type: EApiPropertyDescribeType.UUID })
 	public safeUuid!: string;
@@ -51,9 +67,33 @@ export class CursorStorageQueryEntity {
 	@ApiPropertyDescribe({ description: "unsafe JSON string", exampleValue: "value", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING })
 	public unsafeJsonString!: string;
 
+	@Column({ type: "date" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeDateColumn!: Date;
+
+	@Column({ precision: 3, type: "timestamptz" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeDateFormatTimestamptz!: Date;
+
+	@Column({ precision: 4, type: "timestamp" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeFourDigitTimestamp!: Date;
+
+	@Column({ precision: 6, type: "timestamptz" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeSixDigitTimestamptz!: Date;
+
 	@Column({ precision: 0, type: "time with time zone" })
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
 	public unsafeTimezoneTime!: string;
+
+	@Column({ type: "timestamp" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeUnsetPrecisionTimestamp!: Date;
+
+	@Column({ type: "timestamptz" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public unsafeUnsetPrecisionTimestamptz!: Date;
 
 	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({ description: "unsafe varchar boolean", type: EApiPropertyDescribeType.BOOLEAN })

@@ -162,7 +162,7 @@ GET combines primary identity, path scope, and then HOOKS/IAM scope. GET_LIST co
 
 The list example also provides deterministic page/limit ordering. Server-only `defaultOrder` is used when the client sends no order pair, while `tieBreakers` are appended after either the defaults or the client's selected order. Direct scalar UUID fields such as `id` may be used here even when they are absent from the client order allowlist.
 
-GET_LIST defaults to PAGE mode. Add `pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR }` beside `filter` and `order` to generate required `limit`, optional mutually exclusive `after`/`before`, and the flat `{ items, nextCursor, previousCursor }` response. CURSOR requires one primary column as the only final explicit tie-breaker and non-null direct-scalar metadata for every possible order field. See [Pagination](/docs/nestjs-crud-automator/guides/pagination) for the full contract.
+GET_LIST defaults to PAGE mode. Add `pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR }` beside `filter` and `order` to generate required `limit`, optional mutually exclusive `after`/`before`, and the flat `{ items, nextCursor, previousCursor }` response. CURSOR requires the complete primary key, single or composite, as the final explicit tie-breakers and non-null direct-scalar metadata for every possible order field. See [Pagination](/docs/nestjs-crud-automator/guides/pagination) for the full contract.
 
 ## Authentication and Authorization
 
