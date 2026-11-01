@@ -105,6 +105,19 @@ Automator supports two destructive relation reference projections:
 - `SCALAR` replaces a loaded relation with the configured key value;
 - `OBJECT` replaces it with an object containing the configured key.
 
+To-many relations (`OneToMany`, `ManyToMany`) are projected element by element, so the array stays an array:
+
+| Loaded relation  | `OBJECT`           | `SCALAR` |
+| ---------------- | ------------------ | -------- |
+| To-one           | `{ "id": "a1" }`   | `"a1"`   |
+| To-one, no row   | `null`             | `null`   |
+| To-many          | `[{ "id": "a1" }]` | `["a1"]` |
+| To-many, no rows | `[]`               | `[]`     |
+
+Null elements inside a loaded array are left in place, the same way a `null` to-one value is left unchanged.
+
+Generated Swagger describes a response `RELATION` from its TypeORM relation type: a to-one relation as `{ id }`, a to-many relation as an array of `{ id }`. The schema does not depend on `reference.shape`, so it matches the wire only for `OBJECT` with the `id` key. With `SCALAR` the wire carries `"a1"` or `["a1"]` while Swagger still shows `{ id }` or `[{ id }]`.
+
 `FULL` and `PRESERVE` are not 3.0 modes. Any configured `relations.response.load` requires an `OBJECT` or `SCALAR` reference and projects the loaded relation. To retain a complete relation, omit Automator response loading, load it through another application-owned path, and use a manual response DTO or transformer.
 
 ### Explicit Loading
@@ -439,7 +452,7 @@ routes: {
         load: { include: { author: true } },
         reference: {
           key: "code",
-          shape: EApiControllerRelationReferenceShape.OBJECT,
+          shape: EApiControllerRelationReferenceShape.SCALAR,
         },
       },
     },
@@ -447,7 +460,9 @@ routes: {
 }
 ```
 
-With that configuration, `{ author: { code: "author-001" } }` is validated and hydrated before the service call. If the route uses `SCALAR`, sending an object reference fails fast with a bad request.
+With that configuration, `{ author: { code: "author-001" } }` is validated and hydrated before the service call, and the response returns `{ "author": "author-001" }`. If the request uses `SCALAR`, sending an object reference fails fast with a bad request.
+
+The generated response DTO of a relation exposes only `id`, so a response `OBJECT` reference with any other `key` currently gives `{}`, or `[{}]` for a to-many relation: the serializer strips the key. Use `SCALAR` for a key other than `id`, or a manual response DTO that exposes that key.
 
 ## Custom Route Relations
 
@@ -586,6 +601,19 @@ await userService.create({
 	],
 });
 ```
+
+## Migration Notes
+
+Response projection of to-many relations now keeps the array. Every route with a `OneToMany` or `ManyToMany` relation in `relations.response.load.include` changes on the wire, whether the relation is described as `RELATION` or as an `OBJECT` array:
+
+| Reference | Before               | After                          |
+| --------- | -------------------- | ------------------------------ |
+| `OBJECT`  | `"comments": {}`     | `"comments": [{ "id": "a1" }]` |
+| `SCALAR`  | `comments` is absent | `"comments": ["a1"]`           |
+
+A relation with no rows is now `[]` in both shapes. Clients that read `comments` as an object or relied on the key being absent must read an array. To-one relations are unchanged.
+
+Generated Swagger changes with it: a to-many `RELATION` in a response schema is now `type: array` with `items` pointing at the same relation DTO, instead of a single object. Clients generated from the document get an array type. Request schemas and validation are unchanged.
 
 ## Next Steps
 

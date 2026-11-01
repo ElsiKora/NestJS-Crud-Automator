@@ -12,7 +12,7 @@ const DISABLED_ROUTES = {
 	[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
 } as const;
 
-const RELATIONS_INCLUDE = { author: true, comments: true, tags: true } as const;
+const RELATIONS_INCLUDE = { author: true, comments: true, reviews: true, tags: true } as const;
 
 @ApiController<E2eToManyPostEntity>({
 	entity: E2eToManyPostEntity,
@@ -20,6 +20,7 @@ const RELATIONS_INCLUDE = { author: true, comments: true, tags: true } as const;
 	path: "to-many-object-posts",
 	routes: {
 		...DISABLED_ROUTES,
+		[EApiRouteType.CREATE]: {},
 		[EApiRouteType.GET]: {
 			relations: { response: { load: { include: RELATIONS_INCLUDE }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } },
 		},

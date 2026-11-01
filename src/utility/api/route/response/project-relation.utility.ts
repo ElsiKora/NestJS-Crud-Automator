@@ -7,6 +7,7 @@ import { ErrorException } from "@utility/error/exception.utility";
 
 /**
  * Projects loaded relation objects into the configured response reference shape.
+ * To-many relations are projected element by element, so the array itself is preserved.
  * @template E - Entity type that owns the relation configuration.
  * @template R - Response value type.
  * @param {IApiControllerPropertiesRouteBaseRelationsResponse<E> | undefined} relationConfig - Response relation projection configuration.
@@ -56,12 +57,28 @@ export function ApiRouteProjectRelationResponse<E extends IApiBaseEntity, R>(rel
 				continue;
 			}
 
-			const referenceValue: unknown = (relationValue as Record<string, unknown>)[referenceKey];
-			projectedResponse[relationName] = relationConfig.reference.shape === EApiControllerRelationReferenceShape.SCALAR ? referenceValue : { [referenceKey]: referenceValue };
+			projectedResponse[relationName] = Array.isArray(relationValue) ? relationValue.map((relationItem: unknown): unknown => projectRelationReference(relationConfig.reference, referenceKey, relationItem)) : projectRelationReference(relationConfig.reference, referenceKey, relationValue);
 		}
 	}
 
 	return response;
+}
+
+/**
+ * Projects one loaded relation object into the configured reference shape.
+ * @param {IApiControllerPropertiesRouteBaseRelationsResponse<IApiBaseEntity>["reference"]} referenceConfig - Response relation reference config.
+ * @param {string} referenceKey - Relation key exposed by the reference.
+ * @param {unknown} relationValue - Loaded relation object, or a value that is returned unchanged.
+ * @returns {unknown} Projected relation reference.
+ */
+function projectRelationReference(referenceConfig: IApiControllerPropertiesRouteBaseRelationsResponse<IApiBaseEntity>["reference"], referenceKey: string, relationValue: unknown): unknown {
+	if (relationValue === null || relationValue === undefined || typeof relationValue !== "object") {
+		return relationValue;
+	}
+
+	const referenceValue: unknown = (relationValue as Record<string, unknown>)[referenceKey];
+
+	return referenceConfig.shape === EApiControllerRelationReferenceShape.SCALAR ? referenceValue : { [referenceKey]: referenceValue };
 }
 
 /**

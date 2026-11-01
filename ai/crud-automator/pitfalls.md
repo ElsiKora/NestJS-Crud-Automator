@@ -107,6 +107,14 @@ Use explicit `ApiPropertyCopy` when a manual DTO intentionally needs the hidden 
 
 When two entity files import each other, type their relation properties as `Relation<T>` (`import type { Relation } from "typeorm"`) in examples, tests and consumer code; in a native ES module application it is required. With `emitDecoratorMetadata` (SWC `decoratorMetadata`), a plain `author: UserEntity` is read while the ES module loads and fails with `ReferenceError: Cannot access 'UserEntity' before initialization`, SWC's `typeof` guard included; CommonJS hides the cycle. The package reads `design:type` only in `filter-order-by-from-entity.utility.ts`, for columns without an explicit `type`. `test/consumer/cyclic` and the SWC consumer `test/consumer/swc` cover it in the consumer smoke.
 
+## To-Many Response Relations
+
+`relations.response` projects `OneToMany` and `ManyToMany` element by element: `OBJECT` gives `[{ id }]`, `SCALAR` gives `[id]`, and a relation with no rows gives `[]`. Null elements stay in place. Do not expect the fields of related rows: the projection is destructive for to-many exactly as for to-one. To return more than the reference, omit Automator response loading and use a manual response DTO or transformer.
+
+The generated response DTO of a `RELATION` exposes only `id`. Do not combine a response `OBJECT` reference with a `key` other than `id`: the serializer strips the key and the wire is `{}` or `[{}]`. Use `SCALAR` or a manual response DTO that exposes that key.
+
+Generated Swagger takes the array shape of a response `RELATION` from the TypeORM relation type, not from `reference.shape`. It matches the wire for `OBJECT` with the `id` key. With `SCALAR` the wire is `id` or `[id]` while Swagger still shows `{ id }` or `[{ id }]`; do not treat that schema as the `SCALAR` contract.
+
 ## Relation Load Config Drift
 
 Use `relations.request.load.include` to select direct request relations to hydrate. Do not use the old request `relations` array or AUTO/MANUAL strategy flags.

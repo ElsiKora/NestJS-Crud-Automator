@@ -1,21 +1,25 @@
 import "reflect-metadata";
 
 import type { INestApplication } from "@nestjs/common";
+import type { OpenAPIObject } from "@nestjs/swagger";
+import type { TSwaggerSchemaObject } from "@type/swagger";
 
 import { HttpStatus } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eToManyAuthorEntity, E2eToManyCommentEntity, E2eToManyObjectPostController, E2eToManyPostEntity, E2eToManyPostService, E2eToManyScalarPostController, E2eToManyTagEntity } from "./to-many-relation-response";
+import { E2eToManyAuthorEntity, E2eToManyCommentEntity, E2eToManyObjectPostController, E2eToManyPostEntity, E2eToManyPostService, E2eToManyReviewEntity, E2eToManyScalarPostController, E2eToManyTagEntity } from "./to-many-relation-response";
 
 const AUTHOR: string = "11111111-1111-4111-8111-111111111111";
 const COMMENT_FIRST: string = "22222222-2222-4222-8222-222222222221";
 const COMMENT_SECOND: string = "22222222-2222-4222-8222-222222222222";
 const POST_EMPTY: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
 const POST_FULL: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
+const REVIEW: string = "44444444-4444-4444-8444-444444444441";
 const TAG_FIRST: string = "33333333-3333-4333-8333-333333333331";
 const TAG_SECOND: string = "33333333-3333-4333-8333-333333333332";
 
@@ -23,11 +27,13 @@ interface IPostWire {
 	author: unknown;
 	comments: unknown;
 	id: string;
+	reviews: unknown;
 	tags: unknown;
 }
 
 describe("To-many response relations (E2E)", () => {
 	let app: INestApplication | undefined;
+	let document: OpenAPIObject;
 	let fastify: {
 		inject: (options: { method: string; url: string }) => Promise<{ json: () => unknown; statusCode: number }>;
 	};
@@ -48,6 +54,8 @@ describe("To-many response relations (E2E)", () => {
 		return (response.json() as { items: Array<IPostWire> }).items;
 	};
 
+	const getSchemaProperties = (schemaName: string): Record<string, TSwaggerSchemaObject> => (document.components?.schemas?.[schemaName] as TSwaggerSchemaObject).properties as Record<string, TSwaggerSchemaObject>;
+
 	const expectReferences = (actual: unknown, expected: Array<unknown>): void => {
 		expect(actual).toHaveLength(expected.length);
 		expect(actual).toEqual(expect.arrayContaining(expected));
@@ -60,7 +68,7 @@ describe("To-many response relations (E2E)", () => {
 				TypeOrmModule.forRoot({
 					database: ":memory:",
 					dropSchema: true,
-					entities: [E2eToManyAuthorEntity, E2eToManyCommentEntity, E2eToManyPostEntity, E2eToManyTagEntity],
+					entities: [E2eToManyAuthorEntity, E2eToManyCommentEntity, E2eToManyPostEntity, E2eToManyReviewEntity, E2eToManyTagEntity],
 					logging: false,
 					synchronize: true,
 					type: "better-sqlite3",
@@ -74,6 +82,7 @@ describe("To-many response relations (E2E)", () => {
 
 		app = moduleReference.createNestApplication(new FastifyAdapter());
 		await app.init();
+		document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
 		fastify = app.getHttpAdapter().getInstance();
 
 		const { manager } = app.get(E2eToManyPostService).repository;
@@ -86,6 +95,7 @@ describe("To-many response relations (E2E)", () => {
 			{ id: COMMENT_FIRST, post },
 			{ id: COMMENT_SECOND, post },
 		]);
+		await manager.save(E2eToManyReviewEntity, { id: REVIEW, post });
 	});
 
 	afterAll(async () => {
@@ -122,14 +132,23 @@ describe("To-many response relations (E2E)", () => {
 		expectReferences(post?.tags, [TAG_FIRST, TAG_SECOND]);
 	});
 
+	it("projects array-described OBJECT relations element by element", async () => {
+		expect((await getPost("to-many-object-posts", POST_FULL)).reviews).toEqual([{ id: REVIEW }]);
+		expect((await getPost("to-many-scalar-posts", POST_FULL)).reviews).toEqual([REVIEW]);
+		expect((await listPosts("to-many-object-posts"))[0]?.reviews).toEqual([{ id: REVIEW }]);
+		expect((await listPosts("to-many-scalar-posts"))[0]?.reviews).toEqual([REVIEW]);
+	});
+
 	it("keeps loaded empty to-many relations as empty arrays", async () => {
 		for (const path of ["to-many-object-posts", "to-many-scalar-posts"]) {
 			const post = await getPost(path, POST_EMPTY);
 			const listed = (await listPosts(path)).find((item: IPostWire): boolean => item.id === POST_EMPTY);
 
 			expect(post.comments).toEqual([]);
+			expect(post.reviews).toEqual([]);
 			expect(post.tags).toEqual([]);
 			expect(listed?.comments).toEqual([]);
+			expect(listed?.reviews).toEqual([]);
 			expect(listed?.tags).toEqual([]);
 		}
 	});
@@ -139,5 +158,29 @@ describe("To-many response relations (E2E)", () => {
 		expect((await getPost("to-many-scalar-posts", POST_FULL)).author).toBe(AUTHOR);
 		expect((await getPost("to-many-object-posts", POST_EMPTY)).author).toBeNull();
 		expect((await getPost("to-many-scalar-posts", POST_EMPTY)).author).toBeNull();
+	});
+
+	it("describes to-many response relations as arrays in Swagger", () => {
+		for (const [schemaName, itemSchemaPrefix] of [
+			["E2eToManyPostEntityGetResponseDTO", "E2eToManyPostEntityGetResponse"],
+			["E2eToManyPostEntityGetListResponseDTO", "E2eToManyPostEntityGetListResponse"],
+		] as const) {
+			const properties: Record<string, TSwaggerSchemaObject> = getSchemaProperties(schemaName);
+
+			expect(properties.comments).toMatchObject({ items: { $ref: `#/components/schemas/${itemSchemaPrefix}CommentsDTO` }, minItems: 0, type: "array" });
+			expect(properties.tags).toMatchObject({ items: { $ref: `#/components/schemas/${itemSchemaPrefix}TagsDTO` }, minItems: 0, type: "array" });
+			expect(properties.comments).not.toHaveProperty("maxItems");
+			expect(properties.author?.type).not.toBe("array");
+			expect(properties.author).toMatchObject({ allOf: [{ $ref: `#/components/schemas/${itemSchemaPrefix}AuthorDTO` }] });
+		}
+	});
+
+	it("keeps to-many relations in the request schema unchanged", () => {
+		const properties: Record<string, TSwaggerSchemaObject> = getSchemaProperties("E2eToManyPostEntityCreateBodyDTO");
+
+		expect(properties.comments?.type).toBe("string");
+		expect(properties.comments?.format).toBe("uuid");
+		expect(properties.tags?.type).toBe("string");
+		expect(properties.tags?.format).toBe("uuid");
 	});
 });

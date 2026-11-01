@@ -1,7 +1,7 @@
 import type { EApiRouteType } from "@enum/decorator/api";
 import type { IDtoGenerateFactory } from "@interface/dto-generate-factory.interface";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
-import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeUuidProperties } from "@type/decorator/api/property";
+import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeUuidProperties, TApiPropertyObjectProperties } from "@type/decorator/api/property";
 
 import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
 import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
@@ -26,16 +26,20 @@ export class DtoPropertyFactoryRelation<E> implements IDtoGenerateFactory<E> {
 		}
 
 		if (dtoType === EApiDtoType.RESPONSE) {
+			const relationType: string = String(relationColumn.type);
+			const isToManyResponse: boolean = config.isResponse === true && (relationType === "one-to-many" || relationType === "many-to-many");
+
 			return ApiPropertyObject({
 				description: relationDescription,
 				entity,
-				isArray: false,
+				isArray: isToManyResponse,
+				...(isToManyResponse && { minItems: 0 }),
 				type: DtoGenerateRelationResponse(entity, method, dtoType, propertyName, {
 					relationDescription,
 				}),
 				...config,
 				...restProperties,
-			});
+			} as TApiPropertyObjectProperties);
 		}
 
 		return ApiPropertyUUID({ description: relationDescription, entity, isArray: false, ...config, ...restProperties });
