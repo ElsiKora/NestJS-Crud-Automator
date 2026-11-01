@@ -69,6 +69,24 @@ export class IntegrationDetailEntity {
 	@OneToMany(() => IntegrationDetailTagEntity, ({ detail }: IntegrationDetailTagEntity) => detail, { eager: true })
 	public tags!: Array<Relation<IntegrationDetailTagEntity>>;
 
+	/** A column named like the list envelope key, so only the route type tells an entity response from a list. */
+	@ApiPropertyDescribe({
+		description: "items",
+		exampleValue: ["item"],
+		format: EApiPropertyStringType.STRING,
+		isArray: true,
+		isNullable: true,
+		isUniqueItems: false,
+		maxItems: 10,
+		maxLength: 64,
+		minItems: 0,
+		minLength: 1,
+		pattern: "/^.+$/",
+		type: EApiPropertyDescribeType.STRING,
+	})
+	@Column({ nullable: true, type: "simple-json" })
+	public items?: Array<string> | null;
+
 	@ApiPropertyDescribe({ description: "vendor", type: EApiPropertyDescribeType.RELATION })
 	@ManyToOne(() => IntegrationDetailVendorEntity, { eager: true, nullable: true })
 	public vendor!: IntegrationDetailVendorEntity;

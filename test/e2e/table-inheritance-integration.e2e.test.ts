@@ -52,6 +52,7 @@ const CARD_RESPONSE: Record<string, unknown> = {
 	cardNumber: "4111",
 	id: CARD_ID,
 	issuer: { id: ISSUER_ID },
+	items: null,
 	kind: "CARD",
 	label: "seen-Card",
 	network: { id: NETWORK_ID },
@@ -64,6 +65,7 @@ const CARD_RESPONSE: Record<string, unknown> = {
 const FORM_RESPONSE: Record<string, unknown> = {
 	actionUrl: "https://example.com",
 	id: FORM_ID,
+	items: null,
 	kind: "FORM",
 	label: "seen-Form",
 	notes: [
