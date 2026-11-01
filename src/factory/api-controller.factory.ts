@@ -57,7 +57,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	/**
-	 * Fails startup when a table inheritance root lists no loaded child entity, since its polymorphic responses would have no variants.
+	 * Fails startup when a child entity of the table inheritance root was loaded after the controller was decorated, since that variant would be missing from Swagger and response serialization.
 	 * @returns {void}
 	 */
 	assertTableInheritanceChildren(): void {

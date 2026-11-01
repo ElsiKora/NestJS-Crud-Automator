@@ -347,12 +347,16 @@ Variants are read from TypeORM metadata:
 - A leaf child entity is always a variant. Its value is the `@ChildEntity(...)` argument or, without one, the class name.
 - The root and any intermediate child entity are variants only when the discriminator column can store their value, meaning the column has no `enum` or the enum contains the value. With an enum column they usually are not. On a `varchar` column the root is a variant, because `save()` through the root repository writes its class name as the value.
 
+The column options come from the property column on the root, as in TypeORM: once the root declares the property, the options in `@TableInheritance({ column })` are ignored, including its `enum`.
+
 These cases fail at startup:
 
 - The discriminator column is missing or undescribed on the root, has `select: false`, or uses a numeric column type.
 - The discriminator column is hidden from the generated GET or GET_LIST response, for example with `isEnabled: false` on the RESPONSE DTO of a route.
+- No child entity is loaded when the controller is decorated.
 - A leaf value is outside the column enum, or a discriminator value is not a non-empty string.
-- Two values produce the same DTO name suffix, a suffix is not a valid OpenAPI component name (`^[\w.-]+$`, so `"myType foo"` fails), or a value produces the name of another DTO generated for the entity: the GET_LIST wrapper (the value `ITEMS`) or a relation DTO of another variant (`CARD_TRANSFER_ISSUER` next to a `CARD_TRANSFER` variant with an `issuer` relation). Values are never normalized, so change the value or the property name that produces the clash.
+- A discriminator value contains a character other than letters, digits, `_` and `-`, such as `"my type"` or `"card.transfer"`, because the value becomes part of generated DTO names.
+- Two values produce the same DTO name suffix, or a value produces the name of another DTO generated for the entity: the GET_LIST wrapper (the value `ITEMS`) or a relation DTO of another variant (`CARD_TRANSFER_ISSUER` next to a `CARD_TRANSFER` variant with an `issuer` relation). Values are never normalized, so change the value or the property name that produces the clash.
 
 A manual RESPONSE DTO on both read routes takes the entity out of this contract.
 
@@ -362,7 +366,7 @@ A row whose discriminator value has no variant fails the request with `500`. The
 
 Variants are compiled once when `@ApiController` decorates the class, so every child entity file must be imported before the controller file. Import them for their side effects, as above, or through a barrel. A glob in the data source `entities` option runs later and does not count.
 
-The controller constructor compares the variants with the child entities loaded by then and fails startup with a message naming the missing classes, before Swagger is generated. This also fires for a child class that is imported late and never registered in the data source. A REQUEST-scoped controller, including one that becomes request-scoped through its service, is constructed for every request, so every request fails with `500` and that message until the import order is fixed.
+A root with no child entity loaded at that moment fails startup. The controller constructor compares the variants with the child entities loaded by then and fails startup with a message naming the missing classes, before Swagger is generated. This also fires for a child class that is imported late and never registered in the data source. A REQUEST-scoped controller, including one that becomes request-scoped through its service, is constructed for every request, so every request answers with the generic `500` body until the import order is fixed; the message naming the classes appears only in the server log.
 
 ### Shared Columns Between Variants
 
@@ -407,8 +411,9 @@ From 5.0.0, an existing generated controller over a table inheritance root chang
 - A discriminator with `select: false` fails startup. Remove `select: false`.
 - A numeric discriminator column, or a numeric value such as `@ChildEntity(1)`, fails startup. Keep a manual RESPONSE DTO on the read routes of such an entity.
 - A leaf child whose value is outside the column enum fails startup. Add the value to the enum or change the `@ChildEntity(...)` argument.
-- A discriminator value that clashes with another generated DTO name or is not a valid OpenAPI component name fails startup. Change the value or the property name that produces the clash.
-- A controller whose child entity files load after it fails startup. Import those files before the controller. A REQUEST-scoped controller answers every request with `500` until then.
+- A discriminator value that clashes with another generated DTO name, or contains a character other than letters, digits, `_` and `-`, fails startup. Change the value or the property name that produces the clash.
+- A controller whose child entity files load after it, or before any of them, fails startup. Import those files before the controller. A REQUEST-scoped controller answers every request with a generic `500` until then, and the server log names the classes.
+- An enum in `@TableInheritance({ column })` that differs from the property column no longer counts; the property column decides, as it does in TypeORM.
 - `GenerateEntityInformation(Child).tableName` returns the table of the root, where the child rows are stored, instead of a name derived from the discriminator value. A child entity without a `@ChildEntity(...)` value no longer throws there. Code that used the old value as a table name must use the root table.
 
 ## DTO Generation Control
