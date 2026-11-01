@@ -1,7 +1,7 @@
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
 import { GetDefaultStringFormatProperties } from "@utility/api/get-default-string-format-properties";
-import { Column, CreateDateColumn, Entity, PrimaryColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, PrimaryColumn, VersionColumn } from "typeorm";
 
 import { ECursorStorageState } from "./cursor-storage-state.enum";
 
@@ -118,6 +118,10 @@ export class CursorStorageQueryEntity {
 	@Column({ type: "timestamptz" })
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
 	public unsafeUnsetPrecisionTimestamptz!: Date;
+
+	@VersionColumn()
+	@ApiPropertyDescribe({ description: "unsafe untyped version", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 100, minimum: 0, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER })
+	public unsafeUntypedVersion!: number;
 
 	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({ description: "unsafe varchar boolean", type: EApiPropertyDescribeType.BOOLEAN })

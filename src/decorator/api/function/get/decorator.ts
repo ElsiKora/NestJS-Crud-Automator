@@ -12,6 +12,7 @@ import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/
 import { ApiControllerGeneratedRelationCacheContract } from "@class/api/controller/generated/relation-cache-contract.class";
 import { ApiControllerGeneratedWriteHydrationContract } from "@class/api/controller/generated/write-hydration-contract.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
+import { ApiFunctionKeyPageLoader } from "@class/api/function/key-page-loader.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
@@ -131,7 +132,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 
 	try {
 		DatabaseTypeOrmAssertRequiredWhere(properties.where);
-		const item: E | null = await repository.findOne(properties);
+		const item: E | null = await ApiFunctionKeyPageLoader.findOne(repository, properties);
 
 		if (!item) {
 			throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));

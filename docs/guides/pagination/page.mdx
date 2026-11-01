@@ -195,7 +195,7 @@ PostgreSQL `timestamp` has no offset, so a stored wall-clock value does not iden
 
 In a token, a temporal value is a canonical ISO-8601 UTC string with millisecond precision, such as `2026-01-31T12:00:00.000Z`. A non-canonical, impossible, or out-of-range value is `INVALID_CURSOR` before database access. The token form covers years 0001 through 9999.
 
-A stored value outside those years, BC values included, is served normally while it stays inside a window, so the outcome depends on `limit`. The request fails closed only when such a value lands on a row that must become a cursor: the last item of a window with a next page, or the first or last item of a window reached through a cursor. PostgreSQL `infinity` fails closed on every window that reads it, including the extra row read to detect a next page.
+A stored value outside those years, BC values included, is served normally while it stays inside a window, so the outcome depends on `limit`. The request fails closed only when such a value lands on a row that must become a cursor: the last item of a window with a next page, or the first or last item of a window reached through a cursor. A value a JavaScript `Date` cannot hold, such as year 280000, and PostgreSQL `infinity` and `-infinity` fail closed on every window that reads them, including the extra row read to detect a next page.
 
 Client order selection follows the GET_LIST order baseline, which does not include `timestamptz`. A `timestamptz` field is available through `defaultOrder` and `tieBreakers`.
 
@@ -283,9 +283,19 @@ Page mode returns its ordinary zero-count envelope. Cursor mode keeps all three 
 
 At an empty cursor edge, the cursor pointing back toward an existing window remains available while the exhausted direction is `null`.
 
+## Temporal Keys, Relations, And Filters
+
+pg serializes a JavaScript `Date` parameter through the process's local offset truncated to whole minutes. Where that offset has seconds, as local mean time does before a zone adopted standard time, the bound value is a different instant. Automator therefore binds no parsed `Date` of a temporal primary key or `timestamptz` filter on PostgreSQL, in PAGE, CURSOR, GET_MANY, and GET reads alike:
+
+- A filter value on a `timestamptz` column binds as canonical UTC text. Filters on `timestamp` and `date` columns keep binding a `Date`, whose local wall-clock text is what those columns store.
+- A paged read of an entity whose primary key includes a `timestamptz`, `timestamp`, or `date` column, with joined relations from `include`, eager relations, or relation filters, loads in two queries: the distinct page keys first, read as PostgreSQL text, then the entities of exactly those keys, bound as that text. Such a page orders only by the entity's own columns; a relation order path fails with an error naming the path.
+- A relation loaded with `relationLoadStrategy: "query"` whose join columns include a `timestamptz`, `timestamp`, or `date` column fails with an error that names the relation, the join column, and the recipe `relationLoadStrategy: "join"`. A generated route fails at application bootstrap, and any other read fails before query I/O.
+
+Other drivers keep TypeORM's own loading. MySQL does not need it: mysql2 writes a `Date` as local wall-clock text without an offset and reads it back through the same local fields, so no truncated offset enters the value.
+
 ## Migration Notes
 
-Cursor mode now accepts composite primary keys and `timestamptz` order fields. Existing single-key cursor routes and their tokens keep working without configuration changes.
+In 5.0.0, cursor mode accepts composite primary keys and `timestamptz` order fields. Existing single-key cursor routes and their tokens keep working without configuration changes.
 
 - A composite primary key must appear in full, each component once, as the final explicit tie-breakers. The components may appear in any order among themselves, and no component may appear in `defaultOrder`, ahead of a non-key tie-breaker, or in client ordering.
 - A `timestamptz` order field needs a declared integer `precision` from 0 to 3 that matches the physical column, plus `EApiPropertyDateType.DATE_TIME` metadata. A date column counts by the type the active driver stores it as, so `@CreateDateColumn` needs an explicit `type: "timestamptz"`. `timestamp` and `Date`-constructor columns are not cursor storage.
@@ -304,6 +314,12 @@ New temporal bootstrap errors name the field:
 - `date order field "createdAt" supports only DATE_TIME metadata in PostgreSQL v1`
 - `date order field "createdAt" requires PostgreSQL timestamptz storage because other date column types have no exact instant; the active driver stores it as "timestamp without time zone", so declare the column type "timestamptz"`
 - `date order field "createdAt" requires a declared integer column precision from 0 to 3 so a JS Date round-trips exactly`
+
+In 5.0.0, PostgreSQL reads of temporal keys and `timestamptz` filters change shape:
+
+- A paged read of an entity with a `timestamptz`, `timestamp`, or `date` primary key and joined relations runs a distinct key query and an entity query instead of TypeORM's two-step load. Ordering such a page by a relation path now fails: `Paged read of entity "LedgerEntity" cannot order by relation path "account": an entity with a temporal primary key and joined relations pages only by its own columns`.
+- A relation loaded with `relationLoadStrategy: "query"` over a temporal join column now fails at bootstrap for a generated route, and before query I/O for any other read: `Controller "LedgerController" route "getList": relation "watchers" of entity "LedgerEntity" cannot load with relationLoadStrategy "query" because its join column "ledgerPostedAt" is a PostgreSQL date or timestamp, which pg binds through a local offset truncated to whole minutes; use relationLoadStrategy: "join"`. Set `relationLoadStrategy: "join"` on the route's `relations.response.load`, or on the DataSource when it supplies the default.
+- A GET_LIST filter value on a `timestamptz` column reaches the find options as a canonical UTC string instead of a `Date`. A subscriber that reads such a filter value receives the string.
 
 ## Next Steps
 

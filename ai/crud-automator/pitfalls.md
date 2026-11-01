@@ -207,6 +207,8 @@ Do not let CURSOR-specific function/route/auth/DTO transforms change window card
 
 Do not combine requested relations, effective TypeORM `relationLoadStrategy: "query"`, and a data-source query cache with `alwaysEnabled: true` on a generated mandatory read. Relation subqueries cannot inherit the required root `cache: false`, so Automator fails before repository I/O. Use join relation loading or disable the global always-on query cache.
 
+Do not load relations with `relationLoadStrategy: "query"` when their join columns include a PostgreSQL `timestamptz`, `timestamp`, or `date` column. The relation query would bind parsed `Date` values that pg serializes through a truncated whole-minute offset, so Automator fails at bootstrap or before query I/O; use `relationLoadStrategy: "join"`. Do not order a paged read of an entity with a temporal primary key and joined relations by a relation path; it fails closed.
+
 `missingBehavior: USE_DEFAULT` accepts only static typed defaults. Principal- or tenant-dependent restrictions belong in HOOKS/IAM scope, which is AND-merged once with client/default predicates.
 
 The package does not ship a consumer-side typed URL/bracket-filter builder in the current 3.x contract. Keep that helper in the consumer when needed instead of mistaking the server-owned typed query plan for a client API.

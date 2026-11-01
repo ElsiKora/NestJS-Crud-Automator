@@ -154,6 +154,8 @@ load: {
 }
 ```
 
+On PostgreSQL, `"query"` loading fails for a relation whose join columns include a `timestamptz`, `timestamp`, or `date` column, because the relation query would bind parsed `Date` values that pg serializes through a local offset truncated to whole minutes. A generated route fails at application bootstrap and any other read fails before query I/O, with an error that names the relation, the join column, and the recipe `relationLoadStrategy: "join"`. The check also applies when the DataSource supplies `"query"` as the default.
+
 ## Transaction-Bound Hydration and Direct Locks
 
 Generated routes accept `transaction: { mode: EApiFunctionTransactionMode }`. Omitted configuration and `SUPPORTS` keep the legacy route behavior without opening a new transaction. `REQUIRED` opens a route-owned transaction when no owner is active, while `MANDATORY` requires an existing Automator transaction and `NONE` rejects one.

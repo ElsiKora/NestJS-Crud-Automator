@@ -2,6 +2,7 @@ import type { IApiControllerGetListQueryAst, IApiControllerGetListQueryAstNode, 
 import type { TApiFunctionGetListPropertiesWhere } from "@type/decorator/api/function";
 import type { FindOperator } from "typeorm";
 
+import { API_CONTROLLER_TIMESTAMPTZ_COLUMN_TYPES } from "@constant/api-controller-cursor.constant";
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "@constant/factory-dto-get-list-query.constant";
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
@@ -81,6 +82,17 @@ export class ApiControllerGetListQueryRuntime {
 			page,
 			...(isCursor ? { paginationMode } : {}),
 		}) as unknown as IApiControllerGetListQueryRuntimeResult;
+	}
+
+	/**
+	 * Binds a date filter value of a timestamptz column as canonical UTC text.
+	 * pg serializes a Date through a local offset truncated to whole minutes, while UTC text binds the instant exactly.
+	 * @param {unknown} value - Filter value
+	 * @param {IApiControllerGetListQueryPlanFilterField} field - Filter field of the value
+	 * @returns {unknown} The value to bind
+	 */
+	private static bindInstant(value: unknown, field: IApiControllerGetListQueryPlanFilterField): unknown {
+		return value instanceof Date && field.columnType !== undefined && API_CONTROLLER_TIMESTAMPTZ_COLUMN_TYPES.has(field.columnType) ? value.toISOString() : value;
 	}
 
 	private static compileOrder(orderBy: string | undefined, orderDirection: EFilterOrderDirection | undefined, plan: IApiControllerGetListQueryPlan): ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> {
@@ -173,8 +185,8 @@ export class ApiControllerGetListQueryRuntime {
 						Object.freeze({
 							operation: field.defaultCondition.operation,
 							path: field.path,
-							value: field.defaultCondition.value,
-							values: field.defaultCondition.values,
+							value: this.bindInstant(field.defaultCondition.value, field),
+							values: field.defaultCondition.values ? Object.freeze(field.defaultCondition.values.map((value: unknown): unknown => this.bindInstant(value, field))) : undefined,
 						}),
 					);
 				}
@@ -307,7 +319,7 @@ export class ApiControllerGetListQueryRuntime {
 				const date: Date = value instanceof Date ? value : new Date(value as string);
 
 				if (!Number.isNaN(date.getTime())) {
-					return date;
+					return this.bindInstant(date, field);
 				}
 
 				break;

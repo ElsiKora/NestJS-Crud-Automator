@@ -12,6 +12,7 @@ import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/ge
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiControllerGeneratedRelationCacheContract } from "@class/api/controller/generated/relation-cache-contract.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
+import { ApiFunctionKeyPageLoader } from "@class/api/function/key-page-loader.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
@@ -145,7 +146,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListEx
 
 	try {
 		DatabaseTypeOrmAssertEffectiveWhere(properties.where);
-		const [items, totalCount]: [Array<E>, number] = await repository.findAndCount(properties);
+		const [items, totalCount]: [Array<E>, number] = await ApiFunctionKeyPageLoader.findAndCount(repository, properties);
 
 		const result: IApiGetListResponseResult<E> = {
 			count: items.length,

@@ -5,6 +5,7 @@ import type { TApiPropertyDescribeProperties } from "@type/decorator/api/propert
 
 export interface IApiControllerGetListQueryPlanFilterField {
 	allowedOperations: ReadonlyArray<EFilterOperation>;
+	columnType?: string;
 	defaultCondition?: IApiControllerGetListQueryPlanCondition;
 	isEnabled: boolean;
 	isNullable: boolean;
