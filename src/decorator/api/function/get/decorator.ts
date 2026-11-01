@@ -88,7 +88,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 						throw caughtError;
 					}
 
-					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: finalProperties, repository }, isWriteHydration);
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: finalProperties, repository }, isWriteHydration, getProperties);
 				},
 				entity,
 				functionType: EApiFunctionType.GET,
@@ -122,11 +122,12 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
  * @template E The entity type
  * @param {IApiFunctionGetExecutorProperties<E>} options - Properties required for entity retrieval
  * @param {boolean} isWriteHydration - Whether the GET hydrates a generated mutation target
+ * @param {object} input - Original GET input, which identifies a generated read whose miss is reported to the route runtime
  * @returns {Promise<E>} The retrieved entity instance
  * @throws {NotFoundException} If the entity is not found
  * @throws {InternalServerErrorException} If the retrieval operation fails
  */
-async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecutorProperties<E>, isWriteHydration: boolean): Promise<E> {
+async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecutorProperties<E>, isWriteHydration: boolean, input: object): Promise<E> {
 	const { constructor, entity, properties, repository }: IApiFunctionGetExecutorProperties<E> = options;
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
@@ -135,6 +136,8 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetExecut
 		const item: E | null = await ApiFunctionKeyPageLoader.findOne(repository, properties);
 
 		if (!item) {
+			ApiControllerGeneratedReadScopeStorage.markReadMissed(input);
+
 			throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));
 		}
 

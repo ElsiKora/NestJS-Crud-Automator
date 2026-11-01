@@ -155,7 +155,7 @@ Response reference projection supports `OBJECT` and `SCALAR`. Do not assume a `F
 
 When generated route `REQUIRED` opens and owns the transaction, keep request transformation and validation before `BEGIN`, then keep request hydration, generated operation, and response reload inside it. That route owner commits and finishes post-commit lifecycle before response transformation and route-after subscribers. If `REQUIRED` joins an outer owner, the outer owner commits later.
 
-Omitted route config and `SUPPORTS` must not add a new `BEGIN`. `MANDATORY` requires an outer Automator owner, `NONE` rejects one, and custom routes remain function/step/scope-owned. A route-after failure for a route-owned transaction occurs after commit and must not be described as rollback.
+Omitted route config and `SUPPORTS` must not add a new `BEGIN`, except for a CREATE with a non-empty authorization scope, which needs a transaction to refuse an out-of-scope row. A non-scoped CREATE must still open none. `MANDATORY` requires an outer Automator owner, `NONE` rejects one, and custom routes remain function/step/scope-owned. A route-after failure for a route-owned transaction occurs after commit and must not be described as rollback.
 
 `ApiFunctionTransactionScope.runWithDataSource` requires `(dataSource, { name }, callback)`, and the callback receives the exact owning `EntityManager`. Do not use the old two-argument signature or treat `runWithEntityManager` as a context-establishing scope; it only joins an existing Automator owner.
 
@@ -215,11 +215,19 @@ Generated service/controller `delete` returns `Promise<void>`. The low-level dec
 
 Do not assume a resource-conditioned Deny blocks the whole request. Generated routes evaluate IAM before loading the row, so a Deny whose `resource.*` keys compile is a row exclusion: the list omits those rows and GET/UPDATE/DELETE answer `404`, not `403`. Only Deny statements without `resource.*` keys, non-compilable ones, and `resource.*` Deny on CREATE return `403`.
 
+Do not use a row-specific Deny `Resource` to refuse a CREATE: the request is evaluated against the collection resource, so `<type>/item-1` does not match and the row is created. Use an Allow scope, which refuses an out-of-scope row with `403` and a rollback.
+
 A row-specific Deny `Resource` such as `<type>/item-1` hides that row from `list` only when the Deny's `Action` matches `list`; a Deny on `read` does not widen to `list`. Its placeholder must map to an `isFilterable` field in `resourceDefinition.fields` (`{id}` → `resource.id`), and a prefix pattern such as `<type>/abc*` also needs a STRING-described direct property, otherwise the list is denied. On SQLite and case-insensitive MySQL collations the prefix match is case-insensitive and may hide extra rows.
 
 Do not expect `StringNotEqualsIfExists` to spare NULL rows: a stored NULL is present and differs from any non-empty value, so the Deny applies to it. Condition values of `""`, or variables resolving to `null` or `""`, deny the whole request instead of compiling.
 
 Custom routes that query on their own must apply `decision.scope.where`; ignoring it skips both Allow scopes and Deny exclusions.
+
+## Scoped CREATE
+
+Do not describe a scoped CREATE as checked before the insert. The row is written, reloaded through the scope, and rolled back on a miss, so the refusal depends on a transactional engine: on MySQL MyISAM the row stays after the `403`. Function `onAfterCreate` subscribers run before the reload and may see a row that is rolled back; external side effects belong in `onAfterCommit`.
+
+Do not catch the `403` inside an outer `ApiFunctionTransactionScope` and let the outer work complete: the outer owner commits and the out-of-scope row stays. Do not configure `NONE` on a route that carries a scope, or on its CREATE or GET service function: the route answers `500` and persists nothing.
 
 Condition operators outside `EApiPolicyConditionOperator` are rejected when the document is loaded. Do not use AWS operators such as `StringLike` or `ArnEquals`.
 

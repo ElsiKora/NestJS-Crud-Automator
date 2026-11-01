@@ -159,7 +159,7 @@ interface IApiControllerPropertiesRouteBaseTransaction {
 }
 ```
 
-Omitted configuration and `SUPPORTS` do not open a route transaction. `REQUIRED` opens one through the controller service repository when no Automator transaction is active, `MANDATORY` requires an active owner, and `NONE` rejects active execution. A route that opens the transaction owns the `ROUTE` transaction registry and encloses request relation hydration, the generated service operation, and response relation reload. Request transformation and validation run before the transaction; response transformation, route-after subscribers, authorization result handling, and serialization run after commit.
+Omitted configuration and `SUPPORTS` do not open a route transaction, except for a [scoped `CREATE`](/docs/nestjs-crud-automator/guides/authorization#scoped-create). `REQUIRED` opens one through the controller service repository when no Automator transaction is active, `MANDATORY` requires an active owner, and `NONE` rejects active execution. A route that opens the transaction owns the `ROUTE` transaction registry and encloses request relation hydration, the generated service operation, and response relation reload. Request transformation and validation run before the transaction; response transformation, route-after subscribers, authorization result handling, and serialization run after commit.
 
 ### IApiControllerPropertiesRouteGetListQueryRequestTarget\<E, M\>
 

@@ -7,6 +7,7 @@ export interface IApiControllerGeneratedReadScopeEntry {
 	functionType: TApiControllerGeneratedScopeFunctionType;
 	input: object;
 	isClaimed: boolean;
+	isReadMissed: boolean;
 	isWriteHydration: boolean;
 	isWriteHydrationReadCaptured: boolean;
 	where: TApiAuthorizationScopeWhere<IApiBaseEntity>;

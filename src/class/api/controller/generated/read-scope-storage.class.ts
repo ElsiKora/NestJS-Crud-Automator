@@ -55,10 +55,24 @@ export class ApiControllerGeneratedReadScopeStorage {
 		return entry.where;
 	}
 
+	public static isReadMissed(input: object): boolean {
+		const entry: IApiControllerGeneratedReadScopeEntry | undefined = this.STORAGE.getStore();
+
+		return Boolean(entry?.isReadMissed && entry.input === input);
+	}
+
 	public static isWriteHydration(functionType: EApiFunctionType, input: object): boolean {
 		const entry: IApiControllerGeneratedReadScopeEntry | undefined = this.STORAGE.getStore();
 
 		return Boolean(entry?.isWriteHydration && entry.functionType === functionType && entry.input === input && entry.isClaimed);
+	}
+
+	public static markReadMissed(input: object): void {
+		const entry: IApiControllerGeneratedReadScopeEntry | undefined = this.STORAGE.getStore();
+
+		if (entry?.input === input) {
+			entry.isReadMissed = true;
+		}
 	}
 
 	public static protect<E extends IApiBaseEntity, T extends { where?: TApiAuthorizationScopeWhere<E> }>(properties: T, mandatoryWhere: TApiAuthorizationScopeWhere<E>): T {
@@ -133,6 +147,7 @@ export class ApiControllerGeneratedReadScopeStorage {
 			functionType,
 			input,
 			isClaimed: false,
+			isReadMissed: false,
 			isWriteHydration,
 			isWriteHydrationReadCaptured: false,
 			where: normalizedWhere,

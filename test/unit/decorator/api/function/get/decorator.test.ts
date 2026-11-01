@@ -6,7 +6,7 @@ import { ApiFunctionTransactionScope } from "@class/api/function/transaction/sco
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ApiFunctionGet } from "@decorator/api/function/get/decorator";
 import { EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
-import { HttpStatus } from "@nestjs/common";
+import { HttpStatus, NotFoundException } from "@nestjs/common";
 import { Equal } from "typeorm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -241,6 +241,44 @@ describe("ApiFunctionGet", () => {
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
 
 		await expect(service.get({ where: { id: "missing" } })).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
+	});
+
+	it("reports only the repository miss of the generated read input", async () => {
+		const request = { where: { id: "missing" } };
+		const service = new GetService({ findOne: vi.fn(async () => null) } as unknown as Repository<GetEntity>);
+
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+
+		await expect(
+			ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, request, request.where, async () => {
+				await expect(service.get({ where: { id: "nested" } })).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
+				expect(ApiControllerGeneratedReadScopeStorage.isReadMissed(request)).toBe(false);
+
+				await expect(service.get(request)).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
+				expect(ApiControllerGeneratedReadScopeStorage.isReadMissed(request)).toBe(true);
+				expect(ApiControllerGeneratedReadScopeStorage.isReadMissed({})).toBe(false);
+
+				return "checked";
+			}),
+		).resolves.toBe("checked");
+	});
+
+	it.each([
+		["BEFORE", "executeFunctionBeforeSubscribers"],
+		["AFTER", "executeFunctionSubscribers"],
+	] as const)("does not report a 404 raised by a %s subscriber as a read miss", async (_onType: string, executor: "executeFunctionBeforeSubscribers" | "executeFunctionSubscribers") => {
+		const request = { where: { id: "found" } };
+		const service = new GetService({ findOne: vi.fn(async () => ({ id: "found" })) } as unknown as Repository<GetEntity>);
+
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockResolvedValue(undefined);
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
+		vi.spyOn(ApiSubscriberExecutor, executor).mockRejectedValue(new NotFoundException());
+
+		await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, request, request.where, async () => {
+			await expect(service.get(request)).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
+			expect(ApiControllerGeneratedReadScopeStorage.isReadMissed(request)).toBe(false);
+		});
 	});
 
 	it("throws when repository is missing", async () => {

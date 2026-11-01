@@ -663,7 +663,7 @@ Generated routes evaluate IAM once, before the resource is loaded. A matched Den
 - **No `resource.*` keys** — the whole request is denied with `403`.
 - **`resource.*` keys that all compile** — the Deny becomes a row exclusion: its condition is negated and ANDed with the Allow scope. Lists omit excluded rows, and `GET`, `UPDATE`, `PARTIAL_UPDATE`, and `DELETE` of an excluded row answer `404`, exactly like a row outside an Allow scope.
 - **Any `resource.*` key that cannot compile** (another operator, a non-filterable or unmapped field, an unresolved `${...}` variable, a value that resolves to `null` or `""`, an object value) — the whole request is denied with `403`.
-- **`CREATE`** — a Deny with `resource.*` keys denies the whole request, because there is no stored row to exclude. Custom routes whose action is `<policyNamespace>:create` follow the same rule.
+- **`CREATE`** — a Deny with `resource.*` keys denies the whole request, because there is no stored row to exclude. Custom routes whose action is `<policyNamespace>:create` follow the same rule. A Deny whose `Resource` names a concrete row, such as `gameport:admin:item/item-1`, is not applied on `CREATE`: the request is evaluated against the collection resource, so that pattern does not match and the row is created. To refuse a value on `CREATE`, use an Allow scope instead (see [Scoped CREATE](#scoped-create)).
 
 By De Morgan, the keys of one Deny become top-level OR branches of the exclusion. The kept rows are exactly the rows the in-memory evaluator allows once the resource is loaded. That evaluator compares values as strings and treats a stored `NULL` as a present value that normalizes to an empty string, so `NULL` never equals a non-empty value and always differs from it. The `IfExists` operators only behave differently for paths that are missing entirely, which a stored row never has, so for stored rows they compile like their plain forms:
 
@@ -739,6 +739,32 @@ Actions are never widened: a Deny on `read` does not hide rows from `list`, and 
 Custom `@ApiMethod(...)` routes receive the same contract through `decision.scope`: Allow scopes and Deny exclusions are already merged into `decision.scope.where`, so applying it to the route's own query enforces both. A Deny with `resource.*` keys that cannot compile denies the custom route with `403` before the handler runs.
 
 Automator does not add a separate immutable `baseWhere` controller option. Put fixed, principal-dependent, and tenant-dependent restrictions in HOOKS or IAM scope so they participate in the same fail-closed AND merge.
+
+## Scoped CREATE
+
+A generated `CREATE` is scoped when its decision carries a non-empty `scope.where`, from a HOOKS `rule.scope` or an IAM Allow scope. A scope describes a stored row, and only the database knows that row: defaults, `onBeforeCreate` subscribers, and generated columns all shape it, and a scope may hold operators such as `Raw` or `ILike` that only the database evaluates. So the route writes the row, reloads it through the scope in the same transaction, and commits only when the reload finds it:
+
+- **Row inside the scope** — the transaction commits and the route answers `201`.
+- **Row outside the scope** — the transaction rolls back, nothing is committed, and the route answers `403`. The response carries no value from the body or the scope.
+
+Only the reload's own miss becomes `403`. A `404` from request relation hydration, `service.create`, or a subscriber stays as it is, and so does every other error.
+
+| Route `transaction.mode` | Scoped `CREATE`                                                    |
+| ------------------------ | ------------------------------------------------------------------ |
+| omitted, `SUPPORTS`      | Opens a `ROUTE` transaction, or joins an active Automator owner    |
+| `REQUIRED`               | Opens a `ROUTE` transaction, or joins an active Automator owner    |
+| `MANDATORY`              | Joins the required active owner                                    |
+| `NONE`                   | Answers `500` before the write, because nothing could roll it back |
+
+The scoped `CREATE` and `GET` service functions run inside that transaction, so function `SUPPORTS` and `REQUIRED` join it. A function configured as `NONE` on `CREATE` or `GET` rejects the active transaction: the route answers `500` and persists nothing.
+
+A non-scoped `CREATE`, including an IAM Allow without conditions and a scope of `{}`, opens no transaction under omitted config or `SUPPORTS`. A deny-all scope such as `{ id: In([]) }` is a scope: the write is rolled back and the route answers `403`. A scope of `[]` is rejected with `500` before the transaction and the write, as is any predicate that cannot restrict the query.
+
+Keep these limits in mind:
+
+- **Rollback needs a transactional engine.** The guarantee holds on PostgreSQL, MySQL with InnoDB, SQLite, and other transactional storage. On a non-transactional engine such as MySQL MyISAM, the rollback does nothing and the row stays after the `403`.
+- **A joined outer owner decides the commit.** Under an active `ApiFunctionTransactionScope` or another outer owner, the `403` propagates and the outer owner rolls back when the error reaches it. If the outer callback catches the refusal and completes, the outer owner commits and the out-of-scope row stays. Do not swallow this error unless the outer work must not commit it.
+- **Subscribers see the row before the decision.** Function `onAfterCreate` subscribers run before the reload, on the same manager, and may observe a row that is rolled back. Side effects outside the database belong in `onAfterCommit`, which runs only after the row is committed, while `onAfterRollback` reports the refusal.
 
 ## Decision Trace, Audit, and Simulator
 
@@ -897,5 +923,11 @@ class ConfigDataGetParametersDto {
 
 - Scope values merged against a column, from conditions or hooks, are converted to the column type; a value the column cannot hold becomes a match-nothing condition.
 - `ApiAuthorizationGuard` and `ApiAuthorizationBootstrapValidationService` inject `ApiAuthorizationParametersRuleRegistry`, which `ApiAuthorizationModule` provides and exports. A class that extends either one passes it to `super(...)`, and a manual `new`, such as `app.useGlobalGuards(new ApiAuthorizationGuard(app.get(ApiAuthorizationRuntime), app.get(ApiAuthorizationParametersRuleRegistry)))`, passes it as the second argument. A guard built without the registry refuses every request to a securable controller with an error that names `ApiAuthorizationParametersRuleRegistry`, instead of running without custom route rules, and an application that serves a securable controller without `ApiAuthorizationModule` fails at startup with a message that names the module.
+
+Generated `CREATE` now refuses a row outside the decision scope instead of hiding it after the write (see [Scoped CREATE](#scoped-create)):
+
+- A row outside the scope now answers `403` and is not committed. It used to answer `404`, and under omitted config or `SUPPORTS` the row stayed in the database. Clients that handled `404` on `CREATE` must handle `403`.
+- A scoped `CREATE` under omitted config or `SUPPORTS` now runs in a `ROUTE` transaction. Its function subscribers receive `eventManager`, `onAfterCommit` and `onAfterRollback` now run, and a function configured as `REQUIRED` joins this transaction instead of committing before the reload. Non-scoped `CREATE` is unchanged.
+- A scoped `CREATE` on a route configured as `NONE`, or with a `NONE` service function on `CREATE` or `GET`, now answers `500` and persists nothing. Use `SUPPORTS` or `REQUIRED` for routes that carry a scope.
 
 See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the hooks policy contract and the [controller decorator docs](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) for marker behavior.

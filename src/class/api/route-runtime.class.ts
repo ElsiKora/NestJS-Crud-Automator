@@ -31,7 +31,7 @@ import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
 import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsOrder, FindOptionsWhere, ObjectLiteral, RelationMetadata, Repository } from "typeorm";
 
-import { ApiControllerGeneratedInsertedKeyStorage, ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
+import { ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiControllerGetListCursorDataSourceContract } from "@class/api/controller/get-list/cursor/data-source-contract.class";
 import { ApiControllerGetListCursorRuntime } from "@class/api/controller/get-list/cursor/runtime.class";
@@ -47,7 +47,7 @@ import { FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { PATH_PARAMETER_FAILURE_CONSTANT } from "@constant/path-parameter-failure.constant";
 import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiDtoType } from "@enum/decorator/api";
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException } from "@nestjs/common";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerGetListIsHiddenColumn } from "@utility/api/controller/get-list/is-hidden-column.utility";
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
@@ -344,24 +344,38 @@ export class ApiRouteRuntime {
 				const service: ApiServiceBase<E> = options.controller.service;
 				const createFunction: (this: ApiServiceBase<E>, properties: never) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.CREATE, EApiFunctionType.CREATE, options.properties.entity);
 				const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
+				const scopeWhere: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(undefined, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
+				const isScopedWrite: boolean = scopeWhere !== undefined && Object.keys(scopeWhere).length > 0;
 
-				return await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<E> => {
-					const createInput: DeepPartial<E> = targets.body ?? ({} as DeepPartial<E>);
-					await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, createInput);
-					// An entity without primary key metadata fails here, before the route writes, as GET, PUT, PATCH and DELETE fail.
-					this.resolvePrimaryKey(createInput, options.entityMetadata);
-					markAfterBoundary();
-					const insertedKey: ObjectLiteral = await ApiControllerGeneratedInsertedKeyStorage.run(createInput, async (): Promise<E> => await Reflect.apply(createFunction, service, [createInput]));
+				return await this.executeGeneratedTransaction(
+					options,
+					routeConfig,
+					async (): Promise<E> => {
+						await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {});
+						const primaryKey: IApiControllerPrimaryColumn<E> = this.resolvePrimaryKey(targets.body, options.entityMetadata);
+						markAfterBoundary();
+						const createResponse: E = await Reflect.apply(createFunction, service, [targets.body ?? {}]);
 
-					// The route answers with the row it inserted, read as GET reads it by the key TypeORM saved, so the create result cannot pull another row into the response.
-					const requestProperties: TApiFunctionGetProperties<E> = {
-						relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
-						relations: routeConfig.relations?.response?.load?.include,
-						where: AuthorizationScopeMergeWhere(insertedKey as FindOptionsWhere<E>, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
-					};
+						const requestProperties: TApiFunctionGetProperties<E> = {
+							relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
+							relations: routeConfig.relations?.response?.load?.include,
+							where: AuthorizationScopeMergeWhere({ [primaryKey.key]: createResponse[primaryKey.key] } as FindOptionsWhere<E>, scopeWhere),
+						};
 
-					return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => await Reflect.apply(getFunction, service, [requestProperties]));
-				});
+						return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => {
+							try {
+								return await Reflect.apply(getFunction, service, [requestProperties]);
+							} catch (error) {
+								if (isScopedWrite && ApiControllerGeneratedReadScopeStorage.isReadMissed(requestProperties)) {
+									throw new ForbiddenException();
+								}
+
+								throw error;
+							}
+						});
+					},
+					isScopedWrite,
+				);
 			}
 
 			case EApiRouteType.DELETE: {
@@ -654,7 +668,7 @@ export class ApiRouteRuntime {
 		return serializedResponse;
 	}
 
-	private static async executeGeneratedTransaction<E extends IApiBaseEntity, R extends EApiRouteType, T>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, routeConfig: TApiControllerPropertiesRoute<E, R>, callback: (eventManager: EntityManager | undefined) => Promise<T>): Promise<T> {
+	private static async executeGeneratedTransaction<E extends IApiBaseEntity, R extends EApiRouteType, T>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, routeConfig: TApiControllerPropertiesRoute<E, R>, callback: (eventManager: EntityManager | undefined) => Promise<T>, isScopedWrite: boolean = false): Promise<T> {
 		const mode: EApiFunctionTransactionMode = routeConfig.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
 		const activeEventManager: EntityManager | undefined = ApiFunctionContextStorage.getTransactionRegistry() ? ApiFunctionContextStorage.getEventManager() : undefined;
 
@@ -662,11 +676,16 @@ export class ApiRouteRuntime {
 			throw ErrorException("ApiRoute generated transaction mode NONE cannot run inside an active transaction");
 		}
 
+		if (mode === EApiFunctionTransactionMode.NONE && isScopedWrite) {
+			throw ErrorException("ApiRoute generated transaction mode NONE cannot enforce an authorization scope on a write");
+		}
+
 		if (mode === EApiFunctionTransactionMode.MANDATORY && !activeEventManager) {
 			throw ErrorException("ApiRoute generated transaction mode MANDATORY requires an active transaction");
 		}
 
-		if (mode === EApiFunctionTransactionMode.REQUIRED && !activeEventManager) {
+		// A scoped write stays uncommitted until its scoped reload confirms the row, so SUPPORTS has to own a transaction here.
+		if ((mode === EApiFunctionTransactionMode.REQUIRED || (mode === EApiFunctionTransactionMode.SUPPORTS && isScopedWrite)) && !activeEventManager) {
 			const repository: Repository<E> | undefined = (options.controller.service as { repository?: Repository<E> } & ApiServiceBase<E>).repository;
 
 			if (!repository) {

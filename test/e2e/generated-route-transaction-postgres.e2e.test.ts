@@ -14,6 +14,7 @@ import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiService } from "@decorator/api/service/decorator";
 import { EApiControllerRelationReferenceShape, EApiDtoType, EApiFunctionTransactionMode, EApiFunctionType, EApiFunctionUpdatePersistenceMode, EApiRouteType } from "@enum/decorator/api";
+import { ForbiddenException } from "@nestjs/common";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Type } from "class-transformer";
 import { IsInt, Min } from "class-validator";
@@ -623,6 +624,56 @@ describe("generated route transactions with PostgreSQL", () => {
 
 		await expect(ApiRouteRuntime.executeGenerated(createGeneratedCreateOptions(itemService, ownerService, "30000000-0000-4000-8000-000000000031", { mode: "pessimistic_read" }, EApiFunctionTransactionMode.SUPPORTS))).rejects.toThrow("Request relation locks require an active transaction");
 		expect(await dataSource.getRepository(RouteTransactionItemEntity).count()).toBe(0);
+	});
+
+	describe("scoped CREATE under SUPPORTS", () => {
+		const ITEM_ID: string = "30000000-0000-4000-8000-000000000041";
+
+		function createScopedOptions(itemId: string, scopedName: string, transactionMode: EApiFunctionTransactionMode = EApiFunctionTransactionMode.SUPPORTS): IApiRouteRuntimeGeneratedExecutionOptions<RouteTransactionItemEntity, EApiRouteType.CREATE> {
+			const options = createGeneratedCreateOptions(new RouteTransactionItemService(dataSource.getRepository(RouteTransactionItemEntity)), new RouteTransactionOwnerService(dataSource.getRepository(RouteTransactionOwnerEntity)), itemId, { mode: "pessimistic_read" }, transactionMode);
+
+			options.targets.authenticationRequest = { authorizationDecision: { scope: { where: { name: scopedName } }, transforms: [] } } as never;
+
+			return options;
+		}
+
+		function resolveItemQueries(): Array<{ isTransactionActive: boolean; query: string; queryRunner: QueryRunner | undefined }> {
+			return queryLogger.executions.filter((entry) => /^(?:INSERT|SELECT)/u.test(entry.query) && entry.query.includes('"route_transaction_items"'));
+		}
+
+		it("reloads the uncommitted row in the transaction of the insert", async () => {
+			const result = await ApiRouteRuntime.executeGenerated(createScopedOptions(ITEM_ID, `Item ${ITEM_ID}`));
+			const itemQueries = resolveItemQueries();
+
+			expect(result).toMatchObject({ id: ITEM_ID });
+			expect(itemQueries.map((entry) => entry.query.split(" ")[0])).toEqual(expect.arrayContaining(["INSERT", "SELECT"]));
+			expect(itemQueries.every((entry) => entry.isTransactionActive && entry.queryRunner === itemQueries[0]?.queryRunner)).toBe(true);
+			expect(await dataSource.getRepository(RouteTransactionItemEntity).countBy({ id: ITEM_ID })).toBe(1);
+		});
+
+		it("rolls back a row outside the scope", async () => {
+			await expect(ApiRouteRuntime.executeGenerated(createScopedOptions(ITEM_ID, "Another name"))).rejects.toBeInstanceOf(ForbiddenException);
+
+			const itemQueries = resolveItemQueries();
+
+			expect(itemQueries.map((entry) => entry.query.split(" ")[0])).toEqual(expect.arrayContaining(["INSERT", "SELECT"]));
+			expect(queryLogger.queries).toContain("ROLLBACK");
+			expect(await dataSource.getRepository(RouteTransactionItemEntity).countBy({ id: ITEM_ID })).toBe(0);
+		});
+
+		it("rolls back through an outer owner when the refusal leaves its callback", async () => {
+			await expect(ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "outer-owner" }, async () => await ApiRouteRuntime.executeGenerated(createScopedOptions(ITEM_ID, "Another name", EApiFunctionTransactionMode.MANDATORY)))).rejects.toBeInstanceOf(ForbiddenException);
+
+			expect(await dataSource.getRepository(RouteTransactionItemEntity).countBy({ id: ITEM_ID })).toBe(0);
+		});
+
+		it("keeps the row when an outer owner swallows the refusal and commits", async () => {
+			await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "outer-owner" }, async () => {
+				await expect(ApiRouteRuntime.executeGenerated(createScopedOptions(ITEM_ID, "Another name", EApiFunctionTransactionMode.MANDATORY))).rejects.toBeInstanceOf(ForbiddenException);
+			});
+
+			expect(await dataSource.getRepository(RouteTransactionItemEntity).countBy({ id: ITEM_ID })).toBe(1);
+		});
 	});
 	it.each([false, true])("PATCH preserves omitted state but writes explicit same-value state=%s after a concurrent commit", async (isStateExplicit): Promise<void> => {
 		const { owner, result } = await runConcurrentPatch({ cidrs: ["203.0.113.0/24"], ...(isStateExplicit ? { state: "ACTIVE" } : {}) }, async (manager): Promise<void> => {

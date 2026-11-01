@@ -13,8 +13,9 @@ import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiDtoType, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
+import { In } from "typeorm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createTransactionFixture, createTypeOrmRepositoryStub, resetApiSubscriberRegistry } from "@test/unit/fixture";
@@ -850,6 +851,163 @@ describe("ApiRouteRuntime generated transactions", () => {
 		expect(service.create).toHaveBeenCalledTimes(1);
 		expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
 		expect(transaction.queryRunner.commitTransaction).not.toHaveBeenCalled();
+	});
+
+	describe("scoped CREATE", () => {
+		function createScopedCreateOptions(service: ApiServiceBase<RuntimeRouteEntity>, where: unknown, routeConfig: TApiControllerPropertiesRoute<RuntimeRouteEntity, EApiRouteType.CREATE> = {}): IApiRouteRuntimeGeneratedExecutionOptions<RuntimeRouteEntity, EApiRouteType.CREATE> {
+			const options = createGeneratedCreateOptions(service, routeConfig);
+
+			options.targets.authenticationRequest = { authorizationDecision: { scope: { where }, transforms: [] } } as never;
+
+			return options;
+		}
+
+		function mockReloadMiss(service: ApiServiceBase<RuntimeRouteEntity>, reloadError: Error): void {
+			vi.spyOn(service, "get").mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
+				ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
+				ApiControllerGeneratedReadScopeStorage.markReadMissed(properties);
+
+				throw reloadError;
+			});
+		}
+
+		it.each([
+			["an omitted scope", undefined],
+			["an empty WHERE object", {}],
+		])("opens no transaction under SUPPORTS for %s", async (_name: string, where: unknown) => {
+			const transaction = createTransactionFixture();
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+
+			await ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, where));
+
+			expect(service.create).toHaveBeenCalledTimes(1);
+			expect(transaction.dataSource.createQueryRunner).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			["a scalar WHERE", { source: "response" }],
+			["a WHERE array", [{ source: "response" }, { source: "request" }]],
+			["a match-nothing WHERE", { id: In([]) }],
+		])("opens a route-owned transaction under SUPPORTS for %s", async (_name: string, where: unknown) => {
+			const transaction = createTransactionFixture();
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+
+			vi.spyOn(service, "get").mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
+				ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
+				expect(ApiFunctionContextStorage.getTransactionRegistry()?.getTransaction().owner.kind).toBe(EApiFunctionTransactionOwnerKind.ROUTE);
+				expect(ApiFunctionContextStorage.getEventManager()).toBe(transaction.entityManager);
+
+				return { id: "route-transaction-1", source: "response" };
+			});
+
+			await ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, where));
+
+			expect(transaction.queryRunner.startTransaction).toHaveBeenCalledTimes(1);
+			expect(transaction.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+		});
+
+		it.each([EApiFunctionTransactionMode.SUPPORTS, EApiFunctionTransactionMode.REQUIRED])("refuses a scoped reload miss with 403 and rolls back under %s", async (mode: EApiFunctionTransactionMode) => {
+			const transaction = createTransactionFixture();
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+
+			mockReloadMiss(service, new NotFoundException());
+
+			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }, { transaction: { mode } }))).rejects.toBeInstanceOf(ForbiddenException);
+			expect(service.create).toHaveBeenCalledTimes(1);
+			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+			expect(transaction.queryRunner.commitTransaction).not.toHaveBeenCalled();
+		});
+
+		it("keeps the 404 of a reload miss without a scope", async () => {
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService();
+			const reloadError: NotFoundException = new NotFoundException();
+
+			mockReloadMiss(service, reloadError);
+
+			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, undefined))).rejects.toBe(reloadError);
+		});
+
+		it("keeps a reload 404 that is not the read miss and rolls back", async () => {
+			const transaction = createTransactionFixture();
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+			const reloadError: NotFoundException = new NotFoundException();
+
+			vi.spyOn(service, "get").mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
+				ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
+
+				throw reloadError;
+			});
+
+			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }))).rejects.toBe(reloadError);
+			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+		});
+
+		it("keeps a 404 from the generated operation and rolls back", async () => {
+			const transaction = createTransactionFixture();
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+			const operationError: NotFoundException = new NotFoundException();
+
+			vi.spyOn(service, "create").mockRejectedValue(operationError);
+
+			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }))).rejects.toBe(operationError);
+			expect(service.get).not.toHaveBeenCalled();
+			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+		});
+
+		it("keeps a 404 from request relation hydration before writing", async () => {
+			const transaction = createTransactionFixture();
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+			const relationService: ApiServiceBase<RuntimeRouteRelationEntity> = new ApiServiceBase<RuntimeRouteRelationEntity>();
+			const hydrationError: NotFoundException = new NotFoundException();
+
+			vi.spyOn(relationService, "get").mockRejectedValue(hydrationError);
+
+			const options = createScopedCreateOptions(service, { source: "response" }, {
+				relations: {
+					request: {
+						load: {
+							include: {
+								relation: true,
+							},
+						},
+						reference: {
+							shape: EApiControllerRelationReferenceShape.SCALAR,
+						},
+					},
+				},
+			} as never);
+
+			options.targets.body = { id: "route-transaction-1", relation: "request" as never, source: "request" };
+			(options.controller as unknown as { relationService: ApiServiceBase<RuntimeRouteRelationEntity> }).relationService = relationService;
+
+			await expect(ApiRouteRuntime.executeGenerated(options)).rejects.toBe(hydrationError);
+			expect(service.create).not.toHaveBeenCalled();
+			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+		});
+
+		it("fails closed on a NONE route before writing", async () => {
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService();
+
+			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }, { transaction: { mode: EApiFunctionTransactionMode.NONE } }))).rejects.toThrow("ApiRoute generated transaction mode NONE cannot enforce an authorization scope on a write");
+			expect(service.create).not.toHaveBeenCalled();
+		});
+
+		it("keeps a non-scoped NONE route outside any transaction", async () => {
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService();
+
+			await ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, {}, { transaction: { mode: EApiFunctionTransactionMode.NONE } }));
+
+			expect(service.create).toHaveBeenCalledTimes(1);
+		});
+
+		it("rejects an empty WHERE array before opening a transaction or writing", async () => {
+			const transaction = createTransactionFixture();
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+
+			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, []))).rejects.toThrow("Authorization scope WHERE cannot be an empty array");
+			expect(service.create).not.toHaveBeenCalled();
+			expect(transaction.dataSource.createQueryRunner).not.toHaveBeenCalled();
+		});
 	});
 
 	it("does not represent a route-after failure as rollback after commit", async () => {
