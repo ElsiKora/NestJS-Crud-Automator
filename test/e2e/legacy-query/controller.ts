@@ -2,7 +2,7 @@ import { Inject } from "@nestjs/common";
 import { Type } from "class-transformer";
 import { IsIn, IsInt, IsOptional, Max, Min } from "class-validator";
 
-import { ApiController, ApiControllerObservable, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType } from "../../../src/index";
+import { ApiController, ApiControllerObservable, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType, EFilterOperation, EFilterOrderDirection } from "../../../src/index";
 
 import { E2eLegacyQueryItemEntity } from "./entity";
 import { E2eLegacyQueryItemService } from "./service";
@@ -76,6 +76,43 @@ export class E2eLegacyQueryManualItemController {
 	},
 })
 export class E2eLegacyQueryOrderOnlyItemController {
+	@Inject(E2eLegacyQueryItemService)
+	public readonly service!: E2eLegacyQueryItemService;
+}
+
+@ApiControllerObservable()
+@ApiController<E2eLegacyQueryItemEntity>({
+	entity: E2eLegacyQueryItemEntity,
+	name: "E2eLegacyQueryTypedItems",
+	path: "legacy-query/typed-items",
+	routes: {
+		...disabledRoutes,
+		[EApiRouteType.GET_LIST]: { request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { rank: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } },
+	},
+})
+export class E2eLegacyQueryTypedItemController {
+	@Inject(E2eLegacyQueryItemService)
+	public readonly service!: E2eLegacyQueryItemService;
+}
+
+@ApiControllerObservable()
+@ApiController<E2eLegacyQueryItemEntity>({
+	entity: E2eLegacyQueryItemEntity,
+	name: "E2eLegacyQueryCursorItems",
+	path: "legacy-query/cursor-items",
+	routes: {
+		...disabledRoutes,
+		[EApiRouteType.GET_LIST]: {
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					order: { fields: { rank: { isEnabled: true } }, tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }], unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT },
+					pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR },
+				},
+			},
+		},
+	},
+})
+export class E2eLegacyQueryCursorItemController {
 	@Inject(E2eLegacyQueryItemService)
 	public readonly service!: E2eLegacyQueryItemService;
 }

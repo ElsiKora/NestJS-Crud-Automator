@@ -12,7 +12,7 @@ import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eLegacyQueryItemController, E2eLegacyQueryItemEntity, E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, EE2eLegacyQueryStatus } from "./legacy-query";
+import { E2eLegacyQueryCursorItemController, E2eLegacyQueryItemController, E2eLegacyQueryItemEntity, E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQueryTypedItemController, EE2eLegacyQueryStatus } from "./legacy-query";
 
 class LegacyQueryLogger implements Logger {
 	public readonly queries: Array<string> = [];
@@ -125,13 +125,13 @@ describe.each([
 
 	describe.each<IHostPipeCase>([{ name: "no host pipe" }, { createPipe: () => new ValidationPipe(), name: "a default host ValidationPipe" }, { createPipe: () => new ValidationPipe({ transform: true, whitelist: true }), name: "a transforming, whitelisting host ValidationPipe" }])("with $name", ({ createPipe }: IHostPipeCase) => {
 		let app: INestApplication | undefined;
-		let fastify: { inject: (options: { method: string; url: string }) => Promise<{ json: () => unknown; statusCode: number }> };
+		let fastify: { inject: (options: { headers?: Record<string, string>; method: string; url: string }) => Promise<{ json: () => unknown; statusCode: number }> };
 		const queryLogger: LegacyQueryLogger = new LegacyQueryLogger();
 
 		beforeAll(async () => {
 			const entities: Array<new () => unknown> = [E2eLegacyQueryItemEntity];
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eLegacyQueryItemController, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController],
+				controllers: [E2eLegacyQueryItemController, E2eLegacyQueryManualItemController, E2eLegacyQueryOrderOnlyItemController, E2eLegacyQueryTypedItemController, E2eLegacyQueryCursorItemController],
 				imports: [TypeOrmModule.forRoot(container ? { dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eLegacyQueryItemService, E2eLegacyQueryItemSubscriber],
 			}).compile();
@@ -154,7 +154,9 @@ describe.each([
 
 		beforeEach(() => {
 			queryLogger.queries.length = 0;
+			E2eLegacyQueryItemSubscriber.afterQueries = [];
 			E2eLegacyQueryItemSubscriber.beforeErrors = [];
+			E2eLegacyQueryItemSubscriber.beforeQueries = [];
 		});
 
 		afterAll(async () => {
@@ -196,6 +198,22 @@ describe.each([
 			await expectRejected(url, [ORDER_BY_MESSAGE]);
 
 			expect(E2eLegacyQueryItemSubscriber.beforeErrors).toEqual(["BadRequestException"]);
+		});
+
+		it.each([
+			{ route: "legacy", url: `${ITEMS}?limit=2&page=1&orderBy=rank&orderDirection=desc&rank[operator]=gt&rank[value]=0` },
+			{ route: "typed", url: "/legacy-query/typed-items?limit=2&page=1&rank[operator]=eq&rank[value]=2" },
+			// CURSOR pagination supports PostgreSQL storage only.
+			...(isPostgres ? [{ route: "cursor", url: "/legacy-query/cursor-items?limit=2&orderBy=rank&orderDirection=desc" }] : []),
+		])("hands AFTER subscribers the query BEFORE subscribers produced on the $route route", async ({ url }: { route: string; url: string }) => {
+			const response = await fastify.inject({ headers: { "x-trace-query": "1" }, method: "GET", url });
+			const rawQuery: Record<string, string> = Object.fromEntries(new URLSearchParams(url.slice(url.indexOf("?") + 1)));
+
+			expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.OK);
+			expect(E2eLegacyQueryItemSubscriber.beforeQueries).toHaveLength(1);
+			expect(E2eLegacyQueryItemSubscriber.afterQueries).toHaveLength(1);
+			expect(E2eLegacyQueryItemSubscriber.afterQueries[0]).toBe(E2eLegacyQueryItemSubscriber.beforeQueries[0]);
+			expect({ ...E2eLegacyQueryItemSubscriber.afterQueries[0] }).toEqual(rawQuery);
 		});
 
 		it("validates a manual QUERY DTO and keeps its class defaults", async () => {
