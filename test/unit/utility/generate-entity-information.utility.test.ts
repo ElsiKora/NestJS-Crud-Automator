@@ -99,6 +99,60 @@ class InfoUnnamedRootEntity {
 @ChildEntity("UNNAMED")
 class InfoUnnamedChildEntity extends InfoUnnamedRootEntity {}
 
+abstract class InfoShadowedBaseEntity {
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({
+		description: "code",
+		exampleValue: "code-1",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 64,
+		minLength: 1,
+		pattern: "/^.+$/",
+		type: EApiPropertyDescribeType.STRING,
+	})
+	public code!: string;
+}
+
+@Entity("info_shadowed_entities")
+class InfoShadowedEntity extends InfoShadowedBaseEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+}
+
+// An unrelated class that only shares the ancestor's name.
+((): unknown => {
+	abstract class InfoShadowedBaseEntity {
+		@ApiPropertyDescribe({ description: "unrelated code", type: EApiPropertyDescribeType.UUID })
+		public code!: string;
+	}
+
+	return InfoShadowedBaseEntity;
+})();
+
+@Entity("info_duplicate_first_entities")
+class InfoDuplicateNameEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({ description: "first label", exampleValue: "first", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING })
+	public label!: string;
+}
+
+const InfoDuplicateNameSecondEntity: new () => unknown = ((): new () => unknown => {
+	@Entity("info_duplicate_second_entities")
+	class InfoDuplicateNameEntity {
+		@PrimaryGeneratedColumn("uuid")
+		public id!: string;
+
+		@Column({ type: "varchar" })
+		@ApiPropertyDescribe({ description: "second label", exampleValue: "second", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING })
+		public label!: string;
+	}
+
+	return InfoDuplicateNameEntity;
+})();
+
 describe("GenerateEntityInformation", () => {
 	it("builds entity metadata with table name and primary key", () => {
 		const metadata = GenerateEntityInformation<InfoEntity>(InfoEntity as unknown as IApiBaseEntity);
@@ -148,5 +202,26 @@ describe("GenerateEntityInformation", () => {
 		const relation = metadata.columns.find((column) => column.name === "target");
 
 		expect(relation?.relation?.target).toBe(InfoRelationTargetEntity);
+	});
+
+	it("keeps an ancestor's property metadata when an unrelated class shares the ancestor's name", () => {
+		const metadata = GenerateEntityInformation<InfoShadowedEntity>(InfoShadowedEntity as unknown as IApiBaseEntity);
+
+		expect(metadata.columns.find((column) => column.name === "code")?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]).toMatchObject({
+			description: "code",
+			type: EApiPropertyDescribeType.STRING,
+		});
+	});
+
+	it("keeps each entity's own property metadata when two entity classes share one name", () => {
+		const first = GenerateEntityInformation<InfoDuplicateNameEntity>(InfoDuplicateNameEntity as unknown as IApiBaseEntity);
+		const second = GenerateEntityInformation(InfoDuplicateNameSecondEntity as unknown as IApiBaseEntity);
+
+		expect(first.columns.find((column) => column.name === "label")?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]).toMatchObject({ description: "first label" });
+		expect(second.columns.find((column) => column.name === "label")?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]).toMatchObject({ description: "second label" });
+	});
+
+	it("fails for an entity name that matches more than one entity class", () => {
+		expect(() => GenerateEntityInformation({ name: "InfoDuplicateNameEntity" })).toThrowError('Metadata target "InfoDuplicateNameEntity" matches 2 entity classes in TypeORM metadata');
 	});
 });

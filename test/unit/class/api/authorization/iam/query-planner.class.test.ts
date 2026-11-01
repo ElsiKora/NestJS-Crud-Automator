@@ -50,6 +50,29 @@ class PlannerItemEntity {
 	public status!: string;
 }
 
+class PlannerShadowedEntity {
+	@ApiPropertyDescribe({
+		description: "code",
+		exampleValue: "code-1",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 64,
+		minLength: 1,
+		pattern: "/^.+$/",
+		type: EApiPropertyDescribeType.STRING,
+	})
+	public code!: string;
+}
+
+// An unrelated class that only shares the entity's name.
+((): unknown => {
+	class PlannerShadowedEntity {
+		@ApiPropertyDescribe({ description: "unrelated code", type: EApiPropertyDescribeType.UUID })
+		public code!: string;
+	}
+
+	return PlannerShadowedEntity;
+})();
+
 const resourceDefinition: IApiAuthorizationResourceDefinition<PlannerItemEntity> = {
 	entity: PlannerItemEntity,
 	fields: [
@@ -224,6 +247,17 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 
 		it.each(["secret", "unknown"])("is not compilable when the placeholder maps to %s", (placeholder: string) => {
 			expect(planDeny([{ resourceConstraints: [{ isPrefix: false, placeholder, value: "x" }] }])).toEqual({ isFullyCompilable: false });
+		});
+
+		it("reads the entity's own text column when an unrelated class shares the entity's name", () => {
+			const plan = new ApiAuthorizationIamQueryPlanner().planExclusion({
+				exclusions: [{ resourceConstraints: [{ isPrefix: true, placeholder: "code", value: "abc" }], statement: createStatement(EApiPolicyEffect.DENY, {}) }],
+				principal,
+				requestMetadata: {},
+				resourceDefinition: { ...resourceDefinition, entity: PlannerShadowedEntity, fields: [{ isFilterable: true, path: "resource.code", queryPath: "code" }], resourcePath: "gameport:admin:item/{code}" } as unknown as IApiAuthorizationResourceDefinition<PlannerItemEntity>,
+			});
+
+			expect(plan.isFullyCompilable).toBe(true);
 		});
 	});
 });
