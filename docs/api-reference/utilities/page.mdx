@@ -281,20 +281,6 @@ function ApiControllerGetSchemaPrefix(controller: object): string;
 
 Returns the class name without a trailing `Controller`, or the full class name when nothing else is left: `AdminUserController` gives `AdminUser`. Throws for a class without a name.
 
-### DtoSetGeneratedName
-
-Names a generated DTO class, which also names its OpenAPI component.
-
-**Location:** `src/utility/dto/set-generated-name.utility.ts`
-
-```typescript
-function DtoSetGeneratedName(dto: object, name: string, source: string): void;
-```
-
-Every DTO class Automator generates gets its name through this function. Giving the same class the same name again is allowed. When a different generated class already has the name, it throws an error that names both sources, because Swagger keys components by class name and would document one of the routes with the other class's schema.
-
-**Internal Use:** Called by the DTO generators.
-
 ### ApiControllerHandleRequestRelations
 
 Handles relation loading in requests.

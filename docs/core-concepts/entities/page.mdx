@@ -336,7 +336,7 @@ export class DepositDetailController {
 }
 ```
 
-GET answers with `DepositDetailGetResponseCardTransferDTO` and its siblings, described in Swagger as `oneOf` with a discriminator mapping. GET_LIST keeps its usual wrapper (`DepositDetailGetListResponseItemsDTO`, or `DepositDetailGetListCursorResponseItemsDTO` in CURSOR mode), and its `items` are `oneOf` over `DepositDetailGetListResponseCardTransferDTO` and its siblings. The suffix is the discriminator value in camel case. The discriminator property stays in every response.
+GET answers with `DepositDetailGetResponseCardTransferDTO` and its siblings, described in Swagger as `oneOf` with a discriminator mapping. GET_LIST keeps its usual wrapper (`DepositDetailGetListResponseItemsDTO`, or `DepositDetailGetListCursorResponseItemsDTO` in CURSOR mode), and its `items` are `oneOf` over `DepositDetailGetListResponseCardTransferDTO` and its siblings. The suffix is the discriminator value in camel case. The discriminator property stays in every response. A child entity declared as `@ChildEntity()` without a value gets its class name as the value, which is the TypeORM default, so the suffix is the class name, as in `DepositDetailGetResponseCardTransferDepositDetailEntityDTO`. Set an explicit value, such as `@ChildEntity("CARD_TRANSFER")`, for a shorter name.
 
 The root must declare the discriminator column as a property with `@Column` and `@ApiPropertyDescribe`, keep it selected, store it as a string, and leave it in GET and GET_LIST responses. A manual RESPONSE DTO on a route keeps that route as it is.
 
