@@ -469,7 +469,7 @@ async fetchExternalData(id: string): Promise<Data> {
 
 ## Migration Notes
 
-Before 4.8.0, the exception rethrown by `CorrelationIDResponseBodyInterceptor` carried no cause. From 4.8.0 it holds the original failure, so an exception filter that logs or serializes the whole exception starts receiving SQL text and parameters from a `QueryFailedError`. HTTP responses do not change.
+Before 5.0.0, the exception rethrown by `CorrelationIDResponseBodyInterceptor` carried no cause. From 5.0.0 it holds the original failure, so an exception filter that logs or serializes the whole exception starts receiving SQL text and parameters from a `QueryFailedError`. HTTP responses do not change.
 
 Check your exception filters and application loggers:
 

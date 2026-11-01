@@ -380,7 +380,7 @@ Limits:
 
 ### Migration Notes
 
-Before 4.8.0, subscribers were never removed. From 4.8.0, work in your own `onApplicationShutdown`, such as a final audit write or an outbox flush, can run without subscribers. Nest runs this hook by module depth, shallower modules first; at the same depth, a module imported later runs first. So a provider sees subscribers only if its module runs before `ApiSubscriberModule`:
+Before 5.0.0, subscribers were never removed. From 5.0.0, work in your own `onApplicationShutdown`, such as a final audit write or an outbox flush, can run without subscribers. Nest runs this hook by module depth, shallower modules first; at the same depth, a module imported later runs first. So a provider sees subscribers only if its module runs before `ApiSubscriberModule`:
 
 | Provider's module                                 | Subscribers during its `onApplicationShutdown` |
 | ------------------------------------------------- | ---------------------------------------------- |
