@@ -12,7 +12,7 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
 import { getDataSourceToken, TypeOrmModule } from "@nestjs/typeorm";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
 import { TestAuthGuard } from "./app/auth-guard";
@@ -22,6 +22,7 @@ import { E2eValidationPipe } from "./app/validation-pipe";
 import { PaymentDetailBankTransferEntity } from "./table-inheritance/bank-transfer.entity";
 import { PaymentDetailCardTransferEntity } from "./table-inheritance/card-transfer.entity";
 import { PaymentDetailController } from "./table-inheritance/controller";
+import { PaymentDetailCreateController } from "./table-inheritance/create.controller";
 import { PaymentDetailCursorController } from "./table-inheritance/cursor.controller";
 import { PaymentDetailFormFieldController } from "./table-inheritance/form-field.controller";
 import { PaymentDetailFormFieldEntity } from "./table-inheritance/form-field.entity";
@@ -55,7 +56,8 @@ describe("table inheritance read responses (E2E)", () => {
 	let app: INestApplication | undefined;
 	let container: StartedPostgreSqlContainer;
 	let document: OpenAPIObject;
-	let fastify: { inject: (options: { headers?: Record<string, string>; method: string; url: string }) => Promise<TInjectResponse> };
+	let fastify: { inject: (options: { headers?: Record<string, string>; method: string; payload?: unknown; url: string }) => Promise<TInjectResponse> };
+	let dataSource: DataSource;
 
 	const get = (url: string, ownerId: string = OWNER_ID): Promise<TInjectResponse> => fastify.inject({ headers: { "x-user-id": ownerId }, method: "GET", url });
 
@@ -63,7 +65,7 @@ describe("table inheritance read responses (E2E)", () => {
 		container = await new PostgreSqlContainer("postgres:17-alpine").start();
 		const entities = [PaymentDetailEntity, PaymentDetailTransferEntity, PaymentDetailBankTransferEntity, PaymentDetailCardTransferEntity, PaymentDetailQrEntity, PaymentDetailFormPostEntity, PaymentDetailFormFieldEntity, PaymentDetailIssuerEntity];
 		const moduleReference = await Test.createTestingModule({
-			controllers: [PaymentDetailController, PaymentDetailCursorController, PaymentDetailFormFieldController],
+			controllers: [PaymentDetailController, PaymentDetailCreateController, PaymentDetailCursorController, PaymentDetailFormFieldController],
 			imports: [TypeOrmModule.forRoot({ dropSchema: true, entities, synchronize: true, type: "postgres", url: container.getConnectionUri() }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot({ hookPermissionSources: [e2eHookPermissionSource], principalResolver: e2eAuthorizationPrincipalResolver }), ApiSubscriberModule],
 			providers: [{ provide: APP_PIPE, useClass: E2eValidationPipe }, PaymentDetailFormFieldService, PaymentDetailPolicy, PaymentDetailService, TestAuthGuard],
 		}).compile();
@@ -73,7 +75,7 @@ describe("table inheritance read responses (E2E)", () => {
 		document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
 		fastify = app.getHttpAdapter().getInstance();
 
-		const dataSource: DataSource = app.get(getDataSourceToken());
+		dataSource = app.get(getDataSourceToken());
 
 		await dataSource.getRepository(PaymentDetailIssuerEntity).save({ id: ISSUER_ID, name: "Issuer" });
 		await dataSource.getRepository(PaymentDetailBankTransferEntity).save({ accountNumber: "40817", bankName: "Bank", id: BANK_ID, label: "Bank", ownerId: OWNER_ID, rank: 1 });
@@ -91,6 +93,26 @@ describe("table inheritance read responses (E2E)", () => {
 	afterAll(async () => {
 		await app?.close();
 		await container?.stop();
+	});
+
+	describe("scoped CREATE", () => {
+		afterEach(async () => {
+			await dataSource.getRepository(PaymentDetailEntity).delete({ label: "Created" });
+		});
+
+		it.each([
+			["commits a root row inside the owner scope and answers its variant", OWNER_ID, "50000000-0000-4000-8000-000000000001", HttpStatus.CREATED],
+			["refuses a root row outside the owner scope and rolls it back", OTHER_OWNER_ID, "50000000-0000-4000-8000-000000000002", HttpStatus.FORBIDDEN],
+		])("%s", async (_name: string, ownerId: string, id: string, status: number) => {
+			const response: TInjectResponse = await fastify.inject({ headers: { "x-user-id": OWNER_ID }, method: "POST", payload: { id, kind: EPaymentDetailKind.QR, label: "Created", ownerId, rank: 7 }, url: "/payment-details-create" });
+
+			expect(response.statusCode).toBe(status);
+			expect(await dataSource.getRepository(PaymentDetailEntity).countBy({ id })).toBe(status === HttpStatus.CREATED ? 1 : 0);
+
+			if (status === HttpStatus.CREATED) {
+				expect(response.json()).toEqual({ id, kind: EPaymentDetailKind.QR, label: "Created", ownerId: OWNER_ID, rank: 7 });
+			}
+		});
 	});
 
 	describe("GET", () => {
