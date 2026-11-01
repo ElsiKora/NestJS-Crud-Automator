@@ -1068,7 +1068,71 @@ describe("CRUD routes (E2E)", () => {
 		});
 
 		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-		expect(JSON.stringify(response.json())).toContain(errorCode);
+		expect(response.json().message).toBe(errorCode);
+	});
+
+	it.each([["orderBy=owner.name&orderDirection=asc"], ["orderBy=owner&orderDirection=asc"], ["orderBy=missing&orderDirection=asc"], ["orderBy=name&orderDirection=sideways"]])("rejects invalid legacy order input with ORDER_NOT_VALID: %s", async (order) => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: `/items?limit=10&page=1&${order}`,
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(response.json().message).toBe("ORDER_NOT_VALID");
+	});
+
+	it.each([
+		["limit=0&page=1", "LIMIT_NOT_VALID"],
+		["limit=10&page=0", "PAGE_NOT_VALID"],
+	])("rejects typed pagination input with its exact code: %s", async (pagination, errorCode) => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: `/typed-items?${pagination}&name[operator]=eq&name[value]=fn-Alpha`,
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(response.json().message).toBe(errorCode);
+	});
+
+	it("rejects a null inherited route parameter with PARAMETERS_NOT_VALID", async () => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: `/null-parameter-owner/${E2E_OWNER_ID}/items?limit=10&page=1`,
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(response.json().message).toBe("PARAMETERS_NOT_VALID");
+	});
+
+	it("rejects a malformed relation reference with the entity REFERENCE_NOT_VALID code", async () => {
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "POST",
+			payload: { owner: { id: E2E_OWNER_ID } },
+			url: "/custom-route/request-relation",
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(response.json().message).toBe("E2EENTITY_REFERENCE_NOT_VALID");
+	});
+
+	it.each([
+		["/transform-error-items/rejected-code-item", "E2EENTITY_KEY_FOR_TRANSFORM_NOT_IN_OBJECT"],
+		["/dynamic-value-error-items/rejected-code-item", "E2EENTITY_DYNAMIC_VALUE_NOT_VALID"],
+	])("reports a broken response transformer on %s with its entity code", async (url, errorCode) => {
+		await service.repository.save({ count: 1, id: "rejected-code-item", name: "Rejected", ownerId: E2E_OWNER_ID } as never);
+
+		const response = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url,
+		});
+
+		expect(response.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+		expect(response.json().message).toBe(errorCode);
 	});
 
 	it("rejects membership filters above the configured cardinality cap", async () => {

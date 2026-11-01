@@ -15,13 +15,13 @@ import { E2eFunctionController } from "./function";
 import { E2eGeneratedTransactionController, E2eGeneratedTransactionService } from "./generated-transaction";
 import { e2eHookPermissionSource } from "./hook-permission-source";
 import { E2eManualController } from "./manual";
-import { E2eIdentityAliasReadController, E2eNestedOwnerReadController, E2eSecurableIdentityAliasReadController } from "./nested-read";
+import { E2eIdentityAliasReadController, E2eNestedOwnerReadController, E2eNullParameterReadController, E2eSecurableIdentityAliasReadController } from "./nested-read";
 import { E2eOwnerController, E2eOwnerEntity, E2eOwnerPolicySubscriber, E2eOwnerService } from "./owner";
 import { E2ePolicySubscriber } from "./policy";
 import { e2eAuthorizationPrincipalResolver } from "./principal-resolver";
 import { E2eService } from "./service";
 import { E2eFunctionPrioritySubscriber, E2eFunctionSubscriber, E2eRouteOrderSubscriber, E2eRouteSubscriber } from "./subscribers";
-import { E2eTransformerErrorController } from "./transformer-error";
+import { E2eDynamicValueErrorController, E2eTransformerErrorController } from "./transformer-error";
 import { E2eDefaultTypedQueryController, E2eOrderOnlyTypedQueryController, E2eTypedQueryController } from "./typed-query";
 import { E2eValidationPipe } from "./validation-pipe";
 
@@ -37,6 +37,7 @@ import { E2eValidationPipe } from "./validation-pipe";
 		E2eCopyController,
 		E2eManualController,
 		E2eTransformerErrorController,
+		E2eDynamicValueErrorController,
 		E2eDefaultTypedQueryController,
 		E2eOrderOnlyTypedQueryController,
 		E2eTypedQueryController,
@@ -44,6 +45,7 @@ import { E2eValidationPipe } from "./validation-pipe";
 		E2eNestedOwnerReadController,
 		E2eIdentityAliasReadController,
 		E2eSecurableIdentityAliasReadController,
+		E2eNullParameterReadController,
 	],
 	exports: [E2eService],
 	imports: [

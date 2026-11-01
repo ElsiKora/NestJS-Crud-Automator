@@ -131,6 +131,7 @@ describe("generated CURSOR pagination (E2E)", () => {
 		const clientOrderResponses = await Promise.all([fastify.inject({ method: "GET", url: "/cursor-fixed-order-items?limit=2&orderBy=rank" }), fastify.inject({ method: "GET", url: "/cursor-fixed-order-items?limit=2&orderDirection=asc" }), fastify.inject({ method: "GET", url: "/cursor-fixed-order-items?limit=2&orderBy=rank&orderDirection=asc" })]);
 
 		expect(clientOrderResponses.map(({ statusCode }): number => statusCode)).toEqual([HttpStatus.BAD_REQUEST, HttpStatus.BAD_REQUEST, HttpStatus.BAD_REQUEST]);
+		expect(clientOrderResponses.map((response): unknown => (response.json() as { message: unknown }).message)).toEqual(["ORDER_NOT_VALID", "ORDER_NOT_VALID", "ORDER_NOT_VALID"]);
 	});
 
 	it("binds cursors to the route filter and effective order", async () => {
@@ -141,7 +142,9 @@ describe("generated CURSOR pagination (E2E)", () => {
 		const orderMismatch = await fastify.inject({ method: "GET", url: `/cursor-items?limit=2&after=${first.nextCursor}&orderBy=rank&orderDirection=desc` });
 
 		expect(filterMismatch.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect((filterMismatch.json() as { message: unknown }).message).toBe("CURSOR_NOT_VALID");
 		expect(orderMismatch.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect((orderMismatch.json() as { message: unknown }).message).toBe("CURSOR_NOT_VALID");
 	});
 
 	it("supports descending client order with the primary-key tie-breaker", async () => {
@@ -254,9 +257,15 @@ describe("generated CURSOR pagination (E2E)", () => {
 		const withPage = await fastify.inject({ method: "GET", url: "/cursor-items?limit=2&page=1" });
 		const twoDirections = await fastify.inject({ method: "GET", url: `/cursor-items?limit=2&after=${first.nextCursor}&before=${first.nextCursor}` });
 		const nonCanonical = await fastify.inject({ method: "GET", url: `/cursor-items?limit=2&after=${first.nextCursor}%3D` });
+		const garbage = await fastify.inject({ method: "GET", url: "/cursor-items?limit=2&after=AAAA" });
+		const badLimit = await fastify.inject({ method: "GET", url: "/cursor-items?limit=0" });
 
-		expect(withPage.statusCode).toBe(HttpStatus.BAD_REQUEST);
-		expect(twoDirections.statusCode).toBe(HttpStatus.BAD_REQUEST);
-		expect(nonCanonical.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		for (const response of [withPage, twoDirections, nonCanonical, garbage]) {
+			expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+			expect((response.json() as { message: unknown }).message).toBe("CURSOR_NOT_VALID");
+		}
+
+		expect(badLimit.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect((badLimit.json() as { message: unknown }).message).toBe("LIMIT_NOT_VALID");
 	});
 });

@@ -1647,6 +1647,7 @@ describe("generated read contract", () => {
 		const inheritedIdentity = Object.create({ gameId: ENTITY_ID }) as Record<string, unknown>;
 
 		await expect(controller.get(inheritedIdentity, {}, "127.0.0.1")).rejects.toThrow("PARAMETERS_NOT_VALID");
+		await expect(controller.get({ gameId: null }, {}, "127.0.0.1")).rejects.toThrow("PARAMETERS_NOT_VALID");
 		expect(controller.service.get).not.toHaveBeenCalled();
 	});
 
@@ -1782,6 +1783,17 @@ describe("generated read contract", () => {
 		});
 
 		expect(() => ApiControllerReadScopeWhere({}, readPlan)).toThrow("PARAMETERS_NOT_VALID");
+	});
+
+	it("rejects a null inherited parameter with PARAMETERS_NOT_VALID", () => {
+		const readPlan: IApiControllerReadPlan = Object.freeze({
+			controllerName: "NullReadScopeController",
+			parameters: Object.freeze([Object.freeze({ field: "tenantId", parameter: "tenantId" })]),
+			schemaName: "NullReadScopeControllerParametersDTO",
+			signature: "null-read-scope-plan",
+		});
+
+		expect(() => ApiControllerReadScopeWhere({ tenantId: null } as never, readPlan)).toThrow("PARAMETERS_NOT_VALID");
 	});
 
 	it("isolates generated PARAMETERS DTO cache entries by controller name", () => {

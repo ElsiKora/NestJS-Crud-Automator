@@ -1873,3 +1873,100 @@ describe("typed GET_LIST query plan and runtime", () => {
 		).rejects.toThrow("result does not expose a valid protected raw order tuple");
 	});
 });
+
+describe("ApiControllerGetListQueryRuntime rejected value codes", () => {
+	type TQueryRuntimePrivate = {
+		parseValue: (value: unknown, field: IApiControllerGetListQueryPlanFilterField) => unknown;
+	};
+	type TCursorRuntimePrivate = {
+		createWindowWhere: (order: ReadonlyArray<{ direction: EFilterOrderDirection; field: string }>, values: ReadonlyArray<unknown>, direction: "after" | "before") => unknown;
+		decode: (...arguments_: Array<unknown>) => unknown;
+		decodeValue: (value: unknown, field: TApiControllerGetListQueryCompiledOrderField) => unknown;
+		getOrderField: (plan: TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR>, entry: { direction: EFilterOrderDirection; field: string } | undefined) => unknown;
+	};
+
+	function withNameField(plan: IApiControllerGetListQueryPlan, overrides: Partial<IApiControllerGetListQueryPlanFilterField>): IApiControllerGetListQueryPlan {
+		const field: IApiControllerGetListQueryPlanFilterField | undefined = plan.filter.fields.name;
+
+		if (!field) {
+			throw new Error("Expected a name filter field");
+		}
+
+		return { ...plan, filter: { ...plan.filter, fields: { ...plan.filter.fields, name: { ...field, ...overrides } } } };
+	}
+
+	it("rejects an empty CURSOR direction with CURSOR_NOT_VALID", () => {
+		const plan = compileCursorPlan();
+
+		expect(() => ApiControllerGetListQueryRuntime.parse({ after: "", limit: 2 }, plan)).toThrow("CURSOR_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ before: "", limit: 2 }, plan)).toThrow("CURSOR_NOT_VALID");
+	});
+
+	it("rejects an unknown, disallowed, or mismatched filter operation with FILTER_NOT_VALID", () => {
+		const plan = compilePlan({
+			name: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN], isEnabled: true },
+		});
+
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, "name[operator]": "unknown", "name[value]": "x", page: 1 }, plan)).toThrow("FILTER_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, "name[operator]": EFilterOperation.NE, "name[value]": "x", page: 1 }, plan)).toThrow("FILTER_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, "name[operator]": EFilterOperation.ISNULL, page: 1 }, withNameField(plan, { allowedOperations: [EFilterOperation.ISNULL], isNullable: false }))).toThrow("FILTER_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, "name[operator]": EFilterOperation.IN, "name[value]": "x", page: 1 }, plan)).toThrow("FILTER_NOT_VALID");
+	});
+
+	it("rejects a filter value for a relation or object field with FILTER_NOT_VALID", () => {
+		const plan = compilePlan({
+			name: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
+		});
+		const field: IApiControllerGetListQueryPlanFilterField | undefined = plan.filter.fields.name;
+
+		if (!field) {
+			throw new Error("Expected a name filter field");
+		}
+
+		expect(() => (ApiControllerGetListQueryRuntime as unknown as TQueryRuntimePrivate).parseValue("x", { ...field, type: EApiPropertyDescribeType.RELATION })).toThrow("FILTER_NOT_VALID");
+	});
+
+	it("rejects a nested filter path with an empty segment with FILTER_NOT_VALID", () => {
+		expect(() => ApiControllerGetListQueryRuntime.compileWhere<TypedQueryEntity>({ nodes: [{ operation: EFilterOperation.EQ, path: ".name", value: "x" }] })).toThrow("FILTER_NOT_VALID");
+	});
+
+	it("rejects an unknown order direction with ORDER_NOT_VALID", () => {
+		const plan = compilePlan({
+			name: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
+		});
+
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection: "sideways", page: 1 }, plan)).toThrow("ORDER_NOT_VALID");
+	});
+
+	it("rejects inconsistent cursor tuples, values, and order fields with CURSOR_NOT_VALID", () => {
+		const plan = compileCursorPlan();
+		const runtime: TCursorRuntimePrivate = ApiControllerGetListCursorRuntimeBase as unknown as TCursorRuntimePrivate;
+		const field = plan.order.serverFields.id;
+
+		if (!field) {
+			throw new Error("Expected an id cursor order field");
+		}
+
+		expect(() => runtime.createWindowWhere([{ direction: EFilterOrderDirection.ASC, field: "id" }], [], "after")).toThrow("CURSOR_NOT_VALID");
+		expect(() => runtime.decodeValue(42, field)).toThrow("CURSOR_NOT_VALID");
+		expect(() => runtime.getOrderField(plan, { direction: EFilterOrderDirection.ASC, field: "missing" })).toThrow("CURSOR_NOT_VALID");
+	});
+
+	it("rejects a directed CURSOR window without decoded values with CURSOR_NOT_VALID", async () => {
+		const plan = compileCursorPlan();
+		const parsed = ApiControllerGetListQueryRuntime.parse({ limit: 1 }, plan);
+
+		if (!parsed.ast || !parsed.order) {
+			throw new Error("Expected compiled cursor AST and order");
+		}
+
+		const contextHash = ApiControllerGetListCursorRuntime.createContextHash("cursor-items", undefined, plan, parsed.ast, parsed.order);
+		const decodeSpy = vi.spyOn(ApiControllerGetListCursorRuntimeBase as unknown as TCursorRuntimePrivate, "decode").mockReturnValue(undefined);
+
+		try {
+			await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash, cursor: "cursor", direction: "after", limit: 1, onBeforeQuery: vi.fn(), order: parsed.order, plan, run: async (): Promise<Array<CursorQueryEntity>> => [] })).rejects.toThrow("CURSOR_NOT_VALID");
+		} finally {
+			decodeSpy.mockRestore();
+		}
+	});
+});
