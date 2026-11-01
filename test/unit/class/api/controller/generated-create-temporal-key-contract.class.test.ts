@@ -134,7 +134,7 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 	});
 
 	describe("assertDriver", () => {
-		it.each([["better-sqlite3"], ["cockroachdb"], ["mariadb"], ["mysql"], ["postgres"], ["sqlite"]])("accepts a date and time primary key on %s", (driverType: string) => {
+		it.each([["cockroachdb"], ["mariadb"], ["postgres"]])("accepts a date and time primary key on %s", (driverType: string) => {
 			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertDriver(createRepository([INSTANT], driverType))).not.toThrow();
 		});
 
@@ -149,7 +149,11 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 						"mssql",
 					),
 				),
-			).toThrow("Generated create of TemporalKeyEntity cannot identify its date and time primary column at on the mssql driver; supported drivers are better-sqlite3, cockroachdb, mariadb, mysql, postgres, sqlite");
+			).toThrow("Generated create of TemporalKeyEntity cannot identify its date and time primary column at on the mssql driver; supported drivers are cockroachdb, mariadb, postgres");
+		});
+
+		it.each([["better-sqlite3"], ["mysql"], ["sqlite"]])("refuses a date and time primary key on %s", (driverType: string) => {
+			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertDriver(createRepository([INSTANT], driverType))).toThrow(`on the ${driverType} driver`);
 		});
 
 		it.each([
