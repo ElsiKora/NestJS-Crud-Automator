@@ -114,9 +114,9 @@ To-many relations (`OneToMany`, `ManyToMany`) are projected element by element, 
 | To-many          | `[{ "id": "a1" }]` | `["a1"]` |
 | To-many, no rows | `[]`               | `[]`     |
 
-Null elements inside a loaded array are left in place, the same way a `null` to-one value is left unchanged.
+Null elements inside a loaded array are left in place, the same way a `null` to-one value is left unchanged. The order of to-many elements is not guaranteed: it is whatever the database returns for the relation load.
 
-Generated Swagger describes a response `RELATION` from its TypeORM relation type: a to-one relation as `{ id }`, a to-many relation as an array of `{ id }`. The schema does not depend on `reference.shape`, so it matches the wire only for `OBJECT` with the `id` key. With `SCALAR` the wire carries `"a1"` or `["a1"]` while Swagger still shows `{ id }` or `[{ id }]`.
+Generated Swagger describes a response `RELATION` from its TypeORM relation type: a to-one relation as `{ id }`, a to-many relation as an array of `{ id }`. The schema depends on neither `reference.shape` nor the route's relation loading, so it matches the wire only for `OBJECT` with the `id` key on a route that loads the relation. With `SCALAR` the wire carries `"a1"` or `["a1"]` while Swagger still shows `{ id }` or `[{ id }]`. On a route that does not load the relation, because it has no `relations.response` or its `include` omits the relation, Swagger still shows a required property while the key is absent from the wire: read a to-many relation defensively there, since `post.comments.map(...)` throws on `undefined`.
 
 `FULL` and `PRESERVE` are not 3.0 modes. Any configured `relations.response.load` requires an `OBJECT` or `SCALAR` reference and projects the loaded relation. To retain a complete relation, omit Automator response loading, load it through another application-owned path, and use a manual response DTO or transformer.
 
@@ -141,7 +141,7 @@ routes: {
 
 ### Nested Relation Includes
 
-Use nested `load.include` objects when request hydration or a GET/GET_LIST response should include relations of relations. Request-side relation hydration reads direct relation property names from request bodies for CREATE, UPDATE/PARTIAL_UPDATE, and `@ApiRouteCustom` body payloads. Nested request include objects are passed to the related service as TypeORM `relations`; they do not recursively hydrate nested request references. Request relation hydration does not hydrate GET/DELETE route parameters.
+Nested `load.include` objects load relations of relations, but a response never carries them: projection reduces each direct relation to its reference, so `comments: { author: true }` still returns `comments: [{ "id": "a1" }]`. They are useful in request hydration, where the nested relations are preloaded on the hydrated entity for your code to read. To return nested data, use a manual response DTO or transformer without Automator response loading. Request-side relation hydration reads direct relation property names from request bodies for CREATE, UPDATE/PARTIAL_UPDATE, and `@ApiRouteCustom` body payloads. Nested request include objects are passed to the related service as TypeORM `relations`; they do not recursively hydrate nested request references. Request relation hydration does not hydrate GET/DELETE route parameters.
 
 ```typescript
 routes: {
@@ -252,7 +252,7 @@ author: UserEntity;
 
 ### Lazy Loading
 
-Load relations only when needed:
+Load relations only when needed. TypeORM `lazy: true` relations, whose property is a `Promise`, are not supported in responses: `relations.response` and generated serialization give `{}` for them. Use `eager: false` as below and select the relation through `load.include`.
 
 ```typescript
 @ManyToOne(() => UserEntity, { eager: false })
@@ -462,6 +462,8 @@ routes: {
 
 With that configuration, `{ author: { code: "author-001" } }` is validated and hydrated before the service call, and the response returns `{ "author": "author-001" }`. If the request uses `SCALAR`, sending an object reference fails fast with a bad request.
 
+The generated request DTO of a `RELATION` is a single UUID property. With a global `ValidationPipe` that example request is rejected with `400` before hydration, because `{ author: { code: "author-001" } }` is not a UUID. Under a global pipe, send `{ author: "<uuid>" }` with a `SCALAR` request reference on `id`, or declare a manual body DTO that accepts the object reference.
+
 The generated response DTO of a relation exposes only `id`, so a response `OBJECT` reference with any other `key` currently gives `{}`, or `[{}]` for a to-many relation: the serializer strips the key. Use `SCALAR` for a key other than `id`, or a manual response DTO that exposes that key.
 
 ## Custom Route Relations
@@ -492,7 +494,7 @@ async assignAuthor(@Body() body: Partial<PostEntity>): Promise<PostEntity> {
 }
 ```
 
-Custom route request relations are hydrated from the method body payload before the handler runs. Generated-route `transaction` configuration does not apply to custom routes; custom functions, steps, or named scopes continue to own their transactions. If custom relation config uses `locks`, hydration must already run under an active Automator transaction. Response relation reload requires `controller.service` to extend `ApiServiceBase`; response values without an `id` are returned unchanged. Response relations can be reloaded and projected for single entities, arrays, and get-list style `{ items }` envelopes. Generated CREATE always reloads the created entity through `service.get(...)`; configured response relations are included when present. UPDATE and PARTIAL_UPDATE reload only when response relation loading is configured; DELETE returns no response body to project.
+Custom route request relations are hydrated from the method body payload before the handler runs. Generated-route `transaction` configuration does not apply to custom routes; custom functions, steps, or named scopes continue to own their transactions. If custom relation config uses `locks`, hydration must already run under an active Automator transaction. Response relation reload requires `controller.service` to extend `ApiServiceBase`; response values without an `id` are returned unchanged. Response relations can be reloaded and projected for single entities and arrays. A response is read as a `{ items }` envelope only when the route declares `route: { type: EApiRouteType.GET_LIST }`; on any other route `items` is a property of the entity. Generated CREATE always reloads the created entity through `service.get(...)`; configured response relations are included when present. UPDATE and PARTIAL_UPDATE reload only when response relation loading is configured; DELETE returns no response body to project.
 
 ## Performance Optimization
 
@@ -604,7 +606,7 @@ await userService.create({
 
 ## Migration Notes
 
-Response projection of to-many relations now keeps the array. Every route with a `OneToMany` or `ManyToMany` relation in `relations.response.load.include` changes on the wire, whether the relation is described as `RELATION` or as an `OBJECT` array:
+Response projection of to-many relations now keeps the array. Routes with a `OneToMany` or `ManyToMany` relation in `relations.response.load.include` change on the wire, whether the relation is described as `RELATION` or as an `OBJECT` array. TypeORM `lazy: true` relations are the exception: they stay `{}`, because they are not supported in responses.
 
 | Reference | Before               | After                          |
 | --------- | -------------------- | ------------------------------ |
@@ -613,7 +615,14 @@ Response projection of to-many relations now keeps the array. Every route with a
 
 A relation with no rows is now `[]` in both shapes. Clients that read `comments` as an object or relied on the key being absent must read an array. To-one relations are unchanged.
 
-Generated Swagger changes with it: a to-many `RELATION` in a response schema is now `type: array` with `items` pointing at the same relation DTO, instead of a single object. Clients generated from the document get an array type. Request schemas and validation are unchanged.
+Generated Swagger changes with it: a to-many `RELATION` in a response schema is now `type: array` with `items` pointing at the same relation DTO, instead of a single object. Clients generated from the document get an array type. Request schemas and validation are unchanged. A manual DTO that uses `ApiPropertyCopy` on such a response property inherits the array.
+
+This covers every response schema with a to-many `RELATION`, including routes that do not load it. There the key stays absent from the wire while the schema now says required array, as it said required object before, so a client that trusts the schema and calls `post.comments.map(...)` throws where the response itself did not change. Load the relation on that route, disable the property for that route's response, or read it defensively.
+
+`{ items }` is no longer read from the shape of a response:
+
+- An entity with an `items` property, such as `Order.items`, now has its relations projected on GET, CREATE, UPDATE, PARTIAL_UPDATE and custom routes. Before, they were skipped: an unserialized response could return the full related row, and `SCALAR` returned an object.
+- A custom route that returns a `{ items, totalCount }` envelope must declare `route: { type: EApiRouteType.GET_LIST }` to have its items reloaded and projected. Without it the items are returned as the handler built them, including any relations it loaded.
 
 ## Next Steps
 

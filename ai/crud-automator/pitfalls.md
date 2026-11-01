@@ -113,7 +113,13 @@ When two entity files import each other, type their relation properties as `Rela
 
 The generated response DTO of a `RELATION` exposes only `id`. Do not combine a response `OBJECT` reference with a `key` other than `id`: the serializer strips the key and the wire is `{}` or `[{}]`. Use `SCALAR` or a manual response DTO that exposes that key.
 
-Generated Swagger takes the array shape of a response `RELATION` from the TypeORM relation type, not from `reference.shape`. It matches the wire for `OBJECT` with the `id` key. With `SCALAR` the wire is `id` or `[id]` while Swagger still shows `{ id }` or `[{ id }]`; do not treat that schema as the `SCALAR` contract.
+Generated Swagger takes the array shape of a response `RELATION` from the TypeORM relation type, not from `reference.shape`. It matches the wire only for `OBJECT` with the `id` key on a route that loads the relation. With `SCALAR` the wire is `id` or `[id]` while Swagger still shows `{ id }` or `[{ id }]`; do not treat that schema as the `SCALAR` contract. On a route that does not load the relation, Swagger shows a required property while the key is absent: do not call `.map` on it without a guard.
+
+Do not rely on the order of to-many elements: it is not guaranteed. Do not expect nested `load.include` data in a response: projection reduces each direct relation to its reference.
+
+TypeORM `lazy: true` relations are not supported in responses: they serialize to `{}`. Use a non-lazy relation with `load.include`.
+
+Do not expect a `{ items }` response to be recognized by shape. Only a GET_LIST route, generated or custom with `route: { type: EApiRouteType.GET_LIST }`, is read as an envelope; everywhere else `items` is a property of the entity. A custom route that returns an envelope without declaring that type does not reload or project its items.
 
 ## Relation Load Config Drift
 
