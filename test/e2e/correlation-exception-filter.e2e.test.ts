@@ -88,6 +88,12 @@ class E2eUnauthorizedMiddleware implements NestMiddleware {
 	}
 }
 
+class E2eFailingMiddleware implements NestMiddleware {
+	public use(): void {
+		throw new Error(SECRET_SENTINEL);
+	}
+}
+
 class E2eForbiddenMiddleware implements NestMiddleware {
 	public use(): void {
 		throw new ForbiddenException("MIDDLEWARE_FORBIDDEN");
@@ -167,6 +173,9 @@ class E2eContractController {
 	@Get("middleware-forbidden")
 	public middlewareForbidden(): void {}
 
+	@Get("middleware-failing")
+	public middlewareFailing(): void {}
+
 	@Post("body")
 	public body(@Body() body: unknown): unknown {
 		return body;
@@ -178,6 +187,7 @@ class E2eContractModule implements NestModule {
 	public configure(consumer: MiddlewareConsumer): void {
 		consumer.apply(E2eUnauthorizedMiddleware).forRoutes("contract/middleware-unauthorized");
 		consumer.apply(E2eForbiddenMiddleware).forRoutes("contract/middleware-forbidden");
+		consumer.apply(E2eFailingMiddleware).forRoutes("contract/middleware-failing");
 	}
 }
 
@@ -532,6 +542,17 @@ describe("CorrelationIDResponseBodyExceptionFilter (E2E)", () => {
 			expect(response.headers.get("content-type")).toContain("application/json");
 			expect(JSON.parse(response.body)).toEqual({ correlationID: CLIENT_CORRELATION_ID, error, message, statusCode: status, timestamp: expect.any(Number) });
 			expect(errorLog).not.toHaveBeenCalled();
+		});
+
+		it("answers an unknown middleware failure with the sanitized 500", async () => {
+			const application: INestApplication = await createApplication({ filters: [fullFilter], isListening: true });
+			const response: { body: string; headers: Headers; status: number } = await fetchOverSocket(application, "/contract/middleware-failing", { "x-correlation-id": CLIENT_CORRELATION_ID });
+
+			expect(response.status).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+			expect(response.headers.get("x-correlation-id")).toBe(CLIENT_CORRELATION_ID);
+			expect(response.headers.get("content-type")).toContain("application/json");
+			expect(JSON.parse(response.body)).toEqual({ correlationID: CLIENT_CORRELATION_ID, error: "Internal Server Error", message: "Internal server error", statusCode: HttpStatus.INTERNAL_SERVER_ERROR, timestamp: expect.any(Number) });
+			expect(response.body).not.toContain(SECRET_SENTINEL);
 		});
 
 		it("generates an ID for a middleware failure without a client header", async () => {

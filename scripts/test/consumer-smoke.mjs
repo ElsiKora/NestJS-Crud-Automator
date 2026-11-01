@@ -13,7 +13,7 @@
  * Flags: --skip-build reuses the current dist, --keep leaves the temporary project in place.
  */
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,6 +35,8 @@ const CONSUMERS = [
 const STACK = ["@fastify/static", "@nestjs/common", "@nestjs/core", "@nestjs/platform-fastify", "@nestjs/swagger", "@nestjs/throttler", "@nestjs/typeorm", "class-transformer", "class-validator", "fastify", "lodash", "pg", "typeorm", "typescript"];
 // @types/node follows the oldest supported Node major: newer majors drop worker_threads types that pino's thread-stream still declares
 const TYPES_NODE_RANGE = "^22.13.0";
+// The exception filter must load without these optional NestJS transports
+const ABSENT_PACKAGES = ["@nestjs/microservices", "@nestjs/platform-socket.io", "@nestjs/websockets", "socket.io-client"];
 // The SWC toolchain is not a repository devDependency, so the smoke pins it exactly
 const SWC_TOOLCHAIN = { "@swc/cli": "0.8.1", "@swc/core": "1.16.18" };
 const ARGS = new Set(process.argv.slice(2));
@@ -106,6 +108,13 @@ try {
 
 	writeFileSync(path.join(workDirectory, "package.json"), createManifest(tarball));
 	run("npm", ["install", "--no-audit", "--no-fund", "--loglevel=error"], { cwd: workDirectory });
+
+	for (const name of ABSENT_PACKAGES) {
+		if (existsSync(path.join(workDirectory, "node_modules", name))) {
+			throw new Error(`The consumer project must not have ${name}`);
+		}
+	}
+
 	database = await startDatabase();
 
 	for (const consumer of CONSUMERS) {

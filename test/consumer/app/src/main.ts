@@ -4,8 +4,8 @@ import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 
 import assert from "node:assert/strict";
 
-import { apiSubscriberRegistry, CorrelationIDResponseBodyInterceptor } from "@elsikora/nestjs-crud-automator";
-import { NestFactory } from "@nestjs/core";
+import { apiSubscriberRegistry, CorrelationIDResponseBodyExceptionFilter, CorrelationIDResponseBodyInterceptor } from "@elsikora/nestjs-crud-automator";
+import { HttpAdapterHost, NestFactory } from "@nestjs/core";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 
@@ -44,6 +44,7 @@ async function scenario(name: string, run: () => Promise<void>): Promise<void> {
 async function main(): Promise<void> {
 	const app: NestFastifyApplication = await NestFactory.create<NestFastifyApplication>(SmokeAppModule, new FastifyAdapter(), { logger: ["error"] });
 
+	app.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(app.get(HttpAdapterHost)));
 	app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
 	await app.init();
 	await app.getHttpAdapter().getInstance().ready();
@@ -102,10 +103,12 @@ async function main(): Promise<void> {
 	await scenario("IAM route without an attached policy answers 403", async () => {
 		const response: TResponse = await inject({ headers: MEMBER_A, method: "GET", url: "/iam-items?limit=10&page=1" });
 
-		// Guard exceptions are thrown before CorrelationIDResponseBodyInterceptor runs, so the body is Nest's own.
-		// PENDING guard-filter branch: it pins today's guard body { message, statusCode }; expect correlationID, timestamp and error once that lands
 		assert.equal(response.statusCode, 403, JSON.stringify(response.json()));
 		assert.equal(response.json().message, "Forbidden");
+		assert.equal(response.json().error, "Forbidden");
+		assert.equal(response.json().statusCode, 403);
+		assert.equal(typeof response.json().correlationID, "string");
+		assert.equal(typeof response.json().timestamp, "number");
 	});
 
 	await scenario("HOOKS policy denies a caller without the role and scopes members to their owner", async () => {
