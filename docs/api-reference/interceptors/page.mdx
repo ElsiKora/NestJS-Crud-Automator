@@ -15,7 +15,7 @@ Global interceptor that adds correlation IDs and timestamps to error responses f
 - Intercepts exceptions thrown inside the handler chain (HttpException, ThrottlerException, http-errors values, and generic errors). Guards and middleware run earlier, so their exceptions skip it and reach the filter
 - Adds `correlationID` to error responses
 - Adds `timestamp` to error responses
-- Uses `x-correlation-id` header if present, generates UUID if not
+- Uses the `x-correlation-id` header only when it is 1 to 128 characters of `[A-Za-z0-9._:-]`; otherwise generates a UUID. See [Client Correlation ID](#client-correlation-id)
 - Handles a ThrottlerException specifically, in the interceptor and in the filter, so a `429` from `ThrottlerGuard` has the same body as one from the handler chain
 - Emits one bounded log for each `5xx`, without request URL, error message, stack, cause payload, query, parameters, or driver object
 - Keeps the original failure as `cause` on the rethrown exception, so exception filters can report it
@@ -98,11 +98,26 @@ Content-Type: application/json
 	"message": "Username is invalid",
 	"error": "Bad Request",
 	"timestamp": 1704067200000,
-	"correlationID": "a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6"
+	"correlationID": "9b2d3c1e-7f4a-4e8b-a6d5-0c1f2e3d4b5a"
 }
 ```
 
 Note: A new UUID is generated automatically.
+
+### Client Correlation ID
+
+The interceptor, the filter and `CorrelationIDNormalizeException` share one rule. They keep a client `x-correlation-id` only when it is one header of 1 to 128 characters of `[A-Za-z0-9._:-]`. Node.js strips whitespace around a header value before this check. Anything else is ignored and a UUID is generated instead:
+
+- an empty value
+- a value longer than 128 characters
+- a value with any other character, such as a space, `/`, `,`, a quote or a non-ASCII letter
+- a repeated header, which Node joins as `first, second`
+
+The `x-correlation-id` response header and the `correlationID` body field always carry the same value, on guard, middleware and handler failures and on an unmatched route. The rule applies to responses and to what runs after it: once the ID is resolved, `request.headers["x-correlation-id"]` and `request.correlationID` hold it. Guards and middleware run earlier, so they can still read the raw client header, and `ApiAuthorizationGuard` passes it to authorization as part of the request headers.
+
+The Node.js HTTP parser rejects a header with a bare CR, a bare LF, a NUL, or an obsolete line folding before Fastify or Nest runs. Those requests get the `400` of Node.js, with no correlation ID.
+
+The generated exception DTOs declare `correlationID` as a string of 1 to 128 characters with the same pattern, because a client ID does not have to be a UUID.
 
 ## Exception Types Handled
 
@@ -258,7 +273,7 @@ interface ErrorResponse {
 	message: string | string[]; // Error message(s)
 	error: string; // Error name
 	timestamp: number; // Unix timestamp
-	correlationID: string; // Correlation ID (UUID)
+	correlationID: string; // Accepted client ID or generated UUID
 	[key: string]: any; // Other error details
 }
 ```

@@ -159,7 +159,7 @@ if (IsErrorOfType(error, EException.BAD_REQUEST)) {
 
 ### CorrelationIDNormalizeException
 
-Converts what an exception filter caught into the `HttpException` that carries the correlation contract: the same `correlationID` and `timestamp` rule as `CorrelationIDResponseBodyInterceptor`, with the received value in `cause`. It writes the `x-correlation-id` response header through the HTTP adapter, also on the native response a Nest middleware failure carries. A failure that already passed through the interceptor is returned as is. Outside an HTTP context the ID is generated and only appears in the body.
+Converts what an exception filter caught into the `HttpException` that carries the correlation contract: the same `correlationID` and `timestamp` rule as `CorrelationIDResponseBodyInterceptor`, with the received value in `cause`. It writes the `x-correlation-id` response header through the HTTP adapter, also on the native response a Nest middleware failure carries. A client `x-correlation-id` is kept only when it is 1 to 128 characters of `[A-Za-z0-9._:-]`, otherwise a UUID is generated, as described in [Client Correlation ID](/docs/nestjs-crud-automator/api-reference/interceptors#client-correlation-id). A failure that already passed through the interceptor is returned as is. Outside an HTTP context the ID is generated and only appears in the body.
 
 **Location:** `src/utility/correlation-id/normalize-exception.utility.ts`
 

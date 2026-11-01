@@ -1087,9 +1087,9 @@ To simplify debugging and request tracing in complex systems, the library provid
 **What it does:**
 
 1.  The interceptor handles exceptions from the handler chain (`HttpException` and others). The filter handles HTTP failures that never reach an interceptor, such as guard and middleware rejections (`401`, `403`, `429`), unmatched routes, and malformed bodies. Without the filter, those responses have no correlation ID. It acts only in an HTTP context; do not apply it to WebSocket gateways.
-2.  Looks for the `x-correlation-id` header in the incoming request headers.
-3.  If the header is found, its value is added to the body of the error response.
-4.  If the header is not found, a new `UUID` is generated, which is added to both the response and the logs (if `LoggerUtility` is used).
+2.  Looks for the `x-correlation-id` header in the incoming request headers and keeps it only when it is one value of 1 to 128 characters of `[A-Za-z0-9._:-]`.
+3.  If the header is kept, its value is added to the `x-correlation-id` response header and the body of the error response.
+4.  Otherwise (missing, empty, longer than 128 characters, other characters, or a repeated header), a new `UUID` is generated and added to both places.
 5.  Adds a `timestamp` field to the error response body, and fills or replaces an `error`, `message`, or `statusCode` without the contract type, so every error body has `correlationID`, `error`, `message`, `statusCode`, and `timestamp`, as the generated exception DTOs declare.
 6.  Keeps the original failure as `cause` on the rethrown exception, so an exception filter can report it through `FormatErrorEvidenceForLog(exception.cause)`. Never send, log, or serialize the exception or its `cause`.
 
