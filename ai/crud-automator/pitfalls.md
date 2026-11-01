@@ -109,7 +109,7 @@ When two entity files import each other, type their relation properties as `Rela
 
 ## To-Many Request Relations
 
-A `relations.request` reference to a `OneToMany` or `ManyToMany` relation is one value, as for to-one. CREATE hydrates it into a one-element array and binds that row. UPDATE and PARTIAL_UPDATE reject it with `400` `INVALID_REFERENCE` before loading or writing anything, because saving a one-element array would replace the whole set. Do not send a to-many reference on an update; an update body without the key leaves stored rows untouched. Change to-many sets in a custom route. In `@ApiRouteCustom` handlers, read a hydrated to-many body property as an array: `body.tags` is `[tag]`, not `tag`.
+A `relations.request` reference to a `OneToMany` or `ManyToMany` relation is one value, as for to-one. CREATE hydrates it into a one-element array and binds that row. UPDATE and PARTIAL_UPDATE reject any present to-many key, `null` included, with `400` `INVALID_REFERENCE` and `details.reason` "to-many reference is not allowed on update", before loading or locking any relation and before writing, because TypeORM would save the value as the whole set. The rule reads the entity's TypeORM relations: it holds without `relations.request`, for relations left out of `include` and for `include: false`, for relations inside embedded columns (dotted `propertyName` such as `meta.extras`), and on a table inheritance root for relations declared only on a child. It runs after route BEFORE subscribers and before request transformers and validators. The generated update body schemas do not declare to-many relations. `@ApiRouteCustom` routes are not checked, even with `route.type` UPDATE. Do not send a to-many key on an update, not even `null` to clear it; an update body without the key leaves stored rows untouched. Change to-many sets in a custom route. In `@ApiRouteCustom` handlers, read a hydrated to-many body property as an array: `body.tags` is `[tag]`, not `tag`.
 
 ## To-Many Response Relations
 
@@ -123,7 +123,7 @@ Do not rely on the order of to-many elements: it is not guaranteed. Do not expec
 
 TypeORM `lazy: true` relations are not supported in responses: they serialize to `{}`. Use a non-lazy relation with `load.include`.
 
-Do not expect a `{ items }` response to be recognized by shape alone. A GET_LIST route, generated or custom with `route: { type: EApiRouteType.GET_LIST }`, reads it as an envelope, and any other declared type reads `items` as a property of the entity. A custom route without a declared type reads it as an envelope unless its `resource.entity` owns an `items` property; such a route that returns an envelope must declare GET_LIST or its items are not reloaded or projected.
+Do not expect a `{ items }` response to be recognized by shape alone. A GET_LIST route, generated or custom with `route: { type: EApiRouteType.GET_LIST }`, reads it as an envelope, and any other declared type reads `items` as a property of the entity. A custom route without a declared type reads it as an envelope unless its `resource.entity` owns an `items` property; such a route that returns an envelope must declare GET_LIST. Without it the whole envelope is read as one entity: the listed rows are not reloaded or projected, and when `load.include` names the entity's own `items` relation every listed row collapses into its reference, `{ items: [{ id }], totalCount }` or `items: [id]` with `SCALAR`.
 
 ## Relation Load Config Drift
 

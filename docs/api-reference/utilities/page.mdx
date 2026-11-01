@@ -21,18 +21,6 @@ const entityInfo = GenerateEntityInformation(UserEntity);
 // Returns: { tableName: "users", primaryKey: { name: "id", ... }, columns: [...] }
 ```
 
-### GetEntityColumns
-
-Gets all column names from an entity.
-
-**Location:** `src/utility/get/entity-columns.utility.ts`
-
-```typescript
-function GetEntityColumns<E>(properties: IGetEntityColumnsProperties): Array<keyof E>;
-```
-
-**Internal Use:** Called automatically by controller factory.
-
 ### GetDefaultStringFormatProperties
 
 Returns the default description, example, length bounds, and regex pattern for supported string formats.
