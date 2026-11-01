@@ -4,7 +4,7 @@ import type { CanActivate, ExecutionContext, INestApplication } from "@nestjs/co
 import type { IApiAuthorizationModuleOptionsFactory, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiHookPermissionSource, IApiPolicyAttachmentSource, IApiPolicyDocumentSource, IApiPolicyDocumentRecord, IApiResolvedPolicyAttachments } from "../../src/index";
 
 import { Controller, Get, Injectable, Module, Req, RequestMethod, UseGuards } from "@nestjs/common";
-import { MODULE_METADATA } from "@nestjs/common/constants";
+import { MODULE_METADATA } from "@nestjs/common/internal";
 import { DiscoveryModule } from "@nestjs/core";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";

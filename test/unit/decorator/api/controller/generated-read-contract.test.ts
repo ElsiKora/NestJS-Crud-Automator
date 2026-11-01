@@ -18,8 +18,7 @@ import { EApiAuthenticationType, EApiControllerGetListQueryPaginationMode, EApiC
 import { EFilterOperation, EFilterOrderDirection } from "@enum/filter";
 import { EErrorStringAction } from "@enum/utility";
 import { BadRequestException } from "@nestjs/common";
-import { PARAMTYPES_METADATA, PATH_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
-import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
+import { PARAMTYPES_METADATA, PATH_METADATA, ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { ApiControllerApplyDecorators } from "@utility/api/controller/apply/decorators.utility";
 import { ApiControllerApplyMetadata } from "@utility/api/controller/apply/metadata.utility";

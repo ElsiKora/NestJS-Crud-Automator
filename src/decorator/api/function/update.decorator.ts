@@ -6,10 +6,8 @@ import type { IApiFunctionUpdateExecutorProperties, IApiFunctionUpdateProperties
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiSubscriberFunctionBeforeUpdateContext } from "@type/class/api/subscriber/function/before/update-context.type";
 import type { TApiFunctionGetProperties, TApiFunctionUpdateCriteria, TApiFunctionUpdateProperties } from "@type/decorator/api/function";
-import type { DeepPartial, EntityManager, EntityMetadata, Repository, UpdateResult } from "typeorm";
-import type { ColumnMetadata } from "typeorm/metadata/ColumnMetadata";
-import type { RelationMetadata } from "typeorm/metadata/RelationMetadata";
-import type { QueryDeepPartialEntity } from "typeorm/query-builder/QueryPartialEntity";
+import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
+import type { DeepPartial, EntityManager, EntityMetadata, QueryDeepPartialEntity, RelationMetadata, Repository, UpdateResult } from "typeorm";
 
 import { isDeepStrictEqual, types as utilityTypes } from "node:util";
 
@@ -463,9 +461,9 @@ function readPatchIdentity<E extends IApiBaseEntity>(repository: Repository<E>, 
 	assertPatchDataGraph(where, true);
 	const normalized: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(undefined, where);
 	const branches: Array<unknown> = Array.isArray(normalized) ? normalized : [normalized];
-	const columns: Array<ColumnMetadata> = repository.metadata.primaryColumns;
+	const columns: Array<TTypeOrmColumnMetadata> = repository.metadata.primaryColumns;
 
-	if (columns.length === 0 || columns.some((column: ColumnMetadata): boolean => Boolean(column.embeddedMetadata) || column.propertyPath !== column.propertyName || column.isVirtual || column.isVirtualProperty)) throw new BadRequestException("PATCH requires a complete direct primary identity");
+	if (columns.length === 0 || columns.some((column: TTypeOrmColumnMetadata): boolean => Boolean(column.embeddedMetadata) || column.propertyPath !== column.propertyName || column.isVirtual || column.isVirtualProperty)) throw new BadRequestException("PATCH requires a complete direct primary identity");
 	let identity: Record<string, unknown> | undefined;
 
 	for (const branch of branches) {
@@ -501,28 +499,28 @@ function readPatchSelectedColumns<E extends IApiBaseEntity>(repository: Reposito
 	const metadata: EntityMetadata = repository.metadata;
 
 	if (properties.lock || Object.getOwnPropertyDescriptor(properties, "join")?.value || properties.loadRelationIds || (properties.relations && Object.keys(properties.relations).length > 0) || metadata.relations.some((relation: RelationMetadata): boolean => relation.isLazy || (relation.isEager && properties.loadEagerRelations !== false))) throw new BadRequestException("PATCH requires flat hydration without relation loads or initial row locks");
-	const columns: Array<ColumnMetadata> = metadata.columns.filter((column: ColumnMetadata): boolean => !column.embeddedMetadata && !column.isVirtual && !column.isVirtualProperty && column.propertyPath === column.propertyName);
+	const columns: Array<TTypeOrmColumnMetadata> = metadata.columns.filter((column: TTypeOrmColumnMetadata): boolean => !column.embeddedMetadata && !column.isVirtual && !column.isVirtualProperty && column.propertyPath === column.propertyName);
 	const selected: Set<string> = new Set<string>();
 	const selection: unknown = properties.select;
 
 	if (selection === undefined) {
-		if (metadata.columns.some((column: ColumnMetadata): boolean => Boolean(column.embeddedMetadata) && column.isSelect)) throw new BadRequestException("PATCH default selection must not hydrate embedded columns");
+		if (metadata.columns.some((column: TTypeOrmColumnMetadata): boolean => Boolean(column.embeddedMetadata) && column.isSelect)) throw new BadRequestException("PATCH default selection must not hydrate embedded columns");
 
 		for (const column of columns) if (column.isSelect) selected.add(column.propertyName);
 	} else if (Array.isArray(selection)) {
 		for (const key of selection) {
-			if (typeof key !== "string" || !columns.some((column: ColumnMetadata): boolean => column.propertyName === key)) throw new BadRequestException("PATCH select must name direct physical columns");
+			if (typeof key !== "string" || !columns.some((column: TTypeOrmColumnMetadata): boolean => column.propertyName === key)) throw new BadRequestException("PATCH select must name direct physical columns");
 			selected.add(key);
 		}
 	} else if (selection && typeof selection === "object") {
 		for (const [key, value] of Object.entries(selection)) {
-			if (typeof value !== "boolean" || !columns.some((column: ColumnMetadata): boolean => column.propertyName === key)) throw new BadRequestException("PATCH select must be a flat column projection");
+			if (typeof value !== "boolean" || !columns.some((column: TTypeOrmColumnMetadata): boolean => column.propertyName === key)) throw new BadRequestException("PATCH select must be a flat column projection");
 
 			if (value) selected.add(key);
 		}
 	} else throw new BadRequestException("PATCH select must be a nonempty direct projection");
 
-	if (selected.size === 0 || metadata.primaryColumns.some((column: ColumnMetadata): boolean => !selected.has(column.propertyName))) throw new BadRequestException("PATCH select must include every primary column");
+	if (selected.size === 0 || metadata.primaryColumns.some((column: TTypeOrmColumnMetadata): boolean => !selected.has(column.propertyName))) throw new BadRequestException("PATCH select must include every primary column");
 
 	return selected;
 }
@@ -545,7 +543,7 @@ function readPatchValues<E extends IApiBaseEntity>(repository: Repository<E>, se
 		if (typeof key !== "string" || !descriptor?.enumerable || !("value" in descriptor)) throw new BadRequestException("PATCH must contain enumerable data properties only");
 
 		if (descriptor.value === undefined) continue;
-		const column: ColumnMetadata | undefined = repository.metadata.columns.find((candidate: ColumnMetadata): boolean => candidate.propertyName === key && candidate.propertyPath === key && !candidate.embeddedMetadata && !candidate.isVirtual && !candidate.isVirtualProperty);
+		const column: TTypeOrmColumnMetadata | undefined = repository.metadata.columns.find((candidate: TTypeOrmColumnMetadata): boolean => candidate.propertyName === key && candidate.propertyPath === key && !candidate.embeddedMetadata && !candidate.isVirtual && !candidate.isVirtualProperty);
 
 		if (!column || !selected.has(key) || !column.isUpdate || column.isGenerated || column.isPrimary || column.isCreateDate || column.isUpdateDate || column.isVersion || column.isDeleteDate) throw new BadRequestException("PATCH can write only selected writable physical columns");
 		assertPatchDataGraph(descriptor.value);

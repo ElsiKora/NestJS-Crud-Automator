@@ -5,7 +5,7 @@ import resolve from "@rollup/plugin-node-resolve";
 import typescript from "@rollup/plugin-typescript";
 import dts from "unplugin-dts/rollup";
 
-const external = ["@elsikora/pluralizer", "@nestjs/common", "@nestjs/core", "@nestjs/swagger", "@nestjs/throttler", "node:crypto", "node:http", "path-to-regexp", "rxjs/operators", "typeorm", "class-transformer", "reflect-metadata", "class-validator", "lodash/cloneDeep.js", "lodash/random.js", "@nestjs/common/constants.js", "@nestjs/common/enums/route-paramtypes.enum.js"];
+const external = ["@elsikora/pluralizer", "@nestjs/common", "@nestjs/core", "@nestjs/swagger", "@nestjs/throttler", "node:crypto", "node:http", "path-to-regexp", "rxjs/operators", "typeorm", "class-transformer", "reflect-metadata", "class-validator", "lodash/cloneDeep.js", "lodash/random.js", "@nestjs/common/internal", "@nestjs/core/internal"];
 
 const OUTPUT_DIRECTORY = path.resolve("dist");
 const SOURCE_DIRECTORY = path.resolve("src");

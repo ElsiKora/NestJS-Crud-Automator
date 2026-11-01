@@ -10,7 +10,7 @@ import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { SUBSCRIBER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/subscriber.constant";
 import { ApiFunctionStep } from "@decorator/api/function/step.decorator";
 import { EApiFunctionTransactionMode } from "@enum/decorator/api";
-import { GUARDS_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants.js";
+import { GUARDS_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/internal";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createTransactionFixture, SWAGGER_TEST_METADATA_CONSTANT } from "@test/unit/fixture";

@@ -11,9 +11,8 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 import type { TApiControllerGetListQueryRequestTarget } from "@type/decorator/api/controller/get-list/query/request-target.type";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { TManualDtoPropertyMetadata } from "@type/utility/dto/manual-property-metadata.type";
+import type { TTypeOrmColumnMetadataArguments, TTypeOrmEntityListenerMetadataArguments } from "@type/utility/typeorm";
 import type { ObjectLiteral } from "typeorm";
-import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
-import type { EntityListenerMetadataArgs } from "typeorm/metadata-args/EntityListenerMetadataArgs";
 
 import { createHash } from "node:crypto";
 
@@ -247,7 +246,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 			if (!column.relation && metadata && metadata.type !== EApiPropertyDescribeType.OBJECT && metadata.type !== EApiPropertyDescribeType.RELATION) {
 				const path: string = String(column.name);
-				const columnMetadata: ColumnMetadataArgs | undefined = this.findColumnMetadata(entity, entityMetadata.name, path);
+				const columnMetadata: TTypeOrmColumnMetadataArguments | undefined = this.findColumnMetadata(entity, entityMetadata.name, path);
 
 				fields[path] = this.createOrderField(path, metadata, this.isColumnNullable(entity, entityMetadata.name, path, metadata, isCursor), columnMetadata);
 			}
@@ -558,7 +557,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		});
 	}
 
-	private static createOrderField(path: string, metadata: TApiPropertyDescribeProperties, isNullable: boolean, columnMetadata: ColumnMetadataArgs | undefined): TApiControllerGetListQueryCompiledOrderField {
+	private static createOrderField(path: string, metadata: TApiPropertyDescribeProperties, isNullable: boolean, columnMetadata: TTypeOrmColumnMetadataArguments | undefined): TApiControllerGetListQueryCompiledOrderField {
 		return Object.freeze({
 			columnMode: columnMetadata?.mode ?? "unknown",
 			columnType: this.normalizeColumnType(columnMetadata),
@@ -582,7 +581,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return Object.freeze(planMetadata);
 	}
 
-	private static findColumnMetadata(entity: IApiBaseEntity | ObjectLiteral, entityName: string | undefined, propertyName: string): ColumnMetadataArgs | undefined {
+	private static findColumnMetadata(entity: IApiBaseEntity | ObjectLiteral, entityName: string | undefined, propertyName: string): TTypeOrmColumnMetadataArguments | undefined {
 		const targets: Array<unknown> = [];
 
 		if (typeof entity === "function") {
@@ -602,7 +601,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 
 		for (const expectedTarget of targets) {
-			const column: ColumnMetadataArgs | undefined = getMetadataArgsStorage().columns.find(({ propertyName: currentPropertyName, target }: ColumnMetadataArgs): boolean => currentPropertyName === propertyName && (target === expectedTarget || (typeof expectedTarget === "string" && typeof target !== "string" && target.name === expectedTarget)));
+			const column: TTypeOrmColumnMetadataArguments | undefined = getMetadataArgsStorage().columns.find(({ propertyName: currentPropertyName, target }: TTypeOrmColumnMetadataArguments): boolean => currentPropertyName === propertyName && (target === expectedTarget || (typeof expectedTarget === "string" && typeof target !== "string" && target.name === expectedTarget)));
 
 			if (column) {
 				return column;
@@ -629,7 +628,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 			current = Object.getPrototypeOf(current) as unknown;
 		}
 
-		return getMetadataArgsStorage().entityListeners.some((listener: EntityListenerMetadataArgs): boolean => listener.type === "after-load" && targets.has(listener.target));
+		return getMetadataArgsStorage().entityListeners.some((listener: TTypeOrmEntityListenerMetadataArguments): boolean => listener.type === "after-load" && targets.has(listener.target));
 	}
 
 	private static hasPropertyAccessor(entity: IApiBaseEntity | ObjectLiteral | Type<unknown>, propertyName: string): boolean {
@@ -662,7 +661,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 	}
 
 	private static isColumnNullable(entity: IApiBaseEntity | ObjectLiteral, entityName: string | undefined, propertyName: string, metadata: TApiPropertyDescribeProperties, isCursor: boolean): boolean {
-		const column: ColumnMetadataArgs | undefined = isCursor ? this.findColumnMetadata(entity, entityName, propertyName) : getMetadataArgsStorage().columns.find(({ propertyName: currentPropertyName, target }: ColumnMetadataArgs): boolean => currentPropertyName === propertyName && (typeof target === "string" ? target === entityName : target.name === entityName));
+		const column: TTypeOrmColumnMetadataArguments | undefined = isCursor ? this.findColumnMetadata(entity, entityName, propertyName) : getMetadataArgsStorage().columns.find(({ propertyName: currentPropertyName, target }: TTypeOrmColumnMetadataArguments): boolean => currentPropertyName === propertyName && (typeof target === "string" ? target === entityName : target.name === entityName));
 
 		return column?.options.nullable === true || metadata.isNullable === true;
 	}
@@ -693,7 +692,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT.has(fieldName) || (Number.isInteger(numericName) && numericName >= 0 && numericName <= CURSOR_MAXIMUM_ARRAY_INDEX_PROPERTY && String(numericName) === fieldName);
 	}
 
-	private static normalizeColumnType(column: ColumnMetadataArgs | undefined): string {
+	private static normalizeColumnType(column: TTypeOrmColumnMetadataArguments | undefined): string {
 		const columnType: unknown = column?.options.type;
 
 		if (columnType === Boolean) {

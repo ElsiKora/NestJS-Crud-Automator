@@ -1,9 +1,7 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
+import type { TTypeOrmColumnMetadataArguments, TTypeOrmRelationMetadataArguments, TTypeOrmTableMetadataArguments } from "@type/utility/typeorm";
 import type { ColumnType } from "typeorm";
-import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
-import type { RelationMetadataArgs } from "typeorm/metadata-args/RelationMetadataArgs";
-import type { TableMetadataArgs } from "typeorm/metadata-args/TableMetadataArgs";
 
 import { MetadataStorage } from "@class/metadata-storage.class";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -18,7 +16,7 @@ import { DefaultNamingStrategy, getMetadataArgsStorage } from "typeorm";
 export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity<E> {
 	const tableName: string = ((): string => {
 		// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
-		const table: TableMetadataArgs | undefined = getMetadataArgsStorage().tables.find(({ target }: TableMetadataArgs): boolean => (target as Function).name === entity.name);
+		const table: TTypeOrmTableMetadataArguments | undefined = getMetadataArgsStorage().tables.find(({ target }: TTypeOrmTableMetadataArguments): boolean => (target as Function).name === entity.name);
 
 		if (!table) {
 			throw ErrorException(`Table for entity ${String(entity.name)} not found in metadata storage`);
@@ -32,7 +30,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 
 		while (typeof current === "function" && current !== Function.prototype) {
 			const candidate: unknown = current;
-			const parentTable: TableMetadataArgs | undefined = getMetadataArgsStorage().tables.find(({ target }: TableMetadataArgs): boolean => target === candidate);
+			const parentTable: TTypeOrmTableMetadataArguments | undefined = getMetadataArgsStorage().tables.find(({ target }: TTypeOrmTableMetadataArguments): boolean => target === candidate);
 
 			if (parentTable && parentTable.type !== "entity-child") {
 				return new DefaultNamingStrategy().tableName(current.name, parentTable.name);
@@ -69,7 +67,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 		entityNames.push(entity.name);
 	}
 
-	const columnList: Array<ColumnMetadataArgs> = getMetadataArgsStorage().columns.filter(({ target }: ColumnMetadataArgs): boolean => {
+	const columnList: Array<TTypeOrmColumnMetadataArguments> = getMetadataArgsStorage().columns.filter(({ target }: TTypeOrmColumnMetadataArguments): boolean => {
 		if (typeof target === "string") {
 			return entityNames.includes(target);
 		}
@@ -83,7 +81,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 		return entityHierarchy.some((currentEntity: new (...arguments_: Array<unknown>) => unknown): boolean => currentEntity === targetEntity || currentEntity.name === targetEntity.name) || entityNames.includes(targetEntity.name);
 	});
 
-	const relationList: Array<RelationMetadataArgs> = getMetadataArgsStorage().relations.filter(({ target }: RelationMetadataArgs): boolean => {
+	const relationList: Array<TTypeOrmRelationMetadataArguments> = getMetadataArgsStorage().relations.filter(({ target }: TTypeOrmRelationMetadataArguments): boolean => {
 		if (typeof target === "string") {
 			return entityNames.includes(target);
 		}
@@ -98,7 +96,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 	});
 
 	const entityColumns: Array<IApiEntityColumn<E>> = [
-		...columnList.map(({ options, propertyName }: ColumnMetadataArgs) => {
+		...columnList.map(({ options, propertyName }: TTypeOrmColumnMetadataArguments) => {
 			let metadata: Record<string, unknown> | undefined;
 
 			for (const entityName of entityNames) {
@@ -117,7 +115,7 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 				type: options.type!,
 			};
 		}),
-		...relationList.map(({ propertyName, relationType, type }: RelationMetadataArgs) => {
+		...relationList.map(({ propertyName, relationType, type }: TTypeOrmRelationMetadataArguments) => {
 			let metadata: Record<string, unknown> | undefined;
 
 			for (const entityName of entityNames) {

@@ -29,8 +29,7 @@
 			"@test/*": ["./test/*"],
 			"@type/*": ["./src/type/*"],
 			"@utility/*": ["./src/utility/*"],
-			"@validator/*": ["./src/validator/*"],
-			"typeorm/*": ["./node_modules/typeorm/*"]
+			"@validator/*": ["./src/validator/*"]
 		},
 		"skipLibCheck": true,
 		"sourceMap": true,

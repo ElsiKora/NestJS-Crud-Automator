@@ -136,6 +136,21 @@ type TSwaggerSecurityRequirementObject = NonNullable<OpenAPIObject["security"]>[
 
 Each type is derived from the public `OpenAPIObject` of the installed `@nestjs/swagger`, so it follows the supported release. `TSwaggerComponentSchema` is one entry of `components.schemas`, either a schema or a `$ref`. `TSwaggerSchemaObject` and `TSwaggerReferenceObject` split it into those two branches. Do not import them from `@nestjs/swagger/dist/*`: `@nestjs/swagger` 12 exports only its root and `./plugin`.
 
+## TypeORM Metadata Types
+
+```typescript
+type TTypeOrmMetadataArgumentsStorage = ReturnType<typeof getMetadataArgsStorage>;
+type TTypeOrmColumnMetadataArguments = TTypeOrmMetadataArgumentsStorage["columns"][number];
+type TTypeOrmRelationMetadataArguments = TTypeOrmMetadataArgumentsStorage["relations"][number];
+type TTypeOrmTableMetadataArguments = TTypeOrmMetadataArgumentsStorage["tables"][number];
+type TTypeOrmEntityListenerMetadataArguments = TTypeOrmMetadataArgumentsStorage["entityListeners"][number];
+type TTypeOrmDiscriminatorValueMetadataArguments = TTypeOrmMetadataArgumentsStorage["discriminatorValues"][number];
+type TTypeOrmInheritanceMetadataArguments = TTypeOrmMetadataArgumentsStorage["inheritances"][number];
+type TTypeOrmColumnMetadata = EntityMetadata["columns"][number];
+```
+
+TypeORM 1 does not export its decorator metadata classes from the package root, and its `exports` map reaches them only through a wildcard. Each type is derived from the public `getMetadataArgsStorage` or `EntityMetadata` of the installed `typeorm` instead of importing `typeorm/metadata-args/*` or `typeorm/metadata/*`.
+
 ## Related resources
 
 - [Interfaces](/docs/nestjs-crud-automator/api-reference/interfaces)

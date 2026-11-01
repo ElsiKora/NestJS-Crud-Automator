@@ -3,9 +3,8 @@ import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiFilterOrderBy, TFilterFieldSelector } from "@type/decorator/api/filter";
 import type { TApiPropertyDescribeDtoQueryGetListProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
+import type { TTypeOrmColumnMetadataArguments, TTypeOrmMetadataArgumentsStorage } from "@type/utility/typeorm";
 import type { ObjectLiteral } from "typeorm";
-import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
-import type { MetadataArgsStorage } from "typeorm/metadata-args/MetadataArgsStorage";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { FILTER_API_INTERFACE_CONSTANT } from "@constant/interface/api";
@@ -28,11 +27,11 @@ import "reflect-metadata";
  * @template E - The entity type
  */
 export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, fieldSelector?: TFilterFieldSelector<typeof entity>): TApiFilterOrderBy<typeof entity> {
-	const metadata: MetadataArgsStorage = getMetadataArgsStorage();
-	const columns: Array<ColumnMetadataArgs> = metadata.columns.filter((column: ColumnMetadataArgs) => column.target == entity);
+	const metadata: TTypeOrmMetadataArgumentsStorage = getMetadataArgsStorage();
+	const columns: Array<TTypeOrmColumnMetadataArguments> = metadata.columns.filter((column: TTypeOrmColumnMetadataArguments) => column.target == entity);
 
 	if (fieldSelector) {
-		const entityFields: Set<string> = new Set<string>(columns.map((col: ColumnMetadataArgs) => col.propertyName));
+		const entityFields: Set<string> = new Set<string>(columns.map((col: TTypeOrmColumnMetadataArguments) => col.propertyName));
 
 		for (const field in fieldSelector) {
 			if (!entityFields.has(field)) {

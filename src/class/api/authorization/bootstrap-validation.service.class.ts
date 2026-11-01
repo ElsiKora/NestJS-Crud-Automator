@@ -1,5 +1,5 @@
 import type { IApiAuthorizationModuleOptions } from "@interface/class/api/authorization";
-import type { InstanceWrapper } from "@nestjs/core/injector/instance-wrapper";
+import type { InstanceWrapper } from "@nestjs/core/internal";
 
 import { ApiAuthorizationHookPermissionCache } from "@class/api/authorization/hook";
 import { ApiAuthorizationIamAttachmentCache, ApiAuthorizationIamDocumentCache } from "@class/api/authorization/iam";

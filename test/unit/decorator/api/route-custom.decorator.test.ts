@@ -9,7 +9,7 @@ import { ApiRouteCustom } from "@decorator/api";
 import { EApiAuthenticationType, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiRouteGuardStage } from "@enum/decorator/api";
 import { ApiRouteRuntimeInterceptor } from "@interceptor/api-route-runtime.interceptor";
 import { Header, HttpStatus, Req, RequestMethod, SetMetadata, UseGuards, UseInterceptors } from "@nestjs/common";
-import { GUARDS_METADATA, HEADERS_METADATA, INTERCEPTORS_METADATA } from "@nestjs/common/constants";
+import { GUARDS_METADATA, HEADERS_METADATA, INTERCEPTORS_METADATA } from "@nestjs/common/internal";
 import { ApiResponse } from "@nestjs/swagger";
 import { SWAGGER_TEST_METADATA_CONSTANT } from "@test/unit/fixture";
 import { describe, expect, it } from "vitest";

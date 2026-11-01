@@ -8,8 +8,7 @@ import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiControllerResponseTarget } from "@enum/decorator/api";
 import { ApiRouteRuntimeInterceptor } from "@interceptor/api-route-runtime.interceptor";
 import { applyDecorators, SetMetadata } from "@nestjs/common";
-import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
-import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum.js";
+import { ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
 import { ApiRouteApplyDtoMetadata } from "@utility/api/route/apply-dto-metadata.utility";
 
 /**

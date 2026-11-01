@@ -10,7 +10,7 @@ import { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import { IApiFunctionSubscriberProperties, IApiRouteSubscriberProperties } from "@interface/decorator/api/subscriber";
 import { Injectable, OnApplicationShutdown, OnModuleInit } from "@nestjs/common";
 import { DiscoveryService } from "@nestjs/core";
-import { InstanceWrapper } from "@nestjs/core/injector/instance-wrapper";
+import { InstanceWrapper } from "@nestjs/core/internal";
 import { LoggerUtility } from "@utility/logger.utility";
 
 const subscriberLogger: LoggerUtility = LoggerUtility.getLogger("ApiSubscriberDiscoveryService");

@@ -2,8 +2,8 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryPlanOrderEntry } from "@interface/class/api/controller/get-list/query";
 import type { TApiControllerGetListQueryCompiledOrderField } from "@type/class/api/controller/get-list/compiled/order-field.type";
 import type { TApiControllerGetListQueryCompiledPlan } from "@type/class/api/controller/get-list/compiled/plan.type";
+import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { EntitySubscriberInterface, EntityTarget, Repository } from "typeorm";
-import type { ColumnMetadata } from "typeorm/metadata/ColumnMetadata";
 
 import { API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
 import { EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
@@ -86,7 +86,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 
 		const contracts: ReadonlyArray<Readonly<{ field: TApiControllerGetListQueryCompiledOrderField; normalizedStorageType: string; storageContract: string }>> = Object.freeze(
 			this.getOrderFields(plan).map((field: TApiControllerGetListQueryCompiledOrderField): Readonly<{ field: TApiControllerGetListQueryCompiledOrderField; normalizedStorageType: string; storageContract: string }> => {
-				const column: ColumnMetadata | undefined = repository.metadata.columns.find((candidate: ColumnMetadata): boolean => candidate.propertyPath === field.path);
+				const column: TTypeOrmColumnMetadata | undefined = repository.metadata.columns.find((candidate: TTypeOrmColumnMetadata): boolean => candidate.propertyPath === field.path);
 
 				if (!column) {
 					throw ErrorException(`CURSOR GET_LIST active repository is missing order field "${field.path}"`);
@@ -111,7 +111,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 		});
 	}
 
-	private static assertActiveColumnMatches(field: TApiControllerGetListQueryCompiledOrderField, column: ColumnMetadata): void {
+	private static assertActiveColumnMatches(field: TApiControllerGetListQueryCompiledOrderField, column: TTypeOrmColumnMetadata): void {
 		const columnType: string = this.normalizeDeclaredColumnType(column.type);
 		const columnPrecision: null | number | undefined = column.precision ?? undefined;
 		const fieldPrecision: null | number | undefined = field.precision ?? undefined;
@@ -186,7 +186,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 	}
 
 	private static assertPrimaryTieBreaker<E extends IApiBaseEntity>(repository: Repository<E>, plan: TApiControllerGetListQueryCompiledPlan): void {
-		const primaryColumns: ReadonlyArray<ColumnMetadata> = repository.metadata.primaryColumns;
+		const primaryColumns: ReadonlyArray<TTypeOrmColumnMetadata> = repository.metadata.primaryColumns;
 		const finalTieBreaker: string | undefined = plan.order.tieBreakers?.at(-1)?.field;
 
 		if (primaryColumns.length !== 1 || !finalTieBreaker || primaryColumns[0]?.propertyPath !== finalTieBreaker) {
@@ -215,7 +215,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 		const checkedParserContracts: Set<string> = new Set<string>();
 
 		for (const field of fields) {
-			const column: ColumnMetadata | undefined = repository.metadata.columns.find((candidate: ColumnMetadata): boolean => candidate.propertyPath === field.path);
+			const column: TTypeOrmColumnMetadata | undefined = repository.metadata.columns.find((candidate: TTypeOrmColumnMetadata): boolean => candidate.propertyPath === field.path);
 
 			if (!column) {
 				throw ErrorException(`CURSOR GET_LIST active repository is missing order field "${field.path}"`);
@@ -478,7 +478,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 		return Boolean(extraBinary) || Boolean(defaultBinary);
 	}
 
-	private static normalizeActiveStorageType<E extends IApiBaseEntity>(repository: Repository<E>, column: ColumnMetadata): string {
+	private static normalizeActiveStorageType<E extends IApiBaseEntity>(repository: Repository<E>, column: TTypeOrmColumnMetadata): string {
 		const driver: unknown = repository.manager.dataSource.driver;
 		const normalizeType: unknown = driver && typeof driver === "object" && "normalizeType" in driver ? driver.normalizeType : undefined;
 

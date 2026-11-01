@@ -1,8 +1,10 @@
+import "reflect-metadata";
+
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 
 import { EApiRouteType } from "@enum/decorator/api";
-import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
+import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/internal";
 import { ApiControllerApplyMetadata } from "@utility/api/controller/apply/metadata.utility";
 import { describe, expect, it } from "vitest";
 

@@ -3,10 +3,7 @@ import type { IApiControllerTableInheritancePlan, IApiControllerTableInheritance
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
-import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
-import type { DiscriminatorValueMetadataArgs } from "typeorm/metadata-args/DiscriminatorValueMetadataArgs";
-import type { InheritanceMetadataArgs } from "typeorm/metadata-args/InheritanceMetadataArgs";
-import type { TableMetadataArgs } from "typeorm/metadata-args/TableMetadataArgs";
+import type { TTypeOrmColumnMetadataArguments, TTypeOrmDiscriminatorValueMetadataArguments, TTypeOrmInheritanceMetadataArguments, TTypeOrmTableMetadataArguments } from "@type/utility/typeorm";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
@@ -52,7 +49,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 	 */
 	public static compile<E extends IApiBaseEntity>(properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): IApiControllerTableInheritancePlan | undefined {
 		const root: Type<unknown> | undefined = this.isConstructor(properties.entity) ? properties.entity : undefined;
-		const inheritance: InheritanceMetadataArgs | undefined = root ? getMetadataArgsStorage().inheritances.find(({ target }: InheritanceMetadataArgs): boolean => target === root) : undefined;
+		const inheritance: TTypeOrmInheritanceMetadataArguments | undefined = root ? getMetadataArgsStorage().inheritances.find(({ target }: TTypeOrmInheritanceMetadataArguments): boolean => target === root) : undefined;
 		const hasGeneratedReadResponse: boolean = [EApiRouteType.GET, EApiRouteType.GET_LIST].some((method: EApiRouteType): boolean => properties.routes[method]?.generation?.isEnabled !== false && !properties.routes[method]?.dto?.[EApiDtoType.RESPONSE]);
 
 		if (!root || inheritance?.pattern !== "STI" || !hasGeneratedReadResponse) {
@@ -73,7 +70,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 		}
 
 		// TypeORM ignores the inheritance column options once the root declares the column as a property.
-		const columnOptions: ColumnMetadataArgs["options"] = this.findDiscriminatorColumn(root, discriminatorPropertyName)?.options ?? inheritance.column ?? {};
+		const columnOptions: TTypeOrmColumnMetadataArguments["options"] = this.findDiscriminatorColumn(root, discriminatorPropertyName)?.options ?? inheritance.column ?? {};
 
 		if (columnOptions.select === false) {
 			throw ErrorException(`Table inheritance root ${root.name} must select its discriminator column "${discriminatorPropertyName}", remove select: false`);
@@ -150,7 +147,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 	 */
 	private static findChildEntities(root: Type<unknown>): Array<Type<unknown>> {
 		return getMetadataArgsStorage()
-			.tables.map(({ target, type }: TableMetadataArgs): Type<unknown> | undefined => (type === "entity-child" && this.isConstructor(target) && target.prototype instanceof root ? target : undefined))
+			.tables.map(({ target, type }: TTypeOrmTableMetadataArguments): Type<unknown> | undefined => (type === "entity-child" && this.isConstructor(target) && target.prototype instanceof root ? target : undefined))
 			.filter((target: Type<unknown> | undefined): target is Type<unknown> => target !== undefined);
 	}
 
@@ -158,10 +155,10 @@ export class ApiControllerTableInheritancePlanCompiler {
 	 * Finds the column declaration of the discriminator on the root or one of its ancestors.
 	 * @param {Type<unknown>} root - Table inheritance root class.
 	 * @param {string} discriminatorPropertyName - Discriminator property name.
-	 * @returns {ColumnMetadataArgs | undefined} Column declaration, or undefined when only the inheritance options declare it.
+	 * @returns {TTypeOrmColumnMetadataArguments | undefined} Column declaration, or undefined when only the inheritance options declare it.
 	 */
-	private static findDiscriminatorColumn(root: Type<unknown>, discriminatorPropertyName: string): ColumnMetadataArgs | undefined {
-		return getMetadataArgsStorage().columns.find(({ propertyName, target }: ColumnMetadataArgs): boolean => propertyName === discriminatorPropertyName && this.isConstructor(target) && (target === root || root.prototype instanceof target));
+	private static findDiscriminatorColumn(root: Type<unknown>, discriminatorPropertyName: string): TTypeOrmColumnMetadataArguments | undefined {
+		return getMetadataArgsStorage().columns.find(({ propertyName, target }: TTypeOrmColumnMetadataArguments): boolean => propertyName === discriminatorPropertyName && this.isConstructor(target) && (target === root || root.prototype instanceof target));
 	}
 
 	/**
@@ -193,17 +190,17 @@ export class ApiControllerTableInheritancePlanCompiler {
 	 * @returns {unknown} The `@ChildEntity` value, or the class name that TypeORM uses without one.
 	 */
 	private static resolveDiscriminatorValue(entity: Type<unknown>): unknown {
-		const discriminatorValue: DiscriminatorValueMetadataArgs | undefined = getMetadataArgsStorage().discriminatorValues.find(({ target }: DiscriminatorValueMetadataArgs): boolean => target === entity);
+		const discriminatorValue: TTypeOrmDiscriminatorValueMetadataArguments | undefined = getMetadataArgsStorage().discriminatorValues.find(({ target }: TTypeOrmDiscriminatorValueMetadataArguments): boolean => target === entity);
 
 		return discriminatorValue ? discriminatorValue.value : entity.name;
 	}
 
 	/**
 	 * Resolves the values an enum discriminator column can store.
-	 * @param {ColumnMetadataArgs["options"]["enum"]} columnEnum - Enum option of the discriminator column.
+	 * @param {TTypeOrmColumnMetadataArguments["options"]["enum"]} columnEnum - Enum option of the discriminator column.
 	 * @returns {ReadonlyArray<unknown> | undefined} Storable values, or undefined when the column has no enum.
 	 */
-	private static resolveStorableValues(columnEnum: ColumnMetadataArgs["options"]["enum"]): ReadonlyArray<unknown> | undefined {
+	private static resolveStorableValues(columnEnum: TTypeOrmColumnMetadataArguments["options"]["enum"]): ReadonlyArray<unknown> | undefined {
 		if (!columnEnum) {
 			return undefined;
 		}

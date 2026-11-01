@@ -215,9 +215,14 @@ Generated `get`, `getList`, `getMany`, `update` and `delete` refuse a `where` ho
 
 Crud Automator never loads `.env` (before 5.0.0 it ran `dotenv` on import). Load environment files in the application, for example with `node --env-file=.env` or `@nestjs/config`; the logger reads `NCD_LOG_LEVEL` from `process.env` only.
 
-## Private Swagger Imports
+## Imports Inside Dependencies
 
-Do not import `@nestjs/swagger/dist/*`, not even for types: Swagger 12 exports only the root and `./plugin`. Use the package root or the `TSwagger*` OpenAPI types from Crud Automator. 5.x needs `@nestjs/swagger` 12 with NestJS 12; Swagger 11 belongs to 4.x.
+Import a dependency only through its root or an explicit key of its `exports` map, not even for types. Never use a path that resolves only through a wildcard key such as `./*.js`:
+
+- `@nestjs/swagger/dist/*` is closed; Swagger 12 exports only the root and `./plugin`. Use the root or the `TSwagger*` OpenAPI types.
+- Nest metadata constants and `RouteParamtypes` come from `@nestjs/common/internal`, and `InstanceWrapper` from `@nestjs/core/internal`, not from `@nestjs/common/constants.js` or `@nestjs/core/injector/*`.
+- TypeORM metadata types come from the `typeorm` root or the derived `TTypeOrm*` types, not from `typeorm/metadata-args/*`, `typeorm/metadata/*` or `typeorm/query-builder/*`.
+- A package without an `exports` map may be imported below its root only through the allowlist in `scripts/check-declaration-imports.cjs` (`lodash/<name>.js`). 5.x needs `@nestjs/swagger` 12 with NestJS 12; Swagger 11 belongs to 4.x.
 
 ## Table Inheritance Read Responses
 

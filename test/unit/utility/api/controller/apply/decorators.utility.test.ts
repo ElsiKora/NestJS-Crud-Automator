@@ -5,7 +5,7 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiAuthenticationType, EApiDtoType, EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
-import { GUARDS_METADATA, INTERCEPTORS_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
+import { GUARDS_METADATA, INTERCEPTORS_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/internal";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { SWAGGER_TEST_METADATA_CONSTANT } from "@test/unit/fixture";
 import { ApiControllerApplyDecorators } from "@utility/api/controller/apply/decorators.utility";

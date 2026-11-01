@@ -8,8 +8,7 @@ import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/ro
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { EApiDtoType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
-import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
-import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum.js";
+import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
 import { ApiBody, ApiExtraModels } from "@nestjs/swagger";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema, ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";

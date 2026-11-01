@@ -9,7 +9,7 @@ import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/author
 import { ApiAuthorizationDecision } from "@decorator/api";
 import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { ForbiddenException } from "@nestjs/common";
-import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
+import { ROUTE_ARGS_METADATA } from "@nestjs/common/internal";
 import { describe, expect, it } from "vitest";
 
 class DecisionEntity implements IApiBaseEntity {

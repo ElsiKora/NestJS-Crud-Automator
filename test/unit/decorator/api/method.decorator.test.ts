@@ -9,7 +9,7 @@ import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiAuthenticationType, EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
-import { GUARDS_METADATA, INTERCEPTORS_METADATA } from "@nestjs/common/constants";
+import { GUARDS_METADATA, INTERCEPTORS_METADATA } from "@nestjs/common/internal";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 import { SWAGGER_TEST_METADATA_CONSTANT } from "@test/unit/fixture";

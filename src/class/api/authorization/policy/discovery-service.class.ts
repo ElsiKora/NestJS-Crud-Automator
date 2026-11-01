@@ -6,7 +6,7 @@ import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/
 import { AUTHORIZATION_POLICY_DECORATOR_CONSTANT } from "@constant/class/authorization";
 import { Injectable, OnModuleInit } from "@nestjs/common";
 import { DiscoveryService } from "@nestjs/core";
-import { InstanceWrapper } from "@nestjs/core/injector/instance-wrapper";
+import { InstanceWrapper } from "@nestjs/core/internal";
 import { LoggerUtility } from "@utility/logger.utility";
 
 const policyDiscoveryLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationPolicyDiscoveryService");
