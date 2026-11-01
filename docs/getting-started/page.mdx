@@ -17,7 +17,7 @@ Version `3.0.2` is the published baseline before the current generated-route wor
 
 ## Prerequisites
 
-Crud Automator 5.x runs on Node.js `^22.13.0 || >=24.11.0`, the range TypeORM 1 supports.
+Crud Automator 5.x runs on Node.js `^22.13.0 || >=24.11.0`, the range TypeORM 1 supports. The package is ES modules only. A CommonJS application loads it with `require()` as well, because these Node.js releases load ES modules through `require(esm)`.
 
 Make sure you have the following dependencies installed in your NestJS project:
 
@@ -43,6 +43,10 @@ Crud Automator 5.0.0 moves to the current majors of its peers. NestJS 11, `@nest
 
 - Peer ranges are `@nestjs/common` and `@nestjs/core` `>=12.3.2 <13`, `@nestjs/swagger` `>=12.0.0 <13`, `@nestjs/throttler` `>=6.7.1 <7` and `typeorm` `>=1.1.2 <2`. `class-transformer`, `class-validator` and `lodash` keep their ranges. Each lower bound is the release CI tests; for `@nestjs/swagger` CI also runs 12.0.0 and the latest 12.x.
 - `engines.node` is `^22.13.0 || >=24.11.0`, the range TypeORM 1 declares. Node.js 20 is not supported.
+- The package ships one ES module build in `dist`. The `dist/esm` and `dist/cjs` folders and the `require` export condition are gone; `exports` has only `types` and `default`.
+  - An ES module application imports it as before, with `moduleResolution` `bundler`, `node16` or `nodenext`: every relative import in the declarations carries its `.js` extension.
+  - A CommonJS application keeps `require("@elsikora/nestjs-crud-automator")`, which Node.js loads through `require(esm)`. The top-level `types` field stays, so TypeScript with `module: commonjs` and the default `node10` resolution still finds the types.
+  - Deep imports such as `@elsikora/nestjs-crud-automator/dist/cjs/...` no longer resolve. Import from the package root.
 - Every peer has an upper bound at the next major. What npm does with a release outside a range depends on the order:
   - Adding Crud Automator to a project that already has such a release fails with `ERESOLVE`, and nothing is installed.
   - Upgrading a peer of an existing installation to such a release, for example `npm install @nestjs/common@latest`, succeeds with exit code 0. npm only prints `npm warn ERESOLVE overriding peer dependency`, and `npm ls @nestjs/common` then reports the package as `invalid`. Check the tree with `npm ls` after upgrading a peer.

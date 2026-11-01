@@ -1,4 +1,4 @@
-import type { IsIpVersion } from "class-validator/types/decorator/string/IsIP";
+import type { IsIpVersion } from "class-validator";
 
 const REGEX_PATTERN_INDEX: number = 1;
 const REGEX_FLAGS_INDEX: number = 2;

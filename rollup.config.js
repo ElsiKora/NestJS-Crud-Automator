@@ -1,81 +1,98 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
+
 import resolve from "@rollup/plugin-node-resolve";
 import typescript from "@rollup/plugin-typescript";
-import generatePackageJson from "rollup-plugin-generate-package-json";
 import dts from "unplugin-dts/rollup";
 
 const external = ["@elsikora/pluralizer", "@nestjs/common", "@nestjs/core", "@nestjs/swagger", "@nestjs/throttler", "node:crypto", "node:http", "path-to-regexp", "rxjs/operators", "typeorm", "class-transformer", "reflect-metadata", "class-validator", "lodash/cloneDeep.js", "lodash/random.js", "@nestjs/common/constants.js", "@nestjs/common/enums/route-paramtypes.enum.js"];
 
-export default [
-	{
-		external,
-		input: "src/index.ts",
-		output: {
-			dir: "dist/esm",
-			entryFileNames: (chunkInfo) => {
-				if (chunkInfo.name.includes("node_modules")) {
-					return chunkInfo.name.replace("node_modules", "external") + ".js";
-				}
+const OUTPUT_DIRECTORY = path.resolve("dist");
+const SOURCE_DIRECTORY = path.resolve("src");
+const RELATIVE_SPECIFIER_PATTERN = /(\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)(["'])(\.{1,2}(?:\/[^"']*)?)\2/g;
+// JSDoc and line comments carry example imports that are not part of the module graph
+const COMMENT_LINE_PATTERN = /^\s*(?:\*|\/\/|\/\*)/;
 
-				return "[name].js";
-			},
-			format: "esm",
-			preserveModules: true,
-			preserveModulesRoot: "src",
-			sourcemap: true,
-		},
-		plugins: [
-			resolve({
-				include: ["node_modules/tslib/**"],
-			}),
-			typescript({
-				declaration: false,
-				outDir: "dist/esm",
-				sourceMap: true,
-				tsconfig: "./tsconfig.build.json",
-			}),
-			dts({
-				entryRoot: "src",
-				outDirs: ["dist/esm", "dist/cjs"],
-				tsconfigPath: "./tsconfig.build.json",
-			}),
-			generatePackageJson({
-				baseContents: { type: "module" },
-				outputFolder: "dist/esm",
-			}),
-		],
-	},
-	{
-		external,
-		input: "src/index.ts",
-		output: {
-			dir: "dist/cjs",
-			entryFileNames: (chunkInfo) => {
-				if (chunkInfo.name.includes("node_modules")) {
-					return chunkInfo.name.replace("node_modules", "external") + ".js";
-				}
+/**
+ * Adds explicit extensions to the relative imports of a generated declaration file.
+ * TypeScript keeps specifiers as written in the source, and `moduleResolution: nodenext` consumers need the extension.
+ * @param {string} filePath - Output path of the declaration file.
+ * @param {string} content - Declaration file content.
+ * @returns {{ content: string } | undefined} The rewritten declaration content, or undefined for files that are not declarations.
+ */
+function addDeclarationExtensions(filePath, content) {
+	if (!filePath.endsWith(".d.ts")) {
+		return;
+	}
 
-				return "[name].js";
-			},
-			exports: "named",
-			format: "cjs",
-			preserveModules: true,
-			preserveModulesRoot: "src",
-			sourcemap: true,
+	const sourceDirectory = path.dirname(path.join(SOURCE_DIRECTORY, path.relative(OUTPUT_DIRECTORY, filePath)));
+
+	return {
+		content: content
+			.split("\n")
+			.map((line) => (COMMENT_LINE_PATTERN.test(line) ? line : line.replaceAll(RELATIVE_SPECIFIER_PATTERN, (_match, prefix, quote, specifier) => `${prefix}${quote}${resolveDeclarationSpecifier(sourceDirectory, specifier, filePath)}${quote}`)))
+			.join("\n"),
+	};
+}
+
+/**
+ * Resolves an extensionless relative declaration specifier to the `.js` path a Node.js ESM consumer loads.
+ * @param {string} sourceDirectory - Source directory of the declaration that holds the specifier.
+ * @param {string} specifier - Relative specifier as TypeScript emitted it.
+ * @param {string} declarationPath - Output path of the declaration, used in the error message.
+ * @returns {string} The specifier with an explicit `.js` or `/index.js` suffix.
+ * @throws {Error} If the specifier matches no source module.
+ */
+function resolveDeclarationSpecifier(sourceDirectory, specifier, declarationPath) {
+	if (specifier.endsWith(".js")) {
+		return specifier;
+	}
+
+	const target = path.resolve(sourceDirectory, specifier);
+
+	if (existsSync(`${target}.ts`)) {
+		return `${specifier}.js`;
+	}
+
+	if (existsSync(path.join(target, "index.ts"))) {
+		return `${specifier.replace(/\/$/, "")}/index.js`;
+	}
+
+	throw new Error(`Cannot resolve declaration import "${specifier}" in ${declarationPath}`);
+}
+
+export default {
+	external,
+	input: "src/index.ts",
+	output: {
+		dir: "dist",
+		entryFileNames: (chunkInfo) => {
+			if (chunkInfo.name.includes("node_modules")) {
+				return chunkInfo.name.replace("node_modules", "external") + ".js";
+			}
+
+			return "[name].js";
 		},
-		plugins: [
-			resolve({
-				include: ["node_modules/tslib/**"],
-			}),
-			typescript({
-				declaration: false,
-				outDir: "dist/cjs",
-				sourceMap: true,
-				tsconfig: "./tsconfig.build.json",
-			}),
-			generatePackageJson({
-				baseContents: { type: "commonjs" },
-				outputFolder: "dist/cjs",
-			}),
-		],
+		format: "esm",
+		preserveModules: true,
+		preserveModulesRoot: "src",
+		sourcemap: true,
 	},
-];
+	plugins: [
+		resolve({
+			include: ["node_modules/tslib/**"],
+		}),
+		typescript({
+			declaration: false,
+			outDir: "dist",
+			sourceMap: true,
+			tsconfig: "./tsconfig.build.json",
+		}),
+		dts({
+			beforeWriteFile: addDeclarationExtensions,
+			entryRoot: "src",
+			outDirs: ["dist"],
+			tsconfigPath: "./tsconfig.build.json",
+		}),
+	],
+};

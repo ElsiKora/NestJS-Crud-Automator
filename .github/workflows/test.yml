@@ -88,5 +88,5 @@ jobs:
 
       - name: Load built package
         run: |
-          node -e "require('./dist/cjs/index.js')"
-          node --input-type=module -e "await import('./dist/esm/index.js')"
+          node --input-type=module -e "await import('./dist/index.js')"
+          node --input-type=commonjs -e "require('./dist/index.js')"

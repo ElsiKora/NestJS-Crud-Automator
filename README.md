@@ -74,7 +74,7 @@ Version `3.0.2` is the published baseline before the current generated-route wor
 
 ### Prerequisites
 
-Crud Automator 5.x runs on Node.js `^22.13.0 || >=24.11.0`. Make sure you have the following dependencies installed in your NestJS project:
+Crud Automator 5.x runs on Node.js `^22.13.0 || >=24.11.0` and ships as ES modules only; CommonJS applications load it with `require()` through Node.js `require(esm)`. Make sure you have the following dependencies installed in your NestJS project:
 
 - NestJS `@nestjs/common` and `@nestjs/core` `>=12.3.2 <13`
 - `@nestjs/swagger` `>=12.0.0 <13`

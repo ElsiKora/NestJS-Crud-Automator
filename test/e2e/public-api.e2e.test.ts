@@ -1,5 +1,7 @@
 import "reflect-metadata";
 
+import { createRequire } from "node:module";
+
 import type { EntityManager, Repository } from "typeorm";
 
 import type {
@@ -388,7 +390,7 @@ describe("public API exports (E2E)", () => {
 				},
 			},
 		} satisfies IApiSubscriberFunctionTransactionContext;
-		const builtPackageEntryPath: string = "../../dist/esm/index.js";
+		const builtPackageEntryPath: string = "../../dist/index.js";
 		const builtPackageEntry = (await import(builtPackageEntryPath)) as {
 			ApiFunctionStep?: unknown;
 			ApiFunctionTransactionCommitUnknownOutcomeException?: unknown;
@@ -442,8 +444,8 @@ describe("public API exports (E2E)", () => {
 				EQ?: unknown;
 			};
 		};
-		const builtCjsPackageEntryPath: string = "../../dist/cjs/index.js";
-		const builtCjsPackageEntry = (await import(builtCjsPackageEntryPath)) as {
+		// A CommonJS consumer loads the ESM-only build through require(esm)
+		const builtCjsPackageEntry = createRequire(import.meta.url)("../../dist/index.js") as {
 			ApiFunctionStep?: unknown;
 			ApiFunctionTransactionScope?: unknown;
 			EApiControllerGetListQueryFilterMissingBehavior?: {
@@ -625,13 +627,14 @@ describe("public API exports (E2E)", () => {
 		expect(typeof ApiFunctionUpdate(direct)).toBe("function");
 		expect(typeof ApiFunction(generic)).toBe("function");
 		expect(typeof ApiService(service)).toBe("function");
-		for (const entryPath of ["../../dist/esm/index.js", "../../dist/cjs/index.js"]) {
-			const built = (await import(entryPath)) as {
-				ApiFunction: typeof ApiFunction;
-				ApiFunctionUpdate: typeof ApiFunctionUpdate;
-				ApiService: typeof ApiService;
-				EApiFunctionUpdatePersistenceMode: typeof EApiFunctionUpdatePersistenceMode;
-			};
+		const builtPackageEntryPath: string = "../../dist/index.js";
+
+		for (const built of [await import(builtPackageEntryPath), createRequire(import.meta.url)(builtPackageEntryPath)] as Array<{
+			ApiFunction: typeof ApiFunction;
+			ApiFunctionUpdate: typeof ApiFunctionUpdate;
+			ApiService: typeof ApiService;
+			EApiFunctionUpdatePersistenceMode: typeof EApiFunctionUpdatePersistenceMode;
+		}>) {
 			expect(built.EApiFunctionUpdatePersistenceMode).toEqual({ SAVE: "SAVE", PATCH: "PATCH" });
 			expect(typeof built.ApiFunctionUpdate(direct)).toBe("function");
 			expect(typeof built.ApiFunction(generic)).toBe("function");
