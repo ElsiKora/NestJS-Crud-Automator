@@ -17,7 +17,7 @@ import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transac
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createTransactionFixture, createTypeOrmRepositoryStub, resetApiSubscriberRegistry } from "@test/unit/fixture";
-import { RuntimeRouteEntity, RuntimeRouteRelationEntity, RuntimeRouteResponseDTO } from "@test/unit/class/api/route/runtime/fixture";
+import { RuntimeRouteEntity, RuntimeRouteListQueryDTO, RuntimeRouteRelationEntity, RuntimeRouteResponseDTO } from "@test/unit/class/api/route/runtime/fixture";
 
 function createGeneratedCreateOptions(
 	service: ApiServiceBase<RuntimeRouteEntity>,
@@ -155,7 +155,7 @@ function createGeneratedReadOrDeleteOptions(service: ApiServiceBase<RuntimeRoute
 						? {}
 						: {
 								dto: {
-									...(method === EApiRouteType.GET_LIST ? { [EApiDtoType.QUERY]: class {} } : {}),
+									...(method === EApiRouteType.GET_LIST ? { [EApiDtoType.QUERY]: RuntimeRouteListQueryDTO } : {}),
 									[EApiDtoType.RESPONSE]: RuntimeRouteResponseDTO,
 								},
 								response: {

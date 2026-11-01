@@ -15,7 +15,7 @@ import { ValidationError } from "class-validator";
 import { In } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
-import { RUNTIME_ROUTE_TRANSFORM_ERROR, RuntimeRouteEmailBodyDTO, RuntimeRouteEntity, RuntimeRouteExposedEmailBodyDTO, RuntimeRouteExposedPhoneBodyDTO, RuntimeRoutePhoneBodyDTO, RuntimeRouteResponseDTO, RuntimeRouteSessionResponseDTO, RuntimeRouteTransformBodyDTO, RuntimeRouteVerificationResponseDTO } from "./runtime/fixture";
+import { RUNTIME_ROUTE_TRANSFORM_ERROR, RuntimeRouteEmailBodyDTO, RuntimeRouteEntity, RuntimeRouteExposedEmailBodyDTO, RuntimeRouteExposedPhoneBodyDTO, RuntimeRouteListQueryDTO, RuntimeRoutePhoneBodyDTO, RuntimeRouteResponseDTO, RuntimeRouteSessionResponseDTO, RuntimeRouteTransformBodyDTO, RuntimeRouteVerificationResponseDTO } from "./runtime/fixture";
 
 const createExecutionContext = (request: IApiRouteRuntimeHttpRequest<RuntimeRouteEntity>): ExecutionContext =>
 	({
@@ -1074,7 +1074,7 @@ describe("ApiRouteRuntime", () => {
 				routes: {
 					[EApiRouteType.GET_LIST]: {
 						dto: {
-							[EApiDtoType.QUERY]: class {},
+							[EApiDtoType.QUERY]: RuntimeRouteListQueryDTO,
 							[EApiDtoType.RESPONSE]: RuntimeRouteResponseDTO,
 						},
 						relations: {

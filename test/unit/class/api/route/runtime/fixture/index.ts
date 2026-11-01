@@ -1,6 +1,7 @@
 export { RuntimeRouteEmailBodyDTO } from "./email-body.dto";
 export { RuntimeRouteEntity } from "./entity";
 export * from "./exposed";
+export { RuntimeRouteListQueryDTO } from "./list-query.dto";
 export { RuntimeRoutePhoneBodyDTO } from "./phone-body.dto";
 export { RuntimeRouteRelationEntity } from "./relation.entity";
 export { RuntimeRouteResponseDTO } from "./response.dto";

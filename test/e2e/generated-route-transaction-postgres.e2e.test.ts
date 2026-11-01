@@ -15,6 +15,8 @@ import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiService } from "@decorator/api/service/decorator";
 import { EApiControllerRelationReferenceShape, EApiDtoType, EApiFunctionTransactionMode, EApiFunctionType, EApiFunctionUpdatePersistenceMode, EApiRouteType } from "@enum/decorator/api";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import { Type } from "class-transformer";
+import { IsInt, Min } from "class-validator";
 import { AfterLoad, Column, DataSource, DeleteDateColumn, Entity, ManyToOne, PrimaryColumn, QueryRunner, Repository, VersionColumn } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -268,6 +270,18 @@ function createGeneratedCreateOptions(itemService: RouteTransactionItemService, 
 	};
 }
 
+class RouteTransactionListQueryDto {
+	@IsInt()
+	@Min(1)
+	@Type(() => Number)
+	public limit!: number;
+
+	@IsInt()
+	@Min(1)
+	@Type(() => Number)
+	public page!: number;
+}
+
 function createGeneratedGetListOptions(itemService: RouteTransactionItemService): IApiRouteRuntimeGeneratedExecutionOptions<RouteTransactionItemEntity, EApiRouteType.GET_LIST> {
 	return {
 		controller: {
@@ -300,7 +314,7 @@ function createGeneratedGetListOptions(itemService: RouteTransactionItemService)
 			routes: {
 				[EApiRouteType.GET_LIST]: {
 					dto: {
-						[EApiDtoType.QUERY]: class {},
+						[EApiDtoType.QUERY]: RouteTransactionListQueryDto,
 						[EApiDtoType.RESPONSE]: RouteTransactionItemEntity,
 					},
 					response: {
