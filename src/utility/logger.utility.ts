@@ -1,12 +1,10 @@
 import type { LogLevel } from "@nestjs/common";
 
 import { ConsoleLogger, Injectable } from "@nestjs/common";
-import { config } from "dotenv";
-
-config();
 
 /**
- * Custom logger that extends NestJS's ConsoleLogger with environment-based log level filtering
+ * Custom logger that extends NestJS's ConsoleLogger with environment-based log level filtering.
+ * It reads `NCD_LOG_LEVEL` from `process.env` only and never loads a `.env` file.
  */
 @Injectable()
 export class LoggerUtility extends ConsoleLogger {

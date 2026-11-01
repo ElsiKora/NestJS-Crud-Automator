@@ -211,6 +211,10 @@ The package does not ship a consumer-side typed URL/bracket-filter builder in th
 
 Generated `get`, `getList`, `getMany`, `update` and `delete` refuse a `where` holding an `undefined` or `null` value, an empty relation object, an empty OR array or an empty OR branch; single-row `get`, `update` and `delete` also refuse a missing or empty `where`. Drop optional conditions instead of setting them to `undefined`, and use `IsNull()` for SQL `NULL`. The refusal is an `InternalServerErrorException`.
 
+## Relying On The Package To Load `.env`
+
+Crud Automator never loads `.env` (before 5.0.0 it ran `dotenv` on import). Load environment files in the application, for example with `node --env-file=.env` or `@nestjs/config`; the logger reads `NCD_LOG_LEVEL` from `process.env` only.
+
 ## Private Swagger Imports
 
 Do not import `@nestjs/swagger/dist/*`, not even for types: the paths are closed from 11.4.3 on. Use the package root, or the `TSwagger*` OpenAPI types from Crud Automator for types the root of an older 11.x release does not export. Keep `@nestjs/swagger` on 11.x; version 12 requires NestJS 12 and is not supported.
