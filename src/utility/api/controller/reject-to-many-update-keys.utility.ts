@@ -12,6 +12,9 @@ import { getMetadataArgsStorage } from "typeorm";
 
 const TO_MANY_UPDATE_REJECTION_REASON: string = "to-many reference is not allowed on update";
 
+/** To-many paths per route entity class, split into segments; TypeORM metadata no longer changes once the app has bootstrapped. */
+const TO_MANY_PATHS_BY_ENTITY: WeakMap<IApiBaseEntity, ReadonlyArray<ReadonlyArray<string>>> = new WeakMap<IApiBaseEntity, ReadonlyArray<ReadonlyArray<string>>>();
+
 /**
  * Rejects an UPDATE or PARTIAL_UPDATE body, generated or custom, that carries a to-many relation key, `null` included.
  * TypeORM saves such a value as the full new set, so the rule reads the TypeORM relations of the entity, its parent classes,
@@ -26,20 +29,14 @@ export function ApiControllerRejectToManyUpdateKeys<E extends IApiBaseEntity>(en
 		return;
 	}
 
-	const toManyPaths: Set<string> = new Set<string>();
-
-	for (const target of [entity, ...DatabaseTypeOrmGetChildEntities(entity)]) {
-		collectToManyPaths(target, [], new Set<unknown>(), toManyPaths);
-	}
-
-	for (const path of toManyPaths) {
-		if (!isPathPresent(body, path.split("."))) {
+	for (const path of getToManyPaths(entity)) {
+		if (!isPathPresent(body, path)) {
 			continue;
 		}
 
 		throw new BadRequestException({
 			details: {
-				propertyName: path,
+				propertyName: path.join("."),
 				reason: TO_MANY_UPDATE_REJECTION_REASON,
 			},
 			error: "Bad Request",
@@ -79,12 +76,37 @@ function collectToManyPaths(target: unknown, prefix: Array<string>, visiting: Se
 }
 
 /**
+ * Returns the to-many paths of an entity class and every `@ChildEntity` that extends it, read from TypeORM on first use and cached per class.
+ * @param {IApiBaseEntity} entity - Entity class of the route.
+ * @returns {ReadonlyArray<ReadonlyArray<string>>} Property paths split into segments.
+ */
+function getToManyPaths(entity: IApiBaseEntity): ReadonlyArray<ReadonlyArray<string>> {
+	const cachedPaths: ReadonlyArray<ReadonlyArray<string>> | undefined = TO_MANY_PATHS_BY_ENTITY.get(entity);
+
+	if (cachedPaths) {
+		return cachedPaths;
+	}
+
+	const toManyPaths: Set<string> = new Set<string>();
+
+	for (const target of [entity, ...DatabaseTypeOrmGetChildEntities(entity)]) {
+		collectToManyPaths(target, [], new Set<unknown>(), toManyPaths);
+	}
+
+	const paths: ReadonlyArray<ReadonlyArray<string>> = [...toManyPaths].map((path: string): ReadonlyArray<string> => path.split("."));
+
+	TO_MANY_PATHS_BY_ENTITY.set(entity, paths);
+
+	return paths;
+}
+
+/**
  * Checks whether a body holds a value other than undefined at a property path; an array on the path is checked element by element.
  * @param {unknown} value - Body or nested body value.
- * @param {Array<string>} path - Remaining property path segments.
+ * @param {ReadonlyArray<string>} path - Remaining property path segments.
  * @returns {boolean} True when some value at the path is present.
  */
-function isPathPresent(value: unknown, path: Array<string>): boolean {
+function isPathPresent(value: unknown, path: ReadonlyArray<string>): boolean {
 	if (Array.isArray(value)) {
 		return value.some((item: unknown): boolean => isPathPresent(item, path));
 	}
