@@ -49,6 +49,7 @@ import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
 import { ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetPrimaryColumn } from "@utility/api/controller/get/primary-column.utility";
+import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { ApiControllerHandleRequestRelations } from "@utility/api/controller/handle-request-relations.utility";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ApiControllerReadPlanGet, ApiControllerReadScopeWhere } from "@utility/api/controller/read";
@@ -575,7 +576,7 @@ export class ApiRouteRuntime {
 		const transformedResponse: unknown = await AuthorizationDecisionApplyResult(ApiControllerGeneratedSecuritySnapshot.withResource(authorizationDecision, finalResponse as E) as never, finalResponse as never);
 		assertCursorResponseInvariant(transformedResponse);
 		const identityPlan: IApiControllerIdentityPlan | undefined = this.resolveIdentityPlan(options.controller, options.methodName);
-		const dto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(options.properties, options.entityMetadata, options.method, routeConfig, queryPlan, identityPlan);
+		const dto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(options.properties, options.entityMetadata, options.method, routeConfig, ApiControllerGetSchemaPrefix(options.controller.constructor), queryPlan, identityPlan);
 		const projectedResponse: unknown = ApiRouteProjectRelationResponse(routeConfig.relations?.response, transformedResponse, options.method);
 
 		assertCursorResponseInvariant(projectedResponse);

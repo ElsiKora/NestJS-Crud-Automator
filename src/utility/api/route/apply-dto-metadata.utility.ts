@@ -10,9 +10,13 @@ import { EApiDtoType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
 import { ApiBody, ApiExtraModels } from "@nestjs/swagger";
-import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
+import { ApiControllerReadPlanAssert } from "@utility/api/controller/read";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema, ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
+import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
 type TApiRouteRequestDto = TApiRouteDiscriminatedDtoProperties | Type<unknown>;
@@ -28,9 +32,10 @@ type TApiRouteRequestDto = TApiRouteDiscriminatedDtoProperties | Type<unknown>;
  * @returns {void}
  */
 export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: object, propertyKey: string | symbol, metadata: IApiRouteMetadata<E>, runtimeProperties: IApiRouteRuntimeProperties<E, undefined>, descriptor: PropertyDescriptor): void {
-	const bodyDto: TApiRouteRequestDto | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.BODY);
-	const parametersDtoConfig: TApiRouteRequestDto | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.PARAMETERS);
-	const queryDtoConfig: TApiRouteRequestDto | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.QUERY);
+	const handlerName: string = String(propertyKey);
+	const bodyDto: TApiRouteRequestDto | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.BODY, target.constructor, handlerName);
+	const parametersDtoConfig: TApiRouteRequestDto | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.PARAMETERS, target.constructor, handlerName);
+	const queryDtoConfig: TApiRouteRequestDto | undefined = resolveRequestDto(metadata, runtimeProperties, EApiDtoType.QUERY, target.constructor, handlerName);
 	const parametersDto: Type<unknown> | undefined = ApiRouteIsDiscriminatedDtoProperties(parametersDtoConfig) ? undefined : parametersDtoConfig;
 	const queryDto: Type<unknown> | undefined = ApiRouteIsDiscriminatedDtoProperties(queryDtoConfig) ? undefined : queryDtoConfig;
 	const routeArgumentsMetadata: Record<string, { data?: unknown; index?: number }> | undefined = Reflect.getMetadata(ROUTE_ARGS_METADATA, target.constructor, propertyKey) as Record<string, { data?: unknown; index?: number }> | undefined;
@@ -90,9 +95,13 @@ export function ApiRouteApplyDtoMetadata<E extends IApiBaseEntity>(target: objec
  * @param {IApiRouteMetadata<E>} metadata - Route metadata used for entity and route type.
  * @param {IApiRouteRuntimeProperties<E, undefined>} runtimeProperties - Runtime route config containing dto/autoDto.
  * @param {Exclude<EApiDtoType, EApiDtoType.RESPONSE>} dtoType - Request DTO target.
+ * @param {{ name: string }} controller - Controller class that owns the custom route; its schema prefix starts every generated DTO name.
+ * @param {string} controller.name - Controller class name, for the error.
+ * @param {string} handlerName - Handler method name; its PascalCase form replaces the route type in generated DTO names, so a custom route never shares names with a generated route of the same type.
  * @returns {TApiRouteRequestDto | undefined} Resolved request DTO.
+ * @throws {Error} When the handler name consists of separators only, because the DTO would get no route part in its name.
  */
-function resolveRequestDto<E extends IApiBaseEntity>(metadata: IApiRouteMetadata<E>, runtimeProperties: IApiRouteRuntimeProperties<E, undefined>, dtoType: Exclude<EApiDtoType, EApiDtoType.RESPONSE>): TApiRouteRequestDto | undefined {
+function resolveRequestDto<E extends IApiBaseEntity>(metadata: IApiRouteMetadata<E>, runtimeProperties: IApiRouteRuntimeProperties<E, undefined>, dtoType: Exclude<EApiDtoType, EApiDtoType.RESPONSE>, controller: { name: string }, handlerName: string): TApiRouteRequestDto | undefined {
 	const configuredDto: TApiRouteRequestDto | undefined = runtimeProperties.dto?.[dtoType];
 
 	if (configuredDto) {
@@ -101,6 +110,12 @@ function resolveRequestDto<E extends IApiBaseEntity>(metadata: IApiRouteMetadata
 
 	if (!metadata.route.type || !runtimeProperties.autoDto?.[dtoType]) {
 		return undefined;
+	}
+
+	const routeName: string = CamelCaseString(handlerName);
+
+	if (routeName === "") {
+		throw ErrorException(`Handler "${handlerName}" of ${controller.name} leaves nothing for its generated DTO names once separators are removed. Rename the handler`);
 	}
 
 	const entity: IApiEntity<E> = GenerateEntityInformation<E>(metadata.resource.entity);
@@ -115,7 +130,9 @@ function resolveRequestDto<E extends IApiBaseEntity>(metadata: IApiRouteMetadata
 		security: metadata.security,
 	} as TApiControllerPropertiesRoute<E, typeof metadata.route.type>;
 
-	return ApiControllerGetDto(controllerProperties, entity, metadata.route.type, dtoType, routeConfig);
+	ApiControllerReadPlanAssert(routeConfig);
+
+	return ApiControllerGetDtoWithReadPlan(controllerProperties, entity, metadata.route.type, dtoType, routeConfig, ApiControllerGetSchemaPrefix(controller), undefined, undefined, undefined, routeName);
 }
 
 /**

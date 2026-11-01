@@ -238,4 +238,69 @@ describe("ApiController", () => {
 
 		vi.restoreAllMocks();
 	});
+
+	describe("schema names", () => {
+		const getOnlyRoutes = {
+			[EApiRouteType.CREATE]: { generation: { isEnabled: false } },
+			[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
+			[EApiRouteType.GET_LIST]: { generation: { isEnabled: false } },
+			[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
+			[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
+		} as const;
+
+		it("names generated DTOs after the controller class without its Controller suffix", () => {
+			class SchemaNameInvoiceController {
+				public service: FactoryService = new FactoryService();
+			}
+
+			ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-invoices", routes: getOnlyRoutes })(SchemaNameInvoiceController);
+
+			const responseType: { name: string } | undefined = (Reflect.getMetadata("swagger/apiResponse", (SchemaNameInvoiceController.prototype as unknown as Record<string, object>).get as object) as Record<string, { type?: { name: string } }> | undefined)?.["200"]?.type;
+
+			expect(responseType?.name).toBe("SchemaNameInvoiceGetResponseDTO");
+		});
+
+		it("fails startup for two controller classes with the same name and names both paths", () => {
+			const createController = (): { new (): { service: FactoryService } } =>
+				class SchemaNameDuplicateController {
+					public service: FactoryService = new FactoryService();
+				};
+
+			ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "admin/schema-name-duplicates", routes: getOnlyRoutes })(createController());
+
+			expect(() => ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-duplicates", routes: getOnlyRoutes })(createController())).toThrow('Controllers SchemaNameDuplicateController (path "admin/schema-name-duplicates") and SchemaNameDuplicateController (path "schema-name-duplicates") have the same schema prefix "SchemaNameDuplicate"');
+		});
+
+		it("fails startup for an anonymous controller class", () => {
+			const anonymousController: { new (): { service: FactoryService } } = (() =>
+				class {
+					public service: FactoryService = new FactoryService();
+				})();
+
+			expect(anonymousController.name).toBe("");
+			expect(() => ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-anonymous", routes: getOnlyRoutes })(anonymousController)).toThrow('Controller with path "schema-name-anonymous" is an anonymous class');
+		});
+
+		it("fails startup when two generated DTO classes get the same name", () => {
+			class SchemaNameOrderController {
+				public service: FactoryService = new FactoryService();
+			}
+
+			class SchemaNameOrderListController {
+				public service: FactoryService = new FactoryService();
+			}
+
+			class SchemaNameOrderItemDto {}
+
+			ApiController<IApiBaseEntity>({ entity: FactoryEntity, path: "schema-name-orders", routes: getOnlyRoutes })(SchemaNameOrderController);
+
+			expect(() =>
+				ApiController<IApiBaseEntity>({
+					entity: FactoryEntity,
+					path: "schema-name-order-lists",
+					routes: { ...getOnlyRoutes, [EApiRouteType.GET]: { generation: { isEnabled: false } }, [EApiRouteType.GET_LIST]: { dto: { response: { itemType: SchemaNameOrderItemDto, name: "SchemaNameOrderGetResponseDTO" } } } },
+				})(SchemaNameOrderListController),
+			).toThrow('Generated DTO name "SchemaNameOrderGetResponseDTO" belongs to two different DTO classes, generated for the get response DTO of entity FactoryEntity and for the getList page response of entity FactoryEntity');
+		});
+	});
 });

@@ -7,6 +7,7 @@ import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
 import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
 import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/get.utility";
+import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 
 const contextualManualDtoCache: WeakMap<Type<unknown>, Map<string, Type<unknown>>> = new WeakMap<Type<unknown>, Map<string, Type<unknown>>>();
 
@@ -22,6 +23,8 @@ const contextualManualDtoCache: WeakMap<Type<unknown>, Map<string, Type<unknown>
  * @returns {Type<unknown>} Context-specific wrapper or the original class when replay metadata is unavailable.
  */
 export function DtoGenerateContextualManualDto(sourceDto: Type<unknown>, method: EApiRouteType, dtoType: EApiDtoType, parentDtoName: string, propertyPathSegment: string): Type<unknown> {
+	const sourceName: string = sourceDto.name;
+
 	if (sourceDto === Object || IsContextualManualDto(sourceDto)) {
 		return sourceDto;
 	}
@@ -36,6 +39,12 @@ export function DtoGenerateContextualManualDto(sourceDto: Type<unknown>, method:
 	// eslint-disable-next-line @elsikora/typescript/no-magic-numbers
 	const parentDtoNameBase: string = parentDtoName.endsWith("DTO") ? parentDtoName.slice(0, -3) : parentDtoName;
 	const className: string = `${parentDtoNameBase}${CamelCaseString(propertyPathSegment)}DTO`;
+
+	// A generated relation DTO is already named for this route and property, so it needs no contextual copy.
+	if (sourceName === className) {
+		return sourceDto;
+	}
+
 	const cached: Type<unknown> | undefined = contextualManualDtoCache.get(sourceDto)?.get(className);
 
 	if (cached) {
@@ -58,9 +67,7 @@ export function DtoGenerateContextualManualDto(sourceDto: Type<unknown>, method:
 		}
 	}
 
-	Object.defineProperty(GeneratedDTO, "name", {
-		value: className,
-	});
+	DtoSetGeneratedName(GeneratedDTO, className, `property ${propertyPathSegment} of ${parentDtoName}`);
 
 	Reflect.defineMetadata?.(
 		CONTEXTUAL_MANUAL_DTO_CONSTANT.METADATA_KEY,

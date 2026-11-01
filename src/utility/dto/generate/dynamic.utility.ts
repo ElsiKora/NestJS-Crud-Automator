@@ -11,6 +11,7 @@ import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
 import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed-for-guard.utility";
+import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 
 /**
  * Generates dynamic DTOs for object-type properties based on property metadata.
@@ -22,13 +23,14 @@ import { DtoIsPropertyExposedForGuard } from "@utility/dto/is/property/exposed-f
  * @param {D} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
  * @param {string} _propertyName - The name of the property
  * @param {Type<CanActivate>} [currentGuard] - Optional authentication guard
+ * @param {string} [dtoNameBase] - Name of the owning route DTO without the `DTO` suffix; defaults to `<Entity><Method><DtoType>` outside a controller route
  * @returns {Record<string, Type<unknown>> | undefined} A record of generated DTO classes or undefined if generation not needed
  * @template E - The entity type
  * @template M - The API route type
  * @template D - The DTO type
  */
 // eslint-disable-next-line @elsikora/typescript/no-unnecessary-type-parameters
-export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, _propertyName: string, currentGuard?: Type<CanActivate>): Record<string, Type<unknown>> | undefined {
+export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDtoType>(method: M, propertyMetadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, dtoType: D, _propertyName: string, currentGuard?: Type<CanActivate>, dtoNameBase?: string): Record<string, Type<unknown>> | undefined {
 	if (propertyMetadata.type !== EApiPropertyDescribeType.OBJECT) {
 		return undefined;
 	}
@@ -48,6 +50,7 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 	}
 
 	const generatedDTOs: Record<string, Type<unknown>> = {};
+	const resolvedDtoNameBase: string = dtoNameBase ?? `${entity.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}`;
 
 	if (propertyMetadata.type === EApiPropertyDescribeType.OBJECT && !Array.isArray(propertyMetadata.dataType) && "isDynamicallyGenerated" in propertyMetadata && propertyMetadata.isDynamicallyGenerated) {
 		const dataForGeneration: Array<{ data: Record<string, TApiPropertyDescribeProperties>; name: string }> = [];
@@ -71,7 +74,7 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 				if (propertyData?.type === EApiPropertyDescribeType.OBJECT && !Array.isArray(propertyData.dataType) && "isDynamicallyGenerated" in propertyData && propertyData.isDynamicallyGenerated) {
 					const nestedPropertyName: string = `${_propertyName}${CamelCaseString(name)}${CamelCaseString(propertyName)}`;
 
-					const childNestedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(method, propertyData, entity, dtoType, nestedPropertyName, currentGuard);
+					const childNestedDTOs: Record<string, Type<unknown>> | undefined = DtoGenerateDynamic(method, propertyData, entity, dtoType, nestedPropertyName, currentGuard, resolvedDtoNameBase);
 
 					if (childNestedDTOs && Object.keys(childNestedDTOs).length > 0) {
 						nestedDTOs[propertyName] = childNestedDTOs;
@@ -101,9 +104,7 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 				}
 			}
 
-			Object.defineProperty(GeneratedDTO, "name", {
-				value: `${entity.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}${CamelCaseString(_propertyName)}${CamelCaseString(name)}DTO`,
-			});
+			DtoSetGeneratedName(GeneratedDTO, `${resolvedDtoNameBase}${CamelCaseString(_propertyName)}${CamelCaseString(name)}DTO`, `the ${name} variant of property ${_propertyName} in the ${method} ${dtoType} DTO of entity ${String(entity.name)}`);
 
 			DtoAutoContextPush(GeneratedDTO.prototype, method, dtoType);
 
@@ -112,7 +113,7 @@ export function DtoGenerateDynamic<E, M extends EApiRouteType, D extends EApiDto
 					if (data[propertyName]) {
 						const propertyGeneratedDTOs: Record<string, Type<unknown>> = nestedDTOs[propertyName] ?? {};
 
-						const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, data[propertyName], entity, dtoType, propertyName, currentGuard, propertyGeneratedDTOs);
+						const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, data[propertyName], entity, dtoType, propertyName, currentGuard, propertyGeneratedDTOs, resolvedDtoNameBase);
 
 						if (decorators) {
 							for (const [, decorator] of decorators.entries()) {

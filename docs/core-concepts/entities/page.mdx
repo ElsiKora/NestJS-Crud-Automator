@@ -336,7 +336,7 @@ export class DepositDetailController {
 }
 ```
 
-GET answers with `DepositDetailEntityGetResponseCardTransferDTO` and its siblings, described in Swagger as `oneOf` with a discriminator mapping. GET_LIST keeps its usual wrapper (`DepositDetailEntityGetListResponseItemsDTO`, or `DepositDetailEntityGetListCursorResponseItemsDTO` in CURSOR mode), and its `items` are `oneOf` over `DepositDetailEntityGetListResponseCardTransferDTO` and its siblings. The suffix is the discriminator value in camel case. The discriminator property stays in every response.
+GET answers with `DepositDetailGetResponseCardTransferDTO` and its siblings, described in Swagger as `oneOf` with a discriminator mapping. GET_LIST keeps its usual wrapper (`DepositDetailGetListResponseItemsDTO`, or `DepositDetailGetListCursorResponseItemsDTO` in CURSOR mode), and its `items` are `oneOf` over `DepositDetailGetListResponseCardTransferDTO` and its siblings. The suffix is the discriminator value in camel case. The discriminator property stays in every response.
 
 The root must declare the discriminator column as a property with `@Column` and `@ApiPropertyDescribe`, keep it selected, store it as a string, and leave it in GET and GET_LIST responses. A manual RESPONSE DTO on a route keeps that route as it is.
 
@@ -404,7 +404,7 @@ Relations declared on a child entity are covered in [Relations](/docs/nestjs-cru
 From 5.0.0, an existing generated controller over a table inheritance root changes in these ways:
 
 - GET and GET_LIST return the full polymorphic shape instead of silently stripped variant columns, and their Swagger schemas are `oneOf`. Clients that depend on the reduced shape need a manual RESPONSE DTO on the route.
-- The Swagger components `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` are no longer generated. GET refers to the variant DTOs such as `<Root>GetResponseCardTransferDTO`, and the GET_LIST wrapper `<Root>GetListResponseItemsDTO` keeps its name with `oneOf` items. Regenerate OpenAPI clients, or keep a manual RESPONSE DTO on the route to keep the old components.
+- The 4.x Swagger components `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` are no longer generated. GET refers to the variant DTOs such as `<Prefix>GetResponseCardTransferDTO`, and the GET_LIST wrapper is `<Prefix>GetListResponseItemsDTO` with `oneOf` items. `<Prefix>` is the controller's schema prefix, see [Generated Schema Names](/docs/nestjs-crud-automator/core-concepts/dtos#generated-schema-names). Regenerate OpenAPI clients, or keep a manual RESPONSE DTO on the route to keep the old components.
 - A discriminator column that exists only in `@TableInheritance({ column })` fails startup. Declare it on the root as a property with `@Column` and `@ApiPropertyDescribe`.
 - A discriminator property without `@ApiPropertyDescribe` fails startup. Describe it, usually as `ENUM` or `STRING`.
 - A discriminator hidden from GET or GET_LIST responses fails startup with `Table inheritance root <Root> must expose its discriminator column "type" in GET and GET_LIST responses`. Remove the hiding, or put a manual RESPONSE DTO on both read routes.

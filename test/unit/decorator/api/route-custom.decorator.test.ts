@@ -6,7 +6,7 @@ import type { Observable } from "rxjs";
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { ApiRouteCustom } from "@decorator/api";
-import { EApiAuthenticationType, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiRouteGuardStage } from "@enum/decorator/api";
+import { EApiAuthenticationType, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
 import { ApiRouteRuntimeInterceptor } from "@interceptor/api-route-runtime.interceptor";
 import { Header, HttpStatus, Req, RequestMethod, SetMetadata, UseGuards, UseInterceptors } from "@nestjs/common";
 import { GUARDS_METADATA, HEADERS_METADATA, INTERCEPTORS_METADATA } from "@nestjs/common/internal";
@@ -17,6 +17,39 @@ import { describe, expect, it } from "vitest";
 import { RouteCustomController, RouteCustomEmailResponseDto, RouteCustomEntity, RouteCustomPhoneResponseDto } from "./route-custom/fixture";
 
 describe("ApiRouteCustom", () => {
+	it.each(["_", "__", "-", "$"])("fails naming the controller when handler %j leaves nothing for generated DTO names", (handlerName: string) => {
+		class RouteCustomEmptyHandlerController {
+			public [handlerName](): void {}
+		}
+
+		const descriptor: PropertyDescriptor = Object.getOwnPropertyDescriptor(RouteCustomEmptyHandlerController.prototype, handlerName) as PropertyDescriptor;
+
+		expect(() => {
+			ApiRouteCustom<RouteCustomEntity>({
+				autoDto: { [EApiDtoType.BODY]: {} },
+				resource: { action: "custom.empty", entity: RouteCustomEntity },
+				response: { status: HttpStatus.NO_CONTENT, type: undefined },
+				route: { method: RequestMethod.POST, path: "empty", type: EApiRouteType.CREATE },
+			})(RouteCustomEmptyHandlerController.prototype, handlerName, descriptor);
+		}).toThrow(`Handler "${handlerName}" of RouteCustomEmptyHandlerController leaves nothing`);
+	});
+
+	it("accepts a handler named _ that generates no DTOs, because no name is needed", () => {
+		class RouteCustomNamelessHandlerController {
+			public _(): void {}
+		}
+
+		const descriptor: PropertyDescriptor = Object.getOwnPropertyDescriptor(RouteCustomNamelessHandlerController.prototype, "_") as PropertyDescriptor;
+
+		expect(() => {
+			ApiRouteCustom<RouteCustomEntity>({
+				resource: { action: "custom.empty", entity: RouteCustomEntity },
+				response: { status: HttpStatus.NO_CONTENT, type: undefined },
+				route: { method: RequestMethod.POST, path: "empty" },
+			})(RouteCustomNamelessHandlerController.prototype, "_", descriptor);
+		}).not.toThrow();
+	});
+
 	it("applies a plain CanActivate authentication guard through ApiMethod", () => {
 		class AuthenticationGuard implements CanActivate {
 			public canActivate(): boolean {

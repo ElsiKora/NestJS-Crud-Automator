@@ -8,6 +8,7 @@ import type { TApiPropertyDescribeProperties } from "@type/decorator/api/propert
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiRouteType as EApiRouteTypeValue } from "@enum/decorator/api";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
+import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { Validate } from "class-validator";
 
@@ -74,7 +75,7 @@ export function DtoGenerateReadParameters<E>(entityMetadata: IApiEntity<E>, meth
 		}
 	}
 
-	Object.defineProperty(GeneratedReadParametersDTO, "name", { value: readPlan.schemaName });
+	DtoSetGeneratedName(GeneratedReadParametersDTO, readPlan.schemaName, `the ${method} parameters DTO of entity ${String(entityMetadata.name)}`);
 
 	for (const parameter of parameters) {
 		const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((candidate: IApiEntityColumn<E>): boolean => String(candidate.name) === parameter.field);

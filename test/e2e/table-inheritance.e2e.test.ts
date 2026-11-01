@@ -243,10 +243,10 @@ describe("table inheritance read responses (E2E)", () => {
 			expect(schema.oneOf).toHaveLength(4);
 			expect(schema.discriminator).toEqual({
 				mapping: {
-					[EPaymentDetailKind.BANK_TRANSFER]: "#/components/schemas/PaymentDetailEntityGetResponseBankTransferDTO",
-					[EPaymentDetailKind.CARD_TRANSFER]: "#/components/schemas/PaymentDetailEntityGetResponseCardTransferDTO",
-					[EPaymentDetailKind.FORM_POST]: "#/components/schemas/PaymentDetailEntityGetResponseFormPostDTO",
-					[EPaymentDetailKind.QR]: "#/components/schemas/PaymentDetailEntityGetResponseQrDTO",
+					[EPaymentDetailKind.BANK_TRANSFER]: "#/components/schemas/PaymentDetailGetResponseBankTransferDTO",
+					[EPaymentDetailKind.CARD_TRANSFER]: "#/components/schemas/PaymentDetailGetResponseCardTransferDTO",
+					[EPaymentDetailKind.FORM_POST]: "#/components/schemas/PaymentDetailGetResponseFormPostDTO",
+					[EPaymentDetailKind.QR]: "#/components/schemas/PaymentDetailGetResponseQrDTO",
 				},
 				propertyName: "kind",
 			});
@@ -254,24 +254,24 @@ describe("table inheritance read responses (E2E)", () => {
 
 		it("registers every GET variant with its own fields", () => {
 			const schemas: Record<string, unknown> = document.components?.schemas as Record<string, unknown>;
-			const card: { properties: Record<string, unknown> } = schemas.PaymentDetailEntityGetResponseCardTransferDTO as { properties: Record<string, unknown> };
+			const card: { properties: Record<string, unknown> } = schemas.PaymentDetailGetResponseCardTransferDTO as { properties: Record<string, unknown> };
 
 			expect(Object.keys(card.properties)).toEqual(expect.arrayContaining(["bankName", "cardNumber", "id", "kind"]));
 			expect(Object.keys(card.properties)).not.toContain("qrPayload");
-			expect(schemas.PaymentDetailEntityGetResponseQrDTO).toBeDefined();
-			expect((card.properties.issuer as { allOf: Array<{ $ref: string }> }).allOf).toEqual([{ $ref: "#/components/schemas/PaymentDetailEntityGetResponseCardTransferIssuerDTO" }]);
-			expect(schemas.PaymentDetailEntityGetResponseCardTransferIssuerDTO).toBeDefined();
+			expect(schemas.PaymentDetailGetResponseQrDTO).toBeDefined();
+			expect((card.properties.issuer as { allOf: Array<{ $ref: string }> }).allOf).toEqual([{ $ref: "#/components/schemas/PaymentDetailGetResponseCardTransferIssuerDTO" }]);
+			expect(schemas.PaymentDetailGetResponseCardTransferIssuerDTO).toBeDefined();
 		});
 
 		it("describes page list items as oneOf with a discriminator mapping", () => {
 			const schema: Record<string, unknown> = responseSchema("/payment-details");
 			const wrapper: { properties: { items: { discriminator: { mapping: Record<string, string>; propertyName: string }; items: { oneOf?: Array<unknown> }; oneOf?: Array<unknown>; type: string } } } = componentSchema(schema.$ref) as never;
 
-			expect(String(schema.$ref)).toContain("PaymentDetailEntityGetListResponseItemsDTO");
+			expect(schema.$ref).toBe("#/components/schemas/PaymentDetailGetListResponseItemsDTO");
 			expect(wrapper.properties.items.type).toBe("array");
 			expect(wrapper.properties.items.items.oneOf).toHaveLength(4);
 			expect(wrapper.properties.items.discriminator.propertyName).toBe("kind");
-			expect(wrapper.properties.items.discriminator.mapping[EPaymentDetailKind.QR]).toContain("PaymentDetailEntityGetListResponseQrDTO");
+			expect(wrapper.properties.items.discriminator.mapping[EPaymentDetailKind.QR]).toBe("#/components/schemas/PaymentDetailGetListResponseQrDTO");
 		});
 
 		it("registers every model a discriminator mapping points to", () => {
@@ -288,7 +288,7 @@ describe("table inheritance read responses (E2E)", () => {
 			const schema: Record<string, unknown> = responseSchema("/payment-details-cursor");
 			const wrapper: { properties: { items: { items: { oneOf?: Array<unknown> } } } } = componentSchema(schema.$ref) as never;
 
-			expect(String(schema.$ref)).toContain("PaymentDetailEntityGetListCursorResponseItemsDTO");
+			expect(schema.$ref).toBe("#/components/schemas/PaymentDetailCursorGetListCursorResponseItemsDTO");
 			expect(wrapper.properties.items.items.oneOf).toHaveLength(4);
 		});
 	});

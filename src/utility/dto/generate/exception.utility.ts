@@ -12,6 +12,7 @@ import { EApiExceptionDetailsType } from "@enum/utility/exception-details-type.e
 import { HttpStatus, type Type } from "@nestjs/common";
 import { ApiExtraModels, ApiProperty, type ApiPropertyOptions } from "@nestjs/swagger";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 
 // A generated UUID or the client ID, which CorrelationIDReadHeader accepts by the same pattern
 const CORRELATION_ID_PROPERTY_OPTIONS: ApiPropertyOptions = {
@@ -127,7 +128,7 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 	// Register discriminator DTOs so Swagger includes their schemas in components.schemas
 	ApiExtraModels(ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsUniqueViolationDTO)(GeneratedErrorDTO);
 
-	Object.defineProperty(GeneratedErrorDTO, "name", { value: `Exception${CamelCaseString(errorName)}DTO` });
+	DtoSetGeneratedName(GeneratedErrorDTO, `Exception${CamelCaseString(errorName)}DTO`, `HTTP status ${String(httpStatus)}`);
 
 	exceptionDtoCache.set(httpStatus, GeneratedErrorDTO);
 

@@ -1,0 +1,2427 @@
+{
+	"openapi": "3.0.0",
+	"paths": {
+		"/dto-name-records": {
+			"post": {
+				"description": "Creates a new `E2eDtoNameRecord` resource.",
+				"operationId": "E2eDtoNameRecordController_create",
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityCreateBodyDTO"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/E2eDtoNameRecordEntityCreateResponseDTO"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnauthorizedDTO"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionConflictDTO"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "Internal Server Error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
+								}
+							}
+						}
+					}
+				},
+				"summary": "Create `E2eDtoNameRecord`",
+				"tags": ["E2eDtoNameRecords"]
+			},
+			"get": {
+				"description": "Returns a paginated list of `E2eDtoNameRecords` resources.",
+				"operationId": "E2eDtoNameRecordController_getList",
+				"parameters": [
+					{
+						"name": "limit",
+						"required": true,
+						"in": "query",
+						"description": "E2eDtoNameRecordEntity Items per page",
+						"schema": {
+							"minimum": 1,
+							"maximum": 100,
+							"multipleOf": 1,
+							"format": "int32",
+							"nullable": false,
+							"example": 1,
+							"type": "integer"
+						}
+					},
+					{
+						"name": "orderBy",
+						"required": false,
+						"in": "query",
+						"description": "E2eDtoNameRecordEntity order by field",
+						"schema": {
+							"nullable": false,
+							"example": "id",
+							"type": "string",
+							"enum": ["id", "title", "ownerId"]
+						}
+					},
+					{
+						"name": "orderDirection",
+						"required": false,
+						"in": "query",
+						"description": "E2eDtoNameRecordEntity order direction",
+						"schema": {
+							"nullable": false,
+							"example": "asc",
+							"type": "string",
+							"enum": ["asc", "desc"]
+						}
+					},
+					{
+						"name": "page",
+						"required": true,
+						"in": "query",
+						"description": "E2eDtoNameRecordEntity Page to return",
+						"schema": {
+							"minimum": 1,
+							"maximum": 100,
+							"multipleOf": 1,
+							"format": "int32",
+							"nullable": false,
+							"example": 1,
+							"type": "integer"
+						}
+					},
+					{
+						"name": "title[value]",
+						"required": false,
+						"in": "query",
+						"description": "E2eDtoNameRecordEntity title",
+						"schema": {
+							"minLength": 1,
+							"maxLength": 64,
+							"format": "string",
+							"pattern": "^.+$",
+							"nullable": false,
+							"example": "Record",
+							"type": "string"
+						}
+					},
+					{
+						"name": "title[operator]",
+						"required": false,
+						"in": "query",
+						"description": "E2eDtoNameRecordEntity title",
+						"schema": {
+							"nullable": false,
+							"example": "cont",
+							"type": "string",
+							"enum": ["cont", "contl", "ends", "endsl", "eq", "eql", "in", "inl", "isnull", "ne", "nel", "notin", "notinl", "notnull", "starts", "startsl"]
+						}
+					},
+					{
+						"name": "title[values]",
+						"required": false,
+						"in": "query",
+						"description": "E2eDtoNameRecordEntity title",
+						"schema": {
+							"minItems": 2,
+							"maxItems": 100,
+							"uniqueItems": false,
+							"nullable": false,
+							"example": ["Record"],
+							"type": "array",
+							"items": {
+								"format": "string",
+								"pattern": "^.+$"
+							}
+						}
+					},
+					{
+						"name": "ownerId[value]",
+						"required": false,
+						"in": "query",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"schema": {
+							"minLength": 1,
+							"maxLength": 64,
+							"format": "string",
+							"pattern": "^.+$",
+							"nullable": false,
+							"example": "owner-1",
+							"type": "string"
+						}
+					},
+					{
+						"name": "ownerId[operator]",
+						"required": false,
+						"in": "query",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"schema": {
+							"nullable": false,
+							"example": "cont",
+							"type": "string",
+							"enum": ["cont", "contl", "ends", "endsl", "eq", "eql", "in", "inl", "isnull", "ne", "nel", "notin", "notinl", "notnull", "starts", "startsl"]
+						}
+					},
+					{
+						"name": "ownerId[values]",
+						"required": false,
+						"in": "query",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"schema": {
+							"minItems": 2,
+							"maxItems": 100,
+							"uniqueItems": false,
+							"nullable": false,
+							"example": ["owner-1"],
+							"type": "array",
+							"items": {
+								"format": "string",
+								"pattern": "^.+$"
+							}
+						}
+					},
+					{
+						"name": "owner.id[value]",
+						"required": false,
+						"in": "query",
+						"description": "E2eDtoNameOwnerEntity id",
+						"schema": {
+							"minLength": 1,
+							"maxLength": 64,
+							"format": "string",
+							"pattern": "^.+$",
+							"nullable": false,
+							"example": "owner-1",
+							"type": "string"
+						}
+					},
+					{
+						"name": "owner.id[operator]",
+						"required": false,
+						"in": "query",
+						"description": "E2eDtoNameOwnerEntity id",
+						"schema": {
+							"nullable": false,
+							"example": "cont",
+							"type": "string",
+							"enum": ["cont", "contl", "ends", "endsl", "eq", "eql", "in", "inl", "isnull", "ne", "nel", "notin", "notinl", "notnull", "starts", "startsl"]
+						}
+					},
+					{
+						"name": "owner.id[values]",
+						"required": false,
+						"in": "query",
+						"description": "E2eDtoNameOwnerEntity id",
+						"schema": {
+							"minItems": 2,
+							"maxItems": 100,
+							"uniqueItems": false,
+							"nullable": false,
+							"example": ["owner-1"],
+							"type": "array",
+							"items": {
+								"format": "string",
+								"pattern": "^.+$"
+							}
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/E2eDtoNameRecordEntityGetListResponseItemsDTO"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnauthorizedDTO"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionNotFoundDTO"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "Internal Server Error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
+								}
+							}
+						}
+					}
+				},
+				"summary": "List `E2eDtoNameRecords`",
+				"tags": ["E2eDtoNameRecords"]
+			}
+		},
+		"/dto-name-records/{id}": {
+			"delete": {
+				"description": "Deletes an existing `E2eDtoNameRecord` resource.",
+				"operationId": "E2eDtoNameRecordController_delete",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"description": "E2eDtoNameRecordEntity id",
+						"schema": {
+							"minLength": 1,
+							"maxLength": 64,
+							"format": "string",
+							"pattern": "^.+$",
+							"nullable": false,
+							"example": "record-1",
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Success"
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnauthorizedDTO"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionNotFoundDTO"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "Internal Server Error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
+								}
+							}
+						}
+					}
+				},
+				"summary": "Delete `E2eDtoNameRecord`",
+				"tags": ["E2eDtoNameRecords"]
+			},
+			"get": {
+				"description": "Returns a single `E2eDtoNameRecord` resource by its identifier.",
+				"operationId": "E2eDtoNameRecordController_get",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"description": "E2eDtoNameRecordEntity id",
+						"schema": {
+							"minLength": 1,
+							"maxLength": 64,
+							"format": "string",
+							"pattern": "^.+$",
+							"nullable": false,
+							"example": "record-1",
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/E2eDtoNameRecordEntityGetResponseDTO"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnauthorizedDTO"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionNotFoundDTO"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "Internal Server Error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
+								}
+							}
+						}
+					}
+				},
+				"summary": "Get `E2eDtoNameRecord`",
+				"tags": ["E2eDtoNameRecords"]
+			},
+			"patch": {
+				"description": "Partially updates an existing `E2eDtoNameRecord` resource.",
+				"operationId": "E2eDtoNameRecordController_partialUpdate",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"description": "E2eDtoNameRecordEntity id",
+						"schema": {
+							"minLength": 1,
+							"maxLength": 64,
+							"format": "string",
+							"pattern": "^.+$",
+							"nullable": false,
+							"example": "record-1",
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityPartialUpdateBodyDTO"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/E2eDtoNameRecordEntityPartialUpdateResponseDTO"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionBadRequestDTO"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnauthorizedDTO"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionNotFoundDTO"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionConflictDTO"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "Internal Server Error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
+								}
+							}
+						}
+					}
+				},
+				"summary": "Partially update `E2eDtoNameRecord`",
+				"tags": ["E2eDtoNameRecords"]
+			},
+			"put": {
+				"description": "Replaces an existing `E2eDtoNameRecord` resource.",
+				"operationId": "E2eDtoNameRecordController_update",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"description": "E2eDtoNameRecordEntity id",
+						"schema": {
+							"minLength": 1,
+							"maxLength": 64,
+							"format": "string",
+							"pattern": "^.+$",
+							"nullable": false,
+							"example": "record-1",
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityUpdateBodyDTO"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/E2eDtoNameRecordEntityUpdateResponseDTO"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionBadRequestDTO"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnauthorizedDTO"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionNotFoundDTO"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionConflictDTO"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "Internal Server Error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
+								}
+							}
+						}
+					}
+				},
+				"summary": "Update `E2eDtoNameRecord`",
+				"tags": ["E2eDtoNameRecords"]
+			}
+		}
+	},
+	"info": {
+		"title": "",
+		"description": "",
+		"version": "1.0.0",
+		"contact": {}
+	},
+	"tags": [],
+	"servers": [],
+	"components": {
+		"schemas": {
+			"E2eDtoNameRecordEntityCreateBodyDetailsVariantDTO": {
+				"type": "object",
+				"properties": {
+					"kind": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity kind",
+						"nullable": false,
+						"maxLength": 50,
+						"minLength": 1,
+						"example": "Variant",
+						"format": "string",
+						"pattern": "^.+$"
+					},
+					"score": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity score",
+						"format": "int32",
+						"nullable": false,
+						"example": 5,
+						"minimum": 0,
+						"maximum": 10,
+						"multipleOf": 1
+					}
+				},
+				"required": ["kind", "score"]
+			},
+			"E2eDtoNameRecordEntityCreateBodyDocumentDTO": {
+				"type": "object",
+				"properties": {
+					"version": {
+						"type": "string",
+						"description": "E2eDtoNameRecordDocumentDto version",
+						"nullable": false,
+						"maxLength": 16,
+						"minLength": 1,
+						"example": "1",
+						"format": "string",
+						"pattern": "^.+$"
+					}
+				},
+				"required": ["version"]
+			},
+			"E2eDtoNameRecordEntityCreateBodyDTO": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity title",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "Record",
+						"format": "string",
+						"pattern": "^.+$"
+					},
+					"ownerId": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "owner-1",
+						"format": "string",
+						"pattern": "^.+$"
+					},
+					"document": {
+						"description": "E2eDtoNameRecordEntity document",
+						"nullable": true,
+						"type": "object",
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityCreateBodyDocumentDTO"
+							}
+						]
+					},
+					"details": {
+						"description": "E2eDtoNameRecordEntity details",
+						"nullable": true,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityCreateBodyDetailsVariantDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"Variant": "#/components/schemas/E2eDtoNameRecordEntityCreateBodyDetailsVariantDTO"
+							},
+							"propertyName": "kind"
+						}
+					},
+					"owner": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity owner",
+						"nullable": false,
+						"minLength": 36,
+						"maxLength": 36,
+						"example": "<uuid>",
+						"format": "uuid",
+						"pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+					}
+				},
+				"required": ["title", "ownerId", "document", "details", "owner"]
+			},
+			"E2eDtoNameRecordEntityCreateResponseDetailsVariantDTO": {
+				"type": "object",
+				"properties": {
+					"kind": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity kind",
+						"nullable": false,
+						"maxLength": 50,
+						"minLength": 1,
+						"example": "Variant",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"score": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity score",
+						"format": "int32",
+						"nullable": false,
+						"example": 5,
+						"minimum": 0,
+						"maximum": 10,
+						"readOnly": true
+					}
+				},
+				"required": ["kind", "score"]
+			},
+			"E2eDtoNameRecordEntityCreateResponseDocumentDTO": {
+				"type": "object",
+				"properties": {
+					"version": {
+						"type": "string",
+						"description": "E2eDtoNameRecordDocumentDto version",
+						"nullable": false,
+						"maxLength": 16,
+						"minLength": 1,
+						"example": "1",
+						"format": "string",
+						"pattern": "^.+$"
+					}
+				},
+				"required": ["version"]
+			},
+			"E2eDtoNameRecordEntityCreateResponseOwnerDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity owner identifier",
+						"nullable": false,
+						"minLength": 36,
+						"maxLength": 36,
+						"example": "<uuid>",
+						"format": "uuid",
+						"pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+						"readOnly": true
+					}
+				},
+				"required": ["id"]
+			},
+			"E2eDtoNameRecordEntityCreateResponseDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity id",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "record-1",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"title": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity title",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "Record",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"ownerId": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "owner-1",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"document": {
+						"description": "E2eDtoNameRecordEntity document",
+						"nullable": true,
+						"readOnly": true,
+						"type": "object",
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityCreateResponseDocumentDTO"
+							}
+						]
+					},
+					"details": {
+						"description": "E2eDtoNameRecordEntity details",
+						"nullable": true,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityCreateResponseDetailsVariantDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"Variant": "#/components/schemas/E2eDtoNameRecordEntityCreateResponseDetailsVariantDTO"
+							},
+							"propertyName": "kind"
+						},
+						"readOnly": true
+					},
+					"owner": {
+						"description": "E2eDtoNameRecordEntity owner",
+						"nullable": false,
+						"readOnly": true,
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityCreateResponseOwnerDTO"
+							}
+						]
+					}
+				},
+				"required": ["id", "title", "ownerId", "document", "details", "owner"]
+			},
+			"E2eDtoNameRecordEntityDeleteParametersDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity id",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "record-1",
+						"format": "string",
+						"pattern": "^.+$"
+					}
+				},
+				"required": ["id"]
+			},
+			"E2eDtoNameRecordEntityGetParametersDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity id",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "record-1",
+						"format": "string",
+						"pattern": "^.+$"
+					}
+				},
+				"required": ["id"]
+			},
+			"E2eDtoNameRecordEntityGetResponseDetailsVariantDTO": {
+				"type": "object",
+				"properties": {
+					"kind": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity kind",
+						"nullable": false,
+						"maxLength": 50,
+						"minLength": 1,
+						"example": "Variant",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"score": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity score",
+						"format": "int32",
+						"nullable": false,
+						"example": 5,
+						"minimum": 0,
+						"maximum": 10,
+						"readOnly": true
+					}
+				},
+				"required": ["kind", "score"]
+			},
+			"E2eDtoNameRecordEntityGetResponseDocumentDTO": {
+				"type": "object",
+				"properties": {
+					"version": {
+						"type": "string",
+						"description": "E2eDtoNameRecordDocumentDto version",
+						"nullable": false,
+						"maxLength": 16,
+						"minLength": 1,
+						"example": "1",
+						"format": "string",
+						"pattern": "^.+$"
+					}
+				},
+				"required": ["version"]
+			},
+			"E2eDtoNameRecordEntityGetResponseOwnerDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity owner identifier",
+						"nullable": false,
+						"minLength": 36,
+						"maxLength": 36,
+						"example": "<uuid>",
+						"format": "uuid",
+						"pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+						"readOnly": true
+					}
+				},
+				"required": ["id"]
+			},
+			"E2eDtoNameRecordEntityGetResponseDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity id",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "record-1",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"title": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity title",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "Record",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"ownerId": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "owner-1",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"document": {
+						"description": "E2eDtoNameRecordEntity document",
+						"nullable": true,
+						"readOnly": true,
+						"type": "object",
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityGetResponseDocumentDTO"
+							}
+						]
+					},
+					"details": {
+						"description": "E2eDtoNameRecordEntity details",
+						"nullable": true,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityGetResponseDetailsVariantDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"Variant": "#/components/schemas/E2eDtoNameRecordEntityGetResponseDetailsVariantDTO"
+							},
+							"propertyName": "kind"
+						},
+						"readOnly": true
+					},
+					"owner": {
+						"description": "E2eDtoNameRecordEntity owner",
+						"nullable": false,
+						"readOnly": true,
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityGetResponseOwnerDTO"
+							}
+						]
+					}
+				},
+				"required": ["id", "title", "ownerId", "document", "details", "owner"]
+			},
+			"E2eDtoNameRecordEntityGetListQueryDTO": {
+				"type": "object",
+				"properties": {
+					"limit": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity Items per page",
+						"format": "int32",
+						"nullable": false,
+						"example": 1,
+						"minimum": 1,
+						"maximum": 100,
+						"multipleOf": 1
+					},
+					"orderBy": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity order by field",
+						"nullable": false,
+						"example": "id",
+						"enum": ["id", "title", "ownerId"]
+					},
+					"orderDirection": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity order direction",
+						"nullable": false,
+						"example": "asc",
+						"enum": ["asc", "desc"]
+					},
+					"page": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity Page to return",
+						"format": "int32",
+						"nullable": false,
+						"example": 1,
+						"minimum": 1,
+						"maximum": 100,
+						"multipleOf": 1
+					},
+					"title[value]": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity title",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "Record",
+						"format": "string",
+						"pattern": "^.+$"
+					},
+					"title[operator]": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity title",
+						"nullable": false,
+						"example": "cont",
+						"enum": ["cont", "contl", "ends", "endsl", "eq", "eql", "in", "inl", "isnull", "ne", "nel", "notin", "notinl", "notnull", "starts", "startsl"]
+					},
+					"title[values]": {
+						"description": "E2eDtoNameRecordEntity title",
+						"nullable": false,
+						"minItems": 2,
+						"maxItems": 100,
+						"uniqueItems": false,
+						"items": {
+							"maxLength": 64,
+							"minLength": 1,
+							"format": "string",
+							"pattern": "^.+$"
+						},
+						"example": ["Record"],
+						"type": "array"
+					},
+					"ownerId[value]": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "owner-1",
+						"format": "string",
+						"pattern": "^.+$"
+					},
+					"ownerId[operator]": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"nullable": false,
+						"example": "cont",
+						"enum": ["cont", "contl", "ends", "endsl", "eq", "eql", "in", "inl", "isnull", "ne", "nel", "notin", "notinl", "notnull", "starts", "startsl"]
+					},
+					"ownerId[values]": {
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"nullable": false,
+						"minItems": 2,
+						"maxItems": 100,
+						"uniqueItems": false,
+						"items": {
+							"maxLength": 64,
+							"minLength": 1,
+							"format": "string",
+							"pattern": "^.+$"
+						},
+						"example": ["owner-1"],
+						"type": "array"
+					},
+					"owner.id[value]": {
+						"type": "string",
+						"description": "E2eDtoNameOwnerEntity id",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "owner-1",
+						"format": "string",
+						"pattern": "^.+$"
+					},
+					"owner.id[operator]": {
+						"type": "string",
+						"description": "E2eDtoNameOwnerEntity id",
+						"nullable": false,
+						"example": "cont",
+						"enum": ["cont", "contl", "ends", "endsl", "eq", "eql", "in", "inl", "isnull", "ne", "nel", "notin", "notinl", "notnull", "starts", "startsl"]
+					},
+					"owner.id[values]": {
+						"description": "E2eDtoNameOwnerEntity id",
+						"nullable": false,
+						"minItems": 2,
+						"maxItems": 100,
+						"uniqueItems": false,
+						"items": {
+							"maxLength": 64,
+							"minLength": 1,
+							"format": "string",
+							"pattern": "^.+$"
+						},
+						"example": ["owner-1"],
+						"type": "array"
+					}
+				},
+				"required": ["limit", "page"]
+			},
+			"E2eDtoNameRecordEntityGetListResponseDetailsVariantDTO": {
+				"type": "object",
+				"properties": {
+					"kind": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity kind",
+						"nullable": false,
+						"maxLength": 50,
+						"minLength": 1,
+						"example": "Variant",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"score": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity score",
+						"format": "int32",
+						"nullable": false,
+						"example": 5,
+						"minimum": 0,
+						"maximum": 10,
+						"readOnly": true
+					}
+				},
+				"required": ["kind", "score"]
+			},
+			"E2eDtoNameRecordEntityGetListResponseDocumentDTO": {
+				"type": "object",
+				"properties": {
+					"version": {
+						"type": "string",
+						"description": "E2eDtoNameRecordDocumentDto version",
+						"nullable": false,
+						"maxLength": 16,
+						"minLength": 1,
+						"example": "1",
+						"format": "string",
+						"pattern": "^.+$"
+					}
+				},
+				"required": ["version"]
+			},
+			"E2eDtoNameRecordEntityGetListResponseOwnerDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity owner identifier",
+						"nullable": false,
+						"minLength": 36,
+						"maxLength": 36,
+						"example": "<uuid>",
+						"format": "uuid",
+						"pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+						"readOnly": true
+					}
+				},
+				"required": ["id"]
+			},
+			"E2eDtoNameRecordEntityGetListResponseDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity id",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "record-1",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"title": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity title",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "Record",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"ownerId": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "owner-1",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"document": {
+						"description": "E2eDtoNameRecordEntity document",
+						"nullable": true,
+						"readOnly": true,
+						"type": "object",
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityGetListResponseDocumentDTO"
+							}
+						]
+					},
+					"details": {
+						"description": "E2eDtoNameRecordEntity details",
+						"nullable": true,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityGetListResponseDetailsVariantDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"Variant": "#/components/schemas/E2eDtoNameRecordEntityGetListResponseDetailsVariantDTO"
+							},
+							"propertyName": "kind"
+						},
+						"readOnly": true
+					},
+					"owner": {
+						"description": "E2eDtoNameRecordEntity owner",
+						"nullable": false,
+						"readOnly": true,
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityGetListResponseOwnerDTO"
+							}
+						]
+					}
+				},
+				"required": ["id", "title", "ownerId", "document", "details", "owner"]
+			},
+			"E2eDtoNameRecordEntityGetListResponseItemsDTO": {
+				"type": "object",
+				"properties": {
+					"count": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity Total number of items on page",
+						"format": "int32",
+						"nullable": false,
+						"example": 1,
+						"minimum": 1,
+						"maximum": 100,
+						"readOnly": true
+					},
+					"currentPage": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity Current page number",
+						"format": "int32",
+						"nullable": false,
+						"example": 1,
+						"minimum": 1,
+						"maximum": 100,
+						"readOnly": true
+					},
+					"items": {
+						"description": "Array of E2eDtoNameRecordEntity ",
+						"nullable": false,
+						"minItems": 1,
+						"maxItems": 100,
+						"uniqueItems": true,
+						"readOnly": true,
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/E2eDtoNameRecordEntityGetListResponseDTO"
+						}
+					},
+					"totalCount": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity Total number of items",
+						"format": "int32",
+						"nullable": false,
+						"example": 1,
+						"minimum": 1,
+						"maximum": 100,
+						"readOnly": true
+					},
+					"totalPages": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity Total number of pages",
+						"format": "int32",
+						"nullable": false,
+						"example": 1,
+						"minimum": 1,
+						"maximum": 100,
+						"readOnly": true
+					}
+				},
+				"required": ["count", "currentPage", "items", "totalCount", "totalPages"]
+			},
+			"E2eDtoNameRecordEntityPartialUpdateParametersDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity id",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "record-1",
+						"format": "string",
+						"pattern": "^.+$"
+					}
+				},
+				"required": ["id"]
+			},
+			"E2eDtoNameRecordEntityPartialUpdateBodyDetailsVariantDTO": {
+				"type": "object",
+				"properties": {
+					"kind": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity kind",
+						"nullable": false,
+						"maxLength": 50,
+						"minLength": 1,
+						"example": "Variant",
+						"format": "string",
+						"pattern": "^.+$"
+					},
+					"score": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity score",
+						"format": "int32",
+						"nullable": false,
+						"example": 5,
+						"minimum": 0,
+						"maximum": 10,
+						"multipleOf": 1
+					}
+				}
+			},
+			"E2eDtoNameRecordEntityPartialUpdateBodyDocumentDTO": {
+				"type": "object",
+				"properties": {
+					"version": {
+						"type": "string",
+						"description": "E2eDtoNameRecordDocumentDto version",
+						"nullable": false,
+						"maxLength": 16,
+						"minLength": 1,
+						"example": "1",
+						"format": "string",
+						"pattern": "^.+$"
+					}
+				},
+				"required": ["version"]
+			},
+			"E2eDtoNameRecordEntityPartialUpdateBodyDTO": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity title",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "Record",
+						"format": "string",
+						"pattern": "^.+$"
+					},
+					"ownerId": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "owner-1",
+						"format": "string",
+						"pattern": "^.+$"
+					},
+					"document": {
+						"description": "E2eDtoNameRecordEntity document",
+						"nullable": true,
+						"type": "object",
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityPartialUpdateBodyDocumentDTO"
+							}
+						]
+					},
+					"details": {
+						"description": "E2eDtoNameRecordEntity details",
+						"nullable": true,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityPartialUpdateBodyDetailsVariantDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"Variant": "#/components/schemas/E2eDtoNameRecordEntityPartialUpdateBodyDetailsVariantDTO"
+							},
+							"propertyName": "kind"
+						}
+					},
+					"owner": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity owner",
+						"nullable": false,
+						"minLength": 36,
+						"maxLength": 36,
+						"example": "<uuid>",
+						"format": "uuid",
+						"pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+					}
+				}
+			},
+			"E2eDtoNameRecordEntityPartialUpdateResponseDetailsVariantDTO": {
+				"type": "object",
+				"properties": {
+					"kind": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity kind",
+						"nullable": false,
+						"maxLength": 50,
+						"minLength": 1,
+						"example": "Variant",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"score": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity score",
+						"format": "int32",
+						"nullable": false,
+						"example": 5,
+						"minimum": 0,
+						"maximum": 10,
+						"readOnly": true
+					}
+				},
+				"required": ["kind", "score"]
+			},
+			"E2eDtoNameRecordEntityPartialUpdateResponseDocumentDTO": {
+				"type": "object",
+				"properties": {
+					"version": {
+						"type": "string",
+						"description": "E2eDtoNameRecordDocumentDto version",
+						"nullable": false,
+						"maxLength": 16,
+						"minLength": 1,
+						"example": "1",
+						"format": "string",
+						"pattern": "^.+$"
+					}
+				},
+				"required": ["version"]
+			},
+			"E2eDtoNameRecordEntityPartialUpdateResponseOwnerDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity owner identifier",
+						"nullable": false,
+						"minLength": 36,
+						"maxLength": 36,
+						"example": "<uuid>",
+						"format": "uuid",
+						"pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+						"readOnly": true
+					}
+				},
+				"required": ["id"]
+			},
+			"E2eDtoNameRecordEntityPartialUpdateResponseDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity id",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "record-1",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"title": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity title",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "Record",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"ownerId": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "owner-1",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"document": {
+						"description": "E2eDtoNameRecordEntity document",
+						"nullable": true,
+						"readOnly": true,
+						"type": "object",
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityPartialUpdateResponseDocumentDTO"
+							}
+						]
+					},
+					"details": {
+						"description": "E2eDtoNameRecordEntity details",
+						"nullable": true,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityPartialUpdateResponseDetailsVariantDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"Variant": "#/components/schemas/E2eDtoNameRecordEntityPartialUpdateResponseDetailsVariantDTO"
+							},
+							"propertyName": "kind"
+						},
+						"readOnly": true
+					},
+					"owner": {
+						"description": "E2eDtoNameRecordEntity owner",
+						"nullable": false,
+						"readOnly": true,
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityPartialUpdateResponseOwnerDTO"
+							}
+						]
+					}
+				},
+				"required": ["id", "title", "ownerId", "document", "details", "owner"]
+			},
+			"E2eDtoNameRecordEntityUpdateParametersDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity id",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "record-1",
+						"format": "string",
+						"pattern": "^.+$"
+					}
+				},
+				"required": ["id"]
+			},
+			"E2eDtoNameRecordEntityUpdateBodyDetailsVariantDTO": {
+				"type": "object",
+				"properties": {
+					"kind": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity kind",
+						"nullable": false,
+						"maxLength": 50,
+						"minLength": 1,
+						"example": "Variant",
+						"format": "string",
+						"pattern": "^.+$"
+					},
+					"score": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity score",
+						"format": "int32",
+						"nullable": false,
+						"example": 5,
+						"minimum": 0,
+						"maximum": 10,
+						"multipleOf": 1
+					}
+				},
+				"required": ["kind", "score"]
+			},
+			"E2eDtoNameRecordEntityUpdateBodyDocumentDTO": {
+				"type": "object",
+				"properties": {
+					"version": {
+						"type": "string",
+						"description": "E2eDtoNameRecordDocumentDto version",
+						"nullable": false,
+						"maxLength": 16,
+						"minLength": 1,
+						"example": "1",
+						"format": "string",
+						"pattern": "^.+$"
+					}
+				},
+				"required": ["version"]
+			},
+			"E2eDtoNameRecordEntityUpdateBodyDTO": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity title",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "Record",
+						"format": "string",
+						"pattern": "^.+$"
+					},
+					"ownerId": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "owner-1",
+						"format": "string",
+						"pattern": "^.+$"
+					},
+					"document": {
+						"description": "E2eDtoNameRecordEntity document",
+						"nullable": true,
+						"type": "object",
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityUpdateBodyDocumentDTO"
+							}
+						]
+					},
+					"details": {
+						"description": "E2eDtoNameRecordEntity details",
+						"nullable": true,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityUpdateBodyDetailsVariantDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"Variant": "#/components/schemas/E2eDtoNameRecordEntityUpdateBodyDetailsVariantDTO"
+							},
+							"propertyName": "kind"
+						}
+					},
+					"owner": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity owner",
+						"nullable": false,
+						"minLength": 36,
+						"maxLength": 36,
+						"example": "<uuid>",
+						"format": "uuid",
+						"pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+					}
+				},
+				"required": ["title", "ownerId", "document", "details", "owner"]
+			},
+			"E2eDtoNameRecordEntityUpdateResponseDetailsVariantDTO": {
+				"type": "object",
+				"properties": {
+					"kind": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity kind",
+						"nullable": false,
+						"maxLength": 50,
+						"minLength": 1,
+						"example": "Variant",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"score": {
+						"type": "integer",
+						"description": "E2eDtoNameRecordEntity score",
+						"format": "int32",
+						"nullable": false,
+						"example": 5,
+						"minimum": 0,
+						"maximum": 10,
+						"readOnly": true
+					}
+				},
+				"required": ["kind", "score"]
+			},
+			"E2eDtoNameRecordEntityUpdateResponseDocumentDTO": {
+				"type": "object",
+				"properties": {
+					"version": {
+						"type": "string",
+						"description": "E2eDtoNameRecordDocumentDto version",
+						"nullable": false,
+						"maxLength": 16,
+						"minLength": 1,
+						"example": "1",
+						"format": "string",
+						"pattern": "^.+$"
+					}
+				},
+				"required": ["version"]
+			},
+			"E2eDtoNameRecordEntityUpdateResponseOwnerDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity owner identifier",
+						"nullable": false,
+						"minLength": 36,
+						"maxLength": 36,
+						"example": "<uuid>",
+						"format": "uuid",
+						"pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+						"readOnly": true
+					}
+				},
+				"required": ["id"]
+			},
+			"E2eDtoNameRecordEntityUpdateResponseDTO": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity id",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "record-1",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"title": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity title",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "Record",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"ownerId": {
+						"type": "string",
+						"description": "E2eDtoNameRecordEntity ownerId",
+						"nullable": false,
+						"maxLength": 64,
+						"minLength": 1,
+						"example": "owner-1",
+						"format": "string",
+						"pattern": "^.+$",
+						"readOnly": true
+					},
+					"document": {
+						"description": "E2eDtoNameRecordEntity document",
+						"nullable": true,
+						"readOnly": true,
+						"type": "object",
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityUpdateResponseDocumentDTO"
+							}
+						]
+					},
+					"details": {
+						"description": "E2eDtoNameRecordEntity details",
+						"nullable": true,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityUpdateResponseDetailsVariantDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"Variant": "#/components/schemas/E2eDtoNameRecordEntityUpdateResponseDetailsVariantDTO"
+							},
+							"propertyName": "kind"
+						},
+						"readOnly": true
+					},
+					"owner": {
+						"description": "E2eDtoNameRecordEntity owner",
+						"nullable": false,
+						"readOnly": true,
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/E2eDtoNameRecordEntityUpdateResponseOwnerDTO"
+							}
+						]
+					}
+				},
+				"required": ["id", "title", "ownerId", "document", "details", "owner"]
+			},
+			"ExceptionDetailsForeignKeyViolationDTO": {
+				"type": "object",
+				"properties": {
+					"constraint": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "FK_5bc39ec0540f37ff97f5aba36e1",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"detail": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 1024,
+						"minLength": 0,
+						"example": "Key (user_id)=(123) is not present in table \"user\".",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,1024}$",
+						"readOnly": true
+					},
+					"field": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "user_id",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"referencedField": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "id",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"referencedTable": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "user",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"table": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "user_balance",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"type": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"example": "FOREIGN_KEY_VIOLATION",
+						"enum": ["FOREIGN_KEY_VIOLATION", "UNIQUE_VIOLATION"],
+						"readOnly": true
+					},
+					"value": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 1024,
+						"minLength": 0,
+						"example": "123",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,1024}$",
+						"readOnly": true
+					}
+				},
+				"required": ["type"]
+			},
+			"ExceptionDetailsUniqueViolationDTO": {
+				"type": "object",
+				"properties": {
+					"constraint": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "UQ_user_login",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"detail": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 1024,
+						"minLength": 0,
+						"example": "Key (login)=(jack) already exists.",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,1024}$",
+						"readOnly": true
+					},
+					"field": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "login",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"table": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 128,
+						"minLength": 0,
+						"example": "user",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true
+					},
+					"type": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"example": "UNIQUE_VIOLATION",
+						"enum": ["FOREIGN_KEY_VIOLATION", "UNIQUE_VIOLATION"],
+						"readOnly": true
+					},
+					"value": {
+						"type": "string",
+						"description": "ErrorDetails ",
+						"nullable": false,
+						"maxLength": 1024,
+						"minLength": 0,
+						"example": "jack",
+						"format": "string",
+						"pattern": "^[\\s\\S]{0,1024}$",
+						"readOnly": true
+					}
+				},
+				"required": ["type"]
+			},
+			"ExceptionUnauthorizedDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": {
+						"type": "string",
+						"description": "Correlation identifier",
+						"example": "<uuid>",
+						"maxLength": 128,
+						"minLength": 1,
+						"nullable": false,
+						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+						"readOnly": true
+					},
+					"details": {
+						"description": "Error details",
+						"nullable": false,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
+							},
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
+								"UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
+							},
+							"propertyName": "type"
+						},
+						"readOnly": true
+					},
+					"error": {
+						"type": "string",
+						"description": "Error name",
+						"example": "Unauthorized",
+						"nullable": false,
+						"readOnly": true
+					},
+					"message": {
+						"description": "Error message",
+						"example": "Error message",
+						"nullable": false,
+						"oneOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						],
+						"readOnly": true
+					},
+					"statusCode": {
+						"type": "number",
+						"description": "Error status code",
+						"nullable": false,
+						"example": 401,
+						"enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508],
+						"readOnly": true
+					},
+					"timestamp": {
+						"type": "integer",
+						"description": "Error timestamp",
+						"format": "int64",
+						"nullable": false,
+						"example": 0,
+						"minimum": 0,
+						"maximum": 2147483647000,
+						"readOnly": true
+					}
+				},
+				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+			},
+			"ExceptionConflictDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": {
+						"type": "string",
+						"description": "Correlation identifier",
+						"example": "<uuid>",
+						"maxLength": 128,
+						"minLength": 1,
+						"nullable": false,
+						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+						"readOnly": true
+					},
+					"details": {
+						"description": "Error details",
+						"nullable": false,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
+							},
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
+								"UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
+							},
+							"propertyName": "type"
+						},
+						"readOnly": true
+					},
+					"error": {
+						"type": "string",
+						"description": "Error name",
+						"example": "Conflict",
+						"nullable": false,
+						"readOnly": true
+					},
+					"message": {
+						"description": "Error message",
+						"example": "Error message",
+						"nullable": false,
+						"oneOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						],
+						"readOnly": true
+					},
+					"statusCode": {
+						"type": "number",
+						"description": "Error status code",
+						"nullable": false,
+						"example": 409,
+						"enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508],
+						"readOnly": true
+					},
+					"timestamp": {
+						"type": "integer",
+						"description": "Error timestamp",
+						"format": "int64",
+						"nullable": false,
+						"example": 0,
+						"minimum": 0,
+						"maximum": 2147483647000,
+						"readOnly": true
+					}
+				},
+				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+			},
+			"ExceptionInternalServerErrorDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": {
+						"type": "string",
+						"description": "Correlation identifier",
+						"example": "<uuid>",
+						"maxLength": 128,
+						"minLength": 1,
+						"nullable": false,
+						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+						"readOnly": true
+					},
+					"details": {
+						"description": "Error details",
+						"nullable": false,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
+							},
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
+								"UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
+							},
+							"propertyName": "type"
+						},
+						"readOnly": true
+					},
+					"error": {
+						"type": "string",
+						"description": "Error name",
+						"example": "Internal Server Error",
+						"nullable": false,
+						"readOnly": true
+					},
+					"message": {
+						"description": "Error message",
+						"example": "Error message",
+						"nullable": false,
+						"oneOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						],
+						"readOnly": true
+					},
+					"statusCode": {
+						"type": "number",
+						"description": "Error status code",
+						"nullable": false,
+						"example": 500,
+						"enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508],
+						"readOnly": true
+					},
+					"timestamp": {
+						"type": "integer",
+						"description": "Error timestamp",
+						"format": "int64",
+						"nullable": false,
+						"example": 0,
+						"minimum": 0,
+						"maximum": 2147483647000,
+						"readOnly": true
+					}
+				},
+				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+			},
+			"ExceptionNotFoundDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": {
+						"type": "string",
+						"description": "Correlation identifier",
+						"example": "<uuid>",
+						"maxLength": 128,
+						"minLength": 1,
+						"nullable": false,
+						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+						"readOnly": true
+					},
+					"details": {
+						"description": "Error details",
+						"nullable": false,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
+							},
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
+								"UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
+							},
+							"propertyName": "type"
+						},
+						"readOnly": true
+					},
+					"error": {
+						"type": "string",
+						"description": "Error name",
+						"example": "Not Found",
+						"nullable": false,
+						"readOnly": true
+					},
+					"message": {
+						"description": "Error message",
+						"example": "Error message",
+						"nullable": false,
+						"oneOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						],
+						"readOnly": true
+					},
+					"statusCode": {
+						"type": "number",
+						"description": "Error status code",
+						"nullable": false,
+						"example": 404,
+						"enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508],
+						"readOnly": true
+					},
+					"timestamp": {
+						"type": "integer",
+						"description": "Error timestamp",
+						"format": "int64",
+						"nullable": false,
+						"example": 0,
+						"minimum": 0,
+						"maximum": 2147483647000,
+						"readOnly": true
+					}
+				},
+				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+			},
+			"ExceptionBadRequestDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": {
+						"type": "string",
+						"description": "Correlation identifier",
+						"example": "<uuid>",
+						"maxLength": 128,
+						"minLength": 1,
+						"nullable": false,
+						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+						"readOnly": true
+					},
+					"details": {
+						"description": "Error details",
+						"nullable": false,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
+							},
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
+							}
+						],
+						"discriminator": {
+							"mapping": {
+								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
+								"UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
+							},
+							"propertyName": "type"
+						},
+						"readOnly": true
+					},
+					"error": {
+						"type": "string",
+						"description": "Error name",
+						"example": "Bad Request",
+						"nullable": false,
+						"readOnly": true
+					},
+					"message": {
+						"description": "Error message",
+						"example": "Error message",
+						"nullable": false,
+						"oneOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						],
+						"readOnly": true
+					},
+					"statusCode": {
+						"type": "number",
+						"description": "Error status code",
+						"nullable": false,
+						"example": 400,
+						"enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508],
+						"readOnly": true
+					},
+					"timestamp": {
+						"type": "integer",
+						"description": "Error timestamp",
+						"format": "int64",
+						"nullable": false,
+						"example": 0,
+						"minimum": 0,
+						"maximum": 2147483647000,
+						"readOnly": true
+					}
+				},
+				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+			}
+		}
+	}
+}

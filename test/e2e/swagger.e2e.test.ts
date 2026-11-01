@@ -513,19 +513,21 @@ describe("Swagger request DTO documentation (E2E)", () => {
 
 	it("documents generated autoDto request bodies for ApiRouteCustom", () => {
 		const autoDtoRequestBody: unknown = getOperation("/swagger/auto-dto").requestBody;
-		const createBodySchema = document.components?.schemas?.SwaggerAutoDtoEntityCreateBodyDTO as { properties?: Record<string, unknown> } | undefined;
+		const createBodySchema = document.components?.schemas?.SwaggerDocumentationAutoDtoBodyDTO as { properties?: Record<string, unknown> } | undefined;
 
 		expect(autoDtoRequestBody).toBeDefined();
-		expect(JSON.stringify(autoDtoRequestBody)).toContain("#/components/schemas/SwaggerAutoDtoEntityCreateBodyDTO");
+		expect(JSON.stringify(autoDtoRequestBody)).toContain("#/components/schemas/SwaggerDocumentationAutoDtoBodyDTO");
 		expect(createBodySchema?.properties).toHaveProperty("name");
 		expect(createBodySchema?.properties).not.toHaveProperty("internalReference");
 	});
 
 	it("omits globally hidden properties from generated response schemas despite local route enables", () => {
-		const getResponseSchema = document.components?.schemas?.SwaggerAutoDtoEntityGetResponseDTO as { properties?: Record<string, unknown> } | undefined;
+		for (const controllerName of ["SwaggerGeneratedDefaultControllerBase", "SwaggerGeneratedOverrideControllerBase"]) {
+			const getResponseSchema = document.components?.schemas?.[`${controllerName}GetResponseDTO`] as { properties?: Record<string, unknown> } | undefined;
 
-		expect(getResponseSchema?.properties).toHaveProperty("name");
-		expect(getResponseSchema?.properties).not.toHaveProperty("internalReference");
+			expect(getResponseSchema?.properties).toHaveProperty("name");
+			expect(getResponseSchema?.properties).not.toHaveProperty("internalReference");
+		}
 	});
 
 	it("coexists with manual Swagger body decorators on ApiRouteCustom", () => {

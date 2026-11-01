@@ -16,7 +16,7 @@ describe("DtoGenerateGetListResponse", () => {
 	});
 
 	it("decorates list response properties", () => {
-		const dto = DtoGenerateGetListResponse(ListEntity, ListEntity, "CustomListDTO");
+		const dto = DtoGenerateGetListResponse(ListEntity, ListEntity, "DecoratedListDTO");
 
 		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto.prototype, "items");
 		expect(metadata).toBeDefined();

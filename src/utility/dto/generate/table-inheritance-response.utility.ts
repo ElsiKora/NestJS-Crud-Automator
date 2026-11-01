@@ -16,7 +16,6 @@ import { DtoGenerateCacheKey } from "@utility/dto/generate/cache-key.utility";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { DtoGenerateGetListItemsResponse } from "@utility/dto/generate/get-list";
 import { ErrorException } from "@utility/error/exception.utility";
-import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
 import { Transform } from "class-transformer";
 
 const tableInheritanceResponseCache: Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>> = new Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>>();
@@ -29,15 +28,17 @@ const tableInheritanceResponseCache: Map<string, TApiRouteDiscriminatedDtoProper
  * @param {IApiEntity<E>} entityMetadata - The root entity metadata.
  * @param {IApiControllerTableInheritancePlan} plan - Compiled variants of the root.
  * @param {EApiRouteType} method - GET or GET_LIST route type.
+ * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerPropertiesRouteAutoDtoConfig} [dtoConfig] - Optional automatic DTO configuration.
  * @param {Type<CanActivate>} [currentGuard] - Optional authentication guard for property visibility control.
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Compiled plan selecting the list envelope.
  * @returns {TApiRouteDiscriminatedDtoProperties | Type<unknown>} Discriminated variants for GET or the list wrapper for GET_LIST.
  */
-export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, plan: IApiControllerTableInheritancePlan, method: EApiRouteType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan): TApiRouteDiscriminatedDtoProperties | Type<unknown> {
+export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, plan: IApiControllerTableInheritancePlan, method: EApiRouteType, schemaPrefix: string, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan): TApiRouteDiscriminatedDtoProperties | Type<unknown> {
 	const isCursor: boolean = method === EApiRouteType.GET_LIST && ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
 
 	const cacheKey: string = DtoGenerateCacheKey({
+		controllerName: schemaPrefix,
 		dtoConfig,
 		dtoType: EApiDtoType.RESPONSE,
 		entityName: String(entityMetadata.name),
@@ -52,10 +53,10 @@ export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, en
 		return cached;
 	}
 
-	const variantNamePrefix: string = `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(EApiDtoType.RESPONSE)}`;
+	const variantNamePrefix: string = `${schemaPrefix}${CamelCaseString(method)}${CamelCaseString(EApiDtoType.RESPONSE)}`;
 
 	const mappingEntries: Array<[string, Type<unknown>]> = plan.variants.map((variant: IApiControllerTableInheritanceVariant): [string, Type<unknown>] => {
-		const variantDto: Type<unknown> | undefined = DtoGenerate(variant.entity, variant.entityMetadata, method, EApiDtoType.RESPONSE, dtoConfig, currentGuard, undefined, `${variantNamePrefix}${CamelCaseString(variant.discriminatorValue)}DTO`);
+		const variantDto: Type<unknown> | undefined = DtoGenerate(variant.entity, variant.entityMetadata, method, EApiDtoType.RESPONSE, schemaPrefix, dtoConfig, currentGuard, undefined, `${variantNamePrefix}${CamelCaseString(variant.discriminatorValue)}DTO`);
 
 		if (!variantDto) {
 			throw ErrorException(`Response DTO for table inheritance variant ${String(variant.entityMetadata.name)} was not generated`);
@@ -76,13 +77,12 @@ export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, en
 	ApiRouteValidateDiscriminatedDtoProperties(discriminatedResponse, `Table inheritance root ${String(entityMetadata.name)} response`);
 
 	if (method !== EApiRouteType.GET_LIST) {
-		assertUniqueDtoNames(String(entityMetadata.name), discriminatedResponse.type);
 		tableInheritanceResponseCache.set(cacheKey, discriminatedResponse);
 
 		return discriminatedResponse;
 	}
 
-	const listResponse: Type<unknown> = DtoGenerateGetListItemsResponse(entity, entityMetadata, discriminatedResponse, queryPlan);
+	const listResponse: Type<unknown> = DtoGenerateGetListItemsResponse(entity, discriminatedResponse, schemaPrefix, queryPlan);
 
 	// class-transformer falls back to a plain object for an unmapped subtype, so each row is resolved first to fail closed.
 	Transform(
@@ -95,29 +95,7 @@ export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, en
 		},
 		{ toClassOnly: true },
 	)(listResponse.prototype as object, "items");
-	assertUniqueDtoNames(String(entityMetadata.name), [listResponse]);
 	tableInheritanceResponseCache.set(cacheKey, listResponse);
 
 	return listResponse;
-}
-
-/**
- * Fails startup when two different DTO classes reachable from a polymorphic response share a name,
- * because Swagger keys components by class name and would keep only one of them.
- * @param {string} rootName - Root entity name used in the error message.
- * @param {ReadonlyArray<Type<unknown>>} responseDtos - Top-level response DTO classes.
- * @returns {void}
- */
-function assertUniqueDtoNames(rootName: string, responseDtos: ReadonlyArray<Type<unknown>>): void {
-	const owners: Map<string, Type<unknown>> = new Map<string, Type<unknown>>();
-
-	for (const dto of responseDtos.flatMap((responseDto: Type<unknown>): Array<Type<unknown>> => [responseDto, ...GetRegisteredAutoDtoChildrenRecursive(responseDto.prototype as object)])) {
-		const owner: Type<unknown> | undefined = owners.get(dto.name);
-
-		if (owner && owner !== dto) {
-			throw ErrorException(`Table inheritance root ${rootName} generates two different DTOs named ${dto.name}. Change the discriminator value or the property name that produces it.`);
-		}
-
-		owners.set(dto.name, dto);
-	}
 }

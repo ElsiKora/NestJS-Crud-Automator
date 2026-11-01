@@ -28,11 +28,12 @@ const noopApiPropertyEnum: typeof ApiPropertyEnum = (): PropertyDecorator => noo
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
  * @param {EApiRouteType} method - The API route type (GET_LIST)
  * @param {EApiDtoType} dtoType - The type of DTO (QUERY)
+ * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Optional normalized plan that narrows sortable fields.
  * @returns {Type<unknown>} A base class for list query DTOs
  * @template E - The entity type
  */
-export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> {
+export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> {
 	const isCursor: boolean = ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
 
 	const orderBy: Record<string, string> =
@@ -64,7 +65,7 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 			description: "order by field",
 			entity: entityMetadata,
 			enum: orderBy,
-			enumName: queryPlan ? `${queryPlan.schemaName}OrderBy` : `E${CapitalizeString(entityMetadata.name ?? "UnknownResource")}FilterOrderBy`,
+			enumName: queryPlan ? `${queryPlan.schemaName}OrderBy` : `E${CapitalizeString(schemaPrefix)}FilterOrderBy`,
 			isRequired: false,
 		})
 		orderBy?: string;

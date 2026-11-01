@@ -362,9 +362,9 @@ describe("public generated read type contract", () => {
 		const route: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {};
 		const response: IPublicGeneratedReadResponse = { ok: true };
 		const sourceCompatibilityProbe = (): IPublicGeneratedReadResponse => {
-			ApiControllerApplyDecorators<IPublicGeneratedReadEntity>(targetMethod, entityMetadata, controllerProperties, EApiRouteType.GET, "get", route, []);
+			ApiControllerApplyDecorators<IPublicGeneratedReadEntity>(targetMethod, entityMetadata, controllerProperties, EApiRouteType.GET, "get", route, [], "TestController");
 			ApiControllerApplyMetadata<IPublicGeneratedReadEntity>({}, {}, entityMetadata, controllerProperties, EApiRouteType.GET, "get", route);
-			ApiControllerGetDto<IPublicGeneratedReadEntity, EApiRouteType.GET>(controllerProperties, entityMetadata, EApiRouteType.GET, EApiDtoType.PARAMETERS, route, undefined);
+			ApiControllerGetDto<IPublicGeneratedReadEntity, EApiRouteType.GET>(controllerProperties, entityMetadata, EApiRouteType.GET, EApiDtoType.PARAMETERS, route, "TestController", undefined);
 			ApiControllerWriteDtoSwagger<IPublicGeneratedReadEntity>({}, entityMetadata, controllerProperties, EApiRouteType.GET, route, entityMetadata);
 
 			return ApiControllerSerializeRouteResponse<IPublicGeneratedReadEntity, IPublicGeneratedReadResponse>(route, undefined, response);
@@ -373,8 +373,8 @@ describe("public generated read type contract", () => {
 		expect(sourceCompatibilityProbe).toBeTypeOf("function");
 	});
 
-	it("preserves the exact 3.0.2 low-level facade arities", () => {
-		const exactArities: [TTypeEqual<Parameters<typeof ApiControllerApplyDecorators>["length"], 7 | 8>, TTypeEqual<Parameters<typeof ApiControllerApplyMetadata>["length"], 7 | 8>, TTypeEqual<Parameters<typeof ApiControllerGetDto>["length"], 5 | 6>, TTypeEqual<Parameters<typeof ApiControllerWriteDtoSwagger>["length"], 6 | 7>] = [true, true, true, true];
+	it("pins the low-level facade arities, with the owning controller name on the DTO resolvers", () => {
+		const exactArities: [TTypeEqual<Parameters<typeof ApiControllerApplyDecorators>["length"], 8 | 9>, TTypeEqual<Parameters<typeof ApiControllerApplyMetadata>["length"], 7 | 8>, TTypeEqual<Parameters<typeof ApiControllerGetDto>["length"], 6 | 7>, TTypeEqual<Parameters<typeof ApiControllerWriteDtoSwagger>["length"], 6 | 7>] = [true, true, true, true];
 
 		expect(exactArities).toEqual([true, true, true, true]);
 	});

@@ -12,6 +12,7 @@ import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/ro
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { EApiDtoType } from "@enum/decorator/api";
 import { ApiControllerGetDtoWithReadPlan, ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
 
@@ -47,11 +48,12 @@ export function ApiControllerWriteDtoSwagger<E extends IApiBaseEntity>(target: o
  * @returns {void}
  */
 export function ApiControllerWriteDtoSwaggerWithReadPlan<E extends IApiBaseEntity>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan): void {
+	const schemaPrefix: string = ApiControllerGetSchemaPrefix(target);
 	const swaggerModels: Array<unknown> = (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, target) ?? []) as Array<unknown>;
-	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, queryPlan, readPlan, identityPlan);
-	const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.QUERY, routeConfig, queryPlan, readPlan, identityPlan);
-	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, queryPlan, readPlan, identityPlan);
-	const responseDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(properties, entity, method, routeConfig, queryPlan, identityPlan);
+	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
+	const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.QUERY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
+	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
+	const responseDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(properties, entity, method, routeConfig, schemaPrefix, queryPlan, identityPlan);
 
 	const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, ...(ApiRouteIsDiscriminatedDtoProperties(responseDto) ? [] : [responseDto])];
 

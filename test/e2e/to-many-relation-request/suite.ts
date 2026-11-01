@@ -390,7 +390,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 		});
 
 		it("keeps to-many references single UUID properties in the CREATE body", () => {
-			const properties = (document.components?.schemas?.E2eHydrationPostEntityCreateBodyDTO as TSwaggerSchemaObject).properties as Record<string, TSwaggerSchemaObject>;
+			const properties = (document.components?.schemas?.E2eHydrationPostCreateBodyDTO as TSwaggerSchemaObject).properties as Record<string, TSwaggerSchemaObject>;
 
 			for (const relationName of ["attachments", "notes", "tags"]) {
 				expect(properties[relationName]?.type).toBe("string");
@@ -406,7 +406,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 			expect(emptyOrphans).toEqual([]);
 		});
 
-		it.each(["E2eHydrationPostEntityUpdateBodyDTO", "E2eHydrationPostEntityPartialUpdateBodyDTO"])("leaves to-many relations out of %s", (schemaName: string) => {
+		it.each(["E2eHydrationPostUpdateBodyDTO", "E2eHydrationPostPartialUpdateBodyDTO"])("leaves to-many relations out of %s", (schemaName: string) => {
 			const properties = (document.components?.schemas?.[schemaName] as TSwaggerSchemaObject).properties as Record<string, TSwaggerSchemaObject>;
 
 			expect(Object.keys(properties)).toEqual(expect.arrayContaining(["owner", "title"]));

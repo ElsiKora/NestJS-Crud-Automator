@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT } from "@constant/safe-object-property-names.constant";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 // path-to-regexp stays on 8.x, the release @nestjs/core 12 pins, so route paths are parsed the way Nest matches them
@@ -72,13 +73,13 @@ export class ApiControllerIdentityPlanCompiler {
 
 		const normalizedPlan: object = { field, parameter };
 		const signature: string = createHash("sha256").update(JSON.stringify(normalizedPlan)).digest("hex");
-		const controllerName: string = controller.name || "AnonymousController";
+		const schemaPrefix: string = ApiControllerGetSchemaPrefix(controller);
 
 		return Object.freeze({
-			controllerName,
+			controllerName: controller.name,
 			field,
 			parameter,
-			schemaName: `${controllerName}${entityMetadata.name ?? "UnknownResource"}GetIdentity${signature}DTO`,
+			schemaName: `${schemaPrefix}GetIdentity${signature}DTO`,
 			signature,
 		});
 	}

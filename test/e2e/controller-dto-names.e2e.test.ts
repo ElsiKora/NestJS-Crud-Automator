@@ -1,5 +1,7 @@
 import "reflect-metadata";
 
+import { readFileSync } from "node:fs";
+
 import type { INestApplication } from "@nestjs/common";
 import type { OpenAPIObject } from "@nestjs/swagger";
 
@@ -10,8 +12,82 @@ import { Test } from "@nestjs/testing";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eDtoNameAdminItemController, E2eDtoNameItemEntity, E2eDtoNameItemService, E2eDtoNamePublicItemController } from "./controller-dto-names";
+import { ApiAuthorizationModule, ApiController, ApiSubscriberModule, EApiRouteType } from "../../src/index";
+import { E2eDtoNameAdminItemController, E2eDtoNameCustomItemController, E2eDtoNameItemEntity, E2eDtoNameItemService, E2eDtoNameOwnerEntity, E2eDtoNamePublicItemController, E2eDtoNameRecordController, E2eDtoNameRecordEntity, E2eDtoNameRecordService } from "./controller-dto-names";
+
+const COMPONENT_REFERENCE_PREFIX: string = "#/components/schemas/";
+const UUID_PATTERN: RegExp = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
+const EPOCH_MILLISECONDS_FLOOR: number = 1_000_000_000_000;
+
+/**
+ * Replaces example values that change on every run (random UUIDs, `Date.now()` timestamps) with fixed placeholders.
+ * @param {unknown} value - OpenAPI document fragment.
+ * @param {string} [key] - Property name that holds the fragment.
+ * @returns {unknown} The fragment with stable example values.
+ */
+const normalizeExamples = (value: unknown, key?: string): unknown => {
+	if (Array.isArray(value)) {
+		return value.map((item: unknown): unknown => normalizeExamples(item));
+	}
+
+	if (value && typeof value === "object") {
+		return Object.fromEntries(Object.entries(value).map(([entryKey, entryValue]: [string, unknown]): [string, unknown] => [entryKey, normalizeExamples(entryValue, entryKey)]));
+	}
+
+	if (key === "example" && typeof value === "string" && UUID_PATTERN.test(value)) {
+		return "<uuid>";
+	}
+
+	if (key === "example" && typeof value === "number" && value > EPOCH_MILLISECONDS_FLOOR) {
+		return 0;
+	}
+
+	return value;
+};
+
+/**
+ * Renames component keys and component references of an OpenAPI document fragment.
+ * @param {unknown} value - OpenAPI document fragment.
+ * @param {(name: string) => string} rename - Component name mapping.
+ * @param {string} [parentKey] - Property name that holds the fragment.
+ * @returns {unknown} The fragment with renamed components.
+ */
+const renameComponents = (value: unknown, rename: (name: string) => string, parentKey?: string): unknown => {
+	if (Array.isArray(value)) {
+		return value.map((item: unknown): unknown => renameComponents(item, rename));
+	}
+
+	if (value && typeof value === "object") {
+		return Object.fromEntries(Object.entries(value).map(([entryKey, entryValue]: [string, unknown]): [string, unknown] => [parentKey === "schemas" ? rename(entryKey) : entryKey, renameComponents(entryValue, rename, entryKey)]));
+	}
+
+	if (typeof value === "string" && value.startsWith(COMPONENT_REFERENCE_PREFIX)) {
+		return `${COMPONENT_REFERENCE_PREFIX}${rename(value.slice(COMPONENT_REFERENCE_PREFIX.length))}`;
+	}
+
+	return value;
+};
+
+/**
+ * Sorts object keys recursively, so two documents compare by content and not by key order.
+ * @param {unknown} value - JSON value.
+ * @returns {unknown} The value with sorted object keys.
+ */
+const sortKeys = (value: unknown): unknown => {
+	if (Array.isArray(value)) {
+		return value.map((item: unknown): unknown => sortKeys(item));
+	}
+
+	if (value && typeof value === "object") {
+		return Object.fromEntries(
+			Object.entries(value)
+				.sort(([left]: [string, unknown], [right]: [string, unknown]): number => left.localeCompare(right))
+				.map(([entryKey, entryValue]: [string, unknown]): [string, unknown] => [entryKey, sortKeys(entryValue)]),
+		);
+	}
+
+	return value;
+};
 
 interface ISchema {
 	$ref?: string;
@@ -110,6 +186,116 @@ describe("generated DTO names with two controllers on one entity (E2E)", () => {
 	it("gives each controller its own response component names", () => {
 		const names: Array<string> = ["/admin/dto-name-items/{id}", "/public/dto-name-items/{id}", "/admin/dto-name-items", "/public/dto-name-items"].map((path: string): string => getResponseSchema(path).name);
 
-		expect(names).toEqual(["E2eDtoNameAdminItemControllerE2eDtoNameItemEntityGetResponseDTO", "E2eDtoNamePublicItemControllerE2eDtoNameItemEntityGetResponseDTO", "E2eDtoNameAdminItemControllerE2eDtoNameItemEntityGetListResponseItemsDTO", "E2eDtoNamePublicItemControllerE2eDtoNameItemEntityGetListResponseItemsDTO"]);
+		expect(names).toEqual(["E2eDtoNameAdminItemGetResponseDTO", "E2eDtoNamePublicItemGetResponseDTO", "E2eDtoNameAdminItemGetListResponseItemsDTO", "E2eDtoNamePublicItemGetListResponseItemsDTO"]);
+	});
+});
+
+describe("generated DTO names with one controller on an entity (E2E)", () => {
+	let app: INestApplication | undefined;
+	let document: OpenAPIObject;
+
+	beforeAll(async () => {
+		const moduleReference = await Test.createTestingModule({
+			controllers: [E2eDtoNameRecordController],
+			imports: [
+				TypeOrmModule.forRoot({
+					database: ":memory:",
+					dropSchema: true,
+					entities: [E2eDtoNameOwnerEntity, E2eDtoNameRecordEntity],
+					logging: false,
+					synchronize: true,
+					type: "better-sqlite3",
+				}),
+				TypeOrmModule.forFeature([E2eDtoNameRecordEntity]),
+				ApiAuthorizationModule.forRoot(),
+				ApiSubscriberModule,
+			],
+			providers: [E2eDtoNameRecordService],
+		}).compile();
+
+		app = moduleReference.createNestApplication(new FastifyAdapter());
+		await app.init();
+		document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
+	});
+
+	afterAll(async () => {
+		await app?.close();
+	});
+
+	it("matches the previous document apart from the generated component names", () => {
+		// Captured from origin/dev before the schema prefix rule, with run-dependent examples normalized. The controller is E2eDtoNameRecordController, so its prefix is E2eDtoNameRecord.
+		const previousDocument: unknown = JSON.parse(readFileSync(new URL("controller-dto-names/record.dev-openapi.json", import.meta.url), "utf8"));
+		const renameGenerated = (name: string): string => name.replace(/^E2eDtoNameRecordEntity/, "E2eDtoNameRecord");
+
+		expect(JSON.stringify(sortKeys(normalizeExamples(document)))).toBe(JSON.stringify(sortKeys(renameComponents(previousDocument, renameGenerated))));
+	});
+});
+
+describe("generated DTO names of a custom route next to a generated route (E2E)", () => {
+	let app: INestApplication | undefined;
+	let document: OpenAPIObject;
+
+	beforeAll(async () => {
+		const moduleReference = await Test.createTestingModule({
+			controllers: [E2eDtoNameCustomItemController],
+			imports: [
+				TypeOrmModule.forRoot({
+					database: ":memory:",
+					dropSchema: true,
+					entities: [E2eDtoNameItemEntity],
+					logging: false,
+					synchronize: true,
+					type: "better-sqlite3",
+				}),
+				TypeOrmModule.forFeature([E2eDtoNameItemEntity]),
+				ApiAuthorizationModule.forRoot(),
+				ApiSubscriberModule,
+			],
+			providers: [E2eDtoNameItemService],
+		}).compile();
+
+		app = moduleReference.createNestApplication(new FastifyAdapter());
+		await app.init();
+		document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
+	});
+
+	afterAll(async () => {
+		await app?.close();
+	});
+
+	it("names the custom route DTOs after its handler method, so they stay apart from the generated route DTOs", () => {
+		const schemaNames: Array<string> = Object.keys(document.components?.schemas ?? {});
+
+		expect(schemaNames).toContain("E2eDtoNameCustomItemGetPublicParametersDTO");
+		expect(schemaNames).toContain("E2eDtoNameCustomItemGetResponseDTO");
+		expect(schemaNames.filter((name: string): boolean => name.startsWith("E2eDtoNameCustomItemGetParameters"))).toHaveLength(1);
+	});
+});
+
+describe("controller names that cannot start generated DTO names (E2E)", () => {
+	it("fails startup for two controller classes named UserController, naming both paths", async () => {
+		await import("./controller-dto-names/duplicate/admin-user.controller");
+
+		await expect(import("./controller-dto-names/duplicate/public-user.controller")).rejects.toThrow('Controllers UserController (path "admin/users") and UserController (path "public/users") have the same schema prefix "User"');
+	});
+
+	it("fails startup for an anonymous controller class", () => {
+		const anonymousController: new () => { service: E2eDtoNameItemService } = (() =>
+			class {
+				public readonly service!: E2eDtoNameItemService;
+			})();
+
+		expect(() =>
+			ApiController<E2eDtoNameItemEntity>({
+				entity: E2eDtoNameItemEntity,
+				path: "anonymous/dto-name-items",
+				routes: {
+					[EApiRouteType.CREATE]: { generation: { isEnabled: false } },
+					[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
+					[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
+					[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
+				},
+			})(anonymousController),
+		).toThrow('Controller with path "anonymous/dto-name-items" is an anonymous class');
 	});
 });

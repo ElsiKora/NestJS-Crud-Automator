@@ -25,6 +25,7 @@ import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQ
 import { EFilterOperand, EFilterOperation, EFilterOrderDirection } from "@enum/filter";
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
+import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
 import { DtoGetDecoratorConfig } from "@utility/dto/get/decorator-config.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
@@ -135,8 +136,8 @@ export class ApiControllerGetListQueryPlanCompiler {
 			normalizedPlan.pagination = pagination;
 		}
 		const signature: string = createHash("sha256").update(JSON.stringify(normalizedPlan)).digest("hex");
-		const controllerName: string = controller.name || "AnonymousController";
-		const schemaName: string = `${controllerName}${entityMetadata.name ?? "UnknownResource"}GetListQuery${signature}DTO`;
+		const controllerName: string = controller.name;
+		const schemaName: string = `${ApiControllerGetSchemaPrefix(controller)}GetListQuery${signature}DTO`;
 
 		if (!isCursor) {
 			const pageFields: Readonly<Record<string, IApiControllerGetListQueryPlanOrderField>> = Object.freeze(Object.fromEntries(Object.entries(order.fields).map(([path, field]: [string, TApiControllerGetListQueryCompiledOrderField]): [string, IApiControllerGetListQueryPlanOrderField] => [path, Object.freeze({ isEnabled: field.isEnabled, path: field.path })])));

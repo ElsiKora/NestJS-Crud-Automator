@@ -20,7 +20,7 @@ describe("DtoGenerateRelationResponse", () => {
 	});
 
 	it("decorates the id property", () => {
-		const dto = DtoGenerateRelationResponse(entity, EApiRouteType.GET, EApiDtoType.RESPONSE, "owner");
+		const dto = DtoGenerateRelationResponse(entity, EApiRouteType.GET, EApiDtoType.RESPONSE, "owner", { dtoNameBase: "DecoratedOrderGetResponse" });
 		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto.prototype, "id");
 
 		expect(metadata).toBeDefined();
@@ -28,6 +28,7 @@ describe("DtoGenerateRelationResponse", () => {
 
 	it("uses relation-aware metadata for the id description", () => {
 		const dto = DtoGenerateRelationResponse(entity, EApiRouteType.GET, EApiDtoType.RESPONSE, "owner", {
+			dtoNameBase: "DescribedOrderGetResponse",
 			relationDescription: "owner",
 		});
 		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto.prototype, "id");
@@ -37,7 +38,7 @@ describe("DtoGenerateRelationResponse", () => {
 	});
 
 	it("uses the relation property name when relation description is missing", () => {
-		const dto = DtoGenerateRelationResponse(entity, EApiRouteType.GET, EApiDtoType.RESPONSE, "owner");
+		const dto = DtoGenerateRelationResponse(entity, EApiRouteType.GET, EApiDtoType.RESPONSE, "owner", { dtoNameBase: "UndescribedOrderGetResponse" });
 		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto.prototype, "id");
 
 		expect(metadata.description).toBe("Order owner identifier");

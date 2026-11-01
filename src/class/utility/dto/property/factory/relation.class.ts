@@ -11,7 +11,7 @@ import { DtoGenerateRelationResponse } from "@utility/dto/generate/relation-resp
 import { ErrorException } from "@utility/error/exception.utility";
 
 export class DtoPropertyFactoryRelation<E> implements IDtoGenerateFactory<E> {
-	create(metadata: TApiPropertyDescribeUuidProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string): PropertyDecorator {
+	create(metadata: TApiPropertyDescribeUuidProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string, _generatedDTOs?: Record<string, Type<unknown>>, dtoNameBase?: string): PropertyDecorator {
 		const { description, type, ...restProperties }: TApiPropertyDescribeUuidProperties = metadata;
 		const relationColumn: IApiEntityColumn<E> | undefined = entity.columns.find((column: IApiEntityColumn<E>): boolean => column.name == propertyName);
 		const relationDescriptionCandidate: string | undefined = description?.trim();
@@ -28,6 +28,7 @@ export class DtoPropertyFactoryRelation<E> implements IDtoGenerateFactory<E> {
 
 		if (dtoType === EApiDtoType.RESPONSE) {
 			const relationResponseDto: Type<unknown> = DtoGenerateRelationResponse(entity, method, dtoType, propertyName, {
+				dtoNameBase,
 				relationDescription,
 			});
 

@@ -56,7 +56,9 @@ describe("ApiControllerWriteDtoSwagger", () => {
 			type: EApiPropertyDescribeType.RELATION,
 		});
 
-		const target = {};
+		class SwaggerTestController {}
+
+		const target: object = SwaggerTestController;
 
 		ApiControllerWriteDtoSwagger(target, entityMetadata, properties, EApiRouteType.GET, routeConfig as never, entityMetadata);
 
@@ -65,6 +67,7 @@ describe("ApiControllerWriteDtoSwagger", () => {
 
 		expect(modelNames).toContain(SwaggerDto.name);
 		expect(modelNames).not.toContain("SwaggerEntityGetBodyownerDTO");
+		expect(modelNames).not.toContain("SwaggerTestGetBodyOwnerDTO");
 	});
 
 	it("does not register an orphan relation component for a globally hidden inherited property", () => {
@@ -86,13 +89,15 @@ describe("ApiControllerWriteDtoSwagger", () => {
 				response: SwaggerDto,
 			},
 		};
-		const target = {};
+		class SwaggerTestController {}
+
+		const target: object = SwaggerTestController;
 
 		ApiControllerWriteDtoSwagger(target, entityMetadata, properties, EApiRouteType.CREATE, routeConfig as never, entityMetadata);
 
 		const modelNames = (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, target) as Array<{ name?: string }>).map((model) => model?.name);
 
 		expect(modelNames).toContain(SwaggerDto.name);
-		expect(modelNames).not.toContain("InheritedSwaggerEntityCreateBodyownerDTO");
+		expect(modelNames).not.toContain("SwaggerTestCreateBodyownerDTO");
 	});
 });

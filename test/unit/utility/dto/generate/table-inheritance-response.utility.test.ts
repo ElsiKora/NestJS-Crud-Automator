@@ -138,7 +138,7 @@ function generateFor(entity: object, method: EApiRouteType = EApiRouteType.GET):
 	const metadata: IApiEntity<IApiBaseEntity> = GenerateEntityInformation<IApiBaseEntity>(entity as IApiBaseEntity);
 	const entityProperties: IApiControllerProperties<IApiBaseEntity> = { entity, routes: { [EApiRouteType.GET]: {} } } as unknown as IApiControllerProperties<IApiBaseEntity>;
 
-	return DtoGenerateTableInheritanceResponse(entity, metadata, ApiControllerTableInheritancePlanCompiler.compile(entityProperties, metadata) as IApiControllerTableInheritancePlan, method);
+	return DtoGenerateTableInheritanceResponse(entity, metadata, ApiControllerTableInheritancePlanCompiler.compile(entityProperties, metadata) as IApiControllerTableInheritancePlan, method, (entity as { name: string }).name);
 }
 
 class ResponseGuard implements CanActivate {
@@ -147,6 +147,7 @@ class ResponseGuard implements CanActivate {
 	}
 }
 
+const CONTROLLER_NAME: string = "TestController";
 const ROW_ID: string = "00000000-0000-4000-8000-000000000001";
 const SECRET_VALUE: string = "SECRET_DISCRIMINATOR_VALUE";
 const properties: IApiControllerProperties<ResponseRootEntity> = { entity: ResponseRootEntity, routes: { [EApiRouteType.GET]: {} } } as unknown as IApiControllerProperties<ResponseRootEntity>;
@@ -155,11 +156,11 @@ const plan: IApiControllerTableInheritancePlan = ApiControllerTableInheritancePl
 const cursorQueryPlan: IApiControllerGetListQueryPlan = { pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR } } as unknown as IApiControllerGetListQueryPlan;
 
 function generateGet(): TApiRouteDiscriminatedDtoProperties {
-	return DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, plan, EApiRouteType.GET) as TApiRouteDiscriminatedDtoProperties;
+	return DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, plan, EApiRouteType.GET, CONTROLLER_NAME) as TApiRouteDiscriminatedDtoProperties;
 }
 
 function generateList(queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> {
-	return DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, plan, EApiRouteType.GET_LIST, undefined, undefined, queryPlan) as Type<unknown>;
+	return DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, plan, EApiRouteType.GET_LIST, CONTROLLER_NAME, undefined, undefined, queryPlan) as Type<unknown>;
 }
 
 function serializeGet(row: Record<string, unknown>): unknown {
@@ -192,8 +193,8 @@ describe("DtoGenerateTableInheritanceResponse", () => {
 			const { discriminator, type }: TApiRouteDiscriminatedDtoProperties = generateGet();
 
 			expect(Object.keys(discriminator.mapping)).toEqual([EResponseKind.CARD_TRANSFER, EResponseKind.QR]);
-			expect(discriminator.mapping[EResponseKind.CARD_TRANSFER]?.name).toBe("ResponseRootEntityGetResponseCardTransferDTO");
-			expect(discriminator.mapping[EResponseKind.QR]?.name).toBe("ResponseRootEntityGetResponseQrDTO");
+			expect(discriminator.mapping[EResponseKind.CARD_TRANSFER]?.name).toBe("TestControllerGetResponseCardTransferDTO");
+			expect(discriminator.mapping[EResponseKind.QR]?.name).toBe("TestControllerGetResponseQrDTO");
 			expect(discriminator.propertyName).toBe("kind");
 			expect(discriminator.shouldKeepDiscriminatorProperty).toBe(true);
 			expect(type).toHaveLength(2);
@@ -222,8 +223,8 @@ describe("DtoGenerateTableInheritanceResponse", () => {
 
 	describe("GET_LIST", () => {
 		it("keeps the list wrapper name for page and cursor envelopes", () => {
-			expect(generateList().name).toBe("ResponseRootEntityGetListResponseItemsDTO");
-			expect(generateList(cursorQueryPlan).name).toBe("ResponseRootEntityGetListCursorResponseItemsDTO");
+			expect(generateList().name).toBe("TestControllerGetListResponseItemsDTO");
+			expect(generateList(cursorQueryPlan).name).toBe("TestControllerGetListCursorResponseItemsDTO");
 		});
 
 		it("serializes mixed rows into their variant shape and keeps the discriminator", () => {
@@ -239,7 +240,7 @@ describe("DtoGenerateTableInheritanceResponse", () => {
 		it("uses list variant DTOs apart from the GET ones", () => {
 			const items: Array<object> = serializeList([cardRow, qrRow]).items as Array<object>;
 
-			expect(items.map((item: object): string => item.constructor.name)).toEqual(["ResponseRootEntityGetListResponseCardTransferDTO", "ResponseRootEntityGetListResponseQrDTO"]);
+			expect(items.map((item: object): string => item.constructor.name)).toEqual(["TestControllerGetListResponseCardTransferDTO", "TestControllerGetListResponseQrDTO"]);
 		});
 
 		it("fails closed when one row has an unmapped discriminator value without echoing it", () => {
@@ -263,8 +264,8 @@ describe("DtoGenerateTableInheritanceResponse", () => {
 		it("rejects a variant DTO named like a relation DTO of another variant", () => {
 			expect(ResponseCollisionCardTransferEntity).toBeDefined();
 			expect(ResponseCollisionCardTransferIssuerEntity).toBeDefined();
-			expect(() => generateFor(ResponseCollisionRootEntity)).toThrow(`Table inheritance root ${ResponseCollisionRootEntity.name} generates two different DTOs named ${ResponseCollisionRootEntity.name}GetResponseCardTransferIssuerDTO`);
-			expect(() => generateFor(ResponseCollisionRootEntity, EApiRouteType.GET_LIST)).toThrow(`generates two different DTOs named ${ResponseCollisionRootEntity.name}GetListResponseCardTransferIssuerDTO`);
+			expect(() => generateFor(ResponseCollisionRootEntity)).toThrow(`Generated DTO name "${ResponseCollisionRootEntity.name}GetResponseCardTransferIssuerDTO" belongs to two different DTO classes`);
+			expect(() => generateFor(ResponseCollisionRootEntity, EApiRouteType.GET_LIST)).toThrow(`Generated DTO name "${ResponseCollisionRootEntity.name}GetListResponseCardTransferIssuerDTO" belongs to two different DTO classes`);
 		});
 
 		it("keeps a __proto__ discriminator value as a mapping key", () => {
@@ -286,16 +287,25 @@ describe("DtoGenerateTableInheritanceResponse", () => {
 		});
 
 		it("keeps responses with validators apart", () => {
-			const validated: TApiRouteDiscriminatedDtoProperties = DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, plan, EApiRouteType.GET, { validators: [{ constraintClass: ResponseValidatorConstraint }] }) as TApiRouteDiscriminatedDtoProperties;
+			const validated: TApiRouteDiscriminatedDtoProperties = DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, plan, EApiRouteType.GET, `${CONTROLLER_NAME}Validated`, { validators: [{ constraintClass: ResponseValidatorConstraint }] }) as TApiRouteDiscriminatedDtoProperties;
 
 			expect(validated.discriminator.mapping[EResponseKind.QR]).not.toBe(generateGet().discriminator.mapping[EResponseKind.QR]);
 		});
 
 		it("keeps guarded responses apart", () => {
-			const guarded: TApiRouteDiscriminatedDtoProperties = DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, plan, EApiRouteType.GET, undefined, ResponseGuard) as TApiRouteDiscriminatedDtoProperties;
+			const guarded: TApiRouteDiscriminatedDtoProperties = DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, plan, EApiRouteType.GET, `${CONTROLLER_NAME}Guarded`, undefined, ResponseGuard) as TApiRouteDiscriminatedDtoProperties;
 
 			expect(guarded).not.toBe(generateGet());
 			expect(guarded.discriminator.mapping[EResponseKind.QR]).not.toBe(generateGet().discriminator.mapping[EResponseKind.QR]);
+		});
+
+		it("keeps responses of two controllers apart under each controller's name", () => {
+			const other: TApiRouteDiscriminatedDtoProperties = DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, plan, EApiRouteType.GET, "OtherController") as TApiRouteDiscriminatedDtoProperties;
+			const otherList: Type<unknown> = DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, plan, EApiRouteType.GET_LIST, "OtherController") as Type<unknown>;
+
+			expect(other).not.toBe(generateGet());
+			expect(other.discriminator.mapping[EResponseKind.QR]?.name).toBe("OtherControllerGetResponseQrDTO");
+			expect(otherList.name).toBe("OtherControllerGetListResponseItemsDTO");
 		});
 	});
 

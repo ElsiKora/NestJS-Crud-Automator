@@ -561,7 +561,7 @@ describe("ApiControllerTableInheritancePlanCompiler", () => {
 
 		it("rejects a value that turns a list variant into the list wrapper name", () => {
 			expect(PlanItemsChildEntity).toBeDefined();
-			expect(() => compile(PlanItemsRootEntity)).toThrow(`Discriminator value "ITEMS" of ${PlanItemsRootEntity.name} produces the DTO name ${PlanItemsRootEntity.name}GetListResponseItemsDTO, which is the generated GET_LIST wrapper name`);
+			expect(() => compile(PlanItemsRootEntity)).toThrow(`Discriminator value "ITEMS" of ${PlanItemsRootEntity.name} produces a GET_LIST DTO name ending in ${PlanItemsRootEntity.name}GetListResponseItemsDTO, which is the generated GET_LIST wrapper name`);
 		});
 
 		it.each([

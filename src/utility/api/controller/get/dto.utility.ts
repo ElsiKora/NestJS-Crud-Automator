@@ -35,15 +35,16 @@ const getListCursorItemResponseDtoNameOwnerCache: WeakMap<object, Map<string, ob
  * @param {R} method - Route type
  * @param {EApiDtoType} dtoType - DTO kind to resolve
  * @param {TApiControllerPropertiesRoute<E, R>} routeConfig - Route-specific configuration
+ * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Route-scoped plan for dynamic GET_LIST QUERY DTO generation.
  * @returns {Type<unknown> | undefined} -The resolved DTO class or undefined if no DTO is configured
  * @template E - Entity type
  * @template R - Route type
  */
-export function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> | undefined {
+export function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> | undefined {
 	ApiControllerReadPlanAssert(routeConfig);
 
-	return ApiControllerGetDtoWithReadPlan(properties, entity, method, dtoType, routeConfig, queryPlan);
+	return ApiControllerGetDtoWithReadPlan(properties, entity, method, dtoType, routeConfig, schemaPrefix, queryPlan);
 }
 
 /**
@@ -55,12 +56,14 @@ export function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRout
  * @param {R} method - Route method
  * @param {EApiDtoType} dtoType - DTO kind to resolve
  * @param {TApiControllerPropertiesRoute<E, R>} routeConfig - Route-specific configuration
+ * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Route-scoped GET_LIST QUERY plan.
  * @param {IApiControllerReadPlan} [readPlan] - Internal route-scoped PARAMETERS plan.
  * @param {IApiControllerIdentityPlan} [identityPlan] - Internal GET identity alias plan.
+ * @param {string} [routeName] - PascalCase handler method name of a custom route; it replaces the route type in generated DTO names.
  * @returns {Type<unknown> | undefined} Resolved DTO class or undefined.
  */
-export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan): Type<unknown> | undefined {
+export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan, routeName?: string): Type<unknown> | undefined {
 	ApiControllerIdentityPlanAssert(routeConfig, identityPlan);
 
 	if (dtoType === EApiDtoTypeValue.PARAMETERS) {
@@ -78,12 +81,12 @@ export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R exte
 			throw ErrorException("Custom item response DTO configuration is supported only for the GET_LIST RESPONSE DTO");
 		}
 
-		return getGetListItemResponseDto(properties.entity, entity, configuredDto, method, dtoType, queryPlan);
+		return getGetListItemResponseDto(properties.entity, entity, configuredDto, method, dtoType, schemaPrefix, queryPlan);
 	}
 
 	if (dtoType === EApiDtoTypeValue.PARAMETERS) {
 		if (identityPlan) {
-			return DtoGenerateIdentityReadParameters(entity, identityPlan, readPlan, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard);
+			return DtoGenerateIdentityReadParameters(entity, identityPlan, schemaPrefix, readPlan, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard);
 		}
 
 		if (readPlan) {
@@ -94,7 +97,7 @@ export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R exte
 	const isCursorGetListResponse: boolean = method === EApiRouteTypeValue.GET_LIST && dtoType === EApiDtoTypeValue.RESPONSE && ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
 	const effectiveQueryPlan: IApiControllerGetListQueryPlan | undefined = method === EApiRouteTypeValue.GET_LIST && (dtoType === EApiDtoTypeValue.QUERY || isCursorGetListResponse) ? queryPlan : undefined;
 
-	return DtoGenerate(properties.entity, entity, method, dtoType, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard, effectiveQueryPlan);
+	return DtoGenerate(properties.entity, entity, method, dtoType, schemaPrefix, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard, effectiveQueryPlan, undefined, routeName);
 }
 
 /**
@@ -105,33 +108,33 @@ export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R exte
  * @param {IApiEntity<E>} entity - Entity metadata
  * @param {R} method - Route method
  * @param {TApiControllerPropertiesRoute<E, R>} routeConfig - Route-specific configuration
+ * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Route-scoped GET_LIST plan.
  * @param {IApiControllerIdentityPlan} [identityPlan] - Internal GET identity alias plan.
  * @returns {TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined} Response DTO, discriminated variants, or undefined.
  */
-export function ApiControllerGetResponseDto<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, routeConfig: TApiControllerPropertiesRoute<E, R>, queryPlan?: IApiControllerGetListQueryPlan, identityPlan?: IApiControllerIdentityPlan): TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined {
+export function ApiControllerGetResponseDto<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, routeConfig: TApiControllerPropertiesRoute<E, R>, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan, identityPlan?: IApiControllerIdentityPlan): TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined {
 	const isPolymorphicRead: boolean = (method === EApiRouteTypeValue.GET || method === EApiRouteTypeValue.GET_LIST) && !routeConfig.dto?.[EApiDtoTypeValue.RESPONSE];
 
 	if (isPolymorphicRead && entity.tableInheritance?.variants.length) {
 		ApiControllerIdentityPlanAssert(routeConfig, identityPlan);
 
-		return DtoGenerateTableInheritanceResponse(properties.entity, entity, entity.tableInheritance, method, routeConfig.autoDto?.[EApiDtoTypeValue.RESPONSE], routeConfig.security?.authentication?.guard, queryPlan);
+		return DtoGenerateTableInheritanceResponse(properties.entity, entity, entity.tableInheritance, method, schemaPrefix, routeConfig.autoDto?.[EApiDtoTypeValue.RESPONSE], routeConfig.security?.authentication?.guard, queryPlan);
 	}
 
-	return ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoTypeValue.RESPONSE, routeConfig, queryPlan, undefined, identityPlan);
+	return ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoTypeValue.RESPONSE, routeConfig, schemaPrefix, queryPlan, undefined, identityPlan);
 }
 
 /**
  * Builds a stable generated wrapper class name for GET_LIST custom item response DTOs.
- * @param {IApiEntity<E>} entity - Entity metadata used for the resource name.
  * @param {IApiControllerPropertiesRouteGetListResponseDtoConfig} config - Custom item response DTO config.
  * @param {EApiRouteType} method - Current route type.
  * @param {EApiDtoType} dtoType - Current DTO type.
+ * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @returns {string} Generated wrapper DTO class name.
- * @template E - Entity type.
  */
-function buildGetListItemResponseDtoName<E extends IApiBaseEntity>(entity: IApiEntity<E>, config: IApiControllerPropertiesRouteGetListResponseDtoConfig, method: EApiRouteType, dtoType: EApiDtoType): string {
-	return config.name ?? `${entity.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}${config.itemType.name}`;
+function buildGetListItemResponseDtoName(config: IApiControllerPropertiesRouteGetListResponseDtoConfig, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string): string {
+	return config.name ?? `${schemaPrefix}${CamelCaseString(method)}${CamelCaseString(dtoType)}${config.itemType.name}`;
 }
 
 /**
@@ -141,13 +144,14 @@ function buildGetListItemResponseDtoName<E extends IApiBaseEntity>(entity: IApiE
  * @param {IApiControllerPropertiesRouteGetListResponseDtoConfig} config - Custom item response DTO config.
  * @param {EApiRouteType} method - Current route type.
  * @param {EApiDtoType} dtoType - Current DTO type.
+ * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Compiled pagination plan selecting the page or cursor wrapper.
  * @returns {Type<unknown>} Generated list wrapper DTO class.
  * @template E - Entity type.
  */
-function getGetListItemResponseDto<E extends IApiBaseEntity>(resourceClass: ObjectLiteral, entity: IApiEntity<E>, config: IApiControllerPropertiesRouteGetListResponseDtoConfig, method: EApiRouteType, dtoType: EApiDtoType, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> {
+function getGetListItemResponseDto<E extends IApiBaseEntity>(resourceClass: ObjectLiteral, entity: IApiEntity<E>, config: IApiControllerPropertiesRouteGetListResponseDtoConfig, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> {
 	const isCursor: boolean = ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
-	const defaultName: string = buildGetListItemResponseDtoName(entity, config, method, dtoType);
+	const defaultName: string = buildGetListItemResponseDtoName(config, method, dtoType, schemaPrefix);
 
 	if (!isCursor) {
 		const cacheKey: string = `${entity.name ?? "UnknownResource"}_${config.itemType.name}_${defaultName}`;

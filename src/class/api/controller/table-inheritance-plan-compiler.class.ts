@@ -114,7 +114,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 	 * Rejects discriminator values with characters outside `[A-Za-z0-9_-]`, which the DTO name would drop or carry into an invalid OpenAPI name,
 	 * and values whose DTO name suffix is empty, repeated, or turns a GET_LIST variant into the name of the list wrapper.
 	 * @param {Type<unknown>} root - Table inheritance root class.
-	 * @param {string} rootName - Root entity name that prefixes every generated DTO name.
+	 * @param {string} rootName - Root entity name that follows the controller name in every generated DTO name.
 	 * @param {ReadonlyArray<IApiControllerTableInheritanceVariant>} variants - Variants sorted by discriminator value.
 	 * @returns {void}
 	 */
@@ -135,7 +135,7 @@ export class ApiControllerTableInheritancePlanCompiler {
 			}
 
 			if (`${listNamePrefix}${suffix}DTO` === `${listNamePrefix}ItemsDTO`) {
-				throw ErrorException(`Discriminator value "${discriminatorValue}" of ${root.name} produces the DTO name ${listNamePrefix}ItemsDTO, which is the generated GET_LIST wrapper name`);
+				throw ErrorException(`Discriminator value "${discriminatorValue}" of ${root.name} produces a GET_LIST DTO name ending in ${listNamePrefix}ItemsDTO, which is the generated GET_LIST wrapper name`);
 			}
 
 			suffixOwners.set(suffix, discriminatorValue);

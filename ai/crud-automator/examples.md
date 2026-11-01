@@ -262,7 +262,7 @@ export class DepositDetailController {
 }
 ```
 
-GET responds through `DepositDetailEntityGetResponseCardTransferDTO` and its siblings. GET_LIST keeps `DepositDetailEntityGetListResponseItemsDTO` over `DepositDetailEntityGetListResponseCardTransferDTO` and its siblings. Columns shared by some variants go on a `@ChildEntity() abstract class`, not on a plain class between the root and the child.
+GET responds through `DepositDetailGetResponseCardTransferDTO` and its siblings. GET_LIST keeps `DepositDetailGetListResponseItemsDTO` over `DepositDetailGetListResponseCardTransferDTO` and its siblings. Columns shared by some variants go on a `@ChildEntity() abstract class`, not on a plain class between the root and the child.
 
 ## Route Controls And Validators
 

@@ -2,7 +2,7 @@ import type { FindOptionsRelations } from "typeorm";
 
 import { Inject } from "@nestjs/common";
 
-import { ApiController, EApiControllerGetListQueryPaginationMode, EApiControllerRelationReferenceShape, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiRouteType, EFilterOperation, EFilterOrderDirection } from "../../../src/index";
+import { ApiController, CamelCaseString, EApiControllerGetListQueryPaginationMode, EApiControllerRelationReferenceShape, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiRouteType, EFilterOperation, EFilterOrderDirection } from "../../../src/index";
 
 import { E2eTemporalEagerLedgerEntity } from "./eager-ledger.entity";
 import { E2eTemporalLedgerEntity } from "./ledger.entity";
@@ -26,7 +26,15 @@ export const createLedgerController = (options: TLedgerControllerOptions): new (
 	const entity: typeof E2eTemporalEagerLedgerEntity | typeof E2eTemporalLedgerEntity = options.isEager ? E2eTemporalEagerLedgerEntity : E2eTemporalLedgerEntity;
 	const service: typeof E2eTemporalEagerLedgerService | typeof E2eTemporalLedgerService = options.isEager ? E2eTemporalEagerLedgerService : E2eTemporalLedgerService;
 
-	@ApiController<E2eTemporalLedgerEntity>({
+	class E2eTemporalLedgerController {
+		@Inject(service)
+		public readonly service!: E2eTemporalEagerLedgerService | E2eTemporalLedgerService;
+	}
+
+	// Every controller of one application needs its own class name, because the name starts its generated DTO names.
+	Object.defineProperty(E2eTemporalLedgerController, "name", { value: `${CamelCaseString(options.path)}Controller` });
+
+	return ApiController<E2eTemporalLedgerEntity>({
 		entity,
 		name: `E2eTemporal${options.path.replaceAll("-", "")}`,
 		path: options.path,
@@ -62,13 +70,7 @@ export const createLedgerController = (options: TLedgerControllerOptions): new (
 			[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
 			[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
 		},
-	} as never)
-	class E2eTemporalLedgerController {
-		@Inject(service)
-		public readonly service!: E2eTemporalEagerLedgerService | E2eTemporalLedgerService;
-	}
-
-	return E2eTemporalLedgerController;
+	} as never)(E2eTemporalLedgerController) as new () => unknown;
 };
 
 /**

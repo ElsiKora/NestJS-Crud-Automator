@@ -286,6 +286,21 @@ class GeneratedReadContractService extends ApiServiceBase<GeneratedReadContractE
 
 class ManualGeneratedReadParametersDto {}
 
+let testControllerCount: number = 0;
+
+/**
+ * Gives a controller class created by a test helper its own name, because every decorated controller class needs its own schema prefix.
+ * @param {T} target - Controller class created by a helper.
+ * @returns {T} The same class with a numbered name.
+ * @template T - Controller class type.
+ */
+function withUniqueControllerName<T extends object>(target: T): T {
+	testControllerCount++;
+	Object.defineProperty(target, "name", { value: `${(target as { name: string }).name}${String(testControllerCount)}` });
+
+	return target;
+}
+
 class ReadScopeGuardB {}
 
 const disabledRoute = { generation: { isEnabled: false } } as const;
@@ -315,7 +330,7 @@ function compileGetListParametersWithoutRead(): void {
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(ParametersWithoutReadControllerBase);
+	})(withUniqueControllerName(ParametersWithoutReadControllerBase));
 }
 
 /**
@@ -337,7 +352,7 @@ function compileHiddenIdentity(): void {
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(HiddenIdentityControllerBase);
+	})(withUniqueControllerName(HiddenIdentityControllerBase));
 }
 
 /**
@@ -365,7 +380,7 @@ function compileHiddenQueryConfiguration(queryTarget: unknown): object {
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(HiddenQueryControllerBase);
+	})(withUniqueControllerName(HiddenQueryControllerBase));
 }
 
 /**
@@ -388,7 +403,7 @@ function compileInvalidGetListIdentityConfiguration(identity: unknown): void {
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(InvalidGetListReadControllerBase);
+	})(withUniqueControllerName(InvalidGetListReadControllerBase));
 }
 
 /**
@@ -418,7 +433,7 @@ function compileInvalidIdentityConfiguration(path: string, identity: unknown, ha
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(InvalidGeneratedIdentityControllerBase);
+	})(withUniqueControllerName(InvalidGeneratedIdentityControllerBase));
 }
 
 /**
@@ -455,7 +470,7 @@ function compileInvalidOrder(defaultOrder: unknown, tieBreakers: unknown): void 
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(InvalidGeneratedOrderControllerBase);
+	})(withUniqueControllerName(InvalidGeneratedOrderControllerBase));
 }
 
 /**
@@ -494,7 +509,7 @@ function compileInvalidReadConfiguration(path: string, read: unknown, hasManualP
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(InvalidGeneratedReadControllerBase);
+	})(withUniqueControllerName(InvalidGeneratedReadControllerBase));
 }
 
 /**
@@ -577,7 +592,7 @@ function createAliasedReadController(parameterValidator: (parameters: Partial<Ge
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(AliasedReadControllerBase);
+	})(withUniqueControllerName(AliasedReadControllerBase));
 
 	return {
 		controller: new Controller() as unknown as IGeneratedReadContractController,
@@ -655,7 +670,7 @@ function createDateScopedReadController(): { controller: IGeneratedReadContractC
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(DateScopedReadControllerBase);
+	})(withUniqueControllerName(DateScopedReadControllerBase));
 
 	return {
 		controller: new Controller() as unknown as IGeneratedReadContractController,
@@ -701,7 +716,7 @@ function createFilterOnlyQueryController(): { controller: IGeneratedReadContract
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(FilterOnlyQueryControllerBase);
+	})(withUniqueControllerName(FilterOnlyQueryControllerBase));
 
 	return {
 		controller: new Controller() as unknown as IGeneratedReadContractController,
@@ -766,7 +781,7 @@ function createGeneratedCursorReadController(options?: { responseDto?: { itemTyp
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(GeneratedCursorReadControllerBase);
+	})(withUniqueControllerName(GeneratedCursorReadControllerBase));
 
 	return {
 		controller: new Controller() as unknown as IGeneratedCursorReadContractController,
@@ -823,7 +838,7 @@ function createGeneratedReadController(): { controller: IGeneratedReadContractCo
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(GeneratedReadControllerBase);
+	})(withUniqueControllerName(GeneratedReadControllerBase));
 
 	return {
 		controller: new Controller() as unknown as IGeneratedReadContractController,
@@ -864,7 +879,7 @@ function createIdentityAliasController(hasOwnerScope: boolean = false, identityP
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(IdentityAliasControllerBase);
+	})(withUniqueControllerName(IdentityAliasControllerBase));
 
 	return {
 		controller: new Controller() as unknown as IGeneratedReadContractController,
@@ -896,7 +911,7 @@ function createIdentityInheritanceControllers(): {
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(AliasedBaseControllerTarget);
+	})(withUniqueControllerName(AliasedBaseControllerTarget));
 
 	class CanonicalDerivedControllerTarget extends AliasedController {}
 
@@ -918,7 +933,7 @@ function createIdentityInheritanceControllers(): {
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(CanonicalDerivedControllerTarget);
+	})(withUniqueControllerName(CanonicalDerivedControllerTarget));
 
 	class DifferentAliasDerivedControllerTarget extends AliasedController {}
 
@@ -940,7 +955,7 @@ function createIdentityInheritanceControllers(): {
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(DifferentAliasDerivedControllerTarget);
+	})(withUniqueControllerName(DifferentAliasDerivedControllerTarget));
 
 	return {
 		aliased: {
@@ -978,7 +993,7 @@ function createLegacyGeneratedReadController(): { controller: ILegacyGeneratedRe
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(LegacyGeneratedReadControllerBase);
+	})(withUniqueControllerName(LegacyGeneratedReadControllerBase));
 
 	return {
 		controller: new Controller() as unknown as ILegacyGeneratedReadContractController,
@@ -1008,7 +1023,7 @@ function createRawIdentityRouteController(path: string, routeConfig: unknown): {
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(RawIdentityRouteControllerBase);
+	})(withUniqueControllerName(RawIdentityRouteControllerBase));
 
 	return {
 		controller: new Controller() as unknown as IGeneratedReadContractController,
@@ -1038,7 +1053,7 @@ function createRawReadRouteController(path: string, routeConfig: unknown): { con
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(RawReadRouteControllerBase);
+	})(withUniqueControllerName(RawReadRouteControllerBase));
 
 	return {
 		controller: new Controller() as unknown as IGeneratedReadContractController,
@@ -1238,12 +1253,12 @@ describe("generated read contract", () => {
 
 		const invocations: Array<() => unknown> = [
 			() => {
-				ApiControllerApplyDecorators(handler as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, []);
+				ApiControllerApplyDecorators(handler as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, [], "TestController");
 			},
 			() => {
 				ApiControllerApplyMetadata(LowLevelIdentityController, LowLevelIdentityController.prototype, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig);
 			},
-			() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET, EApiDtoType.PARAMETERS, routeConfig),
+			() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET, EApiDtoType.PARAMETERS, routeConfig, "TestController"),
 			() => {
 				ApiControllerWriteDtoSwagger(LowLevelIdentityController, entityMetadata, properties, EApiRouteType.GET, routeConfig, entityMetadata);
 			},
@@ -1363,12 +1378,12 @@ describe("generated read contract", () => {
 
 		const invocations: Array<() => unknown> = [
 			() => {
-				ApiControllerApplyDecorators(handler as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, []);
+				ApiControllerApplyDecorators(handler as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, [], "TestController");
 			},
 			() => {
 				ApiControllerApplyMetadata(LowLevelReadController, LowLevelReadController.prototype, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig);
 			},
-			() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET, EApiDtoType.PARAMETERS, routeConfig),
+			() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET, EApiDtoType.PARAMETERS, routeConfig, "TestController"),
 			() => {
 				ApiControllerWriteDtoSwagger(LowLevelReadController, entityMetadata, properties, EApiRouteType.GET, routeConfig, entityMetadata);
 			},
@@ -1793,7 +1808,7 @@ describe("generated read contract", () => {
 		const dtoConfig = {};
 		const allowedDto = DtoGenerateReadParameters(entityMetadata, EApiRouteType.GET_LIST, readPlan, dtoConfig, ReadScopeGuardA as Type<IAuthGuard>);
 		const cachedAllowedDto = DtoGenerateReadParameters(entityMetadata, EApiRouteType.GET_LIST, readPlan, dtoConfig, ReadScopeGuardA as Type<IAuthGuard>);
-		const deniedDto = DtoGenerateReadParameters(entityMetadata, EApiRouteType.GET_LIST, readPlan, dtoConfig, ReadScopeGuardB as Type<IAuthGuard>);
+		const deniedDto = DtoGenerateReadParameters(entityMetadata, EApiRouteType.GET_LIST, Object.freeze({ ...readPlan, schemaName: "GuardSensitiveDeniedReadControllerParametersDTO" }), dtoConfig, ReadScopeGuardB as Type<IAuthGuard>);
 
 		expect(cachedAllowedDto).toBe(allowedDto);
 		expect(deniedDto).not.toBe(allowedDto);

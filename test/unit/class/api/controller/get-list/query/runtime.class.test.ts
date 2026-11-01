@@ -224,7 +224,7 @@ function compileUuidPrimaryFilterPlan(mode: EApiControllerGetListQueryPagination
 describe("typed GET_LIST query plan and runtime", () => {
 	it.each([EApiControllerGetListQueryPaginationMode.PAGE, EApiControllerGetListQueryPaginationMode.CURSOR])("supports an exact UUID primary filter plan in %s mode without exposing primary client order", async (mode: EApiControllerGetListQueryPaginationMode) => {
 		const plan: IApiControllerGetListQueryPlan = compileUuidPrimaryFilterPlan(mode);
-		const queryDto = DtoGenerate(CursorQueryEntity, GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity), EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, undefined, plan);
+		const queryDto = DtoGenerate(CursorQueryEntity, GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity), EApiRouteType.GET_LIST, EApiDtoType.QUERY, "TestController", undefined, undefined, plan);
 
 		expect(Object.keys(plan.filter.fields)).toEqual(["id"]);
 		expect(plan.filter.fields.id).toMatchObject({
@@ -388,8 +388,8 @@ describe("typed GET_LIST query plan and runtime", () => {
 
 	it("keeps primary identity out of legacy query and mutation body DTOs", () => {
 		const metadata: IApiEntity<CursorQueryEntity> = GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity);
-		const legacyQueryDto = DtoGenerate(CursorQueryEntity, metadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY);
-		const createBodyDto = DtoGenerate(CursorQueryEntity, metadata, EApiRouteType.CREATE, EApiDtoType.BODY);
+		const legacyQueryDto = DtoGenerate(CursorQueryEntity, metadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "TestController");
+		const createBodyDto = DtoGenerate(CursorQueryEntity, metadata, EApiRouteType.CREATE, EApiDtoType.BODY, "TestController");
 
 		if (!legacyQueryDto || !createBodyDto) {
 			throw new Error("Expected generated safety-boundary DTOs");
@@ -416,7 +416,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(plan.filter.fields.count?.allowedOperations).toEqual([EFilterOperation.EQ, EFilterOperation.GT]);
 		expect(plan.filter.fields["owner.name"]?.isEnabled).toBe(true);
 		expect(plan.filter.fields["tags.id"]).toBeUndefined();
-		expect(plan.schemaName).toContain("TypedQueryController");
+		expect(plan.schemaName).toMatch(/^TypedQueryGetListQuery[\da-f]{64}DTO$/);
 	});
 
 	it("normalizes plan identity and scopes schemas by controller", () => {
@@ -464,8 +464,8 @@ describe("typed GET_LIST query plan and runtime", () => {
 			},
 		} as const;
 		const narrowPlan = ApiControllerGetListQueryPlanCompiler.compile(TypedQueryNarrowController, TypedQueryEntity, entityMetadata, narrowConfig);
-		const publicDto = DtoGenerate(TypedQueryEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, undefined, publicPlan);
-		const narrowDto = DtoGenerate(TypedQueryEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, undefined, narrowPlan);
+		const publicDto = DtoGenerate(TypedQueryEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "TestController", undefined, undefined, publicPlan);
+		const narrowDto = DtoGenerate(TypedQueryEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "TestController", undefined, undefined, narrowPlan);
 
 		expect(publicDto).toBeDefined();
 		expect(narrowDto).toBeDefined();
@@ -934,8 +934,8 @@ describe("typed GET_LIST query plan and runtime", () => {
 	it("compiles a strict CURSOR contract without page or totals", async () => {
 		const plan = compileCursorPlan();
 		const result = ApiControllerGetListQueryRuntime.parse({ limit: "2" }, plan);
-		const dto = DtoGenerate(CursorQueryEntity, GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity), EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, undefined, plan);
-		const responseDto = DtoGenerate(CursorQueryEntity, GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity), EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, undefined, undefined, plan);
+		const dto = DtoGenerate(CursorQueryEntity, GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity), EApiRouteType.GET_LIST, EApiDtoType.QUERY, "TestController", undefined, undefined, plan);
+		const responseDto = DtoGenerate(CursorQueryEntity, GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity), EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, "TestController", undefined, undefined, plan);
 		const instance = new (dto as new () => Record<string, unknown>)();
 		const swaggerProperties: ReadonlyArray<string> = (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES_ARRAY, dto?.prototype) as ReadonlyArray<string> | undefined) ?? [];
 		const validationMetadata = getMetadataStorage().getTargetValidationMetadatas(dto as new () => unknown, "", true, false);
@@ -970,10 +970,10 @@ describe("typed GET_LIST query plan and runtime", () => {
 	it("omits generated client-order controls when a CURSOR plan enables no client order fields", async () => {
 		const plan = compileCursorPlan({ fields: {} });
 		const cursorEntityMetadata = GenerateEntityInformation<CursorQueryEntity>(CursorQueryEntity as unknown as IApiBaseEntity);
-		const baseDto = DtoGetGetListQueryBaseClass(CursorQueryEntity, cursorEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, plan);
+		const baseDto = DtoGetGetListQueryBaseClass(CursorQueryEntity, cursorEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "TestController", plan);
 		const baseInstance = new baseDto() as Record<string, unknown>;
 		const baseManualMetadata = GetManualDtoPropertyMetadata(baseDto.prototype);
-		const dto = DtoGenerate(CursorQueryEntity, cursorEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, undefined, plan);
+		const dto = DtoGenerate(CursorQueryEntity, cursorEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "TestController", undefined, undefined, plan);
 		const instance = new (dto as new () => Record<string, unknown>)();
 		const swaggerProperties: ReadonlyArray<string> = (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES_ARRAY, dto?.prototype) as ReadonlyArray<string> | undefined) ?? [];
 		const validationMetadata = getMetadataStorage().getTargetValidationMetadatas(dto as new () => unknown, "", true, false);
@@ -1020,9 +1020,9 @@ describe("typed GET_LIST query plan and runtime", () => {
 		}
 
 		const result = ApiControllerGetListQueryRuntime.parse({ after: "page-filter-after", before: "page-filter-before", limit: 10, page: 3 }, plan);
-		const dto = DtoGenerate(CursorQueryEntity, cursorMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, undefined, plan);
-		const baselineResponseDto = DtoGenerate(CursorQueryEntity, cursorMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE);
-		const responseDto = DtoGenerate(CursorQueryEntity, cursorMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, undefined, undefined, plan);
+		const dto = DtoGenerate(CursorQueryEntity, cursorMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "TestController", undefined, undefined, plan);
+		const baselineResponseDto = DtoGenerate(CursorQueryEntity, cursorMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, "PageBaseline");
+		const responseDto = DtoGenerate(CursorQueryEntity, cursorMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, "PagePlan", undefined, undefined, plan);
 
 		expect(result).toMatchObject({ limit: 10, page: 3 });
 		expect(result.filterQuery).toEqual({ after: "page-filter-after", before: "page-filter-before" });

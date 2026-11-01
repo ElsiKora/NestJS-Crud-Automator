@@ -90,8 +90,8 @@ describe("typed GET_LIST Swagger contract (E2E)", () => {
 		expect(narrowParameters).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: "count" })]));
 
 		const schemas = document.components?.schemas ?? {};
-		const typedQuerySchemaNames: Array<string> = Object.keys(schemas).filter((name: string): boolean => name.includes("E2eTypedQueryController") && name.endsWith("DTO"));
-		const narrowQuerySchemaNames: Array<string> = Object.keys(schemas).filter((name: string): boolean => name.includes("E2eNarrowTypedQueryController") && name.endsWith("DTO"));
+		const typedQuerySchemaNames: Array<string> = Object.keys(schemas).filter((name: string): boolean => name.startsWith("E2eTypedQueryGetListQuery") && name.endsWith("DTO"));
+		const narrowQuerySchemaNames: Array<string> = Object.keys(schemas).filter((name: string): boolean => name.startsWith("E2eNarrowTypedQueryGetListQuery") && name.endsWith("DTO"));
 		const typedQuerySchema = schemas[typedQuerySchemaNames[0] ?? ""];
 		const typedQuerySchemaProperties = typedQuerySchema && !("$ref" in typedQuerySchema) ? (typedQuerySchema.properties ?? {}) : {};
 

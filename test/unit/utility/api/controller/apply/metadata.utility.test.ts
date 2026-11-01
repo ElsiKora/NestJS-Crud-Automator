@@ -30,7 +30,9 @@ describe("ApiControllerApplyMetadata", () => {
 			},
 		};
 
-		const target = {};
+		class MetadataTestController {}
+
+		const target: object = MetadataTestController;
 		const targetPrototype = {};
 
 		ApiControllerApplyMetadata(target, targetPrototype, entityMetadata, properties, EApiRouteType.UPDATE, "update", routeConfig as never);

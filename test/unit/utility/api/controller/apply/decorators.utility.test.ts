@@ -63,7 +63,7 @@ describe("ApiControllerApplyDecorators", () => {
 		};
 		const targetMethod = () => undefined;
 
-		ApiControllerApplyDecorators(targetMethod as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, []);
+		ApiControllerApplyDecorators(targetMethod as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, [], "TestController");
 
 		expect(Reflect.getMetadata(PATH_METADATA, targetMethod)).toBe(":id");
 		expect(Reflect.getMetadata(METHOD_METADATA, targetMethod)).toBe(RequestMethod.GET);
@@ -106,7 +106,7 @@ describe("ApiControllerApplyDecorators", () => {
 		};
 		const targetMethod = () => undefined;
 
-		ApiControllerApplyDecorators(targetMethod as never, entityMetadata, properties, EApiRouteType.DELETE, "delete", routeConfig, []);
+		ApiControllerApplyDecorators(targetMethod as never, entityMetadata, properties, EApiRouteType.DELETE, "delete", routeConfig, [], "TestController");
 
 		expect(Reflect.getMetadata(PATH_METADATA, targetMethod)).toBe(":id");
 		expect(Reflect.getMetadata(METHOD_METADATA, targetMethod)).toBe(RequestMethod.DELETE);
@@ -150,7 +150,7 @@ describe("ApiControllerApplyDecorators", () => {
 		};
 		const targetMethod = () => undefined;
 
-		ApiControllerApplyDecorators(targetMethod as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, []);
+		ApiControllerApplyDecorators(targetMethod as never, entityMetadata, properties, EApiRouteType.GET, "get", routeConfig, [], "TestController");
 
 		expect(Reflect.getMetadata(GUARDS_METADATA, targetMethod)).toEqual([DecoratorExecutionGuard, ApiAuthorizationGuard]);
 		expect(Reflect.getMetadata(INTERCEPTORS_METADATA, targetMethod)).toEqual([DecoratorExecutionInterceptor]);
@@ -178,7 +178,7 @@ describe("ApiControllerApplyDecorators", () => {
 		};
 		const targetMethod = () => undefined;
 
-		ApiControllerApplyDecorators(targetMethod as never, entityMetadata, properties, EApiRouteType.CREATE, "create", routeConfig, []);
+		ApiControllerApplyDecorators(targetMethod as never, entityMetadata, properties, EApiRouteType.CREATE, "create", routeConfig, [], "TestController");
 
 		expect(Reflect.getMetadata(GUARDS_METADATA, targetMethod)).toEqual([DecoratorExecutionGuard, DecoratorGuard, DecoratorStagedExecutionGuard, ApiAuthorizationGuard]);
 	});

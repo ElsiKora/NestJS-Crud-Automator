@@ -208,17 +208,20 @@ describe("table inheritance with package features (E2E)", () => {
 		const schema = (name: string): { properties: Record<string, Record<string, unknown>> } => document.components?.schemas?.[name] as { properties: Record<string, Record<string, unknown>> };
 
 		it("describes eager and included relations on each variant", () => {
-			expect(schema("IntegrationDetailEntityGetResponseCardDTO").properties.vendor).toMatchObject({ allOf: [{ $ref: "#/components/schemas/IntegrationDetailEntityGetResponseCardVendorDTO" }] });
-			expect(schema("IntegrationDetailEntityGetResponseCardDTO").properties.network).toMatchObject({ allOf: [{ $ref: "#/components/schemas/IntegrationDetailEntityGetResponseCardNetworkDTO" }] });
-			expect(schema("IntegrationDetailEntityGetResponseCardDTO").properties.issuer).toMatchObject({ allOf: [{ $ref: "#/components/schemas/IntegrationDetailEntityGetResponseCardIssuerDTO" }] });
-			expect(schema("IntegrationDetailEntityGetResponseCardDTO").properties.tags).toMatchObject({ items: { $ref: "#/components/schemas/IntegrationDetailEntityGetResponseCardTagsDTO" }, type: "array" });
-			expect(schema("IntegrationDetailEntityGetResponseFormDTO").properties.notes).toMatchObject({ items: { $ref: "#/components/schemas/IntegrationDetailEntityGetResponseFormNotesDTO" }, type: "array" });
-			expect(schema("IntegrationDetailEntityGetResponseFormDTO").properties).not.toHaveProperty("issuer");
+			expect(schema("IntegrationDetailGetResponseCardDTO").properties.vendor).toMatchObject({ allOf: [{ $ref: "#/components/schemas/IntegrationDetailGetResponseCardVendorDTO" }] });
+			expect(schema("IntegrationDetailGetResponseCardDTO").properties.network).toMatchObject({ allOf: [{ $ref: "#/components/schemas/IntegrationDetailGetResponseCardNetworkDTO" }] });
+			expect(schema("IntegrationDetailGetResponseCardDTO").properties.issuer).toMatchObject({ allOf: [{ $ref: "#/components/schemas/IntegrationDetailGetResponseCardIssuerDTO" }] });
+			expect(schema("IntegrationDetailGetResponseCardDTO").properties.tags).toMatchObject({ items: { $ref: "#/components/schemas/IntegrationDetailGetResponseCardTagsDTO" }, type: "array" });
+			expect(schema("IntegrationDetailGetResponseFormDTO").properties.notes).toMatchObject({ items: { $ref: "#/components/schemas/IntegrationDetailGetResponseFormNotesDTO" }, type: "array" });
+			expect(schema("IntegrationDetailGetResponseFormDTO").properties).not.toHaveProperty("issuer");
 		});
 
 		it("describes page and cursor list items as oneOf over the variants", () => {
-			for (const wrapper of ["IntegrationDetailEntityGetListResponseItemsDTO", "IntegrationDetailEntityGetListCursorResponseItemsDTO"]) {
-				expect(schema(wrapper).properties.items).toMatchObject({ items: { oneOf: [{ $ref: "#/components/schemas/IntegrationDetailEntityGetListResponseCardDTO" }, { $ref: "#/components/schemas/IntegrationDetailEntityGetListResponseFormDTO" }] } });
+			for (const [schemaPrefix, wrapper] of [
+				["IntegrationDetail", "GetListResponseItemsDTO"],
+				["IntegrationDetailCursor", "GetListCursorResponseItemsDTO"],
+			]) {
+				expect(schema(`${schemaPrefix}${wrapper}`).properties.items).toMatchObject({ items: { oneOf: [{ $ref: `#/components/schemas/${schemaPrefix}GetListResponseCardDTO` }, { $ref: `#/components/schemas/${schemaPrefix}GetListResponseFormDTO` }] } });
 			}
 		});
 	});

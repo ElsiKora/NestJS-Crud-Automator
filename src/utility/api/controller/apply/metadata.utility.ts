@@ -12,6 +12,7 @@ import { EApiDtoType } from "@enum/decorator/api";
 import { assignMetadata } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
 import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 
 /**
  * Applies metadata for NestJS controller methods to enable proper dependency injection.
@@ -47,13 +48,14 @@ export function ApiControllerApplyMetadata<E extends IApiBaseEntity>(target: obj
  * @returns {void}
  */
 export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan): void {
+	const schemaPrefix: string = ApiControllerGetSchemaPrefix(target);
 	let parameterIndex: number = 0;
 	let routeArgumentsMetadata: unknown = {};
 	const parameterTypes: Array<unknown> = [];
 
-	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, queryPlan, readPlan, identityPlan);
-	const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.QUERY, routeConfig, queryPlan, readPlan, identityPlan);
-	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, queryPlan, readPlan, identityPlan);
+	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
+	const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.QUERY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
+	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
 
 	if (requestDto) {
 		routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.PARAM, parameterIndex);

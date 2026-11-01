@@ -209,8 +209,8 @@ describe("To-many response relations (E2E)", () => {
 
 	it("describes to-many response relations as arrays in Swagger", () => {
 		for (const [schemaName, itemSchemaPrefix] of [
-			["E2eToManyPostEntityGetResponseDTO", "E2eToManyPostEntityGetResponse"],
-			["E2eToManyPostEntityGetListResponseDTO", "E2eToManyPostEntityGetListResponse"],
+			["E2eToManyObjectPostGetResponseDTO", "E2eToManyObjectPostGetResponse"],
+			["E2eToManyObjectPostGetListResponseDTO", "E2eToManyObjectPostGetListResponse"],
 		] as const) {
 			const properties: Record<string, TSwaggerSchemaObject> = getSchemaProperties(schemaName);
 
@@ -223,7 +223,7 @@ describe("To-many response relations (E2E)", () => {
 	});
 
 	it("keeps to-many relations in the request schema unchanged", () => {
-		const properties: Record<string, TSwaggerSchemaObject> = getSchemaProperties("E2eToManyPostEntityCreateBodyDTO");
+		const properties: Record<string, TSwaggerSchemaObject> = getSchemaProperties("E2eToManyObjectPostCreateBodyDTO");
 
 		expect(properties.comments?.type).toBe("string");
 		expect(properties.comments?.format).toBe("uuid");

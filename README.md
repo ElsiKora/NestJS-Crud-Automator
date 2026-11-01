@@ -1391,6 +1391,8 @@ async function bootstrap() {
 bootstrap();
 ```
 
+Generated DTOs are named after their controller, and that name is the OpenAPI component name. The prefix is the controller class name without a trailing `Controller`, and the entity name is not part of the name: `UserController` generates `UserGetResponseDTO`, and `AdminUserController` generates `AdminUserGetResponseDTO`. Two controllers on one entity, such as an admin and a public controller with different guards, each get their own schemas. A `@ApiRouteCustom` handler uses its method name in place of the route type, so `PublicUserController.getMe` generates `PublicUserGetMeParametersDTO`. Startup fails for two controller classes with the same prefix, for an anonymous controller class, and for two different generated DTO classes with one name. Before 5.0.0 the names had no controller prefix, so one controller's schema replaced the other's; regenerate API clients after upgrading. See [Generated Schema Names](https://elsikora.com/docs/nestjs-crud-automator/core-concepts/dtos#generated-schema-names).
+
 ### Custom Filtering
 
 The library provides advanced filtering capabilities for list endpoints:
@@ -1520,9 +1522,9 @@ export class DepositDetailController {
 }
 ```
 
-Each row is serialized through the DTO of its variant, such as `DepositDetailEntityGetResponseCardTransferDTO`, and Swagger describes GET and the GET_LIST `items` as `oneOf` with a discriminator mapping. A row whose discriminator value has no variant fails with `500` without echoing the value, and a child entity loaded after the controller, or a root with no child loaded, fails startup with a message naming the fix. Discriminator values use only letters, digits, `_` and `-`. The root declares the discriminator with `@Column` and `@ApiPropertyDescribe`, keeps it selected, stores it as a string, and leaves it in GET and GET_LIST responses; otherwise startup fails.
+Each row is serialized through the DTO of its variant, such as `DepositDetailGetResponseCardTransferDTO`, and Swagger describes GET and the GET_LIST `items` as `oneOf` with a discriminator mapping. A row whose discriminator value has no variant fails with `500` without echoing the value, and a child entity loaded after the controller, or a root with no child loaded, fails startup with a message naming the fix. Discriminator values use only letters, digits, `_` and `-`. The root declares the discriminator with `@Column` and `@ApiPropertyDescribe`, keeps it selected, stores it as a string, and leaves it in GET and GET_LIST responses; otherwise startup fails.
 
-Filters, order, pagination, and HOOKS/IAM scope stay on root columns. CURSOR order fields must be root columns that every variant still proves. Generated writes keep working on the root columns only. From 5.0.0, an existing controller over such a root changes from silently stripped variant fields to the full polymorphic shape, and the `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` Swagger components disappear; a manual RESPONSE DTO keeps the old shape. See [Table Inheritance](https://elsikora.com/docs/nestjs-crud-automator/core-concepts/entities#table-inheritance) for the variant rules and migration notes.
+Filters, order, pagination, and HOOKS/IAM scope stay on root columns. CURSOR order fields must be root columns that every variant still proves. Generated writes keep working on the root columns only. From 5.0.0, an existing controller over such a root changes from silently stripped variant fields to the full polymorphic shape, and the 4.x `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` Swagger components disappear; a manual RESPONSE DTO keeps the old shape. See [Table Inheritance](https://elsikora.com/docs/nestjs-crud-automator/core-concepts/entities#table-inheritance) for the variant rules and migration notes.
 
 ## 🧭 Migrating to 4.0
 

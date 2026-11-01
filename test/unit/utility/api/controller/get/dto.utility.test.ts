@@ -34,46 +34,67 @@ describe("ApiControllerGetDto", () => {
 	const pagePlan = { controllerName: "PageController", filter: { fields: {}, isLegacy: true }, order: { fields: {}, isLegacy: true }, schemaName: "PageQueryDTO", signature: "page" } as IApiControllerGetListQueryPlan;
 
 	it("supports full GET_LIST response wrapper DTO mode", () => {
-		const dto = ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, {
-			dto: {
-				response: GetDtoListDto,
+		const dto = ApiControllerGetDto(
+			properties,
+			entityMetadata,
+			EApiRouteType.GET_LIST,
+			EApiDtoType.RESPONSE,
+			{
+				dto: {
+					response: GetDtoListDto,
+				},
 			},
-		});
+			"TestController",
+		);
 
 		expect(dto).toBe(GetDtoListDto);
 	});
 
 	it("generates a GET_LIST wrapper around a configured item response DTO", () => {
-		const dto = ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, {
-			dto: {
-				response: {
-					itemType: GetDtoItemDto,
+		const dto = ApiControllerGetDto(
+			properties,
+			entityMetadata,
+			EApiRouteType.GET_LIST,
+			EApiDtoType.RESPONSE,
+			{
+				dto: {
+					response: {
+						itemType: GetDtoItemDto,
+					},
 				},
 			},
-		});
+			"TestController",
+		);
 		const itemsMetadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto?.prototype, "items");
 
-		expect(dto?.name).toBe("GetDtoEntityGetListResponseGetDtoItemDto");
+		expect(dto?.name).toBe("TestControllerGetListResponseGetDtoItemDto");
 		expect(itemsMetadata?.type).toBe(GetDtoItemDto);
 	});
 
 	it("uses explicit GET_LIST item response wrapper names", () => {
-		const dto = ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, {
-			dto: {
-				response: {
-					itemType: GetDtoItemDto,
-					name: "ExplicitGetDtoListDto",
+		const dto = ApiControllerGetDto(
+			properties,
+			entityMetadata,
+			EApiRouteType.GET_LIST,
+			EApiDtoType.RESPONSE,
+			{
+				dto: {
+					response: {
+						itemType: GetDtoItemDto,
+						name: "ExplicitGetDtoListDto",
+					},
 				},
 			},
-		});
+			"TestController",
+		);
 
 		expect(dto?.name).toBe("ExplicitGetDtoListDto");
 	});
 
 	it("keeps PAGE custom response wrapper cache identity unchanged when a query plan is present", () => {
 		const route = { dto: { response: { itemType: GetDtoItemDto } } };
-		const baseline = ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, route);
-		const planned = ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, route, pagePlan);
+		const baseline = ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, route, "TestController");
+		const planned = ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, route, "TestController", pagePlan);
 
 		expect(planned).toBe(baseline);
 	});
@@ -87,6 +108,7 @@ describe("ApiControllerGetDto", () => {
 			{
 				dto: { response: GetDtoListDto },
 			},
+			"TestController",
 			cursorPlan,
 		);
 
@@ -102,11 +124,12 @@ describe("ApiControllerGetDto", () => {
 			{
 				dto: { response: { itemType: GetDtoItemDto } },
 			},
+			"TestController",
 			cursorPlan,
 		);
 		const itemsMetadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto?.prototype, "items");
 
-		expect(dto?.name).toBe("GetDtoEntityGetListResponseGetDtoItemDtoCursor");
+		expect(dto?.name).toBe("TestControllerGetListResponseGetDtoItemDtoCursor");
 		expect(itemsMetadata?.type).toBe(GetDtoItemDto);
 		expect(Reflect.hasMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto?.prototype, "nextCursor")).toBe(true);
 		expect(Reflect.hasMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto?.prototype, "previousCursor")).toBe(true);
@@ -114,11 +137,11 @@ describe("ApiControllerGetDto", () => {
 	});
 
 	it("keys generated CURSOR wrappers by item constructor identity rather than class name", () => {
-		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: FirstSharedItemDto } } }, cursorPlan)).not.toThrow();
-		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: SecondSharedItemDto } } }, cursorPlan)).toThrow("configure a unique response DTO name");
+		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: FirstSharedItemDto } } }, "TestController", cursorPlan)).not.toThrow();
+		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: SecondSharedItemDto } } }, "TestController", cursorPlan)).toThrow("configure a unique response DTO name");
 
-		const first = ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: FirstSharedItemDto, name: "FirstSharedCursorResponse" } } }, cursorPlan);
-		const second = ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: SecondSharedItemDto, name: "SecondSharedCursorResponse" } } }, cursorPlan);
+		const first = ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: FirstSharedItemDto, name: "FirstSharedCursorResponse" } } }, "TestController", cursorPlan);
+		const second = ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: SecondSharedItemDto, name: "SecondSharedCursorResponse" } } }, "TestController", cursorPlan);
 
 		expect(first).not.toBe(second);
 		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, first?.prototype, "items")?.type).toBe(FirstSharedItemDto);
@@ -128,18 +151,18 @@ describe("ApiControllerGetDto", () => {
 	it("rejects one explicit wrapper schema name shared by PAGE and CURSOR envelopes", () => {
 		const response = { itemType: GetDtoItemDto, name: "SharedPageAndCursorResponse" };
 
-		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response } })).not.toThrow();
-		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response } }, cursorPlan)).toThrow("another item constructor or pagination mode");
+		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response } }, "TestController")).not.toThrow();
+		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response } }, "TestController", cursorPlan)).toThrow("another item constructor or pagination mode");
 	});
 
 	it("rejects an item response DTO configuration outside the GET_LIST response", () => {
-		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, { dto: { response: { itemType: GetDtoItemDto } } } as never)).toThrow("Custom item response DTO configuration is supported only for the GET_LIST RESPONSE DTO");
+		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, { dto: { response: { itemType: GetDtoItemDto } } } as never, "TestController")).toThrow("Custom item response DTO configuration is supported only for the GET_LIST RESPONSE DTO");
 	});
 
 	it("keeps a manual response DTO on a read route of a table inheritance root", () => {
 		const tableInheritance: IApiControllerTableInheritancePlan = { childEntities: [], discriminatorPropertyName: "type", rootEntity: GetDtoEntity, variants: [{ discriminatorValue: "A", entity: GetDtoEntity, entityMetadata: entityMetadata as IApiEntity<unknown> }] };
 
-		expect(ApiControllerGetResponseDto(properties, { ...entityMetadata, tableInheritance }, EApiRouteType.GET, { dto: { response: GetDtoListDto } })).toBe(GetDtoListDto);
-		expect(ApiControllerGetResponseDto(properties, { ...entityMetadata, tableInheritance }, EApiRouteType.GET_LIST, { dto: { response: GetDtoListDto } })).toBe(GetDtoListDto);
+		expect(ApiControllerGetResponseDto(properties, { ...entityMetadata, tableInheritance }, EApiRouteType.GET, { dto: { response: GetDtoListDto } }, "TestController")).toBe(GetDtoListDto);
+		expect(ApiControllerGetResponseDto(properties, { ...entityMetadata, tableInheritance }, EApiRouteType.GET_LIST, { dto: { response: GetDtoListDto } }, "TestController")).toBe(GetDtoListDto);
 	});
 });

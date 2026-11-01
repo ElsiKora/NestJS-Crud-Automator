@@ -412,21 +412,48 @@ class ManualNestedPolicyEntity {
 }
 
 describe("DtoGenerate", () => {
+	it("starts every generated DTO name with the schema prefix, so two controllers on one entity never share a component name", () => {
+		const entityMetadata = GenerateEntityInformation<DtoEntity>(DtoEntity as unknown as IApiBaseEntity);
+		const firstResponseDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "FirstDto");
+		const firstResponseDtoCached = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "FirstDto");
+		const secondResponseDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "SecondDto");
+		const secondListResponseDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, "SecondDto");
+
+		if (!firstResponseDto || !secondResponseDto || !secondListResponseDto) {
+			throw new Error("Expected generated response DTOs.");
+		}
+
+		const getNestedNames = (dto: ClassConstructor<unknown>): Array<string> => {
+			const ownerType: { name: string } = (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto.prototype, "owner") as { type: { name: string } }).type;
+			const extraModels: Array<{ name: string }> = (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, dto) as Array<{ name: string }> | undefined) ?? [];
+
+			return [ownerType.name, ...extraModels.map((model: { name: string }): string => model.name)];
+		};
+
+		expect(firstResponseDtoCached).toBe(firstResponseDto);
+		expect(secondResponseDto).not.toBe(firstResponseDto);
+		expect(firstResponseDto.name).toBe("FirstDtoGetResponseDTO");
+		expect(secondResponseDto.name).toBe("SecondDtoGetResponseDTO");
+		expect(secondListResponseDto.name).toBe("SecondDtoGetListResponseItemsDTO");
+		expect(getNestedNames(firstResponseDto)).toEqual(["FirstDtoGetResponseOwnerDTO", "FirstDtoGetResponseDynamicVariantDTO"]);
+		expect(getNestedNames(secondResponseDto)).toEqual(["SecondDtoGetResponseOwnerDTO", "SecondDtoGetResponseDynamicVariantDTO"]);
+	});
+
 	it("generates cached DTOs for request, query, and response types", () => {
 		const entityMetadata = GenerateEntityInformation<DtoEntity>(DtoEntity as unknown as IApiBaseEntity);
 
-		const createBodyDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY);
-		const createBodyDtoCached = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY);
-		const queryDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY);
-		const responseDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE);
+		const createBodyDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY, "TestController");
+		const createBodyDtoCached = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY, "TestController");
+		const queryDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "TestController");
+		const responseDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, "TestController");
 
 		expect(createBodyDto).toBeDefined();
 		expect(queryDto).toBeDefined();
 		expect(responseDto).toBeDefined();
 		expect(createBodyDtoCached).toBe(createBodyDto);
-		expect(createBodyDto?.name).toBe("DtoEntityCreateBodyDTO");
-		expect(queryDto?.name).toBe("DtoEntityGetListQueryDTO");
-		expect(responseDto?.name).toBe("DtoEntityGetListResponseItemsDTO");
+		expect(createBodyDto?.name).toBe("TestControllerCreateBodyDTO");
+		expect(queryDto?.name).toBe("TestControllerGetListQueryDTO");
+		expect(responseDto?.name).toBe("TestControllerGetListResponseItemsDTO");
 
 		if (!createBodyDto || !queryDto || !responseDto) {
 			throw new Error("Expected generated body, query, and response DTOs.");
@@ -490,7 +517,7 @@ describe("DtoGenerate", () => {
 
 	it("accepts uuid membership operators on the legacy generated query DTO and validates each member", () => {
 		const entityMetadata = GenerateEntityInformation<DtoEntity>(DtoEntity as unknown as IApiBaseEntity);
-		const queryDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY);
+		const queryDto = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "TestController");
 		const validIdentifiers = ["123e4567-e89b-12d3-a456-426614174000", "123e4567-e89b-12d3-a456-426614174001"];
 
 		for (const operator of [EFilterOperation.IN, EFilterOperation.NOTIN]) {
@@ -517,18 +544,18 @@ describe("DtoGenerate", () => {
 			schemaName: "SecondPageQueryDTO",
 			signature: "second-page-plan",
 		};
-		const firstResponse = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, undefined, undefined, firstPlan);
-		const secondResponse = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, undefined, undefined, secondPlan);
+		const firstResponse = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, "FirstPage", undefined, undefined, firstPlan);
+		const secondResponse = DtoGenerate(DtoEntity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, "SecondPage", undefined, undefined, secondPlan);
 
 		expect(firstResponse).not.toBe(secondResponse);
 	});
 
 	it("uses semantic timestamp identifiers for generated write DTO ownership", async () => {
 		const entityMetadata = GenerateEntityInformation<TimestampDtoEntity>(TimestampDtoEntity as unknown as IApiBaseEntity);
-		const createBodyDto = DtoGenerate(TimestampDtoEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY);
-		const updateBodyDto = DtoGenerate(TimestampDtoEntity, entityMetadata, EApiRouteType.UPDATE, EApiDtoType.BODY);
-		const partialUpdateBodyDto = DtoGenerate(TimestampDtoEntity, entityMetadata, EApiRouteType.PARTIAL_UPDATE, EApiDtoType.BODY);
-		const responseDto = DtoGenerate(TimestampDtoEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.RESPONSE);
+		const createBodyDto = DtoGenerate(TimestampDtoEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY, "TimestampDto");
+		const updateBodyDto = DtoGenerate(TimestampDtoEntity, entityMetadata, EApiRouteType.UPDATE, EApiDtoType.BODY, "TimestampDto");
+		const partialUpdateBodyDto = DtoGenerate(TimestampDtoEntity, entityMetadata, EApiRouteType.PARTIAL_UPDATE, EApiDtoType.BODY, "TimestampDto");
+		const responseDto = DtoGenerate(TimestampDtoEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.RESPONSE, "TimestampDto");
 
 		expect(createBodyDto).toBeDefined();
 		expect(updateBodyDto).toBeDefined();
@@ -617,7 +644,7 @@ describe("DtoGenerate", () => {
 
 	it("serializes nested manual DTOs in response mode without manual isResponse", () => {
 		const entityMetadata = GenerateEntityInformation<ManualNestedPolicyEntity>(ManualNestedPolicyEntity as unknown as IApiBaseEntity);
-		const responseDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE);
+		const responseDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "ManualNested");
 
 		expect(responseDto).toBeDefined();
 
@@ -716,8 +743,8 @@ describe("DtoGenerate", () => {
 
 	it("generates context-specific nested manual DTO names per auto DTO path", () => {
 		const entityMetadata = GenerateEntityInformation<ManualNestedPolicyEntity>(ManualNestedPolicyEntity as unknown as IApiBaseEntity);
-		const bodyDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY);
-		const responseDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE);
+		const bodyDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY, "ManualNested");
+		const responseDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "ManualNested");
 		const bodyDocumentDto = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, bodyDto?.prototype, "document")?.type as ClassConstructor<ManualPolicyDocumentDto>;
 		const responseDocumentDto = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, responseDto?.prototype, "document")?.type as ClassConstructor<ManualPolicyDocumentDto>;
 		const bodyStatementDto = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, bodyDocumentDto?.prototype, "Statement")?.type as ClassConstructor<ManualPolicyStatementDto>;
@@ -736,15 +763,15 @@ describe("DtoGenerate", () => {
 		expect(bodyDocumentDto).not.toBe(responseDocumentDto);
 		expect(bodyStatementDto).not.toBe(responseStatementDto);
 
-		expect(bodyDocumentDto.name).toBe("ManualNestedPolicyEntityCreateBodyDocumentDTO");
-		expect(bodyStatementDto.name).toBe("ManualNestedPolicyEntityCreateBodyDocumentStatementDTO");
-		expect(responseDocumentDto.name).toBe("ManualNestedPolicyEntityGetResponseDocumentDTO");
-		expect(responseStatementDto.name).toBe("ManualNestedPolicyEntityGetResponseDocumentStatementDTO");
+		expect(bodyDocumentDto.name).toBe("ManualNestedCreateBodyDocumentDTO");
+		expect(bodyStatementDto.name).toBe("ManualNestedCreateBodyDocumentStatementDTO");
+		expect(responseDocumentDto.name).toBe("ManualNestedGetResponseDocumentDTO");
+		expect(responseStatementDto.name).toBe("ManualNestedGetResponseDocumentStatementDTO");
 	});
 
 	it("keeps nested manual DTOs writable and validated in request mode", () => {
 		const entityMetadata = GenerateEntityInformation<ManualNestedPolicyEntity>(ManualNestedPolicyEntity as unknown as IApiBaseEntity);
-		const bodyDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY);
+		const bodyDto = DtoGenerate(ManualNestedPolicyEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY, "ManualNested");
 
 		expect(bodyDto).toBeDefined();
 

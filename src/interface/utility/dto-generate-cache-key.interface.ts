@@ -10,4 +10,5 @@ export interface IDtoGenerateCacheKey {
 	method: EApiRouteType;
 	queryPlanSignature?: string;
 	responseVariantName?: string;
+	routeName?: string;
 }

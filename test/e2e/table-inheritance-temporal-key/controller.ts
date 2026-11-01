@@ -2,7 +2,7 @@ import type { StiTemporalDebitEntryEntity } from "./debit.entity";
 
 import { Inject } from "@nestjs/common";
 
-import { ApiController, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiRouteType, EFilterOperation, EFilterOrderDirection } from "../../../src/index";
+import { ApiController, CamelCaseString, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiRouteType, EFilterOperation, EFilterOrderDirection } from "../../../src/index";
 
 import "./credit.entity";
 import "./debit.entity";
@@ -26,7 +26,15 @@ export const createEntryController = (options: TEntryControllerOptions): new () 
 	const isCursor: boolean = options.mode === EApiControllerGetListQueryPaginationMode.CURSOR;
 	const relations = options.isIncluded ? { response: { load: { include: { account: true, counterparty: true, watchers: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } } : undefined;
 
-	@ApiController<TEntry>({
+	class StiTemporalEntryController {
+		@Inject(StiTemporalEntryService)
+		public readonly service!: StiTemporalEntryService;
+	}
+
+	// Every controller of one application needs its own class name, because the name starts its generated DTO names.
+	Object.defineProperty(StiTemporalEntryController, "name", { value: `${CamelCaseString(options.path)}Controller` });
+
+	return ApiController<TEntry>({
 		entity: StiTemporalEntryEntity,
 		name: `StiTemporal${options.path.replaceAll("-", "")}`,
 		path: options.path,
@@ -63,11 +71,5 @@ export const createEntryController = (options: TEntryControllerOptions): new () 
 			[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
 			[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
 		},
-	} as never)
-	class StiTemporalEntryController {
-		@Inject(StiTemporalEntryService)
-		public readonly service!: StiTemporalEntryService;
-	}
-
-	return StiTemporalEntryController;
+	} as never)(StiTemporalEntryController) as new () => unknown;
 };

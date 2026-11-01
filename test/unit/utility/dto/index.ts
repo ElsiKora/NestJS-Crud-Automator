@@ -4,3 +4,4 @@ export * from "./is";
 export * from "./build-decorator.utility.test";
 export * from "./decorator-config.utility.test";
 export * from "./handle-date-property.utility.test";
+export * from "./set-generated-name.utility.test";

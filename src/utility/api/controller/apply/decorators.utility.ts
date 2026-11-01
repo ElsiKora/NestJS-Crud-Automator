@@ -30,6 +30,7 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @param {string} methodName - The name of the method being decorated
  * @param {TApiControllerPropertiesRoute<E, typeof method>} routeConfig - Route-specific configuration
  * @param {Array<MethodDecorator> | Array<PropertyDecorator>} decorators - Additional decorators to apply
+ * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Normalized GET_LIST query plan used to emit deep-object filter documentation.
  * @returns {void}
  * @throws {Error} If the method type is not implemented
@@ -43,11 +44,12 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity, M extends
 	methodName: string,
 	routeConfig: TApiControllerPropertiesRoute<E, typeof method>,
 	decorators: Array<MethodDecorator> | Array<PropertyDecorator>,
+	schemaPrefix: string,
 	queryPlan?: IApiControllerGetListQueryPlan,
 ): void {
 	ApiControllerReadPlanAssert(routeConfig);
 
-	ApiControllerApplyDecoratorsWithIdentityPlan(targetMethod, entity, properties, method, methodName, routeConfig, decorators, queryPlan);
+	ApiControllerApplyDecoratorsWithIdentityPlan(targetMethod, entity, properties, method, methodName, routeConfig, decorators, schemaPrefix, queryPlan);
 }
 
 /**
@@ -60,6 +62,7 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity, M extends
  * @param {string} methodName - Generated controller method name.
  * @param {TApiControllerPropertiesRoute<E, typeof method>} routeConfig - Route configuration.
  * @param {Array<MethodDecorator> | Array<PropertyDecorator>} decorators - Additional decorators.
+ * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Internal compiled GET_LIST query plan.
  * @param {IApiControllerIdentityPlan} [identityPlan] - Internal compiled GET identity alias plan.
  * @returns {void}
@@ -72,10 +75,11 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 	methodName: string,
 	routeConfig: TApiControllerPropertiesRoute<E, typeof method>,
 	decorators: Array<MethodDecorator> | Array<PropertyDecorator>,
+	schemaPrefix: string,
 	queryPlan?: IApiControllerGetListQueryPlan,
 	identityPlan?: IApiControllerIdentityPlan,
 ): void {
-	const responseDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(properties, entity, method, routeConfig, queryPlan, identityPlan);
+	const responseDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(properties, entity, method, routeConfig, schemaPrefix, queryPlan, identityPlan);
 	const customDecorators: Array<MethodDecorator> = [...decorators];
 
 	switch (method) {

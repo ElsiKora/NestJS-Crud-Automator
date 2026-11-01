@@ -24,6 +24,7 @@ import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/a
 import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/controller/apply/decorators.utility";
 import { ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/apply/metadata.utility";
 import { ApiControllerGetListQueryPlanGet, ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
+import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
 import { ApiControllerReadPlanGet, ApiControllerReadPlanSet } from "@utility/api/controller/read";
 import { ApiControllerWriteDtoSwaggerWithReadPlan } from "@utility/api/controller/write/dto-swagger.utility";
@@ -31,16 +32,24 @@ import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
 export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> {
+	private static readonly SCHEMA_PREFIX_OWNERS: Map<string, { controller: object; path: string }> = new Map<string, { controller: object; path: string }>();
+
 	protected get targetPrototype(): InstanceType<TApiControllerTargetMethod<E, M>> {
 		return this.target.prototype as InstanceType<TApiControllerTargetMethod<E, M>>;
 	}
 
 	private readonly ENTITY!: IApiEntity<E>;
 
+	private readonly PATH: string;
+
+	private schemaPrefix!: string;
+
 	constructor(
 		protected target: TApiControllerConstructor,
 		private readonly properties: IApiControllerProperties<E>,
 	) {
+		this.PATH = this.properties.path ?? (this.properties.entity.name ? this.properties.entity.name.toLowerCase() : "UnknownResource");
+
 		const entityInformation: IApiEntity<E> = GenerateEntityInformation<E>(properties.entity);
 
 		this.ENTITY = { ...entityInformation, tableInheritance: ApiControllerTableInheritancePlanCompiler.compile(properties, entityInformation) };
@@ -49,7 +58,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			throw ErrorException(`Primary key for entity ${this.properties.entity.name ?? "UnknownResource"} not found`);
 		}
 
-		Controller(this.properties.path ?? (this.properties.entity.name ? this.properties.entity.name.toLowerCase() : "UnknownResource"))(this.target);
+		Controller(this.PATH)(this.target);
 		ApiTags(this.properties.name ?? this.properties.entity.name ?? "UnknownResource")(this.target);
 
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.ENTITY_METADATA_KEY, this.properties.entity, this.target);
@@ -96,7 +105,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			ApiControllerApplyMetadataWithReadPlan(this.target, this.targetPrototype, this.ENTITY, this.properties, method, methodName, routeConfig, queryPlan, readPlan, identityPlan);
 
 			if (this.properties.routes[method]?.generation?.shouldWriteToController !== false) {
-				ApiControllerApplyDecoratorsWithIdentityPlan(targetMethod, this.ENTITY, this.properties, method, methodName, routeConfig, routeDecorators, queryPlan, identityPlan);
+				ApiControllerApplyDecoratorsWithIdentityPlan(targetMethod, this.ENTITY, this.properties, method, methodName, routeConfig, routeDecorators, this.schemaPrefix, queryPlan, identityPlan);
 			}
 
 			ApiControllerWriteDtoSwaggerWithReadPlan(this.target, this.ENTITY, this.properties, method, routeConfig, queryPlan, readPlan, identityPlan);
@@ -104,6 +113,8 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	init(): void {
+		this.schemaPrefix = this.claimSchemaPrefix();
+
 		for (const method of Object.values(EApiRouteType)) {
 			this.createMethod(method);
 		}
@@ -179,6 +190,29 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 
 	protected [EApiRouteType.UPDATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		this.defineUpdateRouteMethod(method, methodName, properties, entityMetadata);
+	}
+
+	/**
+	 * Claims the schema prefix of the decorated controller class, which starts every generated DTO and OpenAPI component name.
+	 * Fails startup when the class has no name or another controller class already has the same prefix, since their generated DTOs would share component names.
+	 * @returns {string} The schema prefix of the controller.
+	 * @throws {Error} When the controller class has no name or its schema prefix belongs to another controller class.
+	 */
+	private claimSchemaPrefix(): string {
+		if (this.target.name.length === 0) {
+			throw ErrorException(`Controller with path "${this.PATH}" is an anonymous class. Declare a named controller class, because its name starts every generated DTO and OpenAPI component name`);
+		}
+
+		const schemaPrefix: string = ApiControllerGetSchemaPrefix(this.target);
+		const owner: { controller: object; path: string } | undefined = ApiControllerFactory.SCHEMA_PREFIX_OWNERS.get(schemaPrefix);
+
+		if (owner && owner.controller !== this.target) {
+			throw ErrorException(`Controllers ${(owner.controller as { name: string }).name} (path "${owner.path}") and ${this.target.name} (path "${this.PATH}") have the same schema prefix "${schemaPrefix}". Rename one of the controller classes, because the prefix starts every generated DTO and OpenAPI component name`);
+		}
+
+		ApiControllerFactory.SCHEMA_PREFIX_OWNERS.set(schemaPrefix, { controller: this.target, path: this.PATH });
+
+		return schemaPrefix;
 	}
 
 	private defineUpdateRouteMethod(method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.PARTIAL_UPDATE> | TApiControllerMethodName<typeof EApiRouteType.UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {

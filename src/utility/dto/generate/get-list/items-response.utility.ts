@@ -1,5 +1,4 @@
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
-import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiPropertyObjectWithDiscriminatorProperties } from "@type/decorator/api/property";
 import type { ObjectLiteral } from "typeorm";
@@ -12,15 +11,14 @@ import { DtoGenerateGetListResponse } from "@utility/dto/generate/get-list/respo
 
 /**
  * Wraps generated GET_LIST item DTOs in the page or cursor envelope selected by the query plan.
- * @template E - The entity type.
  * @param {ObjectLiteral} entity - The entity class owning the list.
- * @param {IApiEntity<E>} entityMetadata - The entity metadata used for the wrapper name.
  * @param {Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | Type<unknown>} itemDto - The item DTO, or every item variant with the discriminator selecting it.
+ * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Compiled plan selecting the pagination envelope.
  * @returns {Type<unknown>} The generated list wrapper DTO class.
  */
-export function DtoGenerateGetListItemsResponse<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, itemDto: Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | Type<unknown>, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> {
-	const resourceName: string = `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(EApiRouteType.GET_LIST)}`;
+export function DtoGenerateGetListItemsResponse(entity: ObjectLiteral, itemDto: Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | Type<unknown>, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> {
+	const resourceName: string = `${schemaPrefix}${CamelCaseString(EApiRouteType.GET_LIST)}`;
 
 	// @ts-ignore The generated entity/DTO constructors satisfy the wrapper generator at runtime.
 	return ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR ? DtoGenerateGetListCursorResponse(entity, itemDto, `${resourceName}Cursor${CamelCaseString(EApiDtoType.RESPONSE)}ItemsDTO`) : DtoGenerateGetListResponse(entity, itemDto, `${resourceName}${CamelCaseString(EApiDtoType.RESPONSE)}ItemsDTO`);

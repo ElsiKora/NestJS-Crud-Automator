@@ -195,6 +195,126 @@ Control which properties are included in responses:
 password: string;
 ```
 
+## Generated Schema Names
+
+Every DTO that Automator generates for a controller route is named after that controller, and the class name is also the OpenAPI component name. The name starts with the controller's schema prefix: the controller class name without a trailing `Controller`. When nothing is left after removing it, the prefix is the full class name. `AdminUserController` has the prefix `AdminUser`, and `UserController` has `User`. The entity name is not part of generated names.
+
+| Generated DTO                                               | Name                                                                                                                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Body, query, parameters, response                           | `<Prefix><Route><DtoType>DTO`, for example `UserGetResponseDTO`, `UserCreateBodyDTO`, `UserPartialUpdateBodyDTO`                                             |
+| GET_LIST items wrapper                                      | `<Prefix>GetListResponseItemsDTO`, or `<Prefix>GetListCursorResponseItemsDTO` in CURSOR mode                                                                 |
+| Relation inside a response                                  | `<Prefix><Route>Response<Property>DTO`                                                                                                                       |
+| Dynamic or nested manual object                             | `<Prefix><Route><DtoType><Property><Variant>DTO`                                                                                                             |
+| Table inheritance variant response                          | `<Prefix><Route>Response<Value>DTO`, see [Table Inheritance](/docs/nestjs-crud-automator/core-concepts/entities#table-inheritance)                           |
+| Typed GET_LIST query, GET identity, read scope parameters   | `<Prefix>GetListQuery<signature>DTO`, `<Prefix>GetIdentity<signature>DTO`, `<Prefix>GetParameters<signature>DTO`, `<Prefix>GetListParameters<signature>DTO`  |
+| Filter operation and order enums without a typed query plan | `<Prefix><Property>FilterOperation` and `E<Prefix>FilterOrderBy`; with a typed query plan they start with the query DTO name                                 |
+| Body, query, parameters of a custom route                   | `<Prefix><Method><DtoType>DTO`, where `<Method>` is the handler method name in PascalCase: `PublicUserController.getMe` gives `PublicUserGetMeParametersDTO` |
+
+A name does not depend on which other controllers exist, so adding a controller never renames another controller's schemas.
+
+A custom route declared with `@ApiRouteCustom` uses its handler method name in place of the route type, so its generated DTOs stay apart from the generated route of the same type on its controller, also when the two routes have different guards. Its enums follow the same rule: `<Prefix><Method><Property>FilterOperation` and `E<Prefix><Method>FilterOrderBy`. The response DTO of a custom route is the one you configure.
+
+Exception DTOs such as `ExceptionNotFoundDTO` are shared by all routes and keep their names. A name you set yourself, such as `dto.response.name` for a GET_LIST item wrapper, is used as written.
+
+### Startup Checks
+
+Because the entity name is no longer part of generated names, the controller class name must be unique. Startup fails, naming what to fix, when:
+
+- two decorated controller classes have the same schema prefix, for example two classes named `UserController` in different modules, or `User` and `UserController`. The error names both controllers and their paths.
+- a decorated controller class has no name, for example `ApiController({ ... })(class {})`. Declare a named class.
+- two different generated DTO classes get the same name, whatever the reason. An example is a GET_LIST item wrapper name set with `dto.response.name` that matches another generated DTO name. The check runs when the second class is generated, and the error names the DTO name and what each class was generated for. Rename a controller class, change the configured name, or configure a manual DTO for one of the routes.
+
+DTO classes you write yourself are not checked. Give them names that do not match a generated name.
+
+### Two controllers on one entity
+
+A typical case is an admin and a public controller with different guards on the same entity. A property exposed only to `AdminGuard` appears in the admin response and not in the public one:
+
+```typescript
+@ApiController<UserEntity>({ entity: UserEntity, path: "admin/users", routes: { [EApiRouteType.GET]: { security: { authentication: { guard: AdminGuard, type: EApiAuthenticationType.ADMIN } } } } })
+export class AdminUserController {}
+
+@ApiController<UserEntity>({ entity: UserEntity, path: "users", routes: { [EApiRouteType.GET]: { security: { authentication: { guard: UserGuard, type: EApiAuthenticationType.USER } } } } })
+export class UserController {}
+```
+
+`GET /admin/users/{id}` is documented by `AdminUserGetResponseDTO` and `GET /users/{id}` by `UserGetResponseDTO`, and each schema matches what its route sends.
+
+### Migration Notes
+
+Before 5.0.0, generated body, response, GET_LIST items, relation, and nested object DTOs were named `<Entity><Route><DtoType>…DTO` without the controller. When two controllers on one entity generated different DTOs, for example because of different guards, both used the same component name and the OpenAPI document kept only one of them. The other route was documented with a schema it does not send. Responses on the wire were already correct. Typed GET_LIST query, GET identity, and read scope parameter DTOs were named `<Controller><Entity>…DTO`.
+
+From 5.0.0, every generated name starts with the controller's schema prefix, and the entity name is removed:
+
+- Component names change, and every `$ref` follows. The [name patterns](#old-and-new-name-patterns) below list each change, including the 4.x names that already contained the controller. Paths, operations, and schema contents of an application with one controller per entity stay the same. Regenerate API clients, and update code that refers to generated component names, such as hand-written `$ref` strings or type names from a generated client.
+- Every controller gets the prefix, including the only controller of an entity. A prefix added only when a second controller appeared would rename an existing controller's schemas whenever someone added another controller.
+- An application with several controllers on one entity gets one set of components per controller. Routes that were documented with another controller's schema now show their own.
+- Generated DTOs of a custom route use the handler method name in place of the route type. A `@ApiRouteCustom` handler `getMe` of type GET on `PublicUserController` generates `PublicUserGetMeParametersDTO`, where 4.x generated `<Entity>GetParametersDTO`.
+- The [startup checks](#startup-checks) above are new. An application that has two controller classes with the same name, an anonymous controller class, or two generated DTO classes with one name now fails at startup instead of producing a document with a missing schema.
+- Low-level helpers take the prefix as a required `schemaPrefix` argument: `DtoGenerate` and `DtoGetGetListQueryBaseClass` after `dtoType`, `ApiControllerGetDto` after `routeConfig`, `ApiControllerApplyDecorators` after `decorators`, and `DtoGenerateTableInheritanceResponse` after `method`. `DtoGenerateGetListItemsResponse` changes from `(entity, entityMetadata, itemDto, queryPlan?)` to `(entity, itemDto, schemaPrefix, queryPlan?)`. `DtoGenerateTableInheritanceResponse` and `DtoGenerateGetListItemsResponse` first shipped in 5.0.0-dev.2, so callers of that pre-release need the change too. `DtoGenerate` also takes an optional trailing `routeName`. `ApiControllerGetSchemaPrefix(controllerClass)` returns the prefix Automator uses. Code that only uses `@ApiController` and `@ApiRouteCustom` needs no change.
+
+#### Old and New Name Patterns
+
+`<Prefix>` is the controller class name without a trailing `Controller`. `<Controller>` is the full class name, and `<Entity>` is the entity class name.
+
+| Generated name                       | 4.x                                                         | 5.0.0                                            |
+| ------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------ |
+| Body, query, parameters, response    | `<Entity><Route><DtoType>DTO`                               | `<Prefix><Route><DtoType>DTO`                    |
+| GET_LIST items wrapper               | `<Entity>GetListResponseItemsDTO`                           | `<Prefix>GetListResponseItemsDTO`                |
+| CURSOR items wrapper                 | `<Entity>GetListCursorResponseItemsDTO`                     | `<Prefix>GetListCursorResponseItemsDTO`          |
+| Relation in a response               | `<Entity><Route>Response<Property>DTO`                      | `<Prefix><Route>Response<Property>DTO`           |
+| Relation in a body                   | `<Entity><Route>Body<property>DTO`                          | `<Prefix><Route>Body<property>DTO`               |
+| Dynamic or nested object             | `<Entity><Route><DtoType><Property><Variant>DTO`            | `<Prefix><Route><DtoType><Property><Variant>DTO` |
+| Typed GET_LIST query                 | `<Controller><Entity>GetListQuery<signature>DTO`            | `<Prefix>GetListQuery<signature>DTO`             |
+| GET identity                         | `<Controller><Entity>GetIdentity<signature>DTO`             | `<Prefix>GetIdentity<signature>DTO`              |
+| Read scope parameters                | `<Controller><Entity>Get[List]Parameters<signature>DTO`     | `<Prefix>Get[List]Parameters<signature>DTO`      |
+| Filter operation enum                | `<Entity><Property>FilterOperation`                         | `<Prefix><Property>FilterOperation`              |
+| Filter order enum                    | `E<Entity>FilterOrderBy`                                    | `E<Prefix>FilterOrderBy`                         |
+| Enums of a typed query               | start with `<Controller><Entity>GetListQuery<signature>DTO` | start with `<Prefix>GetListQuery<signature>DTO`  |
+| Custom route body, query, parameters | `<Entity><Route><DtoType>DTO`                               | `<Prefix><Method><DtoType>DTO`                   |
+
+`Exception*DTO` names and a name you set yourself do not change. In 5.0.0-dev.2 table inheritance variants were named `<Entity><Route>Response<Value>DTO`; they are now `<Prefix><Route>Response<Value>DTO`.
+
+#### Renaming References
+
+This script applies the patterns to files that refer to generated names, such as hand-written `$ref` strings, tests, or code that imports types from a generated client. Pass each controller with its entity, then the files to rewrite in place:
+
+```javascript
+// rename-generated-names.mjs
+// node rename-generated-names.mjs UserController=UserEntity OrderController=OrderEntity -- src/client.ts openapi.json
+import { readFileSync, writeFileSync } from "node:fs";
+
+const arguments_ = process.argv.slice(2);
+const separator = arguments_.indexOf("--");
+const pairs = arguments_.slice(0, separator).map((pair) => pair.split("="));
+const files = arguments_.slice(separator + 1);
+const entities = pairs.map(([, entity]) => entity);
+const duplicate = entities.find((entity, index) => entities.indexOf(entity) !== index);
+
+if (separator < 0 || duplicate) {
+	throw new Error(duplicate ? `${duplicate} has several controllers: its old names map to more than one new name, so rename those by hand` : "Usage: node rename-generated-names.mjs <Controller>=<Entity> ... -- <file> ...");
+}
+
+const ROUTE = "(?:Create|Delete|GetList|Get|PartialUpdate|Update)";
+
+for (const file of files) {
+	let content = readFileSync(file, "utf8");
+
+	for (const [controller, entity] of pairs) {
+		const prefix = controller.replace(/Controller$/, "") || controller;
+
+		content = content
+			.replaceAll(new RegExp(`\\b${controller}${entity}(?=Get)`, "g"), prefix)
+			.replaceAll(new RegExp(`\\bE${entity}(?=FilterOrderBy\\b)`, "g"), `E${prefix}`)
+			.replaceAll(new RegExp(`\\b${entity}(?=${ROUTE}(?:Body|Cursor|Parameters|Query|Response)|[A-Z]\\w*FilterOperation\\b)`, "g"), prefix);
+	}
+
+	writeFileSync(file, content);
+}
+```
+
+An entity with several controllers had one 4.x component for all of them, so it has no single new name, and the script stops. A custom route's new name needs its handler method name, so rename those references by hand: the script gives them the route type, as in `UserGetParametersDTO`. Afterwards, compare the result with your new OpenAPI document.
+
 ## Controlling DTO Generation
 
 ### Exclude from DTOs

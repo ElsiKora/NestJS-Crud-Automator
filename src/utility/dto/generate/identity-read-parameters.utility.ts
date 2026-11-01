@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
+import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { Validate } from "class-validator";
 
@@ -20,13 +21,14 @@ const identityParametersDtoCache: WeakMap<IApiControllerIdentityPlan, WeakMap<ob
  * Generates a PARAMETERS DTO for a GET identity alias and optional inherited read scope.
  * @param {IApiEntity<E>} entityMetadata - Entity metadata supplying field decorators.
  * @param {IApiControllerIdentityPlan} identityPlan - Compiled identity alias plan.
+ * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts the combined DTO name
  * @param {IApiControllerReadPlan} [readPlan] - Optional compiled owner-scope plan.
  * @param {IApiControllerPropertiesRouteAutoDtoConfig} [dtoConfig] - Auto DTO validators.
  * @param {Type<CanActivate>} [currentGuard] - Route authentication guard.
  * @returns {Type<unknown>} Generated PARAMETERS DTO.
  * @template E - Entity type.
  */
-export function DtoGenerateIdentityReadParameters<E>(entityMetadata: IApiEntity<E>, identityPlan: IApiControllerIdentityPlan, readPlan?: IApiControllerReadPlan, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>): Type<unknown> {
+export function DtoGenerateIdentityReadParameters<E>(entityMetadata: IApiEntity<E>, identityPlan: IApiControllerIdentityPlan, schemaPrefix: string, readPlan?: IApiControllerReadPlan, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>): Type<unknown> {
 	let readPlanCache: undefined | WeakMap<object, Map<Type<CanActivate> | undefined, Map<IApiControllerPropertiesRouteAutoDtoConfig | undefined, Type<unknown>>>> = identityParametersDtoCache.get(identityPlan);
 
 	if (!readPlanCache) {
@@ -74,9 +76,9 @@ export function DtoGenerateIdentityReadParameters<E>(entityMetadata: IApiEntity<
 	}
 
 	const combinedSignature: string | undefined = readPlan ? createHash("sha256").update(identityPlan.signature).update(":").update(readPlan.signature).digest("hex") : undefined;
-	const schemaName: string = readPlan ? `${identityPlan.controllerName}${entityMetadata.name ?? "UnknownResource"}GetParameters${combinedSignature}DTO` : identityPlan.schemaName;
+	const schemaName: string = readPlan ? `${schemaPrefix}GetParameters${combinedSignature}DTO` : identityPlan.schemaName;
 
-	Object.defineProperty(GeneratedIdentityReadParametersDTO, "name", { value: schemaName });
+	DtoSetGeneratedName(GeneratedIdentityReadParametersDTO, schemaName, `the get parameters DTO of entity ${String(entityMetadata.name)}`);
 
 	for (const parameter of parameters) {
 		const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((candidate: IApiEntityColumn<E>): boolean => String(candidate.name) === parameter.field);

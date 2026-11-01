@@ -88,7 +88,7 @@ Use item DTO mode when the framework should own the list wrapper and the app sho
 })
 ```
 
-The `name` field is optional and controls the generated Swagger schema name. Without it, the framework derives a stable name from the entity, route, DTO type, item DTO class name, and pagination mode. PAGE wraps items in the count envelope. A route that selects CURSOR uses `{ items, nextCursor, previousCursor }` only when the item or full-wrapper DTO satisfies the additional proof below.
+The `name` field is optional and controls the generated Swagger schema name. Without it, the framework derives a stable name from the controller, entity, route, DTO type, item DTO class name, and pagination mode. See [Generated Schema Names](/docs/nestjs-crud-automator/core-concepts/dtos#generated-schema-names). PAGE wraps items in the count envelope. A route that selects CURSOR uses `{ items, nextCursor, previousCursor }` only when the item or full-wrapper DTO satisfies the additional proof below.
 
 A manual GET_LIST response DTO in either mode remains compatible with generated `request[EApiControllerRequestTarget.QUERY].filter`, `order`, and `pagination` plans. A manual `dto[EApiDtoType.QUERY]` is mutually exclusive with those generated query sections because the normalized plan owns the runtime DTO, strict parser, and OpenAPI contract.
 
@@ -337,7 +337,7 @@ export class PolicyDocumentDto {
 }
 ```
 
-If `PolicyDocumentDto` is used by an entity field that participates in both create body and get response DTO generation, the generated Swagger models are context-specific, for example `PolicyEntityCreateBodyDocumentDTO` and `PolicyEntityGetResponseDocumentDTO`. Free-form `type: Object` fields remain plain JSON objects.
+If `PolicyDocumentDto` is used by an entity field that participates in both create body and get response DTO generation, the generated Swagger models are context-specific, for example `PolicyControllerPolicyEntityCreateBodyDocumentDTO` and `PolicyControllerPolicyEntityGetResponseDocumentDTO` for a `PolicyController`. Free-form `type: Object` fields remain plain JSON objects.
 
 ## Discriminated Union DTOs
 

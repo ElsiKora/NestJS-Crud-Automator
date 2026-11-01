@@ -17,16 +17,17 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @param {EApiDtoType} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
  * @param {string} propertyName - The name of the property
  * @param {Record<string, Type<unknown>>} [generatedDTOs] - Optional record of dynamically generated DTOs
+ * @param {string} [dtoNameBase] - Name of the owning route DTO without the `DTO` suffix, used to name nested generated DTOs
  * @returns {PropertyDecorator} The generated property decorator
  * @throws {Error} When property type has no registered factory
  * @template E - The entity type
  */
-export function DtoGenerateDecorator<E>(metadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string, generatedDTOs?: Record<string, Type<unknown>>): PropertyDecorator {
+export function DtoGenerateDecorator<E>(metadata: TApiPropertyDescribeProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string, generatedDTOs?: Record<string, Type<unknown>>, dtoNameBase?: string): PropertyDecorator {
 	const factory: IDtoGenerateFactory<E> = DTO_UTILITY_CONSTANT.PROPERTY_DECORATOR_FACTORIES[metadata.type];
 
 	if (!factory) {
 		throw ErrorException(`Unknown property type ${metadata.type}`);
 	}
 
-	return factory.create(metadata, entity, config, method, dtoType, propertyName, generatedDTOs);
+	return factory.create(metadata, entity, config, method, dtoType, propertyName, generatedDTOs, dtoNameBase);
 }

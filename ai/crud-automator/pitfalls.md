@@ -209,6 +209,12 @@ If the application explicitly selects `EApiAuthorizationCacheMode.MEMORY`, confi
 
 DTO guard visibility is based on the route's configured guard class during DTO generation. It is not a per-request role/RBAC decision. Use response transformers, subscribers, manual serialization, or authorization result transforms for user-specific masking.
 
+## Generated Component Names
+
+Do not hard-code pre-5.0 component names such as `UserEntityGetResponseDTO` or `UserControllerUserEntityGetListQuery<signature>DTO` in `$ref` strings, tests, or client code: every generated name now starts with the controller's schema prefix and has no entity name, as in `UserGetResponseDTO` for `UserController`. Do not merge two controllers on one entity, or give them identical guards, to avoid a schema clash; each controller already gets its own components. Renaming a controller class renames its components, so regenerate API clients after such a rename.
+
+Give every decorated controller class a unique name. Two classes with the same schema prefix (`UserController` in two modules, or `User` and `UserController`), an anonymous class such as `ApiController({ ... })(class {})`, and two different generated DTO classes with one name (for example a GET_LIST `dto.response.name` equal to another generated name) fail startup. Hand-written DTO classes are not checked, so do not name one like a generated DTO. Test helpers that decorate a fresh class per call, or call `DtoGenerate` with one prefix for different entities or configs, need a unique name or prefix per call.
+
 ## Generated GET_LIST Boundaries
 
 Generated GET_LIST supports one client `orderBy`, one `orderDirection`, bracketed filters, and two route-owned pagination modes. PAGE (the default) requires `limit`/`page` and returns counts. CURSOR requires `limit`, accepts at most one of `after`/`before`, and returns only `items`, `nextCursor`, and `previousCursor`. Route-owned `defaultOrder` and `tieBreakers` provide the server compound order. Relation filters use one-level to-one scalar paths such as `author.id[...]` and `author.username[...]`; use a custom method for client-selected multi-sort, relation sorting, to-many filters, or deeper relation/object filters.
@@ -264,7 +270,7 @@ The root must declare the discriminator as a property with `@Column` and `@ApiPr
 
 Rows with a value that has no variant fail with `500`, so adding a value to the column enum without a child entity breaks reads of those rows until the child exists. A subscriber or response transform that removes the discriminator from a loaded row fails the request the same way.
 
-From 5.0.0, generated GET and GET_LIST over such a root no longer produce the `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` Swagger components, and `GenerateEntityInformation(Child).tableName` returns the root table. Regenerate OpenAPI clients, or keep a manual RESPONSE DTO on the route.
+From 5.0.0, generated GET and GET_LIST over such a root no longer produce the 4.x `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` Swagger components, and `GenerateEntityInformation(Child).tableName` returns the root table. Regenerate OpenAPI clients, or keep a manual RESPONSE DTO on the route.
 
 ## Removed 3.0 Exports
 

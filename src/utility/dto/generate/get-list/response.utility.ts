@@ -7,6 +7,7 @@ import { EApiPropertyNumberType } from "@enum/decorator/api";
 import { Type } from "@nestjs/common";
 import { PickType } from "@nestjs/swagger";
 import { TDtoGenerateGetListResponseResourceClass } from "@type/utility";
+import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 
 /**
  * Generates a DTO for paginated list responses with appropriate metadata.
@@ -81,9 +82,7 @@ export function DtoGenerateGetListResponse(resourceClass: TDtoGenerateGetListRes
 		totalPages!: number;
 	}
 
-	Object.defineProperty(ApiListGetResponse, "name", {
-		value: name,
-	});
+	DtoSetGeneratedName(ApiListGetResponse, name, `the getList page response of entity ${resourceClass.name}`);
 
 	return ApiListGetResponse;
 }

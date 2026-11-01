@@ -59,8 +59,10 @@ Generates DTO classes from entity metadata.
 **Location:** `src/utility/dto/generate/core.utility.ts`
 
 ```typescript
-function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>): Type<unknown> | undefined;
+function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan, responseVariantName?: string, routeName?: string): Type<unknown> | undefined;
 ```
+
+`schemaPrefix` is the schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`. It starts every generated DTO name, so two controllers on one entity never share an OpenAPI component. `routeName` is the PascalCase handler method name of a custom route; it takes the place of the route type in the generated names. See [Generated Schema Names](/docs/nestjs-crud-automator/core-concepts/dtos#generated-schema-names).
 
 **Internal Use:** Called automatically for DTO generation.
 
@@ -259,7 +261,39 @@ Resolves the DTO class for a route and DTO target.
 
 **Location:** `src/utility/api/controller/get/dto.utility.ts`
 
+```typescript
+function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> | undefined;
+```
+
+`schemaPrefix` starts every generated DTO name of the route. `ApiControllerApplyDecorators` takes the same argument after `decorators`.
+
 **Internal Use:** Used by generated and custom route runtimes.
+
+### ApiControllerGetSchemaPrefix
+
+Returns the schema prefix that starts every generated DTO name of the controller's routes.
+
+**Location:** `src/utility/api/controller/get/schema-prefix.utility.ts`
+
+```typescript
+function ApiControllerGetSchemaPrefix(controller: object): string;
+```
+
+Returns the class name without a trailing `Controller`, or the full class name when nothing else is left: `AdminUserController` gives `AdminUser`. Throws for a class without a name.
+
+### DtoSetGeneratedName
+
+Names a generated DTO class, which also names its OpenAPI component.
+
+**Location:** `src/utility/dto/set-generated-name.utility.ts`
+
+```typescript
+function DtoSetGeneratedName(dto: object, name: string, source: string): void;
+```
+
+Every DTO class Automator generates gets its name through this function. Giving the same class the same name again is allowed. When a different generated class already has the name, it throws an error that names both sources, because Swagger keys components by class name and would document one of the routes with the other class's schema.
+
+**Internal Use:** Called by the DTO generators.
 
 ### ApiControllerHandleRequestRelations
 

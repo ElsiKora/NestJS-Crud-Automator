@@ -8,6 +8,7 @@ import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
 import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { EApiPropertyStringType } from "@enum/decorator/api";
 import { PickType } from "@nestjs/swagger";
+import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 
 /**
  * Generates a DTO for cursor-paginated list responses.
@@ -60,9 +61,7 @@ export function DtoGenerateGetListCursorResponse(resourceClass: TDtoGenerateGetL
 		previousCursor!: null | string;
 	}
 
-	Object.defineProperty(ApiListGetCursorResponse, "name", {
-		value: name,
-	});
+	DtoSetGeneratedName(ApiListGetCursorResponse, name, `the getList cursor response of entity ${resourceClass.name}`);
 
 	return ApiListGetCursorResponse;
 }
