@@ -413,9 +413,10 @@ export class ApiRouteRuntime {
 				const cursorRuntimeQuery: TApiControllerGetListCursorQueryRuntimeResult | undefined = cursorPlan ? (ApiControllerGetListQueryRuntime.parse(requestQuery, cursorPlan) as unknown as TApiControllerGetListCursorQueryRuntimeResult) : undefined;
 				const pageRuntimeQuery: IApiControllerGetListQueryRuntimeResult | undefined = !cursorPlan && queryPlan ? ApiControllerGetListQueryRuntime.parse(requestQuery, queryPlan) : undefined;
 				const runtimeQuery: IApiControllerGetListQueryRuntimeResult | TApiControllerGetListCursorQueryRuntimeResult | undefined = cursorRuntimeQuery ?? pageRuntimeQuery;
-				const queryDto: Type<unknown> | undefined = !queryPlan || queryPlan.filter.isLegacy ? ApiControllerGetDtoWithReadPlan(options.properties, options.entityMetadata, options.method, EApiDtoType.QUERY, routeConfig, options.schemaPrefix, queryPlan, readPlan) : undefined;
+				const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(options.properties, options.entityMetadata, options.method, EApiDtoType.QUERY, routeConfig, options.schemaPrefix, queryPlan, readPlan);
+				const validatedQuery: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> = queryDto ? await ApiControllerGetListQueryValidate(queryDto, requestQuery) : requestQuery;
 				// Only the database query uses the validated copy; subscribers keep the query that route-before subscribers produced.
-				const query: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> = queryDto ? await ApiControllerGetListQueryValidate(queryDto, requestQuery) : requestQuery;
+				const query: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> = !queryPlan || queryPlan.filter.isLegacy ? validatedQuery : requestQuery;
 
 				// A query plan already holds the client's order to its fields.
 				if (!queryPlan && queryDto) {

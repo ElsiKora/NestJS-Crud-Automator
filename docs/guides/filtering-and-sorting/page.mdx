@@ -22,6 +22,7 @@ A PAGE route without a typed `filter` validates its own QUERY DTO, generated or 
 | -------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | `orderBy` outside the generated enum, including a real column with `useAsOrderByFilter: false` or without `@ApiPropertyDescribe` | `400`  |
 | `orderDirection` other than the lowercase `asc` or `desc`                                                                        | `400`  |
+| `orderBy` without `orderDirection`, or `orderDirection` without `orderBy`                                                        | `400`  |
 | Missing `limit` or `page`, or a value outside `1..100`                                                                           | `400`  |
 | Filter operator not allowed for the column type, or an invalid `[value]` or `[values]` item                                      | `400`  |
 | Filter group with a value but no operator, or an operator other than `isnull` or `notnull` with no value                         | `400`  |
@@ -132,6 +133,8 @@ Plan rules:
 - Duplicate fields within one server list, invalid directions, unknown/non-scalar fields, or conflicting directions for the same field across defaults and tie-breakers fail at bootstrap.
 - Unknown, disabled, malformed, deeper, to-many, and disallowed typed-query input returns `400` independently of the host application's `ValidationPipe`.
 - `BETWEEN` accepts exactly two repeated `[values]`; membership operators accept 1–100 repeated `[values]`.
+- `orderDirection` is the lowercase `asc` or `desc`, and `orderBy` and `orderDirection` are sent together or not at all.
+- Filter values follow the entity property: number `minimum`, `maximum` and `multipleOf`, and string `minLength`, `maxLength`, `format` and `pattern`. The OpenAPI value schema of each operator branch publishes the same constraints.
 - TypeScript narrows operations from the entity property's broad scalar type. At bootstrap, Automator validates the exact `@ApiPropertyDescribe` kind, nullability, enabled state, and configured operation set before exposing the route.
 
 Nest guards and host pipes run before controller entry. Inside Automator's generated runtime, route-before subscribers run first, followed by configured path/query transforms and validators, then typed query parsing plus defaults. The optional generated-route transaction wraps predicate compilation, read-scope merge, authorization-scope merge, and the service query. For a nested GET_LIST, query predicates are AND-merged with path scope and then HOOKS/IAM scope; conflicts become match-nothing conditions instead of key overwrites. This lets a route-before subscriber intentionally rewrite the raw query before the strict parser sees it while retaining every final scope.
@@ -146,6 +149,12 @@ A host `ValidationPipe` validates the same generated query DTO before the route 
 
 - `INVALID_LIMIT` / `INVALID_PAGE` — PAGE input is missing, non-integer, or outside the generated bounds.
 - `INVALID_CURSOR` — CURSOR direction/token input is malformed, conflicting, non-canonical, or belongs to another route/path/filter/order context.
+
+After the typed parser, the route validates its generated QUERY DTO from the raw request query, as on a route without a typed filter. A value the parser accepts but the DTO rejects, such as `count[value]=5000` above the entity `maximum`, returns the `ValidationPipe` body, not one of the codes above. Both checks run whether or not the host registers a `ValidationPipe`, so a typed route accepts the same queries with or without one.
+
+### Typed Plan Migration Notes
+
+Before 5.0.0, a typed route without a host pipe lowercased `orderDirection`, so `ASC` worked; it now returns `400 INVALID_ORDER`. Send lowercase. The same route accepted filter values outside the entity bounds, length or pattern, which a host pipe rejected; they now return `400` either way. With a host pipe, a single numeric membership value such as `count[operator]=in&count[values]=1` used to return `500`; it now works.
 
 The same plan emits one OpenAPI deep-object parameter per enabled filter field. Its `oneOf` branches describe the exact operator and `value`, `values`, or nullary operand shape. Disabled fields are omitted from both the generated query DTO contract and OpenAPI.
 

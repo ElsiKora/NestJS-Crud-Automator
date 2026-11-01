@@ -7,6 +7,7 @@ import { ErrorException } from "@utility/error/exception.utility";
 
 /**
  * Builds the scalar OpenAPI value schema shared by every operator branch for a field.
+ * Number bounds and string format, length and pattern are the same constraints the route validates through the generated QUERY DTO.
  * @param {TApiPropertyDescribeProperties} metadata - Entity property metadata resolved into the query plan.
  * @returns {TSwaggerSchemaObject} OpenAPI schema for one scalar filter operand.
  */
@@ -47,11 +48,22 @@ export function ApiControllerGetListQueryOpenApiValueSchema(metadata: TApiProper
 		}
 
 		case EApiPropertyDescribeType.NUMBER: {
-			return { type: metadata.format === EApiPropertyNumberType.INTEGER ? "integer" : "number" };
+			return {
+				maximum: metadata.maximum,
+				minimum: metadata.minimum,
+				multipleOf: metadata.multipleOf,
+				type: metadata.format === EApiPropertyNumberType.INTEGER ? "integer" : "number",
+			};
 		}
 
 		case EApiPropertyDescribeType.STRING: {
-			return { type: "string" };
+			return {
+				format: metadata.format,
+				maxLength: metadata.maxLength,
+				minLength: metadata.minLength,
+				pattern: metadata.pattern.slice(1, -1),
+				type: "string",
+			};
 		}
 
 		case EApiPropertyDescribeType.UUID: {

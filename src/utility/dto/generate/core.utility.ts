@@ -223,14 +223,14 @@ export function DtoGenerate<E>(
 
 				const decoratorsArray: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, metadataArray, property.entityMetadata, dtoType, property.name, currentGuard);
 
-				// The query parser yields a string for a single item, so it becomes a one-item array before conversion and the cardinality validators decide.
-				Transform(({ value }: { value: unknown }): unknown => (value === undefined || value === null || Array.isArray(value) ? value : [value]), { toClassOnly: true })(GeneratedDTO.prototype, `${property.name}[values]`);
-
 				if (decoratorsArray) {
 					for (const [, decorator] of decoratorsArray.entries()) {
 						decorator(GeneratedDTO.prototype, `${property.name}[values]`);
 					}
 				}
+
+				// A query string sends one membership value as a scalar. class-transformer runs the last registered transform first, so the scalar is wrapped before the element transforms read it as an array.
+				Transform(({ value }: { value: unknown }): unknown => (value === undefined || value === null || Array.isArray(value) ? value : [value]), { toClassOnly: true })(GeneratedDTO.prototype, `${property.name}[values]`);
 			}
 		} else {
 			for (const property of markedProperties) {
