@@ -8,6 +8,8 @@ Global interceptor that adds correlation IDs and timestamps to error responses f
 
 **Location:** `src/interceptor/correlation-id-response-body.interceptor.ts`
 
+**Requires:** the Fastify adapter (`@nestjs/platform-fastify`). The interceptor reads the request as a `FastifyRequest` and sets the `x-correlation-id` header through `FastifyReply`. Crud Automator does not declare `fastify` or `@nestjs/platform-fastify` as peers, so the application installs them.
+
 ## Features
 
 - Intercepts exceptions thrown inside the handler chain (HttpException, ThrottlerException, and generic errors). Guards run earlier, so their exceptions skip it

@@ -79,7 +79,6 @@ Make sure you have the following dependencies installed in your NestJS project:
 - `@nestjs/swagger` `>=11.0.3 <12`
 - `@nestjs/throttler` `>=6.5.0 <7`
 - TypeORM `>=0.3.20 <1`
-- Fastify `>=5.8.5 <6`
 - `class-validator` `>=0.15.1 <0.16`
 - `class-transformer` `>=0.5.1 <0.6`
 - `lodash` `>=4.18.1 <5`
@@ -87,7 +86,7 @@ Make sure you have the following dependencies installed in your NestJS project:
 You might need to install these peer dependencies if they're not already in your project:
 
 ```bash
-npm install @nestjs/common@^11.1.24 @nestjs/core@^11.1.24 @nestjs/swagger@^11.0.3 @nestjs/throttler@^6.5.0 typeorm@^0.3.20 class-transformer@^0.5.1 class-validator@^0.15.1 fastify@^5.8.5 lodash@^4.18.1
+npm install @nestjs/common@^11.1.24 @nestjs/core@^11.1.24 @nestjs/swagger@^11.0.3 @nestjs/throttler@^6.5.0 typeorm@^0.3.20 class-transformer@^0.5.1 class-validator@^0.15.1 lodash@^4.18.1
 ```
 
 Keep the version ranges in the command: without them npm installs the latest releases, such as NestJS 12 and TypeORM 1, which are outside the supported ranges.
@@ -1082,7 +1081,7 @@ Important IAM details from the current implementation:
 
 ### `CorrelationIDResponseBodyInterceptor`: Request Tracing
 
-To simplify debugging and request tracing in complex systems, the library provides the `CorrelationIDResponseBodyInterceptor`. This interceptor should be registered globally in your `main.ts`.
+To simplify debugging and request tracing in complex systems, the library provides the `CorrelationIDResponseBodyInterceptor`. This interceptor should be registered globally in your `main.ts`. It is written for the Fastify adapter, so the application needs `@nestjs/platform-fastify`.
 
 **What it does:**
 

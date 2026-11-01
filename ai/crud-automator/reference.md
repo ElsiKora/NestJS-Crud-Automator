@@ -309,9 +309,9 @@ Observation is a separate diagnostic projection. It neither expands the ordinary
 
 ## Peer Ranges
 
-- Every peer dependency has an upper bound and keeps its lower bound. For 1.x and later lines the bound is the next major: `@nestjs/common`, `@nestjs/core`, and `@nestjs/swagger` `<12`, `@nestjs/throttler` `<7`, `fastify` `<6`, `lodash` `<5`. For 0.x lines it is the next minor: `class-transformer` `<0.6`, `class-validator` `<0.16`. `typeorm` is `<1`. NestJS 12 and TypeORM 1 are not supported.
+- Every peer dependency has an upper bound and keeps its lower bound. For 1.x and later lines the bound is the next major: `@nestjs/common`, `@nestjs/core`, and `@nestjs/swagger` `<12`, `@nestjs/throttler` `<7`, `lodash` `<5`. For 0.x lines it is the next minor: `class-transformer` `<0.6`, `class-validator` `<0.16`. `typeorm` is `<1`. NestJS 12 and TypeORM 1 are not supported.
 - CI installs every peer at the latest release inside its range; only `@nestjs/swagger` also runs against older releases (11.0.3 and 11.4.2). Other lower bounds are declared, not tested.
-- `@nestjs/passport` and `@nestjs/platform-fastify` are not peers: no source file imports them. Install peers with explicit ranges; an unversioned `npm install` picks NestJS 12 and TypeORM 1.
+- `@nestjs/passport`, `@nestjs/platform-fastify`, and `fastify` are not peers: `dist` imports none of them (`fastify` appears only as `import type` in `src`). `CorrelationIDResponseBodyInterceptor` needs the Fastify adapter. Upgrading an installed peer past its range exits 0 with `npm warn ERESOLVE overriding peer dependency` and leaves `npm ls <peer>` `invalid`; adding Automator after such a peer fails with `ERESOLVE`. Install peers with explicit ranges; an unversioned `npm install` picks NestJS 12 and TypeORM 1.
 - `@nestjs/swagger` is supported as `>=11.0.3 <12`. `@nestjs/swagger` 12 requires NestJS 12 and is not supported.
 - Crud Automator imports only the public `@nestjs/swagger` entry point. Its `dist/*` paths are closed by the `exports` map from 11.4.3 on, and CI fails on any import of them.
 - `TSwaggerComponentSchema` (one `components.schemas` entry), `TSwaggerHeadersObject`, `TSwaggerReferenceObject`, `TSwaggerSchemaObject`, and `TSwaggerSecurityRequirementObject` are derived from the public `OpenAPIObject` type and exported from the package root.
