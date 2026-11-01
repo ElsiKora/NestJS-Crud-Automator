@@ -804,9 +804,10 @@ const GATEWAY_WAIT_MS: number = 300;
  * @param {Array<Type<unknown>>} gateways - Gateways to register.
  * @param {boolean} [hasGlobalFilter] - Whether to register the filter with useGlobalFilters.
  * @param {boolean} [hasGlobalInterceptor] - Whether to register the interceptor with useGlobalInterceptors.
- * @returns {Promise<IGatewayResult>} The acknowledgement, or the timeout error when none came, and the `exception` events.
+ * @param {number} [messageCount] - How many times the client sends the message over the same socket.
+ * @returns {Promise<IGatewayResult>} The last acknowledgement, or the timeout error when none came, and every `exception` event.
  */
-async function runGateway(message: string, gateways: Array<Type<unknown>>, hasGlobalFilter: boolean = false, hasGlobalInterceptor: boolean = false): Promise<IGatewayResult> {
+async function runGateway(message: string, gateways: Array<Type<unknown>>, hasGlobalFilter: boolean = false, hasGlobalInterceptor: boolean = false, messageCount: number = 1): Promise<IGatewayResult> {
 	const moduleReference = await Test.createTestingModule({ providers: gateways }).compile();
 	const application: INestApplication = moduleReference.createNestApplication(new FastifyAdapter(), { logger: false });
 
@@ -833,10 +834,14 @@ async function runGateway(message: string, gateways: Array<Type<unknown>>, hasGl
 			exceptions.push(payload);
 		});
 
-		const acknowledgement: unknown = await socket
-			.timeout(GATEWAY_WAIT_MS)
-			.emitWithAck(message, { payload: true })
-			.catch((error: unknown) => (error instanceof Error ? error.message : error));
+		let acknowledgement: unknown;
+
+		for (let index: number = 0; index < messageCount; index++) {
+			acknowledgement = await socket
+				.timeout(GATEWAY_WAIT_MS)
+				.emitWithAck(message, { payload: true })
+				.catch((error: unknown) => (error instanceof Error ? error.message : error));
+		}
 
 		return { acknowledgement, exceptions };
 	} finally {
@@ -900,6 +905,16 @@ describe("CorrelationIDResponseBodyExceptionFilter outside HTTP (E2E)", () => {
 		expect(await runGateway("bare-ws", [E2eBareGateway], false, true)).toEqual(bare);
 		expect(warningLog).toHaveBeenCalledTimes(1);
 		expect(warningLog.mock.calls[0]?.[0]).toBe("Not an HTTP context (ws): the call passes without the correlation contract");
+	});
+
+	it.each<[string, Array<Type<unknown>>, boolean, boolean, string, string]>([
+		["the global interceptor", [E2eBareGateway], false, true, "bare-ws", "Not an HTTP context (ws): the call passes without the correlation contract"],
+		["an interceptor applied to the gateway", [E2eInterceptedGateway], false, false, "intercepted-ws", "Not an HTTP context (ws): the call passes without the correlation contract"],
+		["a filter applied to the gateway", [E2eFilteredGateway], false, false, "filtered-ws", "Not an HTTP context (ws): the failure gets no correlation contract"],
+	])("warns once for five gateway messages through %s", async (_name: string, gateways: Array<Type<unknown>>, hasGlobalFilter: boolean, hasGlobalInterceptor: boolean, message: string, warning: string) => {
+		await runGateway(message, gateways, hasGlobalFilter, hasGlobalInterceptor, 5);
+
+		expect(warningLog.mock.calls).toEqual([[warning]]);
 	});
 
 	it("passes a gateway call through an interceptor applied to the gateway unchanged with one warning", async () => {

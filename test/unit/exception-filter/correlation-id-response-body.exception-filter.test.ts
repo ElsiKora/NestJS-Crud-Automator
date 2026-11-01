@@ -118,6 +118,19 @@ describe("CorrelationIDResponseBodyExceptionFilter", () => {
 		expect(warningLog.mock.contexts[0]).toEqual(expect.objectContaining({ context: "NestJS-Crud-Automator/CorrelationIDResponseBodyExceptionFilter" }));
 	});
 
+	it("warns once per filter instance, not once per failure", () => {
+		const warningLog = vi.spyOn(LoggerUtility.prototype, "warn").mockImplementation(() => undefined);
+		const filter: CorrelationIDResponseBodyExceptionFilter = buildFilter(buildAdapter());
+
+		for (const type of ["ws", "ws", "rpc", "ws", "ws"]) {
+			filter.catch(new ForbiddenException(), buildHost(type, {}).host);
+		}
+
+		expect(warningLog.mock.calls).toEqual([["Not an HTTP context (ws): the failure gets no correlation contract"]]);
+		buildFilter(buildAdapter()).catch(new ForbiddenException(), buildHost("ws", {}).host);
+		expect(warningLog).toHaveBeenCalledTimes(2);
+	});
+
 	it("returns nothing and does not warn without an HTTP adapter", () => {
 		const warningLog = vi.spyOn(LoggerUtility.prototype, "warn").mockImplementation(() => undefined);
 		const { getArgByIndex, host } = buildHost("http", {});

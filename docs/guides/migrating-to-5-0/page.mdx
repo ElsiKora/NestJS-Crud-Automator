@@ -93,7 +93,7 @@ Remove a condition instead of setting it to `undefined`, and use `IsNull()` inst
 - A sanitized `500` has `error: "Internal Server Error"` and `message: "Internal server error"`. Before 5.0.0, `error` was `"Internal server error"`.
 - A thrown object counts as an http-errors value only with an integer `statusCode` from `400` to `599`, and its `message` is sent only with `expose: true`. An `HttpException` status must be an integer from `200` to `599`; any other value answers the sanitized `500`.
 - Failures outside the handler chain, such as a `401` or `403` from a guard or middleware, an unmatched route and a malformed body, get the same contract through `CorrelationIDResponseBodyExceptionFilter`. Register it with `app.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(app.get(HttpAdapterHost)))`, before any filter of your own.
-- Outside HTTP, such as an RPC handler or a gateway, the interceptor and the filter pass the call through and log one warning per component.
+- Outside HTTP, such as an RPC handler or a gateway, the interceptor and the filter pass the call through and log one warning once per component, not once per call.
 - The exception the interceptor rethrows holds the original failure as `cause`. An exception filter that logs the whole exception now also logs SQL text and parameters; log `FormatErrorEvidenceForLog(exception.cause)` instead.
 
 See [Error Handling: Migration Notes](/docs/nestjs-crud-automator/guides/error-handling#migration-notes).

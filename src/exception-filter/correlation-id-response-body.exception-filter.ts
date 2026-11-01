@@ -20,6 +20,9 @@ const exceptionFilterLogger: LoggerUtility = LoggerUtility.getLogger("Correlatio
  */
 @Catch()
 export class CorrelationIDResponseBodyExceptionFilter implements ExceptionFilter {
+	// One warning per instance: a gateway or RPC handler would otherwise log on every failure
+	private hasWarnedOutsideHttp: boolean = false;
+
 	public constructor(private readonly httpAdapterHost: HttpAdapterHost) {}
 
 	public catch(exception: unknown, host: ArgumentsHost): void {
@@ -27,7 +30,10 @@ export class CorrelationIDResponseBodyExceptionFilter implements ExceptionFilter
 
 		// Returning nothing hands the failure back to the default RPC handler, while a gateway filter that returns nothing answers nothing
 		if (host.getType() !== "http") {
-			exceptionFilterLogger.warn(`Not an HTTP context (${host.getType()}): the failure gets no correlation contract`);
+			if (!this.hasWarnedOutsideHttp) {
+				this.hasWarnedOutsideHttp = true;
+				exceptionFilterLogger.warn(`Not an HTTP context (${host.getType()}): the failure gets no correlation contract`);
+			}
 
 			return;
 		}

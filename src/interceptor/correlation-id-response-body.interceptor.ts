@@ -18,9 +18,15 @@ const interceptorLogger: LoggerUtility = LoggerUtility.getLogger("CorrelationIDR
  */
 @Injectable()
 export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
+	// One warning per instance: a gateway or RPC handler would otherwise log on every message
+	private hasWarnedOutsideHttp: boolean = false;
+
 	intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
 		if (context.getType() !== "http") {
-			interceptorLogger.warn(`Not an HTTP context (${context.getType()}): the call passes without the correlation contract`);
+			if (!this.hasWarnedOutsideHttp) {
+				this.hasWarnedOutsideHttp = true;
+				interceptorLogger.warn(`Not an HTTP context (${context.getType()}): the call passes without the correlation contract`);
+			}
 
 			return next.handle();
 		}

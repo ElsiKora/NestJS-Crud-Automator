@@ -4,7 +4,7 @@ import { CorrelationIDResponseBodyInterceptor } from "@interceptor/correlation-i
 import { BadRequestException, HttpException, HttpStatus, InternalServerErrorException } from "@nestjs/common";
 import { ThrottlerException } from "@nestjs/throttler";
 import { LoggerUtility } from "@utility/logger.utility";
-import { lastValueFrom, throwError } from "rxjs";
+import { lastValueFrom, of, throwError } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const UUID_PATTERN: RegExp = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u;
@@ -44,6 +44,19 @@ describe("CorrelationIDResponseBodyInterceptor", () => {
 		expect(switchToHttp).not.toHaveBeenCalled();
 		expect(warningLog.mock.calls).toEqual([[`Not an HTTP context (${type}): the call passes without the correlation contract`]]);
 		expect(warningLog.mock.contexts[0]).toEqual(expect.objectContaining({ context: "NestJS-Crud-Automator/CorrelationIDResponseBodyInterceptor" }));
+	});
+
+	it("warns once per interceptor instance, not once per call", async () => {
+		const warningLog = vi.spyOn(LoggerUtility.prototype, "warn").mockImplementation(() => undefined);
+		const interceptor = new CorrelationIDResponseBodyInterceptor();
+
+		for (const type of ["ws", "ws", "rpc", "ws", "ws"]) {
+			await lastValueFrom(interceptor.intercept(buildContext({}, type).context, { handle: () => of("PASSED") }));
+		}
+
+		expect(warningLog.mock.calls).toEqual([["Not an HTTP context (ws): the call passes without the correlation contract"]]);
+		await lastValueFrom(new CorrelationIDResponseBodyInterceptor().intercept(buildContext({}, "ws").context, { handle: () => of("PASSED") }));
+		expect(warningLog).toHaveBeenCalledTimes(2);
 	});
 
 	it.each<[string, unknown, number, string]>([
