@@ -19,6 +19,7 @@ const specifierPattern = /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimpo
 const commentLinePattern = /^\s*(?:\*|\/\/|\/\*)/;
 const exportKeysCache = new Map();
 const sideEffectProblems = [];
+const sourceMapFiles = [];
 
 /**
  * Returns the explicit (non-wildcard) subpath keys of a package's exports map, or undefined when it has none.
@@ -122,6 +123,11 @@ function scanDirectory(directoryPath) {
 			continue;
 		}
 
+		if (entry.name.endsWith(".map")) {
+			sourceMapFiles.push(path.relative(process.cwd(), entryPath));
+			continue;
+		}
+
 		if (!entry.name.endsWith(".d.ts") && !entry.name.endsWith(".js")) {
 			continue;
 		}
@@ -131,6 +137,10 @@ function scanDirectory(directoryPath) {
 
 		if (entry.name.endsWith(".d.ts") && fileContent.includes("node_modules/")) {
 			invalidDeclarationPaths.push(relativePath);
+		}
+
+		if (fileContent.includes("sourceMappingURL=")) {
+			sourceMapFiles.push(`${relativePath} (sourceMappingURL)`);
 		}
 
 		if (entry.name.endsWith(".js")) {
@@ -190,6 +200,11 @@ if (invalidDeclarationPaths.length > 0) {
 
 if (invalidPackageImports.length > 0) {
 	process.stderr.write(`Generated output imports packages outside dependencies and peerDependencies, or paths inside them:\n${invalidPackageImports.map((entry) => `- ${entry}`).join("\n")}\n`);
+	process.exit(1);
+}
+
+if (sourceMapFiles.length > 0) {
+	process.stderr.write(`Generated output has source maps, which would point at the unpublished src:\n${sourceMapFiles.map((entry) => `- ${entry}`).join("\n")}\n`);
 	process.exit(1);
 }
 

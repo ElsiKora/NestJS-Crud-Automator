@@ -86,7 +86,8 @@ export default {
 		format: "esm",
 		preserveModules: true,
 		preserveModulesRoot: "src",
-		sourcemap: true,
+		// Maps would point at src, which is not published
+		sourcemap: false,
 	},
 	plugins: [
 		resolve({
@@ -95,7 +96,7 @@ export default {
 		typescript({
 			declaration: false,
 			outDir: "dist",
-			sourceMap: true,
+			sourceMap: false,
 			tsconfig: "./tsconfig.build.json",
 		}),
 		dts({
