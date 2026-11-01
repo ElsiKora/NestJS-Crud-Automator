@@ -184,10 +184,18 @@ function createGeneratedReadOrDeleteOptions(service: ApiServiceBase<RuntimeRoute
 
 const STORED_ROW: RuntimeRouteEntity = { id: "route-transaction-1", source: "stored" };
 
-function createRouteTransactionFixture(storedRows: Array<RuntimeRouteEntity> = [STORED_ROW], driverType: string = "sqlite"): ReturnType<typeof createTransactionFixture> {
-	const find = vi.fn(async (): Promise<Array<RuntimeRouteEntity>> => storedRows);
+function createStoredRowRepository(storedRows: Array<RuntimeRouteEntity>, primaryColumns: Array<{ propertyName: string; type: string }> = [], connection: object = {}): Repository<RuntimeRouteEntity> {
+	return {
+		find: vi.fn(async (): Promise<Array<RuntimeRouteEntity>> => storedRows),
+		manager: { dataSource: Object.assign(connection, { driver: { normalizeType: (column: { type: string }): string => column.type } }) },
+		metadata: { primaryColumns },
+	} as unknown as Repository<RuntimeRouteEntity>;
+}
 
-	return createTransactionFixture({ getRepository: vi.fn(() => ({ find, manager: { dataSource: { options: { type: driverType } } } })) } as unknown as EntityManager);
+function createRouteTransactionFixture(storedRows: Array<RuntimeRouteEntity> = [STORED_ROW], primaryColumns: Array<{ propertyName: string; type: string }> = []): ReturnType<typeof createTransactionFixture> {
+	const repository: Repository<RuntimeRouteEntity> = createStoredRowRepository(storedRows, primaryColumns);
+
+	return createTransactionFixture({ getRepository: vi.fn(() => repository) } as unknown as EntityManager);
 }
 
 function createRouteService(dataSource?: DataSource, storedRows: Array<RuntimeRouteEntity> = [STORED_ROW]): ApiServiceBase<RuntimeRouteEntity> {
@@ -195,10 +203,7 @@ function createRouteService(dataSource?: DataSource, storedRows: Array<RuntimeRo
 
 	Object.defineProperty(service, "repository", {
 		configurable: true,
-		value: {
-			find: vi.fn(async (): Promise<Array<RuntimeRouteEntity>> => storedRows),
-			manager: { dataSource: dataSource ?? { options: { type: "better-sqlite3" } } },
-		} as unknown as Repository<RuntimeRouteEntity>,
+		value: createStoredRowRepository(storedRows, [], dataSource),
 	});
 
 	vi.spyOn(service, "create").mockImplementation(async (properties: Partial<RuntimeRouteEntity>): Promise<RuntimeRouteEntity> => {
@@ -1122,26 +1127,75 @@ describe("ApiRouteRuntime generated transactions", () => {
 		});
 
 		it.each([
-			["sqlite", (value: Date): Date => value],
-			["postgres", (value: Date): string => value.toISOString()],
-		])("matches a date primary column by its whole millisecond on %s", async (driverType: string, bind: (value: Date) => Date | string) => {
-			const transaction = createRouteTransactionFixture([STORED_ROW], driverType);
+			["timestamp with time zone", new Date("2026-01-02T03:04:05.678Z"), (value: Date): string => value.toISOString()],
+			["timestamptz", new Date("2026-01-02T03:04:05.678Z"), (value: Date): string => value.toISOString()],
+			["timestamp without time zone", new Date("2026-01-02T03:04:05.678Z"), (value: Date): Date => value],
+			["datetime", "2026-01-02T03:04:05.678Z", (value: Date): Date => value],
+		])("matches a %s primary column by its whole millisecond", async (columnType: string, storedValue: Date | string, bind: (value: Date) => Date | string) => {
+			const transaction = createRouteTransactionFixture([STORED_ROW], [{ propertyName: "createdAt", type: columnType }]);
 			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
-			const createdAt: Date = new Date("2026-01-02T03:04:05.678Z");
 			const options = createCompositeOptions(service, { source: "response" });
 
 			options.entityMetadata.columns = [
 				{ isPrimary: true, name: "id", type: "varchar" },
-				{ isPrimary: true, name: "createdAt" as never, type: "timestamptz" },
+				{ isPrimary: true, name: "createdAt" as never, type: columnType as never },
 			];
-			mockStoredRow(service, { createdAt, id: "route-transaction-1" });
+			mockStoredRow(service, { createdAt: storedValue, id: "route-transaction-1" });
 
 			await ApiRouteRuntime.executeGenerated(options);
 
 			const where: Record<string, unknown> = vi.mocked(service.get).mock.calls[0]?.[0].where as Record<string, unknown>;
 
-			expect(where.createdAt).toEqual(And(MoreThanOrEqual(bind(createdAt)), LessThan(bind(new Date("2026-01-02T03:04:05.679Z")))));
+			expect(where.createdAt).toEqual(And(MoreThanOrEqual(bind(new Date("2026-01-02T03:04:05.678Z"))), LessThan(bind(new Date("2026-01-02T03:04:05.679Z")))));
 			expect(where.id).toEqual(Equal("route-transaction-1"));
+		});
+
+		it.each([
+			["a date column", "date", "2026-01-02"],
+			["a column the repository does not describe", undefined, new Date("2026-01-02T03:04:05.678Z")],
+		])("matches %s by equality", async (_name: string, columnType: string | undefined, storedValue: Date | string) => {
+			const transaction = createRouteTransactionFixture([STORED_ROW], columnType ? [{ propertyName: "createdAt", type: columnType }] : []);
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+			const options = createCompositeOptions(service, { source: "response" });
+
+			options.entityMetadata.columns = [
+				{ isPrimary: true, name: "id", type: "varchar" },
+				{ isPrimary: true, name: "createdAt" as never, type: "date" },
+			];
+			mockStoredRow(service, { createdAt: storedValue, id: "route-transaction-1" });
+
+			await ApiRouteRuntime.executeGenerated(options);
+
+			expect((vi.mocked(service.get).mock.calls[0]?.[0].where as Record<string, unknown>).createdAt).toEqual(Equal(storedValue));
+		});
+
+		it.each([
+			["before", "after"],
+			["after", "before"],
+		])("ignores a nested create with another input that reports its row %s the protected create", async (nestedOrder: string) => {
+			const transaction = createRouteTransactionFixture();
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+
+			vi.mocked(service.create).mockImplementation(async (properties): Promise<RuntimeRouteEntity> => {
+				ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.CREATE, properties);
+
+				if (nestedOrder === "before") {
+					ApiControllerGeneratedReadScopeStorage.captureCreatedEntity({ id: "inner" }, { id: "inner", source: "inner" });
+				}
+
+				ApiControllerGeneratedReadScopeStorage.captureCreatedEntity(properties, { id: "route-transaction-1", source: "request" });
+
+				if (nestedOrder === "after") {
+					ApiControllerGeneratedReadScopeStorage.captureCreatedEntity({ id: "inner" }, { id: "inner", source: "inner" });
+				}
+
+				return properties as RuntimeRouteEntity;
+			});
+
+			await ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }));
+
+			expect(vi.mocked(service.get).mock.calls[0]?.[0].where).toEqual({ id: Equal("route-transaction-1"), source: Equal("response") });
+			expect(transaction.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
 		});
 
 		it("checks the stored row of a scoped create instead of the result its subscribers returned", async () => {

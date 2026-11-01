@@ -1,16 +1,15 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiEntityColumn } from "@interface/entity";
+import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { FindOptionsWhere, Repository } from "typeorm";
 
 import { ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated/security-snapshot.class";
+import { ApiControllerGeneratedTemporalParameterContract } from "@class/api/controller/generated/temporal-parameter-contract.class";
 import { ErrorException } from "@utility/error/exception.utility";
 import { And, LessThan, MoreThanOrEqual } from "typeorm";
 
 // Two rows are enough to tell the created row from an identity that also matches a sibling.
 const IDENTITY_PROBE_SIZE: number = 2;
-
-// node-postgres binds a Date with the local offset rounded to whole minutes, which can move it by seconds.
-const UTC_STRING_DRIVER_TYPES: ReadonlySet<string> = new Set<string>(["cockroachdb", "postgres"]);
 
 /**
  * Identifies the row a generated CREATE stored, so its reload never matches a sibling row or falls back to the scope alone.
@@ -39,7 +38,7 @@ export class ApiControllerGeneratedCreateIdentityContract {
 
 	/**
 	 * Builds reload criteria from captured primary column values and confirms that they match exactly one stored row, which is then the created one.
-	 * A date matches its whole millisecond, because the database may store a finer precision than the driver reads back.
+	 * A date and time column matches its whole millisecond, because the database may store a finer precision than the driver reads back.
 	 * @template E The entity type
 	 * @param {Repository<E> | undefined} repository - Repository bound to the active transaction, if any.
 	 * @param {Partial<Record<keyof E, unknown>>} values - Values from {@link ApiControllerGeneratedCreateIdentityContract.capture}.
@@ -54,12 +53,11 @@ export class ApiControllerGeneratedCreateIdentityContract {
 			throw ErrorException("Repository is not available in this context");
 		}
 
-		const bindDate: (value: Date) => Date | string = UTC_STRING_DRIVER_TYPES.has(this.getDriverType(repository) ?? "") ? (value: Date): string => value.toISOString() : (value: Date): Date => new Date(value);
 		const identity: Partial<Record<keyof E, unknown>> = {};
 
 		for (const key of Object.keys(values) as Array<keyof E>) {
-			const value: unknown = values[key];
-			identity[key] = value instanceof Date ? And(MoreThanOrEqual(bindDate(value)), LessThan(bindDate(new Date(value.getTime() + 1)))) : value;
+			const column: TTypeOrmColumnMetadata | undefined = repository.metadata.primaryColumns.find((primaryColumn: TTypeOrmColumnMetadata): boolean => primaryColumn.propertyName === key);
+			identity[key] = column ? this.createCondition(values[key], repository.manager.dataSource.driver.normalizeType(column)) : values[key];
 		}
 
 		const rows: Array<E> = await repository.find({
@@ -76,10 +74,18 @@ export class ApiControllerGeneratedCreateIdentityContract {
 		return identity as FindOptionsWhere<E>;
 	}
 
-	private static getDriverType<E extends IApiBaseEntity>(repository: Repository<E>): string | undefined {
-		const options: unknown = repository.manager.dataSource.options;
-		const type: unknown = options && typeof options === "object" && "type" in options ? options.type : undefined;
+	private static createCondition(value: unknown, columnType: string): unknown {
+		if (!ApiControllerGeneratedTemporalParameterContract.isDateTime(columnType)) {
+			return value;
+		}
 
-		return typeof type === "string" ? type : undefined;
+		// A value from the request body is still text here, while the column stores a parsed date.
+		const date: Date = value instanceof Date ? value : new Date(value as number | string);
+
+		if (Number.isNaN(date.getTime())) {
+			return value;
+		}
+
+		return And(MoreThanOrEqual(ApiControllerGeneratedTemporalParameterContract.bind(date, columnType)), LessThan(ApiControllerGeneratedTemporalParameterContract.bind(new Date(date.getTime() + 1), columnType)));
 	}
 }

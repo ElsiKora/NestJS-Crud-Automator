@@ -91,7 +91,7 @@ class FactoryService extends ApiServiceBase<FactoryEntity> {
 
 		return { id: properties.where?.id ?? "id-1", name: "found", count: 2 } as FactoryEntity;
 	});
-	public readonly repository = { find: vi.fn(async () => [{ id: "id-1" }]), manager: { dataSource: { options: { type: "better-sqlite3" } } } } as unknown as Repository<FactoryEntity>;
+	public readonly repository = { find: vi.fn(async () => [{ id: "id-1" }]), metadata: { primaryColumns: [] } } as unknown as Repository<FactoryEntity>;
 	public override update = vi.fn(async (criteria: Partial<FactoryEntity>, properties: Partial<FactoryEntity>) => {
 		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.UPDATE, criteria);
 
