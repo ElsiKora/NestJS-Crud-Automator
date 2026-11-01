@@ -57,7 +57,7 @@ export class ApiControllerGeneratedCreateIdentityContract {
 
 		for (const key of Object.keys(values) as Array<keyof E>) {
 			const column: TTypeOrmColumnMetadata | undefined = repository.metadata.primaryColumns.find((primaryColumn: TTypeOrmColumnMetadata): boolean => primaryColumn.propertyName === key);
-			identity[key] = column ? this.createCondition(values[key], repository.manager.dataSource.driver.normalizeType(column)) : values[key];
+			identity[key] = column ? this.createCondition(column, values[key], repository.manager.dataSource.driver.normalizeType(column)) : values[key];
 		}
 
 		const rows: Array<E> = await repository.find({
@@ -74,16 +74,16 @@ export class ApiControllerGeneratedCreateIdentityContract {
 		return identity as FindOptionsWhere<E>;
 	}
 
-	private static createCondition(value: unknown, columnType: string): unknown {
+	private static createCondition(column: TTypeOrmColumnMetadata, value: unknown, columnType: string): unknown {
 		if (!ApiControllerGeneratedTemporalParameterContract.isDateTime(columnType)) {
 			return value;
 		}
 
-		// A value from the request body is still text here, while the column stores a parsed date.
+		// A create function may report its key as text, while the column stores a parsed date.
 		const date: Date = value instanceof Date ? value : new Date(value as number | string);
 
 		if (Number.isNaN(date.getTime())) {
-			return value;
+			throw ErrorException(`Generated create result holds an invalid date in primary column ${column.propertyName}`);
 		}
 
 		return And(MoreThanOrEqual(ApiControllerGeneratedTemporalParameterContract.bind(date, columnType)), LessThan(ApiControllerGeneratedTemporalParameterContract.bind(new Date(date.getTime() + 1), columnType)));

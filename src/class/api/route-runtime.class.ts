@@ -31,7 +31,7 @@ import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
 import type { DeepPartial, EntityManager, EntityMetadata, EntityTarget, FindOptionsOrder, FindOptionsWhere, ObjectLiteral, RelationMetadata, Repository } from "typeorm";
 
-import { ApiControllerGeneratedCreateIdentityContract, ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
+import { ApiControllerGeneratedCreateIdentityContract, ApiControllerGeneratedCreateTemporalKeyContract, ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiControllerGetListCursorDataSourceContract } from "@class/api/controller/get-list/cursor/data-source-contract.class";
 import { ApiControllerGetListCursorRuntime } from "@class/api/controller/get-list/cursor/runtime.class";
@@ -346,6 +346,7 @@ export class ApiRouteRuntime {
 				const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
 				const scopeWhere: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(undefined, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
 				const isScopedWrite: boolean = scopeWhere !== undefined && Object.keys(scopeWhere).length > 0;
+				ApiControllerGeneratedCreateTemporalKeyContract.parse((service as { repository?: Repository<E> } & ApiServiceBase<E>).repository, targets.body);
 
 				return await this.executeGeneratedTransaction(
 					options,

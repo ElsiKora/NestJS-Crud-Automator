@@ -1,6 +1,8 @@
+import type { ApiServiceBase } from "@class/api/service-base.class";
 import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
+import type { OnModuleInit } from "@nestjs/common";
 import type { TApiControllerConstructor } from "@type/decorator/api/controller";
 
 import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/controller-startup-check.constant";
@@ -63,6 +65,16 @@ export const ApiController =
 					// A guard decorator above this one writes to the class this decorator returns, so it only shows from here on, before Swagger reads the routes
 					ApiControllerApplyGuardResponses(new.target);
 				}
+			}
+
+			/**
+			 * Refuses a generated create its driver cannot identify, then runs the controller's own hook.
+			 * @returns {unknown} Result of the controller's own hook
+			 */
+			public onModuleInit(): unknown {
+				factory.assertCreateTemporalKeyDriver(this.service as ApiServiceBase<E>);
+
+				return (target.prototype as Partial<OnModuleInit>).onModuleInit?.call(this);
 			}
 		};
 		Object.defineProperty(ValidatedController, "name", { value: target.name });

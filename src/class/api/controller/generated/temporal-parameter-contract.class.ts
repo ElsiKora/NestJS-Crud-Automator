@@ -16,7 +16,7 @@ export class ApiControllerGeneratedTemporalParameterContract {
 	 * @returns {Date | string} Canonical UTC text for an instant column, otherwise a copy of the date.
 	 */
 	public static bind(value: Date, columnType: string): Date | string {
-		return INSTANT_COLUMN_TYPES.has(columnType) ? value.toISOString() : new Date(value);
+		return this.isInstant(columnType) ? value.toISOString() : new Date(value);
 	}
 
 	/**
@@ -26,5 +26,14 @@ export class ApiControllerGeneratedTemporalParameterContract {
 	 */
 	public static isDateTime(columnType: string): boolean {
 		return DATE_TIME_COLUMN_TYPES.has(columnType);
+	}
+
+	/**
+	 * Tells whether a column stores an instant rather than a wall-clock date and time.
+	 * @param {string} columnType - Column type as the driver normalizes it.
+	 * @returns {boolean} True for timestamptz columns.
+	 */
+	public static isInstant(columnType: string): boolean {
+		return INSTANT_COLUMN_TYPES.has(columnType);
 	}
 }

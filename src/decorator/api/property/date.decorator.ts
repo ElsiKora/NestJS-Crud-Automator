@@ -4,6 +4,7 @@ import type { TApiPropertyDateProperties } from "@type/decorator/api/property";
 import type { TransformFnParams } from "class-transformer";
 import type { ValidationOptions } from "class-validator";
 
+import { ApiControllerGeneratedTemporalBodySource } from "@class/api/controller/generated/temporal-body-source.class";
 import { DtoPropertyDateRejectedValue } from "@class/utility/dto/property/date-rejected-value.class";
 import { PROPERTY_DATE_DECORATOR_API_CONSTANT } from "@constant/decorator/api/property-date.constant";
 import { EApiPropertyDataType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "@enum/decorator/api";
@@ -434,7 +435,8 @@ function toRequestValue(value: unknown, sent: unknown, format: EApiPropertyDateT
 
 	const current: unknown = value instanceof Date && sent !== undefined && !(sent instanceof Date) ? sent : value;
 
-	return format === EApiPropertyDateType.DATE_TIME && IsDateFormatValue(current, format) ? new Date(current) : current;
+	// The parsed date keeps its request text, which a generated create binds its key with.
+	return format === EApiPropertyDateType.DATE_TIME && IsDateFormatValue(current, format) ? ApiControllerGeneratedTemporalBodySource.parse(current) : current;
 }
 
 /**

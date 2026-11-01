@@ -1,3 +1,4 @@
+import type { ApiServiceBase } from "@class/api/service-base.class";
 import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
@@ -13,6 +14,7 @@ import type { TApiControllerConstructor, TApiControllerGetListQuery, TApiControl
 import type { TApiControllerMethodMap, TApiControllerMethodName, TApiControllerMethodNameMap, TApiControllerTargetMethod } from "@type/factory/api/controller";
 import type { DeepPartial, Repository } from "typeorm";
 
+import { ApiControllerGeneratedCreateTemporalKeyContract } from "@class/api/controller/generated/create-temporal-key-contract.class";
 import { ApiControllerGetListQueryPlanCompiler } from "@class/api/controller/get-list/query";
 import { ApiControllerIdentityPlanCompiler } from "@class/api/controller/identity-plan-compiler.class";
 import { ApiControllerReadPlanCompiler } from "@class/api/controller/read-plan-compiler.class";
@@ -80,6 +82,17 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	/**
+	 * Fails startup when a generated CREATE would have to identify a date and time primary key on a driver it does not support.
+	 * @param {ApiServiceBase<E>} service - Service the controller instance received.
+	 * @returns {void}
+	 */
+	assertCreateTemporalKeyDriver(service: ApiServiceBase<E>): void {
+		if (this.isMethodGenerated(EApiRouteType.CREATE)) {
+			ApiControllerGeneratedCreateTemporalKeyContract.assertDriver((service as { repository?: Repository<E> } & ApiServiceBase<E>).repository);
+		}
+	}
+
+	/**
 	 * Fails startup when the manual QUERY DTO of a GET_LIST route without a typed filter publishes a filter the route cannot apply, or one on a column the list response hides. The check waits until here because a relation target, or a lazy type of the manual list response, may name a class that did not exist while the controller was decorated; assertListResponseOrder runs first and reports a response that cannot be read.
 	 * @returns {void}
 	 */
@@ -140,7 +153,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	createMethod(method: EApiRouteType): void {
-		if (!(method in this.properties.routes) || this.properties.routes[method]?.generation?.isEnabled !== false) {
+		if (this.isMethodGenerated(method)) {
 			const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = this.properties.routes[method] ?? {};
 			const routeDecorators: Array<MethodDecorator> | Array<PropertyDecorator> = routeConfig.generation?.decorators ?? [];
 			const methodName: TApiControllerMethodNameMap[typeof method] = ApiControllerGetMethodName(method);
@@ -382,5 +395,9 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			writable: true,
 		});
+	}
+
+	private isMethodGenerated(method: EApiRouteType): boolean {
+		return !(method in this.properties.routes) || this.properties.routes[method]?.generation?.isEnabled !== false;
 	}
 }
