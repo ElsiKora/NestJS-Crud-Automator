@@ -95,11 +95,23 @@ describe("ApiControllerTransformData", () => {
 		const body: TransformEntity = { name: "payload" };
 		const transformers = {
 			[EApiControllerRequestTarget.BODY]: {
-				transformers: [{ key: "name", type: EApiControllerRequestTransformerType.DYNAMIC, value: "INVALID" }],
+				transformers: [{ key: "name", type: EApiControllerRequestTransformerType.DYNAMIC, value: "UNKNOWN_DYNAMIC_VALUE" }],
 			},
 		};
 
 		expect(() => ApiControllerTransformData(transformers as never, properties, { body }, { headers: {}, ip: "127.0.0.1" })).toThrow(InternalServerErrorException);
+		expect(() => ApiControllerTransformData(transformers as never, properties, { body }, { headers: {}, ip: "127.0.0.1" })).toThrow("TRANSFORMENTITY_DYNAMIC_VALUE_NOT_VALID");
+	});
+
+	it("names the entity when a transformer key is missing from the object", () => {
+		const body: TransformEntity = { name: "payload" };
+		const transformers = {
+			[EApiControllerRequestTarget.BODY]: {
+				transformers: [{ key: "missingKey", type: EApiControllerRequestTransformerType.STATIC, value: "value" }],
+			},
+		};
+
+		expect(() => ApiControllerTransformData(transformers as never, properties, { body }, { headers: {}, ip: "127.0.0.1" })).toThrow("TRANSFORMENTITY_KEY_FOR_TRANSFORM_NOT_IN_OBJECT");
 	});
 
 	it("applies transformers to get list query data", () => {
