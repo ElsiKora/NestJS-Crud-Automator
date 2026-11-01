@@ -352,14 +352,14 @@ export class ApiRouteRuntime {
 					routeConfig,
 					async (): Promise<E> => {
 						await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {});
-						const primaryKey: IApiControllerPrimaryColumn<E> = this.resolvePrimaryKey(targets.body, options.entityMetadata);
+						const primaryColumns: Array<IApiEntityColumn<E>> = this.resolvePrimaryColumns(options.entityMetadata);
 						markAfterBoundary();
 						const createResponse: E = await Reflect.apply(createFunction, service, [targets.body ?? {}]);
 
 						const requestProperties: TApiFunctionGetProperties<E> = {
 							relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
 							relations: routeConfig.relations?.response?.load?.include,
-							where: AuthorizationScopeMergeWhere({ [primaryKey.key]: createResponse[primaryKey.key] } as FindOptionsWhere<E>, scopeWhere),
+							where: AuthorizationScopeMergeWhere(this.resolveCreatedIdentity(createResponse, primaryColumns), scopeWhere),
 						};
 
 						return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => {
@@ -676,10 +676,6 @@ export class ApiRouteRuntime {
 			throw ErrorException("ApiRoute generated transaction mode NONE cannot run inside an active transaction");
 		}
 
-		if (mode === EApiFunctionTransactionMode.NONE && isScopedWrite) {
-			throw ErrorException("ApiRoute generated transaction mode NONE cannot enforce an authorization scope on a write");
-		}
-
 		if (mode === EApiFunctionTransactionMode.MANDATORY && !activeEventManager) {
 			throw ErrorException("ApiRoute generated transaction mode MANDATORY requires an active transaction");
 		}
@@ -702,6 +698,10 @@ export class ApiRouteRuntime {
 					routeType: options.method,
 				},
 			});
+		}
+
+		if (isScopedWrite && !activeEventManager) {
+			throw ErrorException("ApiRoute generated transaction mode cannot enforce an authorization scope on a write without a transaction");
 		}
 
 		return await callback(activeEventManager);
@@ -771,6 +771,29 @@ export class ApiRouteRuntime {
 				id: responseId,
 			} as unknown as FindOptionsWhere<E>,
 		});
+	}
+
+	/**
+	 * Builds the identity of a created row from every primary column, so a composite key never matches a sibling row.
+	 * @template E The entity type
+	 * @param {E} createResponse - Result of the generated create function.
+	 * @param {Array<IApiEntityColumn<E>>} primaryColumns - Primary columns of the entity.
+	 * @returns {FindOptionsWhere<E>} Criteria that match only the created row.
+	 */
+	private static resolveCreatedIdentity<E extends IApiBaseEntity>(createResponse: E, primaryColumns: Array<IApiEntityColumn<E>>): FindOptionsWhere<E> {
+		const identity: Partial<Record<keyof E, unknown>> = {};
+
+		for (const column of primaryColumns) {
+			const value: unknown = createResponse[column.name];
+
+			if (value === undefined || value === null) {
+				throw ErrorException("Generated create result must hold every primary key column");
+			}
+
+			identity[column.name] = value;
+		}
+
+		return identity as FindOptionsWhere<E>;
 	}
 
 	/**
@@ -845,6 +868,16 @@ export class ApiRouteRuntime {
 		const handler: unknown = Reflect.get(controller, methodName);
 
 		return typeof handler === "function" ? ApiControllerParametersDtoGet(handler) : undefined;
+	}
+
+	private static resolvePrimaryColumns<E extends IApiBaseEntity>(entityMetadata: IApiEntity<E>): Array<IApiEntityColumn<E>> {
+		const primaryColumns: Array<IApiEntityColumn<E>> = entityMetadata.columns.filter((column: IApiEntityColumn<E>): boolean => column.isPrimary);
+
+		if (primaryColumns.length === 0) {
+			throw ErrorException("Primary key not found in entity columns");
+		}
+
+		return primaryColumns;
 	}
 
 	private static resolvePrimaryKey<E extends IApiBaseEntity>(source: DeepPartial<E> | Partial<E> | undefined, entityMetadata: IApiEntity<E>): IApiControllerPrimaryColumn<E> {

@@ -14,7 +14,7 @@ Do not pass a raw object when the intended scope value is an object-valued scala
 
 ## Undecorated Generated-Service Overrides
 
-Do not expect a generated route to invoke an arbitrary `get`, `getList`, `getMany`, `update`, or `delete` override. The 4.0 capability boundary accepts only the exact same-entity/type function installed by `@ApiService` or the matching built-in `@ApiFunction*` decorator, and rejects other functions before the Automator-managed route transaction or repository I/O. Such an override may still be called directly. Generated CREATE also preflights its protected post-create GET, and UPDATE preflights a protected reload GET when configured. For generated-route customization, use subscribers; for distinct business behavior, use `@ApiFunctionCustom` or a custom route. A matching built-in decorator owns the resulting CRUD implementation, so the original override body is not an extension hook.
+Do not expect a generated route to invoke an arbitrary `get`, `getList`, `getMany`, `update`, or `delete` override. The 4.0 capability boundary accepts only the exact same-entity/type function installed by `@ApiService` or the matching built-in `@ApiFunction*` decorator, and rejects other functions before the Automator-managed route transaction or repository I/O. Such an override may still be called directly. Generated CREATE also preflights its protected post-create GET, a scoped CREATE also preflights `create`, and UPDATE preflights a protected reload GET when configured. For generated-route customization, use subscribers; for distinct business behavior, use `@ApiFunctionCustom` or a custom route. A matching built-in decorator owns the resulting CRUD implementation, so the original override body is not an extension hook.
 
 ## Old Route Config Shape
 
@@ -225,9 +225,11 @@ Custom routes that query on their own must apply `decision.scope.where`; ignorin
 
 ## Scoped CREATE
 
-Do not describe a scoped CREATE as checked before the insert. The row is written, reloaded through the scope, and rolled back on a miss, so the refusal depends on a transactional engine: on MySQL MyISAM the row stays after the `403`. Function `onAfterCreate` subscribers run before the reload and may see a row that is rolled back; external side effects belong in `onAfterCommit`.
+Do not describe a scoped CREATE as checked before the insert. The row is written, reloaded through the scope, and rolled back on a miss, so the refusal needs a transactional engine and a connection per transaction: on MySQL MyISAM the row stays after the `403`, and on SQLite all transactions share one connection, so concurrent requests can answer `500`, commit a refused row, lose a `201` row, or read uncommitted rows. Function `onAfterCreate` subscribers run before the reload and may see a row that is rolled back; external side effects belong in `onAfterCommit`.
 
-Do not catch the `403` inside an outer `ApiFunctionTransactionScope` and let the outer work complete: the outer owner commits and the out-of-scope row stays. Do not configure `NONE` on a route that carries a scope, or on its CREATE or GET service function: the route answers `500` and persists nothing.
+Do not catch the `403` inside an outer `ApiFunctionTransactionScope` and let the outer work complete: the outer owner commits and the out-of-scope row stays. Do not configure `NONE` on a route that carries a scope, or on any service function on its path, including relation hydration: the route answers `500` and persists nothing.
+
+Do not write through `this.repository` in a `create` override for a scoped route: such a write would escape the rollback, so an undecorated override answers `500` before the write. Read through `DATA.repository` in CREATE subscribers; it is bound to the active transaction.
 
 Condition operators outside `EApiPolicyConditionOperator` are rejected when the document is loaded. Do not use AWS operators such as `StringLike` or `ArnEquals`.
 

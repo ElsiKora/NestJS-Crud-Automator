@@ -263,6 +263,15 @@ describe("ApiFunctionGet", () => {
 		).resolves.toBe("checked");
 	});
 
+	it("keeps the 404 of a direct miss that has no input", async () => {
+		const service = new GetService({ findOne: vi.fn(async () => null) } as unknown as Repository<GetEntity>);
+
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
+		vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockResolvedValue({ where: { id: "missing" } });
+
+		await expect(service.get(undefined as never)).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
+	});
+
 	it.each([
 		["BEFORE", "executeFunctionBeforeSubscribers"],
 		["AFTER", "executeFunctionSubscribers"],

@@ -46,9 +46,10 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<IApiBaseEntity> => {
 					const entityInstance: E = new entity();
+					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
 
 					const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionCreateProperties<E>, IApiSubscriberFunctionExecutionContextData<E>> = {
-						DATA: { eventManager, repository: this.repository },
+						DATA: { eventManager, repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.CREATE,
 						result: createProperties,
@@ -60,11 +61,9 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 						executionContext.result = result;
 					}
 
-					const repository: Repository<E> = this.repository;
-
 					if (!repository) {
 						const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-							DATA: { eventManager, repository: this.repository },
+							DATA: { eventManager, repository },
 							ENTITY: entityInstance,
 							FUNCTION_TYPE: EApiFunctionType.CREATE,
 						};
@@ -82,9 +81,10 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 				mode: transactionMode,
 				onPreflightError: async (eventManager: EntityManager | undefined, error: Error): Promise<void> => {
 					const entityInstance: E = new entity();
+					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
 
 					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
-						DATA: { eventManager, repository: this.repository },
+						DATA: { eventManager, repository },
 						ENTITY: entityInstance,
 						FUNCTION_TYPE: EApiFunctionType.CREATE,
 					};
@@ -114,15 +114,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
-		let result: E;
-
-		if (eventManager) {
-			const eventRepository: Repository<E> = eventManager.getRepository<E>(entity);
-			result = await eventRepository.save(properties);
-		} else {
-			result = await repository.save(properties);
-		}
-
+		const result: E = await repository.save(properties);
 		// A generated route reads its response by the key TypeORM saved, taken before a function subscriber can replace or change the result.
 		reportInsertedKey?.(repository.metadata.getEntityIdMap(result));
 

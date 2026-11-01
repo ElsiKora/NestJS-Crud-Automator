@@ -70,7 +70,11 @@ export class ApiControllerGeneratedReadScopeStorage {
 	public static markReadMissed(input: object): void {
 		const entry: IApiControllerGeneratedReadScopeEntry | undefined = this.STORAGE.getStore();
 
-		if (entry?.input === input) {
+		if (!entry) {
+			return;
+		}
+
+		if (entry.input === input) {
 			entry.isReadMissed = true;
 		}
 	}
