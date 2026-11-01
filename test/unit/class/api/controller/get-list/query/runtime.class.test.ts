@@ -913,6 +913,14 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", page: 1 }, plan)).toThrow("INVALID_ORDER");
 	});
 
+	it.each(["ASC", "Desc", "DESC"])("rejects orderDirection %s outside the lowercase enum", (orderDirection: string) => {
+		const plan = compilePlan({
+			name: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
+		});
+
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection, page: 1 }, plan)).toThrow("INVALID_ORDER");
+	});
+
 	it("enforces the typed direct-scalar order overlay", () => {
 		const plan = compilePlan(
 			{

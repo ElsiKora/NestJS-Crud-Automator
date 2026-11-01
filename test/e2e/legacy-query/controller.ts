@@ -125,7 +125,28 @@ export class E2eLegacyQueryOrderOnlyItemController {
 	path: "legacy-query/typed-items",
 	routes: {
 		...disabledRoutes,
-		[EApiRouteType.GET_LIST]: { request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { rank: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN, EFilterOperation.NOTIN, EFilterOperation.BETWEEN], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } },
+		[EApiRouteType.GET_LIST]: {
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					filter: {
+						fields: {
+							createdAt: { allowedOperations: [EFilterOperation.GT], isEnabled: true },
+							isFeatured: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
+							label: { allowedOperations: [EFilterOperation.CONT, EFilterOperation.EQ, EFilterOperation.IN], isEnabled: true },
+							note: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.ISNULL, EFilterOperation.NOTNULL], isEnabled: true },
+							rank: { allowedOperations: [EFilterOperation.BETWEEN, EFilterOperation.EQ, EFilterOperation.GT, EFilterOperation.IN, EFilterOperation.NOTIN], isEnabled: true },
+							releasedOn: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
+							status: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN], isEnabled: true },
+						},
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+					order: {
+						fields: { createdAt: { isEnabled: true }, label: { isEnabled: true }, note: { isEnabled: true }, rank: { isEnabled: true }, releasedOn: { isEnabled: true }, status: { isEnabled: true } },
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+				},
+			},
+		},
 	},
 })
 export class E2eLegacyQueryTypedItemController {
