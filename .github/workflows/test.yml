@@ -67,7 +67,10 @@ jobs:
       - name: Install @nestjs/swagger ${{ matrix.swagger-version }}
         run: |
           npm install --no-save "@nestjs/swagger@${{ matrix.swagger-version }}"
-          node -p "require('./node_modules/@nestjs/swagger/package.json').version"
+          installed=$(node -p "require('./node_modules/@nestjs/swagger/package.json').version")
+          expected=$(npm view "@nestjs/swagger@${{ matrix.swagger-version }}" version --json | node -p "[].concat(JSON.parse(require('fs').readFileSync(0, 'utf8'))).pop()")
+          echo "Installed @nestjs/swagger ${installed}, expected ${expected}"
+          test "${installed}" = "${expected}"
 
       - name: Run type check
         run: npm run lint:types
