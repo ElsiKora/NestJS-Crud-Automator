@@ -44,6 +44,7 @@ import {
 	TypedQueryEntity,
 	TypedQueryNarrowController,
 	UuidRelationTransactionEntity,
+	TransformedInstantQueryEntity,
 } from "./fixture";
 
 const entityMetadata: IApiEntity<TypedQueryEntity> = GenerateEntityInformation<TypedQueryEntity>(TypedQueryEntity as unknown as IApiBaseEntity);
@@ -1041,7 +1042,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 	it.each([
 		["missing primary tie-breaker", { tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "name" }] }, "CURSOR GET_LIST"],
 		["nullable potential order", { defaultField: "nullableRank", fields: { nullableRank: { isEnabled: true } } }, "CURSOR GET_LIST"],
-		["primary exposed before the tie-breaker", { fields: { id: { isEnabled: true }, rank: { isEnabled: true } } }, 'GET_LIST order field "id" is not an enabled direct scalar path'],
+		["primary exposed before the tie-breaker", { fields: { id: { isEnabled: true }, rank: { isEnabled: true } } }, 'CURSOR GET_LIST primary key "id" may appear only as the final tie-breakers'],
 	])("rejects invalid CURSOR bootstrap order: %s", (_label, options, message) => {
 		expect(() => compileCursorPlan(options)).toThrow(message);
 	});
@@ -1094,10 +1095,10 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(() => compileCursorStoragePlan(field)).not.toThrow();
 	});
 
-	it("keeps every CURSOR temporal order field out of client order selection", () => {
-		expect(() => compileCursorStoragePlan("safeTimestamptz", { safeTimestamptz: { isEnabled: true } })).toThrow('order field "safeTimestamptz" is not an enabled direct scalar path');
+	it("lets a CURSOR client order by an exact timestamptz field and keeps other temporal fields out", () => {
+		expect(Object.keys(compileCursorStoragePlan("safeTimestamptz", { safeTimestamptz: { isEnabled: true } }).order.fields)).toContain("safeTimestamptz");
 		// The storage type of a date field is the bootstrap check's to decide, through the active driver.
-		expect(() => compileCursorStoragePlan("unsafeTimestamp", { unsafeTimestamp: { isEnabled: true } })).not.toThrow();
+		expect(Object.keys(compileCursorStoragePlan("unsafeTimestamp", { unsafeTimestamp: { isEnabled: true } }).order.fields)).toContain("unsafeTimestamp");
 	});
 
 	it("names the field and the exact-precision rule when a temporal CURSOR field is too precise", () => {
@@ -1143,6 +1144,23 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(() => validateStorageField({})).toThrow('date order field "field" supports only DATE_TIME metadata');
 		expect(() => validateStorageField({ columnMode: "unknown" })).toThrow('CURSOR GET_LIST order field "field" must be a selected persisted column without a transformer');
 		expect(() => validateStorageField({ type: EApiPropertyDescribeType.NUMBER })).toThrow('CURSOR GET_LIST order field "field" must be a selected persisted column without a transformer');
+	});
+
+	it("lets a PAGE plan order by timestamptz and uuid columns", () => {
+		const instantMetadata: IApiEntity<TransformedInstantQueryEntity> = GenerateEntityInformation<TransformedInstantQueryEntity>(TransformedInstantQueryEntity as unknown as IApiBaseEntity);
+		const routeConfig = {
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					filter: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT },
+					order: { fields: { id: { isEnabled: true }, transformedTimestamptz: { isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT },
+					pagination: { mode: EApiControllerGetListQueryPaginationMode.PAGE },
+				},
+			},
+		} as unknown as TApiControllerPropertiesRoute<TransformedInstantQueryEntity, EApiRouteType.GET_LIST>;
+		const plan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanCompiler.compile(CursorQueryController, TransformedInstantQueryEntity, instantMetadata, routeConfig);
+
+		expect(Object.keys(plan?.order.fields ?? {}).toSorted()).toEqual(["id", "transformedTimestamptz"]);
+		expect(ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "transformedTimestamptz", orderDirection: EFilterOrderDirection.DESC, page: 1 }, plan!).orderBy).toBe("transformedTimestamptz");
 	});
 
 	it.each(["responseHiddenRank", "responseGuardedRank"])("rejects a CURSOR order field that is not unconditionally raw-exposed: %s", (defaultField) => {
@@ -1246,7 +1264,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 					{ direction: EFilterOrderDirection.ASC, field: "id" },
 				],
 			},
-			'order field "createdAt" is not an enabled direct scalar path',
+			'CURSOR GET_LIST primary key "createdAt", "id" may appear only as the final tie-breakers',
 		],
 		[
 			"a component in defaultOrder",
@@ -1282,7 +1300,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 
 	it("keeps the single primary key CURSOR rule unchanged", () => {
 		expect(() => compileCursorPlan({ tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "rank" }] })).toThrow('complete primary key "id" as the final explicit tie-breakers');
-		expect(() => compileCursorPlan({ fields: { id: { isEnabled: true } } })).toThrow('order field "id" is not an enabled direct scalar path');
+		expect(() => compileCursorPlan({ fields: { id: { isEnabled: true } } })).toThrow('CURSOR GET_LIST primary key "id" may appear only as the final tie-breakers');
 		expect(() => compileCursorPlan({ defaultField: "id", fields: {} })).toThrow('primary key "id" may appear only as the final tie-breakers');
 	});
 
