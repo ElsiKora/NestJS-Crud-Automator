@@ -2,8 +2,10 @@ import type { TApiPropertyDescribeProperties } from "@type/decorator/api/propert
 
 import { MetadataStorage } from "@class/metadata-storage.class";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { EApiPropertyDescribeType } from "@enum/decorator/api";
 import { ErrorException } from "@utility/error/exception.utility";
 import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
+import { NumberDescribeUnsafeIntegerRange } from "@utility/number";
 
 /**
  * Creates a decorator for entity properties that provides metadata used for automatic
@@ -90,6 +92,7 @@ import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
  * ```
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-describe | API Reference - ApiPropertyDescribe}
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/core-concepts/entities | Core Concepts - Entities}
+ * @throws {Error} When an integer NUMBER property has a bound outside the safe integer range; a bigint column is described as `EApiPropertyStringType.BIGINT_STRING`.
  */
 export function ApiPropertyDescribe(properties: TApiPropertyDescribeProperties): PropertyDecorator {
 	return (target: object, propertyKey: string | symbol): void => {
@@ -97,6 +100,14 @@ export function ApiPropertyDescribe(properties: TApiPropertyDescribeProperties):
 
 		if (!IsEntityConstructor(entity)) {
 			throw ErrorException(`ApiPropertyDescribe on "${String(propertyKey)}" must decorate a class property`);
+		}
+
+		if (properties.type === EApiPropertyDescribeType.NUMBER) {
+			const unsafeIntegerRangeError: string | undefined = NumberDescribeUnsafeIntegerRange(properties);
+
+			if (unsafeIntegerRangeError) {
+				throw ErrorException(`ApiPropertyDescribe error: ${entity.name}.${String(propertyKey)}: ${unsafeIntegerRangeError}`);
+			}
 		}
 
 		MetadataStorage.getInstance().setMetadata(entity, propertyKey, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY, properties);

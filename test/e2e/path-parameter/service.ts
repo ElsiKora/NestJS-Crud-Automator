@@ -5,7 +5,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 
 import { ApiService, ApiServiceBase } from "../../../src/index";
 
-import { E2ePathParameterIntItemEntity, E2ePathParameterUuidItemEntity } from "./entity";
+import { E2ePathParameterDayItemEntity, E2ePathParameterIntItemEntity, E2ePathParameterUuidItemEntity } from "./entity";
 
 @Injectable()
 @ApiService({ entity: E2ePathParameterIntItemEntity })
@@ -19,4 +19,11 @@ export class E2ePathParameterIntItemService extends ApiServiceBase<E2ePathParame
 export class E2ePathParameterUuidItemService extends ApiServiceBase<E2ePathParameterUuidItemEntity> {
 	@InjectRepository(E2ePathParameterUuidItemEntity)
 	public readonly repository!: Repository<E2ePathParameterUuidItemEntity>;
+}
+
+@Injectable()
+@ApiService({ entity: E2ePathParameterDayItemEntity })
+export class E2ePathParameterDayItemService extends ApiServiceBase<E2ePathParameterDayItemEntity> {
+	@InjectRepository(E2ePathParameterDayItemEntity)
+	public readonly repository!: Repository<E2ePathParameterDayItemEntity>;
 }

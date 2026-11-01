@@ -13,7 +13,7 @@ Adds Swagger metadata, validation, and serialization for numeric DTO properties.
 | Option                                               | Description                                                                                                                                                                                |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `format`                                             | `EApiPropertyNumberType.INTEGER` or `DOUBLE`. Controls Swagger `type`/`format` and which validator (`IsInt` vs `IsNumber`) runs.                                                           |
-| `minimum` / `maximum`                                | Value bounds enforced with `Min`/`Max`. Required to derive example defaults.                                                                                                               |
+| `minimum` / `maximum`                                | Value bounds enforced with `Min`/`Max`. Required to derive example defaults. For `INTEGER` they must stay within the safe integer range (see below).                                       |
 | `multipleOf`                                         | Validates divisibility as an exact decimal (useful for currency increments).                                                                                                               |
 | `exampleValue`                                       | Optional; falls back to a random value within the provided range. Accepts single value or array when `isArray` is `true`.                                                                  |
 | `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enables numeric arrays with full validation. `isUniqueItems: true` rejects equal items on a request array; see [Unique Items](/docs/nestjs-crud-automator/guides/validation#unique-items). |
@@ -23,6 +23,8 @@ Adds Swagger metadata, validation, and serialization for numeric DTO properties.
 
 - Registers `@ApiProperty` with the appropriate `type`, `format`, `minimum`, `maximum`, and `multipleOf`.
 - Adds `Type(() => Number)` and `Transform` so incoming strings/numbers are coerced into numeric types.
+- For `INTEGER`, integer text is accepted only in canonical decimal form (`^-?(0|[1-9]\d*)$`). `016`, ` 16`, `0x10`, `16.0`, `1.6e1`, `1e3`, and `007` fail `IsInt` (`id must be an integer number`) instead of becoming `16` or `1000`. `DOUBLE` keeps accepting decimal and exponent text.
+- An `INTEGER` property whose `maximum` is above `Number.MAX_SAFE_INTEGER` or whose `minimum` is below `Number.MIN_SAFE_INTEGER` fails at startup, in `@ApiPropertyNumber` and in `@ApiPropertyDescribe`. A JavaScript number cannot hold such values exactly, so two different ids could parse to the same number. Describe a `bigint` column as `EApiPropertyDescribeType.STRING` with `format: EApiPropertyStringType.BIGINT_STRING`.
 - Preserves missing optional values as `undefined`/`null` instead of coercing them to `NaN`.
 - Applies `IsInt`/`IsNumber`, `IsDivisibleBy`, presence guards, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
 - Adds `ApiResponseProperty` plus `Expose`/`Exclude` when `isResponse` is enabled.

@@ -600,6 +600,8 @@ const document = {
 };
 ```
 
+`${request.parameters.*}` and `resourcePath` placeholders read the typed path values of the route. `ApiAuthorizationGuard` validates and converts them with the route's PARAMETERS DTO before it evaluates anything, so on an integer `NUMBER` key `request.parameters.id` is the number `16` and `{id}` renders as `16`. A malformed or non-canonical value such as `016` or `1e3` is rejected with `400` before evaluation, so it cannot name the same row as `16` and slip past a Deny on `item/16`. Request UUIDs are lower-cased for the same reason. Scope values from conditions and hooks, such as the literal `"16"` in `"resource.id": "16"`, are converted to the column type before they merge with the route's identity and `read.scope` values.
+
 IAM behavior is intentionally strict:
 
 - explicit deny wins over allow
@@ -840,4 +842,11 @@ IAM Deny statements are compiled into row exclusions instead of being applied to
 
 From 5.0.0 a securable controller with a plain Nest route, a `@MessagePattern`, `@EventPattern` or `@SubscribeMessage` handler or a handler replaced on the instance without its guards does not start, and neither does an application with a securable controller and no `ApiAuthorizationModule`. Before 5.0.0 such a handler was served with no authorization, or took the identity from the message when it also had `@ApiMethod`, and startup said nothing. Declare an HTTP route with `@ApiRouteCustom` or `@ApiMethod`, move a route or a pattern handler to a controller that is not securable, remove the replacement, and import the module. See [Every Served Route Goes Through Authorization](#every-served-route-goes-through-authorization).
 
-See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the hooks policy contract and the [controller decorator docs](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) for what the decorator does.
+Path values reach authorization typed:
+
+- `ApiAuthorizationGuard` validates path values with the route's PARAMETERS DTO before evaluation. A malformed value returns `400` with the `ValidationPipe` body instead of being evaluated as a string.
+- `request.parameters.*` holds typed values (numbers for integer `NUMBER` keys, lower-case UUIDs, `YYYY-MM-DD` strings for `DATE`), and numeric placeholders now render in `resourcePath`. Before 5.0.0 the recipe `"resource.id": "${request.parameters.id}"` returned `404` on a `NUMBER` key, because the string `"16"` never matched the number `16`.
+- Integer path values are accepted only in canonical form, so `016`, `16.0`, or `1.6e1` can no longer address a row that a Deny names as `16`.
+- Scope values merged against a column, from conditions or hooks, are converted to the column type; a value the column cannot hold becomes a match-nothing condition.
+
+See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the hooks policy contract and the [controller decorator docs](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) for marker behavior.

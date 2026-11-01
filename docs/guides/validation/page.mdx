@@ -504,6 +504,25 @@ With `bodyLimit: 102400`, a body just under the limit costs about 100 ms and ans
 
 `bodyLimit` stays useful on `@ApiMethod` routes as well. A 1 MiB body made of many small objects passes the limits above and cost about 400 ms in the same measurement.
 
+### Generated route path parameters
+
+Generated `GET`, `UPDATE`, `PARTIAL_UPDATE`, and `DELETE` routes, and generated `GET` and `GET_LIST` routes with `read.scope.parameters`, check every path value against the route's PARAMETERS DTO before any query runs. The generated DTO uses the type each column has in `@ApiPropertyDescribe`:
+
+- a `UUID` value must be a UUID (versions 1 to 8, nil or max, either letter case) and is lower-cased;
+- an integer `NUMBER` value must be written in canonical decimal form and stay between `minimum` and `maximum`, so `016`, `%2016` (` 16`), `0x10`, `16.0`, `1.6e1`, `1e3`, and `007` are rejected instead of naming row `16` or `1000`;
+- a `DATE` value must be a real `YYYY-MM-DD` day and stays that string;
+- `STRING`, `ENUM`, and `BOOLEAN` values follow their own described rules.
+
+A value that fails returns `400` with the same body a Nest `ValidationPipe` returns, for example `message: ["id must be a UUID"]`, and no SQL is sent. The messages name the parameter but do not echo the value. The body is the same with or without a host pipe. A configured PARAMETERS DTO (`dto[EApiDtoType.PARAMETERS]`) is checked the same way.
+
+Path values are validated and converted once per request, before authorization. `ApiAuthorizationGuard`, IAM `resourcePath` rendering, `${request.parameters.*}` conditions, `read.scope`, route subscribers, and the service all read the same typed values: a `NUMBER` path value is the number `16`, and `pp:item/{id}` renders as `pp:item/16`. A malformed value is rejected by the guard with the same `400` body. A route without `@ApiControllerSecurable()` runs the check before route `BEFORE` subscribers; when the check fails, `BEFORE_ERROR` subscribers see the raw string.
+
+PARAMETERS transformers, `validators`, and `BEFORE` subscribers can still replace path values, so the route checks the values it is about to use once more after them. A transformer that writes `not-a-uuid` into a `UUID` key gets the `400`, not a database error.
+
+Scope values from HOOKS or IAM that are merged against a column, such as `{ id: "16" }` from a literal `StringEquals` condition, are converted with the same parser before they merge with the typed path values. A scope value the column cannot hold becomes a match-nothing condition.
+
+The OpenAPI path parameters come from the same DTO, so they state the type and format: `string` with `format: uuid` and a pattern matching `IsUUID()` for a `UUID` column, and `integer` with `format`, `minimum`, and `maximum` for a `NUMBER` column. Describe the real range of the column: an integer `NUMBER` whose bounds leave the safe integer range fails at startup, and a `bigint` column is described only as `EApiPropertyStringType.BIGINT_STRING`.
+
 ## Validation in Subscribers
 
 Perform custom validation in subscribers:
@@ -541,6 +560,22 @@ export class UserValidationSubscriber extends ApiRouteSubscriberBase<UserEntity>
 Bodies over the [request body limits](#request-body-limits) now answer `400` on every `@ApiMethod` route: deeper than 64 levels, or with an object holding more than 1000 keys. Before 5.0.0 they reached the pipe, where a wide body held the event loop and a deep one could overflow the stack. There is no option to raise the limits. Send a free-form object of more than 1000 keys as an array of entries, and bound plain routes with the adapter's `bodyLimit`.
 
 A body with the key `__proto__`, `constructor`, `hasOwnProperty` or `prototype` at any depth, or with a NUL in any string or key, now answers `400` on every `@ApiMethod` route; see [Reserved Keys And NUL](#reserved-keys-and-nul). Before 5.0.0 such a body could be stored and then answer `500` on later reads and updates. Rename such keys in client payloads, and send binary data as base64.
+
+Before 5.0.0, generated routes left path values to the host `ValidationPipe`. Without one, or with a pipe that skips path parameters, a value that did not fit the column reached the database. PostgreSQL rejected a non-UUID value with `22P02` and the client got `500`. SQLite ran the query and returned `404` or an empty list. Authorization saw the raw strings. From 5.0.0 every such value returns `400` with the `ValidationPipe` body before any query and before authorization.
+
+Check your application:
+
+- Clients and tests that expected `404` or `500` for a malformed id now get `400`.
+- Integer text is accepted only in canonical form, in path values, query filters, `limit`, `page`, and request bodies. `016`, `0x10`, `16.0`, `1.6e1`, `1e3`, and `007` now return `400`.
+- An integer `NUMBER` property with `maximum` above `Number.MAX_SAFE_INTEGER` or `minimum` below `Number.MIN_SAFE_INTEGER` fails at startup with an error that names `BIGINT_STRING`. Describe `bigint` columns as `EApiPropertyStringType.BIGINT_STRING`. `NUMBER_CONSTANT.MAX_BIGINT` and `NUMBER_CONSTANT.MIN_BIGINT` are removed.
+- `DATE` request values (path, query DTO, body) stay validated `YYYY-MM-DD` strings instead of becoming `Date`, so a date-only `read.scope` value matches its row in every server time zone. `TIME` values stay strings too. Only `DATE_TIME` values become `Date`.
+- Request UUIDs are lower-cased.
+- `ApiAuthorizationGuard`, IAM resources and conditions, `read.scope`, subscribers, and the service receive typed path values: numbers for `NUMBER` keys. Code that compared them as strings must compare the typed values. HOOKS and IAM scope values merged against a column are converted to its type.
+- `BEFORE_ERROR` subscribers see the raw string when the path check itself fails, and typed values otherwise.
+- A configured PARAMETERS DTO is now checked by Crud Automator too, not only by the host pipe.
+- A value that a PARAMETERS transformer or a `BEFORE` subscriber writes into the path must fit the described column type.
+- CURSOR tokens bind the path values of the route. They now hash the typed values, so cursors issued before 5.0.0 on routes with `read.scope` path values return `400 CURSOR_NOT_VALID` once; clients restart from the first window.
+- A missing `read.scope` or identity path value returns the `ValidationPipe` body (`message: ["<parameter> should not be null or undefined"]`) instead of the string `INVALID_PARAMETERS`.
 
 ## Next Steps
 

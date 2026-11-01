@@ -81,6 +81,8 @@ When the route owns the transaction, UPDATE joins it and step 17 does not commit
 
 When `read.scope.parameters` is configured, its generated PARAMETERS DTO covers every controller-path parameter exactly once in addition to GET's primary identity. Conflicting identity, path, or IAM conditions become match-nothing criteria; no later layer overwrites an earlier field.
 
+Before step 2, every route with a PARAMETERS DTO validates and converts its path values once per request (on a securable route, `ApiAuthorizationGuard` already did it before authorization). `onBefore*` route subscribers and later steps receive the typed values, such as a number for an integer `NUMBER` key. When that check fails, the route answers `400` and `onBeforeError*` subscribers see the raw string. The "transformed and validated" step then checks the values once more, because subscribers and transformers can replace them.
+
 ### Get List Operation
 
 ```
@@ -392,6 +394,8 @@ Before 5.0.0, subscribers were never removed. From 5.0.0, work in your own `onAp
 | Deeper than `ApiSubscriberModule`                 | Removed                                        |
 
 Do not rely on import order. Move work that needs subscribers to `beforeApplicationShutdown`, which runs before step 3.
+
+From 5.0.0, route subscribers of generated routes receive typed path values in `result.parameters` and `DATA.parameters`, such as the number `16` instead of the string `"16"` for an integer `NUMBER` key. `onBeforeError*` subscribers receive the raw string only when the path check itself rejects the request.
 
 ## Best Practices
 

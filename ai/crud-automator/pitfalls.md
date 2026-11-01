@@ -179,6 +179,10 @@ The same check refuses a key `__proto__`, `constructor`, `hasOwnProperty` or `pr
 
 A plain Nest route with a transforming `ValidationPipe` is not covered, and `class-transformer` is quadratic in the keys of one object: 1 MiB in one object held the event loop for about 11 s on Fastify's default `bodyLimit`. Set `new FastifyAdapter({ bodyLimit })` where plain routes take JSON. Express defaults to 100 KiB.
 
+## Path Values As Strings Or Wider Than The Column
+
+Generated routes validate and convert path values once per request, before `ApiAuthorizationGuard`, and every reader gets the typed values: a `NUMBER` path value is a number in IAM `request.parameters`, `resourcePath`, `read.scope`, subscribers, and the service call. Do not compare it as a string, and do not expect `016`, `1e3`, or `0x10` to name row `16`; they return `400`. Do not describe a `bigint` column as an integer `NUMBER`: a bound outside `Number.MAX_SAFE_INTEGER` fails at startup, so use `EApiPropertyStringType.BIGINT_STRING`. Do not expect a `DATE` path, query, or body value to be a `Date`; it stays the validated `YYYY-MM-DD` string. Do not expect `404` for a malformed id; it is a `400` with the `ValidationPipe` body (`message: ["id must be a UUID"]`) before any query, and on a securable route the guard returns it before interceptors run, so it has `correlationID` and `timestamp` only with `CorrelationIDResponseBodyExceptionFilter`. `BEFORE_ERROR` subscribers see the raw string only when that check fails.
+
 ## Serializing The Interceptor Cause
 
 `CorrelationIDResponseBodyInterceptor` rethrows a new `HttpException` with what it caught in `cause`: the `ThrottlerException` or `HttpException` itself, whose own cause stays at `exception.cause.cause`, otherwise the value as thrown, which may not be an `Error`. A filter must answer with `exception.getResponse()`, which is always an object with `correlationID`, `statusCode`, and `timestamp`, and with `error` and `message` unless the thrown object response left them out, and report only `FormatErrorEvidenceForLog(exception.cause)`.

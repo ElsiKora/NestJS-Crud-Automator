@@ -13,6 +13,7 @@ import { assignMetadata } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
 import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
+import { ApiControllerParametersDtoSet } from "@utility/api/controller/parameters";
 
 /**
  * Applies metadata for NestJS controller methods to enable proper dependency injection.
@@ -58,6 +59,12 @@ export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>
 	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
 
 	if (requestDto) {
+		const handler: unknown = Reflect.get(targetPrototype, methodName);
+
+		if (typeof handler === "function") {
+			ApiControllerParametersDtoSet(handler, requestDto);
+		}
+
 		routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.PARAM, parameterIndex);
 		parameterTypes.push(requestDto);
 		parameterIndex++;

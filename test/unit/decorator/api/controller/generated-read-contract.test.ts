@@ -1647,8 +1647,8 @@ describe("generated read contract", () => {
 		const { controller } = createIdentityAliasController();
 		const inheritedIdentity = Object.create({ gameId: ENTITY_ID }) as Record<string, unknown>;
 
-		await expect(controller.get(inheritedIdentity, {}, "127.0.0.1")).rejects.toThrow("PARAMETERS_NOT_VALID");
-		await expect(controller.get({ gameId: null }, {}, "127.0.0.1")).rejects.toThrow("PARAMETERS_NOT_VALID");
+		await expect(controller.get(inheritedIdentity, {}, "127.0.0.1")).rejects.toMatchObject({ response: { error: "Bad Request", message: expect.arrayContaining([expect.stringContaining("gameId")]), statusCode: 400 } });
+		await expect(controller.get({ gameId: null }, {}, "127.0.0.1")).rejects.toMatchObject({ response: { error: "Bad Request", message: expect.arrayContaining([expect.stringContaining("gameId")]), statusCode: 400 } });
 		expect(controller.service.get).not.toHaveBeenCalled();
 	});
 
@@ -1706,7 +1706,7 @@ describe("generated read contract", () => {
 		await controller.getList(parameters, { limit: 10, page: 1 }, {}, "127.0.0.1");
 
 		expect(parameterValidator).toHaveBeenCalledOnce();
-		expect(parameters.tenantAlias).toBe(PATH_TENANT_ID);
+		expect(parameters.tenantAlias).toBe(QUERY_TENANT_ID);
 		const where = controller.service.getList.mock.calls[0]?.[0].where as Record<string, unknown>;
 
 		expect(where.sequence).toMatchObject({ _type: "equal", _value: 7 });
@@ -1725,7 +1725,8 @@ describe("generated read contract", () => {
 
 		await controller.get(parameters, {}, "127.0.0.1");
 
-		expect(parameters.tenantAlias).toBe(PATH_TENANT_ID);
+		// The route transforms its own typed copy of the path values, never the object Nest passed in.
+		expect(parameters.tenantAlias).toBe(QUERY_TENANT_ID);
 		const where = controller.service.get.mock.calls[0]?.[0].where as Record<string, unknown>;
 
 		expect(where.id).toMatchObject({ _type: "equal", _value: ENTITY_ID });
@@ -1783,10 +1784,10 @@ describe("generated read contract", () => {
 			signature: "hostile-read-scope-plan",
 		});
 
-		expect(() => ApiControllerReadScopeWhere({}, readPlan)).toThrow("PARAMETERS_NOT_VALID");
+		expect(() => ApiControllerReadScopeWhere({}, readPlan)).toThrow(expect.objectContaining({ response: { error: "Bad Request", message: ["constructor should not be null or undefined"], statusCode: 400 } }));
 	});
 
-	it("rejects a null inherited parameter with PARAMETERS_NOT_VALID", () => {
+	it("rejects a null inherited parameter as class-validator's isDefined does", () => {
 		const readPlan: IApiControllerReadPlan = Object.freeze({
 			controllerName: "NullReadScopeController",
 			parameters: Object.freeze([Object.freeze({ field: "tenantId", parameter: "tenantId" })]),
@@ -1794,7 +1795,7 @@ describe("generated read contract", () => {
 			signature: "null-read-scope-plan",
 		});
 
-		expect(() => ApiControllerReadScopeWhere({ tenantId: null } as never, readPlan)).toThrow("PARAMETERS_NOT_VALID");
+		expect(() => ApiControllerReadScopeWhere({ tenantId: null } as never, readPlan)).toThrow(expect.objectContaining({ response: { error: "Bad Request", message: ["tenantId should not be null or undefined"], statusCode: 400 } }));
 	});
 
 	it("isolates generated PARAMETERS DTO cache entries by controller name", () => {
@@ -2102,15 +2103,15 @@ describe("generated read contract", () => {
 	it("retains owner scope and IAM LIKE as an exact database conjunction", async () => {
 		const { controller } = createGeneratedReadController();
 
-		await controller.getList({ tenantId: "foobar" }, { limit: 10, page: 1 }, {}, "127.0.0.1", createAuthenticationRequest({ tenantId: Like("%foo") }));
+		await controller.getList({ tenantId: PATH_TENANT_ID }, { limit: 10, page: 1 }, {}, "127.0.0.1", createAuthenticationRequest({ tenantId: Like("%1111") }));
 
 		const where = controller.service.getList.mock.calls[0]?.[0].where as Record<string, unknown>;
 
 		expect(where.tenantId).toMatchObject({
 			_type: "and",
 			_value: [
-				{ _type: "equal", _value: "foobar" },
-				{ _type: "like", _value: "%foo" },
+				{ _type: "equal", _value: PATH_TENANT_ID },
+				{ _type: "like", _value: "%1111" },
 			],
 		});
 	});

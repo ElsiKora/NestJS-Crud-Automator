@@ -15,6 +15,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@
 import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
 import { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
+import { ApiControllerParametersResolveRequest } from "@utility/api/controller/parameters";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { DeepPartial } from "typeorm";
@@ -48,7 +49,9 @@ export class ApiAuthorizationGuard implements CanActivate {
 		const request: TApiAuthorizationGuardRequest = context.switchToHttp().getRequest<TApiAuthorizationGuardRequest>();
 		const authenticationRequest: IApiAuthenticationRequest = request as unknown as IApiAuthenticationRequest;
 		const identityPlan: IApiControllerIdentityPlan | undefined = ApiControllerIdentityPlanGet(context.getHandler());
-		const requestMetadata: IApiAuthorizationRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode> = this.resolveRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(request, identityPlan);
+		// Path values are validated and typed before authorization, so IAM resources, conditions and scopes see the same values as the route.
+		const parameters: Partial<IApiBaseEntity> | undefined = await ApiControllerParametersResolveRequest<IApiBaseEntity>(request, context.getHandler(), request.params as Partial<IApiBaseEntity> | undefined);
+		const requestMetadata: IApiAuthorizationRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode> = this.resolveRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(request, parameters, identityPlan);
 
 		const decision: IApiAuthorizationDecision<IApiBaseEntity, TApiAuthorizationRuleTransformPayload<IApiBaseEntity>> = await this.runtime.evaluate({
 			action,
@@ -111,7 +114,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 		return resolvedHeaders;
 	}
 
-	private resolveIdentityParameters<E extends IApiBaseEntity>(parameters: TApiAuthorizationGuardRequest["params"], identityPlan: IApiControllerIdentityPlan): Partial<E> | undefined {
+	private resolveIdentityParameters<E extends IApiBaseEntity>(parameters: Partial<E> | undefined, identityPlan: IApiControllerIdentityPlan): Partial<E> | undefined {
 		if (!parameters || typeof parameters !== "object") {
 			return undefined;
 		}
@@ -153,12 +156,12 @@ export class ApiAuthorizationGuard implements CanActivate {
 		return resolvedParameters as Partial<E>;
 	}
 
-	private resolveRequestMetadata<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(request: TApiAuthorizationGuardRequest, identityPlan?: IApiControllerIdentityPlan): IApiAuthorizationRequestMetadata<E, M> {
+	private resolveRequestMetadata<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(request: TApiAuthorizationGuardRequest, parameters: Partial<E> | undefined, identityPlan?: IApiControllerIdentityPlan): IApiAuthorizationRequestMetadata<E, M> {
 		return {
 			body: request.body as DeepPartial<E> | undefined,
 			headers: this.resolveHeaders(request.headers),
 			ip: typeof request.ip === "string" ? request.ip : undefined,
-			parameters: identityPlan ? this.resolveIdentityParameters<E>(request.params, identityPlan) : (request.params as Partial<E> | undefined),
+			parameters: identityPlan ? this.resolveIdentityParameters<E>(parameters, identityPlan) : parameters,
 			query: request.query as TApiControllerGetListQuery<E, M> | undefined,
 		};
 	}

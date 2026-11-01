@@ -113,7 +113,7 @@ Every code for a rejected value has one form: the name of what was rejected, the
 
 `ErrorString` builds composite codes through `ErrorString({ entity, property, type })` and entity codes through `ErrorString({ entity, type })`.
 
-The package's own rejection codes follow the same form: `FILTER_NOT_VALID`, `ORDER_NOT_VALID`, `CURSOR_NOT_VALID`, `LIMIT_NOT_VALID`, `PAGE_NOT_VALID`, `PARAMETERS_NOT_VALID`, and `{ENTITY}_REFERENCE_NOT_VALID`.
+The package's own rejection codes follow the same form: `FILTER_NOT_VALID`, `ORDER_NOT_VALID`, `CURSOR_NOT_VALID`, `LIMIT_NOT_VALID`, `PAGE_NOT_VALID`, and `{ENTITY}_REFERENCE_NOT_VALID`. A path value is refused with the `ValidationPipe` body instead; see [Path Parameter Errors](#path-parameter-errors).
 
 HTTP status names such as `BAD_REQUEST`, `NOT_ACCEPTABLE`, and `BAD_GATEWAY` keep their names. So do codes that name a specific reason, such as `TOO_LONG`, `UNSUPPORTED`, or `EXPIRED`.
 
@@ -132,6 +132,22 @@ const emailValidator: IApiRequestValidator<UserEntity> = {
 	},
 };
 ```
+
+## Path Parameter Errors
+
+Generated routes check every path value against the type its column has in `@ApiPropertyDescribe` before authorization and before any query runs. A non-UUID value for a `UUID` column, integer text that is not canonical (`016`, `0x10`, `1e3`) or out of range for an integer `NUMBER` column, or a `DATE` value that is not a real `YYYY-MM-DD` day returns `400` with the same body as any other validation error from a `ValidationPipe`. The response names the parameter but does not echo the value, and the database never sees it:
+
+```json
+{
+	"message": ["id must be a UUID"],
+	"error": "Bad Request",
+	"statusCode": 400,
+	"timestamp": 1704067200000,
+	"correlationID": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+`timestamp` and `correlationID` are added by `CorrelationIDResponseBodyInterceptor`, as for every other error that passes through interceptors. On a route with `@ApiControllerSecurable()`, `ApiAuthorizationGuard` runs the check, and Nest runs guards before interceptors, so that `400` skips the interceptor, like a guard `403`. It gets `timestamp`, `correlationID`, and the `x-correlation-id` header from [`CorrelationIDResponseBodyExceptionFilter`](#custom-exception-filters) and has none of them without it. A missing `read.scope` or identity path value returns the same body with `message: ["<parameter> should not be null or undefined"]`. See [Validation](/docs/nestjs-crud-automator/guides/validation#generated-route-path-parameters).
 
 ## Transaction Outcome Errors
 
@@ -587,17 +603,17 @@ async fetchExternalData(id: string): Promise<Data> {
 
 From 5.0.0 every rejected value code uses the `{NAME}_NOT_VALID` form described in [Rejected Value Codes](#rejected-value-codes). Responses change:
 
-| Before 5.0.0                               | From 5.0.0                                 |
-| ------------------------------------------ | ------------------------------------------ |
-| `INVALID_FILTER`                           | `FILTER_NOT_VALID`                         |
-| `INVALID_ORDER`                            | `ORDER_NOT_VALID`                          |
-| `INVALID_CURSOR`                           | `CURSOR_NOT_VALID`                         |
-| `INVALID_LIMIT`, `INVALID_PAGE`            | `LIMIT_NOT_VALID`, `PAGE_NOT_VALID`        |
-| `INVALID_PARAMETERS`                       | `PARAMETERS_NOT_VALID`                     |
-| `{ENTITY}_INVALID_REFERENCE`               | `{ENTITY}_REFERENCE_NOT_VALID`             |
-| `{ENTITY}_INVALID_DYNAMIC_VALUE_SPECIFIED` | `{ENTITY}_DYNAMIC_VALUE_NOT_VALID`         |
-| `KEY_FOR_TRANSFORM_NOT_IN_OBJECT`          | `{ENTITY}_KEY_FOR_TRANSFORM_NOT_IN_OBJECT` |
-| `{ENTITY}_IN_FUTURE`                       | `{ENTITY}_TIMESTAMP_IN_FUTURE`             |
+| Before 5.0.0                               | From 5.0.0                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `INVALID_FILTER`                           | `FILTER_NOT_VALID`                                                                   |
+| `INVALID_ORDER`                            | `ORDER_NOT_VALID`                                                                    |
+| `INVALID_CURSOR`                           | `CURSOR_NOT_VALID`                                                                   |
+| `INVALID_LIMIT`, `INVALID_PAGE`            | `LIMIT_NOT_VALID`, `PAGE_NOT_VALID`                                                  |
+| `INVALID_PARAMETERS`                       | The `ValidationPipe` body, such as `["<parameter> should not be null or undefined"]` |
+| `{ENTITY}_INVALID_REFERENCE`               | `{ENTITY}_REFERENCE_NOT_VALID`                                                       |
+| `{ENTITY}_INVALID_DYNAMIC_VALUE_SPECIFIED` | `{ENTITY}_DYNAMIC_VALUE_NOT_VALID`                                                   |
+| `KEY_FOR_TRANSFORM_NOT_IN_OBJECT`          | `{ENTITY}_KEY_FOR_TRANSFORM_NOT_IN_OBJECT`                                           |
+| `{ENTITY}_IN_FUTURE`                       | `{ENTITY}_TIMESTAMP_IN_FUTURE`                                                       |
 
 The enum keys change too, so code that uses a removed key no longer compiles:
 
@@ -669,6 +685,8 @@ Check two things when you add it:
 2. If you already have an exception filter, register the new filter before it and call `CorrelationIDNormalizeException` inside it. See [Custom Exception Filters](#custom-exception-filters).
 
 Before 5.0.0, the interceptor echoed any client `x-correlation-id` into the response header and the error body, whatever its length or characters. From 5.0.0 the interceptor and `CorrelationIDResponseBodyExceptionFilter` keep the header only when it is one value of 1 to 128 characters of `[A-Za-z0-9._:-]`. A client that sent a longer value, other characters, or a repeated header, which Node.js joins as `first, second`, now gets a generated UUID in both places. Node.js strips whitespace around a header value before this check, so that value is still kept. A bare CR, a bare LF, a NUL, or an obsolete line folding gets the `400` of Node.js, with no correlation ID. Clients that send a UUID are not affected. The generated exception DTOs now declare `correlationID` as a string of 1 to 128 characters with that pattern instead of a UUID, so clients generated from the OpenAPI document get the wider type. See [Client Correlation ID](/docs/nestjs-crud-automator/api-reference/interceptors#client-correlation-id).
+
+A path value that does not fit its column used to reach the database: PostgreSQL answered `500`, SQLite `404`. From 5.0.0 it returns `400` with the `ValidationPipe` body before authorization and before any query. A missing `read.scope` or identity path value returns the same body instead of the string `INVALID_PARAMETERS`. See [Path Parameter Errors](#path-parameter-errors).
 
 ## Next Steps
 

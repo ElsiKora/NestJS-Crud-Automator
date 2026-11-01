@@ -11,6 +11,8 @@ import { EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringTyp
 import { Column, DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+const CONTROLLER_ENTITY_ID: string = "11111111-1111-4111-8111-111111111111";
+
 @Entity("controller_entities")
 class ControllerEntity {
 	@PrimaryGeneratedColumn("uuid")
@@ -81,10 +83,10 @@ describe("ApiController (E2E)", () => {
 	beforeAll(async () => {
 		dataSource = await new DataSource({ database: ":memory:", entities: [ControllerEntity], synchronize: true, type: "better-sqlite3" }).initialize();
 		controllerRepository = dataSource.getRepository(ControllerEntity);
-		vi.spyOn(controllerRepository, "findAndCount").mockResolvedValue([[{ count: 1, id: "id-1", name: "item" }], 1]);
-		vi.spyOn(controllerRepository, "findOne").mockResolvedValue({ count: 2, id: "id-1", name: "found" });
+		vi.spyOn(controllerRepository, "findAndCount").mockResolvedValue([[{ count: 1, id: CONTROLLER_ENTITY_ID, name: "item" }], 1]);
+		vi.spyOn(controllerRepository, "findOne").mockResolvedValue({ count: 2, id: CONTROLLER_ENTITY_ID, name: "found" });
 		vi.spyOn(controllerRepository, "remove").mockImplementation(async (entity: unknown): Promise<never> => entity as never);
-		vi.spyOn(controllerRepository, "save").mockImplementation(async (entity: unknown): Promise<never> => ({ count: 1, id: "id-1", name: "saved", ...(entity as object) }) as never);
+		vi.spyOn(controllerRepository, "save").mockImplementation(async (entity: unknown): Promise<never> => ({ count: 1, id: CONTROLLER_ENTITY_ID, name: "saved", ...(entity as object) }) as never);
 	});
 
 	afterAll(async () => {
@@ -97,12 +99,12 @@ describe("ApiController (E2E)", () => {
 		const ip = "127.0.0.1";
 
 		await controller.onApplicationBootstrap();
-		await controller.create({ id: "id-1", name: "created", count: 1 }, headers, ip);
-		await controller.get({ id: "id-1" }, headers, ip);
+		await controller.create({ id: CONTROLLER_ENTITY_ID, name: "created", count: 1 }, headers, ip);
+		await controller.get({ id: CONTROLLER_ENTITY_ID }, headers, ip);
 		await controller.getList({ limit: 10, page: 1 }, headers, ip);
-		await controller.update({ id: "id-1" }, { name: "updated" }, headers, ip);
-		await controller.partialUpdate({ id: "id-1" }, { name: "patched" }, headers, ip);
-		await controller.delete({ id: "id-1" }, headers, ip);
+		await controller.update({ id: CONTROLLER_ENTITY_ID }, { name: "updated" }, headers, ip);
+		await controller.partialUpdate({ id: CONTROLLER_ENTITY_ID }, { name: "patched" }, headers, ip);
+		await controller.delete({ id: CONTROLLER_ENTITY_ID }, headers, ip);
 
 		expect(controllerRepository.save).toHaveBeenCalled();
 		expect(controllerRepository.findOne).toHaveBeenCalled();

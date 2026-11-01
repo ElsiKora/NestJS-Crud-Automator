@@ -10,21 +10,17 @@ import { BadRequestException } from "@nestjs/common";
  * @param {Partial<E> | undefined} parameters - Transformed route parameter object.
  * @param {IApiControllerReadPlan} readPlan - Validated route-local read plan.
  * @returns {FindOptionsWhere<E>} Direct entity scope derived from the route path.
- * @throws {BadRequestException} When a required inherited parameter is missing.
+ * @throws {BadRequestException} With the body a Nest `ValidationPipe` returns, when a required inherited parameter is missing.
  */
 export function ApiControllerReadScopeWhere<E extends IApiBaseEntity>(parameters: Partial<E> | undefined, readPlan: IApiControllerReadPlan): FindOptionsWhere<E> {
 	const parameterRecord: Record<string, unknown> = parameters ?? {};
 	const scope: Record<string, unknown> = {};
 
 	for (const mapping of readPlan.parameters) {
-		if (!Object.hasOwn(parameterRecord, mapping.parameter)) {
-			throw new BadRequestException("PARAMETERS_NOT_VALID");
-		}
-
-		const value: unknown = parameterRecord[mapping.parameter];
+		const value: unknown = Object.hasOwn(parameterRecord, mapping.parameter) ? parameterRecord[mapping.parameter] : undefined;
 
 		if (value === undefined || value === null) {
-			throw new BadRequestException("PARAMETERS_NOT_VALID");
+			throw new BadRequestException([`${mapping.parameter} should not be null or undefined`]);
 		}
 
 		Object.defineProperty(scope, mapping.field, {

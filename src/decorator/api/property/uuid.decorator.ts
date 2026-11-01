@@ -15,7 +15,7 @@ import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
-import { Exclude } from "class-transformer";
+import { Exclude, Transform } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsUUID, Validate, ValidateIf } from "class-validator";
 
 /**
@@ -120,7 +120,8 @@ function buildApiPropertyOptions(uuidExample: string, properties: TApiPropertyUu
 
 	apiPropertyOptions.format = EApiPropertyStringType.UUID;
 
-	apiPropertyOptions.pattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$";
+	// Mirrors the `IsUUID()` validator: versions 1 to 8, the nil and max UUIDs, in either letter case.
+	apiPropertyOptions.pattern = "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$";
 
 	return apiPropertyOptions;
 }
@@ -134,7 +135,7 @@ function buildApiPropertyOptions(uuidExample: string, properties: TApiPropertyUu
  * @private
  */
 function buildDecorators(properties: TApiPropertyUuidProperties, apiPropertyOptions: ApiPropertyOptions): Array<PropertyDecorator> {
-	return [ApiProperty(apiPropertyOptions), ...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties)];
+	return [ApiProperty(apiPropertyOptions), ...buildResponseDecorators(properties), ...buildRequestDecorators(properties), ...buildFormatDecorators(properties), ...buildTransformDecorators(properties)];
 }
 
 /**
@@ -230,6 +231,31 @@ function buildResponseDecorators(properties: TApiPropertyUuidProperties): Array<
 	}
 
 	return decorators;
+}
+
+/**
+ * Builds the decorator that writes request UUIDs in their canonical lower-case form.
+ * An upper-case spelling then names the same resource string, so it cannot pass a `Deny` that names the lower-case UUID.
+ * @param {TApiPropertyUuidProperties} properties - The property configuration
+ * @returns {Array<PropertyDecorator>} An array with the lower-casing transformer, empty for responses
+ * @private
+ */
+function buildTransformDecorators(properties: TApiPropertyUuidProperties): Array<PropertyDecorator> {
+	if (properties.isResponse) {
+		return [];
+	}
+
+	return [Transform(({ value }: { value: unknown }): unknown => (Array.isArray(value) ? value.map((item: unknown): unknown => lowerCaseUuid(item)) : lowerCaseUuid(value)), { toClassOnly: true })];
+}
+
+/**
+ * Lower-cases one request UUID, leaving a non-string value for the validator to reject.
+ * @param {unknown} value - Raw request value.
+ * @returns {unknown} The lower-case text, or the value itself when it is not a string.
+ * @private
+ */
+function lowerCaseUuid(value: unknown): unknown {
+	return typeof value === "string" ? value.toLowerCase() : value;
 }
 
 /**

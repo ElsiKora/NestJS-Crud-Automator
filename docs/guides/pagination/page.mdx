@@ -168,6 +168,8 @@ Cursor tokens are strict canonical, unsigned Base64URL values. They contain a ve
 
 The query-plan signature includes each filter field's allowed operations, so widening what a field accepts (for example, UUID fields gained `in`/`notin`) changes the generated query schema name and makes cursor tokens minted before that upgrade fail once with `400 CURSOR_NOT_VALID`; clients simply restart from the first window.
 
+Path values are hashed in their typed form, as the route uses them. From 5.0.0 a `NUMBER` path value is hashed as a number, so cursor tokens minted before 5.0.0 on routes with typed `read.scope` path values fail once with `400 CURSOR_NOT_VALID`.
+
 It intentionally excludes `limit` and HOOKS/IAM scope. Path scope, filters, and current HOOKS/IAM authorization are recalculated and AND-merged on every request, including the opposite probe. A token is a navigation position, not an authorization credential.
 
 The token is reversible and contains the typed effective-order values. Automator therefore accepts only potential order/tie fields that are already selected and unconditionally raw-exposed in the GET_LIST response; do not treat cursor contents as secret.

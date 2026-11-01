@@ -59,6 +59,7 @@ import { ApiControllerGetDtoWithReadPlan, ApiControllerGetResponseDto } from "@u
 import { ApiControllerGetPrimaryColumn } from "@utility/api/controller/get/primary-column.utility";
 import { ApiControllerHandleRequestRelations } from "@utility/api/controller/handle-request-relations.utility";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
+import { ApiControllerParametersDtoGet, ApiControllerParametersResolveRequest, ApiControllerParametersValidate } from "@utility/api/controller/parameters";
 import { ApiControllerReadPlanGet, ApiControllerReadScopeWhere } from "@utility/api/controller/read";
 import { ApiControllerRejectToManyUpdateKeys } from "@utility/api/controller/reject-to-many-update-keys.utility";
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
@@ -185,22 +186,33 @@ export class ApiRouteRuntime {
 		const entityInstance: E = new (options.properties.entity as new () => E)();
 		const authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined = ApiControllerGeneratedSecuritySnapshot.create(AuthorizationDecisionResolveFromRequest(options.targets.authenticationRequest));
 
+		const beforeData: IApiSubscriberRouteExecutionContextData<E> = { authorizationDecision: ApiControllerGeneratedSecuritySnapshot.createSubscriberView(authorizationDecision), entityMetadata: options.entityMetadata, method: options.method, methodName: options.methodName, properties: options.properties };
+		let typedTargets: IApiRouteRuntimeGeneratedTargets<E>;
+		let beforeResult: IApiRouteRuntimeGeneratedTargets<E> | undefined;
+
+		try {
+			typedTargets = await this.resolveGeneratedTypedTargets(options);
+		} catch (error) {
+			await this.executeGeneratedErrorSubscribers(options, options.targets, entityInstance, beforeData, authorizationDecision, EApiSubscriberOnType.BEFORE_ERROR, error);
+
+			throw error;
+		}
+
 		const beforeContext: IApiSubscriberRouteExecutionContext<E, IApiRouteRuntimeGeneratedTargets<E>, IApiSubscriberRouteExecutionContextData<E>> = {
-			DATA: { authorizationDecision: ApiControllerGeneratedSecuritySnapshot.createSubscriberView(authorizationDecision), entityMetadata: options.entityMetadata, method: options.method, methodName: options.methodName, properties: options.properties },
+			DATA: beforeData,
 			ENTITY: entityInstance,
-			result: options.targets,
+			result: typedTargets,
 			ROUTE_TYPE: options.method,
 		};
-		let beforeResult: IApiRouteRuntimeGeneratedTargets<E> | undefined;
 
 		try {
 			beforeResult = await ApiSubscriberExecutor.executeRouteSubscribers(options.controller.constructor as new (...arguments_: Array<unknown>) => unknown, entityInstance, options.method, EApiSubscriberOnType.BEFORE, beforeContext);
 		} catch (error) {
-			await this.executeGeneratedErrorSubscribers(options, options.targets, entityInstance, beforeContext.DATA, authorizationDecision, EApiSubscriberOnType.BEFORE_ERROR, error);
+			await this.executeGeneratedErrorSubscribers(options, typedTargets, entityInstance, beforeContext.DATA, authorizationDecision, EApiSubscriberOnType.BEFORE_ERROR, error);
 
 			throw error;
 		}
-		const targets: IApiRouteRuntimeGeneratedTargets<E> = beforeResult ?? options.targets;
+		const targets: IApiRouteRuntimeGeneratedTargets<E> = beforeResult ?? typedTargets;
 
 		let errorBoundary: EApiSubscriberOnType.AFTER_ERROR | EApiSubscriberOnType.BEFORE_ERROR = EApiSubscriberOnType.BEFORE_ERROR;
 
@@ -558,6 +570,13 @@ export class ApiRouteRuntime {
 			if (target === EApiControllerRequestTarget.PARAMETERS) {
 				ApiControllerTransformRouteData<E>(transformTargets, options.properties, { parameters: targets.parameters }, { authenticationRequest: targets.authenticationRequest, headers: targets.headers, ip: targets.ip });
 				await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.PARAMETERS] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, options.properties, targets.parameters ?? {});
+				const handler: unknown = Reflect.get(options.controller, options.methodName);
+				const parametersDto: Type<unknown> | undefined = typeof handler === "function" ? ApiControllerParametersDtoGet(handler) : undefined;
+
+				// Subscribers and transformers may replace typed path values, so the values the route uses are checked once more.
+				if (parametersDto) {
+					targets.parameters = await ApiControllerParametersValidate<E>(parametersDto, targets.parameters);
+				}
 			}
 
 			if (target === EApiControllerRequestTarget.QUERY) {
@@ -777,6 +796,23 @@ export class ApiRouteRuntime {
 		return relation ? this.resolveFilterColumn(relation.inverseEntityMetadata, nestedNames.join(".")) : metadata.findColumnWithPropertyPath(path);
 	}
 
+	/**
+	 * Resolves the typed path values of the request before route-before subscribers run, reusing the values the authorization guard already typed.
+	 * @template E - Entity type.
+	 * @template R - Generated route type.
+	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
+	 * @returns {Promise<IApiRouteRuntimeGeneratedTargets<E>>} Request targets with typed path values.
+	 */
+	private static async resolveGeneratedTypedTargets<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>): Promise<IApiRouteRuntimeGeneratedTargets<E>> {
+		if (options.targets.parameters === undefined) {
+			return options.targets;
+		}
+
+		const parameters: Partial<E> | undefined = await ApiControllerParametersResolveRequest<E>(options.targets.authenticationRequest, Reflect.get(options.controller, options.methodName), options.targets.parameters);
+
+		return { ...options.targets, parameters };
+	}
+
 	private static resolveIdentityPlan(controller: object, methodName: string): IApiControllerIdentityPlan | undefined {
 		const handler: unknown = Reflect.get(controller, methodName);
 
@@ -800,14 +836,10 @@ export class ApiRouteRuntime {
 
 		const parameters: Record<string, unknown> | undefined = source as Record<string, unknown> | undefined;
 
-		if (!parameters || !Object.hasOwn(parameters, identityPlan.parameter)) {
-			throw new BadRequestException("PARAMETERS_NOT_VALID");
-		}
-
-		const value: unknown = parameters[identityPlan.parameter];
+		const value: unknown = parameters && Object.hasOwn(parameters, identityPlan.parameter) ? parameters[identityPlan.parameter] : undefined;
 
 		if (value === undefined || value === null) {
-			throw new BadRequestException("PARAMETERS_NOT_VALID");
+			throw new BadRequestException([`${identityPlan.parameter} should not be null or undefined`]);
 		}
 
 		const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((entityColumn: IApiEntityColumn<E>): boolean => String(entityColumn.name) === identityPlan.field);

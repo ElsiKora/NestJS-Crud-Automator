@@ -12,6 +12,7 @@ import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { ApiControllerGetListQueryParseValue } from "@utility/api/controller/get-list/query/parse-value.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
+import { NumberParseCanonicalInteger } from "@utility/number";
 
 // A date-time filter value is a calendar date, or a date, a "T" or a space, a time of day, and an optional `Z` or numeric offset with minutes.
 const DATE_VALUE_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}$/u;
@@ -340,8 +341,8 @@ export class ApiControllerGetListQueryRuntime {
 
 		if (typeof value === "number") {
 			parsed = value;
-		} else if (typeof value === "string" && value.trim() !== "") {
-			parsed = Number(value);
+		} else if (typeof value === "string") {
+			parsed = NumberParseCanonicalInteger(value);
 		}
 
 		if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {

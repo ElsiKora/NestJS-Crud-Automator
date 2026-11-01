@@ -501,7 +501,7 @@ A decorator cannot change a class's type, so these methods are not on the type o
 type TUserController = Omit<InstanceType<TApiControllerTargetMethod<UserEntity>>, "delete">;
 ```
 
-These types also give `getList` the arguments `(query, headers, ip)`. On a route with `read.scope.parameters`, the generated method takes `(parameters, query, headers, ip)`, so a direct call with the typed arguments answers `400 PARAMETERS_NOT_VALID`. HTTP requests to the route are not affected. Whether a route has a read scope is not visible to the types either, so call this method through a type of your own.
+These types also give `getList` the arguments `(query, headers, ip)`. On a route with `read.scope.parameters`, the generated method takes `(parameters, query, headers, ip)`, so a direct call with the typed arguments answers `400` with `<parameter> should not be null or undefined`. HTTP requests to the route are not affected. Whether a route has a read scope is not visible to the types either, so call this method through a type of your own.
 
 ## Migration Notes
 

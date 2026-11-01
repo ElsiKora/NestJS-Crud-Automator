@@ -520,6 +520,27 @@ export class ApiAuthorizationIamEngine {
 		return "";
 	}
 
+	/**
+	 * Renders a typed resource or path value into its resource-string form, so a NUMBER path value `16` renders as `16` like the string it was parsed from.
+	 * @param {unknown} value - Resource field or typed path value.
+	 * @returns {string | undefined} Rendered value, or undefined when the value cannot be rendered.
+	 */
+	private renderResourceValue(value: unknown): string | undefined {
+		if (typeof value === "string") {
+			return value.length > 0 ? value : undefined;
+		}
+
+		if ((typeof value === "number" && Number.isFinite(value)) || typeof value === "bigint") {
+			return value.toString();
+		}
+
+		if (value instanceof Date && !Number.isNaN(value.getTime())) {
+			return value.toISOString();
+		}
+
+		return undefined;
+	}
+
 	private resolveConditionValue(
 		value: unknown,
 		context: {
@@ -708,8 +729,10 @@ export class ApiAuthorizationIamEngine {
 
 			appendLiteral(resourceDefinition.resourcePath.slice(literalStart, match.index));
 
-			if (typeof resolvedValue === "string" && resolvedValue.length > 0) {
-				appendLiteral(resolvedValue);
+			const renderedValue: string | undefined = this.renderResourceValue(resolvedValue);
+
+			if (renderedValue) {
+				appendLiteral(renderedValue);
 			} else {
 				segments.push({ placeholder, value: "*" });
 			}

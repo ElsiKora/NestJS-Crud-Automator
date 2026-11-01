@@ -14,6 +14,7 @@ import { ClassTransformerAutomatorTransform } from "@utility/class-transformer/a
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { IsDecimalDivisibleBy } from "@utility/is/decimal-divisible-by.utility";
+import { NumberDescribeUnsafeIntegerRange, NumberParseCanonicalInteger } from "@utility/number";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
 import { Exclude, Type } from "class-transformer";
@@ -326,15 +327,18 @@ function buildTransformDecorators(properties: TApiPropertyNumberProperties): Arr
 	const decorators: Array<PropertyDecorator> = [];
 
 	if (!properties.isResponse) {
+		// The raw source value is read because `Type(() => Number)` has already converted `value`, and `Number("016")` would hide the non-canonical text.
 		if (properties.isArray) {
 			decorators.push(
 				ClassTransformerAutomatorTransform(
-					({ value }: { value: Array<string> | null | string | undefined }) => {
-						if (value === undefined || value === null) {
+					({ key, obj, value }: { key: string; obj: Record<string, unknown>; value: Array<unknown> | null | undefined }) => {
+						const rawValue: unknown = obj[key];
+
+						if (value === undefined || value === null || !Array.isArray(rawValue)) {
 							return value;
 						}
 
-						return (Array.isArray(value) ? value : [value]).map(Number);
+						return rawValue.map((item: unknown): unknown => parseNumberValue(properties.format, item));
 					},
 					{ toClassOnly: true },
 				),
@@ -342,12 +346,12 @@ function buildTransformDecorators(properties: TApiPropertyNumberProperties): Arr
 		} else {
 			decorators.push(
 				ClassTransformerAutomatorTransform(
-					({ value }: { value: null | string | undefined }) => {
+					({ key, obj, value }: { key: string; obj: Record<string, unknown>; value: null | number | string | undefined }) => {
 						if (value === undefined || value === null) {
 							return value;
 						}
 
-						return Number(value);
+						return parseNumberValue(properties.format, obj[key] ?? value);
 					},
 					{ toClassOnly: true },
 				),
@@ -382,6 +386,21 @@ function getFormat(properties: TApiPropertyNumberProperties): string {
 }
 
 /**
+ * Converts one request value to a number. Integer text is accepted only in canonical decimal form, so `016`, `0x10`, `16.0` and `1e3` become `NaN` and fail `IsInt`.
+ * @param {EApiPropertyNumberType} format - Described number format.
+ * @param {unknown} value - Raw request value.
+ * @returns {unknown} The converted number, or the value itself when it is not a string.
+ * @private
+ */
+function parseNumberValue(format: EApiPropertyNumberType, value: unknown): unknown {
+	if (typeof value !== "string") {
+		return typeof value === "number" ? value : Number(value);
+	}
+
+	return format === EApiPropertyNumberType.INTEGER ? NumberParseCanonicalInteger(value) : Number(value);
+}
+
+/**
  * Validates the configuration options for the API property number.
  * Performs extensive validation including:
  * - Min/max values consistency
@@ -400,6 +419,12 @@ function validateOptions(properties: TApiPropertyNumberProperties, target: objec
 
 	if (properties.minimum > properties.maximum) {
 		errors.push("'minimum' is greater than maximum");
+	}
+
+	const unsafeIntegerRangeError: string | undefined = NumberDescribeUnsafeIntegerRange(properties);
+
+	if (unsafeIntegerRangeError) {
+		errors.push(unsafeIntegerRangeError);
 	}
 
 	if (properties.multipleOf != undefined) {

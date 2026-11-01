@@ -30,6 +30,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createGeneratedServiceDouble } from "@test/unit/fixture";
 
+const FACTORY_ENTITY_ID: string = "11111111-1111-4111-8111-111111111111";
+
 // Two entity classes with one name make a string relation target ambiguous.
 ["decorator_ambiguous_owners_first", "decorator_ambiguous_owners_second"].map((table: string): unknown => {
 	@Entity(table)
@@ -165,12 +167,12 @@ describe("ApiController", () => {
 		const headers: Record<string, string> = {};
 		const ip = "127.0.0.1";
 
-		await controller.create({ id: "id-1", name: "created", count: 1 }, headers, ip);
-		await controller.get({ id: "id-1" }, headers, ip);
+		await controller.create({ id: FACTORY_ENTITY_ID, name: "created", count: 1 }, headers, ip);
+		await controller.get({ id: FACTORY_ENTITY_ID }, headers, ip);
 		await controller.getList({ limit: 10, page: 1 }, headers, ip);
-		await controller.update({ id: "id-1" }, { name: "updated" }, headers, ip);
-		await controller.partialUpdate({ id: "id-1" }, { name: "patched" }, headers, ip);
-		await controller.delete({ id: "id-1" }, headers, ip);
+		await controller.update({ id: FACTORY_ENTITY_ID }, { name: "updated" }, headers, ip);
+		await controller.partialUpdate({ id: FACTORY_ENTITY_ID }, { name: "patched" }, headers, ip);
+		await controller.delete({ id: FACTORY_ENTITY_ID }, headers, ip);
 
 		expect(controller.service.create).toHaveBeenCalled();
 		expect(controller.service.get).toHaveBeenCalled();

@@ -4,6 +4,7 @@ import type { IApiAuthenticationRequest } from "@interface/api/authentication-re
 import type { IApiAuthorizationAuditSink, IApiAuthorizationDecision, IApiAuthorizationPolicy, IApiAuthorizationPolicyRegistry, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiAuthorizationRequestMetadata, IApiPolicyAttachment, IApiPolicyDocumentRecord, IApiResolvedPolicyAttachments } from "@interface/class/api/authorization";
 import type { IApiControllerAuthorizationProperties } from "@interface/decorator/api/controller/properties";
 import type { IApiRouteAuthorizationProperties } from "@interface/decorator/api/route";
+import type { IApiEntity } from "@interface/entity";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 
 import { ApiAuthorizationEngine } from "@class/api/authorization/engine.class";
@@ -14,10 +15,13 @@ import { EApiAuthorizationMode } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api/route";
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { AuthorizationResolveDefaultPrincipal } from "@utility/authorization";
+import { AuthorizationScopeNormalizeWhere } from "@utility/authorization/scope-normalize-where.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
 const authorizationRuntimeLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationRuntime");
+const authorizationRuntimeEntityMetadataCache: WeakMap<object, IApiEntity<IApiBaseEntity>> = new WeakMap<object, IApiEntity<IApiBaseEntity>>();
 
 @Injectable()
 export class ApiAuthorizationRuntime {
@@ -53,7 +57,7 @@ export class ApiAuthorizationRuntime {
 
 		authorizationRuntimeLogger.verbose(`Dispatching authorization evaluation for entity "${options.entity.name}" action "${options.action}" principal "${principal.id}" using mode "${mode}".`);
 
-		const decision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> = mode === EApiAuthorizationMode.HOOKS
+		const evaluatedDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> = mode === EApiAuthorizationMode.HOOKS
 			? await this.evaluateHooks({
 					action: options.action,
 					authenticationRequest: options.authenticationRequest,
@@ -71,6 +75,8 @@ export class ApiAuthorizationRuntime {
 					resource: options.resource,
 					routeType: options.routeType,
 				});
+
+		const decision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> = await this.normalizeDecisionScope(evaluatedDecision, options.entity);
 
 		if (this.auditSink) {
 			authorizationRuntimeLogger.verbose(`Recording authorization audit event for principal "${principal.id}" action "${options.action}".`);
@@ -148,6 +154,34 @@ export class ApiAuthorizationRuntime {
 			resourceDefinition: options.authorization.resourceDefinition,
 			routeType: options.routeType,
 		});
+	}
+
+	/**
+	 * Converts the scope values of a decision to the types of their columns, so they merge with the typed path values of the route.
+	 * @template E - Entity type.
+	 * @param {IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>} decision - Evaluated decision.
+	 * @param {new () => E} entity - Scoped entity constructor.
+	 * @returns {Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>>} The decision, or a copy with a typed scope WHERE.
+	 */
+	private async normalizeDecisionScope<E extends IApiBaseEntity>(decision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>, entity: new () => E): Promise<IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>>> {
+		if (!decision.scope?.where) {
+			return decision;
+		}
+
+		let entityMetadata: IApiEntity<IApiBaseEntity> | undefined = authorizationRuntimeEntityMetadataCache.get(entity);
+
+		if (!entityMetadata) {
+			entityMetadata = GenerateEntityInformation<IApiBaseEntity>(entity);
+			authorizationRuntimeEntityMetadataCache.set(entity, entityMetadata);
+		}
+
+		return {
+			...decision,
+			scope: {
+				...decision.scope,
+				where: await AuthorizationScopeNormalizeWhere<E>(decision.scope.where, entityMetadata),
+			},
+		};
 	}
 
 	private resolveIamAction(policyNamespace: string, action: string, routeType?: EApiRouteType): string {

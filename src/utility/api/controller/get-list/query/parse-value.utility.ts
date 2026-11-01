@@ -4,6 +4,7 @@ import { EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType 
 import { BadRequestException } from "@nestjs/common";
 import { EnumValues } from "@utility/enum/values.utility";
 import { IsDateFormatValue } from "@utility/is/date-format-value.utility";
+import { NumberParseCanonicalInteger } from "@utility/number";
 
 const UUID_VALUE_PATTERN: RegExp = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/iu;
 
@@ -65,6 +66,8 @@ export function ApiControllerGetListQueryParseValue(value: unknown, metadata: Re
 
 			if (typeof value === "number") {
 				numberValue = value;
+			} else if (typeof value === "string" && metadata.format === EApiPropertyNumberType.INTEGER) {
+				numberValue = NumberParseCanonicalInteger(value);
 			} else if (typeof value === "string" && value.trim() !== "") {
 				numberValue = Number(value);
 			}

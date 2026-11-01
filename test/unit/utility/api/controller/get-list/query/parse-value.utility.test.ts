@@ -11,14 +11,12 @@ const UUID_METADATA: TApiPropertyDescribeProperties = { description: "id", type:
 describe("ApiControllerGetListQueryParseValue", () => {
 	it.each([
 		["2", 2],
-		[" 2 ", 2],
-		["1e1", 10],
 		[3, 3],
 	])("parses the integer %j as %j", (value: number | string, expected: number) => {
 		expect(ApiControllerGetListQueryParseValue(value, INTEGER_METADATA)).toBe(expected);
 	});
 
-	it.each(["", " ", "1.5", "abc", "null", "Infinity", null, undefined, ["1"]])("rejects %j as an integer", (value: unknown) => {
+	it.each(["", " ", " 2 ", "1e1", "016", "1.5", "abc", "null", "Infinity", null, undefined, ["1"]])("rejects %j as an integer", (value: unknown) => {
 		expect(() => ApiControllerGetListQueryParseValue(value, INTEGER_METADATA)).toThrow("FILTER_NOT_VALID");
 	});
 

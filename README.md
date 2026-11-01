@@ -321,6 +321,10 @@ export class UserController {
 }
 ```
 
+### Path Parameter Validation
+
+Generated `GET`, `UPDATE`, `PARTIAL_UPDATE`, and `DELETE` routes, and `read.scope.parameters` on generated `GET` and `GET_LIST`, check each path value against the type its column has in `@ApiPropertyDescribe` before authorization and before any query runs. `/users/not-a-uuid` on a `UUID` key, `/orders/abc` or `/orders/016` on an integer `NUMBER` key, or `/days/2024-02-30` on a `DATE` scope returns `400` with the same body as any other validation error, for example `message: ["id must be a UUID"]`, and sends no SQL. The check does not depend on a host `ValidationPipe`. Path values are converted once per request, and `ApiAuthorizationGuard`, IAM conditions and `resourcePath`, `read.scope`, subscribers, and the service all see the same typed values: a `NUMBER` path value is a number, a UUID is lower-cased, a `DATE` value stays a `YYYY-MM-DD` string. Integer text is accepted only in canonical form, and an integer `NUMBER` described beyond `Number.MAX_SAFE_INTEGER` fails at startup; describe `bigint` columns as `EApiPropertyStringType.BIGINT_STRING`. Before 5.0.0 such values reached the database: PostgreSQL answered `500`, SQLite `404`.
+
 ### Request Transformation
 
 Automatically transform request data:

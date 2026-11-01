@@ -60,7 +60,7 @@ class UserDto {
 
 ## BigInt string defaults
 
-`EApiPropertyStringType.BIGINT_STRING` describes a decimal integer stored as a string. Use format-specific options when you need to restrict the sign:
+`EApiPropertyStringType.BIGINT_STRING` describes a decimal integer stored as a string. It is the only way to describe a `bigint` column: an integer `NUMBER` property with a bound outside the safe integer range fails at startup. Use format-specific options when you need to restrict the sign:
 
 ```typescript
 class AccountDto {

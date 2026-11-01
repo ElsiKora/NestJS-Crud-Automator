@@ -18,8 +18,9 @@ Describes UUID-based DTO fields and enforces RFC 4122 validation. Supports singl
 
 ## Behavior
 
-- Generates a random UUID example for Swagger and sets the appropriate regex pattern/length.
+- Generates a random UUID example for Swagger and sets the appropriate regex pattern/length. The pattern accepts exactly what `IsUUID()` accepts: versions 1 to 8, the nil and max UUIDs, in either letter case.
 - Adds `IsUUID`, presence guards, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
+- Writes request values in lower case, so an upper-case spelling names the same resource in IAM resource strings and in the database.
 - Marks the Swagger schema with `format: uuid` and sets `example` or `[example]` for arrays.
 - Adds `ApiResponseProperty`, `Expose`, or `Exclude` for response DTOs.
 

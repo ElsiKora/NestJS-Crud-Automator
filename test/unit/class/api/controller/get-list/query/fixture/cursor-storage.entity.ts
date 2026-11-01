@@ -28,7 +28,7 @@ export class CursorStorageQueryEntity {
 	public safeInteger!: number;
 
 	@Column({ type: "int" })
-	@ApiPropertyDescribe({ description: "opaque cursor integer", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 10_000_000_000_000_000, minimum: -10_000_000_000_000_000, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER })
+	@ApiPropertyDescribe({ description: "opaque cursor integer", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 9_000_000_000_000_000, minimum: -9_000_000_000_000_000, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER })
 	public opaqueInteger!: number;
 
 	@CreateDateColumn({ precision: 3, type: "timestamptz" })
