@@ -26,8 +26,7 @@ export class DtoPropertyFactoryRelation<E> implements IDtoGenerateFactory<E> {
 		}
 
 		if (dtoType === EApiDtoType.RESPONSE) {
-			const relationType: string = String(relationColumn.type);
-			const isToManyResponse: boolean = config.isResponse === true && (relationType === "one-to-many" || relationType === "many-to-many");
+			const isToManyResponse: boolean = config.isResponse === true && (relationColumn.type === ("one-to-many" as never) || relationColumn.type === ("many-to-many" as never));
 
 			return ApiPropertyObject({
 				description: relationDescription,
