@@ -91,8 +91,8 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 }
 
 /**
- * Parses the number and uuid values of a filter group into the values the query binds.
- * The QUERY DTO reads an empty number as 0, so the route parses the text the request carries before any SQL runs.
+ * Parses the number, uuid, and date values of a filter group into the values the query binds.
+ * The QUERY DTO reads an empty number as 0, so the route parses the text the request carries before any SQL runs. A date-time binds as the Date it names, as on a typed route; a calendar date and a time of day stay text.
  * A value outside the published schema of the column answers 400 INVALID_FILTER.
  * @param {EFilterOperation} operation - Filter operation of the group
  * @param {unknown} value - The `[value]` or `[values]` of the group as the request carries it
@@ -100,7 +100,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
  * @returns {unknown} The parsed value, or the value itself for an operation without one and for other column kinds
  */
 function parseFilterValue(operation: EFilterOperation, value: unknown, metadata: TApiPropertyDescribeProperties): unknown {
-	if (operation === EFilterOperation.ISNULL || operation === EFilterOperation.NOTNULL || (metadata.type !== EApiPropertyDescribeType.NUMBER && metadata.type !== EApiPropertyDescribeType.UUID)) {
+	if (operation === EFilterOperation.ISNULL || operation === EFilterOperation.NOTNULL || (metadata.type !== EApiPropertyDescribeType.DATE && metadata.type !== EApiPropertyDescribeType.NUMBER && metadata.type !== EApiPropertyDescribeType.UUID)) {
 		return value;
 	}
 

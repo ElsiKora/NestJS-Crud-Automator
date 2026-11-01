@@ -750,6 +750,33 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(Object.isFrozen(plan.filter.fields.occurredAt?.defaultCondition)).toBe(true);
 	});
 
+	it("reads a UTC instant string default on a date-time field as the Date it names", () => {
+		const plan = compilePlan({
+			occurredAt: {
+				allowedOperations: [EFilterOperation.EQ],
+				defaultCondition: { operator: EFilterOperation.EQ, value: "2026-01-01T00:00:00.000Z" },
+				isEnabled: true,
+				missingBehavior: EApiControllerGetListQueryFilterMissingBehavior.USE_DEFAULT,
+			},
+		});
+		const result = ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1 }, plan);
+
+		expect(result.ast?.nodes.find((node: IApiControllerGetListQueryAstNode): boolean => node.path === "occurredAt")?.value).toEqual(new Date("2026-01-01T00:00:00.000Z"));
+	});
+
+	it.each(["2026-01-01T00:00:00", "2026-01-01T00:00:00Z", "2026-01-01T05:30:00.000+05:30", "2026-01-01"])("fails at compile time for the date-time default %s, naming the controller, route and field", (value: string) => {
+		expect(() =>
+			compilePlan({
+				occurredAt: {
+					allowedOperations: [EFilterOperation.EQ],
+					defaultCondition: { operator: EFilterOperation.EQ, value },
+					isEnabled: true,
+					missingBehavior: EApiControllerGetListQueryFilterMissingBehavior.USE_DEFAULT,
+				},
+			}),
+		).toThrow(/Controller "\w+" route "getList": GET_LIST filter defaultCondition for "occurredAt" must be a Date or a UTC instant in YYYY-MM-DDTHH:mm:ss\.sssZ format/u);
+	});
+
 	it("preserves the existing request Date reference in PAGE filter ASTs", () => {
 		const plan = compilePlan({
 			occurredAt: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },

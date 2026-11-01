@@ -12,7 +12,7 @@ const TIME_REFERENCE_DATE: string = "1970-01-01";
 /**
  * Builds the decorators that hold a GET_LIST filter value on a date property to the published text form of its format, whether it arrives in `[value]` or `[values]`.
  * Apply them after the generated date decorators: class-transformer runs the last registered transform first, so text outside the published form becomes an invalid Date before the date transform reads it, and the validator names the form.
- * A `TIME` value is read on a fixed reference day so the date transform can hold it. The route binds the raw text, never the Date the DTO instance holds.
+ * A `TIME` value is read on a fixed reference day so the date transform can hold it. A valid Date on a `DATE_TIME` property is a server-side value, such as one a route subscriber wrote, and passes as it is.
  * @param {EApiPropertyDateType} format - Date property format whose published pattern applies.
  * @param {boolean} isArray - Whether the decorated property is the `[values]` array.
  * @returns {Array<PropertyDecorator>} Transform and validator decorators for the filter property.
@@ -40,13 +40,13 @@ function isValidDate(value: unknown): boolean {
 }
 
 /**
- * Keeps text in the published form and absent values, and replaces anything else with text the date transform turns into an invalid Date.
+ * Keeps text in the published form, a valid Date on a date-time property, and absent values, and replaces anything else with text the date transform turns into an invalid Date.
  * @param {unknown} value - Raw filter value.
  * @param {EApiPropertyDateType} format - Date property format whose published pattern applies.
  * @returns {unknown} The value the date transform reads.
  */
 function toDateTransformInput(value: unknown, format: EApiPropertyDateType): unknown {
-	if (value === undefined) {
+	if (value === undefined || (format === EApiPropertyDateType.DATE_TIME && value instanceof Date && !Number.isNaN(value.getTime()))) {
 		return value;
 	}
 

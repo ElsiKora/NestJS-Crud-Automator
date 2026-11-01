@@ -36,7 +36,7 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 		}
 
 		case EFilterOperation.EQ: {
-			return Equal(String(value));
+			return Equal(toComparisonOperand(value));
 		}
 
 		case EFilterOperation.EQL: {
@@ -52,11 +52,11 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 		}
 
 		case EFilterOperation.GT: {
-			return MoreThan(String(value));
+			return MoreThan(toComparisonOperand(value));
 		}
 
 		case EFilterOperation.GTE: {
-			return MoreThanOrEqual(String(value));
+			return MoreThanOrEqual(toComparisonOperand(value));
 		}
 
 		case EFilterOperation.IN: {
@@ -72,15 +72,15 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 		}
 
 		case EFilterOperation.LT: {
-			return LessThan(String(value));
+			return LessThan(toComparisonOperand(value));
 		}
 
 		case EFilterOperation.LTE: {
-			return LessThanOrEqual(String(value));
+			return LessThanOrEqual(toComparisonOperand(value));
 		}
 
 		case EFilterOperation.NE: {
-			return Not(String(value));
+			return Not(toComparisonOperand(value));
 		}
 
 		case EFilterOperation.NEL: {
@@ -107,4 +107,13 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 			return ILike(`${String(value)}%`);
 		}
 	}
+}
+
+/**
+ * Keeps a Date comparison operand as the instant it names, so the read binds it for its column, and compares any other value as its text.
+ * @param {unknown} value - Parsed filter value
+ * @returns {unknown} The operand of the comparison
+ */
+function toComparisonOperand(value: unknown): unknown {
+	return value instanceof Date ? value : String(value);
 }

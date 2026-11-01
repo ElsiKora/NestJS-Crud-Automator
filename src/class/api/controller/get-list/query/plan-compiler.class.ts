@@ -19,7 +19,7 @@ import type { ObjectLiteral } from "typeorm";
 import { createHash } from "node:crypto";
 
 import { API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
-import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { PROPERTY_DATE_DECORATOR_API_CONSTANT, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT } from "@constant/safe-object-property-names.constant";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
@@ -112,7 +112,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		const publishedFields: ReadonlySet<string> | undefined = isCursor && responseDto ? this.readCursorPublishedFields(responseDto) : undefined;
 		const orderBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildOrderBaseline(entity, entityMetadata, serverOrderBaseline, isCursor, currentGuard, publishedFields);
 		const describeUnorderableField: (path: string) => string = (path: string): string => this.describeUnorderableOrderField(controller, entityMetadata, serverOrderBaseline, path, currentGuard, publishedFields);
-		const filter: IApiControllerGetListQueryPlanFilter = queryTarget.filter ? this.compileFilter(queryTarget.filter, filterBaseline, isCursor) : Object.freeze({ fields: filterBaseline, isLegacy: !isCursor, ...(isCursor ? { unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT } : {}) });
+		const filter: IApiControllerGetListQueryPlanFilter = queryTarget.filter ? this.compileFilter(queryTarget.filter, filterBaseline, isCursor, controller) : Object.freeze({ fields: filterBaseline, isLegacy: !isCursor, ...(isCursor ? { unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT } : {}) });
 		const order: TApiControllerGetListQueryCompiledOrder = queryTarget.order ? this.compileOrder(queryTarget.order, orderBaseline, serverOrderBaseline, isCursor, describeUnorderableField) : Object.freeze({ fields: orderBaseline, isLegacy: true, serverFields: serverOrderBaseline });
 		const cursorFields: ReadonlyArray<string> = isCursor ? ApiControllerGetListQueryResolveCursorOrderFields(order) : Object.freeze([]);
 
@@ -345,7 +345,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return Object.freeze(operations.toSorted((left: EFilterOperation, right: EFilterOperation): number => this.compareStrings(left, right, isCursor)));
 	}
 
-	private static compileDefaultCondition(rawCondition: unknown, field: IApiControllerGetListQueryPlanFilterField, allowedOperations: ReadonlyArray<EFilterOperation>): IApiControllerGetListQueryPlanCondition {
+	private static compileDefaultCondition(rawCondition: unknown, field: IApiControllerGetListQueryPlanFilterField, allowedOperations: ReadonlyArray<EFilterOperation>, controller: Type<unknown>): IApiControllerGetListQueryPlanCondition {
 		const condition: Record<string, unknown> = this.requireRecord(rawCondition, `GET_LIST filter defaultCondition for "${field.path}"`);
 		const operation: unknown = condition.operator;
 
@@ -363,8 +363,8 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 		if (operand === EFilterOperand.VALUE) {
 			this.requireExactKeys(condition, ["operator", "value"], `GET_LIST filter defaultCondition for "${field.path}"`);
-			this.validateStaticValue(condition.value, field);
-			const value: unknown = condition.value instanceof Date ? new Date(condition.value) : condition.value;
+			this.validateStaticValue(condition.value, field, controller);
+			const value: unknown = this.copyStaticValue(condition.value, field);
 
 			return Object.freeze({ operation, value });
 		}
@@ -375,16 +375,16 @@ export class ApiControllerGetListQueryPlanCompiler {
 			throw ErrorException(`GET_LIST filter defaultCondition for "${field.path}" has invalid operand cardinality`);
 		}
 
-		const conditionValues: Array<unknown> = (condition.values as Array<unknown>).map((value: unknown): unknown => (value instanceof Date ? new Date(value) : value));
-
-		for (const value of conditionValues) {
-			this.validateStaticValue(value, field);
+		for (const value of condition.values as Array<unknown>) {
+			this.validateStaticValue(value, field, controller);
 		}
+
+		const conditionValues: Array<unknown> = (condition.values as Array<unknown>).map((value: unknown): unknown => this.copyStaticValue(value, field));
 
 		return Object.freeze({ operation, values: Object.freeze([...conditionValues]) });
 	}
 
-	private static compileFilter<E>(config: IApiControllerPropertiesRouteGetListQueryFilter<E>, baseline: Readonly<Record<string, IApiControllerGetListQueryPlanFilterField>>, isCursor: boolean): IApiControllerGetListQueryPlanFilter {
+	private static compileFilter<E>(config: IApiControllerPropertiesRouteGetListQueryFilter<E>, baseline: Readonly<Record<string, IApiControllerGetListQueryPlanFilterField>>, isCursor: boolean, controller: Type<unknown>): IApiControllerGetListQueryPlanFilter {
 		const rawConfig: Record<string, unknown> = this.requireRecord(config, "GET_LIST filter");
 
 		this.requireExactKeys(rawConfig, ["fields", "unlistedFields"], "GET_LIST filter");
@@ -424,7 +424,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 			let defaultCondition: IApiControllerGetListQueryPlanCondition | undefined;
 
 			if (missingBehavior === EApiControllerGetListQueryFilterMissingBehavior.USE_DEFAULT) {
-				defaultCondition = this.compileDefaultCondition(field.defaultCondition, baselineField, allowedOperations);
+				defaultCondition = this.compileDefaultCondition(field.defaultCondition, baselineField, allowedOperations, controller);
 			} else if (field.defaultCondition !== undefined) {
 				throw ErrorException(`GET_LIST filter field "${path}" can declare defaultCondition only with USE_DEFAULT`);
 			}
@@ -542,6 +542,23 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 
 		return Object.freeze({ mode: config.mode });
+	}
+
+	/**
+	 * Copies a validated defaultCondition value into the plan, so later changes to the configured value do not reach it.
+	 * A UTC instant string on a date-time field becomes the Date it names, as a client value does.
+	 * @param {unknown} value - Validated defaultCondition value
+	 * @param {IApiControllerGetListQueryPlanFilterField} field - Field the condition filters
+	 * @returns {unknown} The value the plan holds
+	 */
+	private static copyStaticValue(value: unknown, field: IApiControllerGetListQueryPlanFilterField): unknown {
+		if (value instanceof Date) {
+			return new Date(value);
+		}
+
+		const isDateTime: boolean = field.metadata.type === EApiPropertyDescribeType.DATE && field.metadata.format === EApiPropertyDateType.DATE_TIME;
+
+		return isDateTime && typeof value === "string" ? new Date(value) : value;
 	}
 
 	private static createCursorOrderFieldFingerprint(field: TApiControllerGetListQueryCompiledOrderField): Record<string, unknown> {
@@ -1061,7 +1078,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 	}
 
-	private static validateStaticValue(value: unknown, field: IApiControllerGetListQueryPlanFilterField): void {
+	private static validateStaticValue(value: unknown, field: IApiControllerGetListQueryPlanFilterField, controller: Type<unknown>): void {
 		let isValid: boolean;
 		const fieldType: EApiPropertyDescribeType = field.type;
 
@@ -1078,10 +1095,14 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 			case EApiPropertyDescribeType.DATE: {
 				const dateFormat: EApiPropertyDateType = field.metadata.type === EApiPropertyDescribeType.DATE ? field.metadata.format : EApiPropertyDateType.DATE_TIME;
+				const isDateTime: boolean = dateFormat === EApiPropertyDateType.DATE_TIME;
 
-				isValid = dateFormat === EApiPropertyDateType.DATE_TIME ? value instanceof Date && !Number.isNaN(value.getTime()) : IsDateFormatValue(value, dateFormat);
+				// A Date is a server-side instant; text follows the published client form of the format.
+				if ((isDateTime && value instanceof Date && !Number.isNaN(value.getTime())) || IsDateFormatValue(value, dateFormat)) {
+					return;
+				}
 
-				break;
+				throw ErrorException(`Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": GET_LIST filter defaultCondition for "${field.path}" must be ${isDateTime ? "a Date or a UTC instant" : "text"} in ${PROPERTY_DATE_DECORATOR_API_CONSTANT.TEMPLATE[dateFormat]} format`);
 			}
 
 			case EApiPropertyDescribeType.ENUM: {
