@@ -130,6 +130,14 @@ if (!fs.existsSync(outputRoot)) {
 
 scanDirectory(outputRoot);
 
+// Bundled third-party code lands in dist/external; a declared package must stay an import instead
+const vendoredPackages = [...declaredPackages].filter((packageName) => fs.existsSync(path.join(outputRoot, "external", packageName)));
+
+if (vendoredPackages.length > 0) {
+	process.stderr.write(`Generated output bundles declared packages instead of importing them:\n${vendoredPackages.map((packageName) => `- dist/external/${packageName}`).join("\n")}\n`);
+	process.exit(1);
+}
+
 if (invalidDeclarationPaths.length > 0) {
 	process.stderr.write(`Generated declarations contain local node_modules paths:\n${invalidDeclarationPaths.map((filePath) => `- ${filePath}`).join("\n")}\n`);
 	process.exit(1);

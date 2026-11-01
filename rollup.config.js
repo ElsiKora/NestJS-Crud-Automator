@@ -1,11 +1,21 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import resolve from "@rollup/plugin-node-resolve";
 import typescript from "@rollup/plugin-typescript";
 import dts from "unplugin-dts/rollup";
 
-const external = ["@elsikora/pluralizer", "@nestjs/common", "@nestjs/core", "@nestjs/swagger", "@nestjs/throttler", "node:crypto", "node:http", "path-to-regexp", "rxjs/operators", "typeorm", "class-transformer", "reflect-metadata", "class-validator", "lodash/cloneDeep.js", "lodash/random.js", "@nestjs/common/internal", "@nestjs/core/internal"];
+const MANIFEST = JSON.parse(readFileSync(path.resolve("package.json"), "utf8"));
+const EXTERNAL_PACKAGES = [...Object.keys(MANIFEST.dependencies ?? {}), ...Object.keys(MANIFEST.peerDependencies ?? {})];
+
+/**
+ * Keeps Node.js builtins, every dependency and every peer dependency, including their subpaths, out of the bundle.
+ * @param {string} id - Module specifier as written in the source.
+ * @returns {boolean} Whether the module stays an import.
+ */
+function isExternal(id) {
+	return id.startsWith("node:") || EXTERNAL_PACKAGES.some((packageName) => id === packageName || id.startsWith(`${packageName}/`));
+}
 
 const OUTPUT_DIRECTORY = path.resolve("dist");
 const SOURCE_DIRECTORY = path.resolve("src");
@@ -62,7 +72,7 @@ function resolveDeclarationSpecifier(sourceDirectory, specifier, declarationPath
 }
 
 export default {
-	external,
+	external: isExternal,
 	input: "src/index.ts",
 	output: {
 		dir: "dist",
