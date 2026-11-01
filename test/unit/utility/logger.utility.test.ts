@@ -4,12 +4,56 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { ConfigModule } from "@nestjs/config";
+import { Test } from "@nestjs/testing";
 import { LoggerUtility } from "@utility/logger.utility";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const getLevels = (): Array<LogLevel> => (LoggerUtility as unknown as { getLogLevelsFromEnv: () => Array<LogLevel> }).getLogLevelsFromEnv();
 
 describe("LoggerUtility", () => {
+	afterEach(() => {
+		delete process.env.NCD_LOG_LEVEL;
+	});
+
+	it("reads NCD_LOG_LEVEL at the first message, after ConfigModule loaded it from .env", async () => {
+		const directory: string = mkdtempSync(join(tmpdir(), "crud-automator-config-"));
+		const envFilePath: string = join(directory, ".env");
+
+		delete process.env.NCD_LOG_LEVEL;
+		// Package loggers are created when their module is imported, before the application loads .env
+		const logger: LoggerUtility = LoggerUtility.getLogger("Lazy");
+
+		writeFileSync(envFilePath, "NCD_LOG_LEVEL=debug\n");
+
+		try {
+			const moduleReference = await Test.createTestingModule({ imports: [ConfigModule.forRoot({ envFilePath })] }).compile();
+
+			expect(process.env.NCD_LOG_LEVEL).toBe("debug");
+			expect(logger.isLevelEnabled("debug")).toBe(true);
+			expect(logger.isLevelEnabled("verbose")).toBe(false);
+
+			await moduleReference.close();
+		} finally {
+			rmSync(directory, { force: true, recursive: true });
+		}
+	});
+
+	it("keeps the levels of the first message and lets setLogLevels override them", () => {
+		process.env.NCD_LOG_LEVEL = "error";
+		const logger: LoggerUtility = LoggerUtility.getLogger("Resolved");
+
+		expect(logger.isLevelEnabled("warn")).toBe(false);
+		process.env.NCD_LOG_LEVEL = "debug";
+		expect(logger.isLevelEnabled("debug")).toBe(false);
+
+		const explicitLogger: LoggerUtility = LoggerUtility.getLogger("Explicit");
+
+		explicitLogger.setLogLevels(["warn"]);
+		expect(explicitLogger.isLevelEnabled("warn")).toBe(true);
+		expect(explicitLogger.isLevelEnabled("debug")).toBe(false);
+	});
+
 	it("returns log levels based on environment variable", () => {
 		const original = process.env.NCD_LOG_LEVEL;
 

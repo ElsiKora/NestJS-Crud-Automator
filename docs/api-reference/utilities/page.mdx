@@ -227,7 +227,7 @@ logger.log("Operation completed");
 logger.error(`Operation failed: ${FormatErrorEvidenceForLog(error)}`);
 ```
 
-The `NCD_LOG_LEVEL` environment variable picks the enabled levels: `none`, `error`, `warn`, `log` (the default), `debug` or `verbose`. The logger reads it from `process.env` only. Crud Automator does not load a `.env` file, so set the variable in the process environment or load your `.env` before the package is imported.
+The `NCD_LOG_LEVEL` environment variable picks the enabled levels: `none`, `error`, `warn`, `log` (the default), `debug` or `verbose`. The logger reads it from `process.env` only, when a logger handles its first message rather than when the package is imported. Crud Automator does not load a `.env` file. Set the variable in the process environment, or load your `.env` during startup, for example with `ConfigModule.forRoot()` from `@nestjs/config`, before the application logs. A logger keeps the levels of its first message; `setLogLevels` replaces them.
 
 ## Controller Utilities
 
@@ -395,7 +395,7 @@ Public DTO helpers include generation, decorator, auto-context, manual child DTO
 
 Before 5.0.0, importing Crud Automator ran `dotenv`'s `config()`: it loaded the application's `.env` file into `process.env` and printed a line such as `injected env (0) from .env` at startup. From 5.0.0 the package has no `dotenv` dependency and never reads `.env`.
 
-If your application relied on that side effect, load the file yourself before anything reads it, for example with `node --env-file=.env`, `import "dotenv/config"` as the first import, or `@nestjs/config`. This also applies to `NCD_LOG_LEVEL`.
+If your application relied on that side effect, load the file yourself before anything reads it, for example with `node --env-file=.env`, `import "dotenv/config"` as the first import, or `@nestjs/config`. This also applies to `NCD_LOG_LEVEL`, which each logger reads at its first message, so a value that `ConfigModule.forRoot()` loads during bootstrap takes effect.
 
 ## Next Steps
 

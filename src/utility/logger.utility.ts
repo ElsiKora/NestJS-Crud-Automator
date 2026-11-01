@@ -5,15 +5,17 @@ import { ConsoleLogger, Injectable } from "@nestjs/common";
 /**
  * Custom logger that extends NestJS's ConsoleLogger with environment-based log level filtering.
  * It reads `NCD_LOG_LEVEL` from `process.env` only and never loads a `.env` file.
+ * The level is read when the logger handles its first message, not when it is created, so a value
+ * that the application loads after importing the package, for example with `@nestjs/config`, still applies.
  */
 @Injectable()
 export class LoggerUtility extends ConsoleLogger {
 	private static readonly ENV_LOG_LEVEL_KEY: string = "NCD_LOG_LEVEL";
 
+	private hasResolvedLogLevels: boolean = false;
+
 	constructor(context?: string) {
-		super(context ?? "DefaultContext", {
-			logLevels: LoggerUtility.getLogLevelsFromEnv(),
-		});
+		super(context ?? "DefaultContext");
 	}
 
 	/**
@@ -67,5 +69,28 @@ export class LoggerUtility extends ConsoleLogger {
 				return ["error", "warn", "log"];
 			}
 		}
+	}
+
+	/**
+	 * Checks a level, reading `NCD_LOG_LEVEL` first when this logger has not resolved its levels yet.
+	 * @param {LogLevel} level - Level of the message about to be logged.
+	 * @returns {boolean} Whether messages of this level are printed.
+	 */
+	public override isLevelEnabled(level: LogLevel): boolean {
+		if (!this.hasResolvedLogLevels) {
+			this.setLogLevels(LoggerUtility.getLogLevelsFromEnv());
+		}
+
+		return super.isLevelEnabled(level);
+	}
+
+	/**
+	 * Sets the levels explicitly; later messages no longer read `NCD_LOG_LEVEL`.
+	 * @param {Array<LogLevel>} levels - Levels to print.
+	 * @returns {void}
+	 */
+	public override setLogLevels(levels: Array<LogLevel>): void {
+		this.hasResolvedLogLevels = true;
+		super.setLogLevels(levels);
 	}
 }

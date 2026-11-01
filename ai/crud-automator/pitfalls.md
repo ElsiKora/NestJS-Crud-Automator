@@ -213,7 +213,7 @@ Generated `get`, `getList`, `getMany`, `update` and `delete` refuse a `where` ho
 
 ## Relying On The Package To Load `.env`
 
-Crud Automator never loads `.env` (before 5.0.0 it ran `dotenv` on import). Load environment files in the application, for example with `node --env-file=.env` or `@nestjs/config`; the logger reads `NCD_LOG_LEVEL` from `process.env` only.
+Crud Automator never loads `.env` (before 5.0.0 it ran `dotenv` on import). Load environment files in the application, for example with `node --env-file=.env` or `@nestjs/config`; the logger reads `NCD_LOG_LEVEL` from `process.env` only, once per logger at its first message (not at import), so `ConfigModule.forRoot()` loading `.env` during bootstrap works. Do not read environment values at module scope in package code; resolve them when first used.
 
 ## Imports Inside Dependencies
 
