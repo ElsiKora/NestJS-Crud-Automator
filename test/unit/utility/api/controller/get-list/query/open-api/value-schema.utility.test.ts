@@ -15,14 +15,24 @@ describe("ApiControllerGetListQueryOpenApiValueSchema", () => {
 		expect(schema).toEqual({ format: EApiPropertyDateType.DATE, maxLength: 10, minLength: 10, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", type: "string" });
 	});
 
-	it("publishes date-time values without the calendar pattern", () => {
+	it("publishes the UTC instant pattern for date-time values", () => {
 		const schema = ApiControllerGetListQueryOpenApiValueSchema({
 			format: EApiPropertyDateType.DATE_TIME,
 			identifier: EApiPropertyDateIdentifier.CREATED_AT,
 			type: EApiPropertyDescribeType.DATE,
 		});
 
-		expect(schema).toEqual({ format: EApiPropertyDateType.DATE_TIME, type: "string" });
+		expect(schema).toEqual({ format: EApiPropertyDateType.DATE_TIME, maxLength: 24, minLength: 24, pattern: String.raw`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$`, type: "string" });
+	});
+
+	it("publishes the time-of-day pattern for time values", () => {
+		const schema = ApiControllerGetListQueryOpenApiValueSchema({
+			format: EApiPropertyDateType.TIME,
+			identifier: EApiPropertyDateIdentifier.DATE,
+			type: EApiPropertyDescribeType.DATE,
+		});
+
+		expect(schema).toEqual({ format: EApiPropertyDateType.TIME, maxLength: 8, minLength: 8, pattern: "^[0-9]{2}:[0-9]{2}:[0-9]{2}$", type: "string" });
 	});
 
 	it("documents heterogeneous enum values without a false scalar type", () => {

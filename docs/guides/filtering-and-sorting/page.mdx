@@ -69,6 +69,8 @@ With a transforming host pipe, a date filter used to fail on PostgreSQL and retu
 
 A filter on a calendar `date` column (`format: EApiPropertyDateType.DATE`) accepts only `YYYY-MM-DD`. A value with a time or an offset, such as `2024-01-01T00:00:00Z`, and an impossible day such as `2024-02-30` used to pass and now return `400`. Send the calendar date alone.
 
+A date-time filter now accepts only the published `YYYY-MM-DDTHH:mm:ss.sssZ` form. A value without milliseconds, with an offset, without a zone, or with only a date used to pass and now returns `400`; send the UTC instant with milliseconds, as `Date.prototype.toISOString()` writes it. A filter on a `time` column (`format: EApiPropertyDateType.TIME`) used to return `400` for every value; it now accepts `HH:mm:ss`.
+
 ## Route-Owned Typed Query Plans
 
 Entity `@ApiPropertyDescribe` and TypeORM metadata remain the source for generated GET_LIST query DTOs. A generated GET_LIST route can optionally add `filter`, `order`, and `pagination` under `request[EApiControllerRequestTarget.QUERY]`. Automator compiles the metadata and this route overlay into one immutable plan used by the runtime DTO, strict parser, TypeORM predicates, and OpenAPI.
@@ -138,6 +140,7 @@ Plan rules:
 - `orderDirection` is the lowercase `asc` or `desc`, and `orderBy` and `orderDirection` are sent together or not at all.
 - Filter values follow the entity property: number `minimum`, `maximum` and `multipleOf`, and string `minLength`, `maxLength`, `format` and `pattern`. The OpenAPI value schema of each operator branch publishes the same constraints.
 - A calendar `date` field (`format: EApiPropertyDateType.DATE`) takes `YYYY-MM-DD` text and is compared as written in every time zone; a time, an offset, or an impossible day returns `400`.
+- A date-time field takes the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ` and a `time` field takes `HH:mm:ss`, the patterns the OpenAPI value schema publishes; other forms return `400`.
 - TypeScript narrows operations from the entity property's broad scalar type. At bootstrap, Automator validates the exact `@ApiPropertyDescribe` kind, nullability, enabled state, and configured operation set before exposing the route.
 
 Nest guards and host pipes run before controller entry. Inside Automator's generated runtime, route-before subscribers run first, followed by configured path/query transforms and validators, then typed query parsing plus defaults. The optional generated-route transaction wraps predicate compilation, read-scope merge, authorization-scope merge, and the service query. For a nested GET_LIST, query predicates are AND-merged with path scope and then HOOKS/IAM scope; conflicts become match-nothing conditions instead of key overwrites. This lets a route-before subscriber intentionally rewrite the raw query before the strict parser sees it while retaining every final scope.
@@ -160,6 +163,8 @@ After the typed parser, the route validates its generated QUERY DTO from the raw
 Before 5.0.0, a typed route without a host pipe lowercased `orderDirection`, so `ASC` worked; it now returns `400 INVALID_ORDER`. Send lowercase. The same route accepted filter values outside the entity bounds, length or pattern, which a host pipe rejected; they now return `400` either way. With a host pipe, a single numeric membership value such as `count[operator]=in&count[values]=1` used to return `500`; it now works.
 
 A typed filter on a calendar `date` column used to turn the value into a JavaScript `Date` at local midnight. Depending on the server time zone and database, `eq 2024-03-01` matched the previous day or no rows. The value is now compared as the calendar text, as on a route without a typed filter, and only `YYYY-MM-DD` is accepted; a time, an offset, or an impossible day returns `400 INVALID_FILTER`. A typed `defaultCondition` on such a field takes calendar text, not a `Date`.
+
+A typed date-time filter used to accept any text `new Date()` could read, so a value without a zone was read in the server time zone. It now accepts only the published UTC instant, as a route without a typed filter does. Typed `time` filters used to return `400 INVALID_FILTER` for every value; they now compare `HH:mm:ss` text as written.
 
 The same plan emits one OpenAPI deep-object parameter per enabled filter field. Its `oneOf` branches describe the exact operator and `value`, `values`, or nullary operand shape. Disabled fields are omitted from both the generated query DTO contract and OpenAPI.
 
@@ -262,29 +267,29 @@ GET /users?age[operator]=notnull
 
 ### Date Operations
 
-Operations for date properties:
+Operations for date properties. A date-time property (`format: EApiPropertyDateType.DATE_TIME`, the default) takes a UTC instant in `YYYY-MM-DDTHH:mm:ss.sssZ` form, the pattern its OpenAPI schema publishes:
 
 ```typescript
 // Equals specific date
-GET /posts?createdAt[operator]=eq&createdAt[value]=2024-01-01
+GET /posts?createdAt[operator]=eq&createdAt[value]=2024-01-01T00:00:00.000Z
 
 // Not equals
-GET /posts?createdAt[operator]=ne&createdAt[value]=2024-01-01
+GET /posts?createdAt[operator]=ne&createdAt[value]=2024-01-01T00:00:00.000Z
 
 // Greater than (after)
-GET /posts?createdAt[operator]=gt&createdAt[value]=2024-01-01
+GET /posts?createdAt[operator]=gt&createdAt[value]=2024-01-01T00:00:00.000Z
 
 // Greater than or equal
-GET /posts?createdAt[operator]=gte&createdAt[value]=2024-01-01
+GET /posts?createdAt[operator]=gte&createdAt[value]=2024-01-01T00:00:00.000Z
 
 // Less than (before)
-GET /posts?createdAt[operator]=lt&createdAt[value]=2024-12-31
+GET /posts?createdAt[operator]=lt&createdAt[value]=2024-12-31T00:00:00.000Z
 
 // Less than or equal
-GET /posts?createdAt[operator]=lte&createdAt[value]=2024-12-31
+GET /posts?createdAt[operator]=lte&createdAt[value]=2024-12-31T00:00:00.000Z
 
 // Between dates
-GET /posts?createdAt[operator]=between&createdAt[values]=2024-01-01&createdAt[values]=2024-12-31
+GET /posts?createdAt[operator]=between&createdAt[values]=2024-01-01T00:00:00.000Z&createdAt[values]=2024-12-31T00:00:00.000Z
 
 // Is null
 GET /posts?deletedAt[operator]=isnull
@@ -300,6 +305,15 @@ A property described with `format: EApiPropertyDateType.DATE` maps to a calendar
 ```typescript
 // Calendar date column: compared as the text 2024-01-01 in every time zone
 GET /posts?publishedOn[operator]=eq&publishedOn[value]=2024-01-01
+```
+
+A date-time filter value outside that pattern returns `400` before any SQL runs on typed and legacy routes. That includes a value without milliseconds such as `2024-01-01T00:00:00Z`, an offset such as `+05:30`, a value without a zone or without a time, and a moment that does not exist such as `2024-02-30T00:00:00.000Z`.
+
+A property described with `format: EApiPropertyDateType.TIME` maps to a `time` column. Its filter values are `HH:mm:ss` text within one day, compared as written on typed and legacy routes in every time zone. Any other form, such as `12:30`, `12:30:00Z` or `24:00:00`, returns `400`.
+
+```typescript
+// Time column: compared as the text 12:30:00
+GET /stores?opensAt[operator]=lt&opensAt[value]=12:30:00
 ```
 
 ### Boolean Operations

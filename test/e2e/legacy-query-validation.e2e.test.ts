@@ -107,7 +107,7 @@ const REJECTED_CASES: Array<{ messages: Array<string>; query: string }> = [
 	{ messages: [BETWEEN_MESSAGE("releasedOn")], query: `${PAGE}&releasedOn[operator]=between&releasedOn[values]=2024-01-01` },
 	{ messages: ['group "rank" with value suffix must have an operator suffix [operator]'], query: `${PAGE}&rank[values]=1` },
 	{ messages: ['group "status" with value suffix must have an operator suffix [operator]'], query: `${PAGE}&status[values]=active` },
-	{ messages: ["createdAt[value] must be a Date instance"], query: `${PAGE}&createdAt[operator]=gt&createdAt[value]=nope` },
+	{ messages: ["createdAt[value] must be a Date instance", "createdAt[value] must be in YYYY-MM-DDTHH:mm:ss.sssZ format"], query: `${PAGE}&createdAt[operator]=gt&createdAt[value]=nope` },
 ];
 
 const ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [

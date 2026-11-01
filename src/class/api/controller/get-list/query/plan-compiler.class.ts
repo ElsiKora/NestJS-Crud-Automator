@@ -41,8 +41,8 @@ import { EnumValues } from "@utility/enum/values.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateRelationEntityInformation } from "@utility/generate-relation-entity-information.utility";
 import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
+import { IsDateFormatValue } from "@utility/is/date-format-value.utility";
 import { ResolveMetadataTarget } from "@utility/resolve/metadata-target.utility";
-import { IsCalendarDate } from "@utility/is/calendar-date.utility";
 import { getMetadataArgsStorage } from "typeorm";
 
 const CURSOR_RESPONSE_PROPERTY_COUNT: number = 3;
@@ -1077,7 +1077,9 @@ export class ApiControllerGetListQueryPlanCompiler {
 			}
 
 			case EApiPropertyDescribeType.DATE: {
-				isValid = "format" in field.metadata && field.metadata.format === EApiPropertyDateType.DATE ? IsCalendarDate(value) : value instanceof Date && !Number.isNaN(value.getTime());
+				const dateFormat: EApiPropertyDateType = field.metadata.type === EApiPropertyDescribeType.DATE ? field.metadata.format : EApiPropertyDateType.DATE_TIME;
+
+				isValid = dateFormat === EApiPropertyDateType.DATE_TIME ? value instanceof Date && !Number.isNaN(value.getTime()) : IsDateFormatValue(value, dateFormat);
 
 				break;
 			}

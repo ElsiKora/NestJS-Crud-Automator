@@ -1,3 +1,4 @@
+import type { EApiPropertyDateType } from "@enum/decorator/api";
 import type { EFilterOperation } from "@enum/filter";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerPropertiesRouteAutoDtoConfig, IApiControllerPropertiesRouteBaseRelationsResponse } from "@interface/decorator/api";
@@ -10,7 +11,7 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
-import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiPropertyDateType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
@@ -19,7 +20,7 @@ import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoGenerateCacheKey } from "@utility/dto/generate/cache-key.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
 import { DtoGenerateFilterDecorator } from "@utility/dto/generate/filter-decorator.utility";
-import { DtoGenerateGetListCalendarDateDecorators, DtoGenerateGetListItemsResponse, DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list";
+import { DtoGenerateGetListDateFormatDecorators, DtoGenerateGetListItemsResponse, DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list";
 import { DtoGetGetListQueryBaseClass } from "@utility/dto/get/get-list-query-base-class.utility";
 import { DtoGetRelationResponseMetadata } from "@utility/dto/get/relation-response-metadata.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
@@ -205,7 +206,7 @@ export function DtoGenerate<E>(
 			for (const property of queryFilterProperties) {
 				const decorators: Array<PropertyDecorator> | undefined = DtoBuildDecorator(method, property.metadata, property.entityMetadata, dtoType, property.name, currentGuard);
 
-				const isCalendarDate: boolean = property.metadata.type === EApiPropertyDescribeType.DATE && property.metadata.format === EApiPropertyDateType.DATE;
+				const dateFormat: EApiPropertyDateType | undefined = property.metadata.type === EApiPropertyDescribeType.DATE ? property.metadata.format : undefined;
 
 				if (decorators) {
 					for (const [, decorator] of decorators.entries()) {
@@ -213,8 +214,8 @@ export function DtoGenerate<E>(
 					}
 				}
 
-				if (isCalendarDate) {
-					for (const decorator of DtoGenerateGetListCalendarDateDecorators(false)) {
+				if (dateFormat) {
+					for (const decorator of DtoGenerateGetListDateFormatDecorators(dateFormat, false)) {
 						decorator(GeneratedDTO.prototype, `${property.name}[value]`);
 					}
 				}
@@ -237,8 +238,8 @@ export function DtoGenerate<E>(
 					}
 				}
 
-				if (isCalendarDate) {
-					for (const decorator of DtoGenerateGetListCalendarDateDecorators(true)) {
+				if (dateFormat) {
+					for (const decorator of DtoGenerateGetListDateFormatDecorators(dateFormat, true)) {
 						decorator(GeneratedDTO.prototype, `${property.name}[values]`);
 					}
 				}

@@ -2,6 +2,7 @@ import type { ApiPropertyOptions } from "@nestjs/swagger";
 import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyDateProperties } from "@type/decorator/api/property";
 
+import { PROPERTY_DATE_DECORATOR_API_CONSTANT } from "@constant/decorator/api/property-date.constant";
 import { EApiPropertyDataType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "@enum/decorator/api";
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { applyDecorators } from "@nestjs/common";
@@ -128,7 +129,7 @@ function buildApiPropertyOptions(properties: TApiPropertyDateProperties): ApiPro
 		apiPropertyOptions.example = example;
 	}
 
-	apiPropertyOptions.pattern = getPattern(properties.format);
+	apiPropertyOptions.pattern = PROPERTY_DATE_DECORATOR_API_CONSTANT.PATTERN[properties.format];
 	apiPropertyOptions.format = properties.format;
 
 	return apiPropertyOptions;
@@ -357,29 +358,6 @@ function getExample(format: EApiPropertyDateType): string {
 
 		case EApiPropertyDateType.TIME: {
 			return startOfYearUTCDate.toISOString().split("T")[1]?.split(".")[0] ?? "00:00:00";
-		}
-	}
-}
-
-/**
- * Gets the appropriate regex pattern for validating a date string in the specified format.
- * Provides patterns for DATE (YYYY-MM-DD), DATE_TIME (ISO format), and TIME (HH:MM:SS) formats.
- * @param {EApiPropertyDateType} format - The date format type
- * @returns {string} A regex pattern string for validating the date format
- * @private
- */
-function getPattern(format: EApiPropertyDateType): string {
-	switch (format) {
-		case EApiPropertyDateType.DATE: {
-			return "^[0-9]{4}-[0-9]{2}-[0-9]{2}$";
-		}
-
-		case EApiPropertyDateType.DATE_TIME: {
-			return "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}Z$";
-		}
-
-		case EApiPropertyDateType.TIME: {
-			return "^[0-9]{2}:[0-9]{2}:[0-9]{2}$";
 		}
 	}
 }

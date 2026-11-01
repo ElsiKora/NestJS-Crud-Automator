@@ -66,7 +66,7 @@ describe("ApiPropertyDate", () => {
 		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, DateDto.prototype, "createdAt");
 
 		expect(metadata?.format).toBe(EApiPropertyDateType.DATE_TIME);
-		expect(metadata?.pattern).toBe("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}Z$");
+		expect(metadata?.pattern).toBe(String.raw`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$`);
 		expect(metadata?.description).toBe("DateEntity creation date");
 		expect(metadata?.minLength).toBe(metadata?.maxLength);
 	});

@@ -11,7 +11,7 @@ import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { EnumValues } from "@utility/enum/values.utility";
-import { IsCalendarDate } from "@utility/is/calendar-date.utility";
+import { IsDateFormatValue } from "@utility/is/date-format-value.utility";
 
 // A date-time filter value is a calendar date, or a date, a "T" or a space, a time of day, and an optional `Z` or numeric offset with minutes.
 const DATE_VALUE_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}$/u;
@@ -385,18 +385,23 @@ export class ApiControllerGetListQueryRuntime {
 			}
 
 			case EApiPropertyDescribeType.DATE: {
-				if ("format" in field.metadata && field.metadata.format === EApiPropertyDateType.DATE) {
-					if (IsCalendarDate(value)) {
+				const dateFormat: EApiPropertyDateType = field.metadata.type === EApiPropertyDescribeType.DATE ? field.metadata.format : EApiPropertyDateType.DATE_TIME;
+
+				// Calendar dates and times of day are compared as the text the client sent; only an instant becomes a Date.
+				if (dateFormat !== EApiPropertyDateType.DATE_TIME) {
+					if (IsDateFormatValue(value, dateFormat)) {
 						return value;
 					}
 
 					break;
 				}
 
-				const date: Date = value instanceof Date ? value : new Date(value as string);
+				if (value instanceof Date && !Number.isNaN(value.getTime())) {
+					return value;
+				}
 
-				if (!Number.isNaN(date.getTime())) {
-					return date;
+				if (IsDateFormatValue(value, dateFormat)) {
+					return new Date(value);
 				}
 
 				break;

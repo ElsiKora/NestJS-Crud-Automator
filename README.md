@@ -1402,7 +1402,7 @@ Generated DTOs are named after their controller, and that name is the OpenAPI co
 The library provides advanced filtering capabilities for list endpoints:
 
 ```typescript
-// GET /users?username[operator]=cont&username[value]=john&createdAt[operator]=between&createdAt[values]=2023-01-01&createdAt[values]=2023-12-31
+// GET /users?username[operator]=cont&username[value]=john&createdAt[operator]=between&createdAt[values]=2023-01-01T00:00:00.000Z&createdAt[values]=2023-12-31T00:00:00.000Z
 ```
 
 This query would search for users with "john" in their username and created between Jan 1 and Dec 31, 2023.
