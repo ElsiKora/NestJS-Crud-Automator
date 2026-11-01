@@ -511,6 +511,11 @@ export class ApiFunctionKeyPageLoader {
 		return this.isTemporalType(repository.manager.dataSource.driver.normalizeType(column));
 	}
 
+	/**
+	 * Checks whether a driver-normalized column type stores a date, a date-time, or an instant.
+	 * @param {string} columnType - Column type as the active driver normalizes it
+	 * @returns {boolean} Whether the type is a date, date-time, or instant type
+	 */
 	private static isTemporalType(columnType: string): boolean {
 		return DATABASE_COLUMN_TYPE_CONSTANT.DATE.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.DATE_TIME.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType);
 	}
