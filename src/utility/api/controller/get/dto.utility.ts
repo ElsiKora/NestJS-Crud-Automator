@@ -96,8 +96,10 @@ export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R exte
 
 	const isCursorGetListResponse: boolean = method === EApiRouteTypeValue.GET_LIST && dtoType === EApiDtoTypeValue.RESPONSE && ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
 	const effectiveQueryPlan: IApiControllerGetListQueryPlan | undefined = method === EApiRouteTypeValue.GET_LIST && (dtoType === EApiDtoTypeValue.QUERY || isCursorGetListResponse) ? queryPlan : undefined;
+	// A manual list response limits ordering to the item properties it publishes.
+	const listResponseDto: Type<unknown> | undefined = method === EApiRouteTypeValue.GET_LIST && dtoType === EApiDtoTypeValue.QUERY && routeConfig.dto?.[EApiDtoTypeValue.RESPONSE] ? ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoTypeValue.RESPONSE, routeConfig, schemaPrefix, queryPlan) : undefined;
 
-	return DtoGenerate(properties.entity, entity, method, dtoType, schemaPrefix, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard, effectiveQueryPlan, undefined, routeName);
+	return DtoGenerate(properties.entity, entity, method, dtoType, schemaPrefix, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard, effectiveQueryPlan, undefined, routeName, listResponseDto);
 }
 
 /**

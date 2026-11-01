@@ -1284,12 +1284,17 @@ describe("typed GET_LIST query plan and runtime", () => {
 	});
 
 	it.each([
-		["missing protected item metadata", { itemType: CursorCustomIncompleteItemDto }],
 		["accessor-backed item metadata", { itemType: CursorCustomAccessorItemDto }],
-		["unproven flat wrapper", CursorQueryController],
 		["incompatible cursor metadata", CursorCustomInvalidResponseDto],
 	])("rejects an unsafe custom CURSOR response DTO: %s", (_label, responseDto) => {
 		expect(() => compileCursorPlan({ fields: { rank: { isEnabled: true } }, responseDto })).toThrow("CURSOR GET_LIST custom");
+	});
+
+	it.each([
+		["missing protected item metadata", { itemType: CursorCustomIncompleteItemDto }],
+		["unproven flat wrapper", CursorQueryController],
+	])("refuses a client order field a custom CURSOR response DTO does not publish: %s", (_label, responseDto) => {
+		expect(() => compileCursorPlan({ fields: { rank: { isEnabled: true } }, responseDto })).toThrow('GET_LIST order field "rank" is not an enabled direct scalar path');
 	});
 
 	it("rejects CURSOR bootstrap without explicit order", () => {

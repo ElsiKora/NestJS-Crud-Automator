@@ -18,18 +18,20 @@ import "reflect-metadata";
 /**
  * Extracts the client-orderable fields of an entity, the single source of the orderBy enum and its validation.
  * A column is orderable only when the generated list response exposes its value (`DtoIsPropertyExposedInListResponse`), it is enabled as a query field, and it is not opted out with `useAsOrderByFilter: false`, all for the route guard;
- * ordering by any other column would reveal its values through row order. Property names become snake_case enum keys.
+ * a route with a manual response DTO also limits it to the item properties that DTO publishes. Ordering by any other column would reveal its values through row order.
+ * Property names become snake_case enum keys.
  * @param {ObjectLiteral} entity - The entity class
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
  * @param {EApiRouteType} method - The type of route (CREATE, DELETE, GET, etc.)
  * @param {EApiDtoType} dtoType - The type of DTO (REQUEST, RESPONSE, etc.)
  * @param {TFilterFieldSelector<typeof entity>} [fieldSelector] - Optional selector to include/exclude specific fields
  * @param {Type<CanActivate>} [currentGuard] - Route guard that decides guard-scoped response and query visibility
+ * @param {ReadonlySet<string>} [publishedFields] - Item properties a manual list response DTO publishes; omitted for a generated response
  * @returns {TApiFilterOrderBy<typeof entity>} An object mapping snake_case column names to camelCase property names
  * @throws {Error} When a field in the fieldSelector doesn't exist in the entity
  * @template E - The entity type
  */
-export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, fieldSelector?: TFilterFieldSelector<typeof entity>, currentGuard?: Type<CanActivate>): TApiFilterOrderBy<typeof entity> {
+export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, fieldSelector?: TFilterFieldSelector<typeof entity>, currentGuard?: Type<CanActivate>, publishedFields?: ReadonlySet<string>): TApiFilterOrderBy<typeof entity> {
 	const metadata: TTypeOrmMetadataArgumentsStorage = getMetadataArgsStorage();
 	const columns: Array<TTypeOrmColumnMetadataArguments> = metadata.columns.filter((column: TTypeOrmColumnMetadataArguments) => column.target == entity);
 
@@ -55,7 +57,7 @@ export function FilterOrderByFromEntity<E>(entity: ObjectLiteral, entityMetadata
 				const metadata: TApiPropertyDescribeProperties | undefined = metadataColumn.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
 				const methodProperties: Partial<Record<EApiDtoType, TApiPropertyDescribeDtoQueryGetListProperties>> | undefined = metadata?.properties?.[method] as Partial<Record<EApiDtoType, TApiPropertyDescribeDtoQueryGetListProperties>> | undefined;
 
-				const isOrderable: boolean = metadata !== undefined && methodProperties?.[dtoType]?.useAsOrderByFilter !== false && DtoIsPropertyExposedInListResponse(column.propertyName, metadata, metadataColumn.isPrimary, currentGuard) && DtoIsPropertyShouldBeMarked(method, dtoType, column.propertyName, metadata, false, currentGuard);
+				const isOrderable: boolean = metadata !== undefined && methodProperties?.[dtoType]?.useAsOrderByFilter !== false && (publishedFields === undefined || publishedFields.has(column.propertyName)) && DtoIsPropertyExposedInListResponse(column.propertyName, metadata, metadataColumn.isPrimary, currentGuard) && DtoIsPropertyShouldBeMarked(method, dtoType, column.propertyName, metadata, false, currentGuard);
 
 				if (metadataColumn.name == column.propertyName && metadata && isOrderable) {
 					const snakeUpperCase: string = column.propertyName

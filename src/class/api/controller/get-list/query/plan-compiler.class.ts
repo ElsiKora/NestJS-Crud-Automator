@@ -2,6 +2,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryOperator, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanCondition, IApiControllerGetListQueryPlanFilter, IApiControllerGetListQueryPlanFilterField, IApiControllerGetListQueryPlanOrder, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryPlanOrderField } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerGetListQueryPlanPagination } from "@interface/class/api/controller/get-list/query/plan/pagination.interface";
 import type { IApiControllerPropertiesRouteGetListQueryFilter, IApiControllerPropertiesRouteGetListQueryOrder, IApiControllerPropertiesRouteGetListQueryOrderEntry, IApiControllerPropertiesRouteGetListQueryPagination } from "@interface/decorator/api";
+import type { IApiControllerPropertiesRouteGetListResponseDtoConfig } from "@interface/decorator/api/controller/properties/route";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiControllerGetListQueryCompiledOrderField } from "@type/class/api/controller/get-list/compiled/order-field.type";
@@ -26,6 +27,7 @@ import { EFilterOperand, EFilterOperation, EFilterOrderDirection } from "@enum/f
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
+import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response/published-fields.utility";
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
 import { DtoGetDecoratorConfig } from "@utility/dto/get/decorator-config.utility";
 import { DtoIsPropertyExposedInListResponse } from "@utility/dto/is/property/exposed-in-list-response.utility";
@@ -64,7 +66,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		const isCursor: boolean = pagination.mode === EApiControllerGetListQueryPaginationMode.CURSOR;
 		const filterBaseline: Readonly<Record<string, IApiControllerGetListQueryPlanFilterField>> = this.buildFilterBaseline(entity, entityMetadata, currentGuard, isCursor);
 		const serverOrderBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildServerOrderBaseline(entity, entityMetadata, isCursor);
-		const orderBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildOrderBaseline(entity, entityMetadata, serverOrderBaseline, isCursor, currentGuard);
+		const orderBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildOrderBaseline(entity, entityMetadata, serverOrderBaseline, isCursor, currentGuard, routeConfig);
 		const filter: IApiControllerGetListQueryPlanFilter = queryTarget.filter ? this.compileFilter(queryTarget.filter, filterBaseline, isCursor) : Object.freeze({ fields: filterBaseline, isLegacy: !isCursor, ...(isCursor ? { unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT } : {}) });
 		const order: TApiControllerGetListQueryCompiledOrder = queryTarget.order ? this.compileOrder(queryTarget.order, orderBaseline, serverOrderBaseline, isCursor) : Object.freeze({ fields: orderBaseline, isLegacy: true, serverFields: serverOrderBaseline });
 		const cursorFields: ReadonlyArray<string> = isCursor ? ApiControllerGetListQueryResolveCursorOrderFields(order) : Object.freeze([]);
@@ -224,9 +226,10 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return Object.freeze(this.sortRecord(fields, isCursor));
 	}
 
-	private static buildOrderBaseline<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, serverBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>>, isCursor: boolean, currentGuard: Type<CanActivate> | undefined): Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> {
+	private static buildOrderBaseline<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, serverBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>>, isCursor: boolean, currentGuard: Type<CanActivate> | undefined, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>): Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> {
 		const fields: Record<string, TApiControllerGetListQueryCompiledOrderField> = {};
-		const orderFields: Record<string, keyof E> = FilterOrderByFromEntity(entity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, currentGuard);
+		const responseDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown> | undefined = routeConfig.dto?.[EApiDtoType.RESPONSE];
+		const orderFields: Record<string, keyof E> = FilterOrderByFromEntity(entity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, currentGuard, responseDto ? ApiControllerGetListResponsePublishedFields(responseDto) : undefined);
 
 		for (const path of Object.values(orderFields)
 			.map(String)

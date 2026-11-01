@@ -353,7 +353,7 @@ Transforms filter operations.
 
 ### FilterOrderByFromEntity
 
-Generates order by options from entity.
+Generates order by options from entity: the single source of a GET_LIST `orderBy` enum and its validation. A column is included only when the generated list response exposes its value, its query side is enabled, and `useAsOrderByFilter` is not `false`, for the route guard. The optional `publishedFields` argument limits it to the item properties a manual list response DTO publishes.
 
 **Location:** `src/utility/api/filter-order-by-from-entity.utility.ts`
 

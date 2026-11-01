@@ -49,11 +49,12 @@ const dtoGenerateCache: WeakMap<ObjectLiteral, Map<string, Type<unknown>>> = new
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Normalized route plan that narrows generated GET_LIST query fields.
  * @param {string} [responseVariantName] - Class name of a polymorphic response variant, which is always an item DTO without a list wrapper.
  * @param {string} [routeName] - PascalCase handler method name of a custom route; it replaces the route type in the generated names.
+ * @param {Type<unknown>} [listResponseDto] - Manual or item-config list response DTO of a GET_LIST route, which limits the generated QUERY DTO's orderBy enum.
  * @returns {Type<unknown> | undefined} The generated DTO class or undefined if no DTO should be generated
  * @throws {Error} When primary key metadata is missing
  * @template E - The entity type
  */
-export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan, responseVariantName?: string, routeName?: string): Type<unknown> | undefined {
+export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan, responseVariantName?: string, routeName?: string, listResponseDto?: Type<unknown>): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
 		return undefined;
 	}
@@ -67,6 +68,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		dtoType,
 		entityName: String(entityMetadata.name),
 		guardName: currentGuard?.name,
+		listResponseName: listResponseDto?.name,
 		method,
 		queryPlanSignature: isCursorGetListResponse ? EApiControllerGetListQueryPaginationMode.CURSOR : queryPlan?.signature,
 		responseVariantName,
@@ -121,7 +123,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		metadata: TApiPropertyDescribeProperties;
 		name: string;
 	}> = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? DtoGenerateGetListQueryProperties(entityMetadata, markedProperties, currentGuard, queryPlan) : [];
-	const BaseClass: Type = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? DtoGetGetListQueryBaseClass<E>(entity, entityMetadata, method, dtoType, namePrefix, queryPlan, currentGuard) : class {};
+	const BaseClass: Type = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? DtoGetGetListQueryBaseClass<E>(entity, entityMetadata, method, dtoType, namePrefix, queryPlan, currentGuard, listResponseDto) : class {};
 	const isTypedFilterPlan: boolean = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY && queryPlan !== undefined && !queryPlan.filter.isLegacy;
 
 	class GeneratedDTO extends BaseClass {

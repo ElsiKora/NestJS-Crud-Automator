@@ -11,6 +11,7 @@ import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiPropertyNumb
 import { EFilterOrderDirection } from "@enum/filter";
 import { IApiEntity } from "@interface/entity";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
+import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response/published-fields.utility";
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
 import { CapitalizeString } from "@utility/capitalize-string.utility";
 import { AllOrNoneOfListedPropertiesValidator } from "@validator/all-or-none-of-listed-properties.validator";
@@ -31,11 +32,13 @@ const noopApiPropertyEnum: typeof ApiPropertyEnum = (): PropertyDecorator => noo
  * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Optional normalized plan that narrows sortable fields.
  * @param {Type<CanActivate>} [currentGuard] - Route guard that decides which columns are orderable.
+ * @param {Type<unknown>} [listResponseDto] - Manual or item-config list response DTO of the route; its published item properties limit ordering and name the orderBy enum.
  * @returns {Type<unknown>} A base class for list query DTOs
  * @template E - The entity type
  */
-export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan, currentGuard?: Type<CanActivate>): Type<unknown> {
+export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan, currentGuard?: Type<CanActivate>, listResponseDto?: Type<unknown>): Type<unknown> {
 	const isCursor: boolean = ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
+	const publishedFields: ReadonlySet<string> | undefined = listResponseDto ? ApiControllerGetListResponsePublishedFields(listResponseDto) : undefined;
 
 	const orderBy: Record<string, string> =
 		queryPlan && !queryPlan.order.isLegacy
@@ -44,7 +47,7 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 						.filter((field: IApiControllerGetListQueryPlanOrderField): boolean => field.isEnabled)
 						.map((field: IApiControllerGetListQueryPlanOrderField): [string, string] => [field.path, field.path]),
 				)
-			: FilterOrderByFromEntity(entity, entityMetadata, method, dtoType, undefined, currentGuard);
+			: FilterOrderByFromEntity(entity, entityMetadata, method, dtoType, undefined, currentGuard, publishedFields);
 	const hasClientOrderFields: boolean = Object.keys(orderBy).length > 0;
 	const shouldExposeClientOrder: boolean = !isCursor || hasClientOrderFields;
 	const clientOrderPropertyDecorator: typeof ApiPropertyEnum = shouldExposeClientOrder ? ApiPropertyEnum : noopApiPropertyEnum;
