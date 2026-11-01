@@ -1,17 +1,33 @@
 import { STATUS_CODES } from "node:http";
 
 import { ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsUniqueViolationDTO } from "@class/utility/dto/exception/details";
+import { CORRELATION_ID_CONSTANT } from "@constant/correlation-id.constant";
 import { DATE_CONSTANT } from "@constant/date.constant";
 import { NUMBER_CONSTANT } from "@constant/number.constant";
 import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
 import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
-import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
 import { EApiPropertyDataType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { EApiExceptionDetailsType } from "@enum/utility/exception-details-type.enum";
 import { HttpStatus, type Type } from "@nestjs/common";
 import { ApiExtraModels, ApiProperty, type ApiPropertyOptions } from "@nestjs/swagger";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
+
+// A generated UUID or the client ID, which CorrelationIDReadHeader accepts by the same pattern
+const CORRELATION_ID_PROPERTY_OPTIONS: ApiPropertyOptions = {
+	description: "Correlation identifier",
+	example: "550e8400-e29b-41d4-a716-446655440000",
+	maxLength: CORRELATION_ID_CONSTANT.MAXIMUM_LENGTH,
+	minLength: CORRELATION_ID_CONSTANT.MINIMUM_LENGTH,
+	// eslint-disable-next-line @elsikora/typescript/naming-convention
+	nullable: false,
+	pattern: CORRELATION_ID_CONSTANT.PATTERN.source,
+	// eslint-disable-next-line @elsikora/typescript/naming-convention
+	readOnly: true,
+	// eslint-disable-next-line @elsikora/typescript/naming-convention
+	required: true,
+	type: EApiPropertyDataType.STRING,
+};
 
 // Free text, or the list of messages a ValidationPipe answers
 const ERROR_MESSAGE_PROPERTY_OPTIONS: ApiPropertyOptions = {
@@ -59,7 +75,7 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 	};
 
 	class GeneratedErrorDTO {
-		@ApiPropertyUUID({ entity: { name: "Correlation" }, isResponse: true })
+		@ApiProperty(CORRELATION_ID_PROPERTY_OPTIONS)
 		correlationID!: string;
 
 		@ApiPropertyObject({
