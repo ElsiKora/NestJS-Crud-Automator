@@ -108,6 +108,7 @@ const REJECTED_CASES: Array<{ messages: Array<string>; query: string }> = [
 	{ messages: ['group "rank" with value suffix must have an operator suffix [operator]'], query: `${PAGE}&rank[values]=1` },
 	{ messages: ['group "status" with value suffix must have an operator suffix [operator]'], query: `${PAGE}&status[values]=active` },
 	{ messages: ["createdAt[value] must be a Date instance", "createdAt[value] must be in YYYY-MM-DDTHH:mm:ss.sssZ format"], query: `${PAGE}&createdAt[operator]=gt&createdAt[value]=nope` },
+	{ messages: ["property campaign should not exist"], query: `${PAGE}&campaign=spring&orderBy=label&orderDirection=asc` },
 ];
 
 const ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
@@ -132,7 +133,6 @@ const ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
 	{ labels: ["Beta"], query: `${PAGE}&releasedOn[operator]=eq&releasedOn[value]=2024-02-02` },
 	{ labels: ["Beta", "Gamma"], query: `${PAGE}&note[operator]=isnull&orderBy=label&orderDirection=asc` },
 	{ labels: ["Alpha"], query: `${PAGE}&note[operator]=notnull` },
-	{ labels: ["Alpha", "Beta", "Gamma"], query: `${PAGE}&campaign=spring&orderBy=label&orderDirection=asc` },
 ];
 
 describe.each([

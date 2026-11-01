@@ -76,6 +76,16 @@ const UNKNOWN_GROUPS = {
 	undescribedColumn: "undescribed[operator]=eq&undescribed[value]=x",
 } as const;
 
+// A key the QUERY DTO does not publish is rejected whatever its shape, including a cache-buster and the DTO's internal filter-pairing anchor.
+const UNKNOWN_PLAIN_KEYS: Array<{ key: string; query: string }> = [
+	{ key: "_", query: "_=1730000000" },
+	{ key: "campaign", query: "campaign=spring" },
+	{ key: "nmae", query: "nmae=Alpha" },
+	{ key: "nmae[foo]", query: "nmae[foo]=Alpha" },
+	{ key: "object", query: "object=x" },
+	{ key: "after", query: "after=abc" },
+];
+
 const LEGACY_REJECTED_CASES: Array<{ messages: Array<string>; query: string }> = [
 	{ messages: [unknown("id[operator]"), unknown("id[value]")], query: `id[operator]=eq&id[value]=${ITEM_ALPHA}` },
 	{ messages: [unknown("id[operator]"), unknown("id[values]")], query: `id[operator]=in&id[values]=${ITEM_ALPHA}&id[values]=${ITEM_BETA}` },
@@ -91,6 +101,8 @@ const LEGACY_REJECTED_CASES: Array<{ messages: Array<string>; query: string }> =
 	{ messages: [unknown("nmae[value]"), VALUE_WITHOUT_OPERATOR_MESSAGE], query: UNKNOWN_GROUPS.typoValueOnly },
 	{ messages: [unknown("nmae[operator]"), unknown("nmae[values]")], query: UNKNOWN_GROUPS.typoValues },
 	{ messages: [unknown("undescribed[operator]"), unknown("undescribed[value]")], query: UNKNOWN_GROUPS.undescribedColumn },
+	...UNKNOWN_PLAIN_KEYS.map(({ key, query }: { key: string; query: string }): { messages: Array<string>; query: string } => ({ messages: [unknown(key)], query })),
+	{ messages: [unknown("campaign"), unknown("nmae[operator]"), unknown("nmae[value]")], query: `campaign=spring&${UNKNOWN_GROUPS.typo}` },
 ];
 
 const LEGACY_ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
@@ -98,12 +110,9 @@ const LEGACY_ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
 	{ labels: ["Alpha", "Gamma"], query: `owner.id[operator]=eq&owner.id[value]=${OWNER_ANN}` },
 	{ labels: ["Beta"], query: "owner.name[operator]=eq&owner.name[value]=Bob" },
 	{ labels: ["Beta", "Gamma"], query: "rank[operator]=gt&rank[value]=1" },
-	{ labels: ALL_LABELS, query: "campaign=spring" },
-	{ labels: ALL_LABELS, query: "nmae=Alpha" },
-	{ labels: ALL_LABELS, query: "nmae[foo]=Alpha" },
 ];
 
-const TYPED_REJECTED_QUERIES: Array<string> = [...Object.values(UNKNOWN_GROUPS), "campaign=spring", "nmae[foo]=Alpha"];
+const TYPED_REJECTED_QUERIES: Array<string> = [...Object.values(UNKNOWN_GROUPS), ...UNKNOWN_PLAIN_KEYS.map(({ query }: { query: string }): string => query)];
 
 const TYPED_ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
 	{ labels: ["Alpha"], query: `id[operator]=eq&id[value]=${ITEM_ALPHA}` },
@@ -114,7 +123,7 @@ const TYPED_ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
 	{ labels: ["Beta", "Gamma"], query: "rank[operator]=gt&rank[value]=1" },
 ];
 
-const CURSOR_REJECTED_QUERIES: Array<string> = [`id[operator]=eq&id[value]=${ITEM_ALPHA}`, `owner.id[operator]=eq&owner.id[value]=${OWNER_ANN}`, ...Object.values(UNKNOWN_GROUPS), "campaign=spring"];
+const CURSOR_REJECTED_QUERIES: Array<string> = [`id[operator]=eq&id[value]=${ITEM_ALPHA}`, `owner.id[operator]=eq&owner.id[value]=${OWNER_ANN}`, ...Object.values(UNKNOWN_GROUPS), ...UNKNOWN_PLAIN_KEYS.filter(({ key }: { key: string }): boolean => key !== "after").map(({ query }: { query: string }): string => query)];
 
 const CURSOR_ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
 	{ labels: ["Gamma"], query: "code[operator]=eq&code[value]=C3" },
@@ -225,8 +234,9 @@ describe.each([
 				await expectRejected(`/unknown-filter/manual-items?${PAGE}&rank[operator]=eq&rank[value]=1`, { error: "Bad Request", message: [unknown("rank[operator]"), unknown("rank[value]")], statusCode: HttpStatus.BAD_REQUEST });
 				await expectRejected(`/unknown-filter/manual-items?${PAGE}&id[operator]=eq&id[value]=${ITEM_ALPHA}`, { error: "Bad Request", message: [unknown("id[operator]"), unknown("id[value]")], statusCode: HttpStatus.BAD_REQUEST });
 
+				await expectRejected(`/unknown-filter/manual-items?${PAGE}&campaign=spring`, { error: "Bad Request", message: [unknown("campaign")], statusCode: HttpStatus.BAD_REQUEST });
+
 				expect(await listLabels(`/unknown-filter/manual-items?${PAGE}&${BY_LABEL}&label[operator]=eq&label[value]=Beta`)).toEqual(["Beta"]);
-				expect(await listLabels(`/unknown-filter/manual-items?${PAGE}&${BY_LABEL}&campaign=spring`)).toEqual(ALL_LABELS);
 			});
 		});
 
