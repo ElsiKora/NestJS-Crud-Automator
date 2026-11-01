@@ -125,7 +125,7 @@ export class E2eLegacyQueryOrderOnlyItemController {
 	path: "legacy-query/typed-items",
 	routes: {
 		...disabledRoutes,
-		[EApiRouteType.GET_LIST]: { request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { rank: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } },
+		[EApiRouteType.GET_LIST]: { request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { rank: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN, EFilterOperation.NOTIN, EFilterOperation.BETWEEN], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } },
 	},
 })
 export class E2eLegacyQueryTypedItemController {

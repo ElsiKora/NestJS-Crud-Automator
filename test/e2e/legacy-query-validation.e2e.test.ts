@@ -59,8 +59,6 @@ const LIMIT_TYPE_MESSAGES: Array<string> = ["limit must be an integer number", "
 const PAGE_TYPE_MESSAGES: Array<string> = ["page must be an integer number", "page must not be less than 1", "page must not be greater than 100", "page must be divisible by 1"];
 const RANK_OPERATOR_MESSAGE: string = "rank[operator] must be one of the following values: between, eq, gt, gte, in, isnull, lt, lte, ne, notin, notnull";
 
-const ONE_ITEM_MESSAGE: (group: string) => string = (group: string): string => `${group}[values] must contain at least 2 elements`;
-
 const BETWEEN_MESSAGE: (group: string) => string = (group: string): string => `group "${group}" with between operation requires exactly 2 values`;
 
 const REJECTED_CASES: Array<{ messages: Array<string>; query: string }> = [
@@ -77,6 +75,7 @@ const REJECTED_CASES: Array<{ messages: Array<string>; query: string }> = [
 	{ messages: ["limit must not be greater than 100"], query: "limit=1000&page=1" },
 	{ messages: PAGE_TYPE_MESSAGES, query: "limit=10&page=abc" },
 	{ messages: PAGE_TYPE_MESSAGES, query: "limit=10" },
+	{ messages: ["page must not be greater than 100"], query: "limit=10&page=101" },
 	{ messages: [RANK_OPERATOR_MESSAGE, 'Invalid operator "bogus" for group "rank"'], query: `${PAGE}&rank[operator]=bogus&rank[value]=1` },
 	{ messages: [RANK_OPERATOR_MESSAGE], query: `${PAGE}&rank[operator]=cont&rank[value]=1` },
 	{ messages: ["rank[value] must be an integer number", "rank[value] must not be less than 0", "rank[value] must not be greater than 1000", "rank[value] must be divisible by 1"], query: `${PAGE}&rank[operator]=eq&rank[value]=abc` },
@@ -86,17 +85,12 @@ const REJECTED_CASES: Array<{ messages: Array<string>; query: string }> = [
 	{ messages: ["each value in status[values] must be one of the following values: active, archived"], query: `${PAGE}&status[operator]=in&status[values]=nope&status[values]=archived` },
 	{ messages: ["label[value] must match /^[A-Za-z0-9 ]+$/ regular expression"], query: `${PAGE}&label[operator]=cont&label[value]=%25%25` },
 	{ messages: ['group "note" with isnull operation should not have any values'], query: `${PAGE}&note[operator]=isnull&note[value]=x` },
-	{ messages: [ONE_ITEM_MESSAGE("rank")], query: `${PAGE}&rank[operator]=in&rank[values]=1` },
-	{ messages: [ONE_ITEM_MESSAGE("rank")], query: `${PAGE}&rank[operator]=notin&rank[values]=1` },
-	{ messages: [ONE_ITEM_MESSAGE("rank"), BETWEEN_MESSAGE("rank")], query: `${PAGE}&rank[operator]=between&rank[values]=1` },
-	{ messages: [ONE_ITEM_MESSAGE("status")], query: `${PAGE}&status[operator]=in&status[values]=active` },
-	{ messages: [ONE_ITEM_MESSAGE("status")], query: `${PAGE}&status[operator]=notin&status[values]=active` },
-	{ messages: [ONE_ITEM_MESSAGE("label")], query: `${PAGE}&label[operator]=in&label[values]=Alpha` },
-	{ messages: [ONE_ITEM_MESSAGE("isFeatured")], query: `${PAGE}&isFeatured[operator]=in&isFeatured[values]=1` },
-	{ messages: [ONE_ITEM_MESSAGE("createdAt"), BETWEEN_MESSAGE("createdAt")], query: `${PAGE}&createdAt[operator]=between&createdAt[values]=2024-01-01T00:00:00.000Z` },
-	{ messages: [ONE_ITEM_MESSAGE("releasedOn"), BETWEEN_MESSAGE("releasedOn")], query: `${PAGE}&releasedOn[operator]=between&releasedOn[values]=2024-01-01` },
-	{ messages: [ONE_ITEM_MESSAGE("rank"), 'group "rank" with value suffix must have an operator suffix [operator]'], query: `${PAGE}&rank[values]=1` },
-	{ messages: [ONE_ITEM_MESSAGE("status"), 'group "status" with value suffix must have an operator suffix [operator]'], query: `${PAGE}&status[values]=active` },
+	{ messages: [BETWEEN_MESSAGE("rank")], query: `${PAGE}&rank[operator]=between&rank[values]=1` },
+	{ messages: [BETWEEN_MESSAGE("rank")], query: `${PAGE}&rank[operator]=between&rank[values]=1&rank[values]=2&rank[values]=3` },
+	{ messages: [BETWEEN_MESSAGE("createdAt")], query: `${PAGE}&createdAt[operator]=between&createdAt[values]=2024-01-01T00:00:00.000Z` },
+	{ messages: [BETWEEN_MESSAGE("releasedOn")], query: `${PAGE}&releasedOn[operator]=between&releasedOn[values]=2024-01-01` },
+	{ messages: ['group "rank" with value suffix must have an operator suffix [operator]'], query: `${PAGE}&rank[values]=1` },
+	{ messages: ['group "status" with value suffix must have an operator suffix [operator]'], query: `${PAGE}&status[values]=active` },
 	{ messages: ["createdAt[value] must be a Date instance"], query: `${PAGE}&createdAt[operator]=gt&createdAt[value]=nope` },
 ];
 
@@ -109,6 +103,12 @@ const ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
 	{ labels: ["Alpha", "Beta"], query: `${PAGE}&rank[operator]=between&rank[values]=1&rank[values]=2&orderBy=label&orderDirection=asc` },
 	{ labels: ["Alpha", "Gamma"], query: `${PAGE}&status[operator]=eq&status[value]=active&orderBy=label&orderDirection=asc` },
 	{ labels: ["Alpha", "Beta", "Gamma"], query: `${PAGE}&status[operator]=in&status[values]=active&status[values]=archived&orderBy=label&orderDirection=asc` },
+	{ labels: ["Alpha"], query: `${PAGE}&rank[operator]=in&rank[values]=1` },
+	{ labels: ["Beta", "Gamma"], query: `${PAGE}&rank[operator]=notin&rank[values]=1&orderBy=label&orderDirection=asc` },
+	{ labels: ["Alpha", "Gamma"], query: `${PAGE}&status[operator]=in&status[values]=active&orderBy=label&orderDirection=asc` },
+	{ labels: ["Beta"], query: `${PAGE}&status[operator]=notin&status[values]=active` },
+	{ labels: ["Alpha"], query: `${PAGE}&label[operator]=in&label[values]=Alpha` },
+	{ labels: ["Alpha"], query: `${PAGE}&isFeatured[operator]=in&isFeatured[values]=1` },
 	{ labels: ["Alpha"], query: `${PAGE}&label[operator]=cont&label[value]=lph` },
 	{ labels: ["Alpha", "Beta", "Gamma"], query: `${PAGE}&createdAt[operator]=gt&createdAt[value]=2020-01-01T00:00:00.000Z&orderBy=label&orderDirection=asc` },
 	{ labels: ["Alpha"], query: `${PAGE}&isFeatured[operator]=eq&isFeatured[value]=1` },
@@ -238,6 +238,26 @@ describe.each([
 
 			expect(await listLabels(`/legacy-query/slim-items?${PAGE}&orderBy=label&orderDirection=${orderDirection}`)).toEqual(labels);
 			expect(await listLabels(`/legacy-query/typed-slim-items?${PAGE}&orderBy=label&orderDirection=${orderDirection}`)).toEqual(labels);
+		});
+
+		it("applies one membership rule and an exact between pair on the typed route", async () => {
+			expect(await listLabels(`/legacy-query/typed-items?${PAGE}&rank[operator]=in&rank[values]=1`)).toEqual(["Alpha"]);
+			expect(await listLabels(`/legacy-query/typed-items?${PAGE}&rank[operator]=notin&rank[values]=1`)).toHaveLength(2);
+			expect(await listLabels(`/legacy-query/typed-items?${PAGE}&rank[operator]=between&rank[values]=1&rank[values]=2`)).toHaveLength(2);
+
+			for (const values of ["rank[values]=1", "rank[values]=1&rank[values]=2&rank[values]=3"]) {
+				queryLogger.queries.length = 0;
+				const response = await fastify.inject({ method: "GET", url: `/legacy-query/typed-items?${PAGE}&rank[operator]=between&${values}` });
+
+				expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.BAD_REQUEST);
+				expect(queryLogger.queries).toEqual([]);
+			}
+
+			queryLogger.queries.length = 0;
+			const pageResponse = await fastify.inject({ method: "GET", url: "/legacy-query/typed-items?limit=10&page=101" });
+
+			expect(pageResponse.statusCode, JSON.stringify(pageResponse.json())).toBe(HttpStatus.BAD_REQUEST);
+			expect(queryLogger.queries).toEqual([]);
 		});
 
 		it("validates a value a before subscriber wrote, and reports the failure to before-error subscribers", async () => {
