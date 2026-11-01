@@ -24,10 +24,18 @@ const buildHost = (type: string, headers: Record<string, unknown>, response: unk
 
 describe("CorrelationIDResolve", () => {
 	it.each<[string, unknown, string | undefined]>([
-		["a trimmed string", "  corr-id  ", "corr-id"],
-		["the first non-blank array value", [" ", "array-id", "other"], "array-id"],
+		["1 character", "a", "a"],
+		["128 characters", "a".repeat(128), "a".repeat(128)],
+		["every allowed character", "AZaz09._:-", "AZaz09._:-"],
 		["a generated UUID for an empty string", "", undefined],
+		["a generated UUID for 129 characters", "a".repeat(129), undefined],
+		["a generated UUID for a disallowed character", "corr/id", undefined],
+		["a generated UUID for surrounding whitespace", "  corr-id  ", undefined],
+		["a generated UUID for a trailing newline", "corr-id\n", undefined],
+		["a generated UUID for an array", ["array-id", "other"], undefined],
+		["a generated UUID for an array with one valid value", ["array-id"], undefined],
 		["a generated UUID for a blank array", [" ", ""], undefined],
+		["a generated UUID for a non-string value", 42, undefined],
 		["a generated UUID for a missing header", undefined, undefined],
 	])("resolves %s", (_name: string, header: unknown, expected: string | undefined) => {
 		const request = { headers: { "x-correlation-id": header } } as unknown as { headers: Record<string, string> };
@@ -71,10 +79,20 @@ describe("CorrelationIDHttpHostResolve", () => {
 	it("writes the header through the adapter", () => {
 		const adapter = buildAdapter();
 		const response = { status: vi.fn() };
-		const { host } = buildHost("http", { "x-correlation-id": ["", "array-id"] }, response);
+		const { host } = buildHost("http", { "x-correlation-id": "corr-id" }, response);
 
-		expect(CorrelationIDHttpHostResolve(host, adapter)).toBe("array-id");
-		expect(adapter.setHeader).toHaveBeenCalledWith(response, "x-correlation-id", "array-id");
+		expect(CorrelationIDHttpHostResolve(host, adapter)).toBe("corr-id");
+		expect(adapter.setHeader).toHaveBeenCalledWith(response, "x-correlation-id", "corr-id");
+	});
+
+	it("writes one generated ID for a client ID the rule rejects", () => {
+		const adapter = buildAdapter();
+		const response = { status: vi.fn() };
+		const { host } = buildHost("http", { "x-correlation-id": "a".repeat(129) }, response);
+		const correlationId: string = CorrelationIDHttpHostResolve(host, adapter);
+
+		expect(correlationId).toMatch(/^[0-9a-f-]{36}$/u);
+		expect(adapter.setHeader).toHaveBeenCalledWith(response, "x-correlation-id", correlationId);
 	});
 
 	it("writes the header on a native response", () => {
@@ -236,11 +254,22 @@ describe("CorrelationIDNormalizeException", () => {
 	it("resolves the ID from the HTTP request and writes the header through the adapter", () => {
 		const adapter = buildAdapter();
 		const response = { status: vi.fn() };
-		const { host } = buildHost("http", { "x-correlation-id": ["", "array-id"] }, response);
+		const { host } = buildHost("http", { "x-correlation-id": "corr-id" }, response);
 		const normalized: HttpException = CorrelationIDNormalizeException(new ForbiddenException(), host, { httpAdapter: adapter } as unknown as HttpAdapterHost);
 
-		expect((normalized.getResponse() as { correlationID: string }).correlationID).toBe("array-id");
-		expect(adapter.setHeader).toHaveBeenCalledWith(response, "x-correlation-id", "array-id");
+		expect((normalized.getResponse() as { correlationID: string }).correlationID).toBe("corr-id");
+		expect(adapter.setHeader).toHaveBeenCalledWith(response, "x-correlation-id", "corr-id");
+	});
+
+	it("applies the client ID rule and answers the same generated ID in the body and the header", () => {
+		const adapter = buildAdapter();
+		const response = { status: vi.fn() };
+		const { host } = buildHost("http", { "x-correlation-id": "corr/id" }, response);
+		const normalized: HttpException = CorrelationIDNormalizeException(new ForbiddenException(), host, { httpAdapter: adapter } as unknown as HttpAdapterHost);
+		const { correlationID }: { correlationID: string } = normalized.getResponse() as { correlationID: string };
+
+		expect(correlationID).toMatch(/^[0-9a-f-]{36}$/u);
+		expect(adapter.setHeader).toHaveBeenCalledWith(response, "x-correlation-id", correlationID);
 	});
 
 	it("generates an ID without touching the transport outside HTTP", () => {

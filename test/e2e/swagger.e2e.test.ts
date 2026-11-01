@@ -623,6 +623,22 @@ describe("Swagger request DTO documentation (E2E)", () => {
 		}
 	});
 
+	it("declares correlationID as the string a client ID may be, not a UUID", () => {
+		const errorSchemas: Array<[string, { properties?: Record<string, Record<string, unknown>> }]> = Object.entries(document.components?.schemas ?? {}).filter(([, schema]: [string, unknown]) => (schema as { properties?: Record<string, unknown> }).properties?.correlationID !== undefined) as Array<[string, { properties?: Record<string, Record<string, unknown>> }]>;
+
+		expect(errorSchemas.length).toBeGreaterThan(0);
+
+		for (const [name, schema] of errorSchemas) {
+			const property: Record<string, unknown> = schema.properties?.correlationID as Record<string, unknown>;
+			const pattern: RegExp = new RegExp(property.pattern as string, "u");
+
+			expect(property, name).toEqual(expect.objectContaining({ maxLength: 128, minLength: 1, pattern: "^[\\w.:-]{1,128}$", type: "string" }));
+			expect(property.format, name).toBeUndefined();
+			expect(pattern.test("abc"), name).toBe(true);
+			expect(pattern.test("a".repeat(129)), name).toBe(false);
+		}
+	});
+
 	it("documents generated route response headers and security requirements", () => {
 		const createOperation = getOperation("/swagger-generated-default");
 		const deleteOperation = getOperation("/swagger-generated-default/{id}", "delete");

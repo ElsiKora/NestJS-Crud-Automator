@@ -7,6 +7,8 @@ import { LoggerUtility } from "@utility/logger.utility";
 import { lastValueFrom, throwError } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const UUID_PATTERN: RegExp = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u;
+
 const buildContext = (headers: Record<string, string | string[] | undefined>, type: string = "http") => {
 	const reply = { header: vi.fn() };
 	const request = {
@@ -107,30 +109,91 @@ describe("CorrelationIDResponseBodyInterceptor", () => {
 		expect((request as { correlationID?: string }).correlationID).toBe("corr-id");
 	});
 
-	it("normalizes array correlation headers and preserves object response fields", async () => {
+	it("ignores a repeated correlation header, generates an ID and preserves object response fields", async () => {
 		const interceptor = new CorrelationIDResponseBodyInterceptor();
-		const { context, reply, request } = buildContext({ "x-correlation-id": [" ", "array-corr"] });
+		const { context, reply, request } = buildContext({ "x-correlation-id": ["first-corr", "array-corr"] });
 		const handler: CallHandler = {
 			handle: () => throwError(() => new HttpException({ message: "bad", statusCode: HttpStatus.BAD_REQUEST }, HttpStatus.BAD_REQUEST)),
 		};
+		const rejection: unknown = await lastValueFrom(interceptor.intercept(context, handler)).then(
+			() => undefined,
+			(error: unknown) => error,
+		);
 
-		try {
-			await lastValueFrom(interceptor.intercept(context, handler));
-		} catch (error) {
-			expect(error).toBeInstanceOf(HttpException);
-			expect((error as HttpException).getResponse()).toEqual(
-				expect.objectContaining({
-					correlationID: "array-corr",
-					message: "bad",
-					statusCode: HttpStatus.BAD_REQUEST,
-					timestamp: expect.any(Number),
-				}),
+		expect(rejection).toBeInstanceOf(HttpException);
+		expect((rejection as HttpException).getResponse()).toEqual(
+			expect.objectContaining({
+				correlationID: expect.stringMatching(UUID_PATTERN),
+				message: "bad",
+				statusCode: HttpStatus.BAD_REQUEST,
+				timestamp: expect.any(Number),
+			}),
+		);
+		expect(reply.header).toHaveBeenCalledWith("x-correlation-id", ((rejection as HttpException).getResponse() as { correlationID: string }).correlationID);
+		expect(request.headers["x-correlation-id"]).toBe(((rejection as HttpException).getResponse() as { correlationID: string }).correlationID);
+		expect((request as { correlationID?: string }).correlationID).toBe(request.headers["x-correlation-id"]);
+	});
+
+	describe("client correlation ID bounds", () => {
+		const resolveCorrelationId = async (header: Array<string> | string | undefined): Promise<{ body: string; header: string; request: string; requestHeader: unknown }> => {
+			const interceptor = new CorrelationIDResponseBodyInterceptor();
+			const { context, reply, request } = buildContext({ "x-correlation-id": header });
+			const handler: CallHandler = {
+				handle: () => throwError(() => new BadRequestException("bad")),
+			};
+			const rejection: unknown = await lastValueFrom(interceptor.intercept(context, handler)).then(
+				() => undefined,
+				(error: unknown) => error,
 			);
-		}
 
-		expect(reply.header).toHaveBeenCalledWith("x-correlation-id", "array-corr");
-		expect(request.headers["x-correlation-id"]).toBe("array-corr");
-		expect((request as { correlationID?: string }).correlationID).toBe("array-corr");
+			expect(rejection).toBeInstanceOf(HttpException);
+			expect(reply.header).toHaveBeenCalledTimes(1);
+
+			return {
+				body: ((rejection as HttpException).getResponse() as { correlationID: string }).correlationID,
+				header: reply.header.mock.calls[0]?.[1] as string,
+				request: (request as { correlationID?: string }).correlationID as string,
+				requestHeader: request.headers["x-correlation-id"],
+			};
+		};
+
+		it.each([
+			["1 character", "a"],
+			["128 characters", "a".repeat(128)],
+			["every allowed character", "AZaz09._:-"],
+			["a UUID", "3f2504e0-4f89-41d3-9a0c-0305e82c3301"],
+		])("accepts %s and answers it in the header and the body", async (_label: string, value: string) => {
+			const resolved = await resolveCorrelationId(value);
+
+			expect(resolved).toEqual({ body: value, header: value, request: value, requestHeader: value });
+		});
+
+		it.each([
+			["0 characters", ""],
+			["129 characters", "a".repeat(129)],
+			["9000 bytes", "a".repeat(9000)],
+			["a space", "corr id"],
+			["leading whitespace", " corr-id"],
+			["a slash", "corr/id"],
+			["a comma from a joined repeated header", "first, second"],
+			["a quote", 'corr"id'],
+			["a non-ASCII letter", "corr-ïd"],
+			["a control character", "corr\tid"],
+			["an array header", ["corr-id", "other-id"]],
+			["an array header with one valid value", ["corr-id"]],
+		])("ignores %s and answers one generated ID in the header and the body", async (_label: string, value: Array<string> | string) => {
+			const resolved = await resolveCorrelationId(value);
+
+			expect(resolved.body).toMatch(UUID_PATTERN);
+			expect(resolved).toEqual({ body: resolved.body, header: resolved.body, request: resolved.body, requestHeader: resolved.body });
+		});
+
+		it("generates an ID when the header is missing", async () => {
+			const resolved = await resolveCorrelationId(undefined);
+
+			expect(resolved.body).toMatch(UUID_PATTERN);
+			expect(resolved).toEqual({ body: resolved.body, header: resolved.body, request: resolved.body, requestHeader: resolved.body });
+		});
 	});
 
 	it("wraps ThrottlerException with correlation id", async () => {

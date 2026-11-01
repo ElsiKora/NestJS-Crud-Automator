@@ -509,13 +509,13 @@ describe("CorrelationIDResponseBodyExceptionFilter (E2E)", () => {
 			expect(response.headers["x-correlation-id"]).toBe(response.json().correlationID);
 		});
 
-		it("trims a client header like the interceptor does", async () => {
+		it("applies the client ID rule of the interceptor to a value it receives with surrounding whitespace", async () => {
 			const application: INestApplication = await createApplication({ filters: [fullFilter] });
 			const guard: IInjectResponse = await inject(application, { headers: { "x-correlation-id": ` ${CLIENT_CORRELATION_ID} ` }, url: "/contract/guard-object" });
 			const handler: IInjectResponse = await inject(application, { headers: { "x-correlation-id": ` ${CLIENT_CORRELATION_ID} ` }, url: "/contract/handler-object" });
 
-			expect(guard.json().correlationID).toBe(CLIENT_CORRELATION_ID);
-			expect(handler.json().correlationID).toBe(CLIENT_CORRELATION_ID);
+			expect(guard.json().correlationID).toMatch(/^[0-9a-f-]{36}$/u);
+			expect(handler.json().correlationID).toMatch(/^[0-9a-f-]{36}$/u);
 		});
 	});
 
