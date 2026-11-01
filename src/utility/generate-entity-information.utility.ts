@@ -2,11 +2,13 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiEntityReference } from "@type/api-entity-reference.type";
+import type { TMetadataStorageTarget } from "@type/class";
 import type { TTypeOrmColumnMetadataArguments, TTypeOrmRelationMetadataArguments, TTypeOrmTableMetadataArguments } from "@type/utility/typeorm";
 
 import { MetadataStorage } from "@class/metadata-storage.class";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
+import { ResolveMetadataTarget } from "@utility/resolve/metadata-target.utility";
 import { DefaultNamingStrategy, getMetadataArgsStorage } from "typeorm";
 
 /**
@@ -40,6 +42,7 @@ export function GenerateEntityInformation<E>(entity: TApiEntityReference): IApiE
 	})();
 
 	const storage: MetadataStorage = MetadataStorage.getInstance();
+	const metadataTarget: TMetadataStorageTarget = ResolveMetadataTarget(entity);
 	const entityHierarchy: Array<Type<unknown>> = GetClassHierarchy(entity);
 	const entityNames: Array<string> = entityHierarchy.map((current: Type<unknown>): string => current.name);
 
@@ -77,15 +80,7 @@ export function GenerateEntityInformation<E>(entity: TApiEntityReference): IApiE
 
 	const entityColumns: Array<IApiEntityColumn<E>> = [
 		...columnList.map(({ options, propertyName }: TTypeOrmColumnMetadataArguments) => {
-			let metadata: Record<string, unknown> | undefined;
-
-			for (const entityName of entityNames) {
-				metadata = storage.getMetadata(entityName, propertyName);
-
-				if (metadata) {
-					break;
-				}
-			}
+			const metadata: Record<string, unknown> | undefined = storage.getMetadata(metadataTarget, propertyName);
 
 			return {
 				isPrimary: Boolean(options.primary),
@@ -96,15 +91,7 @@ export function GenerateEntityInformation<E>(entity: TApiEntityReference): IApiE
 			};
 		}),
 		...relationList.map(({ propertyName, relationType, type }: TTypeOrmRelationMetadataArguments) => {
-			let metadata: Record<string, unknown> | undefined;
-
-			for (const entityName of entityNames) {
-				metadata = storage.getMetadata(entityName, propertyName);
-
-				if (metadata) {
-					break;
-				}
-			}
+			const metadata: Record<string, unknown> | undefined = storage.getMetadata(metadataTarget, propertyName);
 
 			let relationTarget: IApiBaseEntity | undefined;
 			let resolvedRelationTarget: unknown = type;

@@ -12,6 +12,8 @@ import { describe, expect, it } from "vitest";
 
 class SwaggerDto {}
 
+class SwaggerEntity {}
+
 abstract class InheritedSwaggerBaseEntity {
 	@ApiPropertyDescribe({
 		description: "owner",
@@ -39,7 +41,7 @@ describe("ApiControllerWriteDtoSwagger", () => {
 			tableName: "swagger_entities",
 		};
 		const properties: IApiControllerProperties<{ name?: string }> = {
-			entity: { name: "SwaggerEntity" },
+			entity: SwaggerEntity as unknown as IApiBaseEntity,
 			routes: {},
 		};
 		const routeConfig = {
@@ -51,7 +53,7 @@ describe("ApiControllerWriteDtoSwagger", () => {
 			},
 		};
 
-		MetadataStorage.getInstance().setMetadata(entityMetadata.name ?? "SwaggerEntity", "owner", PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY, {
+		MetadataStorage.getInstance().setMetadata(SwaggerEntity, "owner", PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY, {
 			description: "owner",
 			type: EApiPropertyDescribeType.RELATION,
 		});

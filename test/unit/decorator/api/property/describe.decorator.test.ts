@@ -45,7 +45,7 @@ class DescribeEntity {
 
 describe("ApiPropertyDescribe", () => {
 	it("stores property metadata in MetadataStorage", () => {
-		const metadata = MetadataStorage.getInstance().getMetadata(DescribeEntity.name, "label", PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY);
+		const metadata = MetadataStorage.getInstance().getMetadata(DescribeEntity, "label", PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY);
 
 		expect(metadata).toBeDefined();
 		expect(metadata?.type).toBe(EApiPropertyDescribeType.STRING);
@@ -53,9 +53,9 @@ describe("ApiPropertyDescribe", () => {
 	});
 
 	it("stores explicit auto-DTO visibility without removing property metadata", () => {
-		const internalReferenceMetadata = MetadataStorage.getInstance().getMetadata(DescribeEntity.name, "internalReference", PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY);
-		const labelMetadata = MetadataStorage.getInstance().getMetadata(DescribeEntity.name, "label", PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY);
-		const countMetadata = MetadataStorage.getInstance().getMetadata(DescribeEntity.name, "count", PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY);
+		const internalReferenceMetadata = MetadataStorage.getInstance().getMetadata(DescribeEntity, "internalReference", PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY);
+		const labelMetadata = MetadataStorage.getInstance().getMetadata(DescribeEntity, "label", PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY);
+		const countMetadata = MetadataStorage.getInstance().getMetadata(DescribeEntity, "count", PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY);
 
 		expect(internalReferenceMetadata).toMatchObject({
 			description: "internal reference",

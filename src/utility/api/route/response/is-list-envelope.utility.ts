@@ -44,6 +44,6 @@ function hasEntityProperty(entity: Type<unknown>, propertyName: string): boolean
 		getMetadataArgsStorage()
 			.filterRelations(hierarchy)
 			.some((relation: { propertyName: string }): boolean => relation.propertyName === propertyName) ||
-		hierarchy.some((currentEntity: Type<unknown>): boolean => MetadataStorage.getInstance().getMetadata(currentEntity.name, propertyName) !== undefined)
+		MetadataStorage.getInstance().getMetadata(entity, propertyName) !== undefined
 	);
 }

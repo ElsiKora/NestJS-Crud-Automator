@@ -1,3 +1,4 @@
+import type { TMetadataStorageTarget } from "@type/class";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 import { MetadataStorage } from "@class/metadata-storage.class";
@@ -91,7 +92,6 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
  */
 export function ApiPropertyDescribe(properties: TApiPropertyDescribeProperties): PropertyDecorator {
 	return (target: object, propertyKey: string | symbol): void => {
-		const entityName: string = target.constructor.name;
-		MetadataStorage.getInstance().setMetadata(entityName, propertyKey, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY, properties);
+		MetadataStorage.getInstance().setMetadata(target.constructor as TMetadataStorageTarget, propertyKey, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY, properties);
 	};
 }

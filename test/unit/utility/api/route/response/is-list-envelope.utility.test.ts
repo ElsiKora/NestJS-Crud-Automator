@@ -55,7 +55,7 @@ describe("ApiRouteResponseIsListEnvelope", () => {
 	it("is an entity on an undeclared route type when only Automator metadata describes items", () => {
 		class DescribedItemsEntity {}
 
-		MetadataStorage.getInstance().setMetadata(DescribedItemsEntity.name, "items", "described", {});
+		MetadataStorage.getInstance().setMetadata(DescribedItemsEntity, "items", "described", {});
 
 		expect(ApiRouteResponseIsListEnvelope(ENVELOPE, undefined, DescribedItemsEntity)).toBe(false);
 	});
