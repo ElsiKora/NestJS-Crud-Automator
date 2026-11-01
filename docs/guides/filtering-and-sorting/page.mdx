@@ -60,7 +60,7 @@ From 5.0.0, the rules above apply on every such route. Change these requests if 
 
 An `in` or `notin` filter with one item, such as `status[operator]=in&status[values]=active`, now filters by that one value on every route, as typed plans already did. A host `ValidationPipe` used to reject it with `400`, and a single numeric item without a pipe used to return `500`. `DTO_GENERATE_CONSTANT.MINIMUM_FILTER_PROPERTIES`, the old two-item minimum, is removed; `DTO_GENERATE_CONSTANT` keeps `MAXIMUM_FILTER_PROPERTIES`.
 
-- An empty or blank numeric filter value, such as `rank[operator]=eq&rank[value]=`: send a number. It now answers `400 INVALID_FILTER`; it used to return `500` on PostgreSQL and match nothing on SQLite. A value such as `1e2` or `1.0` now filters by the number it parses to, as typed filters do, and no longer returns `500` on PostgreSQL.
+- An empty, blank or malformed number or uuid filter value, such as `rank[operator]=eq&rank[value]=`: send a number or a uuid. It now answers `400 INVALID_FILTER` before any SQL; it used to return `500` on PostgreSQL and match nothing on SQLite. A value such as `1e2` or `1.0` now filters by the number it parses to, as typed filters do, and no longer returns `500` on PostgreSQL.
 - `isnull` or `notnull` with a value: remove the value. `isnull` or `notnull` without a value used to be ignored and now filters, so those requests return fewer rows.
 
 The route validates the raw request query, not the value a host pipe returns. A custom pipe that rewrites the query, for example one that lowercases `orderDirection=ASC`, no longer rescues such a request: the route still answers `400`. Fix the client, or rewrite the query in a route-before subscriber, whose result the route validates.

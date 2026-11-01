@@ -5,13 +5,12 @@ import type { FindOperator } from "typeorm";
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "@constant/factory-dto-get-list-query.constant";
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
-import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
+import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import { EFilterOperand, EFilterOperation, EFilterOrderDirection } from "@enum/filter";
 import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
+import { ApiControllerGetListQueryParseValue } from "@utility/api/controller/get-list/query/parse-value.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
-import { EnumValues } from "@utility/enum/values.utility";
-import { IsDateFormatValue } from "@utility/is/date-format-value.utility";
 
 // A date-time filter value is a calendar date, or a date, a "T" or a space, a time of day, and an optional `Z` or numeric offset with minutes.
 const DATE_VALUE_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}$/u;
@@ -119,17 +118,6 @@ export class ApiControllerGetListQueryRuntime {
 			page,
 			...(isCursor ? { paginationMode } : {}),
 		}) as unknown as IApiControllerGetListQueryRuntimeResult;
-	}
-
-	/**
-	 * Converts one client filter value by its field type, as a typed filter does.
-	 * @param {unknown} value - Raw filter value.
-	 * @param {Pick<IApiControllerGetListQueryPlanFilterField, "metadata" | "type">} field - Field type and metadata.
-	 * @returns {unknown} Converted value.
-	 * @throws {BadRequestException} With `INVALID_FILTER` when the value does not fit the field type.
-	 */
-	public static parseFilterValue(value: unknown, field: Pick<IApiControllerGetListQueryPlanFilterField, "metadata" | "type">): unknown {
-		return this.parseValue(value, field);
 	}
 
 	private static compileOrder(orderBy: string | undefined, orderDirection: EFilterOrderDirection | undefined, plan: IApiControllerGetListQueryPlan): ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> {
@@ -364,95 +352,7 @@ export class ApiControllerGetListQueryRuntime {
 		return parsed;
 	}
 
-	private static parseValue(value: unknown, field: Pick<IApiControllerGetListQueryPlanFilterField, "metadata" | "type">): unknown {
-		const fieldType: EApiPropertyDescribeType = field.type;
-
-		if (fieldType === EApiPropertyDescribeType.OBJECT || fieldType === EApiPropertyDescribeType.RELATION) {
-			throw new BadRequestException("INVALID_FILTER");
-		}
-
-		switch (fieldType) {
-			case EApiPropertyDescribeType.BOOLEAN: {
-				if (value === true || value === "true" || value === "1") {
-					return true;
-				}
-
-				if (value === false || value === "false" || value === "0") {
-					return false;
-				}
-
-				break;
-			}
-
-			case EApiPropertyDescribeType.DATE: {
-				const dateFormat: EApiPropertyDateType = field.metadata.type === EApiPropertyDescribeType.DATE ? field.metadata.format : EApiPropertyDateType.DATE_TIME;
-
-				// Calendar dates and times of day are compared as the text the client sent; only an instant becomes a Date.
-				if (dateFormat !== EApiPropertyDateType.DATE_TIME) {
-					if (IsDateFormatValue(value, dateFormat)) {
-						return value;
-					}
-
-					break;
-				}
-
-				if (value instanceof Date && !Number.isNaN(value.getTime())) {
-					return value;
-				}
-
-				if (IsDateFormatValue(value, dateFormat)) {
-					return new Date(value);
-				}
-
-				break;
-			}
-
-			case EApiPropertyDescribeType.ENUM: {
-				const enumValues: ReadonlyArray<number | string> = EnumValues("enum" in field.metadata ? field.metadata.enum : {});
-				const enumValue: number | string | undefined = enumValues.find((candidate: number | string): boolean => candidate === value || (typeof candidate === "number" && typeof value === "string" && String(candidate) === value));
-
-				if (enumValue !== undefined) {
-					return enumValue;
-				}
-
-				break;
-			}
-
-			case EApiPropertyDescribeType.NUMBER: {
-				let numberValue: number = Number.NaN;
-
-				if (typeof value === "number") {
-					numberValue = value;
-				} else if (typeof value === "string" && value.trim() !== "") {
-					numberValue = Number(value);
-				}
-
-				const isIntegerRequired: boolean = "format" in field.metadata && field.metadata.format === EApiPropertyNumberType.INTEGER;
-
-				if (Number.isFinite(numberValue) && (!isIntegerRequired || Number.isInteger(numberValue))) {
-					return numberValue;
-				}
-
-				break;
-			}
-
-			case EApiPropertyDescribeType.STRING: {
-				if (typeof value === "string") {
-					return value;
-				}
-
-				break;
-			}
-
-			case EApiPropertyDescribeType.UUID: {
-				if (typeof value === "string" && /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/iu.test(value)) {
-					return value;
-				}
-
-				break;
-			}
-		}
-
-		throw new BadRequestException("INVALID_FILTER");
+	private static parseValue(value: unknown, field: IApiControllerGetListQueryPlanFilterField): unknown {
+		return ApiControllerGetListQueryParseValue(value, field.metadata);
 	}
 }

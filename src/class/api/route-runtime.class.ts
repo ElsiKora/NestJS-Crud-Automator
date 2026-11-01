@@ -438,7 +438,7 @@ export class ApiRouteRuntime {
 					orderDirection?: EFilterOrderDirection;
 					page?: number;
 				} = query;
-				// Converted before the transaction, so a numeric filter value that is not a number sends no SQL.
+				// Built before the transaction, so a value outside the published schema answers 400 before any SQL.
 				const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard);
 				const service: ApiServiceBase<E> = options.controller.service;
 				const getManyFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetManyProperties<E>) => Promise<Array<E>>) | undefined = cursorRuntimeQuery ? ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_MANY, EApiFunctionType.GET_MANY, options.properties.entity) : undefined;

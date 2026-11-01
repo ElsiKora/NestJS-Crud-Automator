@@ -4,10 +4,10 @@ import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { FindOptionsWhere } from "typeorm";
 
-import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperation } from "@enum/filter";
+import { ApiControllerGetListQueryParseValue } from "@utility/api/controller/get-list/query/parse-value.utility";
 import { ApiControllerGetListTransformGetRelationTarget } from "@utility/api/controller/get-list/transform/get-relation-target.utility";
 import { ApiControllerGetListTransformOperation } from "@utility/api/controller/get-list/transform/operation.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
@@ -22,7 +22,7 @@ import { GenerateRelationEntityInformation } from "@utility/generate-relation-en
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
  * @param {Type<CanActivate>} currentGuard - Optional guard used to mirror generated query DTO visibility.
  * @returns {FindOptionsWhere<E>} The TypeORM filter object for the query
- * @throws {Error} A bad request with `INVALID_FILTER` when a numeric filter value is not a number
+ * @throws {Error} A bad request with `INVALID_FILTER` when a number or uuid filter value is outside the published schema
  * @template E - The entity type
  */
 export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>, currentGuard?: Type<CanActivate>): FindOptionsWhere<E> {
@@ -54,7 +54,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 
 				if (!column || !columnMetadata || !DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, key, columnMetadata, column.isPrimary, currentGuard) || columnMetadata.type === EApiPropertyDescribeType.RELATION) continue;
 
-				filterRecord[key] = ApiControllerGetListTransformOperation(operation, isValuelessOperator ? value : parseNumericValue(value, columnMetadata));
+				filterRecord[key] = ApiControllerGetListTransformOperation(operation, parseFilterValue(operation, value, columnMetadata));
 			} else {
 				// eslint-disable-next-line @elsikora/typescript/no-magic-numbers
 				if (path.length !== 2) continue;
@@ -80,7 +80,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 
 				const relationFilter: Record<string, unknown> = (filterRecord[relationName] ?? {}) as Record<string, unknown>;
 
-				relationFilter[nestedPropertyName] = ApiControllerGetListTransformOperation(operation, isValuelessOperator ? value : parseNumericValue(value, nestedColumnMetadata));
+				relationFilter[nestedPropertyName] = ApiControllerGetListTransformOperation(operation, parseFilterValue(operation, value, nestedColumnMetadata));
 
 				filterRecord[relationName] = relationFilter;
 			}
@@ -91,17 +91,18 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 }
 
 /**
- * Converts the value or values of a numeric filter the way a typed filter does, so a raw string never reaches the database.
- * @param {unknown} value - Filter value, or the array of a values filter.
- * @param {TApiPropertyDescribeProperties} metadata - Described property metadata of the filtered column.
- * @returns {unknown} Parsed numbers for a numeric column; any other column keeps its value.
+ * Parses the number and uuid values of a filter group into the values the query binds.
+ * The QUERY DTO reads an empty number as 0, so the route parses the text the request carries before any SQL runs.
+ * A value outside the published schema of the column answers 400 INVALID_FILTER.
+ * @param {EFilterOperation} operation - Filter operation of the group
+ * @param {unknown} value - The `[value]` or `[values]` of the group as the request carries it
+ * @param {TApiPropertyDescribeProperties} metadata - Describe metadata of the filtered column
+ * @returns {unknown} The parsed value, or the value itself for an operation without one and for other column kinds
  */
-function parseNumericValue(value: unknown, metadata: TApiPropertyDescribeProperties): unknown {
-	if (metadata.type !== EApiPropertyDescribeType.NUMBER) {
+function parseFilterValue(operation: EFilterOperation, value: unknown, metadata: TApiPropertyDescribeProperties): unknown {
+	if (operation === EFilterOperation.ISNULL || operation === EFilterOperation.NOTNULL || (metadata.type !== EApiPropertyDescribeType.NUMBER && metadata.type !== EApiPropertyDescribeType.UUID)) {
 		return value;
 	}
 
-	const field: { metadata: TApiPropertyDescribeProperties; type: EApiPropertyDescribeType } = { metadata, type: metadata.type };
-
-	return Array.isArray(value) ? value.map((item: unknown): unknown => ApiControllerGetListQueryRuntime.parseFilterValue(item, field)) : ApiControllerGetListQueryRuntime.parseFilterValue(value, field);
+	return Array.isArray(value) ? value.map((item: unknown): unknown => ApiControllerGetListQueryParseValue(item, metadata)) : ApiControllerGetListQueryParseValue(value, metadata);
 }
