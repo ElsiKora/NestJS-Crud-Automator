@@ -277,43 +277,22 @@ From 5.0.0, every generated name starts with the controller's schema prefix, and
 
 #### Renaming References
 
-This script applies the patterns to files that refer to generated names, such as hand-written `$ref` strings, tests, or code that imports types from a generated client. Pass each controller with its entity, then the files to rewrite in place:
+The package ships a dependency-free script that compares the OpenAPI document of your application before and after the upgrade and prints a JSON map of old component names to new ones. It pairs components by where operations use them, not by how they are named, so it also covers custom routes and any controller name:
 
-```javascript
-// rename-generated-names.mjs
-// node rename-generated-names.mjs UserController=UserEntity OrderController=OrderEntity -- src/client.ts openapi.json
-import { readFileSync, writeFileSync } from "node:fs";
-
-const arguments_ = process.argv.slice(2);
-const separator = arguments_.indexOf("--");
-const pairs = arguments_.slice(0, separator).map((pair) => pair.split("="));
-const files = arguments_.slice(separator + 1);
-const entities = pairs.map(([, entity]) => entity);
-const duplicate = entities.find((entity, index) => entities.indexOf(entity) !== index);
-
-if (separator < 0 || duplicate) {
-	throw new Error(duplicate ? `${duplicate} has several controllers: its old names map to more than one new name, so rename those by hand` : "Usage: node rename-generated-names.mjs <Controller>=<Entity> ... -- <file> ...");
-}
-
-const ROUTE = "(?:Create|Delete|GetList|Get|PartialUpdate|Update)";
-
-for (const file of files) {
-	let content = readFileSync(file, "utf8");
-
-	for (const [controller, entity] of pairs) {
-		const prefix = controller.replace(/Controller$/, "") || controller;
-
-		content = content
-			.replaceAll(new RegExp(`\\b${controller}${entity}(?=Get)`, "g"), prefix)
-			.replaceAll(new RegExp(`\\bE${entity}(?=FilterOrderBy\\b)`, "g"), `E${prefix}`)
-			.replaceAll(new RegExp(`\\b${entity}(?=${ROUTE}(?:Body|Cursor|Parameters|Query|Response)|[A-Z]\\w*FilterOperation\\b)`, "g"), prefix);
-	}
-
-	writeFileSync(file, content);
-}
+```bash
+node node_modules/@elsikora/nestjs-crud-automator/scripts/openapi-rename-map.mjs openapi-4.json openapi-5.json > rename-map.json
 ```
 
-An entity with several controllers had one 4.x component for all of them, so it has no single new name, and the script stops. A custom route's new name needs its handler method name, so rename those references by hand: the script gives them the route type, as in `UserGetParametersDTO`. Afterwards, compare the result with your new OpenAPI document.
+The map holds each old name with exactly one new name. Names that did not change are left out. Stderr has two more sections, and neither is in the map:
+
+- **Ambiguous old names.** Two controllers on one entity shared one 4.x component, such as `BonusCampaignEntityGetResponseDTO`, so that old name has two new ones. The report lists each new name with a route that uses it. Pick the new name per call site.
+- **Old components that no operation pairs with a new component.** A removed route leaves its components here. So do query and parameters DTOs, because Swagger writes them inline in the operation and no `$ref` points to them. Use the [name patterns](#old-and-new-name-patterns) for those.
+
+The script exits with a non-zero code only when it cannot read a document. To apply the map to files, such as hand-written `$ref` strings, tests, or code that imports types from a generated client:
+
+```bash
+node -e 'const fs=require("fs");const map=JSON.parse(fs.readFileSync("rename-map.json","utf8"));const pattern=new RegExp(`\\b(?:${Object.keys(map).join("|")})\\b`,"g");if(Object.keys(map).length)for(const file of process.argv.slice(1))fs.writeFileSync(file,fs.readFileSync(file,"utf8").replace(pattern,(name)=>map[name]));' src/client.ts test/api.test.ts
+```
 
 ## Controlling DTO Generation
 

@@ -27,7 +27,8 @@
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"files": [
-		"dist"
+		"dist",
+		"scripts/openapi-rename-map.mjs"
 	],
 	"scripts": {
 		"branch": "npx @elsikora/git-branch-lint -b",

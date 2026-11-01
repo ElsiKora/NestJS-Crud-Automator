@@ -1,0 +1,251 @@
+{
+	"openapi": "3.0.0",
+	"paths": {
+		"/admin/rename-map-items": {
+			"post": {
+				"description": "Creates a new `E2eRenameMapAdminItem` resource.",
+				"operationId": "E2eRenameMapAdminItemController_create",
+				"parameters": [],
+				"requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/E2eRenameMapItemEntityCreateBodyDTO" } } } },
+				"responses": {
+					"201": { "description": "Success", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/E2eRenameMapItemEntityCreateResponseDTO" } } } },
+					"401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionUnauthorizedDTO" } } } },
+					"409": { "description": "Conflict", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionConflictDTO" } } } },
+					"500": { "description": "Internal Server Error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionInternalServerErrorDTO" } } } }
+				},
+				"summary": "Create `E2eRenameMapAdminItem`",
+				"tags": ["E2eRenameMapAdminItems"]
+			},
+			"get": {
+				"description": "Returns a paginated list of `E2eRenameMapAdminItems` resources.",
+				"operationId": "E2eRenameMapAdminItemController_getList",
+				"parameters": [
+					{ "name": "limit", "required": true, "in": "query", "description": "E2eRenameMapItemEntity Items per page", "schema": { "minimum": 1, "maximum": 100, "multipleOf": 1, "format": "int32", "nullable": false, "example": 1, "type": "integer" } },
+					{ "name": "orderBy", "required": false, "in": "query", "description": "E2eRenameMapItemEntity order by field", "schema": { "nullable": false, "example": "name", "type": "string", "enum": ["name"] } },
+					{ "name": "orderDirection", "required": false, "in": "query", "description": "E2eRenameMapItemEntity order direction", "schema": { "nullable": false, "example": "asc", "type": "string", "enum": ["asc", "desc"] } },
+					{ "name": "page", "required": true, "in": "query", "description": "E2eRenameMapItemEntity Page to return", "schema": { "minimum": 1, "maximum": 100, "multipleOf": 1, "format": "int32", "nullable": false, "example": 1, "type": "integer" } },
+					{ "name": "name", "required": false, "in": "query", "explode": true, "schema": { "oneOf": [{ "additionalProperties": false, "properties": { "operator": { "enum": ["eq"], "type": "string" }, "value": { "type": "string" } }, "required": ["operator", "value"], "type": "object" }] }, "style": "deepObject" }
+				],
+				"responses": {
+					"200": { "description": "Success", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/E2eRenameMapItemEntityGetListResponseItemsDTO" } } } },
+					"401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionUnauthorizedDTO" } } } },
+					"404": { "description": "Not Found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionNotFoundDTO" } } } },
+					"500": { "description": "Internal Server Error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionInternalServerErrorDTO" } } } }
+				},
+				"summary": "List `E2eRenameMapAdminItems`",
+				"tags": ["E2eRenameMapAdminItems"]
+			}
+		},
+		"/admin/rename-map-items/{id}": {
+			"get": {
+				"description": "Returns a single `E2eRenameMapAdminItem` resource by its identifier.",
+				"operationId": "E2eRenameMapAdminItemController_get",
+				"parameters": [{ "name": "id", "required": true, "in": "path", "description": "E2eRenameMapItemEntity id", "schema": { "minLength": 1, "maxLength": 64, "format": "string", "pattern": "^.+$", "nullable": false, "example": "item-1", "type": "string" } }],
+				"responses": {
+					"200": { "description": "Success", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/E2eRenameMapItemEntityGetResponseDTO" } } } },
+					"401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionUnauthorizedDTO" } } } },
+					"404": { "description": "Not Found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionNotFoundDTO" } } } },
+					"500": { "description": "Internal Server Error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionInternalServerErrorDTO" } } } }
+				},
+				"summary": "Get `E2eRenameMapAdminItem`",
+				"tags": ["E2eRenameMapAdminItems"]
+			}
+		},
+		"/public/rename-map-items/{id}": {
+			"get": {
+				"description": "Returns a single `E2eRenameMapPublicItem` resource by its identifier.",
+				"operationId": "E2eRenameMapPublicItemController_get",
+				"parameters": [{ "name": "id", "required": true, "in": "path", "description": "E2eRenameMapItemEntity id", "schema": { "minLength": 1, "maxLength": 64, "format": "string", "pattern": "^.+$", "nullable": false, "example": "item-1", "type": "string" } }],
+				"responses": {
+					"200": { "description": "Success", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/E2eRenameMapItemEntityGetResponseDTO" } } } },
+					"401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionUnauthorizedDTO" } } } },
+					"404": { "description": "Not Found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionNotFoundDTO" } } } },
+					"500": { "description": "Internal Server Error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionInternalServerErrorDTO" } } } }
+				},
+				"summary": "Get `E2eRenameMapPublicItem`",
+				"tags": ["E2eRenameMapPublicItems"]
+			}
+		},
+		"/public/rename-map-items": {
+			"get": {
+				"description": "Returns a paginated list of `E2eRenameMapPublicItems` resources.",
+				"operationId": "E2eRenameMapPublicItemController_getList",
+				"parameters": [
+					{ "name": "limit", "required": true, "in": "query", "description": "E2eRenameMapItemEntity Items per page", "schema": { "minimum": 1, "maximum": 100, "multipleOf": 1, "format": "int32", "nullable": false, "example": 1, "type": "integer" } },
+					{ "name": "orderBy", "required": false, "in": "query", "description": "E2eRenameMapItemEntity order by field", "schema": { "nullable": false, "example": "name", "type": "string", "enum": ["name"] } },
+					{ "name": "orderDirection", "required": false, "in": "query", "description": "E2eRenameMapItemEntity order direction", "schema": { "nullable": false, "example": "asc", "type": "string", "enum": ["asc", "desc"] } },
+					{ "name": "page", "required": true, "in": "query", "description": "E2eRenameMapItemEntity Page to return", "schema": { "minimum": 1, "maximum": 100, "multipleOf": 1, "format": "int32", "nullable": false, "example": 1, "type": "integer" } },
+					{ "name": "name", "required": false, "in": "query", "explode": true, "schema": { "oneOf": [{ "additionalProperties": false, "properties": { "operator": { "enum": ["eq"], "type": "string" }, "value": { "type": "string" } }, "required": ["operator", "value"], "type": "object" }] }, "style": "deepObject" }
+				],
+				"responses": {
+					"200": { "description": "Success", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/E2eRenameMapItemEntityGetListResponseItemsDTO" } } } },
+					"401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionUnauthorizedDTO" } } } },
+					"404": { "description": "Not Found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionNotFoundDTO" } } } },
+					"500": { "description": "Internal Server Error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionInternalServerErrorDTO" } } } }
+				},
+				"summary": "List `E2eRenameMapPublicItems`",
+				"tags": ["E2eRenameMapPublicItems"]
+			}
+		},
+		"/rename-map-records/submit": { "post": { "operationId": "E2eRenameMapRecordController_submit", "parameters": [], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/E2eRenameMapRecordEntityCreateBodyDTO" } } } }, "responses": { "204": { "description": "Success" } }, "summary": "Create resource", "tags": ["E2eRenameMapRecords"] } },
+		"/rename-map-records/{id}": {
+			"get": {
+				"description": "Returns a single `E2eRenameMapRecord` resource by its identifier.",
+				"operationId": "E2eRenameMapRecordController_get",
+				"parameters": [{ "name": "id", "required": true, "in": "path", "description": "E2eRenameMapRecordEntity id", "schema": { "minLength": 1, "maxLength": 64, "format": "string", "pattern": "^.+$", "nullable": false, "example": "record-1", "type": "string" } }],
+				"responses": {
+					"200": { "description": "Success", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/E2eRenameMapRecordEntityGetResponseDTO" } } } },
+					"401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionUnauthorizedDTO" } } } },
+					"404": { "description": "Not Found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionNotFoundDTO" } } } },
+					"500": { "description": "Internal Server Error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExceptionInternalServerErrorDTO" } } } }
+				},
+				"summary": "Get `E2eRenameMapRecord`",
+				"tags": ["E2eRenameMapRecords"]
+			}
+		}
+	},
+	"info": { "title": "", "description": "", "version": "1.0.0", "contact": {} },
+	"tags": [],
+	"servers": [],
+	"components": {
+		"schemas": {
+			"E2eRenameMapItemEntityCreateBodyDTO": {
+				"type": "object",
+				"properties": { "name": { "type": "string", "description": "E2eRenameMapItemEntity name", "nullable": false, "maxLength": 64, "minLength": 1, "example": "Item", "format": "string", "pattern": "^.+$" }, "secret": { "type": "string", "description": "E2eRenameMapItemEntity secret", "nullable": false, "maxLength": 64, "minLength": 1, "example": "Secret", "format": "string", "pattern": "^.+$" } },
+				"required": ["name", "secret"]
+			},
+			"E2eRenameMapItemEntityCreateResponseDTO": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "description": "E2eRenameMapItemEntity id", "nullable": false, "maxLength": 64, "minLength": 1, "example": "item-1", "format": "string", "pattern": "^.+$", "readOnly": true },
+					"name": { "type": "string", "description": "E2eRenameMapItemEntity name", "nullable": false, "maxLength": 64, "minLength": 1, "example": "Item", "format": "string", "pattern": "^.+$", "readOnly": true },
+					"secret": { "type": "string", "description": "E2eRenameMapItemEntity secret", "nullable": false, "maxLength": 64, "minLength": 1, "example": "Secret", "format": "string", "pattern": "^.+$", "readOnly": true }
+				},
+				"required": ["id", "name", "secret"]
+			},
+			"E2eRenameMapItemEntityGetParametersDTO": { "type": "object", "properties": { "id": { "type": "string", "description": "E2eRenameMapItemEntity id", "nullable": false, "maxLength": 64, "minLength": 1, "example": "item-1", "format": "string", "pattern": "^.+$" } }, "required": ["id"] },
+			"E2eRenameMapItemEntityGetResponseDTO": {
+				"type": "object",
+				"properties": { "id": { "type": "string", "description": "E2eRenameMapItemEntity id", "nullable": false, "maxLength": 64, "minLength": 1, "example": "item-1", "format": "string", "pattern": "^.+$", "readOnly": true }, "name": { "type": "string", "description": "E2eRenameMapItemEntity name", "nullable": false, "maxLength": 64, "minLength": 1, "example": "Item", "format": "string", "pattern": "^.+$", "readOnly": true } },
+				"required": ["id", "name"]
+			},
+			"E2eRenameMapAdminItemControllerE2eRenameMapItemEntityGetListQuery31b59af103e0038f712866b929f673fc1b062740d447793e5fc8db83219be0caDTO": {
+				"type": "object",
+				"properties": {
+					"limit": { "type": "integer", "description": "E2eRenameMapItemEntity Items per page", "format": "int32", "nullable": false, "example": 1, "minimum": 1, "maximum": 100, "multipleOf": 1 },
+					"orderBy": { "type": "string", "description": "E2eRenameMapItemEntity order by field", "nullable": false, "example": "name", "enum": ["name"] },
+					"orderDirection": { "type": "string", "description": "E2eRenameMapItemEntity order direction", "nullable": false, "example": "asc", "enum": ["asc", "desc"] },
+					"page": { "type": "integer", "description": "E2eRenameMapItemEntity Page to return", "format": "int32", "nullable": false, "example": 1, "minimum": 1, "maximum": 100, "multipleOf": 1 }
+				},
+				"required": ["limit", "page"]
+			},
+			"E2eRenameMapItemEntityGetListResponseDTO": {
+				"type": "object",
+				"properties": { "id": { "type": "string", "description": "E2eRenameMapItemEntity id", "nullable": false, "maxLength": 64, "minLength": 1, "example": "item-1", "format": "string", "pattern": "^.+$", "readOnly": true }, "name": { "type": "string", "description": "E2eRenameMapItemEntity name", "nullable": false, "maxLength": 64, "minLength": 1, "example": "Item", "format": "string", "pattern": "^.+$", "readOnly": true } },
+				"required": ["id", "name"]
+			},
+			"E2eRenameMapItemEntityGetListResponseItemsDTO": {
+				"type": "object",
+				"properties": {
+					"count": { "type": "integer", "description": "E2eRenameMapItemEntity Total number of items on page", "format": "int32", "nullable": false, "example": 1, "minimum": 1, "maximum": 100, "readOnly": true },
+					"currentPage": { "type": "integer", "description": "E2eRenameMapItemEntity Current page number", "format": "int32", "nullable": false, "example": 1, "minimum": 1, "maximum": 100, "readOnly": true },
+					"items": { "description": "Array of E2eRenameMapItemEntity ", "nullable": false, "minItems": 1, "maxItems": 100, "uniqueItems": true, "readOnly": true, "type": "array", "items": { "$ref": "#/components/schemas/E2eRenameMapItemEntityGetListResponseDTO" } },
+					"totalCount": { "type": "integer", "description": "E2eRenameMapItemEntity Total number of items", "format": "int32", "nullable": false, "example": 1, "minimum": 1, "maximum": 100, "readOnly": true },
+					"totalPages": { "type": "integer", "description": "E2eRenameMapItemEntity Total number of pages", "format": "int32", "nullable": false, "example": 1, "minimum": 1, "maximum": 100, "readOnly": true }
+				},
+				"required": ["count", "currentPage", "items", "totalCount", "totalPages"]
+			},
+			"ExceptionDetailsForeignKeyViolationDTO": {
+				"type": "object",
+				"properties": {
+					"constraint": { "type": "string", "description": "ErrorDetails ", "nullable": false, "maxLength": 128, "minLength": 0, "example": "FK_5bc39ec0540f37ff97f5aba36e1", "format": "string", "pattern": "^[\\s\\S]{0,128}$", "readOnly": true },
+					"detail": { "type": "string", "description": "ErrorDetails ", "nullable": false, "maxLength": 1024, "minLength": 0, "example": "Key (user_id)=(123) is not present in table \"user\".", "format": "string", "pattern": "^[\\s\\S]{0,1024}$", "readOnly": true },
+					"field": { "type": "string", "description": "ErrorDetails ", "nullable": false, "maxLength": 128, "minLength": 0, "example": "user_id", "format": "string", "pattern": "^[\\s\\S]{0,128}$", "readOnly": true },
+					"referencedField": { "type": "string", "description": "ErrorDetails ", "nullable": false, "maxLength": 128, "minLength": 0, "example": "id", "format": "string", "pattern": "^[\\s\\S]{0,128}$", "readOnly": true },
+					"referencedTable": { "type": "string", "description": "ErrorDetails ", "nullable": false, "maxLength": 128, "minLength": 0, "example": "user", "format": "string", "pattern": "^[\\s\\S]{0,128}$", "readOnly": true },
+					"table": { "type": "string", "description": "ErrorDetails ", "nullable": false, "maxLength": 128, "minLength": 0, "example": "user_balance", "format": "string", "pattern": "^[\\s\\S]{0,128}$", "readOnly": true },
+					"type": { "type": "string", "description": "ErrorDetails ", "nullable": false, "example": "FOREIGN_KEY_VIOLATION", "enum": ["FOREIGN_KEY_VIOLATION", "UNIQUE_VIOLATION"], "readOnly": true },
+					"value": { "type": "string", "description": "ErrorDetails ", "nullable": false, "maxLength": 1024, "minLength": 0, "example": "123", "format": "string", "pattern": "^[\\s\\S]{0,1024}$", "readOnly": true }
+				},
+				"required": ["type"]
+			},
+			"ExceptionDetailsUniqueViolationDTO": {
+				"type": "object",
+				"properties": {
+					"constraint": { "type": "string", "description": "ErrorDetails ", "nullable": false, "maxLength": 128, "minLength": 0, "example": "UQ_user_login", "format": "string", "pattern": "^[\\s\\S]{0,128}$", "readOnly": true },
+					"detail": { "type": "string", "description": "ErrorDetails ", "nullable": false, "maxLength": 1024, "minLength": 0, "example": "Key (login)=(jack) already exists.", "format": "string", "pattern": "^[\\s\\S]{0,1024}$", "readOnly": true },
+					"field": { "type": "string", "description": "ErrorDetails ", "nullable": false, "maxLength": 128, "minLength": 0, "example": "login", "format": "string", "pattern": "^[\\s\\S]{0,128}$", "readOnly": true },
+					"table": { "type": "string", "description": "ErrorDetails ", "nullable": false, "maxLength": 128, "minLength": 0, "example": "user", "format": "string", "pattern": "^[\\s\\S]{0,128}$", "readOnly": true },
+					"type": { "type": "string", "description": "ErrorDetails ", "nullable": false, "example": "UNIQUE_VIOLATION", "enum": ["FOREIGN_KEY_VIOLATION", "UNIQUE_VIOLATION"], "readOnly": true },
+					"value": { "type": "string", "description": "ErrorDetails ", "nullable": false, "maxLength": 1024, "minLength": 0, "example": "jack", "format": "string", "pattern": "^[\\s\\S]{0,1024}$", "readOnly": true }
+				},
+				"required": ["type"]
+			},
+			"ExceptionUnauthorizedDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": { "type": "string", "description": "Correlation identifier", "example": "550e8400-e29b-41d4-a716-446655440000", "maxLength": 128, "minLength": 1, "nullable": false, "pattern": "^[A-Za-z0-9_.:-]{1,128}$", "readOnly": true },
+					"details": { "description": "Error details", "nullable": false, "oneOf": [{ "$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO" }, { "$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO" }], "discriminator": { "mapping": { "FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO", "UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO" }, "propertyName": "type" }, "readOnly": true },
+					"error": { "type": "string", "description": "Error name", "example": "Unauthorized", "nullable": false, "readOnly": true },
+					"message": { "description": "Error message", "example": "Error message", "nullable": false, "oneOf": [{ "type": "string" }, { "items": { "type": "string" }, "type": "array" }], "readOnly": true },
+					"statusCode": { "type": "number", "description": "Error status code", "nullable": false, "example": 401, "enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508], "readOnly": true },
+					"timestamp": { "type": "integer", "description": "Error timestamp", "format": "int64", "nullable": false, "example": 1793574327483, "minimum": 0, "maximum": 2147483647000, "readOnly": true }
+				},
+				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+			},
+			"ExceptionConflictDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": { "type": "string", "description": "Correlation identifier", "example": "550e8400-e29b-41d4-a716-446655440000", "maxLength": 128, "minLength": 1, "nullable": false, "pattern": "^[A-Za-z0-9_.:-]{1,128}$", "readOnly": true },
+					"details": { "description": "Error details", "nullable": false, "oneOf": [{ "$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO" }, { "$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO" }], "discriminator": { "mapping": { "FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO", "UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO" }, "propertyName": "type" }, "readOnly": true },
+					"error": { "type": "string", "description": "Error name", "example": "Conflict", "nullable": false, "readOnly": true },
+					"message": { "description": "Error message", "example": "Error message", "nullable": false, "oneOf": [{ "type": "string" }, { "items": { "type": "string" }, "type": "array" }], "readOnly": true },
+					"statusCode": { "type": "number", "description": "Error status code", "nullable": false, "example": 409, "enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508], "readOnly": true },
+					"timestamp": { "type": "integer", "description": "Error timestamp", "format": "int64", "nullable": false, "example": 1793574327484, "minimum": 0, "maximum": 2147483647000, "readOnly": true }
+				},
+				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+			},
+			"ExceptionInternalServerErrorDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": { "type": "string", "description": "Correlation identifier", "example": "550e8400-e29b-41d4-a716-446655440000", "maxLength": 128, "minLength": 1, "nullable": false, "pattern": "^[A-Za-z0-9_.:-]{1,128}$", "readOnly": true },
+					"details": { "description": "Error details", "nullable": false, "oneOf": [{ "$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO" }, { "$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO" }], "discriminator": { "mapping": { "FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO", "UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO" }, "propertyName": "type" }, "readOnly": true },
+					"error": { "type": "string", "description": "Error name", "example": "Internal Server Error", "nullable": false, "readOnly": true },
+					"message": { "description": "Error message", "example": "Error message", "nullable": false, "oneOf": [{ "type": "string" }, { "items": { "type": "string" }, "type": "array" }], "readOnly": true },
+					"statusCode": { "type": "number", "description": "Error status code", "nullable": false, "example": 500, "enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508], "readOnly": true },
+					"timestamp": { "type": "integer", "description": "Error timestamp", "format": "int64", "nullable": false, "example": 1793574327484, "minimum": 0, "maximum": 2147483647000, "readOnly": true }
+				},
+				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+			},
+			"ExceptionNotFoundDTO": {
+				"type": "object",
+				"properties": {
+					"correlationID": { "type": "string", "description": "Correlation identifier", "example": "550e8400-e29b-41d4-a716-446655440000", "maxLength": 128, "minLength": 1, "nullable": false, "pattern": "^[A-Za-z0-9_.:-]{1,128}$", "readOnly": true },
+					"details": { "description": "Error details", "nullable": false, "oneOf": [{ "$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO" }, { "$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO" }], "discriminator": { "mapping": { "FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO", "UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO" }, "propertyName": "type" }, "readOnly": true },
+					"error": { "type": "string", "description": "Error name", "example": "Not Found", "nullable": false, "readOnly": true },
+					"message": { "description": "Error message", "example": "Error message", "nullable": false, "oneOf": [{ "type": "string" }, { "items": { "type": "string" }, "type": "array" }], "readOnly": true },
+					"statusCode": { "type": "number", "description": "Error status code", "nullable": false, "example": 404, "enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508], "readOnly": true },
+					"timestamp": { "type": "integer", "description": "Error timestamp", "format": "int64", "nullable": false, "example": 1793574327486, "minimum": 0, "maximum": 2147483647000, "readOnly": true }
+				},
+				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+			},
+			"E2eRenameMapPublicItemControllerE2eRenameMapItemEntityGetListQuery31b59af103e0038f712866b929f673fc1b062740d447793e5fc8db83219be0caDTO": {
+				"type": "object",
+				"properties": {
+					"limit": { "type": "integer", "description": "E2eRenameMapItemEntity Items per page", "format": "int32", "nullable": false, "example": 1, "minimum": 1, "maximum": 100, "multipleOf": 1 },
+					"orderBy": { "type": "string", "description": "E2eRenameMapItemEntity order by field", "nullable": false, "example": "name", "enum": ["name"] },
+					"orderDirection": { "type": "string", "description": "E2eRenameMapItemEntity order direction", "nullable": false, "example": "asc", "enum": ["asc", "desc"] },
+					"page": { "type": "integer", "description": "E2eRenameMapItemEntity Page to return", "format": "int32", "nullable": false, "example": 1, "minimum": 1, "maximum": 100, "multipleOf": 1 }
+				},
+				"required": ["limit", "page"]
+			},
+			"E2eRenameMapRecordEntityGetParametersDTO": { "type": "object", "properties": { "id": { "type": "string", "description": "E2eRenameMapRecordEntity id", "nullable": false, "maxLength": 64, "minLength": 1, "example": "record-1", "format": "string", "pattern": "^.+$" } }, "required": ["id"] },
+			"E2eRenameMapRecordEntityGetResponseDTO": {
+				"type": "object",
+				"properties": { "id": { "type": "string", "description": "E2eRenameMapRecordEntity id", "nullable": false, "maxLength": 64, "minLength": 1, "example": "record-1", "format": "string", "pattern": "^.+$", "readOnly": true }, "title": { "type": "string", "description": "E2eRenameMapRecordEntity title", "nullable": false, "maxLength": 64, "minLength": 1, "example": "Record", "format": "string", "pattern": "^.+$", "readOnly": true } },
+				"required": ["id", "title"]
+			},
+			"E2eRenameMapRecordEntityCreateBodyDTO": { "type": "object", "properties": { "title": { "type": "string", "description": "E2eRenameMapRecordEntity title", "nullable": false, "maxLength": 64, "minLength": 1, "example": "Record", "format": "string", "pattern": "^.+$" } }, "required": ["title"] }
+		}
+	}
+}
