@@ -47,7 +47,7 @@ Before 5.0.0, these routes relied on a host `ValidationPipe`. Without one, an un
 
 Those hosts also accepted `orderBy` on any entity column, including one with `useAsOrderByFilter: false` or without `@ApiPropertyDescribe`. A client could sort by that column and infer its hidden values from the row order. If your API ran without a pipe that validates query parameters, treat such columns as exposed through ordering until you upgrade.
 
-With or without a pipe, the `orderBy` enum of every GET_LIST route, typed plans included, also listed columns disabled as list query fields (`[EApiDtoType.QUERY]: { isEnabled: false }`) and columns whose values the list response hides (`[EApiDtoType.RESPONSE]: { isEnabled: false }`, `{ isExpose: false, isResponse: true }`, or a response guard the route's guard does not match). From 5.0.0 those columns leave the enum: ordering by them returns `400` on legacy routes and `INVALID_ORDER` on typed routes, and a typed `order.fields` entry naming one fails at startup. The same applies to columns a manual list response DTO leaves out of its published item schema; on a legacy route its orderBy enum component is named after that DTO, `<ResponseDto>OrderBy`.
+With or without a pipe, the `orderBy` enum of every GET_LIST route, typed plans included, also listed columns disabled as list query fields (`[EApiDtoType.QUERY]: { isEnabled: false }`) and columns whose values the list response hides (`[EApiDtoType.RESPONSE]: { isEnabled: false }`, `{ isExpose: false, isResponse: true }`, or a response guard the route's guard does not match). From 5.0.0 those columns leave the enum: ordering by them returns `400` on legacy routes, and on typed routes `400` with `INVALID_ORDER` without a host `ValidationPipe` or with the pipe's enum message (`orderBy must be one of the following values: ...`) when a host pipe runs first, and a typed `order.fields` entry naming one fails at startup. The same applies to columns a manual list response DTO leaves out of its published item schema; on a legacy route its orderBy enum component is named after that DTO, `<ResponseDto>OrderBy`.
 
 From 5.0.0, the rules above apply on every such route. Change these requests if your clients send them:
 
@@ -58,6 +58,8 @@ From 5.0.0, the rules above apply on every such route. Change these requests if 
 An `in` or `notin` filter with one item, such as `status[operator]=in&status[values]=active`, now filters by that one value on every route, as typed plans already did. A host `ValidationPipe` used to reject it with `400`, and a single numeric item without a pipe used to return `500`.
 
 - `isnull` or `notnull` with a value: remove the value. `isnull` or `notnull` without a value used to be ignored and now filters, so those requests return fewer rows.
+
+The route validates the raw request query, not the value a host pipe returns. A custom pipe that rewrites the query, for example one that lowercases `orderDirection=ASC`, no longer rescues such a request: the route still answers `400`. Fix the client, or rewrite the query in a route-before subscriber, whose result the route validates.
 
 With a transforming host pipe, a date filter used to fail on PostgreSQL and return no rows on SQLite. It now behaves the same with or without a pipe. A route-before subscriber now always sees the raw query on these routes, not the instance a transforming pipe produced.
 
@@ -136,6 +138,9 @@ Typed-query failures use stable `400` codes:
 - `FILTER_REQUIRED` — a field configured with `missingBehavior: REJECT` is absent.
 - `INVALID_FILTER` — a filter path, operator, operand, value, or cardinality violates the compiled plan.
 - `INVALID_ORDER` — `orderBy` or `orderDirection` violates the compiled plan.
+
+A host `ValidationPipe` validates the same generated query DTO before the route runs, so with one the client gets the pipe's `400` body for a value outside the DTO, such as `orderBy must be one of the following values: ...`, instead of these codes. Both are `400` before any SQL.
+
 - `INVALID_LIMIT` / `INVALID_PAGE` — PAGE input is missing, non-integer, or outside the generated bounds.
 - `INVALID_CURSOR` — CURSOR direction/token input is malformed, conflicting, non-canonical, or belongs to another route/path/filter/order context.
 
