@@ -1242,14 +1242,8 @@ describe("CRUD routes (E2E)", () => {
 			url: `/items?limit=10&page=1&owner[operator]=eq&owner[value]=${E2E_OWNER_ID_OTHER}`,
 		});
 
-		expect(legacyRelationResponse.statusCode).toBe(200);
-		expect(
-			legacyRelationResponse
-				.json()
-				.items.map((item: { id: string }) => item.id)
-				.sort(),
-		).toEqual(["filter-1", "filter-2", "filter-3", "filter-other-owner"]);
-		expect(legacyRelationResponse.json().totalCount).toBe(4);
+		expect(legacyRelationResponse.statusCode).toBe(400);
+		expect(legacyRelationResponse.json().message).toEqual(["property owner[operator] should not exist", "property owner[value] should not exist"]);
 
 		const invalidRelationResponse = await fastify.inject({
 			headers: unscopedAdminHeaders,
@@ -1257,14 +1251,8 @@ describe("CRUD routes (E2E)", () => {
 			url: "/items?limit=10&page=1&owner.missing[operator]=eq&owner.missing[value]=Owner",
 		});
 
-		expect(invalidRelationResponse.statusCode).toBe(200);
-		expect(
-			invalidRelationResponse
-				.json()
-				.items.map((item: { id: string }) => item.id)
-				.sort(),
-		).toEqual(["filter-1", "filter-2", "filter-3", "filter-other-owner"]);
-		expect(invalidRelationResponse.json().totalCount).toBe(4);
+		expect(invalidRelationResponse.statusCode).toBe(400);
+		expect(invalidRelationResponse.json().message).toEqual(["property owner.missing[operator] should not exist", "property owner.missing[value] should not exist"]);
 
 		const deeperRelationResponse = await fastify.inject({
 			headers: unscopedAdminHeaders,
@@ -1272,14 +1260,8 @@ describe("CRUD routes (E2E)", () => {
 			url: "/items?limit=10&page=1&owner.name..deep[operator]=eq&owner.name..deep[value]=Owner",
 		});
 
-		expect(deeperRelationResponse.statusCode).toBe(200);
-		expect(
-			deeperRelationResponse
-				.json()
-				.items.map((item: { id: string }) => item.id)
-				.sort(),
-		).toEqual(["filter-1", "filter-2", "filter-3", "filter-other-owner"]);
-		expect(deeperRelationResponse.json().totalCount).toBe(4);
+		expect(deeperRelationResponse.statusCode).toBe(400);
+		expect(deeperRelationResponse.json().message).toEqual(["property owner.name..deep[operator] should not exist", "property owner.name..deep[value] should not exist"]);
 	});
 
 	it("returns conflict for duplicate unique fields", async () => {

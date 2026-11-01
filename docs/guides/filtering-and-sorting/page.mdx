@@ -27,6 +27,7 @@ A PAGE route without a typed `filter` validates its own QUERY DTO, generated or 
 | Filter operator not allowed for the column type, or an invalid `[value]` or `[values]` item                                      | `400`  |
 | Filter group with a value but no operator, or an operator other than `isnull` or `notnull` with no value                         | `400`  |
 | A `between` filter without exactly two `[values]` items, or an `in` or `notin` filter with more than 100                         | `400`  |
+| A `<field>[operator]`, `<field>[value]` or `<field>[values]` key for a field the DTO does not publish                            | `400`  |
 
 The body is the one a default `ValidationPipe` returns:
 
@@ -40,7 +41,17 @@ The body is the one a default `ValidationPipe` returns:
 
 `isnull` and `notnull` take no value: `age[operator]=isnull` applies the filter, and adding `age[value]` returns `400`.
 
-Query keys the DTO does not describe, such as `utm_source=x` or `unknownField[operator]=eq&unknownField[value]=x`, are ignored as a default `ValidationPipe` ignores them. Use a typed plan to reject unknown filters.
+A filter group key the DTO does not publish returns `400` with one `property <key> should not exist` message per key, before the other messages, as a `ValidationPipe` with `forbidNonWhitelisted` words it. This covers a misspelled field such as `nmae[value]=x`, the root primary key (`id[...]`, see [UUID Operations](#uuid-operations)), a relation itself such as `author[...]`, an unknown relation field such as `author.nope[...]`, and a column hidden from the QUERY DTO. A manual QUERY DTO publishes only the properties it declares, with validators or as class fields, so it accepts only the filter groups it declares. A client that misspells a filter gets `400` instead of the unfiltered list:
+
+```json
+{
+	"error": "Bad Request",
+	"message": ["property nmae[operator] should not exist", "property nmae[value] should not exist"],
+	"statusCode": 400
+}
+```
+
+Other keys the DTO does not describe, such as `utm_source=x` or `name[foo]=x`, are ignored as a default `ValidationPipe` ignores them. A route with a typed filter rejects every key outside its plan, these included, with `400 FILTER_NOT_VALID`.
 
 ### Migration Notes
 
@@ -62,6 +73,8 @@ An `in` or `notin` filter with one item, such as `status[operator]=in&status[val
 
 - An empty, blank or malformed number or uuid filter value, such as `rank[operator]=eq&rank[value]=`: send a number or a uuid. It now answers `400 FILTER_NOT_VALID` before any SQL; it used to return `500` on PostgreSQL and match nothing on SQLite. A value such as `1e2` or `1.0` now filters by the number it parses to, as typed filters do, and no longer returns `500` on PostgreSQL.
 - `isnull` or `notnull` with a value: remove the value. `isnull` or `notnull` without a value used to be ignored and now filters, so those requests return fewer rows.
+- A filter group for a field the DTO does not publish, such as a misspelled field or `id[...]`: correct or remove it. The route used to ignore the group and return the unfiltered list, with or without a host pipe. To filter by the primary key, add a typed `filter` to the route.
+- A filter on an entity column that a manual QUERY DTO does not declare: declare the `[operator]` and `[value]` or `[values]` properties on the DTO. The route used to apply it from entity metadata.
 
 The route validates the raw request query, not the value a host pipe returns. A custom pipe that rewrites the query, for example one that lowercases `orderDirection=ASC`, no longer rescues such a request: the route still answers `400`. Fix the client, or rewrite the query in a route-before subscriber, whose result the route validates.
 
@@ -389,27 +402,29 @@ A numeric enum publishes its members as numbers, so send a member as its number:
 
 ### UUID Operations
 
-Operations for UUID properties:
+Operations for UUID properties, here a nullable `managerId` column:
 
 ```typescript
 // Equals
-GET /users?id[operator]=eq&id[value]=550e8400-e29b-41d4-a716-446655440000
+GET /users?managerId[operator]=eq&managerId[value]=550e8400-e29b-41d4-a716-446655440000
 
 // Not equals
-GET /users?id[operator]=ne&id[value]=550e8400-e29b-41d4-a716-446655440000
+GET /users?managerId[operator]=ne&managerId[value]=550e8400-e29b-41d4-a716-446655440000
 
 // In array (every value must be a UUID)
-GET /users?id[operator]=in&id[values]=550e8400-e29b-41d4-a716-446655440000&id[values]=6ba7b810-9dad-11d1-80b4-00c04fd430c8
+GET /users?managerId[operator]=in&managerId[values]=550e8400-e29b-41d4-a716-446655440000&managerId[values]=6ba7b810-9dad-11d1-80b4-00c04fd430c8
 
 // Not in array
-GET /users?id[operator]=notin&id[values]=550e8400-e29b-41d4-a716-446655440000
+GET /users?managerId[operator]=notin&managerId[values]=550e8400-e29b-41d4-a716-446655440000
 
 // Is null
-GET /users?id[operator]=isnull
+GET /users?managerId[operator]=isnull
 
 // Is not null
-GET /users?id[operator]=notnull
+GET /users?managerId[operator]=notnull
 ```
+
+The root primary key, such as `id`, is a filter only on a route with a typed `filter`, which takes it from metadata like any other described column. A route without a typed filter does not publish `id[...]` in its QUERY DTO and answers it with `400`. A related entity's key, such as `author.id[...]`, is a filter on both.
 
 ## Relation Filters
 
