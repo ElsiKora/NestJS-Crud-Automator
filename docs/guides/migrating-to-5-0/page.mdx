@@ -82,7 +82,7 @@ With TypeScript 6, set `paths` without `baseUrl` (otherwise TS5101). An applicat
 
 ## Query Criteria That Would Widen A Query
 
-A generated `get`, `getList`, `getMany` or `update` call fails with `InternalServerErrorException` when its `where` has an `undefined` or `null` value, an empty relation object, an empty OR array or an empty OR branch. Before 5.0.0, TypeORM 0.3 dropped those conditions, so `get({ where: { id: undefined } })` returned the first row.
+A generated `get`, `getList`, `getMany`, `update` or `delete` call fails with `InternalServerErrorException` when its `where` has an `undefined` or `null` value, an empty relation object, an empty OR array or an empty OR branch. Before 5.0.0, TypeORM 0.3 dropped those conditions, so `get({ where: { id: undefined } })` returned the first row.
 
 Remove a condition instead of setting it to `undefined`, and use `IsNull()` instead of `null`. See [Services: Migration Notes](/docs/nestjs-crud-automator/core-concepts/services#migration-notes).
 
