@@ -21,6 +21,26 @@ import { ErrorException } from "@utility/error/exception.utility";
 export class ApiControllerGeneratedReadScopeStorage {
 	private static readonly STORAGE: AsyncLocalStorage<IApiControllerGeneratedReadScopeEntry> = new NodeAsyncLocalStorage<IApiControllerGeneratedReadScopeEntry>();
 
+	/**
+	 * Reports the row a generated create function stored, before its subscribers can replace or change the result.
+	 * @param {object} input - Create function input.
+	 * @param {object} entity - Result of the repository save.
+	 */
+	public static captureCreatedEntity(input: object, entity: object): void {
+		const entry: IApiControllerGeneratedReadScopeEntry | undefined = this.STORAGE.getStore();
+
+		if (!entry?.captureCreatedEntity || entry.functionType !== EApiFunctionType.CREATE || entry.input !== input || !entry.isClaimed) {
+			return;
+		}
+
+		if (entry.isCreatedEntityCaptured) {
+			throw ErrorException("Generated create must capture its stored row exactly once");
+		}
+
+		entry.isCreatedEntityCaptured = true;
+		entry.captureCreatedEntity(entity);
+	}
+
 	public static captureWriteHydrationReadProperties<T extends object>(input: object, properties: T): T {
 		const entry: IApiControllerGeneratedReadScopeEntry | undefined = this.STORAGE.getStore();
 
@@ -128,6 +148,30 @@ export class ApiControllerGeneratedReadScopeStorage {
 		return this.runWithEntry(functionType, input, where, callback, false);
 	}
 
+	/**
+	 * Runs one generated create call and returns what the capture callback derived from the row it stored.
+	 * @template E The entity type
+	 * @template T The captured value type
+	 * @param {object} input - Create function input.
+	 * @param {TApiAuthorizationScopeWhere<E>} where - Authorization scope of the write.
+	 * @param {() => Promise<unknown>} callback - Calls the protected create function.
+	 * @param {(entity: object) => T} captureCreatedEntity - Derives the captured value from the stored row.
+	 * @returns {Promise<T>} The captured value.
+	 */
+	public static async runCreate<E extends IApiBaseEntity, T>(input: object, where: TApiAuthorizationScopeWhere<E>, callback: () => Promise<unknown>, captureCreatedEntity: (entity: object) => T): Promise<T> {
+		let captured: { value: T } | undefined;
+
+		await this.runWithEntry(EApiFunctionType.CREATE, input, where, callback, false, undefined, (entity: object): void => {
+			captured = { value: captureCreatedEntity(entity) };
+		});
+
+		if (!captured) {
+			throw ErrorException("Generated create did not capture its stored row");
+		}
+
+		return captured.value;
+	}
+
 	public static runWriteHydration<E extends IApiBaseEntity, R>(input: object, where: TApiAuthorizationScopeWhere<E>, callback: () => Promise<R>, captureReadProperties?: (properties: TApiFunctionGetProperties<E>) => void): Promise<R> {
 		return this.runWithEntry(
 			EApiFunctionType.GET,
@@ -143,14 +187,16 @@ export class ApiControllerGeneratedReadScopeStorage {
 		);
 	}
 
-	private static runWithEntry<E extends IApiBaseEntity, R>(functionType: TApiControllerGeneratedScopeFunctionType, input: object, where: TApiAuthorizationScopeWhere<E>, callback: () => Promise<R>, isWriteHydration: boolean, captureWriteHydrationReadProperties?: (properties: object) => void): Promise<R> {
+	private static runWithEntry<E extends IApiBaseEntity, R>(functionType: TApiControllerGeneratedScopeFunctionType, input: object, where: TApiAuthorizationScopeWhere<E>, callback: () => Promise<R>, isWriteHydration: boolean, captureWriteHydrationReadProperties?: (properties: object) => void, captureCreatedEntity?: (entity: object) => void): Promise<R> {
 		const normalizedWhere: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(undefined, ApiControllerGeneratedSecuritySnapshot.detach(where));
 
 		const entry: IApiControllerGeneratedReadScopeEntry = {
+			captureCreatedEntity,
 			captureWriteHydrationReadProperties,
 			functionType,
 			input,
 			isClaimed: false,
+			isCreatedEntityCaptured: false,
 			isReadMissed: false,
 			isWriteHydration,
 			isWriteHydrationReadCaptured: false,

@@ -3,10 +3,12 @@ import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/
 import type { TApiControllerGeneratedScopeFunctionType } from "@type/class/api/controller/generated/scope-function-type.type";
 
 export interface IApiControllerGeneratedReadScopeEntry {
+	captureCreatedEntity?: (entity: object) => void;
 	captureWriteHydrationReadProperties?: (properties: object) => void;
 	functionType: TApiControllerGeneratedScopeFunctionType;
 	input: object;
 	isClaimed: boolean;
+	isCreatedEntityCaptured: boolean;
 	isReadMissed: boolean;
 	isWriteHydration: boolean;
 	isWriteHydrationReadCaptured: boolean;

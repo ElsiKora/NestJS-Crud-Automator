@@ -29,9 +29,9 @@ import type { TApiControllerTransformDataTargets } from "@type/utility/api/contr
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
-import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsOrder, FindOptionsWhere, ObjectLiteral, RelationMetadata, Repository } from "typeorm";
+import type { DeepPartial, EntityManager, EntityMetadata, EntityTarget, FindOptionsOrder, FindOptionsWhere, ObjectLiteral, RelationMetadata, Repository } from "typeorm";
 
-import { ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
+import { ApiControllerGeneratedCreateIdentityContract, ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiControllerGetListCursorDataSourceContract } from "@class/api/controller/get-list/cursor/data-source-contract.class";
 import { ApiControllerGetListCursorRuntime } from "@class/api/controller/get-list/cursor/runtime.class";
@@ -350,16 +350,27 @@ export class ApiRouteRuntime {
 				return await this.executeGeneratedTransaction(
 					options,
 					routeConfig,
-					async (): Promise<E> => {
+					async (eventManager: EntityManager | undefined): Promise<E> => {
 						await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {});
 						const primaryColumns: Array<IApiEntityColumn<E>> = this.resolvePrimaryColumns(options.entityMetadata);
 						markAfterBoundary();
-						const createResponse: E = await Reflect.apply(createFunction, service, [targets.body ?? {}]);
+						const createProperties: never = (targets.body ?? {}) as never;
+
+						// A scoped verdict checks the row the protected function stored, not a result its subscribers may replace.
+						const createdKey: Partial<Record<keyof E, unknown>> = createFunction
+							? await ApiControllerGeneratedReadScopeStorage.runCreate(
+									createProperties,
+									scopeWhere,
+									async (): Promise<E> => await Reflect.apply(createFunction, service, [createProperties]),
+									(entity: object): Partial<Record<keyof E, unknown>> => ApiControllerGeneratedCreateIdentityContract.capture(entity, primaryColumns),
+								)
+							: ApiControllerGeneratedCreateIdentityContract.capture(await service.create(createProperties), primaryColumns);
+						const identity: FindOptionsWhere<E> = await ApiControllerGeneratedCreateIdentityContract.identify(eventManager ? eventManager.getRepository<E>(options.properties.entity as EntityTarget<E>) : (service as { repository?: Repository<E> } & ApiServiceBase<E>).repository, createdKey);
 
 						const requestProperties: TApiFunctionGetProperties<E> = {
 							relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
 							relations: routeConfig.relations?.response?.load?.include,
-							where: AuthorizationScopeMergeWhere(this.resolveCreatedIdentity(createResponse, primaryColumns), scopeWhere),
+							where: AuthorizationScopeMergeWhere(identity, scopeWhere),
 						};
 
 						return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => {
@@ -771,29 +782,6 @@ export class ApiRouteRuntime {
 				id: responseId,
 			} as unknown as FindOptionsWhere<E>,
 		});
-	}
-
-	/**
-	 * Builds the identity of a created row from every primary column, so a composite key never matches a sibling row.
-	 * @template E The entity type
-	 * @param {E} createResponse - Result of the generated create function.
-	 * @param {Array<IApiEntityColumn<E>>} primaryColumns - Primary columns of the entity.
-	 * @returns {FindOptionsWhere<E>} Criteria that match only the created row.
-	 */
-	private static resolveCreatedIdentity<E extends IApiBaseEntity>(createResponse: E, primaryColumns: Array<IApiEntityColumn<E>>): FindOptionsWhere<E> {
-		const identity: Partial<Record<keyof E, unknown>> = {};
-
-		for (const column of primaryColumns) {
-			const value: unknown = createResponse[column.name];
-
-			if (value === undefined || value === null) {
-				throw ErrorException("Generated create result must hold every primary key column");
-			}
-
-			identity[column.name] = value;
-		}
-
-		return identity as FindOptionsWhere<E>;
 	}
 
 	/**
