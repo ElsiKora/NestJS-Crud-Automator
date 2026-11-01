@@ -280,7 +280,11 @@ export class ApiFunctionKeyPageLoader {
 		const columnType: string = driver.normalizeType(column);
 		const driverType: string = driver.options.type;
 
-		if (!DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType) || !DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(driverType) || !this.hasDate(condition)) {
+		const isInstantText: boolean = DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType) && DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(driverType) && this.hasDate(condition);
+		// TypeORM hands the transformer the operators of a composed condition, so a transformed temporal column binds those itself.
+		const isComposedTransform: boolean = column.transformer !== undefined && this.isTemporalType(columnType) && this.isComposed(condition);
+
+		if (!isInstantText && !isComposedTransform) {
 			return condition;
 		}
 
@@ -449,6 +453,22 @@ export class ApiFunctionKeyPageLoader {
 	}
 
 	/**
+	 * Tells whether a condition is an operator over a list of operators, such as `And`, also under `Not`.
+	 * @param {unknown} condition - Condition of one column
+	 * @returns {boolean} Whether TypeORM would hand the column transformer an operator
+	 */
+	private static isComposed(condition: unknown): boolean {
+		if (!InstanceChecker.isFindOperator(condition)) {
+			return false;
+		}
+
+		const operator: FindOperator<unknown> = condition as FindOperator<unknown>;
+
+		// TypeORM transforms through Not itself, so only an operator list, also under Not, hands the transformer an operator.
+		return operator.child === undefined ? Array.isArray(operator.value) && operator.value.some((item: unknown): boolean => InstanceChecker.isFindOperator(item)) : this.isComposed(operator.child);
+	}
+
+	/**
 	 * Tells whether the repository reads through the PostgreSQL driver.
 	 * @template E The entity type
 	 * @param {Repository<E>} repository - Repository of the read
@@ -486,8 +506,10 @@ export class ApiFunctionKeyPageLoader {
 	 * @returns {boolean} Whether the column is a PostgreSQL date or timestamp
 	 */
 	private static isTemporalColumn<E extends ObjectLiteral>(repository: Repository<E>, column: TTypeOrmColumnMetadata): boolean {
-		const columnType: string = repository.manager.dataSource.driver.normalizeType(column);
+		return this.isTemporalType(repository.manager.dataSource.driver.normalizeType(column));
+	}
 
+	private static isTemporalType(columnType: string): boolean {
 		return DATABASE_COLUMN_TYPE_CONSTANT.DATE.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.DATE_TIME.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType);
 	}
 

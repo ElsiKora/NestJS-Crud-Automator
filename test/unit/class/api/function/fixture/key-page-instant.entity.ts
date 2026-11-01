@@ -30,8 +30,14 @@ export class KeyPageInstantEntity {
 	@ManyToOne(() => KeyPageLedgerEntity, { createForeignKeyConstraints: false })
 	public ledger!: Relation<KeyPageLedgerEntity>;
 
+	@Column({ transformer: { from: (value: unknown): unknown => value, to: (value: unknown): unknown => value }, type: "int" })
+	public count!: number;
+
 	@Column({ precision: 3, type: "timestamp" })
 	public localAt!: Date;
+
+	@Column({ precision: 3, transformer: { from: (value: unknown): unknown => value, to: shiftInstant }, type: "timestamp" })
+	public localTransformedAt!: Date;
 
 	@Column({
 		precision: 3,

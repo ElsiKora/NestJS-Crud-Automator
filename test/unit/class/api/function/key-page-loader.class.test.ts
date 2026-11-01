@@ -449,6 +449,31 @@ describe("ApiFunctionKeyPageLoader", () => {
 			expect(find.mock.calls[0]?.[0]).toBe(options);
 		});
 
+		it("hands the transformer of a timestamp column each Date of a composed condition once and keeps the Dates", async () => {
+			const where: unknown = AuthorizationScopeMergeWhere({ localTransformedAt: MoreThanOrEqual(INSTANT) } as never, { localTransformedAt: LessThan(LATER) } as never);
+
+			expect(await bindParameters(where)).toEqual([new Date("1800-06-01T12:00:01.000Z"), new Date("1800-06-01T12:00:06.000Z")]);
+			expect(KEY_PAGE_INSTANT_INPUTS).toEqual([INSTANT, LATER]);
+		});
+
+		it("binds a composed condition under Not on a transformed timestamp column", async () => {
+			expect(await bindParameters({ localTransformedAt: Not(And(MoreThanOrEqual(INSTANT), LessThan(LATER))) })).toEqual([new Date("1800-06-01T12:00:01.000Z"), new Date("1800-06-01T12:00:06.000Z")]);
+			expect(KEY_PAGE_INSTANT_INPUTS).toEqual([INSTANT, LATER]);
+		});
+
+		it.each([
+			["Not of one operator on a transformed timestamp column", { localTransformedAt: Not(MoreThan(INSTANT)) }],
+			["And on a timestamp column without a transformer", { localAt: And(MoreThanOrEqual(INSTANT), LessThan(LATER)) }],
+			["And on a transformed integer column", { count: And(MoreThanOrEqual(1), LessThan(5)) }],
+		])("leaves %s to TypeORM", async (_label, where) => {
+			const find = vi.spyOn(instants, "find");
+			const options = { where: where as never };
+
+			await ApiFunctionKeyPageLoader.findMany(instants, options);
+
+			expect(find.mock.calls[0]?.[0]).toBe(options);
+		});
+
 		it("hands the transformer no operand of an operator that binds none", async () => {
 			expect(await bindParameters({ transformedAt: And(MoreThanOrEqual(INSTANT), Not(IsNull())) })).toEqual(["1800-06-01T12:00:01.000Z"]);
 			expect(KEY_PAGE_INSTANT_INPUTS).toEqual([INSTANT]);
@@ -458,6 +483,32 @@ describe("ApiFunctionKeyPageLoader", () => {
 			await bindParameters({ taggedAt: Equal([INSTANT] as never) });
 
 			expect(KEY_PAGE_INSTANT_INPUTS).toEqual([[INSTANT]]);
+		});
+
+		it("leaves a single operator on a transformed timestamp column to TypeORM", async () => {
+			const find = vi.spyOn(instants, "find");
+			const options = { where: { localTransformedAt: MoreThan(INSTANT) } };
+
+			await ApiFunctionKeyPageLoader.findMany(instants, options);
+
+			expect(find.mock.calls[0]?.[0]).toBe(options);
+			expect(entityQueries[0]?.parameters).toEqual([new Date("1800-06-01T12:00:01.000Z")]);
+		});
+
+		it("binds a composed condition on a transformed instant column as transformed Dates on other drivers", async () => {
+			const oracle: DataSource = await createDataSource();
+
+			(oracle.driver.options as { type: string }).type = "oracle";
+
+			const oracleInstants: Repository<KeyPageInstantEntity> = oracle.getRepository(KeyPageInstantEntity);
+			const find = vi.spyOn(oracleInstants, "find").mockResolvedValue([]);
+
+			await ApiFunctionKeyPageLoader.findMany(oracleInstants, { where: { transformedAt: And(MoreThanOrEqual(INSTANT), LessThan(LATER)) } });
+
+			const bound = (find.mock.calls[0]?.[0] as unknown as { where: { transformedAt: { value: Array<{ value: unknown }> } } }).where.transformedAt;
+
+			expect(bound.value.map((operator: { value: unknown }): unknown => operator.value)).toEqual([new Date("1800-06-01T12:00:01.000Z"), new Date("1800-06-01T12:00:06.000Z")]);
+			expect(KEY_PAGE_INSTANT_INPUTS).toEqual([INSTANT, LATER]);
 		});
 
 		it("binds what a transformer returns for a Date when it is not a Date", async () => {

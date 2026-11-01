@@ -16,9 +16,9 @@ import { TestAuthGuard } from "./app/auth-guard";
 import { e2eHookPermissionSource } from "./app/hook-permission-source";
 import { e2eAuthorizationPrincipalResolver } from "./app/principal-resolver";
 import { E2eValidationPipe } from "./app/validation-pipe";
-import { E2E_TEMPORAL_STAMP_SCOPE_LIMIT, E2eTemporalStampController, E2eTemporalStampEntity, E2eTemporalStampPolicy, E2eTemporalStampService } from "./temporal-scope-filter";
+import { E2E_TEMPORAL_STAMP_LOCAL_SCOPE_LIMIT, E2E_TEMPORAL_STAMP_SCOPE_LIMIT, E2eTemporalStampController, E2eTemporalStampEntity, E2eTemporalStampPolicy, E2eTemporalStampService } from "./temporal-scope-filter";
 
-type TStampRow = { id: string; stampedAt: string };
+type TStampRow = { id: string; localStampedAt: string; stampedAt: string };
 type TStampPage = { items: Array<TStampRow>; totalCount: number };
 
 const ORIGINAL_TIMEZONE: string | undefined = process.env.TZ;
@@ -26,7 +26,7 @@ const PROCESS_TIMEZONE: string = "UTC";
 const OWNER_ID: string = "10000000-0000-4000-8000-000000000001";
 // Pre-standard-time offsets carry seconds in each zone: Moscow +02:30:17, New York -04:56:02, Kolkata +05:53:28.
 const TIMEZONES: ReadonlyArray<string> = ["Europe/Moscow", "America/New_York", "Asia/Kolkata"];
-const ROWS: ReadonlyArray<TStampRow> = Array.from({ length: 8 }, (_value: unknown, index: number): TStampRow => ({ id: `00000000-0000-4000-8000-${index.toString().padStart(12, "0")}`, stampedAt: new Date(Date.UTC(1800, 5, 1, 12, 0, index)).toISOString() }));
+const ROWS: ReadonlyArray<TStampRow> = Array.from({ length: 8 }, (_value: unknown, index: number): TStampRow => ({ id: `00000000-0000-4000-8000-${index.toString().padStart(12, "0")}`, localStampedAt: `1800-06-01T12:00:0${String(index)}`, stampedAt: new Date(Date.UTC(1800, 5, 1, 12, 0, index)).toISOString() }));
 
 describe("a client filter and an authorization scope on the same transformed timestamptz column (E2E)", () => {
 	let app: INestApplication | undefined;
@@ -49,8 +49,8 @@ describe("a client filter and an authorization scope on the same transformed tim
 		fastify = app.getHttpAdapter().getInstance();
 
 		// Raw SQL keeps the fixture exact: the rows are inserted as UTC text, not through a Date.
-		for (const [sequence, { id, stampedAt }] of ROWS.entries()) {
-			await app.get(E2eTemporalStampService).repository.query(`INSERT INTO e2e_temporal_stamps (id, sequence, "stampedAt") VALUES ($1, $2, $3)`, [id, sequence, stampedAt]);
+		for (const [sequence, { id, localStampedAt, stampedAt }] of ROWS.entries()) {
+			await app.get(E2eTemporalStampService).repository.query(`INSERT INTO e2e_temporal_stamps (id, sequence, "stampedAt", "localStampedAt") VALUES ($1, $2, $3, $4)`, [id, sequence, stampedAt, localStampedAt]);
 		}
 	}, 120_000);
 
@@ -74,8 +74,24 @@ describe("a client filter and an authorization scope on the same transformed tim
 			const expected: Array<TStampRow> = ROWS.filter(({ stampedAt }: TStampRow): boolean => stampedAt >= (ROWS[2]?.stampedAt as string) && stampedAt < E2E_TEMPORAL_STAMP_SCOPE_LIMIT);
 
 			expect(response.statusCode, JSON.stringify(body)).toBe(HttpStatus.OK);
-			expect(body.items.map(({ id, stampedAt }: TStampRow): TStampRow => ({ id, stampedAt }))).toEqual(expected);
+			expect(body.items.map(({ id, stampedAt }: TStampRow): Omit<TStampRow, "localStampedAt"> => ({ id, stampedAt }))).toEqual(expected.map(({ id, stampedAt }: TStampRow): Omit<TStampRow, "localStampedAt"> => ({ id, stampedAt })));
 			expect(body.totalCount).toBe(expected.length);
+		} finally {
+			process.env.TZ = PROCESS_TIMEZONE;
+		}
+	});
+
+	it.each(TIMEZONES)("intersects a filter with the scope on a transformed timestamp column in an %s process", async (timezone: string) => {
+		process.env.TZ = timezone;
+
+		try {
+			const response = await get(`/temporal-stamps?limit=10&page=1&orderBy=sequence&orderDirection=ASC&localStampedAt[operator]=gte&localStampedAt[value]=${ROWS[1]?.localStampedAt as string}`);
+			const body: TStampPage = response.json() as TStampPage;
+			const expected: Array<string> = ROWS.filter(({ localStampedAt, stampedAt }: TStampRow): boolean => localStampedAt >= (ROWS[1]?.localStampedAt as string) && localStampedAt < E2E_TEMPORAL_STAMP_LOCAL_SCOPE_LIMIT && stampedAt < E2E_TEMPORAL_STAMP_SCOPE_LIMIT).map(({ id }: TStampRow): string => id);
+
+			expect(response.statusCode, JSON.stringify(body)).toBe(HttpStatus.OK);
+			expect(body.items.map(({ id }: TStampRow): string => id)).toEqual(expected);
+			expect(expected).toHaveLength(4);
 		} finally {
 			process.env.TZ = PROCESS_TIMEZONE;
 		}

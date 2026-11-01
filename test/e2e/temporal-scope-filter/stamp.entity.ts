@@ -21,6 +21,10 @@ export class E2eTemporalStampEntity {
 	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
 	public id!: string;
 
+	@Column({ precision: 3, transformer: DATE_ONLY_TRANSFORMER, type: "timestamp" })
+	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
+	public localStampedAt!: Date;
+
 	@Column({ type: "int" })
 	@ApiPropertyDescribe({ description: "sequence", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 1000, minimum: 0, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER })
 	public sequence!: number;

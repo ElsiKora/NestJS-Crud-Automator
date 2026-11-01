@@ -24,7 +24,7 @@ const security = { authentication: { guard: TestAuthGuard, type: EApiAuthenticat
 		[EApiRouteType.GET_LIST]: {
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
-					filter: { fields: { stampedAt: { allowedOperations: [EFilterOperation.GTE, EFilterOperation.LT], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT },
+					filter: { fields: { localStampedAt: { allowedOperations: [EFilterOperation.GTE], isEnabled: true }, stampedAt: { allowedOperations: [EFilterOperation.GTE, EFilterOperation.LT], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT },
 					order: { fields: { sequence: { isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT },
 				},
 			},

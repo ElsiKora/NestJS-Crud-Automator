@@ -7,11 +7,13 @@ import { E2eTemporalStampEntity } from "./stamp.entity";
 
 // Rows stamped before this instant are visible; the bound sits on a historic second.
 export const E2E_TEMPORAL_STAMP_SCOPE_LIMIT: string = "1800-06-01T12:00:05.000Z";
+// Wall-clock rows stamped before this local time are visible; it reads the same in every process zone.
+export const E2E_TEMPORAL_STAMP_LOCAL_SCOPE_LIMIT: string = "1800-06-01T12:00:06";
 
 @Injectable()
 @ApiAuthorizationPolicy({ entity: E2eTemporalStampEntity })
 export class E2eTemporalStampPolicy extends ApiAuthorizationPolicyBase<E2eTemporalStampEntity> {
-	private readonly scope = () => ({ where: { stampedAt: LessThan(new Date(E2E_TEMPORAL_STAMP_SCOPE_LIMIT)) } });
+	private readonly scope = () => ({ where: { localStampedAt: LessThan(new Date(E2E_TEMPORAL_STAMP_LOCAL_SCOPE_LIMIT)), stampedAt: LessThan(new Date(E2E_TEMPORAL_STAMP_SCOPE_LIMIT)) } });
 
 	public onBeforeGet() {
 		return this.allow({ scope: this.scope });
