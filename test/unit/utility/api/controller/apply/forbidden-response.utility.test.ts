@@ -8,6 +8,7 @@ import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator"
 import { EApiAuthorizationMode } from "@enum/class/authorization/mode.enum";
 import { EApiAuthenticationType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
+import { PATH_METADATA } from "@nestjs/common/internal";
 import { SWAGGER_TEST_METADATA_CONSTANT } from "@test/unit/fixture";
 import { Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
@@ -127,6 +128,36 @@ describe("ApiControllerApplyForbiddenResponse", () => {
 		expect(getResponses(SecurableAfterCustomController, "authenticated")[HttpStatus.UNAUTHORIZED]).toEqual(expect.objectContaining({ description: "Unauthorized" }));
 		expect(getResponses(SecurableAfterCustomController, "helper")).toEqual({});
 		expect(getResponses(SecurableBeforeCustomController, "export")[HttpStatus.FORBIDDEN]).toEqual(expect.objectContaining({ description: "Forbidden" }));
+	});
+
+	it("declares 403 on an inherited custom route only for the securable subclass", () => {
+		class SharedRoutesController {
+			public service!: ApiServiceBase<ForbiddenResponseEntity>;
+
+			@customRoute("stats")
+			public stats(): { isShared: boolean } {
+				return { isShared: true };
+			}
+		}
+
+		const sharedHandler: unknown = Reflect.get(SharedRoutesController.prototype, "stats");
+
+		@ApiControllerSecurable()
+		@ApiController<ForbiddenResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: ForbiddenResponseEntity, path: "securable-shared", routes: {} })
+		class SecurableSharedController extends SharedRoutesController {}
+
+		@ApiController<ForbiddenResponseEntity>({ entity: ForbiddenResponseEntity, path: "plain-shared", routes: {} })
+		class PlainSharedController extends SharedRoutesController {}
+
+		const securableHandler: unknown = Reflect.get(SecurableSharedController.prototype, "stats");
+
+		expect(getResponses(SecurableSharedController, "stats")[HttpStatus.FORBIDDEN]).toMatchObject({ description: "Forbidden" });
+		expect(getResponses(PlainSharedController, "stats")[HttpStatus.FORBIDDEN]).toBeUndefined();
+		expect(getResponses(SharedRoutesController, "stats")[HttpStatus.FORBIDDEN]).toBeUndefined();
+		expect(Reflect.get(PlainSharedController.prototype, "stats")).toBe(sharedHandler);
+		expect(securableHandler).not.toBe(sharedHandler);
+		expect(Reflect.getMetadata(PATH_METADATA, securableHandler as object)).toBe("stats");
+		expect((securableHandler as () => unknown).call(new SecurableSharedController())).toEqual({ isShared: true });
 	});
 
 	it("does not declare 403 on custom routes that cannot be refused", () => {
