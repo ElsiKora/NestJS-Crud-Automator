@@ -154,7 +154,7 @@ load: {
 }
 ```
 
-On PostgreSQL, `"query"` loading fails for a relation whose join columns include a `timestamptz`, `timestamp`, or `date` column, because the relation query would bind parsed `Date` values that pg serializes through a local offset truncated to whole minutes. A generated route fails at application bootstrap and any other read fails before query I/O, with an error that names the relation, the join column, and the recipe `relationLoadStrategy: "join"`. The check also applies when the DataSource supplies `"query"` as the default.
+On PostgreSQL, `"query"` loading fails for every relation of an entity whose primary key includes a `timestamptz`, `timestamp`, or `date` column, and for a relation whose join columns on either side include such a column, because the relation query would bind parsed `Date` values that pg serializes through a local offset truncated to whole minutes. The check applies at every level of a nested relation path, and an entity a `"query"` relation loads also joins its eager relations, whatever the read sets for `loadEagerRelations`. A to-many `@RelationId` property or `loadRelationIds` relation fails under the same conditions on every strategy, since TypeORM loads those ids by the same kind of query. Every generated route that is not disabled, listed in `routes` or not, and each of its request relation loads fail at application bootstrap, and any other read fails before query I/O, with an error that names the relation load, the bound column, and the recipe `relationLoadStrategy: "join"`. The check also applies when the DataSource supplies `"query"` as the default.
 
 ## Transaction-Bound Hydration and Direct Locks
 

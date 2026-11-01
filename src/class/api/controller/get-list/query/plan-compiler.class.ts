@@ -184,7 +184,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 					continue;
 				}
 
-				fields[path] = this.createFilterField(path, metadata, this.isColumnNullable(entity, entityMetadata.name, path, metadata, isCursor), this.findColumnMetadata(entity, entityMetadata.name, path));
+				fields[path] = this.createFilterField(path, metadata, this.isColumnNullable(entity, entityMetadata.name, path, metadata, isCursor));
 
 				continue;
 			}
@@ -215,7 +215,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 				const nestedPath: string = `${path}.${nestedName}`;
 
-				fields[nestedPath] = this.createFilterField(nestedPath, nestedMetadata, this.isColumnNullable(column.relation.target, relationMetadata.name, nestedName, nestedMetadata, isCursor), this.findColumnMetadata(column.relation.target, relationMetadata.name, nestedName));
+				fields[nestedPath] = this.createFilterField(nestedPath, nestedMetadata, this.isColumnNullable(column.relation.target, relationMetadata.name, nestedName, nestedMetadata, isCursor));
 			}
 		}
 
@@ -537,7 +537,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return fingerprint;
 	}
 
-	private static createFilterField(path: string, metadata: TApiPropertyDescribeProperties, isNullable: boolean, columnMetadata: TTypeOrmColumnMetadataArguments | undefined): IApiControllerGetListQueryPlanFilterField {
+	private static createFilterField(path: string, metadata: TApiPropertyDescribeProperties, isNullable: boolean): IApiControllerGetListQueryPlanFilterField {
 		const allowedOperations: ReadonlyArray<EFilterOperation> = Object.freeze(
 			Object.values(EFilterOperation).filter((operation: EFilterOperation): boolean => {
 				const descriptor: IApiControllerGetListQueryOperator = FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operation];
@@ -549,7 +549,6 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 		return Object.freeze({
 			allowedOperations,
-			columnType: this.normalizeColumnType(columnMetadata),
 			isEnabled: true,
 			isNullable,
 			metadata: planMetadata,

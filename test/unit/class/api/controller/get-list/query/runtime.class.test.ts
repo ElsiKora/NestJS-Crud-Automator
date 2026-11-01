@@ -1145,47 +1145,6 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(() => validateStorageField({ type: EApiPropertyDescribeType.NUMBER })).toThrow('CURSOR GET_LIST order field "field" must be a selected persisted column without a transformer');
 	});
 
-	it("binds timestamptz filter values as canonical UTC text and keeps other date columns on Date", () => {
-		const storageMetadata: IApiEntity<CursorStorageQueryEntity> = GenerateEntityInformation<CursorStorageQueryEntity>(CursorStorageQueryEntity as unknown as IApiBaseEntity);
-		const routeConfig = {
-			request: {
-				[EApiControllerRequestTarget.QUERY]: {
-					filter: {
-						fields: {
-							safeLongAliasTimestamptz: {
-								allowedOperations: [EFilterOperation.BETWEEN],
-								defaultCondition: { operator: EFilterOperation.BETWEEN, values: [new Date("1800-06-01T12:00:00.000Z"), new Date("1800-06-01T12:00:05.000Z")] },
-								isEnabled: true,
-								missingBehavior: EApiControllerGetListQueryFilterMissingBehavior.USE_DEFAULT,
-							},
-							safeTimestamptz: { allowedOperations: [EFilterOperation.GTE], defaultCondition: { operator: EFilterOperation.GTE, value: new Date("1800-06-01T12:00:00.000Z") }, isEnabled: true, missingBehavior: EApiControllerGetListQueryFilterMissingBehavior.USE_DEFAULT },
-							unsafeTimestamp: { allowedOperations: [EFilterOperation.GTE], isEnabled: true },
-						},
-						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
-					},
-				},
-			},
-		} as unknown as TApiControllerPropertiesRoute<CursorStorageQueryEntity, EApiRouteType.GET_LIST>;
-		const plan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanCompiler.compile(CursorQueryController, CursorStorageQueryEntity, storageMetadata, routeConfig);
-
-		if (!plan) {
-			throw new Error("Expected a storage filter plan");
-		}
-
-		const requested = ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1, "safeTimestamptz[operator]": EFilterOperation.GTE, "safeTimestamptz[value]": "1800-06-01T15:00:00+03:00", "unsafeTimestamp[operator]": EFilterOperation.GTE, "unsafeTimestamp[value]": "1800-06-01T12:00:00.000Z" }, plan);
-		const defaulted = ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1 }, plan);
-		const valueOf = (nodes: ReadonlyArray<IApiControllerGetListQueryAstNode> | undefined, path: string): IApiControllerGetListQueryAstNode | undefined => nodes?.find((node: IApiControllerGetListQueryAstNode): boolean => node.path === path);
-
-		expect(plan.filter.fields.safeTimestamptz?.columnType).toBe("timestamptz");
-		expect(plan.filter.fields.unsafeTimestamp?.columnType).toBe("timestamp");
-		expect(valueOf(requested.ast?.nodes, "safeTimestamptz")?.value).toBe("1800-06-01T12:00:00.000Z");
-		expect(valueOf(requested.ast?.nodes, "unsafeTimestamp")?.value).toEqual(new Date("1800-06-01T12:00:00.000Z"));
-		expect(valueOf(defaulted.ast?.nodes, "safeTimestamptz")?.value).toBe("1800-06-01T12:00:00.000Z");
-		expect(valueOf(defaulted.ast?.nodes, "safeLongAliasTimestamptz")?.values).toEqual(["1800-06-01T12:00:00.000Z", "1800-06-01T12:00:05.000Z"]);
-		expect(Object.isFrozen(valueOf(defaulted.ast?.nodes, "safeLongAliasTimestamptz")?.values)).toBe(true);
-		expect((ApiControllerGetListQueryRuntime.compileWhere<CursorStorageQueryEntity>(requested.ast!).safeTimestamptz as unknown as FindOperator<string>).value).toBe("1800-06-01T12:00:00.000Z");
-	});
-
 	it.each(["responseHiddenRank", "responseGuardedRank"])("rejects a CURSOR order field that is not unconditionally raw-exposed: %s", (defaultField) => {
 		expect(() => compileCursorPlan({ defaultField, fields: {} })).toThrow("must be unconditionally raw-exposed in the generated response");
 	});

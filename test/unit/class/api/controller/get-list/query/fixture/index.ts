@@ -18,3 +18,4 @@ export { TypedQueryNarrowController } from "./narrow.controller";
 export { TypedQueryOwnerEntity } from "./owner.entity";
 export { TypedQueryTagEntity } from "./tag.entity";
 export { UuidRelationCurrencyEntity, UuidRelationTransactionEntity } from "./uuid-relation.entity";
+export { TRANSFORMED_INSTANT_INPUTS, TransformedInstantQueryEntity } from "./transformed-instant.entity";

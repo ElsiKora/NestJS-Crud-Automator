@@ -11,7 +11,15 @@ import { ApiControllerObservable } from "@decorator/api/controller/observable.de
 import { ApiControllerSecurable } from "@decorator/api/controller/securable.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiFunctionType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { KeyPageAccountEntity } from "@test/unit/class/api/function/fixture/key-page-account.entity";
+import { KeyPageAuditorEntity } from "@test/unit/class/api/function/fixture/key-page-auditor.entity";
+import { KeyPageBatchEntity } from "@test/unit/class/api/function/fixture/key-page-batch.entity";
+import { KeyPageEntryEntity } from "@test/unit/class/api/function/fixture/key-page-entry.entity";
+import { KeyPageHolderEntity } from "@test/unit/class/api/function/fixture/key-page-holder.entity";
+import { KeyPageJournalEntity } from "@test/unit/class/api/function/fixture/key-page-journal.entity";
+import { KeyPageReceiptEntity } from "@test/unit/class/api/function/fixture/key-page-receipt.entity";
+import { LoggerUtility } from "@utility/logger.utility";
+import { Column, DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
 @Entity("factory_entities")
@@ -156,5 +164,78 @@ describe("ApiController", () => {
 		expect(Decorated.name).toBe("BaseController");
 		expect(instance).toBeInstanceOf(BaseController);
 		expect(instance.token).toBe("secret");
+	});
+
+	it("rejects relation loads of enabled routes at bootstrap, then runs the controller hook", async () => {
+		vi.spyOn(LoggerUtility.prototype, "error").mockImplementation((): void => undefined);
+
+		const dataSource: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageJournalEntity], type: "postgres" });
+
+		// Metadata is enough for the startup check; the test never connects.
+		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+
+		const hook = vi.fn();
+		const disabled = { generation: { isEnabled: false } };
+
+		class JournalController {
+			public service: { repository: unknown } = { repository: dataSource.getRepository(KeyPageJournalEntity) };
+
+			public onApplicationBootstrap(): void {
+				hook();
+			}
+		}
+
+		const createController = (getRoute: object): { onApplicationBootstrap: () => Promise<void> } => {
+			const Decorated = ApiController<IApiBaseEntity>({
+				entity: FactoryEntity,
+				routes: {
+					[EApiRouteType.CREATE]: disabled,
+					[EApiRouteType.DELETE]: disabled,
+					[EApiRouteType.GET]: getRoute,
+					[EApiRouteType.GET_LIST]: disabled,
+					[EApiRouteType.PARTIAL_UPDATE]: disabled,
+					[EApiRouteType.UPDATE]: disabled,
+				},
+			} as never)(JournalController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+
+			return new Decorated();
+		};
+
+		await expect(createController({}).onApplicationBootstrap()).rejects.toThrow('Controller "JournalController" route "get": @RelationId property "readerIds" of entity "KeyPageJournalEntity"');
+		expect(hook).not.toHaveBeenCalled();
+
+		await createController(disabled).onApplicationBootstrap();
+		expect(hook).toHaveBeenCalledOnce();
+
+		vi.restoreAllMocks();
+	});
+	it("checks unlisted generated routes and request relation loads at bootstrap", async () => {
+		vi.spyOn(LoggerUtility.prototype, "error").mockImplementation((): void => undefined);
+
+		const dataSource: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageAuditorEntity, KeyPageBatchEntity, KeyPageEntryEntity, KeyPageHolderEntity, KeyPageJournalEntity, KeyPageReceiptEntity], type: "postgres" });
+
+		// Metadata is enough for the startup check; the test never connects.
+		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+
+		const disabled = { generation: { isEnabled: false } };
+		const allDisabled = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: disabled, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
+		const bootstrap = async (entity: Function, routes: object): Promise<void> => {
+			class CheckedController {
+				public service: { repository: unknown } = { repository: dataSource.getRepository(entity) };
+			}
+
+			const Decorated = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes } as never)(CheckedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+
+			await new Decorated().onApplicationBootstrap();
+		};
+		const { [EApiRouteType.GET]: _get, ...withoutGet } = allDisabled;
+		const requestLoad = (locks?: object): object => ({ ...allDisabled, [EApiRouteType.CREATE]: { relations: { request: { load: { include: { receipt: true }, ...(locks ? { locks } : {}) }, reference: { key: "id", shape: "id" } } } } });
+
+		await expect(bootstrap(KeyPageJournalEntity, withoutGet)).rejects.toThrow('Controller "CheckedController" route "get": @RelationId property "readerIds" of entity "KeyPageJournalEntity"');
+		await expect(bootstrap(KeyPageJournalEntity, allDisabled)).resolves.toBeUndefined();
+		await expect(bootstrap(KeyPageHolderEntity, requestLoad())).rejects.toThrow('Controller "CheckedController" route "create" request relation "receipt": @RelationId property "readerIds" of entity "KeyPageJournalEntity"');
+		await expect(bootstrap(KeyPageHolderEntity, requestLoad({ receipt: { mode: "pessimistic_write" } }))).resolves.toBeUndefined();
+
+		vi.restoreAllMocks();
 	});
 });

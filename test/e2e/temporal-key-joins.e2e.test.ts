@@ -219,9 +219,9 @@ describe("PAGE and CURSOR reads of a temporal primary key with joins and filters
 		}
 	});
 
-	it("fails at startup when a route loads a relation over a temporal join column by query", async () => {
+	it("fails at startup when a route loads any relation of a temporal-key entity by query", async () => {
 		const moduleReference = await Test.createTestingModule({
-			controllers: [createLedgerController({ include: { account: true, watchers: true }, isEager: false, mode: EApiControllerGetListQueryPaginationMode.PAGE, path: "temporal-query-ledgers", relationLoadStrategy: "query" })],
+			controllers: [createLedgerController({ include: { account: true }, isEager: false, mode: EApiControllerGetListQueryPaginationMode.PAGE, path: "temporal-query-ledgers", relationLoadStrategy: "query" })],
 			imports: [
 				TypeOrmModule.forRoot({
 					entities: [E2eTemporalAccountEntity, E2eTemporalLedgerEntity, E2eTemporalEagerLedgerEntity],
@@ -237,9 +237,24 @@ describe("PAGE and CURSOR reads of a temporal primary key with joins and filters
 		const queryApp: INestApplication = moduleReference.createNestApplication(new FastifyAdapter());
 
 		try {
-			await expect(queryApp.init()).rejects.toThrow('relation "watchers" of entity "E2eTemporalLedgerEntity" cannot load with relationLoadStrategy "query" because its join column "ledgerPostedAt" is a PostgreSQL date or timestamp, which pg binds through a local offset truncated to whole minutes; use relationLoadStrategy: "join"');
+			await expect(queryApp.init()).rejects.toThrow('route "getList": relation "account" of entity "E2eTemporalLedgerEntity" with relationLoadStrategy "query" cannot load because its query filters by the PostgreSQL date or timestamp column "postedAt" of entity "E2eTemporalLedgerEntity", which pg binds through a local offset truncated to whole minutes; use relationLoadStrategy: "join"');
 		} finally {
 			await queryApp.close().catch((): undefined => undefined);
 		}
+	});
+
+	it("fails every service read that would load relations or relation ids over temporal keys by query", async () => {
+		const row: TLedgerRow = ROWS[0] as TLedgerRow;
+
+		// Readers answer with a generic error and keep the exact relation load error as its cause.
+		const causeOf = async (read: Promise<unknown>): Promise<string> => {
+			const error: unknown = await read.then((): undefined => undefined).catch((caught: unknown): unknown => caught);
+
+			return ((error as { cause?: Error } | undefined)?.cause as Error | undefined)?.message ?? "";
+		};
+
+		expect(await causeOf(ledgerService.get({ relationLoadStrategy: "query", relations: { account: true }, where: { id: row.id } }))).toContain('relation "account" of entity "E2eTemporalLedgerEntity" with relationLoadStrategy "query" cannot load');
+		expect(await causeOf(ledgerService.getMany({ relationLoadStrategy: "query", relations: { watchers: true }, take: 2 }))).toContain('relation "watchers" of entity "E2eTemporalLedgerEntity" with relationLoadStrategy "query" cannot load');
+		expect(await causeOf(ledgerService.getList({ loadRelationIds: { relations: ["watchers"] }, take: 2 } as never))).toContain('loadRelationIds relation "watchers" of entity "E2eTemporalLedgerEntity" cannot load');
 	});
 });
