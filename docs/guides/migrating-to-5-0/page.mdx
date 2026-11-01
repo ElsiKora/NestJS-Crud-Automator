@@ -25,7 +25,7 @@ See [Getting Started: Migration Notes](/docs/nestjs-crud-automator/getting-start
 The package has one ES module build in `dist`. `dist/esm`, `dist/cjs` and the `require` export condition are gone; `exports` has only `types` and `default`.
 
 - An ES module application imports the package as before, with `moduleResolution` `bundler`, `node16` or `nodenext`.
-- A CommonJS application keeps `require("@elsikora/nestjs-crud-automator")`. Node.js loads it through `require(esm)`, and TypeScript with `module: commonjs` and `node10` resolution finds the types through the top-level `types` field.
+- A CommonJS application keeps `require("@elsikora/nestjs-crud-automator")`. Node.js loads it through `require(esm)`. TypeScript 6 resolves `module: commonjs` without a `moduleResolution` setting as `bundler`, so it reads the types from `exports`; with an explicit `moduleResolution: node10` it reads the top-level `types` field, and TypeScript 6 then needs `"ignoreDeprecations": "6.0"` (otherwise TS5107). Both find the types. TypeScript 6 also defaults `types` to `[]`, so list `"types": ["node"]` when the application uses Node.js globals.
 - Deep imports such as `@elsikora/nestjs-crud-automator/dist/cjs/...` no longer resolve. Import from the package root.
 - An application that moves to ES modules itself must type relation properties between entities that import each other as `Relation<T>` from `typeorm`. Otherwise startup fails with `ReferenceError: Cannot access '...' before initialization`. A CommonJS application is not affected. See [Relations: Entities That Import Each Other](/docs/nestjs-crud-automator/guides/relations#entities-that-import-each-other).
 
@@ -59,4 +59,4 @@ Importing the package no longer runs `dotenv`'s `config()`, and the package has 
 
 ## Checking The Upgrade
 
-CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext` and a CommonJS application with `node10` are typechecked and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.
+CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10` and one without `moduleResolution` are typechecked and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.

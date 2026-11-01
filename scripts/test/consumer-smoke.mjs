@@ -4,7 +4,7 @@
  *
  * Packs the built package, installs the tarball with the peer stack into a temporary
  * project and, for every consumer in test/consumer (ESM bundler, ESM nodenext, CommonJS
- * node10 through require(esm)), typechecks every app (test/consumer/app with the CRUD,
+ * node10 and CommonJS with the default resolution, both through require(esm)), typechecks every app (test/consumer/app with the CRUD,
  * authorization, pagination and Swagger scenarios, test/consumer/cyclic with entities that
  * import each other through Relation<T>) and runs it against Postgres. DATABASE_URL selects an existing database; otherwise a
  * testcontainers Postgres is started and removed afterwards.
@@ -26,6 +26,8 @@ const CONSUMERS = [
 	{ name: "bundler", type: "module" },
 	{ name: "nodenext", type: "module" },
 	{ name: "commonjs", type: "commonjs" },
+	// module: commonjs without moduleResolution, as in Core and Gameport: TypeScript 6 resolves it as bundler and reads exports
+	{ name: "commonjs-default", type: "commonjs" },
 ];
 const STACK = ["@fastify/static", "@nestjs/common", "@nestjs/core", "@nestjs/platform-fastify", "@nestjs/swagger", "@nestjs/throttler", "@nestjs/typeorm", "class-transformer", "class-validator", "fastify", "lodash", "pg", "typeorm", "typescript"];
 // @types/node follows the oldest supported Node major: newer majors drop worker_threads types that pino's thread-stream still declares

@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"declaration": false,
+		"emitDecoratorMetadata": true,
+		"esModuleInterop": true,
+		"experimentalDecorators": true,
+		"module": "commonjs",
+		"outDir": "./dist",
+		"rootDir": "./src",
+		"skipLibCheck": false,
+		"strict": true,
+		"strictPropertyInitialization": false,
+		"target": "ES2023",
+		"types": ["node"]
+	},
+	"include": ["src/**/*.ts"]
+}
