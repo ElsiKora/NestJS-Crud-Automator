@@ -6,13 +6,14 @@ import type { Logger } from "typeorm";
 
 import { HttpStatus, ValidationPipe } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eUnknownFilterCursorItemController, E2eUnknownFilterItemController, E2eUnknownFilterItemEntity, E2eUnknownFilterItemService, E2eUnknownFilterManualItemController, E2eUnknownFilterOwnerEntity, E2eUnknownFilterOwnerService, E2eUnknownFilterTypedItemController } from "./unknown-filter-group";
+import { E2eUnknownFilterCursorItemController, E2eUnknownFilterItemController, E2eUnknownFilterItemEntity, E2eUnknownFilterItemService, E2eUnknownFilterManualItemController, E2eUnknownFilterOwnerEntity, E2eUnknownFilterOwnerService, E2eUnknownFilterTagEntity, E2eUnknownFilterTagService, E2eUnknownFilterTypedItemController } from "./unknown-filter-group";
 
 class UnknownFilterQueryLogger implements Logger {
 	public readonly queries: Array<string> = [];
@@ -46,6 +47,11 @@ const ITEM_ALPHA: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ITEM_BETA: string = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const ITEM_GAMMA: string = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
+const filterGroupKeys = (field: string): Array<string> => [`${field}[operator]`, `${field}[value]`, `${field}[values]`];
+
+// Only to-one relation fields are filters: the route applies nothing it does not publish, so a to-many path such as tags.name is not published.
+const LEGACY_QUERY_PARAMETERS: Array<string> = ["limit", "orderBy", "orderDirection", "page", ...["code", "label", "owner.id", "owner.name", "rank"].flatMap(filterGroupKeys)].toSorted();
+
 const PAGE: string = "limit=10&page=1";
 const BY_LABEL: string = "orderBy=label&orderDirection=asc";
 const ALL_LABELS: Array<string> = ["Alpha", "Beta", "Gamma"];
@@ -59,6 +65,8 @@ const UNKNOWN_GROUPS = {
 	descendantOfRelation: "owner.nope[operator]=eq&owner.nope[value]=Ann",
 	disabledColumn: "secret[operator]=eq&secret[value]=Secret",
 	relationItself: `owner[operator]=eq&owner[value]=${OWNER_ANN}`,
+	toManyRelationField: "tags.name[operator]=eq&tags.name[value]=red",
+	toManyRelationKey: `tags.id[operator]=in&tags.id[values]=${ITEM_ALPHA}&tags.id[values]=${ITEM_BETA}`,
 	typo: "nmae[operator]=eq&nmae[value]=Alpha",
 	typoNextToInheritedFilter: "code[operator]=eq&code[value]=A1&lable[operator]=cont&lable[value]=lph",
 	typoNextToValidFilter: "rank[operator]=eq&rank[value]=1&nmae[operator]=eq&nmae[value]=Alpha",
@@ -74,6 +82,8 @@ const LEGACY_REJECTED_CASES: Array<{ messages: Array<string>; query: string }> =
 	{ messages: [unknown("owner.nope[operator]"), unknown("owner.nope[value]")], query: UNKNOWN_GROUPS.descendantOfRelation },
 	{ messages: [unknown("secret[operator]"), unknown("secret[value]")], query: UNKNOWN_GROUPS.disabledColumn },
 	{ messages: [unknown("owner[operator]"), unknown("owner[value]")], query: UNKNOWN_GROUPS.relationItself },
+	{ messages: [unknown("tags.name[operator]"), unknown("tags.name[value]")], query: UNKNOWN_GROUPS.toManyRelationField },
+	{ messages: [unknown("tags.id[operator]"), unknown("tags.id[values]")], query: UNKNOWN_GROUPS.toManyRelationKey },
 	{ messages: [unknown("nmae[operator]"), unknown("nmae[value]")], query: UNKNOWN_GROUPS.typo },
 	{ messages: [unknown("lable[operator]"), unknown("lable[value]")], query: UNKNOWN_GROUPS.typoNextToInheritedFilter },
 	{ messages: [unknown("nmae[operator]"), unknown("nmae[value]")], query: UNKNOWN_GROUPS.typoNextToValidFilter },
@@ -134,13 +144,13 @@ describe.each([
 		const queryLogger: UnknownFilterQueryLogger = new UnknownFilterQueryLogger();
 
 		beforeAll(async () => {
-			const entities: Array<new () => unknown> = [E2eUnknownFilterOwnerEntity, E2eUnknownFilterItemEntity];
+			const entities: Array<new () => unknown> = [E2eUnknownFilterOwnerEntity, E2eUnknownFilterItemEntity, E2eUnknownFilterTagEntity];
 			// CURSOR pagination supports PostgreSQL storage only.
 			const controllers: Array<new () => unknown> = [E2eUnknownFilterItemController, E2eUnknownFilterManualItemController, E2eUnknownFilterTypedItemController, ...(isPostgres ? [E2eUnknownFilterCursorItemController] : [])];
 			const moduleReference = await Test.createTestingModule({
 				controllers,
 				imports: [TypeOrmModule.forRoot(container ? { dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
-				providers: [E2eUnknownFilterItemService, E2eUnknownFilterOwnerService],
+				providers: [E2eUnknownFilterItemService, E2eUnknownFilterOwnerService, E2eUnknownFilterTagService],
 			}).compile();
 
 			app = moduleReference.createNestApplication(new FastifyAdapter());
@@ -161,6 +171,11 @@ describe.each([
 				{ code: "B2", id: ITEM_BETA, label: "Beta", owner: { id: OWNER_BOB }, rank: 2, secret: "Hidden", undescribed: "x" },
 				{ code: "C3", id: ITEM_GAMMA, label: "Gamma", owner: { id: OWNER_ANN }, rank: 3, secret: "Hidden", undescribed: "x" },
 			] as Array<E2eUnknownFilterItemEntity>);
+			await app.get(E2eUnknownFilterTagService).repository.save([
+				{ item: { id: ITEM_ALPHA }, name: "red" },
+				{ item: { id: ITEM_BETA }, name: "blue" },
+				{ item: { id: ITEM_GAMMA }, name: "red" },
+			] as Array<E2eUnknownFilterTagEntity>);
 		});
 
 		beforeEach(() => {
@@ -191,6 +206,13 @@ describe.each([
 		};
 
 		describe("on a route without a typed filter", () => {
+			it("publishes exactly the query keys the route applies", () => {
+				const document = SwaggerModule.createDocument(app as INestApplication, new DocumentBuilder().build());
+				const parameters: Array<{ name: string }> = (document.paths["/unknown-filter/items"]?.get?.parameters ?? []) as Array<{ name: string }>;
+
+				expect(parameters.map(({ name }: { name: string }): string => name).toSorted()).toEqual(LEGACY_QUERY_PARAMETERS);
+			});
+
 			it.each(LEGACY_REJECTED_CASES)("rejects $query before any SQL", async ({ messages, query }: { messages: Array<string>; query: string }) => {
 				await expectRejected(`/unknown-filter/items?${PAGE}&${query}`, rejectedBody(query, { error: "Bad Request", message: messages, statusCode: HttpStatus.BAD_REQUEST }));
 			});

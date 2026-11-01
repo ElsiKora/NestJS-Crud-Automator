@@ -3,12 +3,14 @@ import "reflect-metadata";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
+import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperation } from "@enum/filter";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
-import { Column, Entity, IsNull, ManyToOne, Not, PrimaryGeneratedColumn } from "typeorm";
+import { DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list/query-properties.utility";
+import { Column, Entity, IsNull, ManyToOne, Not, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 import { OwnerGroupEntity, OwnerMetadata } from "./fixture/owner";
@@ -91,6 +93,33 @@ class ItemEntity {
 		description: "owner",
 	} as TApiPropertyDescribeProperties)
 	public owner!: OwnerEntity;
+
+	@OneToMany(() => NoteEntity, (note: NoteEntity) => note.item)
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.RELATION,
+		description: "notes",
+	} as TApiPropertyDescribeProperties)
+	public notes!: Array<NoteEntity>;
+}
+
+@Entity("notes")
+class NoteEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({
+		description: "note id",
+		type: EApiPropertyDescribeType.UUID,
+	} as TApiPropertyDescribeProperties)
+	public id!: string;
+
+	@ManyToOne(() => ItemEntity, (item: ItemEntity) => item.notes)
+	public item!: ItemEntity;
+
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "note text",
+	} as TApiPropertyDescribeProperties)
+	@Column({ type: "varchar" })
+	public text!: string;
 }
 
 @Entity("filter_ambiguous_owner_first")
@@ -127,6 +156,15 @@ class FilterAmbiguousHolder {
 }
 
 describe("ApiControllerGetListTransformFilter", () => {
+	it("publishes and applies one-hop filters on to-one relations only", () => {
+		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
+		const relationProperties = metadata.columns.filter((column): boolean => column.name === "owner" || column.name === "notes").map((column) => ({ isPrimary: false, metadata: column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties, name: column.name }));
+		const publishedNames: Array<string> = DtoGenerateGetListQueryProperties(metadata, relationProperties).map(({ name }: { name: string }): string => name);
+
+		expect(publishedNames).toEqual(["owner.name"]);
+		expect(ApiControllerGetListTransformFilter<ItemEntity>({ "notes.text[operator]": EFilterOperation.EQ, "notes.text[value]": "x" }, metadata)).toEqual({});
+	});
+
 	it("ignores root primary filters that legacy query DTOs do not publish", () => {
 		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
 		const query = {

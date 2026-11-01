@@ -1,6 +1,8 @@
 import "reflect-metadata";
 
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import type { Relation } from "typeorm";
+
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
 import { ApiPropertyDescribe, EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
 
@@ -89,6 +91,33 @@ export class E2eUnknownFilterItemEntity extends E2eUnknownFilterCodedEntity {
 	})
 	public secret!: string;
 
+	@OneToMany(() => E2eUnknownFilterTagEntity, ({ item }: E2eUnknownFilterTagEntity) => item)
+	@ApiPropertyDescribe({ description: "tags", type: EApiPropertyDescribeType.RELATION })
+	public tags!: Array<Relation<E2eUnknownFilterTagEntity>>;
+
 	@Column({ type: "varchar" })
 	public undescribed!: string;
+}
+
+@Entity("e2e_unknown_filter_tags")
+export class E2eUnknownFilterTagEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@ManyToOne(() => E2eUnknownFilterItemEntity, ({ tags }: E2eUnknownFilterItemEntity) => tags, { nullable: false })
+	@JoinColumn()
+	public item!: Relation<E2eUnknownFilterItemEntity>;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({
+		description: "name",
+		exampleValue: "red",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 64,
+		minLength: 1,
+		pattern: "/^[a-z]+$/",
+		type: EApiPropertyDescribeType.STRING,
+	})
+	public name!: string;
 }
