@@ -1,4 +1,4 @@
-import type { FindManyOptions, ObjectLiteral, Repository } from "typeorm";
+import type { DataSourceOptions, FindManyOptions, ObjectLiteral, Repository } from "typeorm";
 
 import { ApiFunctionKeyPageLoader } from "@class/api/function/key-page-loader.class";
 import { KeyPageAccountEntity } from "@test/unit/class/api/function/fixture/key-page-account.entity";
@@ -10,6 +10,7 @@ import { KeyPageHolderEntity } from "@test/unit/class/api/function/fixture/key-p
 import { KEY_PAGE_INSTANT_INPUTS, KeyPageInstantEntity } from "@test/unit/class/api/function/fixture/key-page-instant.entity";
 import { KeyPageJournalEntity } from "@test/unit/class/api/function/fixture/key-page-journal.entity";
 import { KeyPageLedgerEntity } from "@test/unit/class/api/function/fixture/key-page-ledger.entity";
+import { KeyPageMssqlEntity } from "@test/unit/class/api/function/fixture/key-page-mssql.entity";
 import { KeyPageReceiptEntity } from "@test/unit/class/api/function/fixture/key-page-receipt.entity";
 import { KeyPageWalletEntity } from "@test/unit/class/api/function/fixture/key-page-wallet.entity";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
@@ -565,6 +566,16 @@ describe("ApiFunctionKeyPageLoader", () => {
 			for (const read of [findOne, findAndCount]) {
 				expect((read.mock.calls[0]?.[0] as { where: { plainAt: { value: unknown } } }).where.plainAt.value).toBe("1800-06-01T12:00:00.000Z");
 			}
+		});
+
+		it("leaves the driver's parameter types to MSSQL on a composed condition it binds", async () => {
+			// The driver option keeps TypeORM from loading the mssql package; the test never connects.
+			const mssql: DataSource = new DataSource({ driver: {}, entities: [KeyPageMssqlEntity], type: "mssql" } as unknown as DataSourceOptions);
+
+			await (mssql as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+			await ApiFunctionKeyPageLoader.findMany(mssql.getRepository(KeyPageMssqlEntity), { where: { bookedAt: And(MoreThanOrEqual(INSTANT), LessThan(LATER)) } });
+
+			expect(entityQueries[0]?.parameters).toEqual([expect.objectContaining({ type: "datetime2", value: INSTANT }), expect.objectContaining({ type: "datetime2", value: LATER })]);
 		});
 
 		it("rejects an invalid Date before query I/O", async () => {

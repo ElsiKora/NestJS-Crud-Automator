@@ -288,7 +288,7 @@ export class ApiFunctionKeyPageLoader {
 			return condition;
 		}
 
-		// A bound operator keeps TypeORM from transforming it, so each operand TypeORM would transform runs through the helper instead.
+		// A bound operator keeps TypeORM from running the column transformer on it, so each operand TypeORM would transform runs through the helper instead.
 		const bindOperand = (operand: unknown, isParameter: boolean): unknown => {
 			if (InstanceChecker.isFindOperator(operand)) {
 				const operator: FindOperator<unknown> = operand as FindOperator<unknown>;
@@ -296,13 +296,13 @@ export class ApiFunctionKeyPageLoader {
 				const value: unknown = operator.child ?? operator.value;
 				const bindItem = (item: unknown): unknown => bindOperand(item, operator.useParameter);
 
-				return new ApiFunctionBoundOperator<unknown>(operator.type, Array.isArray(value) && operator.multipleParameters ? value.map((item: unknown): unknown => bindItem(item)) : bindItem(value), operator.useParameter, operator.multipleParameters, operator.getSql, operator.objectLiteralParameters);
+				return new ApiFunctionBoundOperator<unknown>(Array.isArray(value) && operator.multipleParameters ? value.map((item: unknown): unknown => bindItem(item)) : bindItem(value), column.transformer, operator);
 			}
 
 			return isParameter ? DatabaseTypeOrmBindInstant(operand, columnType, driverType, column.transformer) : operand;
 		};
 
-		return InstanceChecker.isFindOperator(condition) ? bindOperand(condition, true) : new ApiFunctionBoundOperator<unknown>("equal", bindOperand(condition, true));
+		return InstanceChecker.isFindOperator(condition) ? bindOperand(condition, true) : new ApiFunctionBoundOperator<unknown>(bindOperand(condition, true), column.transformer);
 	}
 
 	/**
