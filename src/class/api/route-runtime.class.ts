@@ -392,7 +392,7 @@ export class ApiRouteRuntime {
 					cursorPlan = queryPlan as TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR>;
 				}
 
-				ApiControllerGetListQueryRuntime.assertZonedInstantValues(query, this.resolveInstantFilterPaths(options.controller.service, query));
+				ApiControllerGetListQueryRuntime.assertDateTimeFilterValues(query, this.resolveDateTimeFilterPaths(options.controller.service, query));
 
 				const cursorRuntimeQuery: TApiControllerGetListCursorQueryRuntimeResult | undefined = cursorPlan ? (ApiControllerGetListQueryRuntime.parse(query, cursorPlan) as unknown as TApiControllerGetListCursorQueryRuntimeResult) : undefined;
 				const pageRuntimeQuery: IApiControllerGetListQueryRuntimeResult | undefined = !cursorPlan && queryPlan ? ApiControllerGetListQueryRuntime.parse(query, queryPlan) : undefined;
@@ -698,6 +698,34 @@ export class ApiRouteRuntime {
 	}
 
 	/**
+	 * Resolves the filter paths of a request over date and time columns, by the column types the active driver normalizes.
+	 * It reads the query itself, so routes without a compiled filter plan resolve the same paths.
+	 * @param {unknown} service - Service of the route
+	 * @param {Record<string, unknown>} query - Query as the request carries it
+	 * @returns {ReadonlyMap<string, boolean>} Filter paths over date and time columns, each with whether its column stores an exact instant
+	 */
+	private static resolveDateTimeFilterPaths(service: unknown, query: Record<string, unknown>): ReadonlyMap<string, boolean> {
+		const repository: unknown = (service as { repository?: unknown } | undefined)?.repository;
+		const dateTimePaths: Map<string, boolean> = new Map<string, boolean>();
+
+		if (!(repository instanceof Repository)) {
+			return dateTimePaths;
+		}
+
+		for (const key of Object.keys(query)) {
+			const path: string | undefined = FILTER_VALUE_KEY_PATTERN.exec(key)?.[1];
+			const column: TTypeOrmColumnMetadata | undefined = path ? this.resolveFilterColumn(repository.metadata, path) : undefined;
+			const columnType: string | undefined = column ? repository.manager.dataSource.driver.normalizeType(column) : undefined;
+
+			if (path && columnType && (DATABASE_COLUMN_TYPE_CONSTANT.DATE.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.DATE_TIME.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType))) {
+				dateTimePaths.set(path, DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType));
+			}
+		}
+
+		return dateTimePaths;
+	}
+
+	/**
 	 * Resolves the column a filter path names, through relations, by the active entity metadata.
 	 * @param {EntityMetadata} metadata - Metadata of the entity the path starts at
 	 * @param {string} path - Filter path as the query names it
@@ -714,33 +742,6 @@ export class ApiRouteRuntime {
 		const handler: unknown = Reflect.get(controller, methodName);
 
 		return typeof handler === "function" ? ApiControllerIdentityPlanGet(handler) : undefined;
-	}
-
-	/**
-	 * Resolves the filter paths of a request whose columns store exact instants, by the column types the active driver normalizes.
-	 * It reads the query itself, so routes without a compiled filter plan resolve the same paths.
-	 * @param {unknown} service - Service of the route
-	 * @param {Record<string, unknown>} query - Query as the request carries it
-	 * @returns {ReadonlySet<string>} Filter paths over instant columns
-	 */
-	private static resolveInstantFilterPaths(service: unknown, query: Record<string, unknown>): ReadonlySet<string> {
-		const repository: unknown = (service as { repository?: unknown } | undefined)?.repository;
-		const instantPaths: Set<string> = new Set<string>();
-
-		if (!(repository instanceof Repository)) {
-			return instantPaths;
-		}
-
-		for (const key of Object.keys(query)) {
-			const path: string | undefined = FILTER_VALUE_KEY_PATTERN.exec(key)?.[1];
-			const column: TTypeOrmColumnMetadata | undefined = path ? this.resolveFilterColumn(repository.metadata, path) : undefined;
-
-			if (path && column && DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(repository.manager.dataSource.driver.normalizeType(column))) {
-				instantPaths.add(path);
-			}
-		}
-
-		return instantPaths;
 	}
 
 	private static resolvePrimaryKey<E extends IApiBaseEntity>(source: DeepPartial<E> | Partial<E> | undefined, entityMetadata: IApiEntity<E>): IApiControllerPrimaryColumn<E> {

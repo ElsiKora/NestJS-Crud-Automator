@@ -12,21 +12,24 @@ import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/control
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { EnumValues } from "@utility/enum/values.utility";
 
-// An instant value names its zone: a calendar date, which JavaScript reads as UTC, or an ISO date-time ending in "Z" or an offset.
-const INSTANT_DATE_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}$/u;
-const INSTANT_DATE_TIME_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/u;
-const INSTANT_ZONE_PATTERN: RegExp = /(?:Z|[+-]\d{2}:?\d{2})$/iu;
+// A date-time filter value is a calendar date, or a date, a "T" or a space, a time of day, and an optional `Z` or numeric offset with minutes.
+const DATE_VALUE_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}$/u;
+const DATE_VALUE_LENGTH: number = "YYYY-MM-DD".length;
+const TIME_VALUE_PATTERN: RegExp = /^[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?$/iu;
+const ZONE_VALUE_PATTERN: RegExp = /(?:Z|[+-]\d{2}:?\d{2})$/iu;
+// Years the database and the cursor token both accept.
+const DATE_TIME_VALUE_MAXIMUM_YEAR: number = 9999;
 
 export class ApiControllerGetListQueryRuntime {
 	/**
-	 * Rejects a client filter value on an instant column that does not name its zone, on every GET_LIST route.
-	 * A plain date and a date-time with `Z` or a numeric offset with minutes pass; an operator that takes no value is not checked.
+	 * Rejects a client filter value on a date or time column that names no single calendar date-time, on every GET_LIST route.
+	 * A value is a calendar date or a date-time of a year from 0001 to 9999 that exists in the calendar; on an instant column a date-time also names its zone with `Z` or a numeric offset with minutes. An operator that takes no value is not checked.
 	 * @param {Record<string, unknown>} query - Query as the request carries it
-	 * @param {ReadonlySet<string>} instantPaths - Filter paths whose columns store exact instants
-	 * @throws {BadRequestException} INVALID_FILTER when a value of such a path names no zone
+	 * @param {ReadonlyMap<string, boolean>} dateTimePaths - Filter paths over date and time columns, each with whether its column stores an exact instant
+	 * @throws {BadRequestException} INVALID_FILTER when a value of such a path is not such a date-time
 	 */
-	public static assertZonedInstantValues(query: Record<string, unknown>, instantPaths: ReadonlySet<string>): void {
-		for (const path of instantPaths) {
+	public static assertDateTimeFilterValues(query: Record<string, unknown>, dateTimePaths: ReadonlyMap<string, boolean>): void {
+		for (const [path, isInstant] of dateTimePaths) {
 			const operation: unknown = query[`${path}[operator]`];
 
 			if (!EnumIsValue(EFilterOperation, operation) || FILTER_OPERATOR_REGISTRY_CONSTANT.OPERATORS[operation].operand === EFilterOperand.NONE) {
@@ -35,7 +38,7 @@ export class ApiControllerGetListQueryRuntime {
 
 			const values: ReadonlyArray<unknown> = [query[`${path}[value]`], query[`${path}[values]`]].flat();
 
-			if (values.some((value: unknown): boolean => this.isZoneLessInstantValue(value))) {
+			if (values.some((value: unknown): boolean => typeof value === "string" && !this.isDateTimeFilterValue(value, isInstant))) {
 				throw new BadRequestException("INVALID_FILTER");
 			}
 		}
@@ -133,12 +136,37 @@ export class ApiControllerGetListQueryRuntime {
 	}
 
 	/**
-	 * A date-time string without a zone would take the zone of whoever parses it, which names no single instant.
-	 * @param {unknown} value - The raw filter value
-	 * @returns {boolean} True when the value is a string that is neither a plain date nor a date-time with a zone
+	 * Tells whether a filter value names one calendar date-time the database accepts.
+	 * A date-time without a zone takes the zone of whoever parses it, which names no single instant.
+	 * @param {string} value - The raw filter value
+	 * @param {boolean} isInstant - Whether the column stores an exact instant
+	 * @returns {boolean} True when the value is a calendar date, or a date-time of an existing calendar time that names its zone where the column needs one
 	 */
-	private static isZoneLessInstantValue(value: unknown): boolean {
-		return typeof value === "string" && !INSTANT_DATE_PATTERN.test(value) && !(INSTANT_DATE_TIME_PATTERN.test(value) && INSTANT_ZONE_PATTERN.test(value));
+	private static isDateTimeFilterValue(value: string, isInstant: boolean): boolean {
+		const datePart: string = value.slice(0, DATE_VALUE_LENGTH);
+		const zonePart: string = ZONE_VALUE_PATTERN.exec(value.slice(DATE_VALUE_LENGTH))?.[0] ?? "";
+		const timePart: string = value.slice(DATE_VALUE_LENGTH, value.length - zonePart.length);
+
+		if (!DATE_VALUE_PATTERN.test(datePart) || (timePart === "" ? zonePart !== "" : !TIME_VALUE_PATTERN.test(timePart)) || (isInstant && timePart !== "" && zonePart === "")) {
+			return false;
+		}
+
+		const [year = 0, month = 0, day = 0]: Array<number> = datePart.split("-").map(Number);
+		const [hour = "00", minute = "00", second = "00"]: Array<string> = timePart === "" ? [] : timePart.slice(1).split(":");
+		// Date.UTC reads years 0 to 99 as 1900 to 1999, so the year is set on its own.
+		const calendar: Date = new Date(0);
+
+		calendar.setUTCFullYear(year, month - 1, day);
+		// Date setters drop the fraction of a second.
+		calendar.setUTCHours(Number(hour), Number(minute), Number(second));
+
+		// A date or time that does not exist rolls over into another one and so does not round-trip.
+		const isCalendarValid: boolean = calendar.toISOString().startsWith(`${datePart}T${hour}:${minute}:${second.slice(0, "SS".length)}`);
+		// A zone moves the instant itself, which must stay within the same years.
+		const instantYear: number = new Date(value).getUTCFullYear();
+
+		// An offset beyond what JavaScript parses names no instant, and its NaN year fails the range as well.
+		return isCalendarValid && year >= 1 && (zonePart === "" || (instantYear >= 1 && instantYear <= DATE_TIME_VALUE_MAXIMUM_YEAR));
 	}
 
 	private static parseCursor(afterValue: unknown, beforeValue: unknown, pageValue: unknown): { after?: string; before?: string } {

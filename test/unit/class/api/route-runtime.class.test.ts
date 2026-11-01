@@ -6,18 +6,19 @@ import { KeyPageAccountEntity } from "./function/fixture/key-page-account.entity
 import { KeyPageInstantEntity } from "./function/fixture/key-page-instant.entity";
 import { KeyPageLedgerEntity } from "./function/fixture/key-page-ledger.entity";
 
-const resolve = (service: unknown, query: Record<string, unknown>): ReadonlySet<string> => (ApiRouteRuntime as unknown as { resolveInstantFilterPaths: (service: unknown, query: Record<string, unknown>) => ReadonlySet<string> }).resolveInstantFilterPaths(service, query);
+const resolve = (service: unknown, query: Record<string, unknown>): ReadonlyMap<string, boolean> => (ApiRouteRuntime as unknown as { resolveDateTimeFilterPaths: (service: unknown, query: Record<string, unknown>) => ReadonlyMap<string, boolean> }).resolveDateTimeFilterPaths(service, query);
 
-describe("ApiRouteRuntime instant filter paths", () => {
-	it("marks the value paths of a query by the driver-normalized column type, through relations and embedded parts", async () => {
+describe("ApiRouteRuntime date and time filter paths", () => {
+	it("marks the date and time value paths of a query and whether each stores an instant, through relations and embedded parts", async () => {
 		const dataSource: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageInstantEntity, KeyPageLedgerEntity], type: "postgres" });
 
 		// Metadata is enough to read column types; the test never connects.
 		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
 
-		const paths: ReadonlySet<string> = resolve(
+		const paths: ReadonlyMap<string, boolean> = resolve(
 			{ repository: dataSource.getRepository(KeyPageInstantEntity) },
 			{
+				"count[value]": "x",
 				"id[value]": "x",
 				limit: 10,
 				"ledger.missing[value]": "x",
@@ -31,7 +32,12 @@ describe("ApiRouteRuntime instant filter paths", () => {
 			},
 		);
 
-		expect([...paths].toSorted()).toEqual(["ledger.postedAt", "plainAt", "window.startsAt"]);
+		expect([...paths].toSorted(([left]: [string, boolean], [right]: [string, boolean]): number => left.localeCompare(right))).toEqual([
+			["ledger.postedAt", true],
+			["localAt", false],
+			["plainAt", true],
+			["window.startsAt", true],
+		]);
 	});
 
 	it("marks nothing for a service without a repository", () => {

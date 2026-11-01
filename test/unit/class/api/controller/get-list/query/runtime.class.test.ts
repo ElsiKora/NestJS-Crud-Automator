@@ -1147,8 +1147,11 @@ describe("typed GET_LIST query plan and runtime", () => {
 	});
 
 	it("rejects a zone-less date-time filter value on an instant path whatever the route plan is", () => {
-		const instantPaths: ReadonlySet<string> = new Set<string>(["account.openedAt", "safeTimestamptz"]);
-		const assertValue = (path: string, value: unknown, operation: EFilterOperation = EFilterOperation.GTE): void => ApiControllerGetListQueryRuntime.assertZonedInstantValues({ [`${path}[operator]`]: operation, [`${path}[value]`]: value }, instantPaths);
+		const instantPaths: ReadonlyMap<string, boolean> = new Map<string, boolean>([
+			["account.openedAt", true],
+			["safeTimestamptz", true],
+		]);
+		const assertValue = (path: string, value: unknown, operation: EFilterOperation = EFilterOperation.GTE): void => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ [`${path}[operator]`]: operation, [`${path}[value]`]: value }, instantPaths);
 
 		// Each zone-less form takes the zone of whoever parses it; "+05" has no minutes and JavaScript reads no instant from it.
 		for (const zoneLess of ["2024-03-01T10:00:00", "2024-03-01T10:00:00.123", "2024-03-01 10:00:00", "2024-03-01T10:00", "March 1, 2024 10:00:00", "2024-03-01T10:00:00+", "2024-03-01T15:30:00+05", "1709287200000", "2024-03"]) {
@@ -1160,9 +1163,9 @@ describe("typed GET_LIST query plan and runtime", () => {
 			expect(() => assertValue("safeTimestamptz", zoned)).not.toThrow();
 		}
 
-		expect(() => ApiControllerGetListQueryRuntime.assertZonedInstantValues({ "safeTimestamptz[operator]": EFilterOperation.BETWEEN, "safeTimestamptz[values]": ["2024-03-01T10:00:00Z", "2024-03-01T10:00:00"] }, instantPaths)).toThrow("INVALID_FILTER");
-		expect(() => ApiControllerGetListQueryRuntime.assertZonedInstantValues({ "safeTimestamptz[operator]": EFilterOperation.IN, "safeTimestamptz[values]": "2024-03-01T10:00:00" }, instantPaths)).toThrow("INVALID_FILTER");
-		expect(() => ApiControllerGetListQueryRuntime.assertZonedInstantValues({ "safeTimestamptz[operator]": EFilterOperation.BETWEEN, "safeTimestamptz[values]": ["2024-03-01T10:00:00Z", "2024-03-02T10:00:00Z"] }, instantPaths)).not.toThrow();
+		expect(() => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ "safeTimestamptz[operator]": EFilterOperation.BETWEEN, "safeTimestamptz[values]": ["2024-03-01T10:00:00Z", "2024-03-01T10:00:00"] }, instantPaths)).toThrow("INVALID_FILTER");
+		expect(() => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ "safeTimestamptz[operator]": EFilterOperation.IN, "safeTimestamptz[values]": "2024-03-01T10:00:00" }, instantPaths)).toThrow("INVALID_FILTER");
+		expect(() => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ "safeTimestamptz[operator]": EFilterOperation.BETWEEN, "safeTimestamptz[values]": ["2024-03-01T10:00:00Z", "2024-03-02T10:00:00Z"] }, instantPaths)).not.toThrow();
 		// An operator that takes no value, or none the route reads, leaves its value unchecked.
 		expect(() => assertValue("safeTimestamptz", "2024-03-01T10:00:00", EFilterOperation.ISNULL)).not.toThrow();
 		expect(() => assertValue("safeTimestamptz", "2024-03-01T10:00:00", EFilterOperation.NOTNULL)).not.toThrow();
@@ -1170,6 +1173,44 @@ describe("typed GET_LIST query plan and runtime", () => {
 		// Paths over other columns keep their values.
 		expect(() => assertValue("unsafeTimestamp", "2024-03-01T10:00:00")).not.toThrow();
 		expect(() => assertValue("safeTimestamptz", new Date("2024-03-01T10:00:00Z"))).not.toThrow();
+	});
+
+	it("accepts only calendar date-times of years 0001 to 9999 on date and time paths", () => {
+		const dateTimePaths: ReadonlyMap<string, boolean> = new Map<string, boolean>([
+			["safeTimestamptz", true],
+			["unsafeTimestamp", false],
+		]);
+		const assertValue = (path: string, value: unknown): void => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ [`${path}[operator]`]: EFilterOperation.GTE, [`${path}[value]`]: value }, dateTimePaths);
+
+		// Each of these reaches the database as a date it rejects, or as another date than the client named.
+		for (const invalid of ["0000-01-01T00:00:00Z", "0000-01-01", "2024-02-30T10:00:00Z", "2024-02-30", "2024-13-01", "2024-03-01T24:00:00Z", "2024-03-01T25:00:00Z", "2024-03-01T10:60:00Z", "2024-03-01T10:00:60Z", "2024-03-01T10:00:00+25:00", "0001-01-01T00:00:00+01:00", "9999-12-31T23:00:00-05:00", "-000001-01-01T00:00:00Z", "+275760-09-13T00:00:00.001Z", "2024-03-01T10:00 junk+05:30", "2024-03-01junk", "2024-03-01Z", ""]) {
+			expect(() => assertValue("safeTimestamptz", invalid), invalid).toThrow("INVALID_FILTER");
+			expect(() => assertValue("unsafeTimestamp", invalid), invalid).toThrow("INVALID_FILTER");
+		}
+
+		for (const valid of ["0001-01-01T00:00:00Z", "0001-01-01", "9999-12-31T23:59:59.999Z", "9999-12-31", "2024-02-29T10:00:00Z", "2024-02-29", "2024-03-01T10:00:00.123456789Z", "2024-03-01 10:00Z"]) {
+			expect(() => assertValue("safeTimestamptz", valid), valid).not.toThrow();
+			expect(() => assertValue("unsafeTimestamp", valid), valid).not.toThrow();
+		}
+
+		// A column without a zone reads a zone-less date-time as the process does, so its instant may leave year 0001.
+		const originalTimezone: string | undefined = process.env.TZ;
+
+		process.env.TZ = "Asia/Kolkata";
+
+		try {
+			expect(() => assertValue("unsafeTimestamp", "0001-01-01T00:00:00")).not.toThrow();
+		} finally {
+			if (originalTimezone === undefined) {
+				delete process.env.TZ;
+			} else {
+				process.env.TZ = originalTimezone;
+			}
+		}
+
+		expect(() => assertValue("unsafeTimestamp", "2024-03-01T10:00")).not.toThrow();
+		expect(() => assertValue("unsafeTimestamp", "2024-02-30T10:00:00")).toThrow("INVALID_FILTER");
+		expect(() => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ "unsafeTimestamp[operator]": EFilterOperation.BETWEEN, "unsafeTimestamp[values]": ["2024-03-01T10:00:00", "2024-02-30T10:00:00"] }, dateTimePaths)).toThrow("INVALID_FILTER");
 	});
 
 	it("keeps parsing a zone-less date-time filter value in the process zone", () => {

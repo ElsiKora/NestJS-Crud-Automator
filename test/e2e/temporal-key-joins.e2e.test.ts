@@ -219,6 +219,15 @@ describe("PAGE and CURSOR reads of a temporal primary key with joins and filters
 		}
 	});
 
+	it.each(["0000-01-01T00:00:00Z", "2024-02-30T10:00:00Z", "2024-03-01T25:00:00Z"])("answers 400 for the date-time %s that names no calendar instant on every GET_LIST route", async (value: string) => {
+		for (const path of ["temporal-ledgers-page?limit=2&page=1", "temporal-ledgers-cursor?limit=2", "temporal-ledgers-default?limit=2&page=1"]) {
+			const rejected = await fastify.inject({ method: "GET", url: `/${path}&bookedAt[operator]=gte&bookedAt[value]=${value}` });
+
+			expect(rejected.statusCode, `${path} ${JSON.stringify(rejected.json())}`).toBe(HttpStatus.BAD_REQUEST);
+			expect(JSON.stringify(rejected.json())).toContain("INVALID_FILTER");
+		}
+	});
+
 	it("ignores the value of an operator that takes none on a default GET_LIST route", async () => {
 		process.env.TZ = "Asia/Kolkata";
 

@@ -224,7 +224,7 @@ GET /posts?deletedAt[operator]=isnull
 GET /posts?deletedAt[operator]=notnull
 ```
 
-On a `timestamptz` column, a date-time value must name its zone: send `2024-01-01T10:00:00Z` or `2024-01-01T15:30:00+05:30`. A date-time without `Z` or a numeric offset with minutes answers `400 INVALID_FILTER` on every route, so `+05` alone is rejected. On `timestamp`, `datetime`, and `date` columns it keeps parsing in the process zone.
+On a `timestamptz` column, a date-time value must name its zone: send `2024-01-01T10:00:00Z` or `2024-01-01T15:30:00+05:30`. A date-time without `Z` or a numeric offset with minutes answers `400 INVALID_FILTER` on every route, so `+05` alone is rejected. On `timestamp`, `datetime`, and `date` columns it keeps parsing in the process zone. On every date and time column, a value must be a calendar date or a date-time of a year from 0001 to 9999 that exists in the calendar, so `2024-02-30`, `25:00`, and the year `0000` answer `400 INVALID_FILTER` as well.
 
 ### Boolean Operations
 
