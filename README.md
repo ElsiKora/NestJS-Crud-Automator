@@ -1516,9 +1516,9 @@ export class DepositDetailController {
 }
 ```
 
-Each row is serialized through the DTO of its variant, such as `DepositDetailEntityGetResponseCardTransferDTO`, and Swagger describes GET and the GET_LIST `items` as `oneOf` with a discriminator mapping. A row whose discriminator value has no variant fails with `500` without echoing the value, and a child entity loaded after the controller fails startup with the class names and the fix.
+Each row is serialized through the DTO of its variant, such as `DepositDetailEntityGetResponseCardTransferDTO`, and Swagger describes GET and the GET_LIST `items` as `oneOf` with a discriminator mapping. A row whose discriminator value has no variant fails with `500` without echoing the value, and a child entity loaded after the controller fails startup with the class names and the fix. The root declares the discriminator with `@Column` and `@ApiPropertyDescribe`, keeps it selected, stores it as a string, and leaves it in GET and GET_LIST responses; otherwise startup fails.
 
-Filters, order, pagination, and HOOKS/IAM scope stay on root columns. CURSOR order fields must be root columns that every variant still proves. Generated writes keep working on the root columns only. An existing controller over such a root changes from silently stripped variant fields to the full polymorphic shape; a manual RESPONSE DTO keeps the old shape. See [Table Inheritance](https://elsikora.com/docs/nestjs-crud-automator/core-concepts/entities#table-inheritance) for the variant rules and migration notes.
+Filters, order, pagination, and HOOKS/IAM scope stay on root columns. CURSOR order fields must be root columns that every variant still proves. Generated writes keep working on the root columns only. An existing controller over such a root changes from silently stripped variant fields to the full polymorphic shape, and the `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` Swagger components disappear; a manual RESPONSE DTO keeps the old shape. See [Table Inheritance](https://elsikora.com/docs/nestjs-crud-automator/core-concepts/entities#table-inheritance) for the variant rules and migration notes.
 
 ## 🧭 Migrating to 4.0
 

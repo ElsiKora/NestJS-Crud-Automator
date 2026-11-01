@@ -249,7 +249,7 @@ author: UserEntity;
 
 A relation declared on a child entity of a [table inheritance](/docs/nestjs-crud-automator/core-concepts/entities#table-inheritance) root loads through the root repository, and the variant DTO carries it.
 
-A to-one relation works through `relations.response` as usual. The key is not part of `FindOptionsRelations<Root>`, so `include: { issuer: true }` does not compile on `@ApiController<Root>` until the root declares it with `declare issuer?: IssuerEntity;`.
+A to-one relation works through `relations.response` as usual. The key is not part of `FindOptionsRelations<Root>`, so `include: { issuer: true }` does not compile on `@ApiController<Root>`. Type the controller with the root and the child keys instead, `@ApiController<Root & Partial<Child>>`, and leave the entities as they are:
 
 ```typescript
 @ChildEntity(EDepositDetailType.CARD_TRANSFER)
@@ -259,6 +259,29 @@ export class DepositDetailCardTransferEntity extends DepositDetailEntity {
 	issuer: IssuerEntity;
 }
 ```
+
+```typescript
+import type { DepositDetailCardTransferEntity } from "./deposit-detail-card-transfer.entity";
+
+import "./deposit-detail-card-transfer.entity";
+
+import { DepositDetailEntity } from "./deposit-detail.entity";
+
+@ApiController<DepositDetailEntity & Partial<DepositDetailCardTransferEntity>>({
+	entity: DepositDetailEntity,
+	path: "deposit-details",
+	routes: {
+		[EApiRouteType.GET]: {
+			relations: { response: { load: { include: { issuer: true } }, reference: { shape: EApiControllerRelationReferenceShape.OBJECT, key: "id" } } },
+		},
+	},
+})
+export class DepositDetailController {
+	constructor(public readonly service: DepositDetailService) {}
+}
+```
+
+The type-only import does not load the child file, so the side-effect import stays. Declaring the key on the root with `declare issuer?: IssuerEntity` does not compile under `useDefineForClassFields` and `noImplicitOverride`, because the child then redeclares an inherited property.
 
 `relations.response` does not deliver a to-many relation. There are two ways to serve one.
 

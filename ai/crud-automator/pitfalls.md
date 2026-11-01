@@ -205,15 +205,19 @@ Do not import `@nestjs/swagger/dist/*`, not even for types: the paths are closed
 
 Do not add DTOs, options, or a list of variants for a single-table-inheritance root: generated GET and GET_LIST already produce them from TypeORM metadata.
 
-Import every child entity file before the controller. Variants compile at decoration, so a child reachable only through an `entities` glob misses that moment. The controller constructor then fails startup naming the classes, before Swagger. A child imported late and never registered in the data source fails the same way, and a REQUEST-scoped controller reports it on its first request.
+Import every child entity file before the controller. Variants compile at decoration, so a child reachable only through an `entities` glob misses that moment. The controller constructor then fails startup naming the classes, before Swagger. A child imported late and never registered in the data source fails the same way. A REQUEST-scoped controller, including one made request-scoped by its service, is constructed per request, so every request answers `500` with that message until the import order is fixed. A stub service that does not depend on the TypeORM repository, combined with `TypeOrmModule.forRootAsync` and an `entities` glob, can let the controller be constructed before the glob loads the child, so the check stays silent and rows of that child fail closed with `500`.
 
 Do not place a plain class with `@Column` between the root and a child: `DataSource.initialize()` throws, because TypeORM takes child columns from the parent by property name and leaves such classes out of the parent tree. Use a `@ChildEntity() abstract class`. A plain class without columns is fine.
 
 Do not expect filters, order, pagination, HOOKS/IAM scope, or read scope on child columns; they stay on the root. Generated writes stay parent-only, so their bodies and responses carry no child columns.
 
-Do not promise a to-many child relation through `relations.response`: it does not deliver one. Use a generated controller on the child table with `read.scope.parameters`, or an eager `OBJECT` array with `isArray`, `dataType`, and a manual item DTO. A child-only key in `relations.response.load.include` does not compile on `@ApiController<Root>` until the root declares it with `declare`.
+Do not promise a to-many child relation through `relations.response`: it does not deliver one. Use a generated controller on the child table with `read.scope.parameters`, or an eager `OBJECT` array with `isArray`, `dataType`, and a manual item DTO. A child-only key in `relations.response.load.include` does not compile on `@ApiController<Root>`; type the controller as `@ApiController<Root & Partial<Child>>` and keep the side-effect import of the child file, because `import type` does not load it. Do not add `declare` keys to the root: under `useDefineForClassFields` and `noImplicitOverride` the child property then fails with TS2612 and TS4114.
 
-Numeric discriminator values fail startup. Rows with a value that has no variant fail with `500`, so adding a value to the column enum without a child entity breaks reads of those rows until the child exists.
+The root must declare the discriminator as a property with `@Column` and `@ApiPropertyDescribe`; a column that exists only in `@TableInheritance({ column })` fails startup. These also fail startup: `select: false` or a numeric type on the discriminator, numeric discriminator values, hiding the discriminator from GET or GET_LIST responses, a leaf value outside the column enum, and a value whose DTO name suffix is not a valid OpenAPI component name or equals another generated name of the entity (`ITEMS`, or `CARD_TRANSFER_ISSUER` next to `CARD_TRANSFER` with an `issuer` relation). Values are never normalized.
+
+Rows with a value that has no variant fail with `500`, so adding a value to the column enum without a child entity breaks reads of those rows until the child exists. A subscriber or response transform that removes the discriminator from a loaded row fails the request the same way.
+
+Generated GET and GET_LIST over such a root no longer produce the `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` Swagger components, and `GenerateEntityInformation(Child).tableName` returns the root table. Regenerate OpenAPI clients, or keep a manual RESPONSE DTO on the route.
 
 ## Removed 3.0 Exports
 
