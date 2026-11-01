@@ -59,6 +59,7 @@ export enum EErrorStringCompositeAction {
 	NOT_PERMITTED = "{property}_NOT_PERMITTED",
 	NOT_REGISTERED = "{property}_NOT_REGISTERED",
 	NOT_SUPPORTED = "{property}_NOT_SUPPORTED",
+	NOT_VALID = "{property}_NOT_VALID",
 	NOT_VERIFIED = "{property}_NOT_VERIFIED",
 	OUT_OF = "OUT_OF_{property}",
 	PARSE_ERROR = "{property}_PARSE_ERROR",

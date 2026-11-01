@@ -27,4 +27,15 @@ describe("ErrorString", () => {
 
 		expect(result).toBe("ERRORENTITY_INVALID_EMAIL");
 	});
+
+	it("formats the not valid composite error string with the property after the entity", () => {
+		const result = ErrorString({
+			entity: ErrorEntity as unknown as IApiBaseEntity,
+			property: "email",
+			type: EErrorStringCompositeAction.NOT_VALID,
+		});
+
+		expect(EErrorStringCompositeAction.NOT_VALID).toBe("{property}_NOT_VALID");
+		expect(result).toBe("ERRORENTITY_EMAIL_NOT_VALID");
+	});
 });

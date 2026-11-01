@@ -95,6 +95,8 @@ import {
 	EApiRouteSubscriberAuthorizationExpectation,
 	EApiRouteType,
 	EErrorStringAction,
+	EErrorStringCompositeAction,
+	ErrorString,
 	EFilterOperation,
 	GetDefaultStringFormatProperties,
 } from "../../src/index";
@@ -604,6 +606,12 @@ describe("public API exports (E2E)", () => {
 		expect(new PublicApiPolicy()).toBeInstanceOf(ApiAuthorizationPolicyBase);
 		expect(new PublicApiStepService()).toBeInstanceOf(PublicApiStepService);
 	});
+	it("exports the not valid composite error string action through the package root", (): void => {
+		class PublicApiErrorEntity {}
+
+		expect(ErrorString({ entity: PublicApiErrorEntity, property: "email", type: EErrorStringCompositeAction.NOT_VALID })).toBe("PUBLICAPIERRORENTITY_EMAIL_NOT_VALID");
+	});
+
 	it("exports UPDATE-only SAVE and PATCH configuration through direct, generic and generated service APIs", async (): Promise<void> => {
 		const direct = {
 			entity: PublicApiUser,
