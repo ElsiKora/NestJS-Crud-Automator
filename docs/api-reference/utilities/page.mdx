@@ -160,6 +160,13 @@ Formats error objects to strings.
 function ErrorString<T extends TApiEntityReference>(properties: TErrorStringProperties<T>): string;
 ```
 
+**Example:**
+
+```typescript
+ErrorString({ entity: UserEntity, type: EErrorStringAction.NOT_FOUND }); // "USERENTITY_NOT_FOUND"
+ErrorString({ entity: UserEntity, property: "email", type: EErrorStringCompositeAction.NOT_VALID }); // "USERENTITY_EMAIL_NOT_VALID"
+```
+
 ### IsErrorOfType
 
 Checks if error is of specific type.

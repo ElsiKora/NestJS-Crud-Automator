@@ -1,8 +1,9 @@
 import type { IApiControllerProperties } from "@interface/decorator/api";
 
-import { EErrorStringAction } from "@enum/utility";
+import { EErrorStringAction, EErrorStringCompositeAction } from "@enum/utility";
 import { BadRequestException } from "@nestjs/common";
 import { ApiControllerValidateRequest } from "@utility/api/controller/validate-request.utility";
+import { ErrorString } from "@utility/error/string.utility";
 import { describe, expect, it } from "vitest";
 
 class ValidateEntity {
@@ -31,5 +32,21 @@ describe("ApiControllerValidateRequest", () => {
 		};
 
 		await expect(ApiControllerValidateRequest(target, properties, { id: "1" })).rejects.toBeInstanceOf(BadRequestException);
+	});
+
+	it("keeps a property-level code thrown from the validation function", async () => {
+		const target = {
+			validators: [
+				{
+					errorType: EErrorStringAction.BAD_REQUEST,
+					exception: BadRequestException,
+					validationFunction: () => {
+						throw new BadRequestException(ErrorString({ entity: ValidateEntity, property: "id", type: EErrorStringCompositeAction.INVALID }));
+					},
+				},
+			],
+		};
+
+		await expect(ApiControllerValidateRequest(target, properties, { id: "1" })).rejects.toThrow("VALIDATEENTITY_INVALID_ID");
 	});
 });

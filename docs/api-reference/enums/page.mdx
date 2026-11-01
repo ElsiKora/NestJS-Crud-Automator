@@ -699,6 +699,8 @@ The package also exports large utility enum families used by generated errors, m
 - `EManualDtoPropertyMetadataDecorator`
 - `EMastMatchOneOfSchemasValidationErrorType`
 
+`EErrorStringCompositeAction` builds a code for one property of an entity. Use it through `ErrorString({ entity, property, type })`. For choosing between `INVALID`, `NOT_VALID`, and `VALIDATION_ERROR`, see [Property-Level Error Codes](/docs/nestjs-crud-automator/guides/error-handling#property-level-error-codes).
+
 ## Subscriber Enums
 
 ### EApiSubscriberOnType

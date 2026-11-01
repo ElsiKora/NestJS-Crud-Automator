@@ -100,6 +100,36 @@ Configured typed GET_LIST plans return stable `400` codes independently of the h
 
 Unknown or disabled typed-query fields fail closed instead of being silently ignored.
 
+## Property-Level Error Codes
+
+`EErrorStringCompositeAction` builds a code for one property of an entity through `ErrorString({ entity, property, type })`. Three of its values cover rejected input:
+
+| Value              | Example code                        | Use it for                                                                                                                                                                                      |
+| ------------------ | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INVALID`          | `USERENTITY_INVALID_EMAIL`          | The value of one property is rejected.                                                                                                                                                          |
+| `NOT_VALID`        | `USERENTITY_EMAIL_NOT_VALID`        | The same meaning as `INVALID`, in the word order of `{PROPERTY}_NOT_*` codes.                                                                                                                   |
+| `VALIDATION_ERROR` | `USERENTITY_EMAIL_VALIDATION_ERROR` | A rule that spans the request or several fields failed, reported against a property. `EErrorStringAction.VALIDATION_ERROR` gives `USERENTITY_VALIDATION_ERROR` when no single property applies. |
+
+`INVALID` and `NOT_VALID` differ only in word order. A project picks one form and does not mix them. New projects use `INVALID`, which matches the codes the package emits itself. Use `NOT_VALID` when your codes are already built as `{PROPERTY}_NOT_*`.
+
+The package emits no property-level code of its own, and its existing codes such as `INVALID_FILTER`, `INVALID_CURSOR`, and `{ENTITY}_INVALID_REFERENCE` stay as they are.
+
+Composite values do not work in `IApiRequestValidator.errorType`. That field accepts `EErrorStringAction` only, and the failure code is built without a property. To return a property-level code from a request validator, throw it from `validationFunction`:
+
+```typescript
+const emailValidator: IApiRequestValidator<UserEntity> = {
+	errorType: EErrorStringAction.BAD_REQUEST,
+	exception: BadRequestException,
+	validationFunction: (payload) => {
+		if (!isEmail((payload as Partial<UserEntity>).email)) {
+			throw new BadRequestException(ErrorString({ entity: UserEntity, property: "email", type: EErrorStringCompositeAction.INVALID }));
+		}
+
+		return true;
+	},
+};
+```
+
 ## Transaction Outcome Errors
 
 Transaction completion failures must be handled by outcome:

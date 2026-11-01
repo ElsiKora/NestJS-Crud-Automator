@@ -246,6 +246,14 @@ Generated request relation caveats:
 - For generated routes, request relation hydration reads relation fields from the request body for CREATE, UPDATE, and PARTIAL_UPDATE. It does not hydrate GET/DELETE route parameters.
 - CREATE always reloads the created entity through `service.get(...)`, including configured response relations when present. UPDATE/PARTIAL_UPDATE reload only when response relation loading is configured. DELETE returns no body. PAGE GET_LIST maps required `limit`/`page` to `take`/`skip` and calls `getList`; CURSOR GET_LIST maps required `limit` plus optional `after`/`before` to `getMany` window/probe queries. Both modes use the configured normalized filter/order plan. Without client order they apply `defaultOrder` plus tie-breakers; with client order they replace defaults and append de-duplicated tie-breakers.
 
+## Error String Codes
+
+- `EErrorStringCompositeAction` renders through `ErrorString({ entity, property, type })`: `NOT_VALID` gives `USERENTITY_EMAIL_NOT_VALID`, `INVALID` gives `USERENTITY_INVALID_EMAIL`.
+- `INVALID` and `NOT_VALID` mean the same thing: the value of one property is rejected. A project picks one form and does not mix them. New projects use `INVALID`, matching the package's own codes; use `NOT_VALID` when codes are already built as `{PROPERTY}_NOT_*`.
+- `VALIDATION_ERROR` is for a failed rule that spans the request or several fields. `EErrorStringAction.VALIDATION_ERROR` gives `USERENTITY_VALIDATION_ERROR` when no single property applies, and it works in `IApiRequestValidator.errorType`.
+- `IApiRequestValidator.errorType` accepts `EErrorStringAction` only, so no composite value works there. To return a property-level code from a validator, throw it from `validationFunction`.
+- `EErrorStringAction` has no `NOT_VALID` value. The package emits no property-level code itself; do not rewrite its existing codes such as `INVALID_FILTER` or `{ENTITY}_INVALID_REFERENCE`.
+
 ## Subscriber Contexts
 
 Route before create result shape:
