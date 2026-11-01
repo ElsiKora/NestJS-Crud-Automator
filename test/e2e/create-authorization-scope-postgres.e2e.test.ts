@@ -102,20 +102,123 @@ class ScopedEventEntity {
 	public tenantId!: string;
 }
 
-// The database default lies where a local offset with seconds applies, such as Moscow before 1919.
-@Entity("create_scope_pg_stamps")
-class ScopedStampEntity {
+interface ITemporalKeyFixture {
+	controllers: Array<Type<unknown>>;
+	entity: Type<object>;
+	label: string;
+	providers: Array<Type<unknown>>;
+	scopedPath: string;
+	source: "body" | "default";
+}
+
+// 1800 lies where Moscow and New York keep local mean time, whose offsets hold seconds that node-postgres truncates.
+const HISTORIC_INSTANT: string = "1800-01-01T00:00:00.000Z";
+
+const historicTimestampDescribe: PropertyDecorator = ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.CREATED_AT, type: EApiPropertyDescribeType.DATE } as never);
+const bodyTimestampDescribe: PropertyDecorator = ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE } as never);
+
+@Entity("create_scope_pg_timestamp_default")
+class TimestampDefaultKeyEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@describeString("id")
+	public id!: string;
+
+	@PrimaryColumn({ default: () => "'1800-01-01 00:00:00'", type: "timestamp" })
+	@historicTimestampDescribe
+	public at!: Date;
+
+	@Column({ type: "varchar" })
+	@describeString("tenantId")
+	public tenantId!: string;
+}
+
+@Entity("create_scope_pg_timestamp_body")
+class TimestampBodyKeyEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@describeString("id")
+	public id!: string;
+
+	@PrimaryColumn({ type: "timestamp" })
+	@bodyTimestampDescribe
+	public at!: Date;
+
+	@Column({ type: "varchar" })
+	@describeString("tenantId")
+	public tenantId!: string;
+}
+
+@Entity("create_scope_pg_timestamptz_default")
+class TimestamptzDefaultKeyEntity {
 	@PrimaryGeneratedColumn("uuid")
 	@describeString("id")
 	public id!: string;
 
 	@PrimaryColumn({ default: () => "'1800-01-01 00:00:00+00'", type: "timestamptz" })
-	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.CREATED_AT, type: EApiPropertyDescribeType.DATE } as never)
-	public stamp!: Date;
+	@historicTimestampDescribe
+	public at!: Date;
 
 	@Column({ type: "varchar" })
 	@describeString("tenantId")
 	public tenantId!: string;
+}
+
+@Entity("create_scope_pg_timestamptz_body")
+class TimestamptzBodyKeyEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@describeString("id")
+	public id!: string;
+
+	@PrimaryColumn({ type: "timestamptz" })
+	@bodyTimestampDescribe
+	public at!: Date;
+
+	@Column({ type: "varchar" })
+	@describeString("tenantId")
+	public tenantId!: string;
+}
+
+type TTemporalKeyEntity = TimestampBodyKeyEntity | TimestampDefaultKeyEntity | TimestamptzBodyKeyEntity | TimestamptzDefaultKeyEntity;
+
+function createTemporalKeyFixture(TemporalKeyEntity: Type<TTemporalKeyEntity>, name: string, source: "body" | "default"): ITemporalKeyFixture {
+	@Injectable()
+	@ApiService({ entity: TemporalKeyEntity })
+	class TemporalKeyService extends ApiServiceBase<TTemporalKeyEntity> {
+		@InjectRepository(TemporalKeyEntity)
+		public readonly repository!: Repository<TTemporalKeyEntity>;
+	}
+
+	@Injectable()
+	@ApiAuthorizationPolicy({ entity: TemporalKeyEntity })
+	class TemporalKeyPolicy extends ApiAuthorizationPolicyBase<TTemporalKeyEntity> {
+		public onBeforeCreate() {
+			return this.allow({ scope: () => ({ where: { tenantId: IN_SCOPE } as never }) });
+		}
+	}
+
+	@ApiControllerSecurable()
+	@ApiController<TTemporalKeyEntity>({
+		authorization: {
+			defaultMode: EApiAuthorizationMode.HOOKS,
+			policyNamespace: name,
+			resourceDefinition: { entity: TemporalKeyEntity, fields: [{ isFilterable: true, path: "resource.tenantId", queryPath: "tenantId" }], namespace: name, resourcePath: `${name}/{id}`, resourceType: name },
+		},
+		entity: TemporalKeyEntity,
+		name,
+		path: name,
+		routes: { ...createRoute, ...disabledRoutes },
+	})
+	class ScopedTemporalKeyController {
+		@Inject(TemporalKeyService)
+		public readonly service!: TemporalKeyService;
+	}
+
+	@ApiController<TTemporalKeyEntity>({ entity: TemporalKeyEntity, name: `${name}-open`, path: `${name}-open`, routes: { [EApiRouteType.CREATE]: {}, ...disabledRoutes } })
+	class OpenTemporalKeyController {
+		@Inject(TemporalKeyService)
+		public readonly service!: TemporalKeyService;
+	}
+
+	return { controllers: [ScopedTemporalKeyController, OpenTemporalKeyController], entity: TemporalKeyEntity, label: `${name.replace("create-scope-pg-", "").replace("-", " from the ")}`, providers: [TemporalKeyPolicy, TemporalKeyService], scopedPath: name, source };
 }
 
 // A database trigger owns the second primary column.
@@ -139,13 +242,6 @@ class TriggerRegionEntity {
 class ScopedEventService extends ApiServiceBase<ScopedEventEntity> {
 	@InjectRepository(ScopedEventEntity)
 	public readonly repository!: Repository<ScopedEventEntity>;
-}
-
-@Injectable()
-@ApiService({ entity: ScopedStampEntity })
-class ScopedStampService extends ApiServiceBase<ScopedStampEntity> {
-	@InjectRepository(ScopedStampEntity)
-	public readonly repository!: Repository<ScopedStampEntity>;
 }
 
 @Injectable()
@@ -241,14 +337,6 @@ class ScopedItemPolicy extends ApiAuthorizationPolicyBase<ScopedItemEntity> {
 @Injectable()
 @ApiAuthorizationPolicy({ entity: ScopedEventEntity })
 class ScopedEventPolicy extends ApiAuthorizationPolicyBase<ScopedEventEntity> {
-	public onBeforeCreate() {
-		return this.allow({ scope: () => ({ where: { tenantId: IN_SCOPE } as never }) });
-	}
-}
-
-@Injectable()
-@ApiAuthorizationPolicy({ entity: ScopedStampEntity })
-class ScopedStampPolicy extends ApiAuthorizationPolicyBase<ScopedStampEntity> {
 	public onBeforeCreate() {
 		return this.allow({ scope: () => ({ where: { tenantId: IN_SCOPE } as never }) });
 	}
@@ -372,41 +460,19 @@ class OpenEventController {
 	public readonly service!: ScopedEventService;
 }
 
-@ApiControllerSecurable()
-@ApiController<ScopedStampEntity>({
-	authorization: {
-		defaultMode: EApiAuthorizationMode.HOOKS,
-		policyNamespace: "create-scope-pg:stamp",
-		resourceDefinition: { entity: ScopedStampEntity, fields: [{ isFilterable: true, path: "resource.tenantId", queryPath: "tenantId" }], namespace: "create-scope-pg:stamp", resourcePath: "create-scope-pg:stamp/{id}", resourceType: "create-scope-pg:stamp" },
-	},
-	entity: ScopedStampEntity,
-	name: "create-scope-pg-stamp",
-	path: "create-scope-pg-stamp",
-	routes: { ...createRoute, ...disabledRoutes },
-})
-class ScopedStampController {
-	@Inject(ScopedStampService)
-	public readonly service!: ScopedStampService;
-}
-
-@ApiController<ScopedStampEntity>({ entity: ScopedStampEntity, name: "create-scope-pg-stamp-open", path: "create-scope-pg-stamp-open", routes: { [EApiRouteType.CREATE]: {}, ...disabledRoutes } })
-class OpenStampController {
-	@Inject(ScopedStampService)
-	public readonly service!: ScopedStampService;
-}
-
 @ApiController<TriggerRegionEntity>({ entity: TriggerRegionEntity, name: "create-scope-pg-region", path: "create-scope-pg-region", routes: { [EApiRouteType.CREATE]: {}, ...disabledRoutes } })
 class TriggerRegionController {
 	@Inject(TriggerRegionService)
 	public readonly service!: TriggerRegionService;
 }
 
+const temporalKeyFixtures: Array<ITemporalKeyFixture> = [createTemporalKeyFixture(TimestampDefaultKeyEntity, "create-scope-pg-timestamp-default", "default"), createTemporalKeyFixture(TimestampBodyKeyEntity, "create-scope-pg-timestamp-body", "body"), createTemporalKeyFixture(TimestamptzDefaultKeyEntity, "create-scope-pg-timestamptz-default", "default"), createTemporalKeyFixture(TimestamptzBodyKeyEntity, "create-scope-pg-timestamptz-body", "body")];
+
 describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 	let app: INestApplication;
 	let composites: Repository<ScopedCompositeEntity>;
 	let events: Repository<ScopedEventEntity>;
 	let regions: Repository<TriggerRegionEntity>;
-	let stamps: Repository<ScopedStampEntity>;
 	let container: StartedPostgreSqlContainer;
 	let fastify: { inject: (options: { method: string; payload?: unknown; url: string }) => Promise<{ json: () => { id?: string }; statusCode: number }> };
 	let items: Repository<ScopedItemEntity>;
@@ -423,12 +489,22 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 		container = await new PostgreSqlContainer("postgres:17-alpine").start();
 
 		@Module({
-			controllers: [createItemController("create-scope-pg", ScopedItemService), createItemController("create-scope-pg-get-none", ScopedGetNoneItemService), createItemController("create-scope-pg-undecorated", ScopedUndecoratedCreateService), createItemController("create-scope-pg-decorated", ScopedDecoratedCreateService), ScopedCompositeController, ScopedEventController, OpenEventController, ScopedStampController, OpenStampController, TriggerRegionController],
+			controllers: [
+				createItemController("create-scope-pg", ScopedItemService),
+				createItemController("create-scope-pg-get-none", ScopedGetNoneItemService),
+				createItemController("create-scope-pg-undecorated", ScopedUndecoratedCreateService),
+				createItemController("create-scope-pg-decorated", ScopedDecoratedCreateService),
+				ScopedCompositeController,
+				ScopedEventController,
+				OpenEventController,
+				TriggerRegionController,
+				...temporalKeyFixtures.flatMap((fixture: ITemporalKeyFixture): Array<Type<unknown>> => fixture.controllers),
+			],
 			imports: [
 				TypeOrmModule.forRoot({
 					database: container.getDatabase(),
 					dropSchema: true,
-					entities: [ScopedCompositeEntity, ScopedEventEntity, ScopedItemEntity, ScopedStampEntity, TriggerRegionEntity],
+					entities: [ScopedCompositeEntity, ScopedEventEntity, ScopedItemEntity, TriggerRegionEntity, ...temporalKeyFixtures.map((fixture: ITemporalKeyFixture): Type<object> => fixture.entity)],
 					extra: { max: POOL_SIZE },
 					host: container.getHost(),
 					logging: false,
@@ -438,11 +514,11 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 					type: "postgres",
 					username: container.getUsername(),
 				}),
-				TypeOrmModule.forFeature([ScopedCompositeEntity, ScopedEventEntity, ScopedItemEntity, ScopedStampEntity, TriggerRegionEntity]),
+				TypeOrmModule.forFeature([ScopedCompositeEntity, ScopedEventEntity, ScopedItemEntity, TriggerRegionEntity, ...temporalKeyFixtures.map((fixture: ITemporalKeyFixture): Type<object> => fixture.entity)]),
 				ApiAuthorizationModule.forRoot({ principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user) } }),
 				ApiSubscriberModule,
 			],
-			providers: [ScopedAuthGuard, ScopedCompositePolicy, ScopedCompositeService, ScopedCompositeSubscriber, ScopedDecoratedCreateService, ScopedEventPolicy, ScopedEventService, ScopedStampPolicy, ScopedStampService, TriggerRegionService, ScopedGetNoneItemService, ScopedItemPolicy, ScopedItemRouteSubscriber, ScopedItemService, ScopedItemSubscriber, ScopedUndecoratedCreateService],
+			providers: [ScopedAuthGuard, ScopedCompositePolicy, ScopedCompositeService, ScopedCompositeSubscriber, ScopedDecoratedCreateService, ScopedEventPolicy, ScopedEventService, TriggerRegionService, ...temporalKeyFixtures.flatMap((fixture: ITemporalKeyFixture): Array<Type<unknown>> => fixture.providers), ScopedGetNoneItemService, ScopedItemPolicy, ScopedItemRouteSubscriber, ScopedItemService, ScopedItemSubscriber, ScopedUndecoratedCreateService],
 		})
 		class ScopedModule {}
 
@@ -455,7 +531,6 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 		composites = app.get(getRepositoryToken(ScopedCompositeEntity));
 		events = app.get(getRepositoryToken(ScopedEventEntity));
 		regions = app.get(getRepositoryToken(TriggerRegionEntity));
-		stamps = app.get(getRepositoryToken(ScopedStampEntity));
 
 		const dataSource: DataSource = app.get(DataSource);
 
@@ -468,7 +543,9 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 		await composites.clear();
 		await events.clear();
 		await regions.clear();
-		await stamps.clear();
+		for (const fixture of temporalKeyFixtures) {
+			await app.get(DataSource).getRepository(fixture.entity).clear();
+		}
 		ScopedItemPolicy.where = { tenantId: IN_SCOPE };
 		ScopedItemSubscriber.afterCreate = undefined;
 		ScopedItemSubscriber.narrowReload = false;
@@ -516,12 +593,12 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 			expect(await regions.findBy({ id: "region-2" })).toEqual([{ id: "region-2", name: "Region", region: "eu" }]);
 		});
 
-		describe("in a time zone whose historical offset holds seconds", () => {
+		describe.each(["UTC", "Europe/Moscow", "America/New_York"])("in the %s time zone", (zone: string) => {
 			let timeZone: string | undefined;
 
 			beforeAll(() => {
 				timeZone = process.env.TZ;
-				process.env.TZ = "Europe/Moscow";
+				process.env.TZ = zone;
 			});
 
 			afterAll(() => {
@@ -532,21 +609,19 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 				}
 			});
 
-			it.each([
-				["a scoped", "create-scope-pg-stamp"],
-				["a non-scoped", "create-scope-pg-stamp-open"],
-			])("reloads %s row whose timestamp primary column lies in 1800", async (_name: string, path: string) => {
-				const response = await fastify.inject({ method: "POST", payload: { tenantId: IN_SCOPE }, url: `/${path}` });
+			it.each(
+				temporalKeyFixtures.flatMap((fixture: ITemporalKeyFixture): Array<[string, string, ITemporalKeyFixture, string, number]> => [
+					[fixture.label, "a scoped in-scope", fixture, fixture.scopedPath, 201],
+					[fixture.label, "a scoped out-of-scope", fixture, fixture.scopedPath, 403],
+					[fixture.label, "a non-scoped", fixture, `${fixture.scopedPath}-open`, 201],
+				]),
+			)("answers a %s key in 1800 on %s request", async (_label: string, kind: string, fixture: ITemporalKeyFixture, path: string, status: number) => {
+				const tenantId: string = kind === "a scoped out-of-scope" ? OUT_OF_SCOPE : IN_SCOPE;
+				const payload: Record<string, string> = fixture.source === "body" ? { at: HISTORIC_INSTANT, tenantId } : { tenantId };
+				const response = await fastify.inject({ method: "POST", payload, url: `/${path}` });
 
-				expect(response.statusCode).toBe(201);
-				expect(await stamps.count()).toBe(1);
-			});
-
-			it("refuses an out-of-scope row whose timestamp primary column lies in 1800", async () => {
-				const response = await fastify.inject({ method: "POST", payload: { tenantId: OUT_OF_SCOPE }, url: "/create-scope-pg-stamp" });
-
-				expect(response.statusCode).toBe(403);
-				expect(await stamps.count()).toBe(0);
+				expect(response.statusCode).toBe(status);
+				expect(await app.get(DataSource).getRepository(fixture.entity).count()).toBe(status === 201 ? 1 : 0);
 			});
 		});
 
