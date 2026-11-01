@@ -144,6 +144,12 @@ describe("ApiController", () => {
 		})(FactoryController);
 
 		const controller = new ControllerClass() as FactoryController & Record<string, any>;
+		const dataSource: DataSource = new DataSource({ entities: [FactoryEntity], type: "postgres" });
+
+		// GET_LIST reads filter column types from the repository metadata; the test never connects.
+		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+		(controller.service as FactoryService & { repository?: unknown }).repository = dataSource.getRepository(FactoryEntity);
+
 		const headers: Record<string, string> = {};
 		const ip = "127.0.0.1";
 
@@ -484,5 +490,33 @@ describe("ApiController", () => {
 
 			expect(() => new Controller()).toThrowError('Metadata target "DecoratorLateToManyOwner" matches 2 entity classes in TypeORM metadata');
 		});
+	});
+
+	it("checks a repository from another TypeORM copy at bootstrap and rejects a service without a recognized repository", async () => {
+		vi.spyOn(LoggerUtility.prototype, "error").mockImplementation((): void => undefined);
+
+		const dataSource: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageJournalEntity], type: "postgres" });
+
+		// Metadata is enough for the startup check; the test never connects.
+		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+
+		const repository = dataSource.getRepository(KeyPageJournalEntity);
+		const bootstrap = async (service: unknown): Promise<void> => {
+			class ForeignController {
+				public service: unknown = service;
+			}
+
+			const Decorated = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes: {} } as never)(ForeignController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+
+			await new Decorated().onApplicationBootstrap();
+		};
+
+		// A second TypeORM copy brands its own classes, so its repository fails instanceof but keeps the shape.
+		await expect(bootstrap({ repository: { manager: repository.manager, metadata: repository.metadata } })).rejects.toThrow('Controller "ForeignController" route "create": @RelationId property "readerIds" of entity "KeyPageJournalEntity"');
+		await expect(bootstrap({ repository: {} })).rejects.toThrow('Controller "ForeignController": service has no TypeORM repository');
+		await expect(bootstrap({})).rejects.toThrow('Controller "ForeignController": service has no TypeORM repository');
+		await expect(bootstrap(undefined)).rejects.toThrow('Controller "ForeignController": service has no TypeORM repository');
+
+		vi.restoreAllMocks();
 	});
 });

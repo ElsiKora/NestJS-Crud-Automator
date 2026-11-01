@@ -31,6 +31,8 @@
 
 Generated controller routes accept GET, GET_LIST, GET_MANY, UPDATE, and DELETE only from the exact same-entity matching built-in capability installed by `@ApiService` or `@ApiFunction*`. Generated CREATE also preflights its protected post-create GET, and UPDATE preflights a protected reload GET when configured. An undecorated same-named override remains directly callable but is not a generated-route implementation. Use subscribers or custom functions/routes for domain-specific behavior; see the 4.0 migration guide.
 
+Every `@ApiController` fails at application bootstrap with `Controller "<Name>": service has no TypeORM repository` unless `service.repository` is a TypeORM repository, also when every generated route is disabled. The check reads TypeORM's type markers instead of `instanceof`, so a repository from a second installed TypeORM copy counts.
+
 ## Route Config Shape
 
 Generated route config is nested by responsibility:

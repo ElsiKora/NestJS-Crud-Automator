@@ -27,6 +27,8 @@ export class UserService extends ApiServiceBase<UserEntity> {
 }
 ```
 
+Each `@ApiController` checks at application bootstrap that its `service.repository` is a TypeORM repository and fails with `Controller "UserController": service has no TypeORM repository` otherwise. The check reads TypeORM's own type markers instead of `instanceof`, so a repository built by a second installed copy of TypeORM, as a pnpm workspace or monorepo can resolve, still counts.
+
 ## Auto-Generated CRUD Methods
 
 The `@ApiService` decorator automatically adds the following methods to your service:

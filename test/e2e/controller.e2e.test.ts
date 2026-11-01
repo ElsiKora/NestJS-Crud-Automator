@@ -8,7 +8,7 @@ import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { ApiService } from "@decorator/api/service/decorator";
 import { EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
 @Entity("controller_entities")
@@ -45,12 +45,20 @@ class ControllerEntity {
 	public count!: number;
 }
 
+// The repository is mocked; only its metadata and manager come from a data source that never connects.
+const controllerDataSource: DataSource = new DataSource({ entities: [ControllerEntity], type: "postgres" });
+
 @ApiService({ entity: ControllerEntity })
 class ControllerService extends ApiServiceBase<ControllerEntity> {
 	public readonly repository = {
 		findAndCount: vi.fn(async (): Promise<[Array<ControllerEntity>, number]> => [[{ count: 1, id: "id-1", name: "item" }], 1]),
 		findOne: vi.fn(async (): Promise<ControllerEntity> => ({ count: 2, id: "id-1", name: "found" })),
-		metadata: { relations: [] },
+		get manager(): unknown {
+			return controllerDataSource.manager;
+		},
+		get metadata(): unknown {
+			return controllerDataSource.getMetadata(ControllerEntity);
+		},
 		remove: vi.fn(async (entity: ControllerEntity): Promise<ControllerEntity> => entity),
 		save: vi.fn(async (entity: Partial<ControllerEntity>): Promise<ControllerEntity> => ({ count: entity.count ?? 1, id: entity.id ?? "id-1", name: entity.name ?? "saved" })),
 	} as unknown as Repository<ControllerEntity>;
@@ -66,6 +74,8 @@ class ControllerClass {
 
 describe("ApiController (E2E)", () => {
 	it("executes CRUD methods through generated routes", async () => {
+		await (controllerDataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+
 		const ControllerFactory = ApiController<IApiBaseEntity>({
 			entity: ControllerEntity,
 			routes: {

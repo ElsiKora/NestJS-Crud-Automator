@@ -55,8 +55,19 @@ describe("ApiRouteRuntime date and time filter paths", () => {
 		]);
 	});
 
-	it("marks nothing for a service without a repository", () => {
-		expect(resolve({}, { "plainAt[value]": "x" }).size).toBe(0);
-		expect(resolve(undefined, { "plainAt[value]": "x" }).size).toBe(0);
+	it("reads a repository from another TypeORM copy by its shape", async () => {
+		const dataSource: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageInstantEntity, KeyPageLedgerEntity], type: "postgres" });
+
+		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+
+		const repository = dataSource.getRepository(KeyPageInstantEntity);
+
+		expect(resolve({ repository: { manager: repository.manager, metadata: repository.metadata } }, { "plainAt[value]": "x" })).toEqual(new Map([["plainAt", true]]));
+	});
+
+	it("fails closed for a service without a recognized repository", () => {
+		expect(() => resolve({}, { "plainAt[value]": "x" })).toThrow("Repository is not available in this context");
+		expect(() => resolve(undefined, { "plainAt[value]": "x" })).toThrow("Repository is not available in this context");
+		expect(() => resolve({ repository: { metadata: {} } }, { "plainAt[value]": "x" })).toThrow("Repository is not available in this context");
 	});
 });

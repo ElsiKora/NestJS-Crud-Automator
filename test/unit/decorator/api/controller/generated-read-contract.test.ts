@@ -28,6 +28,7 @@ import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ApiControllerReadPlanGet, ApiControllerReadScopeWhere } from "@utility/api/controller/read";
 import { ApiControllerWriteDtoSwagger } from "@utility/api/controller/write/dto-swagger.utility";
 import { DtoGenerateReadParameters } from "@utility/dto/generate/read-parameters.utility";
+import { createTypeOrmRepositoryStub } from "@test/unit/fixture";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
@@ -192,36 +193,38 @@ class GeneratedReadContractEntity {
 }
 
 class GeneratedReadContractService extends ApiServiceBase<GeneratedReadContractEntity> {
-	public readonly repository: Repository<GeneratedReadContractEntity> = {
-		manager: {
-			dataSource: {
-				driver: {
-					normalizeType: (column: { type?: unknown }): string => (column.type === "int" ? "integer" : String(column.type ?? "")),
-					postgres: {
-						types: {
-							getTypeParser: (oid: number): ((value: string) => boolean | number | string) => {
-								if (oid === 16) return (value: string): boolean => value === "t";
-								if (oid === 21 || oid === 23) return (value: string): number => Number(value);
+	public readonly repository: Repository<GeneratedReadContractEntity> = createTypeOrmRepositoryStub<GeneratedReadContractEntity>(
+		{
+			driver: {
+				normalizeType: (column: { type?: unknown }): string => (column.type === "int" ? "integer" : String(column.type ?? "")),
+				postgres: {
+					types: {
+						getTypeParser: (oid: number): ((value: string) => boolean | number | string) => {
+							if (oid === 16) return (value: string): boolean => value === "t";
+							if (oid === 21 || oid === 23) return (value: string): number => Number(value);
 
-								return (value: string): string => value;
-							},
+							return (value: string): string => value;
 						},
 					},
 				},
-				options: { type: "postgres" },
-				subscribers: [],
 			},
+			options: { type: "postgres" },
+			subscribers: [],
 		},
-		metadata: {
+		{
 			afterLoadListeners: [],
 			columns: [
 				{ isArray: false, isNullable: false, isSelect: true, isVirtual: false, isVirtualProperty: false, length: "", precision: undefined, propertyPath: "id", scale: undefined, transformer: undefined, type: "uuid", unsigned: false },
 				{ isArray: false, isNullable: false, isSelect: true, isVirtual: false, isVirtualProperty: false, length: "", precision: undefined, propertyPath: "sequence", scale: undefined, transformer: undefined, type: "int", unsigned: false },
 			],
 			primaryColumns: [{ propertyPath: "id" }],
+			findColumnWithPropertyPath(this: { columns: Array<{ propertyPath: string }> }, path: string): unknown {
+				return this.columns.find((column: { propertyPath: string }) => column.propertyPath === path);
+			},
+			findRelationWithPropertyPath: (): undefined => undefined,
 			target: GeneratedReadContractEntity,
 		},
-	} as unknown as Repository<GeneratedReadContractEntity>;
+	);
 
 	public constructor() {
 		super();

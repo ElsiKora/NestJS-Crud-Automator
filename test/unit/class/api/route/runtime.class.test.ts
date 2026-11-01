@@ -9,6 +9,7 @@ import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiFunctionType, EApiRouteType } from "@enum/decorator/api";
 import { BadRequestException, HttpStatus, RequestMethod } from "@nestjs/common";
+import { createTypeOrmRepositoryStub } from "@test/unit/fixture";
 import { ApiRouteProjectRelationResponse } from "@utility/api/route/response/project-relation.utility";
 import { ValidationError } from "class-validator";
 import { In } from "typeorm";
@@ -1041,6 +1042,8 @@ describe("ApiRouteRuntime", () => {
 
 	it("passes response relation load strategy to generated GET_LIST relation loading", async () => {
 		const service = new ApiServiceBase<RuntimeRouteEntity>();
+
+		Object.defineProperty(service, "repository", { value: createTypeOrmRepositoryStub<RuntimeRouteEntity>({}) });
 		const getList = vi.spyOn(service, "getList").mockImplementation(async (properties) => {
 			ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET_LIST, properties);
 

@@ -1,8 +1,9 @@
-import type { E2eService } from "../../service";
+import { Inject } from "@nestjs/common";
 
 import { ApiController, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiRouteType, EFilterOperation } from "../../../../../src/index";
 
 import { E2eEntity } from "../../entity";
+import { E2eService } from "../../service";
 
 @ApiController<E2eEntity>({
 	entity: E2eEntity,
@@ -50,5 +51,6 @@ import { E2eEntity } from "../../entity";
 	},
 })
 export class E2eNarrowTypedQueryController {
+	@Inject(E2eService)
 	public readonly service!: E2eService;
 }

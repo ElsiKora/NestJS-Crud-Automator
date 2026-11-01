@@ -328,6 +328,8 @@ In 5.0.0, PostgreSQL and CockroachDB reads of temporal keys and `timestamptz` fi
 - A client filter value on a date or time column that is not a calendar date or a date-time of a year from 0001 to 9999, such as `2024-02-30T10:00:00Z`, `2024-03-01T25:00:00Z`, or `0000-01-01T00:00:00Z`, now answers `400 INVALID_FILTER` on every GET_LIST route instead of a server error or a shifted date.
 - `timestamptz`, `timestamp with time zone`, and `uuid` columns are orderable: generated PAGE `orderBy` values now include those fields, and a CURSOR route can enable a `timestamptz` field that meets the cursor storage rules as a client order field. Exclude a field from ordering with `useAsOrderByFilter: false` in its `ApiPropertyDescribe` GET_LIST query properties. A CURSOR route that enables a primary key component as a client order field now fails with `CURSOR GET_LIST primary key "id" may appear only as the final tie-breakers` instead of `GET_LIST order field "id" is not an enabled direct scalar path`.
 
+From 5.0.0, an `@ApiController` whose `service.repository` is not a TypeORM repository fails at application bootstrap with `Controller "UserController": service has no TypeORM repository`, also when every generated route is disabled. A repository from a second installed copy of TypeORM counts. Inject the entity repository as `public repository` in the service constructor.
+
 ## Next Steps
 
 - [Filtering and Sorting](/docs/nestjs-crud-automator/guides/filtering-and-sorting) - Filter and order list windows

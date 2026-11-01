@@ -27,7 +27,7 @@ import type { TApiControllerTransformDataTargets } from "@type/utility/api/contr
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
-import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsOrder, FindOptionsWhere, RelationMetadata } from "typeorm";
+import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsOrder, FindOptionsWhere, RelationMetadata, Repository } from "typeorm";
 
 import { ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
@@ -66,10 +66,10 @@ import { ApiRouteResponseIsListEnvelope } from "@utility/api/route/response/is-l
 import { ApiRouteSerializeResponse } from "@utility/api/route/response/serialize.utility";
 import { AuthorizationDecisionApplyResult, AuthorizationDecisionAttachResource, AuthorizationDecisionResolveFromRequest } from "@utility/authorization/decision";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
+import { DatabaseTypeOrmIsRepository } from "@utility/database/typeorm/is/repository.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { instanceToPlain, plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
-import { Repository } from "typeorm";
 
 // A filter value key names its path before "[value]" or "[values]", as the query carries it.
 const FILTER_VALUE_KEY_PATTERN: RegExp = /^(.+)\[values?\]$/u;
@@ -736,8 +736,8 @@ export class ApiRouteRuntime {
 		const repository: unknown = (service as { repository?: unknown } | undefined)?.repository;
 		const dateTimePaths: Map<string, boolean> = new Map<string, boolean>();
 
-		if (!(repository instanceof Repository)) {
-			return dateTimePaths;
+		if (!DatabaseTypeOrmIsRepository(repository)) {
+			throw ErrorException("Repository is not available in this context");
 		}
 
 		for (const key of Object.keys(query)) {

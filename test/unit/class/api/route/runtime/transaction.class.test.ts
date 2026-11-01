@@ -16,7 +16,7 @@ import { BadRequestException } from "@nestjs/common";
 import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createTransactionFixture, resetApiSubscriberRegistry } from "@test/unit/fixture";
+import { createTransactionFixture, createTypeOrmRepositoryStub, resetApiSubscriberRegistry } from "@test/unit/fixture";
 import { RuntimeRouteEntity, RuntimeRouteRelationEntity, RuntimeRouteResponseDTO } from "@test/unit/class/api/route/runtime/fixture";
 
 function createGeneratedCreateOptions(
@@ -185,11 +185,7 @@ function createRouteService(dataSource?: DataSource): ApiServiceBase<RuntimeRout
 
 	if (dataSource) {
 		Object.defineProperty(service, "repository", {
-			value: {
-				manager: {
-					dataSource: dataSource,
-				},
-			} as Repository<RuntimeRouteEntity>,
+			value: createTypeOrmRepositoryStub<RuntimeRouteEntity>(dataSource),
 		});
 	}
 
@@ -264,11 +260,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 		const get = vi.spyOn(service, "get");
 
 		Object.defineProperty(service, "repository", {
-			value: {
-				manager: {
-					dataSource: transaction.dataSource,
-				},
-			} as Repository<RuntimeRouteEntity>,
+			value: createTypeOrmRepositoryStub<RuntimeRouteEntity>(transaction.dataSource),
 		});
 
 		await expect(ApiRouteRuntime.executeGenerated(createGeneratedCreateOptions(service, { transaction: { mode: EApiFunctionTransactionMode.REQUIRED } }))).rejects.toThrow("Generated get service function is not protected by its built-in decorator");

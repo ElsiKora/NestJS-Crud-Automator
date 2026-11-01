@@ -2,13 +2,14 @@ import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/a
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { TApiControllerConstructor } from "@type/decorator/api/controller";
+import type { Repository } from "typeorm";
 
 import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/controller-startup-check.constant";
 import { EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerFactory } from "@factory/api-controller.factory";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert/route-relation-loads.utility";
-import { Repository } from "typeorm";
+import { DatabaseTypeOrmIsRepository } from "@utility/database/typeorm/is/repository.utility";
 
 /**
  * Automatically generates CRUD endpoints for an entity.
@@ -67,14 +68,16 @@ export const ApiController =
 			public async onApplicationBootstrap(): Promise<void> {
 				const repository: unknown = (this as { service?: { repository?: unknown } }).service?.repository;
 
+				if (!DatabaseTypeOrmIsRepository(repository)) {
+					throw new Error(`Controller "${target.name}": service has no TypeORM repository`);
+				}
+
 				if (Object.values(EApiRouteType).some((routeType: EApiRouteType): boolean => options.routes[routeType]?.generation?.isEnabled !== false)) {
 					ApiControllerAssertRepositoryEntity(options.entity, repository, target.name);
 				}
 
-				if (repository instanceof Repository) {
-					for (const routeType of Object.values(EApiRouteType)) {
-						ApiControllerAssertRouteRelationLoads(repository as Repository<E>, options.routes[routeType], `Controller "${target.name}" route "${routeType}"`);
-					}
+				for (const routeType of Object.values(EApiRouteType)) {
+					ApiControllerAssertRouteRelationLoads(repository as Repository<E>, options.routes[routeType], `Controller "${target.name}" route "${routeType}"`);
 				}
 
 				const controllerHook: (() => unknown) | undefined = (target.prototype as { onApplicationBootstrap?: () => unknown }).onApplicationBootstrap;

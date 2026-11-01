@@ -2,12 +2,13 @@ import "reflect-metadata";
 
 import type { INestApplication } from "@nestjs/common";
 import type { OpenAPIObject } from "@nestjs/swagger";
+import type { Repository } from "typeorm";
 
 import { Body, Controller, HttpStatus, Module, Param, Post, Query, RequestMethod } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { ApiBody, ApiProperty, DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
-import { Column, Entity, PrimaryColumn } from "typeorm";
+import { Column, DataSource, Entity, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiController, ApiMethod, ApiPropertyDescribe, ApiPropertyObject, ApiRouteCustom, ApiServiceBase, EApiAuthenticationType, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
@@ -165,7 +166,14 @@ class SwaggerNestedDiscriminatorBodyDto {
 
 class SwaggerAuthenticationGuard {}
 
-class SwaggerGeneratedService extends ApiServiceBase<SwaggerAutoDtoEntity> {}
+// The documentation app never queries; controllers only need a repository with metadata at bootstrap.
+const swaggerDataSource: DataSource = new DataSource({ entities: [SwaggerAutoDtoEntity], type: "postgres" });
+
+class SwaggerGeneratedService extends ApiServiceBase<SwaggerAutoDtoEntity> {
+	public get repository(): Repository<SwaggerAutoDtoEntity> {
+		return swaggerDataSource.getRepository(SwaggerAutoDtoEntity);
+	}
+}
 
 class SwaggerGeneratedDefaultControllerBase {
 	public service: SwaggerGeneratedService = new SwaggerGeneratedService();
@@ -444,6 +452,7 @@ describe("Swagger request DTO documentation (E2E)", () => {
 		}).compile();
 
 		app = moduleReference.createNestApplication(new FastifyAdapter());
+		await (swaggerDataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
 		await app.init();
 
 		document = SwaggerModule.createDocument(

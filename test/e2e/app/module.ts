@@ -45,6 +45,7 @@ import { E2eValidationPipe } from "./validation-pipe";
 		E2eIdentityAliasReadController,
 		E2eSecurableIdentityAliasReadController,
 	],
+	exports: [E2eService],
 	imports: [
 		TypeOrmModule.forRoot({
 			database: ":memory:",
