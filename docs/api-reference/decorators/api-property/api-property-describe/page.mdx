@@ -90,7 +90,7 @@ For request DTOs, generated relation fields keep the existing UUID reference sch
 email!: string;
 ```
 
-`isExpose` is only valid when `isResponse: true`; request DTOs use `isEnabled`, `isRequired`, and `isNullable` instead. Guard classes on metadata select generated DTO variants; they are not per-request role checks.
+A column can be a GET_LIST `orderBy` value only when the list response includes it, its GET_LIST `QUERY` side is enabled, and `useAsOrderByFilter` is not `false`. `isExpose` is only valid when `isResponse: true`; request DTOs use `isEnabled`, `isRequired`, and `isNullable` instead. Guard classes on metadata select generated DTO variants; they are not per-request role checks.
 
 ## Best practices
 

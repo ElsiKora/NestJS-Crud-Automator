@@ -63,7 +63,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		const isCursor: boolean = pagination.mode === EApiControllerGetListQueryPaginationMode.CURSOR;
 		const filterBaseline: Readonly<Record<string, IApiControllerGetListQueryPlanFilterField>> = this.buildFilterBaseline(entity, entityMetadata, currentGuard, isCursor);
 		const serverOrderBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildServerOrderBaseline(entity, entityMetadata, isCursor);
-		const orderBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildOrderBaseline(entity, entityMetadata, serverOrderBaseline, isCursor);
+		const orderBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildOrderBaseline(entity, entityMetadata, serverOrderBaseline, isCursor, currentGuard);
 		const filter: IApiControllerGetListQueryPlanFilter = queryTarget.filter ? this.compileFilter(queryTarget.filter, filterBaseline, isCursor) : Object.freeze({ fields: filterBaseline, isLegacy: !isCursor, ...(isCursor ? { unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT } : {}) });
 		const order: TApiControllerGetListQueryCompiledOrder = queryTarget.order ? this.compileOrder(queryTarget.order, orderBaseline, serverOrderBaseline, isCursor) : Object.freeze({ fields: orderBaseline, isLegacy: true, serverFields: serverOrderBaseline });
 		const cursorFields: ReadonlyArray<string> = isCursor ? ApiControllerGetListQueryResolveCursorOrderFields(order) : Object.freeze([]);
@@ -223,9 +223,9 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return Object.freeze(this.sortRecord(fields, isCursor));
 	}
 
-	private static buildOrderBaseline<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, serverBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>>, isCursor: boolean): Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> {
+	private static buildOrderBaseline<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, serverBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>>, isCursor: boolean, currentGuard: Type<CanActivate> | undefined): Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> {
 		const fields: Record<string, TApiControllerGetListQueryCompiledOrderField> = {};
-		const orderFields: Record<string, keyof E> = FilterOrderByFromEntity(entity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY);
+		const orderFields: Record<string, keyof E> = FilterOrderByFromEntity(entity, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, currentGuard);
 
 		for (const path of Object.values(orderFields)
 			.map(String)

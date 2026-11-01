@@ -163,9 +163,7 @@ describe("FilterOrderByFromEntity", () => {
 	it("orders only by columns listed in the response and enabled as query fields for the route guard", () => {
 		const metadata = GenerateEntityInformation<VisibilityEntity>(VisibilityEntity as unknown as IApiBaseEntity);
 
-		// @ts-expect-error The route guard argument arrives with the fix.
 		expect(FilterOrderByFromEntity(VisibilityEntity, metadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, AdminGuard)).toEqual({ ADMIN_RANK: "adminRank", ADMIN_SCORE: "adminScore", NAME: "name" });
-		// @ts-expect-error The route guard argument arrives with the fix.
 		expect(FilterOrderByFromEntity(VisibilityEntity, metadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, undefined, UserGuard)).toEqual({ NAME: "name" });
 	});
 

@@ -1,5 +1,5 @@
 import type { IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanOrderField } from "@interface/class/api/controller/get-list/query";
-import type { Type } from "@nestjs/common";
+import type { CanActivate, Type } from "@nestjs/common";
 import type { ObjectLiteral } from "typeorm";
 
 import { API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
@@ -30,10 +30,11 @@ const noopApiPropertyEnum: typeof ApiPropertyEnum = (): PropertyDecorator => noo
  * @param {EApiDtoType} dtoType - The type of DTO (QUERY)
  * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Optional normalized plan that narrows sortable fields.
+ * @param {Type<CanActivate>} [currentGuard] - Route guard that decides which columns are orderable.
  * @returns {Type<unknown>} A base class for list query DTOs
  * @template E - The entity type
  */
-export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> {
+export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan, currentGuard?: Type<CanActivate>): Type<unknown> {
 	const isCursor: boolean = ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
 
 	const orderBy: Record<string, string> =
@@ -43,7 +44,7 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 						.filter((field: IApiControllerGetListQueryPlanOrderField): boolean => field.isEnabled)
 						.map((field: IApiControllerGetListQueryPlanOrderField): [string, string] => [field.path, field.path]),
 				)
-			: FilterOrderByFromEntity(entity, entityMetadata, method, dtoType);
+			: FilterOrderByFromEntity(entity, entityMetadata, method, dtoType, undefined, currentGuard);
 	const hasClientOrderFields: boolean = Object.keys(orderBy).length > 0;
 	const shouldExposeClientOrder: boolean = !isCursor || hasClientOrderFields;
 	const clientOrderPropertyDecorator: typeof ApiPropertyEnum = shouldExposeClientOrder ? ApiPropertyEnum : noopApiPropertyEnum;
