@@ -114,4 +114,17 @@ export class E2eLegacyQueryItemEntity {
 	@Column()
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.CREATED_AT, type: EApiPropertyDescribeType.DATE })
 	public createdAt!: Date;
+
+	@Column({ type: "int" })
+	@ApiPropertyDescribe({
+		description: "not exposed in list responses",
+		exampleValue: 1,
+		format: EApiPropertyNumberType.INTEGER,
+		maximum: 1000,
+		minimum: 0,
+		multipleOf: 1,
+		properties: { [EApiRouteType.GET_LIST]: { [EApiDtoType.RESPONSE]: { isExpose: false, isResponse: true } } },
+		type: EApiPropertyDescribeType.NUMBER,
+	})
+	public exposeHidden!: number;
 }

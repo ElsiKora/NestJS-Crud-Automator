@@ -1,11 +1,13 @@
 import "reflect-metadata";
 
 import type { INestApplication } from "@nestjs/common";
+import type { OpenAPIObject } from "@nestjs/swagger";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import type { Logger } from "typeorm";
 
 import { HttpStatus, ValidationPipe } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
@@ -34,6 +36,13 @@ class LegacyQueryLogger implements Logger {
 	public logSchemaBuild(): void {}
 }
 
+const getOrderByEnum = (document: OpenAPIObject, path: string): unknown => {
+	const parameter: undefined | { schema?: { $ref?: string; enum?: Array<unknown> } } = (document.paths[path]?.get?.parameters as Array<{ name: string; schema?: { $ref?: string; enum?: Array<unknown> } }> | undefined)?.find((candidate: { name: string }): boolean => candidate.name === "orderBy");
+	const reference: string | undefined = parameter?.schema?.$ref;
+
+	return reference ? (document.components?.schemas?.[reference.split("/").at(-1) ?? ""] as { enum?: Array<unknown> } | undefined)?.enum : parameter?.schema?.enum;
+};
+
 interface IHostPipeCase {
 	createPipe?: () => ValidationPipe;
 	name: string;
@@ -41,7 +50,8 @@ interface IHostPipeCase {
 
 const PAGE: string = "limit=10&page=1";
 const ITEMS: string = "/legacy-query/items";
-const ORDER_BY_MESSAGE: string = "orderBy must be one of the following values: id, label, rank, status, note, releasedOn, createdAt";
+const ORDERABLE_FIELDS: Array<string> = ["id", "label", "rank", "status", "note", "releasedOn", "createdAt"];
+const ORDER_BY_MESSAGE: string = `orderBy must be one of the following values: ${ORDERABLE_FIELDS.join(", ")}`;
 const ORDER_DIRECTION_MESSAGE: string = "orderDirection must be one of the following values: asc, desc";
 const LIMIT_TYPE_MESSAGES: Array<string> = ["limit must be an integer number", "limit must not be less than 1", "limit must not be greater than 100", "limit must be divisible by 1"];
 const PAGE_TYPE_MESSAGES: Array<string> = ["page must be an integer number", "page must not be less than 1", "page must not be greater than 100", "page must be divisible by 1"];
@@ -146,9 +156,9 @@ describe.each([
 			fastify = app.getHttpAdapter().getInstance();
 
 			await app.get(E2eLegacyQueryItemService).repository.save([
-				{ createdAt: new Date("2024-01-01T00:00:00.000Z"), isFeatured: true, label: "Alpha", note: "Noted", queryDisabled: 3, responseHidden: 2, rank: 1, releasedOn: "2024-01-01", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "z", unsortable: "z" },
-				{ createdAt: new Date("2024-02-02T00:00:00.000Z"), isFeatured: false, label: "Beta", queryDisabled: 1, responseHidden: 3, rank: 2, releasedOn: "2024-02-02", status: EE2eLegacyQueryStatus.ARCHIVED, undescribed: "y", unsortable: "y" },
-				{ createdAt: new Date("2024-03-03T00:00:00.000Z"), isFeatured: false, label: "Gamma", queryDisabled: 2, responseHidden: 1, rank: 3, releasedOn: "2024-03-03", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "x", unsortable: "x" },
+				{ createdAt: new Date("2024-01-01T00:00:00.000Z"), exposeHidden: 3, isFeatured: true, label: "Alpha", note: "Noted", queryDisabled: 3, responseHidden: 2, rank: 1, releasedOn: "2024-01-01", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "z", unsortable: "z" },
+				{ createdAt: new Date("2024-02-02T00:00:00.000Z"), exposeHidden: 1, isFeatured: false, label: "Beta", queryDisabled: 1, responseHidden: 3, rank: 2, releasedOn: "2024-02-02", status: EE2eLegacyQueryStatus.ARCHIVED, undescribed: "y", unsortable: "y" },
+				{ createdAt: new Date("2024-03-03T00:00:00.000Z"), exposeHidden: 2, isFeatured: false, label: "Gamma", queryDisabled: 2, responseHidden: 1, rank: 3, releasedOn: "2024-03-03", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "x", unsortable: "x" },
 			] as Array<E2eLegacyQueryItemEntity>);
 		});
 
@@ -192,6 +202,11 @@ describe.each([
 			await expectRejected(`${ITEMS}?${PAGE}&orderBy=undescribed&orderDirection=${orderDirection}`, [ORDER_BY_MESSAGE]);
 			await expectRejected(`${ITEMS}?${PAGE}&orderBy=queryDisabled&orderDirection=${orderDirection}`, [ORDER_BY_MESSAGE]);
 			await expectRejected(`${ITEMS}?${PAGE}&orderBy=responseHidden&orderDirection=${orderDirection}`, [ORDER_BY_MESSAGE]);
+			await expectRejected(`${ITEMS}?${PAGE}&orderBy=exposeHidden&orderDirection=${orderDirection}`, [ORDER_BY_MESSAGE]);
+			const typedExposeHidden = await fastify.inject({ method: "GET", url: `/legacy-query/typed-items?${PAGE}&orderBy=exposeHidden&orderDirection=${orderDirection}` });
+
+			expect(typedExposeHidden.json()).toEqual({ error: "Bad Request", message: createPipe ? [ORDER_BY_MESSAGE] : "INVALID_ORDER", statusCode: HttpStatus.BAD_REQUEST });
+			expect(queryLogger.queries).toEqual([]);
 			const typedResponseHidden = await fastify.inject({ method: "GET", url: `/legacy-query/typed-items?${PAGE}&orderBy=responseHidden&orderDirection=${orderDirection}` });
 
 			expect(typedResponseHidden.json()).toEqual({ error: "Bad Request", message: createPipe ? [ORDER_BY_MESSAGE] : "INVALID_ORDER", statusCode: HttpStatus.BAD_REQUEST });
@@ -200,6 +215,13 @@ describe.each([
 
 			expect(typedQueryDisabled.json()).toEqual({ error: "Bad Request", message: createPipe ? [ORDER_BY_MESSAGE] : "INVALID_ORDER", statusCode: HttpStatus.BAD_REQUEST });
 			expect(queryLogger.queries).toEqual([]);
+		});
+
+		it.each([
+			{ fields: ORDERABLE_FIELDS, path: ITEMS },
+			{ fields: ORDERABLE_FIELDS, path: "/legacy-query/typed-items" },
+		])("publishes exactly the orderable columns as the $path orderBy enum", ({ fields, path }: { fields: Array<string>; path: string }) => {
+			expect(getOrderByEnum(SwaggerModule.createDocument(app as INestApplication, new DocumentBuilder().build()), path)).toEqual(fields);
 		});
 
 		it("validates a value a before subscriber wrote, and reports the failure to before-error subscribers", async () => {
