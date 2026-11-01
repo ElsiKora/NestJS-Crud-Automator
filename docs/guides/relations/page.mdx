@@ -363,9 +363,9 @@ const posts = await postService.getList({
 
 ### Entities That Import Each Other
 
-With `emitDecoratorMetadata`, TypeScript stores the type of every decorated property as a value, so `author: UserEntity` makes `post.entity.ts` read `UserEntity` while the module loads. In an ES module application (`"type": "module"`, or a bundler that keeps ES modules), two entity files that import each other then fail at startup with `ReferenceError: Cannot access 'UserEntity' before initialization`. CommonJS output reads the binding later and hides the cycle, so the error often appears only after a move to ES modules.
+With `emitDecoratorMetadata`, TypeScript stores the type of every decorated property as a value, so `author: UserEntity` makes `post.entity.ts` read `UserEntity` while the module loads. In an application that runs as native ES modules (`"type": "module"`, built by `tsc` or by the Nest CLI SWC builder), two entity files that import each other then fail at startup with `ReferenceError: Cannot access 'UserEntity' before initialization`. SWC's `typeof UserEntity === "undefined"` guard fails the same way. CommonJS output reads the binding later and hides the cycle, so the error often appears only after a move to ES modules.
 
-Type the relation properties with TypeORM's `Relation<T>` and import it with `import type`. The emitted metadata becomes `Object`, the decorators keep using their lazy `() => UserEntity` callbacks, and the cycle loads in both module systems:
+In a native ES module application, `Relation<T>` is required on every relation property between entities that import each other. Type the relation properties with TypeORM's `Relation<T>` and import it with `import type`. The emitted metadata becomes `Object`, the decorators keep using their lazy `() => UserEntity` callbacks, and the cycle loads in both module systems:
 
 ```typescript filename="post.entity.ts" copy
 import type { Relation } from "typeorm";
@@ -380,7 +380,7 @@ export class PostEntity {
 }
 ```
 
-Crud Automator reads relation targets from TypeORM metadata, not from the emitted property type, so `Relation<T>` changes neither the generated DTOs nor the OpenAPI document. CI runs a pair of entities that import each other as an ES module and a CommonJS consumer (`test/consumer/cyclic`).
+Crud Automator reads relation targets from TypeORM metadata, not from the emitted property type, so `Relation<T>` changes neither the generated DTOs nor the OpenAPI document. It reads `design:type` only in `filter-order-by-from-entity.utility.ts`, for columns without an explicit `type`. CI runs a pair of entities that import each other in every consumer, including a native ES module application built by SWC (`test/consumer/cyclic`, `test/consumer/swc`). See [Migrating To 5.0: Native ES Module Applications](/docs/nestjs-crud-automator/guides/migrating-to-5-0#native-es-module-applications).
 
 ### Avoiding Response Loops
 

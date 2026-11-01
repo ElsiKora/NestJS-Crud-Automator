@@ -105,7 +105,7 @@ Use explicit `ApiPropertyCopy` when a manual DTO intentionally needs the hidden 
 
 ## Cyclic Entity Imports Without `Relation<T>`
 
-When two entity files import each other, type their relation properties as `Relation<T>` (`import type { Relation } from "typeorm"`) in examples, tests and consumer code. With `emitDecoratorMetadata`, a plain `author: UserEntity` is read while the ES module loads and fails with `ReferenceError: Cannot access 'UserEntity' before initialization`; CommonJS hides the cycle. `test/consumer/cyclic` covers it in the consumer smoke.
+When two entity files import each other, type their relation properties as `Relation<T>` (`import type { Relation } from "typeorm"`) in examples, tests and consumer code; in a native ES module application it is required. With `emitDecoratorMetadata` (SWC `decoratorMetadata`), a plain `author: UserEntity` is read while the ES module loads and fails with `ReferenceError: Cannot access 'UserEntity' before initialization`, SWC's `typeof` guard included; CommonJS hides the cycle. The package reads `design:type` only in `filter-order-by-from-entity.utility.ts`, for columns without an explicit `type`. `test/consumer/cyclic` and the SWC consumer `test/consumer/swc` cover it in the consumer smoke.
 
 ## Relation Load Config Drift
 

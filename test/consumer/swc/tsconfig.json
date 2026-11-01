@@ -1,0 +1,21 @@
+{
+	"compilerOptions": {
+		"emitDecoratorMetadata": true,
+		"esModuleInterop": true,
+		"experimentalDecorators": true,
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"noEmit": true,
+		"paths": {
+			"@controller/*": ["./src/controller/*"],
+			"@entity/*": ["./src/entity/*"],
+			"@service/*": ["./src/service/*"]
+		},
+		"skipLibCheck": false,
+		"strict": true,
+		"strictPropertyInitialization": false,
+		"target": "ES2023",
+		"types": ["node"]
+	},
+	"include": ["src/**/*.ts"]
+}

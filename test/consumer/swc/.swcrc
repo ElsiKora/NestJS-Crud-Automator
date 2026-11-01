@@ -1,0 +1,28 @@
+{
+	"$schema": "https://swc.rs/schema.json",
+	"jsc": {
+		"baseUrl": "./",
+		"keepClassNames": true,
+		"parser": {
+			"decorators": true,
+			"dynamicImport": true,
+			"syntax": "typescript"
+		},
+		"paths": {
+			"@controller/*": ["src/controller/*"],
+			"@entity/*": ["src/entity/*"],
+			"@service/*": ["src/service/*"]
+		},
+		"target": "es2023",
+		"transform": {
+			"decoratorMetadata": true,
+			"legacyDecorator": true,
+			"useDefineForClassFields": false
+		}
+	},
+	"module": {
+		"resolveFully": true,
+		"type": "es6"
+	},
+	"sourceMaps": false
+}

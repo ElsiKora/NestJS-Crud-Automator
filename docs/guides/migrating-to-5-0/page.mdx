@@ -27,9 +27,58 @@ The package has one ES module build in `dist`. `dist/esm`, `dist/cjs` and the `r
 - An ES module application imports the package as before, with `moduleResolution` `bundler`, `node16` or `nodenext`.
 - A CommonJS application keeps `require("@elsikora/nestjs-crud-automator")`. Node.js loads it through `require(esm)`. TypeScript 6 resolves `module: commonjs` without a `moduleResolution` setting as `bundler`, so it reads the types from `exports`; with an explicit `moduleResolution: node10` it reads the top-level `types` field, and TypeScript 6 then needs `"ignoreDeprecations": "6.0"` (otherwise TS5107). Both find the types. TypeScript 6 also defaults `types` to `[]`, so list `"types": ["node"]` when the application uses Node.js globals.
 - Deep imports such as `@elsikora/nestjs-crud-automator/dist/cjs/...` no longer resolve. Import from the package root.
-- An application that moves to ES modules itself must type relation properties between entities that import each other as `Relation<T>` from `typeorm`. Otherwise startup fails with `ReferenceError: Cannot access '...' before initialization`. A CommonJS application is not affected. See [Relations: Entities That Import Each Other](/docs/nestjs-crud-automator/guides/relations#entities-that-import-each-other).
+- An application that runs as native ES modules itself must follow [Native ES Module Applications](#native-es-module-applications).
 
 See [Getting Started: Migration Notes](/docs/nestjs-crud-automator/getting-started#migration-notes).
+
+### Native ES Module Applications
+
+In an application that runs as native ES modules (`"type": "module"`, built by `tsc` or by the Nest CLI SWC builder with `module.type: "es6"`), every relation property between entities that import each other must be typed `Relation<T>` from `typeorm`. This is required, not a style choice. With `emitDecoratorMetadata` (`decoratorMetadata` in SWC), the compiler writes each decorated property type into `design:type` while the module loads. In a cycle, one of the two classes is not initialized yet:
+
+```typescript filename="book.entity.ts"
+import { ManyToOne } from "typeorm";
+import { AuthorEntity } from "./author.entity";
+
+export class BookEntity {
+	@ManyToOne(() => AuthorEntity, (author) => author.books)
+	author: AuthorEntity; // emitted as design:type AuthorEntity
+}
+```
+
+```text
+ReferenceError: Cannot access 'AuthorEntity' before initialization
+    at file:///app/dist/entity/book.entity.js:60:5
+```
+
+SWC emits `typeof AuthorEntity === "undefined" ? Object : AuthorEntity`, which fails the same way, because `typeof` on an import that is not initialized yet also throws. CommonJS output reads the value later, so a CommonJS build of the same code starts and the failure appears only after the move to ES modules.
+
+Type both sides with `Relation<T>` and import it with `import type`:
+
+```typescript filename="book.entity.ts" copy
+import type { Relation } from "typeorm";
+import { ManyToOne } from "typeorm";
+import { AuthorEntity } from "./author.entity";
+
+export class BookEntity {
+	@ManyToOne(() => AuthorEntity, (author) => author.books)
+	author: Relation<AuthorEntity>;
+}
+```
+
+```typescript filename="author.entity.ts" copy
+import type { Relation } from "typeorm";
+import { OneToMany } from "typeorm";
+import { BookEntity } from "./book.entity";
+
+export class AuthorEntity {
+	@OneToMany(() => BookEntity, (book) => book.author)
+	books: Relation<Array<BookEntity>>;
+}
+```
+
+`design:type` of such a property becomes `Object`, and the relation decorators keep using their `() => AuthorEntity` callbacks. Nothing else depends on the emitted relation type. Crud Automator reads `design:type` only in `filter-order-by-from-entity.utility.ts`, and only for a column without an explicit `type`, to decide whether it can be filtered and sorted. TypeORM reads it on relation properties only to detect lazy `Promise<T>` relations. The generated DTOs, the OpenAPI document and the responses are the same with and without `Relation<T>`.
+
+With TypeScript 6, set `paths` without `baseUrl` (otherwise TS5101). An application that builds with SWC and typechecks with `tsc --noEmit` and `moduleResolution: bundler` keeps extensionless `@`-alias imports in source; SWC with `jsc.paths` and `module.resolveFully: true` writes them as relative `.js` specifiers.
 
 ## Query Criteria That Would Widen A Query
 
@@ -59,4 +108,4 @@ Importing the package no longer runs `dotenv`'s `config()`, and the package has 
 
 ## Checking The Upgrade
 
-CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10` and one without `moduleResolution` are typechecked and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.
+CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.
