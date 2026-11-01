@@ -129,6 +129,12 @@ Omitted route config and `SUPPORTS` must not add a new `BEGIN`. `MANDATORY` requ
 
 Root-level discriminated `@ApiRouteCustom` bodies are validated by Crud Automator, not by the host `ValidationPipe`, so a global `exceptionFactory`, `whitelist`, or `transformOptions` does not apply. Mirror them on the body config (`exceptionFactory`, `validatorOptions`, `transformOptions`); set `validatorOptions.validationError: { target: false, value: false }` when the factory must not see submitted values.
 
+## Serializing The Interceptor Cause
+
+`CorrelationIDResponseBodyInterceptor` rethrows a new `HttpException` with what it caught in `cause`: the `ThrottlerException` or `HttpException` itself, whose own cause stays at `exception.cause.cause`, otherwise the value as thrown, which may not be an `Error`. A filter can report it, but must answer with `exception.getResponse()`. Never send `exception.cause`, its message, or the exception itself, because `JSON.stringify(exception)` includes `cause`, and never log it raw: use `FormatErrorEvidenceForLog`.
+
+Guards run before interceptors, so their exceptions reach filters directly, without this `cause`.
+
 ## Delete Return Shape Assumptions
 
 Generated service/controller `delete` returns `Promise<void>`. The low-level decorator currently has an internal removed-entity return shape, but app-facing code should not depend on it.

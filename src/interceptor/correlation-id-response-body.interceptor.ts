@@ -51,7 +51,7 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 					customErrorResponse.timestamp = Date.now();
 					customErrorResponse.correlationID = correlationId;
 
-					throw new HttpException(customErrorResponse, error.getStatus());
+					throw new HttpException(customErrorResponse, error.getStatus(), { cause: error });
 				} else if (error instanceof HttpException) {
 					const errorResponse: object | string = error.getResponse();
 					const status: number = error.getStatus();
@@ -71,21 +71,22 @@ export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 					customErrorResponse.correlationID = correlationId;
 					customErrorResponse.timestamp = Date.now();
 
-					throw new HttpException(customErrorResponse, status);
+					throw new HttpException(customErrorResponse, status, { cause: error });
 				} else {
 					interceptorLogger.error(`HTTP ${HttpStatus.INTERNAL_SERVER_ERROR} ${FormatErrorEvidenceForLog(error)}`);
 
-					if (!(error instanceof Error)) {
-						error = new InternalServerErrorException("Unknown error");
-					}
-
-					const internalError: HttpException | InternalServerErrorException = error as HttpException | InternalServerErrorException;
+					const internalError: HttpException | InternalServerErrorException = (error instanceof Error ? error : new InternalServerErrorException("Unknown error")) as HttpException | InternalServerErrorException;
 					const errorResponse: string = "Internal server error";
 					const customErrorResponse: Record<string, unknown> = { correlationID: correlationId, error: "Internal server error", message: errorResponse, statusCode: HttpStatus.INTERNAL_SERVER_ERROR, timestamp: Date.now() };
 
 					const status: number = "getStatus" in internalError && typeof internalError.getStatus === "function" ? internalError.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-					throw new HttpException(customErrorResponse, status);
+					const exception: HttpException = new HttpException(customErrorResponse, status, { cause: error });
+
+					// HttpException drops a falsy cause, and any value can be thrown
+					exception.cause = error;
+
+					throw exception;
 				}
 			}),
 		);

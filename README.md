@@ -1089,6 +1089,7 @@ To simplify debugging and request tracing in complex systems, the library provid
 3.  If the header is found, its value is added to the body of the error response.
 4.  If the header is not found, a new `UUID` is generated, which is added to both the response and the logs (if `LoggerUtility` is used).
 5.  Adds a `timestamp` field to the error response body.
+6.  Keeps the original failure as `cause` on the rethrown exception, so an exception filter can report it. Never serialize `cause` into a response.
 
 This allows you to link a specific client request with the logs on the server, which is invaluable when investigating incidents.
 

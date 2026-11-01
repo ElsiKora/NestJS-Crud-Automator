@@ -212,6 +212,39 @@ async function bootstrap() {
 }
 ```
 
+### Reading the Original Failure
+
+The interceptor rethrows a new `HttpException` and keeps what it caught in `exception.cause`, so a filter can report the original failure:
+
+| Caught value         | `exception.cause`                                                                      |
+| -------------------- | -------------------------------------------------------------------------------------- |
+| `ThrottlerException` | The caught exception                                                                   |
+| `HttpException`      | The caught exception. Its own cause, when it has one, stays at `exception.cause.cause` |
+| Any other value      | The value as thrown, which may not be an `Error`                                       |
+
+```typescript filename="filters/error-reporting.filter.ts" copy
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from "@nestjs/common";
+import { FastifyReply } from "fastify";
+
+@Catch(HttpException)
+export class ErrorReportingFilter implements ExceptionFilter<HttpException> {
+	constructor(private readonly errorTracker: ErrorTracker) {}
+
+	catch(exception: HttpException, host: ArgumentsHost) {
+		if (exception.getStatus() >= HttpStatus.INTERNAL_SERVER_ERROR) {
+			this.errorTracker.capture(exception.cause);
+		}
+
+		// Answer with the sanitized body, never with the cause
+		host.switchToHttp().getResponse<FastifyReply>().status(exception.getStatus()).send(exception.getResponse());
+	}
+}
+```
+
+`cause` is for server-side reporting only. It can hold SQL text, parameters, driver objects, messages, and stacks, so never serialize it into a response. That covers `exception.cause`, its message, and the exception itself, because `JSON.stringify(exception)` includes `cause`. Send `exception.getResponse()` instead.
+
+The response body and status do not depend on `cause`, and the interceptor already emits its one bounded log for a `5xx`. Failures raised before the interceptor runs, such as exceptions from guards, reach the filter directly and carry no such cause.
+
 ## Logging Errors
 
 Integrate with logging service:
