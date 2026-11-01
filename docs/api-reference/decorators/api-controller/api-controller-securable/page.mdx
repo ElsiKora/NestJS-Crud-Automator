@@ -19,7 +19,7 @@ Decorator without options that enables the authorization pipeline for a controll
 - Fails startup in an application that does not import `ApiAuthorizationModule`, on a bare `@Controller` too.
 - Attaches a guard to the class, which denies per request a handler that does not go through authorization and everything on a transport other than HTTP.
 - Refuses at bootstrap any served handler that skips authorization, such as a plain `@Get` or a handler bound in a constructor, and every `@MessagePattern`, `@EventPattern` or `@SubscribeMessage` handler, with or without `@ApiMethod`. See [Every Served Route Goes Through Authorization](/docs/nestjs-crud-automator/guides/authorization#every-served-route-goes-through-authorization).
-- Declares `403` on every generated route when the controller has `authorization`, in either decorator order. See [Error Responses in OpenAPI](/docs/nestjs-crud-automator/guides/error-handling#error-responses-in-openapi).
+- Declares `403` on every generated and custom route when the controller has `authorization`, in either decorator order. See [Error Responses in OpenAPI](/docs/nestjs-crud-automator/guides/error-handling#error-responses-in-openapi).
 
 ## Example
 

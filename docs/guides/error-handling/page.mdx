@@ -537,6 +537,8 @@ Generated routes declare exactly the error statuses they can return with their c
 
 GET_LIST never declares `404`. Each `request.<target>.validators` entry adds the status of its `exception`, such as `422` for `UnprocessableEntityException`.
 
+Custom routes (`@ApiRouteCustom` and `@ApiMethod`) follow the same rule for guard statuses: `security.authentication` declares `401` and `403`, `execution.guards` declares `403`, and every route of an `@ApiControllerSecurable()` controller with `authorization` declares `403`. Their other error statuses come from `response.errors`, because Crud Automator cannot see what the handler throws.
+
 Every declared status uses the `Exception<Status>DTO` schema of that status, for example `ExceptionBadRequestDTO`:
 
 - `statusCode`, `message`, `error`, `correlationID`, and `timestamp` are required on `400`, `404`, `409`, `500`, and validator statuses;
@@ -740,6 +742,7 @@ From 5.0.0, generated routes declare the error statuses they can return instead 
 
 - every route declares `400`, and secured routes declare `403`;
 - `401` is declared only with `security.authentication`;
+- custom routes (`@ApiRouteCustom`, `@ApiMethod`) declare `401` and `403` from `security.authentication`, `execution.guards`, and a securable controller with `authorization`, even when `response.errors` leaves `hasUnauthorized` or `hasForbidden` unset;
 - `ExceptionUnauthorizedDTO`, `ExceptionForbiddenDTO`, and `ExceptionTooManyRequestsDTO` require only `statusCode` and `message`, and `correlationID`, `error`, and `timestamp` become optional, also on routes that declared `401` before;
 - GET_LIST no longer declares `404`; CREATE declares it with `relations.request`;
 - `details` is declared only on `400` and `409`, with the variants of that status;

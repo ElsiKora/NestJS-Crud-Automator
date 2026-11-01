@@ -136,13 +136,16 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 	}
 
 	const errors: NonNullable<IApiMethodProperties<E>["metadata"]["response"]>["errors"] = metadata.response?.errors;
+	// An authentication guard can reject or refuse, and any route guard can refuse
+	const hasAuthentication: boolean = metadata.security?.authentication !== undefined;
+	const hasForbidden: boolean = !!errors?.hasForbidden || hasAuthentication || (options.execution?.guards?.length ?? 0) > 0;
 
-	if (errors?.hasUnauthorized) {
+	if (errors?.hasUnauthorized || hasAuthentication) {
 		decorators.push(ApiUnauthorizedResponse({ description: "Unauthorized", type: DtoGenerateException(HttpStatus.UNAUTHORIZED) }));
 	}
 
-	if (errors?.hasForbidden) {
-		decorators.push(ApiForbiddenResponse({ description: "Forbidden", type: DtoGenerateException(HttpStatus.FORBIDDEN) }));
+	if (hasForbidden) {
+		decorators.push(ApiForbiddenResponse({ description: "Forbidden", type: DtoGenerateException(HttpStatus.FORBIDDEN) }), SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_FORBIDDEN_RESPONSE_METADATA_KEY, true));
 	}
 
 	if (errors?.hasInternalServerError) {

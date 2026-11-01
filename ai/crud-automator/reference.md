@@ -128,6 +128,8 @@ Generated route transaction rules:
 
 Each status uses `DtoGenerateException(status)` (`Exception<Status>DTO`): required `statusCode`, `message`, `error`, `correlationID`, `timestamp`, except on the guard statuses `401`, `403`, `429`, where only `statusCode` and `message` are required and `correlationID`, `error`, `timestamp` are optional (sent only with `CorrelationIDResponseBodyExceptionFilter`); `message` is `string | string[]` and `error` a string, with no pattern or length limits; `details` only on `400` (`FOREIGN_KEY_VIOLATION`, `INVALID_REFERENCE`) and `409` (`UNIQUE_VIOLATION`). Guard rejections skip the interceptor and carry only `statusCode` and `message` unless the exception filter is registered.
 
+Custom routes (`@ApiRouteCustom`, `@ApiMethod`) declare `401` with `security.authentication` and `403` with `security.authentication`, `execution.guards`, or a securable controller with `authorization`; their other statuses come from `response.errors`.
+
 ## DTO Rules
 
 - `EApiDtoType.BODY`, `QUERY`, `PARAMETERS`, and `RESPONSE` are the only DTO keys.

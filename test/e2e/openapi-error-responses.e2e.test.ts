@@ -5,7 +5,7 @@ import type { OpenAPIObject } from "@nestjs/swagger";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import type { Repository } from "typeorm";
 
-import { ForbiddenException, HttpStatus, Inject, Injectable, UnauthorizedException, UnprocessableEntityException, ValidationPipe } from "@nestjs/common";
+import { ForbiddenException, HttpStatus, Inject, Injectable, RequestMethod, UnauthorizedException, UnprocessableEntityException, ValidationPipe } from "@nestjs/common";
 import { HttpAdapterHost } from "@nestjs/core";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
@@ -24,7 +24,9 @@ import {
 	ApiController,
 	ApiControllerObservable,
 	ApiControllerSecurable,
+	ApiMethod,
 	ApiPropertyDescribe,
+	ApiRouteCustom,
 	ApiRouteSubscriber,
 	ApiRouteSubscriberBase,
 	ApiService,
@@ -296,6 +298,15 @@ class OpenApiErrorItemController {
 
 	@Inject(OpenApiErrorOwnerService)
 	public readonly ownerService!: OpenApiErrorOwnerService;
+
+	@ApiRouteCustom<OpenApiErrorItemEntity>({
+		resource: { action: "items.summary", entity: OpenApiErrorItemEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.GET, path: "custom/summary" },
+	})
+	public summary(): { isReady: boolean } {
+		return { isReady: true };
+	}
 }
 
 @ApiControllerObservable()
@@ -331,6 +342,27 @@ class OpenApiErrorItemController {
 class OpenApiErrorSecuredItemController {
 	@Inject(OpenApiErrorSecuredItemService)
 	public readonly service!: OpenApiErrorSecuredItemService;
+
+	@ApiRouteCustom<OpenApiErrorSecuredItemEntity>({
+		resource: { action: "secured-items.export", entity: OpenApiErrorSecuredItemEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.GET, path: "custom/export" },
+		security: { authentication },
+	})
+	public export(): { isExported: boolean } {
+		return { isExported: true };
+	}
+
+	@ApiMethod<OpenApiErrorSecuredItemEntity>({
+		metadata: {
+			resource: { action: "secured-items.ping", entity: OpenApiErrorSecuredItemEntity },
+			response: { status: HttpStatus.OK, type: undefined },
+			route: { method: RequestMethod.GET, path: "custom/ping" },
+		},
+	})
+	public ping(): { isPinged: boolean } {
+		return { isPinged: true };
+	}
 }
 
 const ENTITIES: Array<new () => object> = [OpenApiErrorOwnerEntity, OpenApiErrorItemEntity, OpenApiErrorSecuredItemEntity];
@@ -339,6 +371,9 @@ const ITEMS: string = "/openapi-error-items";
 const ITEM: string = "/openapi-error-items/{id}";
 const SECURED_ITEMS: string = "/openapi-error-secured-items";
 const SECURED_ITEM: string = "/openapi-error-secured-items/{id}";
+const ITEM_SUMMARY: string = "/openapi-error-items/custom/summary";
+const SECURED_EXPORT: string = "/openapi-error-secured-items/custom/export";
+const SECURED_PING: string = "/openapi-error-secured-items/custom/ping";
 
 const OWNER_ID: string = "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f";
 const OWNER_MISSING_ID: string = "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a";
@@ -431,7 +466,7 @@ const GUARD_CASES: Array<IWireCase> = SECURED_OPERATIONS.flatMap((operation: (ty
 	wireCase(operation.method, operation.path, HttpStatus.FORBIDDEN, "authorization deny", operation.url, { headers: DENIED_HEADERS, payload: operation.payload }),
 	wireCase(operation.method, operation.path, HttpStatus.FORBIDDEN, "guard returning false", operation.url, { headers: BLOCKED_HEADERS, payload: operation.payload }),
 	wireCase(operation.method, operation.path, HttpStatus.FORBIDDEN, "handler refusal", operation.url, { headers: FORBIDDEN_HEADERS, payload: operation.payload }),
-]);
+]).concat([wireCase("get", SECURED_EXPORT, HttpStatus.UNAUTHORIZED, "custom route authentication guard", SECURED_EXPORT), wireCase("get", SECURED_EXPORT, HttpStatus.FORBIDDEN, "custom route authorization deny", SECURED_EXPORT, { headers: DENIED_HEADERS }), wireCase("get", SECURED_PING, HttpStatus.FORBIDDEN, "ApiMethod route authorization deny", SECURED_PING, { headers: DENIED_HEADERS })]);
 
 // The exception filter is optional, so every mode must keep the schema equal to the wire
 const EXCEPTION_FILTER_MODES: Array<IExceptionFilterMode> = [
@@ -555,6 +590,13 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 		expect(declaredStatuses(SECURED_ITEM, "put")).toEqual([400, 401, 403, 404, 409, 500]);
 		expect(declaredStatuses(SECURED_ITEM, "patch")).toEqual([400, 401, 403, 404, 409, 500]);
 		expect(declaredStatuses(SECURED_ITEM, "delete")).toEqual([400, 401, 403, 404, 500]);
+	});
+
+	it("declares the guard statuses of custom routes from their config", () => {
+		expect(declaredStatuses(ITEM_SUMMARY, "get")).toEqual([]);
+		expect(declaredStatuses(SECURED_EXPORT, "get")).toEqual([401, 403]);
+		expect(declaredStatuses(SECURED_PING, "get")).toEqual([403]);
+		expect(document.paths[SECURED_EXPORT]?.get?.responses[String(HttpStatus.FORBIDDEN)]).toMatchObject({ description: "Forbidden" });
 	});
 
 	it("describes each error status with the exception DTO of that status", () => {

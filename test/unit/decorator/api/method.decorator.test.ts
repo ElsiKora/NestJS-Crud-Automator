@@ -63,7 +63,7 @@ const readApiResponses = (): Record<string, Record<string, unknown>> => readHand
 
 describe("ApiMethod", () => {
 	beforeEach(() => {
-		for (const metadataKey of [SWAGGER_TEST_METADATA_CONSTANT.CONSUMES, SWAGGER_TEST_METADATA_CONSTANT.EXTRA_MODELS, SWAGGER_TEST_METADATA_CONSTANT.PARAMETERS, SWAGGER_TEST_METADATA_CONSTANT.PRODUCES, SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, SWAGGER_TEST_METADATA_CONSTANT.SECURITY, GUARDS_METADATA, INTERCEPTORS_METADATA, METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY]) {
+		for (const metadataKey of [SWAGGER_TEST_METADATA_CONSTANT.CONSUMES, SWAGGER_TEST_METADATA_CONSTANT.EXTRA_MODELS, SWAGGER_TEST_METADATA_CONSTANT.PARAMETERS, SWAGGER_TEST_METADATA_CONSTANT.PRODUCES, SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, SWAGGER_TEST_METADATA_CONSTANT.SECURITY, GUARDS_METADATA, INTERCEPTORS_METADATA, METHOD_API_DECORATOR_CONSTANT.ROUTE_FORBIDDEN_RESPONSE_METADATA_KEY, METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY]) {
 			Reflect.deleteMetadata(metadataKey, MethodController.prototype, "handler");
 			Reflect.deleteMetadata(metadataKey, MethodController.prototype.handler);
 		}
@@ -630,6 +630,38 @@ describe("ApiMethod", () => {
 			const invoke = () => ApiMethod({ execution: { guards: [{ ...unsupportedStageGuard, guard: FirstGuard }] }, metadata: createMetadata() });
 
 			expect(invoke).toThrow("ApiMethod error: Route guard stage DURING_AUTHENTICATION is not supported");
+		});
+	});
+
+	describe("guard error responses", () => {
+		const withoutErrors = (overrides: Partial<IApiRouteMetadata<MethodEntity>> = {}): IApiRouteMetadata<MethodEntity> => createMetadata({ response: { status: HttpStatus.OK, type: undefined }, ...overrides });
+
+		class RefusingGuard implements CanActivate {
+			public canActivate(): boolean {
+				return false;
+			}
+		}
+
+		it("declares 401 and 403 for a route with authentication", () => {
+			applyDecorator(ApiMethod({ metadata: withoutErrors({ security: { authentication: { guard: RefusingGuard, type: EApiAuthenticationType.USER } } }) }));
+
+			expect(Object.keys(readApiResponses())).toEqual(expect.arrayContaining([String(HttpStatus.UNAUTHORIZED), String(HttpStatus.FORBIDDEN)]));
+			expect(readHandlerMetadata<boolean>(METHOD_API_DECORATOR_CONSTANT.ROUTE_FORBIDDEN_RESPONSE_METADATA_KEY)).toBe(true);
+		});
+
+		it("declares 403 without 401 for a route with execution guards", () => {
+			applyDecorator(ApiMethod({ execution: { guards: [RefusingGuard] }, metadata: withoutErrors() }));
+
+			expect(readApiResponses()).toHaveProperty(String(HttpStatus.FORBIDDEN));
+			expect(readApiResponses()).not.toHaveProperty(String(HttpStatus.UNAUTHORIZED));
+		});
+
+		it("declares neither 401 nor 403 for a route without guards", () => {
+			applyDecorator(ApiMethod({ metadata: withoutErrors() }));
+
+			expect(readApiResponses()).not.toHaveProperty(String(HttpStatus.FORBIDDEN));
+			expect(readApiResponses()).not.toHaveProperty(String(HttpStatus.UNAUTHORIZED));
+			expect(readHandlerMetadata<boolean>(METHOD_API_DECORATOR_CONSTANT.ROUTE_FORBIDDEN_RESPONSE_METADATA_KEY)).toBeUndefined();
 		});
 	});
 
