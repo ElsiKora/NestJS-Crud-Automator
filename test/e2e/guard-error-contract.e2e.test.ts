@@ -1,18 +1,22 @@
 import "reflect-metadata";
 
 import type { CanActivate, ExecutionContext, INestApplication, Provider } from "@nestjs/common";
+import type { OpenAPIObject } from "@nestjs/swagger";
 import type { Repository } from "typeorm";
 
 import { ForbiddenException, HttpStatus, Inject, Injectable, Module, UnauthorizedException } from "@nestjs/common";
-import { APP_GUARD } from "@nestjs/core";
+import { APP_GUARD, HttpAdapterHost } from "@nestjs/core";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
+import { ApiForbiddenResponse, DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
 import { Column, Entity, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { ApiAuthorizationModule, ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiController, ApiControllerSecurable, ApiPropertyDescribe, ApiService, ApiServiceBase, ApiSubscriberModule, CorrelationIDResponseBodyInterceptor, EApiAuthenticationType, EApiAuthorizationMode, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteGuardStage, EApiRouteType } from "../../src/index";
+import { ApiAuthorizationModule, ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiController, ApiControllerSecurable, ApiPropertyDescribe, ApiService, ApiServiceBase, ApiSubscriberModule, CorrelationIDResponseBodyExceptionFilter, CorrelationIDResponseBodyInterceptor, EApiAuthenticationType, EApiAuthorizationMode, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteGuardStage, EApiRouteType } from "../../src/index";
+
+import { DtoGenerateException } from "../../src/utility/dto/generate/exception.utility";
 
 import { TestAuthGuard } from "./app/auth-guard";
 import { e2eHookPermissionSource } from "./app/hook-permission-source";
@@ -104,7 +108,7 @@ const securedAuthorization = { defaultMode: EApiAuthorizationMode.HOOKS };
 	entity: E2eGuardContractEntity,
 	name: "E2eGuardContractPlain",
 	path: "guard-contract/plain",
-	routes: { [EApiRouteType.GET]: { security: { authentication } } },
+	routes: { [EApiRouteType.GET]: { generation: { decorators: [ApiForbiddenResponse({ description: "Forbidden", type: DtoGenerateException(HttpStatus.FORBIDDEN) })] }, security: { authentication } } },
 })
 class E2eGuardContractPlainController {
 	@Inject(E2eGuardContractService)
@@ -202,7 +206,7 @@ interface IFastifyInjector {
 }
 
 /**
- * Boots the generated routes behind the global interceptor, as the documented setup does.
+ * Boots the generated routes behind the global filter and interceptor, as the documented setup does.
  * @param {Array<Provider>} [providers] - Extra root providers.
  * @returns {Promise<INestApplication>} Initialized application.
  */
@@ -210,6 +214,7 @@ async function createApplication(providers: Array<Provider> = []): Promise<INest
 	const moduleReference = await Test.createTestingModule({ imports: [E2eGuardContractModule], providers }).compile();
 	const application: INestApplication = moduleReference.createNestApplication(new FastifyAdapter());
 
+	application.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(application.get(HttpAdapterHost)));
 	application.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
 	await application.init();
 	await (application.getHttpAdapter().getInstance() as IFastifyInjector).ready();
@@ -231,6 +236,7 @@ function expectErrorContract(response: IInjectResponse, status: number, correlat
 
 	expect(response.statusCode).toBe(status);
 	expect(body.statusCode).toBe(status);
+	expect(body.error).toEqual(expect.any(String));
 	expect(body.message).toEqual(expect.anything());
 	expect(body.timestamp).toEqual(expect.any(Number));
 	expect(body.correlationID).toEqual(expect.any(String));
@@ -238,6 +244,67 @@ function expectErrorContract(response: IInjectResponse, status: number, correlat
 
 	if (correlationId) {
 		expect(body.correlationID).toBe(correlationId);
+	}
+}
+
+interface ISchemaProperty {
+	enum?: Array<unknown>;
+	items?: ISchemaProperty;
+	maxLength?: number;
+	minLength?: number;
+	oneOf?: Array<ISchemaProperty>;
+	pattern?: string;
+	type?: string;
+}
+
+interface IObjectSchema {
+	properties: Record<string, ISchemaProperty>;
+	required: Array<string>;
+}
+
+/**
+ * Resolves the documented error schema of a response on the generated GET route.
+ * @param {OpenAPIObject} document - OpenAPI document of the application.
+ * @param {number} status - Documented response status.
+ * @returns {IObjectSchema} The referenced component schema.
+ */
+function getErrorSchema(document: OpenAPIObject, status: number): IObjectSchema {
+	const response: { content?: Record<string, { schema?: { $ref?: string } }> } | undefined = document.paths["/guard-contract/plain/{id}"]?.get?.responses[String(status)] as { content?: Record<string, { schema?: { $ref?: string } }> } | undefined;
+	const reference: string = response?.content?.["application/json"]?.schema?.$ref ?? "";
+
+	return document.components?.schemas?.[reference.replace("#/components/schemas/", "")] as IObjectSchema;
+}
+
+/**
+ * Checks a value against an OpenAPI property schema: its type, `oneOf` alternatives, array items, enum, length and pattern.
+ * @param {unknown} value - Wire value.
+ * @param {ISchemaProperty} property - Documented property schema.
+ * @returns {boolean} Whether the value matches.
+ */
+function matchesSchema(value: unknown, property: ISchemaProperty): boolean {
+	if (property.oneOf) {
+		return property.oneOf.some((alternative: ISchemaProperty) => matchesSchema(value, alternative));
+	}
+
+	const isTypeMatching: boolean = property.type === "array" ? Array.isArray(value) && value.every((item: unknown) => matchesSchema(item, property.items ?? {})) : property.type === "integer" ? Number.isInteger(value) : typeof value === property.type;
+	const isEnumMatching: boolean = !property.enum || property.enum.includes(value);
+	const isStringMatching: boolean = typeof value !== "string" || (value.length >= (property.minLength ?? 0) && value.length <= (property.maxLength ?? Number.MAX_SAFE_INTEGER) && new RegExp(property.pattern ?? "").test(value));
+
+	return isTypeMatching && isEnumMatching && isStringMatching;
+}
+
+/**
+ * Asserts that a wire body has every required field of its documented schema and nothing the schema does not declare, each value matching its declared schema.
+ * @param {Record<string, unknown>} body - Response body.
+ * @param {IObjectSchema} schema - Documented schema.
+ * @returns {void}
+ */
+function expectBodyMatchesSchema(body: Record<string, unknown>, schema: IObjectSchema): void {
+	expect(Object.keys(body).filter((key: string) => !(key in schema.properties))).toEqual([]);
+	expect(schema.required.filter((key: string) => !(key in body))).toEqual([]);
+
+	for (const [key, value] of Object.entries(body)) {
+		expect(matchesSchema(value, schema.properties[key] ?? {}), key).toBe(true);
 	}
 }
 
@@ -283,7 +350,7 @@ describe("Guard error response contract (E2E)", () => {
 		const response: IInjectResponse = await request(application, "plain", { "x-correlation-id": CLIENT_CORRELATION_ID });
 
 		expectErrorContract(response, HttpStatus.UNAUTHORIZED, CLIENT_CORRELATION_ID);
-		expect(response.json().error).toBe("Unauthorized");
+		expect(response.json().message).toBe("Unauthorized");
 	});
 
 	it("answers a 403 from ApiAuthorizationGuard with the contract", async () => {
@@ -310,6 +377,32 @@ describe("Guard error response contract (E2E)", () => {
 		expectErrorContract(response, HttpStatus.INTERNAL_SERVER_ERROR);
 		expect(response.json().message).toBe("Internal server error");
 		expect(JSON.stringify(response.json())).not.toContain("GUARD_INTERNAL_SENTINEL");
+	});
+
+	it("documents every field the guard 401 and 403 bodies carry, and only those", async () => {
+		const document: OpenAPIObject = SwaggerModule.createDocument(application, new DocumentBuilder().build());
+		const unauthorizedSchema: IObjectSchema = getErrorSchema(document, HttpStatus.UNAUTHORIZED);
+		const forbiddenSchema: IObjectSchema = getErrorSchema(document, HttpStatus.FORBIDDEN);
+		const unauthorized: Record<string, unknown> = (await request(application, "plain", {})).json();
+		const forbidden: Record<string, unknown> = (await request(application, "plain", { "x-authenticated": "true", "x-role": "viewer", "x-user-id": "guard-contract-user" })).json();
+
+		expect(unauthorizedSchema.required.toSorted()).toEqual(["correlationID", "error", "message", "statusCode", "timestamp"]);
+		expect(forbiddenSchema.required.toSorted()).toEqual(["correlationID", "error", "message", "statusCode", "timestamp"]);
+		expect(unauthorized).toEqual({ correlationID: expect.any(String), error: "Unauthorized", message: "Unauthorized", statusCode: HttpStatus.UNAUTHORIZED, timestamp: expect.any(Number) });
+		expect(forbidden).toEqual({ correlationID: expect.any(String), error: "Forbidden", message: "Forbidden", statusCode: HttpStatus.FORBIDDEN, timestamp: expect.any(Number) });
+		expectBodyMatchesSchema(unauthorized, unauthorizedSchema);
+		expectBodyMatchesSchema(forbidden, forbiddenSchema);
+	});
+
+	it("documents message and error as free text, including the messages Nest and the throttler answer", () => {
+		const schema: IObjectSchema = getErrorSchema(SwaggerModule.createDocument(application, new DocumentBuilder().build()), HttpStatus.UNAUTHORIZED);
+
+		for (const message of ["ThrottlerException: Too Many Requests", "Cannot GET /nope", "Body is not valid JSON but content-type is set to 'application/json'", ["email must be a string", "name must be longer than or equal to 1 characters"], ""]) {
+			expect(matchesSchema(message, schema.properties.message ?? {}), JSON.stringify(message)).toBe(true);
+		}
+
+		expect(matchesSchema("Network Authentication Required", schema.properties.error ?? {})).toBe(true);
+		expect(matchesSchema(42, schema.properties.message ?? {})).toBe(false);
 	});
 
 	it("keeps a successful response free of error fields", async () => {

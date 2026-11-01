@@ -52,7 +52,7 @@ The core philosophy of this library is built on four pillars: being **Declarativ
 - ✨ **Polymorphic Reads For Table Inheritance:** Serve TypeORM single-table-inheritance roots through per-variant GET and GET_LIST responses with no DTOs.
 - ✨ **Guard-Based Field Exposure:** Generate route-specific response DTOs based on configured guard classes.
 - ✨ **🔐 Declarative Authorization Policies:** Subscriber-style policies with automatic guard wiring, scopes, and response transforms.
-- ✨ **Request Tracing:** Built-in `CorrelationIDResponseBodyInterceptor` to correlate requests and logs.
+- ✨ **Request Tracing:** Built-in `CorrelationIDResponseBodyInterceptor` and `CorrelationIDResponseBodyExceptionFilter` to correlate requests and logs.
 - ✨ **Convention over Configuration:** Smart defaults for service and DTO naming to reduce boilerplate.
 
 ## 🛠 Installation
@@ -1082,27 +1082,31 @@ Important IAM details from the current implementation:
 
 ### `CorrelationIDResponseBodyInterceptor`: Request Tracing
 
-To simplify debugging and request tracing in complex systems, the library provides the `CorrelationIDResponseBodyInterceptor`. This interceptor should be registered globally in your `main.ts`. It is written for the Fastify adapter, so the application needs `@nestjs/platform-fastify`.
+To simplify debugging and request tracing in complex systems, the library provides the `CorrelationIDResponseBodyInterceptor` and the `CorrelationIDResponseBodyExceptionFilter`. Register both globally in your `main.ts`. They are written for the Fastify adapter, so the application needs `@nestjs/platform-fastify`.
 
 **What it does:**
 
-1.  Intercepts all exceptions in the application (`HttpException` and others).
+1.  The interceptor handles exceptions from the handler chain (`HttpException` and others). The filter handles HTTP failures that never reach an interceptor, such as guard and middleware rejections (`401`, `403`, `429`), unmatched routes, and malformed bodies. Without the filter, those responses have no correlation ID. It acts only in an HTTP context; do not apply it to WebSocket gateways.
 2.  Looks for the `x-correlation-id` header in the incoming request headers.
 3.  If the header is found, its value is added to the body of the error response.
 4.  If the header is not found, a new `UUID` is generated, which is added to both the response and the logs (if `LoggerUtility` is used).
-5.  Adds a `timestamp` field to the error response body.
+5.  Adds a `timestamp` field to the error response body, and fills or replaces an `error`, `message`, or `statusCode` without the contract type, so every error body has `correlationID`, `error`, `message`, `statusCode`, and `timestamp`, as the generated exception DTOs declare.
 6.  Keeps the original failure as `cause` on the rethrown exception, so an exception filter can report it through `FormatErrorEvidenceForLog(exception.cause)`. Never send, log, or serialize the exception or its `cause`.
+
+Nest runs only one filter for each exception: `useGlobalFilters` registrations win over `APP_FILTER` ones, and among them the last registered wins. Register `CorrelationIDResponseBodyExceptionFilter` before your own filter, and call `CorrelationIDNormalizeException(exception, host, httpAdapterHost)` inside your filter to keep the contract. Answer through `httpAdapterHost.httpAdapter.reply`, because a middleware failure carries the native response.
 
 This allows you to link a specific client request with the logs on the server, which is invaluable when investigating incidents.
 
 **Registration:** `main.ts`
 
 ```typescript
-import { CorrelationIDResponseBodyInterceptor } from "@elsikora/nestjs-crud-automator";
+import { HttpAdapterHost } from "@nestjs/core";
+import { CorrelationIDResponseBodyExceptionFilter, CorrelationIDResponseBodyInterceptor } from "@elsikora/nestjs-crud-automator";
 
 async function bootstrap() {
 	const app = await NestFactory.create(AppModule);
 	// ...
+	app.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(app.get(HttpAdapterHost)));
 	app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
 	// ...
 	await app.listen(3000);

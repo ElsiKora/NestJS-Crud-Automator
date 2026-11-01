@@ -2,19 +2,20 @@
 
 NestJS CRUD Automator provides structured error handling with CorrelationID tracking and standardized error responses.
 
-## CorrelationID Interceptor
+## CorrelationID Interceptor and Filter
 
-The library includes a built-in interceptor for tracking requests with correlation IDs:
+The library includes a built-in interceptor and exception filter for tracking requests with correlation IDs. Register both:
 
 ```typescript filename="main.ts" copy
-import { NestFactory } from "@nestjs/core";
-import { CorrelationIDResponseBodyInterceptor } from "@elsikora/nestjs-crud-automator";
+import { HttpAdapterHost, NestFactory } from "@nestjs/core";
+import { CorrelationIDResponseBodyExceptionFilter, CorrelationIDResponseBodyInterceptor } from "@elsikora/nestjs-crud-automator";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
 	const app = await NestFactory.create(AppModule);
 
-	// Register globally
+	// Register globally, with the filter before any filter of your own
+	app.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(app.get(HttpAdapterHost)));
 	app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
 
 	await app.listen(3000);
@@ -24,15 +25,21 @@ bootstrap();
 
 ## How It Works
 
-The interceptor:
+The interceptor and the filter share one rule:
 
-1. Checks for `x-correlation-id` header in incoming requests
-2. Generates a UUID if header is missing
-3. Adds correlation ID to error responses from the handler chain
-4. Adds timestamp to those error responses
-5. Handles HttpException, ThrottlerException, and generic errors thrown inside the handler chain
+1. Check for `x-correlation-id` header in incoming requests
+2. Generate a UUID if header is missing or blank
+3. Add correlation ID to the error response and the `x-correlation-id` response header
+4. Add timestamp to the error response
+5. Handle HttpException, ThrottlerException, http-errors values, and generic errors, the same way wherever they are thrown
 
-Guards run before interceptors, so an exception thrown by a guard skips the interceptor. See [Rate Limiting Errors](#rate-limiting-errors).
+The interceptor covers the handler chain. Guards and middleware run before interceptors, so their failures skip the interceptor and reach the filter, as do unmatched routes (`404`) and malformed bodies (`400`). The filter sends a failure that already passed through the interceptor unchanged.
+
+Without the filter, those failures have no `correlationID`, `timestamp`, or `x-correlation-id` header. See [Custom Exception Filters](#custom-exception-filters) for how it works next to your own filter.
+
+The filter and the interceptor act only in an HTTP context. Outside it each registered component logs one warning for the call and changes nothing, so a failing RPC call with both registered logs two warnings. RPC failures keep the default handling, and global filters and interceptors never reach WebSocket gateways. Do not apply the filter to a gateway with `@UseFilters`: Nest then skips its default WebSocket handling, so the client gets neither an `exception` event nor an acknowledgement, and the warning is the only trace. The filter cannot hand the failure back to that handling without depending on `@nestjs/websockets`.
+
+Fastify answers some requests before Nest runs, so neither the interceptor nor the filter sees them: a malformed URL, and errors from the Node.js HTTP parser (`clientError`), such as an invalid header. They keep the default Fastify answer, without a correlation ID.
 
 ## Error Response Format
 
@@ -170,49 +177,7 @@ export class PostErrorSubscriber extends ApiRouteSubscriberBase<PostEntity> {
 
 ## Global Exception Filter
 
-Create a global exception filter for custom error handling:
-
-```typescript filename="filters/http-exception.filter.ts" copy
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from "@nestjs/common";
-import { FastifyReply, FastifyRequest } from "fastify";
-
-@Catch()
-export class GlobalExceptionFilter implements ExceptionFilter {
-	catch(exception: unknown, host: ArgumentsHost) {
-		const ctx = host.switchToHttp();
-		const response = ctx.getResponse<FastifyReply>();
-		const request = ctx.getRequest<FastifyRequest>();
-
-		const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
-
-		const message = exception instanceof HttpException ? exception.message : "Internal server error";
-
-		const correlationId = request.headers["x-correlation-id"] || crypto.randomUUID();
-
-		response.status(status).send({
-			statusCode: status,
-			message,
-			timestamp: new Date().toISOString(),
-			path: request.url,
-			correlationID: correlationId,
-		});
-	}
-}
-```
-
-Register globally:
-
-```typescript filename="main.ts" copy
-import { GlobalExceptionFilter } from "./filters/http-exception.filter";
-
-async function bootstrap() {
-	const app = await NestFactory.create(AppModule);
-
-	app.useGlobalFilters(new GlobalExceptionFilter());
-
-	await app.listen(3000);
-}
-```
+`CorrelationIDResponseBodyExceptionFilter` is the global filter for the correlation contract. A filter of your own must not build its own `correlationID` or `timestamp`, and must answer through the HTTP adapter, because a failure from Nest middleware carries the native response. See [Custom Exception Filters](#custom-exception-filters) for a filter that keeps the contract.
 
 ### Reading the Original Failure
 
@@ -226,14 +191,19 @@ The interceptor rethrows a new `HttpException` and keeps what it caught in `exce
 
 ```typescript filename="filters/error-reporting.filter.ts" copy
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from "@nestjs/common";
+import { HttpAdapterHost } from "@nestjs/core";
 import { FormatErrorEvidenceForLog } from "@elsikora/nestjs-crud-automator";
-import { FastifyReply } from "fastify";
 
 @Catch(HttpException)
 export class ErrorReportingFilter implements ExceptionFilter<HttpException> {
-	constructor(private readonly errorTracker: ErrorTracker) {}
+	constructor(
+		private readonly httpAdapterHost: HttpAdapterHost,
+		private readonly errorTracker: ErrorTracker,
+	) {}
 
 	catch(exception: HttpException, host: ArgumentsHost) {
+		const { httpAdapter } = this.httpAdapterHost;
+		const response = host.getArgByIndex(1);
 		const status = exception.getStatus();
 		const body = exception.getResponse();
 
@@ -242,12 +212,12 @@ export class ErrorReportingFilter implements ExceptionFilter<HttpException> {
 			this.errorTracker.capture(`Request failed: ${FormatErrorEvidenceForLog(exception.cause)}`);
 		}
 
-		// getResponse() is a plain string for some exceptions, such as a ThrottlerGuard 429
-		host
-			.switchToHttp()
-			.getResponse<FastifyReply>()
-			.status(status)
-			.send(typeof body === "string" ? { statusCode: status, message: body } : body);
+		// getResponse() is a plain string for some exceptions, such as a guard failure that skipped normalization
+		// The adapter answers both a Fastify reply and the native response from Nest middleware,
+		// but only the native response reports headersSent itself
+		if (!(response.headersSent ?? httpAdapter.isHeadersSent(response))) {
+			httpAdapter.reply(response, typeof body === "string" ? { statusCode: status, message: body } : body, status);
+		}
 	}
 }
 ```
@@ -261,10 +231,64 @@ export class ErrorReportingFilter implements ExceptionFilter<HttpException> {
 Use these instead:
 
 - `FormatErrorEvidenceForLog(exception.cause)` for logs and reports. It emits only a bounded error type and a validated SQLSTATE, such as `errorType=QueryFailedError sqlState=23505`.
-- `exception.getResponse()` for the answer, wrapping a string response as `{ statusCode, message }` as in the example above.
+- `exception.getResponse()` for the answer. After the interceptor or `CorrelationIDNormalizeException` it is always an object with `correlationID`, `error`, `message`, `statusCode`, and `timestamp`. A raw exception that skipped normalization can still have a string response, so wrap it as in the example above.
 - To report anything else, pick the individual field by hand after checking that it is safe, never the whole object.
 
-The response body and status do not depend on `cause`, and the interceptor already emits its one bounded log for a `5xx`. Failures raised before the interceptor runs, such as exceptions from guards, reach the filter directly and carry no such cause.
+The response body and status do not depend on `cause`, and the interceptor already emits its one bounded log for a `5xx`. Failures raised before the interceptor runs, such as exceptions from guards and middleware, reach your filter directly and carry no such cause until you pass them through `CorrelationIDNormalizeException`.
+
+## Custom Exception Filters
+
+Nest runs only one filter for each exception: `useGlobalFilters` registrations win over `APP_FILTER` ones, and among them the last registered wins.
+
+| Registration order                                                                                    | What handles a guard failure                                              |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `CorrelationIDResponseBodyExceptionFilter`, then your filter for that failure                         | Your filter, with the raw exception and no correlation contract           |
+| Your filter for that failure, then `CorrelationIDResponseBodyExceptionFilter`                         | `CorrelationIDResponseBodyExceptionFilter`. Your filter never runs for it |
+| Your filter with `APP_FILTER`, and `CorrelationIDResponseBodyExceptionFilter` with `useGlobalFilters` | `CorrelationIDResponseBodyExceptionFilter`. Your filter never runs for it |
+
+Register `CorrelationIDResponseBodyExceptionFilter` first, so your filter keeps running, and call `CorrelationIDNormalizeException` at the start of your filter to keep the contract. It applies the same rule as the interceptor, writes the `x-correlation-id` header, and returns a failure that already passed through the interceptor unchanged, so nothing is processed twice. Answer through the HTTP adapter, because a failure from Nest middleware carries the native response, not a Fastify reply:
+
+```typescript filename="filters/api-exception.filter.ts" copy
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from "@nestjs/common";
+import { HttpAdapterHost } from "@nestjs/core";
+import { CorrelationIDNormalizeException, FormatErrorEvidenceForLog } from "@elsikora/nestjs-crud-automator";
+
+@Catch()
+export class ApiExceptionFilter implements ExceptionFilter {
+	constructor(
+		private readonly httpAdapterHost: HttpAdapterHost,
+		private readonly errorTracker: ErrorTracker,
+	) {}
+
+	catch(exception: unknown, host: ArgumentsHost) {
+		// Leave RPC failures to the default handling
+		if (host.getType() !== "http") {
+			return;
+		}
+
+		const { httpAdapter } = this.httpAdapterHost;
+		// The native response for a failure from Nest middleware, so answer through the adapter
+		const response = host.getArgByIndex(1);
+		const normalized: HttpException = CorrelationIDNormalizeException(exception, host, this.httpAdapterHost);
+
+		this.errorTracker.capture(`Request failed: ${FormatErrorEvidenceForLog(normalized.cause)}`);
+
+		if (!(response.headersSent ?? httpAdapter.isHeadersSent(response))) {
+			httpAdapter.reply(response, normalized.getResponse(), normalized.getStatus());
+		}
+	}
+}
+```
+
+Register both in that order:
+
+```typescript filename="main.ts" copy
+const httpAdapterHost = app.get(HttpAdapterHost);
+
+app.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(httpAdapterHost), new ApiExceptionFilter(httpAdapterHost, errorTracker));
+```
+
+The rules for `cause` in [Reading the Original Failure](#reading-the-original-failure) apply to the exception it returns. A `@Catch()` filter of yours also runs for RPC failures, where there is no request to correlate, which is why the example returns early outside HTTP.
 
 ## Logging Errors
 
@@ -348,34 +372,25 @@ export class DuplicateResourceException extends BadRequestException {
 
 ## Rate Limiting Errors
 
-Handle throttler exceptions:
+Configure the throttler and register `ThrottlerGuard`. `ttl` is in milliseconds:
 
-```typescript filename="main.ts" copy
-import { ThrottlerModule } from "@nestjs/throttler";
+```typescript filename="app.module.ts" copy
+import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 
 @Module({
 	imports: [
 		ThrottlerModule.forRoot({
-			ttl: 60,
-			limit: 10,
+			throttlers: [{ limit: 10, ttl: 60_000 }],
 		}),
 	],
+	providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
 ```
 
-Guards run before interceptors, so a `429` from `ThrottlerGuard` does not pass through the CorrelationIDResponseBodyInterceptor. The response has no `correlationID`, `timestamp`, or `x-correlation-id` header:
-
-```json
-{
-	"statusCode": 429,
-	"message": "ThrottlerException: Too Many Requests"
-}
-```
-
-An exception filter receives that `ThrottlerException` itself, with no `cause`, and its `getResponse()` is a plain string.
-
-The interceptor handles a `ThrottlerException` only when it is thrown inside the handler chain, such as from a pipe, a route handler, or a service:
+With `CorrelationIDResponseBodyExceptionFilter` registered, a `429` from `ThrottlerGuard` has the same body as a `ThrottlerException` thrown inside the handler chain, and `ThrottlerGuard` keeps its `retry-after` header:
 
 ```json
 {
@@ -386,6 +401,8 @@ The interceptor handles a `ThrottlerException` only when it is thrown inside the
 	"correlationID": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
+
+Without the filter, or when a filter of yours handles the failure without `CorrelationIDNormalizeException`, Nest answers `{ "statusCode": 429, "message": "ThrottlerException: Too Many Requests" }`, with no `correlationID`, `timestamp`, or `x-correlation-id` header.
 
 ## Database Errors
 
@@ -469,7 +486,7 @@ async fetchExternalData(id: string): Promise<Data> {
 
 ## Migration Notes
 
-Before 5.0.0, the exception rethrown by `CorrelationIDResponseBodyInterceptor` carried no cause. From 5.0.0 it holds the original failure, so an exception filter that logs or serializes the whole exception starts receiving SQL text and parameters from a `QueryFailedError`. HTTP responses do not change.
+Before 5.0.0, the exception rethrown by `CorrelationIDResponseBodyInterceptor` carried no cause. From 5.0.0 it holds the original failure, so an exception filter that logs or serializes the whole exception starts receiving SQL text and parameters from a `QueryFailedError`. The cause itself does not change HTTP responses.
 
 Check your exception filters and application loggers:
 
@@ -477,6 +494,41 @@ Check your exception filters and application loggers:
 2. Remove `JSON.stringify(exception)`, which can now also throw on a cyclic object or a `BigInt`.
 
 See [Reading the Original Failure](#reading-the-original-failure) for the safe pattern.
+
+From 5.0.0, every error body from `CorrelationIDResponseBodyInterceptor` has `correlationID`, `error`, `message`, `statusCode`, and `timestamp`, with or without the filter. A field the body sets keeps its value only when it has the contract type: `statusCode` equal to the response status, `message` a string or an array of strings, `error` a string. Any other value, `null` included, is replaced: `statusCode` by the response status, and `message` and `error` by the status text from Node.js `STATUS_CODES`, or `"Error"` for a status Node.js does not name, such as `599`. A string or an array response becomes `message`. These responses change:
+
+| Failure in the handler chain                                                                                                                                                                              | Change                                                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An `HttpException` with a string response, such as `new HttpException("text", 409)`                                                                                                                       | Adds `error: "Conflict"` and `statusCode: 409`                                                                                                                                                                                                  |
+| An `HttpException` with an array response, such as `new HttpException(["a", "b"], 400)`                                                                                                                   | Answers `message: ["a", "b"]` instead of `{ "0": "a", "1": "b" }`                                                                                                                                                                               |
+| An `HttpException` whose body lacks `error`, `message`, or `statusCode`, or sets one with another type or another status, such as `new NotFoundException()` or a `ValidationPipe` `exceptionFactory` body | Adds or replaces those fields                                                                                                                                                                                                                   |
+| An http-errors value: an object with an integer `statusCode` from `400` to `599`                                                                                                                          | Answers its status. Its message reaches the client only when `expose` is `true`, otherwise the message is the status text, so `{ statusCode: 404, message: "No such customer: cus_123" }` answers `"Not Found"`. Before 5.0.0 it answered `500` |
+| A value with any other `statusCode`, such as a string, `200`, `302`, or `1000`, and any other unknown failure                                                                                             | Answers `500` with `message: "Internal server error"` and `error: "Internal Server Error"`. Before 5.0.0 `error` was `"Internal server error"`                                                                                                  |
+| An `HttpException` with a status that is not an integer from `200` to `599`, such as `new HttpException("text", 1000)`                                                                                    | Answers the same `500` and logs one error. A status from `200` to `399` stays as the exception sets it                                                                                                                                          |
+
+Outside an HTTP context, such as an RPC handler or a gateway with `@UseInterceptors`, the interceptor passes the call through unchanged and logs one warning. Before 5.0.0 it failed there, because it read HTTP headers from the call arguments.
+
+The exception DTOs of generated routes now declare `error` as required, next to `correlationID`, `message`, `statusCode`, and `timestamp`. `message` and `error` are free text: `message` is a string or an array of strings, and neither has a pattern or a length limit. Clients generated from the OpenAPI document get the new field and the wider `message` type.
+
+From 5.0.0, `CorrelationIDResponseBodyExceptionFilter` gives failures outside the handler chain the same contract. Nothing changes until you add `app.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(app.get(HttpAdapterHost)))`. After that, these responses change:
+
+| Failure                                                                                             | Change                                                                                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `401` and `403` from a guard or middleware                                                          | Adds `correlationID`, `timestamp`, the `x-correlation-id` header, and `error` with the status text when the body has none                                                                                                                                                                                                                  |
+| `429` from `ThrottlerGuard`                                                                         | Adds `error: "Too Many Requests"`, `correlationID`, `timestamp`, and the `x-correlation-id` header. `retry-after` stays                                                                                                                                                                                                                    |
+| `404` for an unmatched route                                                                        | Adds `correlationID`, `timestamp`, and the `x-correlation-id` header                                                                                                                                                                                                                                                                       |
+| `400` for a malformed body, `413` for a body that is too large, `415` for an unsupported media type | Adds `error` with the status text, such as `"Payload Too Large"`, `correlationID`, `timestamp`, and the `x-correlation-id` header. Nest passes the Fastify error as an `HttpException` with a string response, which keeps its status and message                                                                                          |
+| A failure from a Fastify `onRequest` hook                                                           | Answers by the same rule as a guard failure: an `HttpException` keeps its status and message, an http-errors value follows the http-errors rule above, so `{ statusCode: 404 }` answers `404` with `"Not Found"` and `{ expose: true, statusCode: 409 }` answers `409` with its message, and any other failure answers the sanitized `500` |
+| An `HttpException` with a string response from a guard or middleware                                | Answers the string as `message`, with `error` set to the status text, `statusCode`, `correlationID`, `timestamp`, and the `x-correlation-id` header                                                                                                                                                                                        |
+| An http-errors value from a guard or middleware                                                     | Answers by the http-errors rule above, so a message without `expose: true` becomes the status text and an invalid `statusCode` answers `500`. A `5xx` logs one bounded line instead of the Nest log with the stack                                                                                                                         |
+| Any other failure from a guard or middleware                                                        | Answers the sanitized `500` of the interceptor, with `error: "Internal Server Error"`, and logs one bounded line instead of the Nest log with the stack                                                                                                                                                                                    |
+
+The HTTP status stays the same, apart from the http-errors values and the `HttpException` statuses that now answer `500`. Failures in the handler chain answer as described for the interceptor above, with or without the filter. A malformed URL and Node.js HTTP parser errors keep the default Fastify answer. Outside an HTTP context the filter changes nothing and logs one warning.
+
+Check two things when you add it:
+
+1. Clients and tests that compare these bodies exactly need the new fields.
+2. If you already have an exception filter, register the new filter before it and call `CorrelationIDNormalizeException` inside it. See [Custom Exception Filters](#custom-exception-filters).
 
 ## Next Steps
 

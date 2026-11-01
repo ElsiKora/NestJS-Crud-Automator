@@ -2,6 +2,7 @@ export * from "./api";
 export * from "./authorization";
 export { CamelCaseString } from "./camel-case-string.utility";
 export { CapitalizeString } from "./capitalize-string.utility";
+export * from "./correlation-id";
 export * from "./database";
 export { DeferPropertyDecoratorExecution } from "./defer-property-decorator-execution.utility";
 export * from "./dto";

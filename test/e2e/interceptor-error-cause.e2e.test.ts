@@ -113,7 +113,7 @@ describe("CorrelationIDResponseBodyInterceptor cause (E2E)", () => {
 	});
 
 	it.each([
-		["bad-request", HttpStatus.BAD_REQUEST, ["correlationID", "message", "statusCode", "timestamp"], 0],
+		["bad-request", HttpStatus.BAD_REQUEST, ["correlationID", "error", "message", "statusCode", "timestamp"], 0],
 		["throttled", HttpStatus.TOO_MANY_REQUESTS, ["correlationID", "error", "message", "statusCode", "timestamp"], 0],
 		["unknown", HttpStatus.INTERNAL_SERVER_ERROR, ["correlationID", "error", "message", "statusCode", "timestamp"], 1],
 		["non-error", HttpStatus.INTERNAL_SERVER_ERROR, ["correlationID", "error", "message", "statusCode", "timestamp"], 1],

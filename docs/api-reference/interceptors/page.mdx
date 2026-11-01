@@ -4,19 +4,19 @@ Interceptors provided by NestJS CRUD Automator.
 
 ## CorrelationIDResponseBodyInterceptor
 
-Global interceptor that adds correlation IDs and timestamps to error responses from the handler chain.
+Global interceptor that adds correlation IDs and timestamps to error responses from the handler chain. Register it together with `CorrelationIDResponseBodyExceptionFilter`, which gives the same contract to failures that never reach an interceptor, such as guard and middleware rejections.
 
-**Location:** `src/interceptor/correlation-id-response-body.interceptor.ts`
+**Location:** `src/interceptor/correlation-id-response-body.interceptor.ts`, `src/exception-filter/correlation-id-response-body.exception-filter.ts`
 
 **Requires:** the Fastify adapter (`@nestjs/platform-fastify`). The interceptor reads the request as a `FastifyRequest` and sets the `x-correlation-id` header through `FastifyReply`. Crud Automator does not declare `fastify` or `@nestjs/platform-fastify` as peers, so the application installs them.
 
 ## Features
 
-- Intercepts exceptions thrown inside the handler chain (HttpException, ThrottlerException, and generic errors). Guards run earlier, so their exceptions skip it
+- Intercepts exceptions thrown inside the handler chain (HttpException, ThrottlerException, http-errors values, and generic errors). Guards and middleware run earlier, so their exceptions skip it and reach the filter
 - Adds `correlationID` to error responses
 - Adds `timestamp` to error responses
 - Uses `x-correlation-id` header if present, generates UUID if not
-- Handles a ThrottlerException thrown inside the handler chain specifically. A `429` from `ThrottlerGuard` does not reach the interceptor
+- Handles a ThrottlerException specifically, in the interceptor and in the filter, so a `429` from `ThrottlerGuard` has the same body as one from the handler chain
 - Emits one bounded log for each `5xx`, without request URL, error message, stack, cause payload, query, parameters, or driver object
 - Keeps the original failure as `cause` on the rethrown exception, so exception filters can report it
 
@@ -25,20 +25,29 @@ Global interceptor that adds correlation IDs and timestamps to error responses f
 Register globally in your application:
 
 ```typescript filename="main.ts" copy
-import { NestFactory } from "@nestjs/core";
-import { CorrelationIDResponseBodyInterceptor } from "@elsikora/nestjs-crud-automator";
+import { HttpAdapterHost, NestFactory } from "@nestjs/core";
+import { CorrelationIDResponseBodyExceptionFilter, CorrelationIDResponseBodyInterceptor } from "@elsikora/nestjs-crud-automator";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
 	const app = await NestFactory.create(AppModule);
 
-	// Register the interceptor globally
+	// Register the filter before any filter of your own
+	app.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(app.get(HttpAdapterHost)));
 	app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
 
 	await app.listen(3000);
 }
 bootstrap();
 ```
+
+Guards and middleware run before interceptors, so without the filter their rejections have no `correlationID`, `timestamp`, or `x-correlation-id` header. The filter answers through the `HttpAdapterHost` it receives, which also handles the native response a middleware failure carries. Registering it with `APP_FILTER` works too, because Nest injects `HttpAdapterHost`.
+
+Nest runs only one filter for each exception: `useGlobalFilters` registrations win over `APP_FILTER` ones, and among them the last registered wins. Register this filter before your own. A filter of yours registered later then handles the matching failures, and this one never sees them, so use [`CorrelationIDNormalizeException`](/docs/nestjs-crud-automator/guides/error-handling#custom-exception-filters) inside it to keep the contract. A filter of yours registered earlier never runs for a matching failure.
+
+The filter and the interceptor act only in an HTTP context. Outside it each registered component logs one warning for the call and changes nothing, so a failing RPC call with both registered logs two warnings. RPC failures keep the default handling, and global filters and interceptors never reach WebSocket gateways. Do not apply the filter to a gateway with `@UseFilters`: Nest then skips its default WebSocket handling, so the client gets neither an `exception` event nor an acknowledgement, and the warning is the only trace. The filter cannot hand the failure back to that handling without depending on `@nestjs/websockets`.
+
+Fastify answers some requests before Nest runs, so neither the interceptor nor the filter sees them: a malformed URL, and errors from the Node.js HTTP parser (`clientError`), such as an invalid header. They keep the default Fastify answer, without a correlation ID.
 
 ## Behavior
 
@@ -108,28 +117,37 @@ throw new BadRequestException("Invalid input");
 
 ### ThrottlerException
 
-Rate limiting exceptions, only when thrown inside the handler chain, such as from a pipe, a route handler, or a service:
+Rate limiting exceptions, including a `429` from `ThrottlerGuard` once the filter is registered. `ThrottlerGuard` keeps its `retry-after` header:
 
 ```typescript
 throw new ThrottlerException();
 // Response:
 {
-  "statusCode": 429,
   "message": "ThrottlerException: Too Many Requests",
   "error": "Too Many Requests",
-  "timestamp": 1704067200000,
-  "correlationID": "..."
+  "statusCode": 429,
+  "correlationID": "...",
+  "timestamp": 1704067200000
 }
 ```
 
-`ThrottlerGuard` is different. Guards run before interceptors, so its `429` skips the interceptor. The response has no `correlationID`, `timestamp`, or `x-correlation-id` header, and an exception filter receives the `ThrottlerException` itself, with no `cause`:
+### http-errors Values
 
-```json
+A value that is not an `HttpException` but is an object with an integer `statusCode` from `400` to `599`, such as an `http-errors` error, answers with that status. Its `message` reaches the client only when `expose` is `true`, which `http-errors` sets for a `4xx`. Otherwise the message is the status text, so an upstream client error such as `{ statusCode: 404, message: "No such customer: cus_123" }` answers `404` with `"Not Found"`. Any other `statusCode`, such as a string, `200`, `302` or `1000`, makes the value an unknown failure:
+
+```typescript
+throw createError(413, "Body is too large");
+// Response:
 {
-	"statusCode": 429,
-	"message": "ThrottlerException: Too Many Requests"
+  "message": "Body is too large",
+  "error": "Payload Too Large",
+  "statusCode": 413,
+  "correlationID": "...",
+  "timestamp": 1704067200000
 }
 ```
+
+A `5xx` value emits one bounded log.
 
 ### Generic Errors
 
@@ -139,21 +157,21 @@ Unexpected errors are caught and wrapped:
 throw new Error("Unexpected error");
 // Response:
 {
-  "statusCode": 500,
   "message": "Internal server error",
-  "error": "Internal server error",
-  "timestamp": 1704067200000,
-  "correlationID": "..."
+  "error": "Internal Server Error",
+  "statusCode": 500,
+  "correlationID": "...",
+  "timestamp": 1704067200000
 }
 ```
 
 ## Original Failure in `cause`
 
-Every exception the interceptor rethrows is a new `HttpException` whose `cause` holds what it caught: the `ThrottlerException` or `HttpException` itself, otherwise the value as thrown, which may not be an `Error`. It never affects the response body or status.
+Every exception the interceptor rethrows, and every exception `CorrelationIDNormalizeException` builds, is a new `HttpException` whose `cause` holds what it caught: the `ThrottlerException` or `HttpException` itself, otherwise the value as thrown, which may not be an `Error`. It never affects the response body or status.
 
 `cause` can hold SQL text, parameters, driver objects, messages, and stacks, so it must stay out of responses, logs, and any serialized output. Do not send, log, or serialize `exception.cause`, its message, or the exception itself: `logger.error(exception)`, `util.inspect(exception)`, `JSON.stringify(exception)`, and `FormatUnknownForLog(exception)` all include it. Removing `cause` from a copy is not enough, because Nest keeps the same value in `exception.options.cause`.
 
-Exception filters should log `FormatErrorEvidenceForLog(exception.cause)`, which emits only a bounded error type and a validated SQLSTATE, and answer with `exception.getResponse()`, wrapping a string response as `{ statusCode, message }`. See [Reading the Original Failure](/docs/nestjs-crud-automator/guides/error-handling#reading-the-original-failure) and the [Migration Notes](/docs/nestjs-crud-automator/guides/error-handling#migration-notes).
+Exception filters should log `FormatErrorEvidenceForLog(exception.cause)`, which emits only a bounded error type and a validated SQLSTATE, and answer with `exception.getResponse()`, which is always an object with the fields below. See [Reading the Original Failure](/docs/nestjs-crud-automator/guides/error-handling#reading-the-original-failure) and the [Migration Notes](/docs/nestjs-crud-automator/guides/error-handling#migration-notes).
 
 ## Client Usage
 
@@ -232,7 +250,7 @@ export class AuditSubscriber extends ApiRouteSubscriberBase<UserEntity> {
 
 ## Response Structure
 
-The interceptor modifies error responses to include:
+The interceptor and the filter give every error response these fields, wherever the failure is thrown. A field the exception body sets keeps its value only when it has the contract type: `statusCode` equal to the response status, `message` a string or an array of strings, `error` a string. Any other value, `null` included, is replaced: `statusCode` by the response status, and `message` and `error` by the status text, such as `Unauthorized`, or `"Error"` for a status Node.js does not name, such as `599`. A string or an array response becomes `message`. This includes Fastify errors such as a malformed JSON body, which Nest wraps in an exception with a string response. An unknown failure answers `500` with `message: "Internal server error"` and `error: "Internal Server Error"`, and so does an `HttpException` whose status is not an integer from `200` to `599`, such as `new HttpException("text", 1000)`. The exception DTOs of generated routes declare the same fields, with `message` and `error` as free text, so the OpenAPI schema matches the body:
 
 ```typescript
 interface ErrorResponse {

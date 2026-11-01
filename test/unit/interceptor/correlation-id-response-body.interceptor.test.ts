@@ -7,7 +7,7 @@ import { LoggerUtility } from "@utility/logger.utility";
 import { lastValueFrom, throwError } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const buildContext = (headers: Record<string, string | string[] | undefined>) => {
+const buildContext = (headers: Record<string, string | string[] | undefined>, type: string = "http") => {
 	const reply = { header: vi.fn() };
 	const request = {
 		headers,
@@ -16,6 +16,7 @@ const buildContext = (headers: Record<string, string | string[] | undefined>) =>
 	};
 
 	const context: ExecutionContext = {
+		getType: () => type,
 		switchToHttp: () => ({
 			getRequest: () => request,
 			getResponse: () => reply,
@@ -28,6 +29,69 @@ const buildContext = (headers: Record<string, string | string[] | undefined>) =>
 describe("CorrelationIDResponseBodyInterceptor", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
+	});
+
+	it.each([["rpc"], ["ws"], ["graphql"]])("passes a %s call through unchanged and warns once", async (type: string) => {
+		const warningLog = vi.spyOn(LoggerUtility.prototype, "warn").mockImplementation(() => undefined);
+		const interceptor = new CorrelationIDResponseBodyInterceptor();
+		const { context } = buildContext({}, type);
+		const switchToHttp = vi.spyOn(context, "switchToHttp");
+		const failure: Error = new Error("SECRET_FAILURE");
+
+		await expect(lastValueFrom(interceptor.intercept(context, { handle: () => throwError(() => failure) }))).rejects.toBe(failure);
+		expect(switchToHttp).not.toHaveBeenCalled();
+		expect(warningLog.mock.calls).toEqual([[`Not an HTTP context (${type}): the call passes without the correlation contract`]]);
+		expect(warningLog.mock.contexts[0]).toEqual(expect.objectContaining({ context: "NestJS-Crud-Automator/CorrelationIDResponseBodyInterceptor" }));
+	});
+
+	it.each<[string, unknown, number, string]>([
+		["an http-errors value without expose", { message: "No such customer: cus_SECRET", statusCode: HttpStatus.NOT_FOUND }, HttpStatus.NOT_FOUND, "Not Found"],
+		["an http-errors value with expose false", { expose: false, message: "SECRET", statusCode: HttpStatus.NOT_FOUND }, HttpStatus.NOT_FOUND, "Not Found"],
+		["an http-errors value with expose true", { expose: true, message: "PUBLIC", statusCode: HttpStatus.NOT_FOUND }, HttpStatus.NOT_FOUND, "PUBLIC"],
+		["a string status", { expose: true, message: "SECRET", statusCode: "404" }, HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error"],
+		["a status of 1000", { expose: true, message: "SECRET", statusCode: 1000 }, HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error"],
+		["a status of 200", { expose: true, message: "SECRET", statusCode: 200 }, HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error"],
+		["a status of 302", { expose: true, message: "SECRET", statusCode: HttpStatus.FOUND }, HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error"],
+	])("answers %s from the handler chain by the http-errors rule", async (_name: string, failure: unknown, status: number, message: string) => {
+		vi.spyOn(LoggerUtility.prototype, "error").mockImplementation(() => undefined);
+		const { context } = buildContext({ "x-correlation-id": "corr-id" });
+		const error: unknown = await lastValueFrom(new CorrelationIDResponseBodyInterceptor().intercept(context, { handle: () => throwError(() => failure) })).catch((caught: unknown) => caught);
+
+		expect((error as HttpException).getStatus()).toBe(status);
+		expect((error as HttpException).getResponse()).toEqual({ correlationID: "corr-id", error: expect.any(String), message, statusCode: status, timestamp: expect.any(Number) });
+		expect(JSON.stringify((error as HttpException).getResponse())).not.toContain("SECRET");
+	});
+
+	it.each<[string, HttpException]>([
+		["199", new HttpException("SECRET", 199)],
+		["600", new HttpException("SECRET", 600)],
+		["1000", new HttpException("SECRET", 1000)],
+		["a fraction", new HttpException("SECRET", 404.5)],
+		["NaN", new HttpException("SECRET", Number.NaN)],
+		["a non-number", new HttpException("SECRET", "404" as unknown as number)],
+		["1000 and an http-errors statusCode", Object.assign(new HttpException("SECRET", 1000), { expose: true, statusCode: 404 })],
+	])("answers an HttpException with status %s as an unknown failure", async (_name: string, failure: HttpException) => {
+		const logError = vi.spyOn(LoggerUtility.prototype, "error").mockImplementation(() => undefined);
+		const { context } = buildContext({ "x-correlation-id": "corr-id" });
+		const error: unknown = await lastValueFrom(new CorrelationIDResponseBodyInterceptor().intercept(context, { handle: () => throwError(() => failure) })).catch((caught: unknown) => caught);
+
+		expect((error as HttpException).getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+		expect((error as HttpException).getResponse()).toEqual({ correlationID: "corr-id", error: "Internal Server Error", message: "Internal server error", statusCode: HttpStatus.INTERNAL_SERVER_ERROR, timestamp: expect.any(Number) });
+		expect((error as HttpException).cause).toBe(failure);
+		expect(logError).toHaveBeenCalledTimes(1);
+	});
+
+	it.each<[number, string]>([
+		[200, "OK"],
+		[302, "Found"],
+		[599, "Error"],
+	])("keeps the HttpException status %i as written", async (status: number, statusText: string) => {
+		vi.spyOn(LoggerUtility.prototype, "error").mockImplementation(() => undefined);
+		const { context } = buildContext({ "x-correlation-id": "corr-id" });
+		const error: unknown = await lastValueFrom(new CorrelationIDResponseBodyInterceptor().intercept(context, { handle: () => throwError(() => new HttpException("written", status)) })).catch((caught: unknown) => caught);
+
+		expect((error as HttpException).getStatus()).toBe(status);
+		expect((error as HttpException).getResponse()).toEqual({ correlationID: "corr-id", error: statusText, message: "written", statusCode: status, timestamp: expect.any(Number) });
 	});
 
 	it("preserves correlation id header and wraps HttpException responses", async () => {
@@ -119,7 +183,7 @@ describe("CorrelationIDResponseBodyInterceptor", () => {
 			expect((error as HttpException).getResponse()).toEqual(
 				expect.objectContaining({
 					correlationID: expect.any(String),
-					error: "Internal server error",
+					error: "Internal Server Error",
 					message: "Internal server error",
 					statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
 					timestamp: expect.any(Number),
@@ -201,26 +265,26 @@ describe("CorrelationIDResponseBodyInterceptor", () => {
 			warningLog = vi.spyOn(LoggerUtility.prototype, "warn").mockImplementation(() => undefined);
 		});
 
-		it("keeps a ThrottlerException as cause with an unchanged body and status", async () => {
+		it("keeps a ThrottlerException as cause and answers it with the contract body", async () => {
 			const failure = new ThrottlerException("rate limited");
 
 			const exception = await interceptFailure(failure);
 
 			expect(exception.cause).toBe(failure);
 			expect(exception.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
-			expect(JSON.stringify(exception.getResponse())).toBe(`{"statusCode":429,"message":"rate limited","error":"Too Many Requests","timestamp":${timestamp},"correlationID":"${correlationId}"}`);
+			expect(JSON.stringify(exception.getResponse())).toBe(`{"message":"rate limited","error":"Too Many Requests","statusCode":429,"correlationID":"${correlationId}","timestamp":${timestamp}}`);
 			expect(warningLog).toHaveBeenCalledTimes(1);
 			expect(errorLog).not.toHaveBeenCalled();
 		});
 
-		it("keeps an HttpException with a string response as cause with an unchanged body and status", async () => {
+		it("keeps an HttpException with a string response as cause and completes its body with the contract fields", async () => {
 			const failure = new HttpException("bad", HttpStatus.BAD_REQUEST);
 
 			const exception = await interceptFailure(failure);
 
 			expect(exception.cause).toBe(failure);
 			expect(exception.getStatus()).toBe(HttpStatus.BAD_REQUEST);
-			expect(JSON.stringify(exception.getResponse())).toBe(`{"message":"bad","correlationID":"${correlationId}","timestamp":${timestamp}}`);
+			expect(JSON.stringify(exception.getResponse())).toBe(`{"message":"bad","error":"Bad Request","statusCode":400,"correlationID":"${correlationId}","timestamp":${timestamp}}`);
 			expect(errorLog).not.toHaveBeenCalled();
 		});
 
@@ -233,7 +297,7 @@ describe("CorrelationIDResponseBodyInterceptor", () => {
 			expect(exception.cause).toBe(failure);
 			expect((exception.cause as HttpException).cause).toBe(rootCause);
 			expect(exception.getStatus()).toBe(HttpStatus.BAD_REQUEST);
-			expect(JSON.stringify(exception.getResponse())).toBe(`{"message":"bad","statusCode":400,"correlationID":"${correlationId}","timestamp":${timestamp}}`);
+			expect(JSON.stringify(exception.getResponse())).toBe(`{"message":"bad","error":"Bad Request","statusCode":400,"correlationID":"${correlationId}","timestamp":${timestamp}}`);
 		});
 
 		it("keeps a 5xx HttpException as cause and logs it once from the original failure", async () => {
@@ -255,17 +319,17 @@ describe("CorrelationIDResponseBodyInterceptor", () => {
 
 			expect(exception.cause).toBe(failure);
 			expect(exception.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
-			expect(JSON.stringify(exception.getResponse())).toBe(`{"correlationID":"${correlationId}","error":"Internal server error","message":"Internal server error","statusCode":500,"timestamp":${timestamp}}`);
+			expect(JSON.stringify(exception.getResponse())).toBe(`{"message":"Internal server error","error":"Internal Server Error","statusCode":500,"correlationID":"${correlationId}","timestamp":${timestamp}}`);
 			expect(errorLog.mock.calls).toEqual([[`HTTP ${HttpStatus.INTERNAL_SERVER_ERROR} errorType=Error`]]);
 		});
 
-		it("keeps the status of an Error that exposes getStatus", async () => {
+		it("answers an Error that exposes getStatus as an unknown failure", async () => {
 			const failure = Object.assign(new Error("gateway"), { getStatus: (): number => HttpStatus.BAD_GATEWAY });
 
 			const exception = await interceptFailure(failure);
 
 			expect(exception.cause).toBe(failure);
-			expect(exception.getStatus()).toBe(HttpStatus.BAD_GATEWAY);
+			expect(exception.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
 		});
 
 		it.each([
@@ -283,7 +347,7 @@ describe("CorrelationIDResponseBodyInterceptor", () => {
 			expect(exception.cause).toBe(failure);
 			expect(exception.cause).not.toBeInstanceOf(InternalServerErrorException);
 			expect(exception.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
-			expect(JSON.stringify(exception.getResponse())).toBe(`{"correlationID":"${correlationId}","error":"Internal server error","message":"Internal server error","statusCode":500,"timestamp":${timestamp}}`);
+			expect(JSON.stringify(exception.getResponse())).toBe(`{"message":"Internal server error","error":"Internal Server Error","statusCode":500,"correlationID":"${correlationId}","timestamp":${timestamp}}`);
 			expect(errorLog.mock.calls).toEqual([[`HTTP ${HttpStatus.INTERNAL_SERVER_ERROR} errorType=${errorType}`]]);
 		});
 	});

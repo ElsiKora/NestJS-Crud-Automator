@@ -22,6 +22,7 @@
 			"@constant/*": ["./src/constant/*"],
 			"@decorator/*": ["./src/decorator/*"],
 			"@enum/*": ["./src/enum/*"],
+			"@exception-filter/*": ["./src/exception-filter/*"],
 			"@factory/*": ["./src/factory/*"],
 			"@interceptor/*": ["./src/interceptor/*"],
 			"@interface/*": ["./src/interface/*"],

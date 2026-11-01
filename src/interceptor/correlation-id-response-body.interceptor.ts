@@ -1,93 +1,40 @@
 import type { CallHandler, ExecutionContext, NestInterceptor } from "@nestjs/common";
-import type { FastifyReply } from "fastify";
-import type { FastifyRequest } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import type { Observable } from "rxjs";
 
-import { randomUUID } from "node:crypto";
-
-import { HttpException, HttpStatus, Injectable, InternalServerErrorException } from "@nestjs/common";
-import { ThrottlerException } from "@nestjs/throttler";
-import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
+import { Injectable } from "@nestjs/common";
+import { CorrelationIDBuildException } from "@utility/correlation-id/build-exception.utility";
+import { CorrelationIDResolve } from "@utility/correlation-id/resolve.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { catchError } from "rxjs/operators";
 
 const interceptorLogger: LoggerUtility = LoggerUtility.getLogger("CorrelationIDResponseBodyInterceptor");
 
 /**
- * Global interceptor that adds correlation IDs and timestamps to all error responses.
+ * Global interceptor that adds correlation IDs and timestamps to error responses from the handler chain.
+ * Guards and middleware run before interceptors, so register CorrelationIDResponseBodyExceptionFilter next to it to give their errors the same contract.
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/api-reference/interceptors | API Reference - Interceptors}
  * @see {@link https://elsikora.com/docs/nestjs-crud-automator/guides/error-handling | Guides - Error Handling}
  */
 @Injectable()
 export class CorrelationIDResponseBodyInterceptor implements NestInterceptor {
 	intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+		if (context.getType() !== "http") {
+			interceptorLogger.warn(`Not an HTTP context (${context.getType()}): the call passes without the correlation contract`);
+
+			return next.handle();
+		}
+
 		const request: FastifyRequest = context.switchToHttp().getRequest<FastifyRequest>();
 		const reply: FastifyReply = context.switchToHttp().getResponse<FastifyReply>();
-		const rawCorrelationId: Array<string> | string | undefined = request.headers["x-correlation-id"];
 
-		const headerCorrelationId: string | undefined = Array.isArray(rawCorrelationId) ? rawCorrelationId.find((value: string) => value.trim().length > 0) : rawCorrelationId;
-		const normalizedCorrelationId: string | undefined = typeof headerCorrelationId === "string" ? headerCorrelationId.trim() : undefined;
-		const correlationId: string = normalizedCorrelationId && normalizedCorrelationId.length > 0 ? normalizedCorrelationId : randomUUID();
-
-		// Persist the resolved correlation ID for downstream loggers/middlewares
-		(request.headers as unknown as Record<string, unknown>)["x-correlation-id"] = correlationId;
-		(request as unknown as { correlationID?: string }).correlationID = correlationId;
-		reply.header("x-correlation-id", correlationId);
+		const correlationId: string = CorrelationIDResolve(request, (value: string) => {
+			reply.header("x-correlation-id", value);
+		});
 
 		return next.handle().pipe(
 			catchError((error: unknown) => {
-				if (error instanceof ThrottlerException) {
-					const errorResponse: object | string = error.getResponse();
-					interceptorLogger.warn(`HTTP ${HttpStatus.TOO_MANY_REQUESTS} rateLimited`);
-
-					let customErrorResponse: Record<string, unknown> = { statusCode: HttpStatus.TOO_MANY_REQUESTS };
-
-					if (typeof errorResponse === "object" && errorResponse != null) {
-						customErrorResponse = { ...errorResponse };
-					} else {
-						customErrorResponse.message = errorResponse;
-					}
-					customErrorResponse.error = "Too Many Requests";
-					customErrorResponse.timestamp = Date.now();
-					customErrorResponse.correlationID = correlationId;
-
-					throw new HttpException(customErrorResponse, error.getStatus(), { cause: error });
-				} else if (error instanceof HttpException) {
-					const errorResponse: object | string = error.getResponse();
-					const status: number = error.getStatus();
-					const minimumServerErrorStatus: number = HttpStatus.INTERNAL_SERVER_ERROR;
-
-					if (status >= minimumServerErrorStatus) {
-						interceptorLogger.error(`HTTP ${status} ${FormatErrorEvidenceForLog(error)}`);
-					}
-
-					let customErrorResponse: Record<string, unknown> = {};
-
-					if (typeof errorResponse === "object" && errorResponse != null) {
-						customErrorResponse = { ...errorResponse };
-					} else {
-						customErrorResponse.message = errorResponse;
-					}
-					customErrorResponse.correlationID = correlationId;
-					customErrorResponse.timestamp = Date.now();
-
-					throw new HttpException(customErrorResponse, status, { cause: error });
-				} else {
-					interceptorLogger.error(`HTTP ${HttpStatus.INTERNAL_SERVER_ERROR} ${FormatErrorEvidenceForLog(error)}`);
-
-					const internalError: HttpException | InternalServerErrorException = (error instanceof Error ? error : new InternalServerErrorException("Unknown error")) as HttpException | InternalServerErrorException;
-					const errorResponse: string = "Internal server error";
-					const customErrorResponse: Record<string, unknown> = { correlationID: correlationId, error: "Internal server error", message: errorResponse, statusCode: HttpStatus.INTERNAL_SERVER_ERROR, timestamp: Date.now() };
-
-					const status: number = "getStatus" in internalError && typeof internalError.getStatus === "function" ? internalError.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
-
-					const exception: HttpException = new HttpException(customErrorResponse, status, { cause: error });
-
-					// HttpException drops a falsy cause, and any value can be thrown
-					exception.cause = error;
-
-					throw exception;
-				}
+				throw CorrelationIDBuildException(error, correlationId, interceptorLogger);
 			}),
 		);
 	}

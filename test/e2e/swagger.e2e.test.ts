@@ -599,6 +599,30 @@ describe("Swagger request DTO documentation (E2E)", () => {
 		expectGeneratedDocumentation(getOperation("/swagger-generated-default/{id}", "put"), "Update `SwaggerAutoDtoResource`", "Replaces an existing `SwaggerAutoDtoResource` resource.");
 	});
 
+	it("declares the correlation contract fields on every documented error response of generated routes", () => {
+		const errorSchemaNames: Set<string> = new Set<string>();
+
+		for (const pathItem of Object.values(document.paths)) {
+			for (const method of ["delete", "get", "patch", "post", "put"] as Array<TSwaggerMethod>) {
+				for (const [status, response] of Object.entries(pathItem[method]?.responses ?? {})) {
+					const reference: string | undefined = (response as { content?: Record<string, { schema?: { $ref?: string } }> }).content?.["application/json"]?.schema?.$ref;
+
+					if (Number(status) >= HttpStatus.BAD_REQUEST && reference?.startsWith("#/components/schemas/Exception")) {
+						errorSchemaNames.add(reference.replace("#/components/schemas/", ""));
+					}
+				}
+			}
+		}
+
+		expect(errorSchemaNames.size).toBeGreaterThan(0);
+
+		for (const name of errorSchemaNames) {
+			const schema: { required?: Array<string> } = document.components?.schemas?.[name] as { required?: Array<string> };
+
+			expect(schema.required, name).toEqual(expect.arrayContaining(["correlationID", "error", "message", "statusCode", "timestamp"]));
+		}
+	});
+
 	it("documents generated route response headers and security requirements", () => {
 		const createOperation = getOperation("/swagger-generated-default");
 		const deleteOperation = getOperation("/swagger-generated-default/{id}", "delete");

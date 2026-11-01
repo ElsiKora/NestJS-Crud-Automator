@@ -12,6 +12,10 @@ describe("index exports", () => {
 		expect(indexExports).toHaveProperty("EApiRouteGuardStage");
 		expect(indexExports).toHaveProperty("EApiRouteType");
 		expect(indexExports).toHaveProperty("AuthorizationDecisionApplyResult");
+		expect(indexExports).toHaveProperty("CorrelationIDNormalizeException");
+		expect(indexExports).toHaveProperty("CorrelationIDResponseBodyExceptionFilter");
+		expect(indexExports).not.toHaveProperty("CorrelationIDBuildException");
+		expect(indexExports).not.toHaveProperty("CorrelationIDResolve");
 		expect(indexExports).toHaveProperty("FormatErrorEvidenceForLog");
 		expect(indexExports).toHaveProperty("IsRegularExpressionValidator");
 	});

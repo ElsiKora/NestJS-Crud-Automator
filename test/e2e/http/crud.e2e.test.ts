@@ -1556,9 +1556,10 @@ describe("CRUD routes (E2E)", () => {
 			url: "/custom-route/discriminated-codes",
 		});
 		const factoryBody = (response: { json: () => Record<string, unknown> }): Record<string, unknown> => {
-			const { correlationID, timestamp, ...body } = response.json();
+			const { correlationID, error, message, statusCode, timestamp, ...body } = response.json();
 
 			expect(typeof correlationID).toBe("string");
+			expect({ error, message, statusCode }).toEqual({ error: "Bad Request", message: "Bad Request", statusCode: 400 });
 			expect(typeof timestamp).toBe("number");
 
 			return body;

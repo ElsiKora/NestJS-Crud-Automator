@@ -157,6 +157,34 @@ if (IsErrorOfType(error, EException.BAD_REQUEST)) {
 }
 ```
 
+### CorrelationIDNormalizeException
+
+Converts what an exception filter caught into the `HttpException` that carries the correlation contract: the same `correlationID` and `timestamp` rule as `CorrelationIDResponseBodyInterceptor`, with the received value in `cause`. It writes the `x-correlation-id` response header through the HTTP adapter, also on the native response a Nest middleware failure carries. A failure that already passed through the interceptor is returned as is. Outside an HTTP context the ID is generated and only appears in the body.
+
+**Location:** `src/utility/correlation-id/normalize-exception.utility.ts`
+
+**Type Signature:**
+
+```typescript
+function CorrelationIDNormalizeException(exception: unknown, host: ArgumentsHost, httpAdapterHost: HttpAdapterHost): HttpException;
+```
+
+**Example:**
+
+```typescript
+const { httpAdapter } = this.httpAdapterHost;
+const response = host.getArgByIndex(1);
+const normalized = CorrelationIDNormalizeException(exception, host, this.httpAdapterHost);
+
+// The adapter answers both a Fastify reply and the native response from Nest middleware,
+// but only the native response reports headersSent itself
+if (!(response.headersSent ?? httpAdapter.isHeadersSent(response))) {
+	httpAdapter.reply(response, normalized.getResponse(), normalized.getStatus());
+}
+```
+
+See [Custom Exception Filters](/docs/nestjs-crud-automator/guides/error-handling#custom-exception-filters).
+
 ### FormatErrorEvidenceForLog
 
 Formats an unknown error as bounded evidence suitable for a log message.
