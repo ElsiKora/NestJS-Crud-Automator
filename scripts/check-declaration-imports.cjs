@@ -19,6 +19,7 @@ const specifierPattern = /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimpo
 const commentLinePattern = /^\s*(?:\*|\/\/|\/\*)/;
 const exportKeysCache = new Map();
 const sideEffectProblems = [];
+const emittedScripts = [];
 const sourceMapFiles = [];
 
 /**
@@ -80,27 +81,53 @@ function getPackageImportProblem(specifier) {
 /**
  * Finds console output, process.stdout and process.stderr writes, and .env loading in emitted JavaScript.
  * The package logs only through LoggerUtility and reads configuration only from process.env, so none of these may appear.
- * The file is parsed, so comments and JSDoc examples do not count.
- * @param {string} filePath - Path of the emitted file, for the parser.
- * @param {string} fileContent - Emitted JavaScript.
+ * The files are parsed, so comments and JSDoc examples do not count, and names are resolved, so a local, parameter, import,
+ * object key or method named console, process or loadEnvFile does not count either: only member access on the global
+ * console or process, and calls to the global loadEnvFile or the one imported from node:process, are reported.
+ *
+ * Known limits, which the check does not follow: globalThis.console and globalThis.process, an alias such as
+ * `const output = console`, a destructured `const { stdout } = process`, and a default or namespace import of
+ * node:process, which makes process a local.
+ * @param {ts.SourceFile} sourceFile - Parsed emitted file.
+ * @param {ts.TypeChecker} checker - Checker of the program that holds every emitted file.
  * @returns {Array<string>} One description per occurrence, with its line number.
  */
-function getSideEffectProblems(filePath, fileContent) {
-	const sourceFile = ts.createSourceFile(filePath, fileContent, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+function getSideEffectProblems(sourceFile, checker) {
 	const problems = [];
 
 	const report = (node, description) => {
 		problems.push(`${description} at line ${String(sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1)}`);
 	};
 
+	// Without lib files a global has no symbol; anything declared in the output is a local
+	const isGlobal = (identifier) => (checker.getSymbolAtLocation(identifier)?.declarations ?? []).length === 0;
+
+	const isImportedFromProcess = (identifier) => {
+		const declaration = checker.getSymbolAtLocation(identifier)?.declarations?.[0];
+
+		return declaration !== undefined && ts.isImportSpecifier(declaration) && ["node:process", "process"].includes(declaration.parent.parent.parent.moduleSpecifier.text);
+	};
+
+	const getMemberName = (node) => {
+		if (ts.isPropertyAccessExpression(node)) {
+			return node.name.text;
+		}
+
+		return ts.isStringLiteralLike(node.argumentExpression) ? node.argumentExpression.text : undefined;
+	};
+
 	const visit = (node) => {
-		if (ts.isIdentifier(node) && node.text === "console" && !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)) {
-			report(node, "console");
-		} else if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "process" && ["stderr", "stdout"].includes(node.name.text)) {
-			report(node, `process.${node.name.text}`);
-		} else if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "process" && ts.isStringLiteralLike(node.argumentExpression) && ["stderr", "stdout"].includes(node.argumentExpression.text)) {
-			report(node, `process.${node.argumentExpression.text}`);
-		} else if (ts.isIdentifier(node) && node.text === "loadEnvFile") {
+		if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression) && isGlobal(node.expression)) {
+			const memberName = getMemberName(node);
+
+			if (node.expression.text === "console") {
+				report(node, "console");
+			} else if (node.expression.text === "process" && ["stderr", "stdout"].includes(memberName)) {
+				report(node, `process.${memberName}`);
+			} else if (node.expression.text === "process" && memberName === "loadEnvFile") {
+				report(node, "loadEnvFile");
+			}
+		} else if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "loadEnvFile" && (isGlobal(node.expression) || isImportedFromProcess(node.expression))) {
 			report(node, "loadEnvFile");
 		} else if (ts.isStringLiteralLike(node) && (node.text === "dotenv" || node.text.startsWith("dotenv/") || /(^|[\\/])\.env(\.|$)/.test(node.text))) {
 			report(node, `"${node.text}"`);
@@ -144,9 +171,7 @@ function scanDirectory(directoryPath) {
 		}
 
 		if (entry.name.endsWith(".js")) {
-			for (const problem of getSideEffectProblems(entryPath, fileContent)) {
-				sideEffectProblems.push(`${relativePath}: ${problem}`);
-			}
+			emittedScripts.push(entryPath);
 		}
 
 		for (const line of fileContent.split("\n")) {
@@ -185,6 +210,26 @@ if (!fs.existsSync(outputRoot)) {
 
 scanDirectory(outputRoot);
 
+// One program over all emitted files, so names resolve to their declarations
+const program = ts.createProgram(emittedScripts, { allowJs: true, noEmit: true, noLib: true, noResolve: true, types: [] });
+const checker = program.getTypeChecker();
+
+for (const scriptPath of emittedScripts) {
+	for (const problem of getSideEffectProblems(program.getSourceFile(scriptPath), checker)) {
+		sideEffectProblems.push(`${path.relative(process.cwd(), scriptPath)}: ${problem}`);
+	}
+}
+
+if (sourceMapFiles.length > 0) {
+	process.stderr.write(`Generated output has source maps, which would point at the unpublished src:\n${sourceMapFiles.map((entry) => `- ${entry}`).join("\n")}\n`);
+	process.exit(1);
+}
+
+if (sideEffectProblems.length > 0) {
+	process.stderr.write(`Generated output writes to the console or process streams, or loads a .env file:\n${sideEffectProblems.map((entry) => `- ${entry}`).join("\n")}\n`);
+	process.exit(1);
+}
+
 // Bundled third-party code lands in dist/external; a declared package must stay an import instead
 const vendoredPackages = [...declaredPackages].filter((packageName) => fs.existsSync(path.join(outputRoot, "external", packageName)));
 
@@ -200,16 +245,6 @@ if (invalidDeclarationPaths.length > 0) {
 
 if (invalidPackageImports.length > 0) {
 	process.stderr.write(`Generated output imports packages outside dependencies and peerDependencies, or paths inside them:\n${invalidPackageImports.map((entry) => `- ${entry}`).join("\n")}\n`);
-	process.exit(1);
-}
-
-if (sourceMapFiles.length > 0) {
-	process.stderr.write(`Generated output has source maps, which would point at the unpublished src:\n${sourceMapFiles.map((entry) => `- ${entry}`).join("\n")}\n`);
-	process.exit(1);
-}
-
-if (sideEffectProblems.length > 0) {
-	process.stderr.write(`Generated output writes to the console or process streams, or loads a .env file:\n${sideEffectProblems.map((entry) => `- ${entry}`).join("\n")}\n`);
 	process.exit(1);
 }
 
