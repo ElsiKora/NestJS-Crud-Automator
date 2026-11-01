@@ -49,8 +49,18 @@ describe("ErrorString", () => {
 	it("keeps a single not valid form in both error string enums", () => {
 		const keys: Array<string> = [...Object.keys(EErrorStringAction), ...Object.keys(EErrorStringCompositeAction)];
 
-		expect(keys.filter((key: string) => /^(INVALID_|WRONG_|MALFORMED|INCORRECT_)|_INVALID$|^INVALID$|^BAD$/u.test(key))).toEqual([]);
-		expect(Object.values(EErrorStringAction).filter((value: string) => /INVALID(?!ATING)|WRONG|MALFORMED|INCORRECT/u.test(value))).toEqual([]);
+		const values: Array<string> = [...Object.values(EErrorStringAction), ...Object.values(EErrorStringCompositeAction)];
+
+		expect(keys.filter((key: string) => /^(INVALID_|WRONG_|MALFORMED|INCORRECT_)|_INVALID$|^INVALID$|^BAD$|^BAD_(?!REQUEST$|GATEWAY$)/u.test(key))).toEqual([]);
+		expect(values.filter((value: string) => /INVALID(?!ATING)|WRONG|MALFORMED|INCORRECT|(?:^|_)BAD_(?!REQUEST$|GATEWAY$)/u.test(value))).toEqual([]);
 		expect(Object.values(EErrorStringCompositeAction).filter((value: string) => !value.includes("{property}"))).toEqual([]);
+	});
+
+	it("renders every entity action as its own key", () => {
+		const mismatches: Array<string> = Object.entries(EErrorStringAction)
+			.filter(([key, value]: [string, string]) => value !== key && value !== `{entity}_${key}`)
+			.map(([key]: [string, string]) => key);
+
+		expect(mismatches).toEqual([]);
 	});
 });
