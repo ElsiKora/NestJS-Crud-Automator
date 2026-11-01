@@ -149,7 +149,9 @@ throw new Error("Unexpected error");
 
 Every exception the interceptor rethrows is a new `HttpException` whose `cause` holds what it caught: the `ThrottlerException` or `HttpException` itself, otherwise the value as thrown, which may not be an `Error`. It never affects the response body or status.
 
-Exception filters can read `exception.cause` to report the failure, but must not serialize it into a response: send `exception.getResponse()`, not `exception.cause`, its message, or the exception itself. `cause` can hold SQL text, parameters, driver objects, messages, and stacks. See [Reading the Original Failure](/docs/nestjs-crud-automator/guides/error-handling#reading-the-original-failure).
+`cause` can hold SQL text, parameters, driver objects, messages, and stacks, so it must stay out of responses, logs, and any serialized output. Do not send, log, or serialize `exception.cause`, its message, or the exception itself: `logger.error(exception)`, `util.inspect(exception)`, `JSON.stringify(exception)`, and `FormatUnknownForLog(exception)` all include it. Removing `cause` from a copy is not enough, because Nest keeps the same value in `exception.options.cause`.
+
+Exception filters should log `FormatErrorEvidenceForLog(exception.cause)`, which emits only a bounded error type and a validated SQLSTATE, and answer with `exception.getResponse()`, wrapping a string response as `{ statusCode, message }`. See [Reading the Original Failure](/docs/nestjs-crud-automator/guides/error-handling#reading-the-original-failure) and the [Migration Notes](/docs/nestjs-crud-automator/guides/error-handling#migration-notes).
 
 ## Client Usage
 
@@ -248,7 +250,7 @@ interface ErrorResponse {
 3. **Log only bounded error evidence**, never raw errors or request data
 4. **Use the same validated correlation identity** across trusted service boundaries
 5. **Keep query text, parameters, URLs, headers, IPs, messages, and stacks out of automatic logs**
-6. **Report `exception.cause` from exception filters, and never serialize it into a response**
+6. **Report `FormatErrorEvidenceForLog(exception.cause)` from exception filters, and never log or serialize the exception or its `cause`**
 
 ## Next Steps
 

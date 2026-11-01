@@ -226,6 +226,7 @@ The interceptor rethrows a new `HttpException` and keeps what it caught in `exce
 
 ```typescript filename="filters/error-reporting.filter.ts" copy
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from "@nestjs/common";
+import { FormatErrorEvidenceForLog } from "@elsikora/nestjs-crud-automator";
 import { FastifyReply } from "fastify";
 
 @Catch(HttpException)
@@ -233,17 +234,35 @@ export class ErrorReportingFilter implements ExceptionFilter<HttpException> {
 	constructor(private readonly errorTracker: ErrorTracker) {}
 
 	catch(exception: HttpException, host: ArgumentsHost) {
-		if (exception.getStatus() >= HttpStatus.INTERNAL_SERVER_ERROR) {
-			this.errorTracker.capture(exception.cause);
+		const status = exception.getStatus();
+		const body = exception.getResponse();
+
+		if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+			// Bounded evidence only, never the raw exception or its cause
+			this.errorTracker.capture(`Request failed: ${FormatErrorEvidenceForLog(exception.cause)}`);
 		}
 
-		// Answer with the sanitized body, never with the cause
-		host.switchToHttp().getResponse<FastifyReply>().status(exception.getStatus()).send(exception.getResponse());
+		// getResponse() is a plain string for some exceptions, such as a ThrottlerGuard 429
+		host
+			.switchToHttp()
+			.getResponse<FastifyReply>()
+			.status(status)
+			.send(typeof body === "string" ? { statusCode: status, message: body } : body);
 	}
 }
 ```
 
-`cause` is for server-side reporting only. It can hold SQL text, parameters, driver objects, messages, and stacks, so never serialize it into a response. That covers `exception.cause`, its message, and the exception itself, because `JSON.stringify(exception)` includes `cause`. Send `exception.getResponse()` instead.
+`cause` is the raw failure. It can hold SQL text, parameters, driver objects, messages, and stacks, so keep it out of responses, logs, and any serialized output:
+
+- Do not send, log, or serialize `exception.cause`, its message, or the exception itself. `logger.error(exception)`, `util.inspect(exception)`, `JSON.stringify(exception)`, and `FormatUnknownForLog(exception)` all include the cause.
+- Removing `cause` from a copy of the exception is not enough, because Nest keeps the same value in `exception.options.cause`.
+- `cause` can be any thrown value, so `JSON.stringify(exception)` can also throw, for example on a cyclic object or a `BigInt`.
+
+Use these instead:
+
+- `FormatErrorEvidenceForLog(exception.cause)` for logs and reports. It emits only a bounded error type and a validated SQLSTATE, such as `errorType=QueryFailedError sqlState=23505`.
+- `exception.getResponse()` for the answer, wrapping a string response as `{ statusCode, message }` as in the example above.
+- To report anything else, pick the individual field by hand after checking that it is safe, never the whole object.
 
 The response body and status do not depend on `cause`, and the interceptor already emits its one bounded log for a `5xx`. Failures raised before the interceptor runs, such as exceptions from guards, reach the filter directly and carry no such cause.
 
@@ -447,6 +466,17 @@ async fetchExternalData(id: string): Promise<Data> {
   });
 }
 ```
+
+## Migration Notes
+
+Before 4.8.0, the exception rethrown by `CorrelationIDResponseBodyInterceptor` carried no cause. From 4.8.0 it holds the original failure, so an exception filter that logs or serializes the whole exception starts receiving SQL text and parameters from a `QueryFailedError`. HTTP responses do not change.
+
+Check your exception filters and application loggers:
+
+1. Replace whole-exception logging with `FormatErrorEvidenceForLog(exception.cause)`.
+2. Remove `JSON.stringify(exception)`, which can now also throw on a cyclic object or a `BigInt`.
+
+See [Reading the Original Failure](#reading-the-original-failure) for the safe pattern.
 
 ## Next Steps
 
