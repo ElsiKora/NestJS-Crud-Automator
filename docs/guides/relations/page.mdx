@@ -7,6 +7,7 @@ NestJS CRUD Automator supports include-driven request relation hydration and res
 Define relations in entities using TypeORM decorators and `@ApiPropertyDescribe`:
 
 ```typescript filename="post.entity.ts" copy
+import type { Relation } from "typeorm";
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from "typeorm";
 import { ApiPropertyDescribe, EApiPropertyDescribeType } from "@elsikora/nestjs-crud-automator";
 import { UserEntity } from "../user/user.entity";
@@ -29,7 +30,7 @@ export class PostEntity {
 		type: EApiPropertyDescribeType.RELATION,
 		description: "Post author",
 	})
-	author: UserEntity;
+	author: Relation<UserEntity>;
 
 	@Column()
 	authorId: string;
@@ -39,9 +40,11 @@ export class PostEntity {
 		type: EApiPropertyDescribeType.RELATION,
 		description: "Post comments",
 	})
-	comments: CommentEntity[];
+	comments: Relation<CommentEntity[]>;
 }
 ```
+
+Type every relation property as `Relation<T>` when two entity files import each other. See [Entities That Import Each Other](#entities-that-import-each-other).
 
 ## Loading Relations
 
@@ -358,6 +361,29 @@ const posts = await postService.getList({
 
 ## Circular Relations
 
+### Entities That Import Each Other
+
+With `emitDecoratorMetadata`, TypeScript stores the type of every decorated property as a value, so `author: UserEntity` makes `post.entity.ts` read `UserEntity` while the module loads. In an ES module application (`"type": "module"`, or a bundler that keeps ES modules), two entity files that import each other then fail at startup with `ReferenceError: Cannot access 'UserEntity' before initialization`. CommonJS output reads the binding later and hides the cycle, so the error often appears only after a move to ES modules.
+
+Type the relation properties with TypeORM's `Relation<T>` and import it with `import type`. The emitted metadata becomes `Object`, the decorators keep using their lazy `() => UserEntity` callbacks, and the cycle loads in both module systems:
+
+```typescript filename="post.entity.ts" copy
+import type { Relation } from "typeorm";
+import { Entity, ManyToOne } from "typeorm";
+import { UserEntity } from "../user/user.entity";
+
+@Entity("posts")
+export class PostEntity {
+	@ManyToOne(() => UserEntity, (user) => user.posts)
+	@ApiPropertyDescribe({ type: EApiPropertyDescribeType.RELATION, description: "Post author" })
+	author: Relation<UserEntity>;
+}
+```
+
+Crud Automator reads relation targets from TypeORM metadata, not from the emitted property type, so `Relation<T>` changes neither the generated DTOs nor the OpenAPI document. CI runs a pair of entities that import each other as an ES module and a CommonJS consumer (`test/consumer/cyclic`).
+
+### Avoiding Response Loops
+
 Handle circular relations carefully to avoid infinite loops:
 
 ```typescript filename="user.entity.ts" copy
@@ -376,7 +402,7 @@ export class UserEntity {
 			},
 		},
 	})
-	posts: PostEntity[];
+	posts: Relation<PostEntity[]>;
 }
 ```
 
@@ -388,7 +414,7 @@ export class PostEntity {
 		type: EApiPropertyDescribeType.RELATION,
 		description: "Post author",
 	})
-	author: UserEntity;
+	author: Relation<UserEntity>;
 }
 ```
 

@@ -103,6 +103,10 @@ Use explicit `ApiPropertyCopy` when a manual DTO intentionally needs the hidden 
 
 `ApiPropertyDescribe({ type: EApiPropertyDescribeType.RELATION })` does not currently accept `isArray`, `minItems`, `maxItems`, or `isUniqueItems`. Relation arrays are TypeORM relation shape, not describe-array validator metadata.
 
+## Cyclic Entity Imports Without `Relation<T>`
+
+When two entity files import each other, type their relation properties as `Relation<T>` (`import type { Relation } from "typeorm"`) in examples, tests and consumer code. With `emitDecoratorMetadata`, a plain `author: UserEntity` is read while the ES module loads and fails with `ReferenceError: Cannot access 'UserEntity' before initialization`; CommonJS hides the cycle. `test/consumer/cyclic` covers it in the consumer smoke.
+
 ## Relation Load Config Drift
 
 Use `relations.request.load.include` to select direct request relations to hydrate. Do not use the old request `relations` array or AUTO/MANUAL strategy flags.

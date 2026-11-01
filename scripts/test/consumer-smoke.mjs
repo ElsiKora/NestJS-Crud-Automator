@@ -4,8 +4,9 @@
  *
  * Packs the built package, installs the tarball with the peer stack into a temporary
  * project and, for every consumer in test/consumer (ESM bundler, ESM nodenext, CommonJS
- * node10 through require(esm)), typechecks the shared app in test/consumer/app/src and
- * runs it against Postgres. DATABASE_URL selects an existing database; otherwise a
+ * node10 through require(esm)), typechecks every app (test/consumer/app with the CRUD,
+ * authorization, pagination and Swagger scenarios, test/consumer/cyclic with entities that
+ * import each other through Relation<T>) and runs it against Postgres. DATABASE_URL selects an existing database; otherwise a
  * testcontainers Postgres is started and removed afterwards.
  *
  * Flags: --skip-build reuses the current dist, --keep leaves the temporary project in place.
@@ -18,6 +19,8 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CONSUMER_ROOT = path.join(ROOT, "test/consumer");
+
+const APPS = ["app", "cyclic"];
 
 const CONSUMERS = [
 	{ name: "bundler", type: "module" },
@@ -99,19 +102,21 @@ try {
 	database = await startDatabase();
 
 	for (const consumer of CONSUMERS) {
-		const consumerDirectory = path.join(workDirectory, consumer.name);
+		for (const app of APPS) {
+			const consumerDirectory = path.join(workDirectory, `${consumer.name}-${app}`);
 
-		cpSync(path.join(CONSUMER_ROOT, "app/src"), path.join(consumerDirectory, "src"), { recursive: true });
-		cpSync(path.join(CONSUMER_ROOT, consumer.name, "tsconfig.json"), path.join(consumerDirectory, "tsconfig.json"));
-		writeFileSync(path.join(consumerDirectory, "package.json"), JSON.stringify({ name: `consumer-${consumer.name}`, private: true, type: consumer.type }));
+			cpSync(path.join(CONSUMER_ROOT, app, "src"), path.join(consumerDirectory, "src"), { recursive: true });
+			cpSync(path.join(CONSUMER_ROOT, consumer.name, "tsconfig.json"), path.join(consumerDirectory, "tsconfig.json"));
+			writeFileSync(path.join(consumerDirectory, "package.json"), JSON.stringify({ name: `consumer-${consumer.name}-${app}`, private: true, type: consumer.type }));
 
-		try {
-			process.stdout.write(`\n=== consumer ${consumer.name} (${consumer.type}) ===\n`);
-			run("node", [path.join(workDirectory, "node_modules/typescript/bin/tsc"), "-p", "tsconfig.json"], { cwd: consumerDirectory });
-			run("node", ["dist/main.js"], { cwd: consumerDirectory, env: { ...process.env, DATABASE_URL: database.url } });
-		} catch {
-			failed = true;
-			process.stdout.write(`consumer ${consumer.name} FAILED\n`);
+			try {
+				process.stdout.write(`\n=== consumer ${consumer.name} (${consumer.type}), app ${app} ===\n`);
+				run("node", [path.join(workDirectory, "node_modules/typescript/bin/tsc"), "-p", "tsconfig.json"], { cwd: consumerDirectory });
+				run("node", ["dist/main.js"], { cwd: consumerDirectory, env: { ...process.env, DATABASE_URL: database.url } });
+			} catch {
+				failed = true;
+				process.stdout.write(`consumer ${consumer.name} app ${app} FAILED\n`);
+			}
 		}
 	}
 } catch (error) {

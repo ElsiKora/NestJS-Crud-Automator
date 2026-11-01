@@ -27,6 +27,7 @@ The package has one ES module build in `dist`. `dist/esm`, `dist/cjs` and the `r
 - An ES module application imports the package as before, with `moduleResolution` `bundler`, `node16` or `nodenext`.
 - A CommonJS application keeps `require("@elsikora/nestjs-crud-automator")`. Node.js loads it through `require(esm)`, and TypeScript with `module: commonjs` and `node10` resolution finds the types through the top-level `types` field.
 - Deep imports such as `@elsikora/nestjs-crud-automator/dist/cjs/...` no longer resolve. Import from the package root.
+- An application that moves to ES modules itself must type relation properties between entities that import each other as `Relation<T>` from `typeorm`. Otherwise startup fails with `ReferenceError: Cannot access '...' before initialization`. A CommonJS application is not affected. See [Relations: Entities That Import Each Other](/docs/nestjs-crud-automator/guides/relations#entities-that-import-each-other).
 
 See [Getting Started: Migration Notes](/docs/nestjs-crud-automator/getting-started#migration-notes).
 

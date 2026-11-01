@@ -102,7 +102,8 @@ async function main(): Promise<void> {
 	await scenario("IAM route without an attached policy answers 403", async () => {
 		const response: TResponse = await inject({ headers: MEMBER_A, method: "GET", url: "/iam-items?limit=10&page=1" });
 
-		// Guard exceptions are thrown before CorrelationIDResponseBodyInterceptor runs, so the body is Nest's own
+		// Guard exceptions are thrown before CorrelationIDResponseBodyInterceptor runs, so the body is Nest's own.
+		// PENDING guard-filter branch: it pins today's guard body { message, statusCode }; expect correlationID, timestamp and error once that lands
 		assert.equal(response.statusCode, 403, JSON.stringify(response.json()));
 		assert.equal(response.json().message, "Forbidden");
 	});
