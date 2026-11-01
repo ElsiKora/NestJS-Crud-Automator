@@ -14,9 +14,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../src/index";
 import { E2eValidationPipe } from "../app/validation-pipe";
 
-import { E2eHydrationPostController } from "./controller";
+import { E2eHydrationOrderedPostController, E2eHydrationPostController, E2eHydrationUnhydratedPostController, HYDRATION_ORDERED_VALIDATOR_CALLS } from "./controller";
 import { E2eHydrationAttachmentEntity, E2eHydrationNoteEntity, E2eHydrationOwnerEntity, E2eHydrationPostEntity, E2eHydrationTagEntity } from "./entity";
 import { E2eHydrationAttachmentService, E2eHydrationNoteService, E2eHydrationOwnerService, E2eHydrationPostService, E2eHydrationTagService } from "./service";
+import { E2eHydrationPostRouteSubscriber } from "./subscriber";
 
 const ATTACHMENT: string = "55555555-5555-4555-8555-555555555551";
 const MISSING: string = "66666666-6666-4666-8666-666666666661";
@@ -29,7 +30,7 @@ const TAG_A: string = "44444444-4444-4444-8444-444444444441";
 const TAG_B: string = "44444444-4444-4444-8444-444444444442";
 const TAG_C: string = "44444444-4444-4444-8444-444444444443";
 const ENTITIES: Array<Function> = [E2eHydrationAttachmentEntity, E2eHydrationNoteEntity, E2eHydrationOwnerEntity, E2eHydrationPostEntity, E2eHydrationTagEntity];
-const STORED_POST: IStoredPost = { attachments: [ATTACHMENT], notes: [NOTE_ATTACHED_FIRST, NOTE_ATTACHED_SECOND], owner: null, tags: [TAG_A, TAG_B], title: "stored" };
+const STORED_POST: IStoredPost = { attachments: [ATTACHMENT], extras: [TAG_A], metaLabel: "stored", notes: [NOTE_ATTACHED_FIRST, NOTE_ATTACHED_SECOND], owner: null, profile: null, tags: [TAG_A, TAG_B], title: "stored" };
 
 interface IE2eHydrationSuiteOptions {
 	createDataSourceOptions: () => Promise<DataSourceOptions>;
@@ -38,8 +39,11 @@ interface IE2eHydrationSuiteOptions {
 
 interface IStoredPost {
 	attachments: Array<string>;
+	extras: Array<string>;
+	metaLabel: null | string;
 	notes: Array<string>;
 	owner: null | string;
+	profile: null | string;
 	tags: Array<string>;
 	title: string;
 }
@@ -57,17 +61,17 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 		let manager: EntityManager;
 
 		const readStoredPost = async (id: string): Promise<IStoredPost> => {
-			const post: E2eHydrationPostEntity = await manager.findOneOrFail(E2eHydrationPostEntity, { relations: { attachments: true, notes: true, owner: true, tags: true }, where: { id } });
+			const post: E2eHydrationPostEntity = await manager.findOneOrFail(E2eHydrationPostEntity, { relations: { attachments: true, meta: { extras: true }, notes: true, owner: true, profile: true, tags: true }, where: { id } });
 			const ids = (rows: Array<{ id: string }> | undefined): Array<string> => (rows ?? []).map(({ id: rowId }: { id: string }): string => rowId).toSorted();
 
-			return { attachments: ids(post.attachments), notes: ids(post.notes), owner: post.owner?.id ?? null, tags: ids(post.tags), title: post.title };
+			return { attachments: ids(post.attachments), extras: ids(post.meta?.extras), metaLabel: post.meta?.label ?? null, notes: ids(post.notes), owner: post.owner?.id ?? null, profile: post.profile?.id ?? null, tags: ids(post.tags), title: post.title };
 		};
 
 		beforeAll(async () => {
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eHydrationPostController],
+				controllers: [E2eHydrationOrderedPostController, E2eHydrationPostController, E2eHydrationUnhydratedPostController],
 				imports: [TypeOrmModule.forRoot({ ...(await options.createDataSourceOptions()), dropSchema: true, entities: ENTITIES, logging: false, synchronize: true } as DataSourceOptions), TypeOrmModule.forFeature(ENTITIES), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
-				providers: [{ provide: APP_PIPE, useClass: E2eValidationPipe }, E2eHydrationAttachmentService, E2eHydrationNoteService, E2eHydrationOwnerService, E2eHydrationPostService, E2eHydrationTagService],
+				providers: [{ provide: APP_PIPE, useClass: E2eValidationPipe }, E2eHydrationAttachmentService, E2eHydrationNoteService, E2eHydrationOwnerService, E2eHydrationPostRouteSubscriber, E2eHydrationPostService, E2eHydrationTagService],
 			}).compile();
 
 			app = moduleReference.createNestApplication(new FastifyAdapter());
@@ -78,6 +82,8 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 		}, 120_000);
 
 		beforeEach(async () => {
+			HYDRATION_ORDERED_VALIDATOR_CALLS.length = 0;
+			await manager.query("DELETE FROM e2e_hydration_post_extras");
 			await manager.query("DELETE FROM e2e_hydration_post_tags");
 			await manager.query("DELETE FROM e2e_hydration_attachments");
 			await manager.query("DELETE FROM e2e_hydration_notes");
@@ -88,7 +94,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 			await manager.save(E2eHydrationOwnerEntity, { id: OWNER });
 
 			const tags: Array<E2eHydrationTagEntity> = await manager.save(E2eHydrationTagEntity, [{ id: TAG_A }, { id: TAG_B }, { id: TAG_C }]);
-			const post: E2eHydrationPostEntity = await manager.save(E2eHydrationPostEntity, { id: POST, tags: [tags[0] as E2eHydrationTagEntity, tags[1] as E2eHydrationTagEntity], title: "stored" });
+			const post: E2eHydrationPostEntity = await manager.save(E2eHydrationPostEntity, { id: POST, meta: { extras: [tags[0] as E2eHydrationTagEntity], label: "stored" }, tags: [tags[0] as E2eHydrationTagEntity, tags[1] as E2eHydrationTagEntity], title: "stored" });
 
 			await manager.save(E2eHydrationAttachmentEntity, { id: ATTACHMENT, post });
 			await manager.save(E2eHydrationNoteEntity, [{ id: NOTE_ATTACHED_FIRST, post }, { id: NOTE_ATTACHED_SECOND, post }, { id: NOTE_FREE }]);
@@ -156,6 +162,49 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 				expect(await readStoredPost(POST)).toEqual({ ...STORED_POST, title: "changed" });
 			});
 
+			it("accepts and writes an owning OneToOne reference", async () => {
+				const response = await fastify.inject({ method, payload: { ...base, profile: OWNER }, url: `/hydration-posts/${POST}` });
+
+				expect(response.statusCode).toBe(HttpStatus.OK);
+				expect(await readStoredPost(POST)).toEqual({ ...STORED_POST, profile: OWNER, title: "changed" });
+			});
+
+			it.each([
+				["a ManyToMany array inside an embedded", { extras: [{ id: TAG_C }] }],
+				["null for a ManyToMany inside an embedded", { extras: null }],
+			])("rejects %s by its dotted path", async (_name: string, meta: object) => {
+				const response = await fastify.inject({ method, payload: { ...base, meta }, url: `/hydration-unhydrated-posts/${POST}` });
+				const body = response.json() as { details?: unknown };
+
+				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+				expect(body.details).toEqual({ propertyName: "meta.extras", reason: "to-many reference is not allowed on update" });
+				expect(await readStoredPost(POST)).toEqual(STORED_POST);
+			});
+
+			it("writes an embedded column next to the embedded to-many", async () => {
+				const response = await fastify.inject({ method, payload: { ...base, meta: { label: "changed" } }, url: `/hydration-unhydrated-posts/${POST}` });
+
+				expect(response.statusCode).toBe(HttpStatus.OK);
+				expect(await readStoredPost(POST)).toEqual({ ...STORED_POST, metaLabel: "changed", title: "changed" });
+			});
+
+			it("rejects a to-many key before body transformers and validators run", async () => {
+				const response = await fastify.inject({ method, payload: { ...base, tags: TAG_C }, url: `/hydration-ordered-posts/${POST}` });
+
+				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+				expect((response.json() as { details?: unknown }).details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update" });
+				expect(HYDRATION_ORDERED_VALIDATOR_CALLS).toEqual([]);
+				expect(await readStoredPost(POST)).toEqual(STORED_POST);
+			});
+
+			it("runs body transformers and validators when no to-many key is present", async () => {
+				const response = await fastify.inject({ method, payload: base, url: `/hydration-ordered-posts/${POST}` });
+
+				expect(response.statusCode).toBe(HttpStatus.OK);
+				expect(HYDRATION_ORDERED_VALIDATOR_CALLS).toHaveLength(1);
+				expect(await readStoredPost(POST)).toEqual({ ...STORED_POST, title: "changed" });
+			});
+
 			it("keeps hydrating a to-one reference", async () => {
 				const response = await fastify.inject({ method, payload: { ...base, owner: OWNER }, url: `/hydration-posts/${POST}` });
 
@@ -163,6 +212,46 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 				expect((response.json() as { owner: unknown }).owner).toEqual({ id: OWNER });
 				expect(await readStoredPost(POST)).toEqual({ ...STORED_POST, owner: OWNER, title: "changed" });
 			});
+		});
+
+		it.each([
+			["PATCH", "a reference excluded by include: false", { tags: TAG_C }, "tags"],
+			["PATCH", "null excluded by include: false", { tags: null }, "tags"],
+			["PATCH", "a reference absent from include", { notes: NOTE_FREE }, "notes"],
+			["PATCH", "null absent from include", { notes: null }, "notes"],
+			["PUT", "a reference on a route without relations.request", { tags: TAG_C }, "tags"],
+			["PUT", "null on a route without relations.request", { tags: null }, "tags"],
+			["PUT", "null for a required key on a route without relations.request", { attachments: null }, "attachments"],
+		])("%s rejects %s before writing anything", async (method: string, _name: string, reference: object, propertyName: string) => {
+			const response = await fastify.inject({ method, payload: { title: "changed", ...reference }, url: `/hydration-unhydrated-posts/${POST}` });
+			const body = response.json() as { details?: unknown; message: string };
+
+			expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+			expect(body.message).toContain("INVALID_REFERENCE");
+			expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update" });
+			expect(await readStoredPost(POST)).toEqual(STORED_POST);
+		});
+
+		it.each(["PATCH", "PUT"])("%s without relations.request hydration still writes columns", async (method: string) => {
+			const response = await fastify.inject({ method, payload: { title: "changed" }, url: `/hydration-unhydrated-posts/${POST}` });
+
+			expect(response.statusCode).toBe(HttpStatus.OK);
+			expect(await readStoredPost(POST)).toEqual({ ...STORED_POST, title: "changed" });
+		});
+
+		it("rejects a to-many key that a BEFORE subscriber adds to the body", async () => {
+			const response = await fastify.inject({ method: "PATCH", payload: { title: `subscriber adds tags ${TAG_C}` }, url: `/hydration-unhydrated-posts/${POST}` });
+
+			expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+			expect((response.json() as { details?: unknown }).details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update" });
+			expect(await readStoredPost(POST)).toEqual(STORED_POST);
+		});
+
+		it("accepts a body whose to-many key a BEFORE subscriber removes", async () => {
+			const response = await fastify.inject({ method: "PATCH", payload: { tags: TAG_C, title: "subscriber drops tags" }, url: `/hydration-unhydrated-posts/${POST}` });
+
+			expect(response.statusCode).toBe(HttpStatus.OK);
+			expect(await readStoredPost(POST)).toEqual({ ...STORED_POST, title: "subscriber drops tags" });
 		});
 
 		it("hands a custom route handler a to-many reference as an array", async () => {
@@ -174,13 +263,22 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 			expect(body.owner).toEqual(expect.objectContaining({ id: OWNER }));
 		});
 
-		it.each(["E2eHydrationPostEntityCreateBodyDTO", "E2eHydrationPostEntityUpdateBodyDTO", "E2eHydrationPostEntityPartialUpdateBodyDTO"])("keeps to-many references single UUID properties in %s", (schemaName: string) => {
-			const properties = (document.components?.schemas?.[schemaName] as TSwaggerSchemaObject).properties as Record<string, TSwaggerSchemaObject>;
+		it("keeps to-many references single UUID properties in the CREATE body", () => {
+			const properties = (document.components?.schemas?.E2eHydrationPostEntityCreateBodyDTO as TSwaggerSchemaObject).properties as Record<string, TSwaggerSchemaObject>;
 
 			for (const relationName of ["attachments", "notes", "tags"]) {
 				expect(properties[relationName]?.type).toBe("string");
 				expect(properties[relationName]?.format).toBe("uuid");
 			}
+		});
+
+		it.each(["E2eHydrationPostEntityUpdateBodyDTO", "E2eHydrationPostEntityPartialUpdateBodyDTO"])("leaves to-many relations out of %s", (schemaName: string) => {
+			const properties = (document.components?.schemas?.[schemaName] as TSwaggerSchemaObject).properties as Record<string, TSwaggerSchemaObject>;
+
+			expect(Object.keys(properties)).toEqual(expect.arrayContaining(["owner", "title"]));
+			expect(Object.keys(properties)).not.toEqual(expect.arrayContaining(["attachments"]));
+			expect(Object.keys(properties)).not.toEqual(expect.arrayContaining(["notes"]));
+			expect(Object.keys(properties)).not.toEqual(expect.arrayContaining(["tags"]));
 		});
 	});
 }

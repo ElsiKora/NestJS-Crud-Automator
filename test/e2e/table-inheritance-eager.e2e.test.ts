@@ -208,6 +208,19 @@ describe("eager relations on a table inheritance root (E2E)", () => {
 				expect(await readStoredDetail(CARD_ID)).toEqual({ issuer: ISSUER_ID, label: "Changed", network: NETWORK_ID, notes: [], tags: [TAG_ID], vendor: VENDOR_ID });
 			});
 
+			it.runIf(!isScoped).each([
+				["PATCH", "a reference", { notes: NOTE_ID }],
+				["PATCH", "null", { notes: null }],
+				["PUT", "a reference", { kind: "FORM", label: "Changed", notes: NOTE_ID, operatorId: OPERATOR_ID, rank: 2 }],
+				["PUT", "null", { kind: "FORM", label: "Changed", notes: null, operatorId: OPERATOR_ID, rank: 2 }],
+			])("%s on the root rejects %s for a to-many relation declared only on a child", async (method: string, _name: string, payload: object) => {
+				const response: TInjectResponse = await send(method, `${base}/${FORM_ID}`, payload);
+
+				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+				expect((response.json() as { details?: unknown }).details).toEqual({ propertyName: "notes", reason: "to-many reference is not allowed on update" });
+				expect(await readStoredDetail(FORM_ID)).toEqual({ issuer: null, label: "Form", network: null, notes: [NOTE_ID], tags: [], vendor: null });
+			});
+
 			it.runIf(!isScoped)("PATCH keeps eager child to-many rows stored", async () => {
 				const response: TInjectResponse = await send("PATCH", `${base}/${FORM_ID}`, { label: "Changed" });
 				const { actionUrl: _actionUrl, notes: _notes, ...rootColumns } = form;
