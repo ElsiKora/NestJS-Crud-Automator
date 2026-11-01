@@ -217,6 +217,21 @@ describe("ApiFunctionKeyPageLoader", () => {
 		expect(find.mock.calls.every(([calledOptions]: Array<unknown>): boolean => calledOptions === options)).toBe(true);
 	});
 
+	it("pages and guards CockroachDB reads like PostgreSQL ones, since both bind through node-postgres", async () => {
+		const cockroach: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageLedgerEntity], timeTravelQueries: false, type: "cockroachdb" });
+
+		await (cockroach as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+		stubQueries();
+
+		const cockroachLedgers: Repository<KeyPageLedgerEntity> = cockroach.getRepository(KeyPageLedgerEntity);
+
+		await ApiFunctionKeyPageLoader.findMany(cockroachLedgers, { relations: { account: true }, skip: 2, take: 2 });
+
+		expect(rawQueries[0]?.sql).toContain('"KeyPageLedgerEntity"."postedAt"::text AS "key_1"');
+		expect(entityQueries[0]?.parameters).toEqual([LEDGER_ID, HISTORIC_KEY]);
+		expect(() => ApiFunctionKeyPageLoader.assertRelationLoad(cockroachLedgers, { relationLoadStrategy: "query", relations: { account: true } })).toThrow('relation "account" of entity "KeyPageLedgerEntity" with relationLoadStrategy "query" cannot load');
+	});
+
 	it("sorts nulls of the key step the way the find order asks", async () => {
 		stubQueries();
 

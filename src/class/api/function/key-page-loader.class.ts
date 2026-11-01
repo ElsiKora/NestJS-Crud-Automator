@@ -14,7 +14,7 @@ const KEY_PAGE_ALIAS: string = "crud_automator_key_page";
 const KEY_PAGE_PARAMETER_PREFIX: string = "crud_automator_page_key";
 
 /**
- * Loads PostgreSQL pages of entities that have a temporal primary key and joined relations.
+ * Loads PostgreSQL and CockroachDB pages of entities that have a temporal primary key and joined relations.
  * TypeORM pages such reads in two steps and binds the parsed `Date` keys of the first step into the second one.
  * pg serializes a `Date` through a local offset truncated to whole minutes, so keys in historic zone offsets match no row.
  * The loader reads the page keys as PostgreSQL text and binds that text back, which keeps every instant exact.
@@ -31,7 +31,7 @@ export class ApiFunctionKeyPageLoader {
 	 * @throws {Error} When a relation load of the read binds a PostgreSQL date or timestamp column
 	 */
 	public static assertRelationLoad<E extends ObjectLiteral>(repository: Repository<E>, read: IApiFunctionKeyPageLoaderRead, source?: string): void {
-		if (!this.isPostgres(repository)) {
+		if (!this.isNodePostgres(repository)) {
 			return;
 		}
 
@@ -469,15 +469,15 @@ export class ApiFunctionKeyPageLoader {
 	}
 
 	/**
-	 * Tells whether the repository reads through the PostgreSQL driver.
+	 * Tells whether the repository reads through a driver that binds by node-postgres.
 	 * @template E The entity type
 	 * @param {Repository<E>} repository - Repository of the read
-	 * @returns {boolean} Whether the driver is PostgreSQL
+	 * @returns {boolean} Whether the driver is PostgreSQL or CockroachDB
 	 */
-	private static isPostgres<E extends ObjectLiteral>(repository: Repository<E>): boolean {
+	private static isNodePostgres<E extends ObjectLiteral>(repository: Repository<E>): boolean {
 		const dataSource: Partial<DataSource> | undefined = (repository as Partial<Pick<Repository<E>, "manager">>).manager?.dataSource;
 
-		return dataSource?.driver?.options.type === "postgres";
+		return DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(dataSource?.driver?.options.type ?? "");
 	}
 
 	/**
@@ -488,7 +488,7 @@ export class ApiFunctionKeyPageLoader {
 	 * @returns {boolean} Whether the loader must page the read
 	 */
 	private static isRequired<E extends ObjectLiteral>(repository: Repository<E>, options: FindManyOptions<E>): boolean {
-		if (!this.isPostgres(repository) || (!options.skip && !options.take)) {
+		if (!this.isNodePostgres(repository) || (!options.skip && !options.take)) {
 			return false;
 		}
 
