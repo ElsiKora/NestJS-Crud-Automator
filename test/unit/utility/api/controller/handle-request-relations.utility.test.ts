@@ -6,6 +6,7 @@ import type { FindOneOptions, FindOptionsRelations } from "typeorm";
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiServiceBase } from "@class/api";
 import { EApiControllerRelationReferenceShape } from "@enum/decorator/api";
+import { EApiExceptionDetailsType } from "@enum/utility";
 import { ApiControllerHandleRequestRelations } from "@utility/api/controller/handle-request-relations.utility";
 import { Column, Entity, JoinTable, ManyToMany, ManyToOne, OneToMany, PrimaryGeneratedColumn, type Relation } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
@@ -350,6 +351,7 @@ describe("ApiControllerHandleRequestRelations", () => {
 					expectedShape: EApiControllerRelationReferenceShape.SCALAR,
 					propertyName: "owner",
 					referenceKey: "id",
+					type: EApiExceptionDetailsType.INVALID_REFERENCE,
 				},
 				message: "RELATIONENTITY_REFERENCE_NOT_VALID",
 				statusCode: 400,

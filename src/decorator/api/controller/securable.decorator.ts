@@ -3,6 +3,7 @@ import type { ExceptionFilter, Type } from "@nestjs/common";
 import { ApiAuthorizationHandlerGuard } from "@class/api/authorization/handler-guard.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { UseFilters, UseGuards } from "@nestjs/common";
+import { ApiControllerApplyForbiddenResponse } from "@utility/api/controller/apply/forbidden-response.utility";
 import { AuthorizationCreateModuleCheck } from "@utility/authorization/create-module-check.utility";
 
 const authorizationModuleCheck: Type<ExceptionFilter> = AuthorizationCreateModuleCheck();
@@ -27,4 +28,5 @@ function applyApiControllerSecurableMetadata(target: object): void {
 	Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, target);
 	UseFilters(authorizationModuleCheck)(target as Type<unknown>);
 	UseGuards(ApiAuthorizationHandlerGuard)(target as Type<unknown>);
+	ApiControllerApplyForbiddenResponse(target);
 }

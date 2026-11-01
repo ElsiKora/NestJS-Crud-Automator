@@ -114,6 +114,20 @@ Generated route transaction rules:
 - When the route opens and owns the transaction, commit lifecycle finishes before response transformation, route-after, authorization result handling, and serialization. A joined outer owner commits later.
 - Custom routes do not inherit generated route transaction config.
 
+## Generated Error Responses
+
+| Status | Declared when                                                                                |
+| ------ | -------------------------------------------------------------------------------------------- |
+| `400`  | always: DTO validation, typed GET_LIST/CURSOR codes, FK violation, relation reference        |
+| `401`  | `security.authentication`                                                                    |
+| `403`  | `security.authentication`, `execution.guards`, or securable controller + `authorization`     |
+| `404`  | GET, UPDATE, PARTIAL_UPDATE, DELETE; CREATE with an enabled `relations.request.load.include` |
+| `409`  | CREATE, UPDATE, PARTIAL_UPDATE                                                               |
+| `500`  | always                                                                                       |
+| other  | the `exception` status of each `request.<target>.validators` entry the route runs            |
+
+Each status uses `DtoGenerateException(status)` (`Exception<Status>DTO`): required `statusCode`, `message`, `correlationID`, `timestamp`; `message` has no pattern or length limits and is `string | string[]` on `400`; `details` only on `400` (`FOREIGN_KEY_VIOLATION`, `INVALID_REFERENCE`) and `409` (`UNIQUE_VIOLATION`). Guard rejections skip the interceptor and carry only `statusCode` and `message`.
+
 ## DTO Rules
 
 - `EApiDtoType.BODY`, `QUERY`, `PARAMETERS`, and `RESPONSE` are the only DTO keys.

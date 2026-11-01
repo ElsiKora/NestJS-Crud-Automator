@@ -11,7 +11,7 @@ import type { DeepPartial, FindOneOptions, FindOptionsRelations } from "typeorm"
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { EApiControllerRelationReferenceShape } from "@enum/decorator/api";
-import { EErrorStringAction } from "@enum/utility";
+import { EApiExceptionDetailsType, EErrorStringAction } from "@enum/utility";
 import { BadRequestException, HttpStatus } from "@nestjs/common";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -127,6 +127,7 @@ function buildRelationReferenceBadRequestException(entity: IApiBaseEntity, prope
 			expectedShape,
 			propertyName,
 			referenceKey,
+			type: EApiExceptionDetailsType.INVALID_REFERENCE,
 		},
 		error: "Bad Request",
 		message: ErrorString({ entity, type: EErrorStringAction.REFERENCE_NOT_VALID }),

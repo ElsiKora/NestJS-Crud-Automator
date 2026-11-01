@@ -1,6 +1,6 @@
 import { STATUS_CODES } from "node:http";
 
-import { ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsUniqueViolationDTO } from "@class/utility/dto/exception/details";
+import { ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsInvalidReferenceDTO, ExceptionDetailsUniqueViolationDTO } from "@class/utility/dto/exception/details";
 import { CORRELATION_ID_CONSTANT } from "@constant/correlation-id.constant";
 import { DATE_CONSTANT } from "@constant/date.constant";
 import { NUMBER_CONSTANT } from "@constant/number.constant";
@@ -46,9 +46,29 @@ const ERROR_MESSAGE_PROPERTY_OPTIONS: ApiPropertyOptions = {
 const exceptionDtoCache: Map<HttpStatus, Type<unknown>> = new Map<HttpStatus, Type<unknown>>();
 
 /**
- * Creates exception DTOs with standardized properties based on HTTP status codes.
- * Generates a class with properties like correlationID, error name, message, status code, and timestamp,
- * all properly decorated with Swagger and validation decorators.
+ * Details variants each status can carry on the wire, keyed by the details `type` discriminator.
+ * Only the package's own database and relation reference failures attach details.
+ */
+const EXCEPTION_DETAILS_BY_STATUS: ReadonlyMap<HttpStatus, Readonly<Partial<Record<EApiExceptionDetailsType, Type<unknown>>>>> = new Map<HttpStatus, Readonly<Partial<Record<EApiExceptionDetailsType, Type<unknown>>>>>([
+	[
+		HttpStatus.BAD_REQUEST,
+		{
+			[EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION]: ExceptionDetailsForeignKeyViolationDTO,
+			[EApiExceptionDetailsType.INVALID_REFERENCE]: ExceptionDetailsInvalidReferenceDTO,
+		},
+	],
+	[
+		HttpStatus.CONFLICT,
+		{
+			[EApiExceptionDetailsType.UNIQUE_VIOLATION]: ExceptionDetailsUniqueViolationDTO,
+		},
+	],
+]);
+
+/**
+ * Creates the exception DTO that describes the error body of one HTTP status.
+ * The body carries correlationID, error, message, statusCode, and timestamp.
+ * Statuses with package details (`400`, `409`) also describe the discriminated `details` object with the variants of that status.
  * @param {HttpStatus} httpStatus - The HTTP status code for the exception
  * @returns {Type<unknown>} A generated DTO class for the exception
  */
@@ -61,6 +81,8 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 
 	const errorName: string = HttpStatus[httpStatus];
 	const errorText: string = STATUS_CODES[httpStatus] ?? "Error";
+	const detailsMapping: Readonly<Partial<Record<EApiExceptionDetailsType, Type<unknown>>>> | undefined = EXCEPTION_DETAILS_BY_STATUS.get(httpStatus);
+	const detailsTypes: Array<Type<unknown>> = detailsMapping ? Object.values(detailsMapping) : [];
 
 	// Free text: the status text, or a string the thrown exception sets
 	const errorNameOptions: ApiPropertyOptions = {
@@ -79,21 +101,7 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 		@ApiProperty(CORRELATION_ID_PROPERTY_OPTIONS)
 		correlationID!: string;
 
-		@ApiPropertyObject({
-			description: "details",
-			discriminator: {
-				mapping: {
-					[EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION]: ExceptionDetailsForeignKeyViolationDTO,
-					[EApiExceptionDetailsType.UNIQUE_VIOLATION]: ExceptionDetailsUniqueViolationDTO,
-				},
-				propertyName: "type",
-				shouldKeepDiscriminatorProperty: true,
-			},
-			entity: { name: "Error" },
-			isRequired: false,
-			isResponse: true,
-			type: [ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsUniqueViolationDTO],
-		})
+		@buildDetailsDecorator(detailsMapping)
 		details?: Record<string, unknown>;
 
 		@ApiProperty(errorNameOptions)
@@ -125,12 +133,41 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 		timestamp!: number;
 	}
 
-	// Register discriminator DTOs so Swagger includes their schemas in components.schemas
-	ApiExtraModels(ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsUniqueViolationDTO)(GeneratedErrorDTO);
+	if (detailsTypes.length > 0) {
+		// Register discriminator DTOs so Swagger includes their schemas in components.schemas
+		ApiExtraModels(...detailsTypes)(GeneratedErrorDTO);
+	}
 
 	DtoSetGeneratedName(GeneratedErrorDTO, `Exception${CamelCaseString(errorName)}DTO`, `HTTP status ${String(httpStatus)}`);
 
 	exceptionDtoCache.set(httpStatus, GeneratedErrorDTO);
 
 	return GeneratedErrorDTO;
+}
+
+/**
+ * Builds the decorator of the discriminated `details` property of one status.
+ * Statuses without package details leave the property out of the schema.
+ * @param {Readonly<Partial<Record<EApiExceptionDetailsType, Type<unknown>>>> | undefined} detailsMapping - Details variants of the status, keyed by `details.type`.
+ * @returns {PropertyDecorator} The details property decorator, or one that declares nothing.
+ */
+function buildDetailsDecorator(detailsMapping: Readonly<Partial<Record<EApiExceptionDetailsType, Type<unknown>>>> | undefined): PropertyDecorator {
+	if (!detailsMapping) {
+		return (): void => {
+			// No details on this status
+		};
+	}
+
+	return ApiPropertyObject({
+		description: "details",
+		discriminator: {
+			mapping: detailsMapping as Record<string, Type<unknown>>,
+			propertyName: "type",
+			shouldKeepDiscriminatorProperty: true,
+		},
+		entity: { name: "Error" },
+		isRequired: false,
+		isResponse: true,
+		type: Object.values(detailsMapping),
+	});
 }

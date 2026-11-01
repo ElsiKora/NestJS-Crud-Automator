@@ -10,15 +10,23 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 import type { TApiControllerMethodMap } from "@type/factory/api/controller";
 
+import { STATUS_CODES } from "node:http";
+
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
+import { ApiResponse } from "@nestjs/swagger";
 import { ApiControllerBuildRouteDocumentation } from "@utility/api/controller/build-route-documentation.utility";
 import { ApiControllerGetListQueryOpenApiDecorators } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
-import { ApiControllerReadPlanAssert } from "@utility/api/controller/read";
+import { ApiControllerGetErrorStatuses } from "@utility/api/controller/get/error-statuses.utility";
+import { ApiControllerReadPlanAssert, ApiControllerReadPlanGet } from "@utility/api/controller/read";
 import { ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
+import { DtoGenerateException } from "@utility/dto/generate/exception.utility";
+import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+
+const FLAGGED_ERROR_STATUSES: ReadonlySet<number> = new Set<number>([HttpStatus.BAD_REQUEST, HttpStatus.CONFLICT, HttpStatus.FORBIDDEN, HttpStatus.INTERNAL_SERVER_ERROR, HttpStatus.NOT_FOUND, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.UNAUTHORIZED]);
 
 /**
  * Applies appropriate decorators to controller methods based on the route type.
@@ -81,16 +89,27 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 ): void {
 	const responseDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(properties, entity, method, routeConfig, schemaPrefix, queryPlan, identityPlan);
 	const customDecorators: Array<MethodDecorator> = [...decorators];
+	const errorStatuses: Array<number> = ApiControllerGetErrorStatuses(method, routeConfig, ApiControllerReadPlanGet(targetMethod as object, methodName) !== undefined);
+
+	const errors: NonNullable<IApiRouteMetadata<E>["response"]>["errors"] = {
+		hasBadRequest: errorStatuses.includes(HttpStatus.BAD_REQUEST),
+		hasConflict: errorStatuses.includes(HttpStatus.CONFLICT),
+		hasForbidden: errorStatuses.includes(HttpStatus.FORBIDDEN),
+		hasInternalServerError: errorStatuses.includes(HttpStatus.INTERNAL_SERVER_ERROR),
+		hasNotFound: errorStatuses.includes(HttpStatus.NOT_FOUND),
+		hasTooManyRequests: errorStatuses.includes(HttpStatus.TOO_MANY_REQUESTS),
+		hasUnauthorized: errorStatuses.includes(HttpStatus.UNAUTHORIZED),
+	};
 
 	switch (method) {
 		case EApiRouteType.CREATE: {
-			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.POST, "", HttpStatus.CREATED, responseDto, { hasConflict: true, hasInternalServerError: true, hasUnauthorized: true }) }));
+			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.POST, "", HttpStatus.CREATED, responseDto, errors) }));
 
 			break;
 		}
 
 		case EApiRouteType.DELETE: {
-			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.DELETE, `:${String(entity.primaryKey?.name)}`, HttpStatus.NO_CONTENT, undefined, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }) }));
+			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.DELETE, `:${String(entity.primaryKey?.name)}`, HttpStatus.NO_CONTENT, undefined, errors) }));
 
 			break;
 		}
@@ -101,7 +120,7 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 			customDecorators.push(
 				ApiMethod({
 					execution: routeConfig.execution,
-					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, path, HttpStatus.OK, responseDto, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }),
+					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, path, HttpStatus.OK, responseDto, errors),
 				}),
 			);
 
@@ -116,7 +135,7 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 			customDecorators.push(
 				ApiMethod({
 					execution: routeConfig.execution,
-					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, "", HttpStatus.OK, responseDto, { hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }),
+					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, "", HttpStatus.OK, responseDto, errors),
 				}),
 			);
 
@@ -124,13 +143,13 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 		}
 
 		case EApiRouteType.PARTIAL_UPDATE: {
-			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PATCH, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }) }));
+			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PATCH, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, errors) }));
 
 			break;
 		}
 
 		case EApiRouteType.UPDATE: {
-			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PUT, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, { hasBadRequest: true, hasConflict: true, hasInternalServerError: true, hasNotFound: true, hasUnauthorized: true }) }));
+			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PUT, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, errors) }));
 
 			break;
 		}
@@ -138,6 +157,11 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 		default: {
 			throw ErrorException(`Method ${method as string} not implemented`);
 		}
+	}
+
+	// Statuses without an ApiMethod flag, such as a request validator answering 422
+	for (const status of errorStatuses.filter((errorStatus: number): errorStatus is HttpStatus => EnumIsValue(HttpStatus, errorStatus) && !FLAGGED_ERROR_STATUSES.has(errorStatus))) {
+		customDecorators.push(ApiResponse({ description: STATUS_CODES[status] ?? HttpStatus[status], status, type: DtoGenerateException(status) }));
 	}
 
 	if (customDecorators.length > 0) {

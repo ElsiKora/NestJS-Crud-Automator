@@ -269,6 +269,10 @@ Do not load relations with `relationLoadStrategy: "query"` from an entity whose 
 
 The package does not ship a consumer-side typed URL/bracket-filter builder in the current 3.x contract. Keep that helper in the consumer when needed instead of mistaking the server-owned typed query plan for a client API.
 
+## Generated Error Statuses
+
+Do not add `401`, `403`, `404`, or `409` to generated routes with `generation.decorators`; the route declares them from its config. Do not expect `401` without `security.authentication` or `404` on GET_LIST. Declare statuses the package cannot see, such as a global `ThrottlerGuard` `429`, with `documentation.response.statuses` and `DtoGenerateException(status)`. Swagger joins the descriptions of a status declared twice instead of replacing it.
+
 ## Widening WHERE Criteria
 
 Generated `get`, `getList`, `getMany`, `update` and `delete` refuse a `where` holding an `undefined` or `null` value, an empty relation object, an empty OR array or an empty OR branch; single-row `get`, `update` and `delete` also refuse a missing or empty `where`. Drop optional conditions instead of setting them to `undefined`, and use `IsNull()` for SQL `NULL`. The refusal is an `InternalServerErrorException`.

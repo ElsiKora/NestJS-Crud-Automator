@@ -33,6 +33,7 @@ Use local source as the contract:
 - Request config is target keyed with `EApiControllerRequestTarget.BODY`, `PARAMETERS`, and `QUERY`.
 - Response config is target keyed with `EApiControllerResponseTarget.RESPONSE`.
 - OpenAPI response headers live directly under `response.headers`, not under `EApiControllerResponseTarget.RESPONSE`.
+- Generated routes declare exactly the error statuses they can return: `400` and `500` always, `404` on row routes and on CREATE with `relations.request`, `409` on CREATE and updates, `401` with `security.authentication`, `403` with a refusing guard or a securable controller with `authorization`, plus each validator exception status. GET_LIST never declares `404`. Application-owned statuses such as a global `ThrottlerGuard` `429` go in `documentation.response.statuses`.
 - `autoDto` is validators-only. Entity `ApiPropertyDescribe({ properties })` remains the capability baseline; generated GET_LIST `request[QUERY].filter`, `order`, and `pagination` own its generated query contract.
 - `ApiPropertyDescribe({ isAutoDtoEnabled: false })` keeps entity metadata, TypeORM behavior, and manual DTO use but removes the property from every generated BODY, PARAMETERS, QUERY, and RESPONSE DTO, generated Swagger relation components, and metadata-driven or typed client filter/order input. Omitted or `true` preserves normal generation.
 - Route/DTO `isEnabled: true`, generated GET identity, `read.scope.parameters`, and query plans cannot re-enable a globally hidden property. Explicit `ApiPropertyCopy` may deliberately copy it to a manual DTO, but all other route/DTO, guard, and validation rules still apply. PAGE server-only defaults/tie-breakers may use the described scalar; CURSOR ordering cannot because it requires generated response exposure.
@@ -159,6 +160,7 @@ Use local source as the contract:
 ## Verification Checklist
 
 - Generated Swagger matches request and response contracts.
+- Every declared error status is reachable with the route config, and its body passes the declared `Exception<Status>DTO` schema.
 - DTO fields are scoped correctly for body/query/parameters/response.
 - GET_LIST uses the intended response mode: full wrapper DTO or `{ itemType, name? }`.
 - Typed GET_LIST DTO/OpenAPI fields match the normalized plan, two controllers over one entity receive distinct plan-scoped schemas, and strict parsing remains effective with host query whitelist changes.
