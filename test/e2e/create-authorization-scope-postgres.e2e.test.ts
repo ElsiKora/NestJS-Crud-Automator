@@ -18,11 +18,14 @@ import {
 	ApiAuthorizationPolicy,
 	ApiAuthorizationPolicyBase,
 	ApiController,
+	ApiControllerObservable,
 	ApiControllerSecurable,
 	ApiFunction,
 	ApiFunctionSubscriber,
 	ApiFunctionSubscriberBase,
 	ApiPropertyDescribe,
+	ApiRouteSubscriber,
+	ApiRouteSubscriberBase,
 	ApiService,
 	ApiServiceBase,
 	ApiServiceObservable,
@@ -198,6 +201,18 @@ class ScopedCompositeSubscriber extends ApiFunctionSubscriberBase<ScopedComposit
 	}
 }
 
+@Injectable()
+@ApiRouteSubscriber({ entity: ScopedItemEntity })
+class ScopedItemRouteSubscriber extends ApiRouteSubscriberBase<ScopedItemEntity> {
+	public static afterCreateCalls: number = 0;
+
+	public async onAfterCreate(): Promise<undefined> {
+		ScopedItemRouteSubscriber.afterCreateCalls += 1;
+
+		return undefined;
+	}
+}
+
 const disabledRoutes = {
 	[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
 	[EApiRouteType.GET]: { generation: { isEnabled: false } },
@@ -211,6 +226,7 @@ const createRoute = { [EApiRouteType.CREATE]: { security: { authentication: { gu
 type TScopedItemService = ScopedDecoratedCreateService | ScopedGetNoneItemService | ScopedItemService | ScopedUndecoratedCreateService;
 
 function createItemController(path: string, service: Type<TScopedItemService>): Type<unknown> {
+	@ApiControllerObservable()
 	@ApiControllerSecurable()
 	@ApiController<ScopedItemEntity>({
 		authorization: {
@@ -286,7 +302,7 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 				ApiAuthorizationModule.forRoot({ principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user) } }),
 				ApiSubscriberModule,
 			],
-			providers: [ScopedAuthGuard, ScopedCompositePolicy, ScopedCompositeService, ScopedCompositeSubscriber, ScopedDecoratedCreateService, ScopedGetNoneItemService, ScopedItemPolicy, ScopedItemService, ScopedItemSubscriber, ScopedUndecoratedCreateService],
+			providers: [ScopedAuthGuard, ScopedCompositePolicy, ScopedCompositeService, ScopedCompositeSubscriber, ScopedDecoratedCreateService, ScopedGetNoneItemService, ScopedItemPolicy, ScopedItemRouteSubscriber, ScopedItemService, ScopedItemSubscriber, ScopedUndecoratedCreateService],
 		})
 		class ScopedModule {}
 
@@ -305,6 +321,7 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 		ScopedItemPolicy.where = { tenantId: IN_SCOPE };
 		ScopedItemSubscriber.afterCreate = undefined;
 		ScopedItemSubscriber.narrowReload = false;
+		ScopedItemRouteSubscriber.afterCreateCalls = 0;
 	});
 
 	afterAll(async () => {
@@ -382,6 +399,26 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 			expect(await items.countBy({ id: "narrowed" })).toBe(0);
 		});
 
+		it("runs onAfterCreate before the refusal and rolls back only what it wrote through the transaction", async () => {
+			const externalEffects: Array<string> = [];
+
+			ScopedItemSubscriber.afterCreate = async ({ DATA, result }) => {
+				externalEffects.push(result.id);
+
+				if (result.id === "refused") {
+					await DATA.repository.save({ id: "refused-side-write", name: "Item", tenantId: IN_SCOPE });
+				}
+			};
+
+			const response = await postItem("create-scope-pg", "refused", OUT_OF_SCOPE);
+
+			expect(response.statusCode).toBe(403);
+			expect(externalEffects).toEqual(["refused"]);
+			expect(await items.countBy({ id: "refused" })).toBe(0);
+			expect(await items.countBy({ id: "refused-side-write" })).toBe(0);
+			expect(ScopedItemRouteSubscriber.afterCreateCalls).toBe(0);
+		});
+
 		it("lets onAfterCreate read the uncommitted row through DATA.repository", async () => {
 			const seen: Array<null | ScopedItemEntity> = [];
 
@@ -390,6 +427,7 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 			};
 
 			expect((await postItem("create-scope-pg", "visible", IN_SCOPE)).statusCode).toBe(201);
+			expect(ScopedItemRouteSubscriber.afterCreateCalls).toBe(1);
 			expect(seen).toEqual([expect.objectContaining({ id: "visible" })]);
 		});
 	});
