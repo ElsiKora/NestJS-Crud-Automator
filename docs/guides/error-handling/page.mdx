@@ -539,11 +539,12 @@ GET_LIST never declares `404`. Each `request.<target>.validators` entry adds the
 
 Every declared status uses the `Exception<Status>DTO` schema of that status, for example `ExceptionBadRequestDTO`:
 
-- `statusCode`, `message`, `error`, `correlationID`, and `timestamp` are required;
+- `statusCode`, `message`, `error`, `correlationID`, and `timestamp` are required on `400`, `404`, `409`, `500`, and validator statuses;
+- on the guard statuses `401`, `403`, and `429` only `statusCode` and `message` are required; `correlationID`, `error`, and `timestamp` are described as optional, because they are sent only when `CorrelationIDResponseBodyExceptionFilter` is registered;
 - `message` is a string or an array of strings and `error` is a string, with no pattern or length limit;
 - `details` exists only on `400` (`FOREIGN_KEY_VIOLATION`, `INVALID_REFERENCE`) and `409` (`UNIQUE_VIOLATION`) and is discriminated by `details.type`.
 
-The schema matches errors that pass `CorrelationIDResponseBodyInterceptor`. A guard rejection runs before the interceptor, so without `CorrelationIDResponseBodyExceptionFilter` its body has only `statusCode` and `message`; see [Rate Limiting Errors](#rate-limiting-errors).
+Errors from the handler pass `CorrelationIDResponseBodyInterceptor` and carry every field. A guard rejection runs before the interceptor, so without the exception filter its body has only `statusCode` and `message` (`error` too when a guard returns `false`). A `403` thrown from the handler, such as a route subscriber, still carries every field and matches the same schema; see [Rate Limiting Errors](#rate-limiting-errors).
 
 ### Declaring Other Statuses
 
@@ -739,6 +740,7 @@ From 5.0.0, generated routes declare the error statuses they can return instead 
 
 - every route declares `400`, and secured routes declare `403`;
 - `401` is declared only with `security.authentication`;
+- `ExceptionUnauthorizedDTO`, `ExceptionForbiddenDTO`, and `ExceptionTooManyRequestsDTO` require only `statusCode` and `message`, and `correlationID`, `error`, and `timestamp` become optional, also on routes that declared `401` before;
 - GET_LIST no longer declares `404`; CREATE declares it with `relations.request`;
 - `details` is declared only on `400` and `409`, with the variants of that status;
 - an invalid request relation reference answers `details.type: "INVALID_REFERENCE"`, described by `ExceptionDetailsInvalidReferenceDTO`.

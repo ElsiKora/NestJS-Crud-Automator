@@ -46,6 +46,14 @@ const ERROR_MESSAGE_PROPERTY_OPTIONS: ApiPropertyOptions = {
 const exceptionDtoCache: Map<HttpStatus, Type<unknown>> = new Map<HttpStatus, Type<unknown>>();
 
 /**
+ * Statuses that guards raise before CorrelationIDResponseBodyInterceptor runs.
+ * Their body carries the correlation fields only when CorrelationIDResponseBodyExceptionFilter is registered.
+ */
+const GUARD_EXCEPTION_STATUSES: ReadonlySet<HttpStatus> = new Set<HttpStatus>([HttpStatus.FORBIDDEN, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.UNAUTHORIZED]);
+
+const EXCEPTION_FILTER_FIELD_NOTE: string = "sent when CorrelationIDResponseBodyExceptionFilter is registered";
+
+/**
  * Details variants each status can carry on the wire, keyed by the details `type` discriminator.
  * Only the package's own database and relation reference failures attach details.
  */
@@ -69,6 +77,7 @@ const EXCEPTION_DETAILS_BY_STATUS: ReadonlyMap<HttpStatus, Readonly<Partial<Reco
  * Creates the exception DTO that describes the error body of one HTTP status.
  * The body carries correlationID, error, message, statusCode, and timestamp.
  * Statuses with package details (`400`, `409`) also describe the discriminated `details` object with the variants of that status.
+ * Guard statuses (`401`, `403`, `429`) require only message and statusCode, because correlationID, error, and timestamp come from the exception filter.
  * @param {HttpStatus} httpStatus - The HTTP status code for the exception
  * @returns {Type<unknown>} A generated DTO class for the exception
  */
@@ -81,24 +90,34 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 
 	const errorName: string = HttpStatus[httpStatus];
 	const errorText: string = STATUS_CODES[httpStatus] ?? "Error";
+	const isGuardStatus: boolean = GUARD_EXCEPTION_STATUSES.has(httpStatus);
+
+	const correlationIDOptions: ApiPropertyOptions = isGuardStatus
+		? ({
+				...CORRELATION_ID_PROPERTY_OPTIONS,
+				description: `Correlation identifier, ${EXCEPTION_FILTER_FIELD_NOTE}`,
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				required: false,
+			} as ApiPropertyOptions)
+		: CORRELATION_ID_PROPERTY_OPTIONS;
 	const detailsMapping: Readonly<Partial<Record<EApiExceptionDetailsType, Type<unknown>>>> | undefined = EXCEPTION_DETAILS_BY_STATUS.get(httpStatus);
 	const detailsTypes: Array<Type<unknown>> = detailsMapping ? Object.values(detailsMapping) : [];
 
 	// Free text: the status text, or a string the thrown exception sets
 	const errorNameOptions: ApiPropertyOptions = {
-		description: "Error name",
+		description: isGuardStatus ? `Error name, ${EXCEPTION_FILTER_FIELD_NOTE}` : "Error name",
 		example: errorText,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: false,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		readOnly: true,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
-		required: true,
+		required: !isGuardStatus,
 		type: EApiPropertyDataType.STRING,
 	};
 
 	class GeneratedErrorDTO {
-		@ApiProperty(CORRELATION_ID_PROPERTY_OPTIONS)
+		@ApiProperty(correlationIDOptions)
 		correlationID!: string;
 
 		@buildDetailsDecorator(detailsMapping)
@@ -116,15 +135,17 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 			enum: HttpStatus,
 			enumName: "EHttpStatus",
 			exampleValue: httpStatus,
+			isRequired: true,
 			isResponse: true,
 		})
 		statusCode: HttpStatus = httpStatus;
 
 		@ApiPropertyNumber({
-			description: "timestamp",
+			description: isGuardStatus ? `timestamp, ${EXCEPTION_FILTER_FIELD_NOTE}` : "timestamp",
 			entity: { name: "Error" },
 			exampleValue: Date.now(),
 			format: EApiPropertyNumberType.INTEGER,
+			isRequired: !isGuardStatus,
 			isResponse: true,
 			maximum: DATE_CONSTANT.MAXIMUM_UNIX_TIME,
 			minimum: DATE_CONSTANT.MINIMUM_UNIX_TIME,

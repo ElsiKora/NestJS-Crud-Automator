@@ -379,20 +379,23 @@ describe("Guard error response contract (E2E)", () => {
 		expect(JSON.stringify(response.json())).not.toContain("GUARD_INTERNAL_SENTINEL");
 	});
 
-	it("documents every field the guard 401 and 403 bodies carry, and only those", async () => {
+	it("documents every field the guard 401 and 403 bodies carry, and requires only those sent without the filter", async () => {
 		const document: OpenAPIObject = SwaggerModule.createDocument(application, new DocumentBuilder().build());
 		const unauthorizedSchema: IObjectSchema = getErrorSchema(document, HttpStatus.UNAUTHORIZED);
 		const forbiddenSchema: IObjectSchema = getErrorSchema(document, HttpStatus.FORBIDDEN);
 		const unauthorized: Record<string, unknown> = (await request(application, "plain", {})).json();
 		const forbidden: Record<string, unknown> = (await request(application, "plain", { "x-authenticated": "true", "x-role": "viewer", "x-user-id": "guard-contract-user" })).json();
 
-		expect(unauthorizedSchema.required.toSorted()).toEqual(["correlationID", "error", "message", "statusCode", "timestamp"]);
-		expect(forbiddenSchema.required.toSorted()).toEqual(["correlationID", "error", "message", "statusCode", "timestamp"]);
+		// The filter is optional, so the fields it adds are documented but not required
+		expect(unauthorizedSchema.required.toSorted()).toEqual(["message", "statusCode"]);
+		expect(forbiddenSchema.required.toSorted()).toEqual(["message", "statusCode"]);
+		expect(Object.keys(unauthorizedSchema.properties).toSorted()).toEqual(["correlationID", "error", "message", "statusCode", "timestamp"]);
+		expect(Object.keys(forbiddenSchema.properties).toSorted()).toEqual(["correlationID", "error", "message", "statusCode", "timestamp"]);
+		// These exceptions have no arguments, so Nest built no `error`, and the object response keeps its shape
 		expect(unauthorized).toEqual({ correlationID: expect.any(String), message: "Unauthorized", statusCode: HttpStatus.UNAUTHORIZED, timestamp: expect.any(Number) });
 		expect(forbidden).toEqual({ correlationID: expect.any(String), message: "Forbidden", statusCode: HttpStatus.FORBIDDEN, timestamp: expect.any(Number) });
-		// These exceptions have no arguments, so Nest built no `error`; the DTO still requires it until the exception schemas follow the wire
-		expectBodyMatchesSchema({ ...unauthorized, error: "Unauthorized" }, unauthorizedSchema);
-		expectBodyMatchesSchema({ ...forbidden, error: "Forbidden" }, forbiddenSchema);
+		expectBodyMatchesSchema(unauthorized, unauthorizedSchema);
+		expectBodyMatchesSchema(forbidden, forbiddenSchema);
 	});
 
 	it("documents message and error as free text, including the messages Nest and the throttler answer", () => {

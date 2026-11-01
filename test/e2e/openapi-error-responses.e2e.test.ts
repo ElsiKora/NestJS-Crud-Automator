@@ -1,11 +1,11 @@
 import "reflect-metadata";
 
-import type { CanActivate, ExecutionContext, INestApplication } from "@nestjs/common";
+import type { CanActivate, ExceptionFilter, ExecutionContext, INestApplication } from "@nestjs/common";
 import type { OpenAPIObject } from "@nestjs/swagger";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import type { Repository } from "typeorm";
 
-import { HttpStatus, Inject, Injectable, UnauthorizedException, UnprocessableEntityException, ValidationPipe } from "@nestjs/common";
+import { ForbiddenException, HttpStatus, Inject, Injectable, UnauthorizedException, UnprocessableEntityException, ValidationPipe } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
@@ -47,6 +47,11 @@ import {
 } from "../../src/index";
 
 type TSwaggerMethod = "delete" | "get" | "patch" | "post" | "put";
+
+interface IExceptionFilterMode {
+	filters: Array<ExceptionFilter>;
+	name: string;
+}
 
 interface IWireCase {
 	expectedStatus: HttpStatus;
@@ -153,6 +158,18 @@ class OpenApiErrorAuthenticationGuard implements CanActivate {
 	}
 }
 
+/**
+ * Refuses every request that carries the `x-block` header by returning false, which Nest answers with its own 403.
+ */
+@Injectable()
+class OpenApiErrorBlockGuard implements CanActivate {
+	public canActivate(context: ExecutionContext): boolean {
+		const request: { headers: Record<string, string | undefined> } = context.switchToHttp().getRequest();
+
+		return !request.headers["x-block"];
+	}
+}
+
 @Injectable()
 @ApiAuthorizationPolicy({ entity: OpenApiErrorSecuredItemEntity })
 class OpenApiErrorSecuredItemPolicy extends ApiAuthorizationPolicyBase<OpenApiErrorSecuredItemEntity> {
@@ -182,7 +199,7 @@ class OpenApiErrorSecuredItemPolicy extends ApiAuthorizationPolicyBase<OpenApiEr
 }
 
 /**
- * Fails every generated route that receives the `x-explode` header, to reproduce an unexpected `500`.
+ * Fails every generated route that receives the `x-explode` header, to reproduce an unexpected `500`, and refuses one with the `x-forbid` header from the handler.
  * @param {{ result: { headers?: Record<string, string> } }} context - Route BEFORE context.
  * @param {{ result: { headers?: Record<string, string> } }} context.result - Route targets.
  * @returns {unknown} The unchanged targets.
@@ -190,6 +207,10 @@ class OpenApiErrorSecuredItemPolicy extends ApiAuthorizationPolicyBase<OpenApiEr
 function explodeOnHeader<T extends { headers?: Record<string, string> }>(context: { result: T }): T {
 	if (context.result.headers?.["x-explode"]) {
 		throw new Error("unexpected failure");
+	}
+
+	if (context.result.headers?.["x-forbid"]) {
+		throw new ForbiddenException();
 	}
 
 	return context.result;
@@ -228,6 +249,7 @@ class OpenApiErrorSecuredItemRouteSubscriber extends ApiRouteSubscriberBase<Open
 }
 
 const authentication = { guard: OpenApiErrorAuthenticationGuard, type: EApiAuthenticationType.USER };
+const execution = { guards: [OpenApiErrorBlockGuard] };
 
 @ApiControllerObservable()
 @ApiController<OpenApiErrorItemEntity>({
@@ -282,10 +304,11 @@ class OpenApiErrorItemController {
 	name: "OpenApiErrorSecuredItems",
 	path: "openapi-error-secured-items",
 	routes: {
-		[EApiRouteType.CREATE]: { security: { authentication } },
-		[EApiRouteType.DELETE]: { security: { authentication } },
-		[EApiRouteType.GET]: { security: { authentication } },
+		[EApiRouteType.CREATE]: { execution, security: { authentication } },
+		[EApiRouteType.DELETE]: { execution, security: { authentication } },
+		[EApiRouteType.GET]: { execution, security: { authentication } },
 		[EApiRouteType.GET_LIST]: {
+			execution,
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
 					order: {
@@ -299,8 +322,8 @@ class OpenApiErrorItemController {
 			},
 			security: { authentication },
 		},
-		[EApiRouteType.PARTIAL_UPDATE]: { security: { authentication } },
-		[EApiRouteType.UPDATE]: { security: { authentication } },
+		[EApiRouteType.PARTIAL_UPDATE]: { execution, security: { authentication } },
+		[EApiRouteType.UPDATE]: { execution, security: { authentication } },
 	},
 })
 class OpenApiErrorSecuredItemController {
@@ -323,6 +346,8 @@ const SECURED_MISSING_ID: string = "0a9b8c7d-6e5f-4a3b-8c1d-2e3f4a5b6c7d";
 
 const ADMIN_HEADERS: Record<string, string> = { "x-role": "admin", "x-user-id": "admin-1" };
 const DENIED_HEADERS: Record<string, string> = { "x-role": "guest", "x-user-id": "guest-1" };
+const BLOCKED_HEADERS: Record<string, string> = { ...ADMIN_HEADERS, "x-block": "true" };
+const FORBIDDEN_HEADERS: Record<string, string> = { ...ADMIN_HEADERS, "x-forbid": "true" };
 
 const LONG_ID: string = "x".repeat(65);
 const EXPLODE: Record<string, string> = { "x-explode": "true" };
@@ -398,7 +423,16 @@ const SECURED_OPERATIONS: Array<{ method: TSwaggerMethod; path: string; payload?
 	{ method: "delete", path: SECURED_ITEM, url: `${SECURED_ITEMS}/${SECURED_ID}` },
 ];
 
-const GUARD_CASES: Array<IWireCase> = SECURED_OPERATIONS.flatMap((operation: (typeof SECURED_OPERATIONS)[number]): Array<IWireCase> => [wireCase(operation.method, operation.path, HttpStatus.UNAUTHORIZED, "authentication guard", operation.url, { payload: operation.payload }), wireCase(operation.method, operation.path, HttpStatus.FORBIDDEN, "authorization deny", operation.url, { headers: DENIED_HEADERS, payload: operation.payload })]);
+// Guard rejections skip CorrelationIDResponseBodyInterceptor, and a handler 403 passes through it
+const GUARD_CASES: Array<IWireCase> = SECURED_OPERATIONS.flatMap((operation: (typeof SECURED_OPERATIONS)[number]): Array<IWireCase> => [
+	wireCase(operation.method, operation.path, HttpStatus.UNAUTHORIZED, "authentication guard", operation.url, { payload: operation.payload }),
+	wireCase(operation.method, operation.path, HttpStatus.FORBIDDEN, "authorization deny", operation.url, { headers: DENIED_HEADERS, payload: operation.payload }),
+	wireCase(operation.method, operation.path, HttpStatus.FORBIDDEN, "guard returning false", operation.url, { headers: BLOCKED_HEADERS, payload: operation.payload }),
+	wireCase(operation.method, operation.path, HttpStatus.FORBIDDEN, "handler refusal", operation.url, { headers: FORBIDDEN_HEADERS, payload: operation.payload }),
+]);
+
+// The exception filter is optional, so every mode must keep the schema equal to the wire
+const EXCEPTION_FILTER_MODES: Array<IExceptionFilterMode> = [{ filters: [], name: "without an exception filter" }];
 
 /**
  * Drops OpenAPI `nullable: false`, its default, which Ajv rejects next to a schema combinator.
@@ -421,7 +455,7 @@ function withoutNonNullableFlags(value: unknown): unknown {
 	);
 }
 
-describe("generated route error responses (E2E)", () => {
+describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, IExceptionFilterMode] => [mode.name, mode]))("generated route error responses %s (E2E)", (_modeName: string, mode: IExceptionFilterMode) => {
 	let app: INestApplication;
 	let container: StartedPostgreSqlContainer;
 	let document: OpenAPIObject;
@@ -459,12 +493,13 @@ describe("generated route error responses (E2E)", () => {
 		const moduleReference = await Test.createTestingModule({
 			controllers: [OpenApiErrorItemController, OpenApiErrorSecuredItemController],
 			imports: [TypeOrmModule.forRoot({ dropSchema: true, entities: ENTITIES, synchronize: true, type: "postgres", url: container.getConnectionUri() }), TypeOrmModule.forFeature(ENTITIES), ApiAuthorizationModule.forRoot({}), ApiSubscriberModule],
-			providers: [OpenApiErrorOwnerService, OpenApiErrorItemService, OpenApiErrorSecuredItemService, OpenApiErrorAuthenticationGuard, OpenApiErrorSecuredItemPolicy, OpenApiErrorItemRouteSubscriber, OpenApiErrorSecuredItemRouteSubscriber],
+			providers: [OpenApiErrorOwnerService, OpenApiErrorItemService, OpenApiErrorSecuredItemService, OpenApiErrorAuthenticationGuard, OpenApiErrorBlockGuard, OpenApiErrorSecuredItemPolicy, OpenApiErrorItemRouteSubscriber, OpenApiErrorSecuredItemRouteSubscriber],
 		}).compile();
 
 		app = moduleReference.createNestApplication(new FastifyAdapter());
 		app.useGlobalPipes(new ValidationPipe({ transform: true }));
 		app.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
+		app.useGlobalFilters(...mode.filters);
 		await app.init();
 		await app.getHttpAdapter().getInstance().ready();
 		fastify = app.getHttpAdapter().getInstance();
@@ -543,9 +578,9 @@ describe("generated route error responses (E2E)", () => {
 		expect(covered).toEqual(declared);
 	});
 
-	it.each(GUARD_CASES.map((wireCase: IWireCase): [string, IWireCase] => [wireCase.name, wireCase]))("answers a guard rejection with a declared status: %s", async (_name: string, wireCase: IWireCase) => {
-		const { body } = await validateWire(wireCase);
+	it.each(GUARD_CASES.map((wireCase: IWireCase): [string, IWireCase] => [wireCase.name, wireCase]))("matches the declared schema on a guard or handler refusal: %s", async (_name: string, wireCase: IWireCase) => {
+		const { body, errors } = await validateWire(wireCase);
 
-		expect(body).toMatchObject({ message: expect.any(String), statusCode: wireCase.expectedStatus });
+		expect(errors, JSON.stringify(body)).toBeNull();
 	});
 });

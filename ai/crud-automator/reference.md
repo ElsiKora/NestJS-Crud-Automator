@@ -126,7 +126,7 @@ Generated route transaction rules:
 | `500`  | always                                                                                       |
 | other  | the `exception` status of each `request.<target>.validators` entry the route runs            |
 
-Each status uses `DtoGenerateException(status)` (`Exception<Status>DTO`): required `statusCode`, `message`, `correlationID`, `timestamp`; `message` has no pattern or length limits and is `string | string[]` on `400`; `details` only on `400` (`FOREIGN_KEY_VIOLATION`, `INVALID_REFERENCE`) and `409` (`UNIQUE_VIOLATION`). Guard rejections skip the interceptor and carry only `statusCode` and `message`.
+Each status uses `DtoGenerateException(status)` (`Exception<Status>DTO`): required `statusCode`, `message`, `error`, `correlationID`, `timestamp`, except on the guard statuses `401`, `403`, `429`, where only `statusCode` and `message` are required and `correlationID`, `error`, `timestamp` are optional (sent only with `CorrelationIDResponseBodyExceptionFilter`); `message` is `string | string[]` and `error` a string, with no pattern or length limits; `details` only on `400` (`FOREIGN_KEY_VIOLATION`, `INVALID_REFERENCE`) and `409` (`UNIQUE_VIOLATION`). Guard rejections skip the interceptor and carry only `statusCode` and `message` unless the exception filter is registered.
 
 ## DTO Rules
 

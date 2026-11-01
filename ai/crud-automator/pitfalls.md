@@ -271,7 +271,7 @@ The package does not ship a consumer-side typed URL/bracket-filter builder in th
 
 ## Generated Error Statuses
 
-Do not add `401`, `403`, `404`, or `409` to generated routes with `generation.decorators`; the route declares them from its config. Do not expect `401` without `security.authentication` or `404` on GET_LIST. Declare statuses the package cannot see, such as a global `ThrottlerGuard` `429`, with `documentation.response.statuses` and `DtoGenerateException(status)`. Swagger joins the descriptions of a status declared twice instead of replacing it.
+Do not add `401`, `403`, `404`, or `409` to generated routes with `generation.decorators`; the route declares them from its config. Do not expect `401` without `security.authentication` or `404` on GET_LIST. Declare statuses the package cannot see, such as a global `ThrottlerGuard` `429`, with `documentation.response.statuses` and `DtoGenerateException(status)`. Swagger joins the descriptions of a status declared twice instead of replacing it. Do not expect `correlationID` or `timestamp` on a `401`, `403`, or `429` from a guard without `CorrelationIDResponseBodyExceptionFilter`; their DTOs mark those fields optional.
 
 ## Widening WHERE Criteria
 
