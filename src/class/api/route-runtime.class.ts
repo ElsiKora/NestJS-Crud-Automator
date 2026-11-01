@@ -113,6 +113,10 @@ export class ApiRouteRuntime {
 				request.query = beforeResult.query;
 			}
 
+			if (options.metadata.route.type === EApiRouteType.PARTIAL_UPDATE || options.metadata.route.type === EApiRouteType.UPDATE) {
+				ApiControllerRejectToManyUpdateKeys(options.metadata.resource.entity, request.body);
+			}
+
 			await this.executeRequestTargets(options.metadata, options.runtimeProperties, request, contextData);
 		} catch (error) {
 			await this.executeCustomErrorSubscribers(options, entityInstance, contextData, EApiSubscriberOnType.BEFORE_ERROR, error);

@@ -13,7 +13,7 @@ import { getMetadataArgsStorage } from "typeorm";
 const TO_MANY_UPDATE_REJECTION_REASON: string = "to-many reference is not allowed on update";
 
 /**
- * Rejects a generated UPDATE or PARTIAL_UPDATE body that carries a to-many relation key, `null` included.
+ * Rejects an UPDATE or PARTIAL_UPDATE body, generated or custom, that carries a to-many relation key, `null` included.
  * TypeORM saves such a value as the full new set, so the rule reads the TypeORM relations of the entity, its parent classes,
  * its embedded columns at any depth, and every `@ChildEntity` that extends it. It ignores `relations.request` and its include.
  * @param {IApiBaseEntity} entity - Entity class of the route.
