@@ -632,9 +632,10 @@ describe("Swagger request DTO documentation (E2E)", () => {
 			const property: Record<string, unknown> = schema.properties?.correlationID as Record<string, unknown>;
 			const pattern: RegExp = new RegExp(property.pattern as string, "u");
 
-			expect(property, name).toEqual(expect.objectContaining({ maxLength: 128, minLength: 1, pattern: "^[\\w.:-]{1,128}$", type: "string" }));
+			expect(property, name).toEqual(expect.objectContaining({ maxLength: 128, minLength: 1, pattern: "^[A-Za-z0-9_.:-]{1,128}$", type: "string" }));
 			expect(property.format, name).toBeUndefined();
 			expect(pattern.test("abc"), name).toBe(true);
+			expect(pattern.test("é"), name).toBe(false);
 			expect(pattern.test("a".repeat(129)), name).toBe(false);
 		}
 	});
