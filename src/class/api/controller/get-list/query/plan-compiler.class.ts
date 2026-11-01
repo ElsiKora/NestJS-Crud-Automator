@@ -242,7 +242,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 				continue;
 			}
 
-			const relationTarget: IApiBaseEntity | undefined = ApiControllerGetListTransformGetRelationTarget(entityMetadata, path, currentGuard, true);
+			const relationTarget: IApiBaseEntity | undefined = ApiControllerGetListTransformGetRelationTarget(entityMetadata, path, currentGuard);
 
 			if (!relationTarget) {
 				continue;

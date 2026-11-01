@@ -7,6 +7,7 @@ import type { TApiPropertyDescribeProperties } from "@type/decorator/api/propert
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "@constant/factory-dto-get-list-query.constant";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { ApiControllerGetListIsToOneRelation } from "@utility/api/controller/get-list/is-to-one-relation.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
@@ -86,7 +87,7 @@ export function DtoGenerateGetListQueryProperties<E>(
 
 		const relationColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>): boolean => column.name == property.name);
 
-		if (!relationColumn?.relation?.target) continue;
+		if (!relationColumn?.relation?.target || !ApiControllerGetListIsToOneRelation(relationColumn)) continue;
 
 		const relationEntityMetadata: IApiEntity<unknown> | undefined = GenerateRelationEntityInformation(relationColumn.relation.target);
 

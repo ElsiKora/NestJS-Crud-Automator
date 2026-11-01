@@ -23,7 +23,7 @@ export function ApiControllerGetListTransformAssertRequestRelationTargets<E>(que
 
 	for (const key of Object.keys(query)) {
 		const separatorIndex: number = key.indexOf(".");
-		const target: IApiBaseEntity | undefined = separatorIndex === -1 ? undefined : ApiControllerGetListTransformGetRelationTarget(entityMetadata, key.slice(0, separatorIndex), currentGuard, true);
+		const target: IApiBaseEntity | undefined = separatorIndex === -1 ? undefined : ApiControllerGetListTransformGetRelationTarget(entityMetadata, key.slice(0, separatorIndex), currentGuard);
 
 		if (target && CHECKED_TABLE_COUNT_BY_TARGET.get(target) !== tableCount) {
 			ResolveRelationTarget(target);

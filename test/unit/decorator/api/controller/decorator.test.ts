@@ -450,18 +450,17 @@ describe("ApiController", () => {
 			expect(() => decorate(DecoratorAmbiguousGuardedHolder, { ...manualQuery, ...security(AmbiguousRelationGuard) })).toThrowError(ambiguousError);
 		});
 
-		it("does not fail a typed filter route on a to-many relation that filter cannot reach", () => {
-			const Controller = decorate(DecoratorAmbiguousToManyHolder, { request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } });
+		it.each([
+			["a typed filter", { request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } }],
+			["a manual QUERY DTO", manualQuery],
+			["pagination only", { request: { [EApiControllerRequestTarget.QUERY]: { pagination: { mode: EApiControllerGetListQueryPaginationMode.PAGE } } } }],
+		])("does not fail a route with %s on a to-many relation no filter can reach", (_case: string, routeConfig: object) => {
+			const Controller = decorate(DecoratorAmbiguousToManyHolder, routeConfig);
 
 			expect(() => new Controller()).not.toThrow();
 		});
 
-		it("fails a route that reaches the request filter on a to-many relation", () => {
-			expect(() => decorate(DecoratorAmbiguousToManyHolder, manualQuery)).toThrowError(ambiguousError);
-			expect(() => decorate(DecoratorAmbiguousToManyHolder, { request: { [EApiControllerRequestTarget.QUERY]: { pagination: { mode: EApiControllerGetListQueryPaginationMode.PAGE } } } })).toThrowError(ambiguousError);
-		});
-
-		it("fails a pagination-only route at instantiation on a to-many relation whose target became ambiguous after decoration", () => {
+		it("does not fail a pagination-only route at instantiation on a to-many relation whose target became ambiguous after decoration", () => {
 			const declareOwner = (table: string): void => {
 				@Entity(table)
 				class DecoratorLateToManyOwner {
@@ -490,7 +489,7 @@ describe("ApiController", () => {
 
 			declareOwner("decorator_late_to_many_owners_second");
 
-			expect(() => new Controller()).toThrowError('Metadata target "DecoratorLateToManyOwner" matches 2 entity classes in TypeORM metadata');
+			expect(() => new Controller()).not.toThrow();
 		});
 	});
 

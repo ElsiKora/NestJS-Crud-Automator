@@ -29,7 +29,7 @@ import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/contr
 import { ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/apply/metadata.utility";
 import { ApiControllerAssertRouteCursorDataSource, ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
-import { ApiControllerGetListQueryPlanGet, ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
+import { ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetListTransformAssertRelationTargets } from "@utility/api/controller/get-list/transform/assert-relation-targets.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
@@ -82,7 +82,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		const routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST> | undefined = this.properties.routes[EApiRouteType.GET_LIST];
 
 		if (routeConfig?.generation?.isEnabled !== false) {
-			ApiControllerGetListTransformAssertRelationTargets(this.ENTITY, routeConfig?.security?.authentication?.guard, ApiControllerGetListQueryPlanGet(this.targetPrototype, ApiControllerGetMethodName(EApiRouteType.GET_LIST)));
+			ApiControllerGetListTransformAssertRelationTargets(this.ENTITY, routeConfig?.security?.authentication?.guard);
 		}
 	}
 
@@ -126,7 +126,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 
 			if (method === EApiRouteType.GET_LIST) {
 				queryPlan = ApiControllerGetListQueryPlanCompiler.compile(this.target, this.properties.entity, this.ENTITY, routeConfig as TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>);
-				ApiControllerGetListTransformAssertRelationTargets(this.ENTITY, routeConfig.security?.authentication?.guard, queryPlan);
+				ApiControllerGetListTransformAssertRelationTargets(this.ENTITY, routeConfig.security?.authentication?.guard);
 
 				if (queryPlan) {
 					ApiControllerGetListQueryPlanSet(this.targetPrototype, methodName, queryPlan);

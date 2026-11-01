@@ -1,6 +1,5 @@
 import "reflect-metadata";
 
-import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 
@@ -64,14 +63,11 @@ describe("ApiControllerGetListTransformAssertRelationTargets", () => {
 		}
 	});
 
-	it("checks to-one relations only under a typed filter plan", () => {
-		const typedPlan = { filter: { isLegacy: false } } as unknown as IApiControllerGetListQueryPlan;
-		const legacyPlan = { filter: { isLegacy: true } } as unknown as IApiControllerGetListQueryPlan;
+	it("checks to-one relations only", () => {
 		const target = { name: AssertRelationDuplicateOwner.name };
 
-		expect(() => ApiControllerGetListTransformAssertRelationTargets(createEntityMetadata(target, "one-to-many"), undefined, typedPlan)).not.toThrow();
-		expect(() => ApiControllerGetListTransformAssertRelationTargets(createEntityMetadata(target, "one-to-many"), undefined, legacyPlan)).toThrowError("matches 2 entity classes");
-		expect(() => ApiControllerGetListTransformAssertRelationTargets(createEntityMetadata(target, "many-to-one"), undefined, typedPlan)).toThrowError("matches 2 entity classes");
+		expect(() => ApiControllerGetListTransformAssertRelationTargets(createEntityMetadata(target, "one-to-many"))).not.toThrow();
+		expect(() => ApiControllerGetListTransformAssertRelationTargets(createEntityMetadata(target, "many-to-many"))).not.toThrow();
 	});
 
 	it("accepts a class, a name of one entity class, and a name of no entity class", () => {
@@ -80,7 +76,7 @@ describe("ApiControllerGetListTransformAssertRelationTargets", () => {
 		expect(() => ApiControllerGetListTransformAssertRelationTargets(createEntityMetadata({ name: "AssertRelationUnknownOwner" }))).not.toThrow();
 	});
 
-	it.each(["many-to-one", "one-to-many"])("fails for a %s relation target that names several entity classes", (type) => {
+	it.each(["many-to-one", "one-to-one"])("fails for a %s relation target that names several entity classes", (type) => {
 		expect(() => ApiControllerGetListTransformAssertRelationTargets(createEntityMetadata({ name: AssertRelationDuplicateOwner.name }, type))).toThrowError(`Metadata target "${AssertRelationDuplicateOwner.name}" matches 2 entity classes in TypeORM metadata`);
 	});
 
