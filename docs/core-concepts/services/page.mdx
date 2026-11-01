@@ -116,6 +116,14 @@ await userService.delete({
 });
 ```
 
+### Query Criteria
+
+Generated methods refuse a `where` that TypeORM would widen. A condition set to `undefined` or `null`, an empty relation object such as `{ owner: {} }`, an empty OR array and an empty OR branch fail before the query runs. Match SQL `NULL` with `IsNull()` and drop a condition you do not need instead of setting it to `undefined`.
+
+`get`, `update` and `delete` target one row, so they also refuse a missing or empty `where`. Without this check TypeORM returns or changes the first row it finds. `getList` and `getMany` still accept a missing `where` and read every row.
+
+The refusal surfaces as `InternalServerErrorException`, because it is a programming error in the calling code, not bad client input.
+
 ## Custom Methods
 
 Use names other than `get`, `getList`, `getMany`, `update`, and `delete` for ordinary domain methods. Starting with the 4.0 capability boundary, generated controller routes invoke those reserved operations only when the exact function was produced for the same entity and function type by `@ApiService` or the matching built-in `@ApiFunction*` decorator. Undecorated overrides can still be called directly, but generated routes reject them before the Automator-managed route transaction or repository I/O. Prefer subscribers for generated CRUD lifecycle changes and `@ApiFunctionCustom` or a custom route for a distinct operation. See [Migrating to 4.0](/docs/nestjs-crud-automator/guides/migrating-to-4-0).
@@ -386,6 +394,18 @@ async activateUser(id: string): Promise<UserEntity> {
   );
 }
 ```
+
+## Migration Notes
+
+Before 5.0.0, a generated method passed its `where` to TypeORM unchecked. TypeORM 0.3 dropped `undefined` conditions and empty relation objects, so `get({ where: { id: undefined } })` returned the first row and `update({ id: undefined }, patch)` changed it. From 5.0.0 these calls fail with `InternalServerErrorException`, and so does any `where` with a `null` value, an empty relation object, an empty OR array or an empty OR branch.
+
+Check the places where your code builds a `where` from optional values:
+
+1. Remove a condition instead of setting it to `undefined`.
+2. Replace `null` with `IsNull()`.
+3. Stop passing `{}` or `[]` to `get`, `update` or `delete`.
+
+See [Query Criteria](#query-criteria) for the full rules.
 
 ## Next Steps
 

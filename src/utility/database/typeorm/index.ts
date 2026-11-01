@@ -1,3 +1,5 @@
+export { DatabaseTypeOrmAssertEffectiveWhere } from "./assert/effective-where.utility";
+export { DatabaseTypeOrmAssertRequiredWhere } from "./assert/required-where.utility";
 export { DatabaseTypeOrmGetForeignKeyViolationDetails } from "./get/foreign-key-violation-details.utility";
 export { DatabaseTypeOrmGetUniqueViolationDetails } from "./get/unique-violation-details.utility";
 export { DatabaseTypeOrmIsEntityMetadataNotFound } from "./is/entity/metadata-not-found.utility";

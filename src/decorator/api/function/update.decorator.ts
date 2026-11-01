@@ -27,6 +27,7 @@ import { EApiExceptionDetailsType } from "@enum/utility/exception-details-type.e
 import { BadRequestException, ConflictException, HttpException, HttpStatus, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
+import { DatabaseTypeOrmAssertRequiredWhere } from "@utility/database/typeorm/assert/required-where.utility";
 import { DatabaseTypeOrmGetForeignKeyViolationDetails } from "@utility/database/typeorm/get/foreign-key-violation-details.utility";
 import { DatabaseTypeOrmGetUniqueViolationDetails } from "@utility/database/typeorm/get/unique-violation-details.utility";
 import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
@@ -278,6 +279,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 			if (patch.readProperties.withDeleted !== true && repository.metadata.deleteDateColumn) {
 				where = AuthorizationScopeMergeWhere(where, { [repository.metadata.deleteDateColumn.propertyName]: IsNull() } as TApiFunctionUpdateCriteria<E>);
 			}
+			DatabaseTypeOrmAssertRequiredWhere(where);
 			const hasValues: boolean = Object.keys(values).length > 0;
 
 			if (hasValues) {
@@ -285,7 +287,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 					.createQueryBuilder()
 					.update()
 					.set(values as QueryDeepPartialEntity<E>)
-					.where(where ?? {})
+					.where(where)
 					.execute();
 
 				if (updateResult.affected === 0) throw new NotFoundException(ErrorString({ entity, type: EErrorStringAction.NOT_FOUND }));
@@ -301,6 +303,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionUpdateExe
 				loadEagerRelations: false,
 				where: hasValues ? patch.identity : where,
 			};
+			DatabaseTypeOrmAssertRequiredWhere(reloadProperties.where);
 			result = await repository.findOneOrFail(reloadProperties);
 		} else {
 			const updatedProperties: Partial<E> = {};

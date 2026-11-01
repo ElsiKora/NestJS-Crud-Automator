@@ -376,6 +376,8 @@ Projects configured response relations to scalar or object references.
 
 TypeORM helpers detect and explain common database errors:
 
+- `DatabaseTypeOrmAssertEffectiveWhere` refuses a `where` that TypeORM would widen or reject: an `undefined` or `null` value (use `IsNull()`), an empty relation object, an empty OR array or an empty OR branch. A missing or empty top-level `where` still reads every row. `getList` and `getMany` run it before every query.
+- `DatabaseTypeOrmAssertRequiredWhere` applies the same rules and also refuses a missing or empty `where`. `get`, `update`, `delete` and generated PATCH run it before every single-row query, so a lost criterion fails instead of matching the first row.
 - `DatabaseTypeOrmIsUniqueViolation`
 - `DatabaseTypeOrmIsForeignKeyViolation`
 - `DatabaseTypeOrmGetUniqueViolationDetails`

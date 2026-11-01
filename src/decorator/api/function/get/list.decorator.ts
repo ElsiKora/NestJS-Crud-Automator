@@ -17,6 +17,7 @@ import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } f
 import { EErrorStringAction } from "@enum/utility";
 import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
+import { DatabaseTypeOrmAssertEffectiveWhere } from "@utility/database/typeorm/assert/effective-where.utility";
 import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
 import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
 import { FormatErrorEvidenceForLog } from "@utility/error/evidence-for-log.utility";
@@ -143,6 +144,7 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionGetListEx
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
+		DatabaseTypeOrmAssertEffectiveWhere(properties.where);
 		const [items, totalCount]: [Array<E>, number] = await repository.findAndCount(properties);
 
 		const result: IApiGetListResponseResult<E> = {
