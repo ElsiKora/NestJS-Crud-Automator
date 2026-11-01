@@ -50,6 +50,15 @@ const DATE_TIME_ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> 
 
 const DATE_TIME_REJECTED_VALUES: Array<string> = ["2024-02-02T00:00:00Z", encodeURIComponent("2024-02-02T00:00:00.000+05:30"), "2024-02-02T00:00:00.000", "2024-02-02", "2024-02-02T00:00:00X000Z", "2024-02-30T00:00:00.000Z", "2024-02-02T24:00:00.000Z", "2024-02-02T00:00:60.000Z", "1706832000000", "Feb%202%202024", ""];
 
+const TIME_ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
+	{ labels: ["Beta"], query: "opensAt[operator]=eq&opensAt[value]=12:30:00" },
+	{ labels: ["Beta", "Gamma"], query: "opensAt[operator]=gte&opensAt[value]=12:30:00" },
+	{ labels: ["Alpha"], query: "opensAt[operator]=lt&opensAt[value]=12:30:00" },
+	{ labels: ["Alpha", "Beta"], query: "opensAt[operator]=between&opensAt[values]=08:00:00&opensAt[values]=12:30:00" },
+];
+
+const TIME_REJECTED_VALUES: Array<string> = ["12:30", "12:30:00.000", "24:00:00", "12:60:00", "12:30:60", "12:30:00Z", encodeURIComponent("12:30:00+05:30"), "1970-01-01T12:30:00.000Z", "noon", ""];
+
 describe.each([
 	{ databaseName: "SQLite", isPostgres: false },
 	{ databaseName: "PostgreSQL", isPostgres: true },
@@ -90,9 +99,9 @@ describe.each([
 			fastify = app.getHttpAdapter().getInstance();
 
 			await app.get(E2eLegacyQueryItemService).repository.save([
-				{ createdAt: new Date("2024-01-01T00:00:00.000Z"), isFeatured: true, label: "Alpha", note: "Noted", rank: 1, releasedOn: "2024-01-01", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "z", unsortable: "z" },
-				{ createdAt: new Date("2024-02-02T00:00:00.000Z"), isFeatured: false, label: "Beta", rank: 2, releasedOn: "2024-02-02", status: EE2eLegacyQueryStatus.ARCHIVED, undescribed: "y", unsortable: "y" },
-				{ createdAt: new Date("2024-03-03T00:00:00.000Z"), isFeatured: false, label: "Gamma", rank: 3, releasedOn: "2024-03-03", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "x", unsortable: "x" },
+				{ createdAt: new Date("2024-01-01T00:00:00.000Z"), isFeatured: true, label: "Alpha", note: "Noted", opensAt: "08:00:00", rank: 1, releasedOn: "2024-01-01", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "z", unsortable: "z" },
+				{ createdAt: new Date("2024-02-02T00:00:00.000Z"), isFeatured: false, label: "Beta", opensAt: "12:30:00", rank: 2, releasedOn: "2024-02-02", status: EE2eLegacyQueryStatus.ARCHIVED, undescribed: "y", unsortable: "y" },
+				{ createdAt: new Date("2024-03-03T00:00:00.000Z"), isFeatured: false, label: "Gamma", opensAt: "18:45:00", rank: 3, releasedOn: "2024-03-03", status: EE2eLegacyQueryStatus.ACTIVE, undescribed: "x", unsortable: "x" },
 			] as Array<E2eLegacyQueryItemEntity>);
 		});
 
@@ -117,6 +126,25 @@ describe.each([
 
 					expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.OK);
 					expect((response.json() as { items: Array<{ label: string }> }).items.map((item: { label: string }): string => item.label)).toEqual(labels);
+				});
+
+				it.each(TIME_ACCEPTED_CASES)("compares the time of day in $query as written", async ({ labels, query }: { labels: Array<string>; query: string }) => {
+					process.env.TZ = timeZone;
+
+					const response = await fastify.inject({ method: "GET", url: `${path}?${PAGE}&${query}` });
+
+					expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.OK);
+					expect((response.json() as { items: Array<{ label: string }> }).items.map((item: { label: string }): string => item.label)).toEqual(labels);
+				});
+
+				it.each(TIME_REJECTED_VALUES)("answers opensAt[value]=%s with 400 before any SQL", async (value: string) => {
+					process.env.TZ = timeZone;
+
+					const response = await fastify.inject({ method: "GET", url: `${path}?${PAGE}&opensAt[operator]=eq&opensAt[value]=${value}` });
+
+					expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.BAD_REQUEST);
+					expect(response.json()).toEqual({ error: "Bad Request", message: expect.anything(), statusCode: HttpStatus.BAD_REQUEST });
+					expect(queryLogger.queries).toEqual([]);
 				});
 
 				it.each(DATE_TIME_REJECTED_VALUES)("answers createdAt[value]=%s with 400 before any SQL", async (value: string) => {

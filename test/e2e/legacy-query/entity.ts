@@ -111,6 +111,16 @@ export class E2eLegacyQueryItemEntity {
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE, type: EApiPropertyDescribeType.DATE })
 	public releasedOn!: string;
 
+	@Column({ nullable: true, type: "time" })
+	@ApiPropertyDescribe({
+		format: EApiPropertyDateType.TIME,
+		identifier: EApiPropertyDateIdentifier.DATE,
+		isNullable: true,
+		properties: { [EApiRouteType.GET_LIST]: { [EApiDtoType.QUERY]: { useAsOrderByFilter: false } } },
+		type: EApiPropertyDescribeType.DATE,
+	})
+	public opensAt?: null | string;
+
 	@Column()
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.CREATED_AT, type: EApiPropertyDescribeType.DATE })
 	public createdAt!: Date;
