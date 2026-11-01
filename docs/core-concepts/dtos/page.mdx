@@ -210,6 +210,19 @@ Every DTO that Automator generates for a controller route is named after that co
 
 Nested names follow one recursive rule: a relation, a dynamic object variant, or a manual DTO copied into a generated DTO is named after the DTO that holds it plus the property name in PascalCase, and the variant name for a variant. A relation `owner` of `UserGetResponseDTO` is `UserGetResponseOwnerDTO`. The same relation inside variant `V1` of property `details` is `UserGetResponseDetailsV1OwnerDTO`, because its parent is `UserGetResponseDetailsV1DTO`. A relation of a request body is `<Prefix><Route>Body<Property>DTO`.
 
+The PascalCase segment of a property or variant name uppercases its first letter, removes the separators `_`, `-`, `.` and spaces, and uppercases the letter after each of them. Every other letter is kept as written:
+
+| Property or variant | Segment       |
+| ------------------- | ------------- |
+| `owner`             | `Owner`       |
+| `v2Item`            | `V2Item`      |
+| `HTMLContent`       | `HTMLContent` |
+| `userID`            | `UserID`      |
+| `ID`                | `ID`          |
+| `created_by`        | `CreatedBy`   |
+| `x-id`              | `XId`         |
+| `v2-beta`           | `V2Beta`      |
+
 A name does not depend on which other controllers exist, so adding a controller never renames another controller's schemas.
 
 A custom route declared with `@ApiRouteCustom` uses its handler method name in place of the route type, so its generated DTOs stay apart from the generated route of the same type on its controller, also when the two routes have different guards. The response DTO of a custom route is the one you configure.
@@ -218,13 +231,19 @@ Exception DTOs such as `ExceptionNotFoundDTO` are shared by all routes and keep 
 
 ### Startup Checks
 
-Because the entity name is no longer part of generated names, the controller class name must be unique. Startup fails, naming what to fix, when:
+Because the entity name is no longer part of generated names, the controller class name must be unique within an application. A decorated controller class without a name, for example `ApiController({ ... })(class {})`, fails when it is decorated. Declare a named class.
 
-- two decorated controller classes have the same schema prefix, for example two classes named `UserController` on different paths, or `User` and `UserController`. The error names both controllers and their paths.
-- a decorated controller class has no name, for example `ApiController({ ... })(class {})`. Declare a named class.
-- two different classes get the same OpenAPI component name. Every class that a generated route's schema reaches is checked at any depth: generated DTOs, DTOs you configure with `dto`, and plain Swagger classes nested in them. Examples are a GET_LIST item wrapper name set with `dto.response.name` that matches another generated name, a hand-written `UserGetResponseDTO` used on another controller, a dynamic object variant name that equals a relation name, or two table inheritance children that each nest a different class named `AddressDTO`. The error names the component and where each class comes from, such as `property address in AdminUserGetResponseHomeDTO`. Rename the hand-written class, or the controller class, property or variant that the generated name is built from.
+Everything else is checked once per application at bootstrap, over the controllers that this application contains. `@ApiController` attaches the check to the controller class, so it runs in every application that has a library controller, also when a test overrides `ApiAuthorizationGuard` or a controller is REQUEST-scoped. `app.init()` and `app.listen()` fail, naming what to fix, when:
 
-A module that is evaluated again in one process, as with webpack HMR or `vi.resetModules`, creates its controller and DTO classes again with the same names. That is not an error: a controller class with the same name and path replaces the previous one, and so does a class that gets the same component name from the same place.
+- two different decorated controller classes have the same schema prefix, for example two classes named `UserController` in two modules mounted under `admin/` and `public/` with `RouterModule`, or `User` and `UserController`. The error names both controllers with their modules and paths. A subclass or mixin of a decorated controller has the prefix of the decorated class and is not a second owner.
+- two different classes get the same OpenAPI component name. Every class that a route's schema reaches is checked at any depth, for generated routes, `@ApiRouteCustom` routes and the routes of plain `@Controller` classes alike, because Swagger puts all of them into one document: responses, body, query and parameters, generated DTOs, DTOs you configure with `dto`, and plain Swagger classes nested in them. Examples are a GET_LIST item wrapper name set with `dto.response.name` that matches another generated name, a hand-written `UserGetResponseDTO` used on another controller, on a custom route or in `@ApiOkResponse` of a plain controller, a dynamic object variant name that equals a relation name, or two table inheritance children that each nest a different class named `AddressDTO`. The error names the component and where each class comes from, such as `property address in AdminUserGetResponseHomeDTO` or `the 200 response of route getMe in controller PublicUserController`. Rename the hand-written class, or the controller class, property or variant that the generated name is built from.
+- a lazy type such as `type: () => AddressDTO` cannot be resolved. Lazy types are resolved at bootstrap, when every module has loaded. A lazy type that throws, as a class in its temporal dead zone does, or returns `undefined`, as an unfinished CommonJS circular import does, fails with the DTO and property, for example `Cannot resolve the lazy type of property address in UserGetResponseDTO`.
+
+Only the classes of one application are compared, so a module that is evaluated again in one process, as with webpack HMR or `vi.resetModules`, needs no special case: the old classes are not in the new application. Two applications in one process are checked separately. One hand-written DTO class used by several routes is not a conflict.
+
+Plain controllers have no schema prefix, so only their route schemas are checked. An application without any `@ApiController` class is not checked.
+
+The check runs in `app.init()`, which `app.listen()` calls. A script that exports the document with `SwaggerModule.createDocument` without starting the application is not checked, so call `await app.init()` before `createDocument`.
 
 A generated route on a subclass or mixin of a decorated controller, such as `class LoggedUserController extends UserController {}`, uses the DTOs of the decorated class at runtime, which are the ones the document shows.
 
@@ -252,8 +271,8 @@ From 5.0.0, every generated name starts with the controller's schema prefix, and
 - Every controller gets the prefix, including the only controller of an entity. A prefix added only when a second controller appeared would rename an existing controller's schemas whenever someone added another controller.
 - An application with several controllers on one entity gets one set of components per controller. Routes that were documented with another controller's schema now show their own.
 - Generated DTOs of a custom route use the handler method name in place of the route type. A `@ApiRouteCustom` handler `getMe` of type GET on `PublicUserController` generates `PublicUserGetMeParametersDTO`, where 4.x generated `<Entity>GetParametersDTO`.
-- Nested generated names follow one recursive rule, `<Parent><Property>DTO`, with the property in PascalCase. A relation property with an inner capital, such as `createdBy`, gives `…CreatedByDTO` where 4.x gave `…CreatedbyDTO`, and the relation of a request body gives `…Body<Property>DTO` where 4.x gave `…Body<property>DTO`.
-- The [startup checks](#startup-checks) above are new. An application that has two controller classes with the same name, an anonymous controller class, or two different classes with one component name, including hand-written DTOs, now fails at startup instead of producing a document with a missing schema.
+- Nested generated names follow one recursive rule, `<Parent><Property>DTO`, with the property in PascalCase as [defined above](#generated-schema-names): separators are removed and every other letter is kept as written. A relation property such as `createdBy`, `userID` or `created_by` gives `…CreatedByDTO`, `…UserIDDTO` or `…CreatedByDTO` where 4.x gave `…CreatedbyDTO`, `…UseridDTO` or `…Created_byDTO`, and the relation of a request body gives `…Body<Property>DTO` where 4.x gave `…Body<property>DTO`.
+- The [startup checks](#startup-checks) above are new. An application that has two controller classes with the same prefix, an anonymous controller class, two different classes with one component name, including hand-written DTOs, or a lazy type that cannot be resolved now fails at bootstrap instead of producing a document with a missing schema.
 - Low-level helpers take the prefix as a required `schemaPrefix` argument: `DtoGenerate` and `DtoGetGetListQueryBaseClass` after `dtoType`, `ApiControllerGetDto` after `routeConfig`, `ApiControllerApplyDecorators` after `decorators`, and `DtoGenerateTableInheritanceResponse` after `method`. `DtoGenerateTableInheritanceResponse` first shipped in 5.0.0-dev.2, so callers of that pre-release need the change too. `DtoGenerateGetListResponse` and `DtoGenerateGetListCursorResponse` take an optional trailing `origin` that the component name check reports. `DtoGenerate` also takes an optional trailing `routeName`. `ApiControllerGetSchemaPrefix(controllerClass)` returns the prefix Automator uses. Code that only uses `@ApiController` and `@ApiRouteCustom` needs no change.
 
 #### Old and New Name Patterns

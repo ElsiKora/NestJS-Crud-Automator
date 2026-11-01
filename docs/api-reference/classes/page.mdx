@@ -237,7 +237,7 @@ Runtime executor for generated and custom controller routes. It handles request 
 
 **Public static methods used by decorators:**
 
-- `executeGenerated(options)` runs the generated CRUD route pipeline and opens a `ROUTE`-owned transaction when configured `REQUIRED` and no owner is active.
+- `executeGenerated(options)` runs the generated CRUD route pipeline and opens a `ROUTE`-owned transaction when configured `REQUIRED` and no owner is active. `options.schemaPrefix` is required: the schema prefix of the decorated controller class, whose generated DTOs the route serializes with, also when `options.controller` is an instance of a subclass or mixin.
 - `executeCustom(options)` runs the `@ApiRouteCustom` pipeline around a custom controller operation.
 - `executeCustomRequestRelations(controller, metadata, runtimeProperties, body)` hydrates configured request relations for custom routes.
 - `executeCustomResponseRelations(controller, runtimeProperties, response)` reloads configured response relations for custom routes.
