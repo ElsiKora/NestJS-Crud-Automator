@@ -252,6 +252,8 @@ Generated request relation caveats:
 - `ErrorString({ entity, property, type: EErrorStringCompositeAction.NOT_VALID })` gives `USERENTITY_EMAIL_NOT_VALID`; `FORMAT_NOT_VALID` gives `USERENTITY_EMAIL_FORMAT_NOT_VALID`. `ErrorString({ entity, type: EErrorStringAction.PASSWORD_NOT_VALID })` gives `USERENTITY_PASSWORD_NOT_VALID`.
 - `VALIDATION_ERROR` is for a failed rule that spans the request or several fields.
 - Package codes: `FILTER_NOT_VALID`, `ORDER_NOT_VALID`, `CURSOR_NOT_VALID`, `LIMIT_NOT_VALID`, `PAGE_NOT_VALID`, `PARAMETERS_NOT_VALID`, `{ENTITY}_REFERENCE_NOT_VALID`. They were `INVALID_*` before 5.0.0.
+- A GET_LIST route without `filter`, `order`, or `pagination` configuration rejects an `orderBy` outside its generated QUERY DTO fields, or an unknown `orderDirection`, with `400 ORDER_NOT_VALID` before database work. Before 5.0.0 it failed as `500 {ENTITY}_FETCHING_LIST_ERROR`.
+- `TIMESTAMP_IN_FUTURE` renders as `{ENTITY}_TIMESTAMP_IN_FUTURE`; every `EErrorStringAction` value is its key, with or without the `{entity}_` prefix.
 - `IApiRequestValidator.errorType` accepts `EErrorStringAction` only, so no composite value works there. To return a property-level code from a validator, throw it from `validationFunction`.
 
 ## Subscriber Contexts

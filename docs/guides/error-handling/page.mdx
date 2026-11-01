@@ -100,6 +100,8 @@ Configured typed GET_LIST plans return stable `400` codes independently of the h
 
 Unknown or disabled typed-query fields fail closed instead of being silently ignored.
 
+A GET_LIST route without `filter`, `order`, or `pagination` configuration checks `orderBy` and `orderDirection` too. An `orderBy` outside the fields of its generated QUERY DTO, or an unknown `orderDirection`, returns `400 ORDER_NOT_VALID` before any database work, even when the host `ValidationPipe` does not validate the query.
+
 ## Rejected Value Codes
 
 Every code for a rejected value has one form: the name of what was rejected, then `_NOT_VALID`. The error string enums have no `INVALID_*`, `WRONG_*`, `MALFORMED_*`, or `BAD_{property}` values.
@@ -584,16 +586,18 @@ async fetchExternalData(id: string): Promise<Data> {
 
 From 5.0.0 every rejected value code uses the `{NAME}_NOT_VALID` form described in [Rejected Value Codes](#rejected-value-codes). Responses change:
 
-| Before 5.0.0                               | From 5.0.0                                 |
-| ------------------------------------------ | ------------------------------------------ |
-| `INVALID_FILTER`                           | `FILTER_NOT_VALID`                         |
-| `INVALID_ORDER`                            | `ORDER_NOT_VALID`                          |
-| `INVALID_CURSOR`                           | `CURSOR_NOT_VALID`                         |
-| `INVALID_LIMIT`, `INVALID_PAGE`            | `LIMIT_NOT_VALID`, `PAGE_NOT_VALID`        |
-| `INVALID_PARAMETERS`                       | `PARAMETERS_NOT_VALID`                     |
-| `{ENTITY}_INVALID_REFERENCE`               | `{ENTITY}_REFERENCE_NOT_VALID`             |
-| `{ENTITY}_INVALID_DYNAMIC_VALUE_SPECIFIED` | `{ENTITY}_DYNAMIC_VALUE_NOT_VALID`         |
-| `KEY_FOR_TRANSFORM_NOT_IN_OBJECT`          | `{ENTITY}_KEY_FOR_TRANSFORM_NOT_IN_OBJECT` |
+| Before 5.0.0                                                                                                                               | From 5.0.0                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| `INVALID_FILTER`                                                                                                                           | `FILTER_NOT_VALID`                         |
+| `INVALID_ORDER`                                                                                                                            | `ORDER_NOT_VALID`                          |
+| `INVALID_CURSOR`                                                                                                                           | `CURSOR_NOT_VALID`                         |
+| `INVALID_LIMIT`, `INVALID_PAGE`                                                                                                            | `LIMIT_NOT_VALID`, `PAGE_NOT_VALID`        |
+| `INVALID_PARAMETERS`                                                                                                                       | `PARAMETERS_NOT_VALID`                     |
+| `{ENTITY}_INVALID_REFERENCE`                                                                                                               | `{ENTITY}_REFERENCE_NOT_VALID`             |
+| `{ENTITY}_INVALID_DYNAMIC_VALUE_SPECIFIED`                                                                                                 | `{ENTITY}_DYNAMIC_VALUE_NOT_VALID`         |
+| `KEY_FOR_TRANSFORM_NOT_IN_OBJECT`                                                                                                          | `{ENTITY}_KEY_FOR_TRANSFORM_NOT_IN_OBJECT` |
+| `{ENTITY}_IN_FUTURE`                                                                                                                       | `{ENTITY}_TIMESTAMP_IN_FUTURE`             |
+| `500 {ENTITY}_FETCHING_LIST_ERROR` for an unsortable `orderBy` or unknown `orderDirection` on a GET_LIST route without query configuration | `400 ORDER_NOT_VALID`                      |
 
 The enum keys change too, so code that uses a removed key no longer compiles:
 
@@ -606,8 +610,13 @@ The enum keys change too, so code that uses a removed key no longer compiles:
    - the `INVALID_X`/`X_INVALID` pairs for `SESSION`, `SIGNATURE`, `TRANSACTION`, `QUERY_PARAMETER`, and `VERIFICATION_CODE`;
    - `MALFORMED_JSON`, `MALFORMED_REQUEST`, `MALFORMED_URL`, and `MALFORMED_XML` into the matching `X_NOT_VALID`.
 4. `INVALID_SIGNATURE` rendered without the entity. Its merged key, `SIGNATURE_NOT_VALID`, renders as `{ENTITY}_SIGNATURE_NOT_VALID`.
-5. `INVALID_HASHING_ALGORITM_CONFIGURED` becomes `HASHING_ALGORITHM_NOT_VALID`, which renders without the entity.
+5. Three keys also lose a trailing word, so their new names are not the old name with the prefix removed:
+   - `INVALID_DATA_SPECIFIED` becomes `DATA_NOT_VALID`;
+   - `INVALID_DYNAMIC_VALUE_SPECIFIED` becomes `DYNAMIC_VALUE_NOT_VALID`;
+   - `INVALID_HASHING_ALGORITM_CONFIGURED` becomes `HASHING_ALGORITHM_NOT_VALID`, which also fixes the spelling and renders without the entity.
 6. `EErrorStringCompositeAction.INVALID`, `BAD`, and `MALFORMED` merge into `NOT_VALID`: `USERENTITY_INVALID_EMAIL` becomes `USERENTITY_EMAIL_NOT_VALID`. `INVALID_FORMAT`, `INVALID_LENGTH`, `INVALID_REQUEST`, `INVALID_RESPONSE`, and `INVALID_STATE` become `FORMAT_NOT_VALID`, `LENGTH_NOT_VALID`, `REQUEST_NOT_VALID`, `RESPONSE_NOT_VALID`, and `STATE_NOT_VALID`, with the property first.
+
+7. `TIMESTAMP_IN_FUTURE` keeps its key but now renders as its key, `{ENTITY}_TIMESTAMP_IN_FUTURE`, instead of `{ENTITY}_IN_FUTURE`.
 
 Update clients and error mappings that match these strings.
 
