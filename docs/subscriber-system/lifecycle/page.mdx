@@ -26,7 +26,7 @@ Understanding the execution order of subscribers and operations is crucial for i
 17. HTTP Response sent to client
 ```
 
-With route `REQUIRED`, steps 6–11 share one transaction manager, and step 12 completes before response handling. Omitted route config and `SUPPORTS` do not open a route transaction; an inner function configured as `REQUIRED` can still own its narrower transaction and commit before the generated response reload. A [scoped `CREATE`](/docs/nestjs-crud-automator/guides/authorization#scoped-create) is the exception: under those modes it opens a route transaction as well, so function subscribers on steps 8–11 receive `eventManager`, and a row that step 11 cannot find through the scope rolls back and answers `403`.
+With route `REQUIRED`, steps 6–11 share one transaction manager, and step 12 completes before response handling. Omitted route config and `SUPPORTS` do not open a route transaction; an inner function configured as `REQUIRED` can still own its narrower transaction and commit before the generated response reload. A [scoped `CREATE`](/docs/nestjs-crud-automator/guides/authorization#scoped-create) is the exception: under those modes it opens a route transaction as well, so function subscribers on steps 8–11 receive `eventManager`, and a row that step 11 cannot find through the scope rolls back and answers `403`. Step 10 has already run by then, so its side effects outside the transaction are not undone, and steps 13–16 do not run.
 
 ### Update Operation
 

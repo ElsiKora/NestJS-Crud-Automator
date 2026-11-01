@@ -225,7 +225,7 @@ Custom routes that query on their own must apply `decision.scope.where`; ignorin
 
 ## Scoped CREATE
 
-Do not describe a scoped CREATE as checked before the insert. The row is written, reloaded through the scope, and rolled back on a miss, so the refusal needs a transactional engine and a connection per transaction: on MySQL MyISAM the row stays after the `403`, and on SQLite all transactions share one connection, so concurrent requests can answer `500`, commit a refused row, lose a `201` row, or read uncommitted rows. Function `onAfterCreate` subscribers run before the reload and may see a row that is rolled back; external side effects belong in `onAfterCommit`.
+Do not describe a scoped CREATE as checked before the insert. The row is written, reloaded through the scope, and rolled back on a miss, so the refusal needs a transactional engine and a connection per transaction: on MySQL MyISAM the row stays after the `403`, and on SQLite all transactions share one connection, so concurrent requests can answer `500`, commit a refused row, lose a `201` row, or read uncommitted rows. Function `onAfterCreate` subscribers run before the reload, so on a `403` they have already finished and may have seen a row that is rolled back. The rollback undoes only their writes through `DATA.repository`; an email, a queue message, or another side effect outside the transaction is not undone, so such effects belong in `onAfterCommit`.
 
 Do not catch the `403` inside an outer `ApiFunctionTransactionScope` and let the outer work complete: the outer owner commits and the out-of-scope row stays. Do not configure `NONE` on a route that carries a scope, or on any service function on its path, including relation hydration: the route answers `500` and persists nothing.
 
