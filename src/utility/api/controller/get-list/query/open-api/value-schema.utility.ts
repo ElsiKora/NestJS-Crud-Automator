@@ -5,9 +5,11 @@ import { EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType 
 import { EnumValues } from "@utility/enum/values.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
+const CALENDAR_DATE_LENGTH: number = "YYYY-MM-DD".length;
+
 /**
  * Builds the scalar OpenAPI value schema shared by every operator branch for a field.
- * Number bounds and string format, length and pattern are the same constraints the route validates through the generated QUERY DTO.
+ * Number bounds, string format, length and pattern, and the calendar text of a `date` column are the same constraints the route validates through the generated QUERY DTO.
  * @param {TApiPropertyDescribeProperties} metadata - Entity property metadata resolved into the query plan.
  * @returns {TSwaggerSchemaObject} OpenAPI schema for one scalar filter operand.
  */
@@ -22,7 +24,9 @@ export function ApiControllerGetListQueryOpenApiValueSchema(metadata: TApiProper
 		}
 
 		case EApiPropertyDescribeType.DATE: {
-			return { format: "format" in metadata ? metadata.format : EApiPropertyDateType.DATE_TIME, type: "string" };
+			const format: EApiPropertyDateType = "format" in metadata ? metadata.format : EApiPropertyDateType.DATE_TIME;
+
+			return format === EApiPropertyDateType.DATE ? { format, maxLength: CALENDAR_DATE_LENGTH, minLength: CALENDAR_DATE_LENGTH, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", type: "string" } : { format, type: "string" };
 		}
 
 		case EApiPropertyDescribeType.ENUM: {

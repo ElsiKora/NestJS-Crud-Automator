@@ -135,6 +135,7 @@ export class E2eLegacyQueryOrderOnlyItemController {
 							label: { allowedOperations: [EFilterOperation.CONT, EFilterOperation.EQ, EFilterOperation.IN], isEnabled: true },
 							note: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.ISNULL, EFilterOperation.NOTNULL], isEnabled: true },
 							rank: { allowedOperations: [EFilterOperation.BETWEEN, EFilterOperation.EQ, EFilterOperation.GT, EFilterOperation.IN, EFilterOperation.NOTIN], isEnabled: true },
+							// A date column is a string property, so the config type offers only string operations; the runtime compares it as a date.
 							releasedOn: { allowedOperations: [EFilterOperation.BETWEEN, EFilterOperation.EQ, EFilterOperation.GTE, EFilterOperation.LT], isEnabled: true } as never,
 							status: { allowedOperations: [EFilterOperation.EQ, EFilterOperation.IN], isEnabled: true },
 						},

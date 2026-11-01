@@ -5,12 +5,13 @@ import type { FindOperator } from "typeorm";
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "@constant/factory-dto-get-list-query.constant";
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
-import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode, EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
+import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
 import { EFilterOperand, EFilterOperation, EFilterOrderDirection } from "@enum/filter";
 import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { EnumValues } from "@utility/enum/values.utility";
+import { IsCalendarDate } from "@utility/is/calendar-date.utility";
 
 // A date-time filter value is a calendar date, or a date, a "T" or a space, a time of day, and an optional `Z` or numeric offset with minutes.
 const DATE_VALUE_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}$/u;
@@ -384,6 +385,14 @@ export class ApiControllerGetListQueryRuntime {
 			}
 
 			case EApiPropertyDescribeType.DATE: {
+				if ("format" in field.metadata && field.metadata.format === EApiPropertyDateType.DATE) {
+					if (IsCalendarDate(value)) {
+						return value;
+					}
+
+					break;
+				}
+
 				const date: Date = value instanceof Date ? value : new Date(value as string);
 
 				if (!Number.isNaN(date.getTime())) {

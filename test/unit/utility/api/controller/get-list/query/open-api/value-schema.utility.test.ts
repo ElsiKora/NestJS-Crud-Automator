@@ -12,7 +12,17 @@ describe("ApiControllerGetListQueryOpenApiValueSchema", () => {
 			type: EApiPropertyDescribeType.DATE,
 		});
 
-		expect(schema).toMatchObject({ format: EApiPropertyDateType.DATE, type: "string" });
+		expect(schema).toEqual({ format: EApiPropertyDateType.DATE, maxLength: 10, minLength: 10, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", type: "string" });
+	});
+
+	it("publishes date-time values without the calendar pattern", () => {
+		const schema = ApiControllerGetListQueryOpenApiValueSchema({
+			format: EApiPropertyDateType.DATE_TIME,
+			identifier: EApiPropertyDateIdentifier.CREATED_AT,
+			type: EApiPropertyDescribeType.DATE,
+		});
+
+		expect(schema).toEqual({ format: EApiPropertyDateType.DATE_TIME, type: "string" });
 	});
 
 	it("documents heterogeneous enum values without a false scalar type", () => {

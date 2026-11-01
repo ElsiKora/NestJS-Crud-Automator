@@ -42,6 +42,7 @@ import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateRelationEntityInformation } from "@utility/generate-relation-entity-information.utility";
 import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
 import { ResolveMetadataTarget } from "@utility/resolve/metadata-target.utility";
+import { IsCalendarDate } from "@utility/is/calendar-date.utility";
 import { getMetadataArgsStorage } from "typeorm";
 
 const CURSOR_RESPONSE_PROPERTY_COUNT: number = 3;
@@ -1076,7 +1077,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 			}
 
 			case EApiPropertyDescribeType.DATE: {
-				isValid = value instanceof Date && !Number.isNaN(value.getTime());
+				isValid = "format" in field.metadata && field.metadata.format === EApiPropertyDateType.DATE ? IsCalendarDate(value) : value instanceof Date && !Number.isNaN(value.getTime());
 
 				break;
 			}
