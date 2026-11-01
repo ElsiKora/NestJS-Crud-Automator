@@ -159,8 +159,10 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 		}
 	}
 
-	// Statuses without an ApiMethod flag, such as a request validator answering 422
-	for (const status of errorStatuses.filter((errorStatus: number): errorStatus is HttpStatus => EnumIsValue(HttpStatus, errorStatus) && !FLAGGED_ERROR_STATUSES.has(errorStatus))) {
+	// Statuses without an ApiMethod flag, such as a request validator answering 422, unless the route documents the status itself
+	const documentedStatuses: ReadonlySet<unknown> = new Set<unknown>((routeConfig.documentation?.response?.statuses ?? []).map((response: { status: unknown }): unknown => response.status));
+
+	for (const status of errorStatuses.filter((errorStatus: number): errorStatus is HttpStatus => EnumIsValue(HttpStatus, errorStatus) && !FLAGGED_ERROR_STATUSES.has(errorStatus) && !documentedStatuses.has(errorStatus))) {
 		customDecorators.push(ApiResponse({ description: STATUS_CODES[status] ?? HttpStatus[status], status, type: DtoGenerateException(status) }));
 	}
 

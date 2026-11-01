@@ -665,6 +665,40 @@ describe("ApiMethod", () => {
 		});
 	});
 
+	describe("throttling and body parser error responses", () => {
+		const withoutErrors = (overrides: Partial<IApiRouteMetadata<MethodEntity>> = {}): IApiRouteMetadata<MethodEntity> => createMetadata({ response: { status: HttpStatus.OK, type: undefined }, ...overrides });
+
+		it("declares 429 once for a route with default throttling", () => {
+			applyDecorator(ApiMethod({ metadata: withoutErrors({ throttling: { default: { limit: 1, ttl: 1000 } } }) }));
+
+			expect(readApiResponses()[String(HttpStatus.TOO_MANY_REQUESTS)]).toMatchObject({ description: "Too Many Requests" });
+		});
+
+		it("declares no 429 for a route without throttling", () => {
+			applyDecorator(ApiMethod({ metadata: withoutErrors() }));
+
+			expect(readApiResponses()).not.toHaveProperty(String(HttpStatus.TOO_MANY_REQUESTS));
+		});
+
+		it.each([[RequestMethod.PATCH], [RequestMethod.POST], [RequestMethod.PUT]])("declares 400, 413, and 415 for the body of method %s", (method: RequestMethod) => {
+			applyDecorator(ApiMethod({ metadata: withoutErrors({ route: { method, path: "/body" } }) }));
+
+			expect(Object.keys(readApiResponses()).filter((status: string): boolean => Number(status) >= HttpStatus.BAD_REQUEST)).toEqual([String(HttpStatus.BAD_REQUEST), String(HttpStatus.PAYLOAD_TOO_LARGE), String(HttpStatus.UNSUPPORTED_MEDIA_TYPE)]);
+		});
+
+		it.each([[RequestMethod.DELETE], [RequestMethod.GET]])("declares no body parser status for method %s", (method: RequestMethod) => {
+			applyDecorator(ApiMethod({ metadata: withoutErrors({ route: { method, path: "/body" } }) }));
+
+			expect(Object.keys(readApiResponses()).filter((status: string): boolean => Number(status) >= HttpStatus.BAD_REQUEST)).toEqual([]);
+		});
+
+		it("declares 400 once for a body route that also flags it", () => {
+			applyDecorator(ApiMethod({ metadata: createMetadata() }));
+
+			expect(readApiResponses()[String(HttpStatus.BAD_REQUEST)]).toMatchObject({ description: "Bad Request" });
+		});
+	});
+
 	it("throws for unsupported HTTP methods", () => {
 		const invoke = () => ApiMethod({ metadata: createMetadata({ route: { method: RequestMethod.OPTIONS, path: "/", type: EApiRouteType.CREATE } }) });
 

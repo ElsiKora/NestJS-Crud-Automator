@@ -4,10 +4,11 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
-import { EApiAuthenticationType, EApiDtoType, EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
+import { EApiAuthenticationType, EApiControllerRequestTarget, EApiDtoType, EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
+import { EErrorStringAction } from "@enum/utility";
 import { RequestBodyShapeInterceptor } from "@interceptor/request-body-shape.interceptor";
 import { GUARDS_METADATA, INTERCEPTORS_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/internal";
-import { HttpStatus, RequestMethod } from "@nestjs/common";
+import { HttpStatus, RequestMethod, UnprocessableEntityException } from "@nestjs/common";
 import { SWAGGER_TEST_METADATA_CONSTANT } from "@test/unit/fixture";
 import { ApiControllerApplyDecorators } from "@utility/api/controller/apply/decorators.utility";
 import { describe, expect, it } from "vitest";
@@ -159,6 +160,31 @@ describe("ApiControllerApplyDecorators", () => {
 		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PRODUCES, targetMethod)).toEqual(["application/vnd.generated+json"]);
 		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.PARAMETERS, targetMethod)).toEqual([expect.objectContaining({ in: "header", name: "X-Route-Proof", required: true })]);
 		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, targetMethod)?.[HttpStatus.PAYLOAD_TOO_LARGE]).toEqual({ description: "Generated request is too large." });
+	});
+
+	it("keeps a documented status instead of the status the route declares for it", () => {
+		const routeConfig: TApiControllerPropertiesRoute<DecoratorEntity, EApiRouteType.CREATE> = {
+			documentation: {
+				response: {
+					statuses: [
+						{ description: "Documented bad request.", status: HttpStatus.BAD_REQUEST },
+						{ description: "Documented rejection.", status: HttpStatus.UNPROCESSABLE_ENTITY },
+					],
+				},
+			},
+			dto: {
+				[EApiDtoType.RESPONSE]: DecoratorEntity,
+			},
+			request: {
+				[EApiControllerRequestTarget.BODY]: { validators: [{ errorType: EErrorStringAction.VALIDATION_ERROR, exception: UnprocessableEntityException, validationFunction: (): boolean => true }] },
+			},
+		} as never;
+		const targetMethod = () => undefined;
+
+		ApiControllerApplyDecorators(targetMethod as never, entityMetadata, properties, EApiRouteType.CREATE, "create", routeConfig, [], "TestController");
+
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, targetMethod)?.[HttpStatus.BAD_REQUEST]).toEqual({ description: "Documented bad request." });
+		expect(Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, targetMethod)?.[HttpStatus.UNPROCESSABLE_ENTITY]).toEqual({ description: "Documented rejection." });
 	});
 
 	it("orders staged generated route guards around authentication and authorization", () => {

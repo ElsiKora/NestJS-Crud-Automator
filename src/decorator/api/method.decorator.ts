@@ -4,17 +4,22 @@ import type { IApiRouteSecurityRequirement } from "@interface/decorator/api/rout
 import type { CanActivate, Type } from "@nestjs/common";
 import type { TSwaggerSecurityRequirementObject } from "@type/swagger";
 
+import { STATUS_CODES } from "node:http";
+
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiRouteGuardStage, EApiRouteType } from "@enum/decorator/api";
 import { RequestBodyShapeInterceptor } from "@interceptor/request-body-shape.interceptor";
 import { applyDecorators, Delete, Get, HttpCode, HttpStatus, Patch, Post, Put, RequestMethod, SetMetadata, UseGuards, UseInterceptors } from "@nestjs/common";
-import { ApiBadRequestResponse, ApiConflictResponse, ApiConsumes, ApiExtraModels, ApiForbiddenResponse, ApiHeaders, ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOperation, ApiProduces, ApiResponse, ApiSecurity, ApiTooManyRequestsResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
+import { ApiConsumes, ApiExtraModels, ApiHeaders, ApiOperation, ApiProduces, ApiResponse, ApiSecurity } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema } from "@utility/api/route/discriminator";
 import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
 import { DtoGenerateException } from "@utility/dto/generate/exception.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+
+// Methods whose body the body parser reads before the route runs
+const REQUEST_BODY_METHODS: ReadonlySet<RequestMethod> = new Set<RequestMethod>([RequestMethod.PATCH, RequestMethod.POST, RequestMethod.PUT]);
 
 /**
  * Composes Nest route, Swagger, throttling, authentication, and route metadata decorators.
@@ -139,33 +144,32 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 	// An authentication guard can reject or refuse, and any route guard can refuse
 	const hasAuthentication: boolean = metadata.security?.authentication !== undefined;
 	const hasForbidden: boolean = !!errors?.hasForbidden || hasAuthentication || (options.execution?.guards?.length ?? 0) > 0;
+	// The body parser refuses a malformed, oversized, or unsupported body
+	const hasRequestBody: boolean = REQUEST_BODY_METHODS.has(metadata.route.method);
+	// A status the route documents itself replaces the default response of that status, since Swagger joins two declarations
+	const documentedStatuses: ReadonlySet<unknown> = new Set<unknown>((metadata.documentation?.response?.statuses ?? []).map((response: { status: unknown }): unknown => response.status));
 
-	if (errors?.hasUnauthorized || hasAuthentication) {
-		decorators.push(ApiUnauthorizedResponse({ description: "Unauthorized", type: DtoGenerateException(HttpStatus.UNAUTHORIZED) }));
+	const errorStatuses: Array<[boolean, HttpStatus]> = [
+		[!!errors?.hasUnauthorized || hasAuthentication, HttpStatus.UNAUTHORIZED],
+		[hasForbidden, HttpStatus.FORBIDDEN],
+		[!!errors?.hasInternalServerError, HttpStatus.INTERNAL_SERVER_ERROR],
+		[!!errors?.hasNotFound, HttpStatus.NOT_FOUND],
+		[!!errors?.hasBadRequest || hasRequestBody, HttpStatus.BAD_REQUEST],
+		[!!errors?.hasConflict, HttpStatus.CONFLICT],
+		[hasRequestBody, HttpStatus.PAYLOAD_TOO_LARGE],
+		[hasRequestBody, HttpStatus.UNSUPPORTED_MEDIA_TYPE],
+		// The ThrottlerGuard answers 429 once it counts the route over its limit
+		[!!errors?.hasTooManyRequests || metadata.throttling?.default !== undefined, HttpStatus.TOO_MANY_REQUESTS],
+	];
+
+	for (const [isDeclared, status] of errorStatuses) {
+		if (isDeclared && !documentedStatuses.has(status)) {
+			decorators.push(ApiResponse({ description: STATUS_CODES[status], status, type: DtoGenerateException(status) }));
+		}
 	}
 
-	if (hasForbidden) {
-		decorators.push(ApiForbiddenResponse({ description: "Forbidden", type: DtoGenerateException(HttpStatus.FORBIDDEN) }), SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_FORBIDDEN_RESPONSE_METADATA_KEY, true));
-	}
-
-	if (errors?.hasInternalServerError) {
-		decorators.push(ApiInternalServerErrorResponse({ description: "Internal Server Error", type: DtoGenerateException(HttpStatus.INTERNAL_SERVER_ERROR) }));
-	}
-
-	if (errors?.hasNotFound) {
-		decorators.push(ApiNotFoundResponse({ description: "Not Found", type: DtoGenerateException(HttpStatus.NOT_FOUND) }));
-	}
-
-	if (errors?.hasBadRequest) {
-		decorators.push(ApiBadRequestResponse({ description: "Bad Request", type: DtoGenerateException(HttpStatus.BAD_REQUEST) }));
-	}
-
-	if (errors?.hasConflict) {
-		decorators.push(ApiConflictResponse({ description: "Conflict", type: DtoGenerateException(HttpStatus.CONFLICT) }));
-	}
-
-	if (errors?.hasTooManyRequests) {
-		decorators.push(ApiTooManyRequestsResponse({ description: "Too Many Requests", type: DtoGenerateException(HttpStatus.TOO_MANY_REQUESTS) }));
+	if (hasForbidden || documentedStatuses.has(HttpStatus.FORBIDDEN)) {
+		decorators.push(SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_FORBIDDEN_RESPONSE_METADATA_KEY, true));
 	}
 
 	// eslint-disable-next-line @elsikora/typescript/switch-exhaustiveness-check

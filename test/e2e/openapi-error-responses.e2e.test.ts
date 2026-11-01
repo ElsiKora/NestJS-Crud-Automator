@@ -6,16 +6,19 @@ import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import type { Repository } from "typeorm";
 
 import { ForbiddenException, HttpStatus, Inject, Injectable, RequestMethod, UnauthorizedException, UnprocessableEntityException, ValidationPipe } from "@nestjs/common";
-import { HttpAdapterHost } from "@nestjs/core";
+import { APP_GUARD, HttpAdapterHost } from "@nestjs/core";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Ajv } from "ajv";
 import addFormats from "ajv-formats";
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
+import type { IApiPolicyAttachmentSource, IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "../../src/index";
 
 import {
 	ApiAuthorizationModule,
@@ -37,10 +40,13 @@ import {
 	DtoGenerateException,
 	EApiAuthenticationType,
 	EApiAuthorizationMode,
+	EApiAuthorizationPrincipalType,
 	EApiControllerGetListQueryPaginationMode,
 	EApiControllerGetListQueryUnlistedFields,
 	EApiControllerRelationReferenceShape,
 	EApiControllerRequestTarget,
+	EApiPolicyEffect,
+	EApiPolicySourceType,
 	EApiPropertyDescribeType,
 	EApiPropertyNumberType,
 	EApiPropertyStringType,
@@ -58,12 +64,15 @@ interface IExceptionFilterMode {
 }
 
 interface IWireCase {
+	body?: string;
+	contentType?: string;
 	expectedStatus: HttpStatus;
 	headers?: Record<string, string>;
 	method: "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
 	name: string;
 	operation: { method: TSwaggerMethod; path: string };
 	payload?: Record<string, unknown>;
+	precedingRequests?: number;
 	url: string;
 }
 
@@ -125,6 +134,17 @@ class OpenApiErrorSecuredItemEntity {
 	public rank!: number;
 }
 
+@Entity("openapi_error_iam_items")
+class OpenApiErrorIamItemEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe({ ...STRING_PROPERTY, description: "id", exampleValue: "iam-1" })
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({ ...STRING_PROPERTY, description: "name", exampleValue: "Item" })
+	public name!: string;
+}
+
 @Injectable()
 @ApiService({ entity: OpenApiErrorOwnerEntity })
 class OpenApiErrorOwnerService extends ApiServiceBase<OpenApiErrorOwnerEntity> {
@@ -147,10 +167,24 @@ class OpenApiErrorSecuredItemService extends ApiServiceBase<OpenApiErrorSecuredI
 }
 
 @Injectable()
+@ApiService({ entity: OpenApiErrorIamItemEntity })
+class OpenApiErrorIamItemService extends ApiServiceBase<OpenApiErrorIamItemEntity> {
+	@InjectRepository(OpenApiErrorIamItemEntity)
+	public readonly repository!: Repository<OpenApiErrorIamItemEntity>;
+}
+
+/**
+ * Authenticates the `x-user-id` header and fails with an unexpected error on the `x-auth-crash` header.
+ */
+@Injectable()
 class OpenApiErrorAuthenticationGuard implements CanActivate {
 	public canActivate(context: ExecutionContext): boolean {
 		const request: { headers: Record<string, string | undefined>; user?: unknown } = context.switchToHttp().getRequest();
 		const userId: string | undefined = request.headers["x-user-id"];
+
+		if (request.headers["x-auth-crash"]) {
+			throw new Error("authentication backend failure");
+		}
 
 		if (!userId) {
 			throw new UnauthorizedException();
@@ -163,12 +197,16 @@ class OpenApiErrorAuthenticationGuard implements CanActivate {
 }
 
 /**
- * Refuses every request that carries the `x-block` header by returning false, which Nest answers with its own 403.
+ * Refuses every request that carries the `x-block` header by returning false, which Nest answers with its own 403, and fails on the `x-guard-crash` header.
  */
 @Injectable()
 class OpenApiErrorBlockGuard implements CanActivate {
 	public canActivate(context: ExecutionContext): boolean {
 		const request: { headers: Record<string, string | undefined> } = context.switchToHttp().getRequest();
+
+		if (request.headers["x-guard-crash"]) {
+			throw new Error("guard failure");
+		}
 
 		return !request.headers["x-block"];
 	}
@@ -252,6 +290,29 @@ class OpenApiErrorSecuredItemRouteSubscriber extends ApiRouteSubscriberBase<Open
 	public onBeforeUpdate = explodeOnHeader;
 }
 
+const IAM_ALLOWED_USER: string = "iam-allowed";
+const IAM_CRASH_USER: string = "iam-crash";
+const IAM_NAMESPACE: string = "openapi-error:iam";
+
+// The crash user is attached to a policy whose document source fails
+const iamAttachmentSource: IApiPolicyAttachmentSource = {
+	getAttachments(principal) {
+		const policyId: string | undefined = ({ [IAM_ALLOWED_USER]: "allow", [IAM_CRASH_USER]: "crash" } as Record<string, string>)[principal.id];
+
+		return Promise.resolve({ attachments: policyId ? [{ policyId, principalId: principal.id, principalType: EApiAuthorizationPrincipalType.USER }] : [], boundaries: [] });
+	},
+};
+
+const iamDocumentSource: IApiPolicyDocumentSource = {
+	getDocumentsByIds(ids: ReadonlyArray<string>): Promise<ReadonlyArray<IApiPolicyDocumentRecord>> {
+		if (ids.includes("crash")) {
+			return Promise.reject(new Error("policy store failure"));
+		}
+
+		return Promise.resolve(ids.includes("allow") ? [{ document: { Statement: [{ Action: [`${IAM_NAMESPACE}:*`], Effect: EApiPolicyEffect.ALLOW, Resource: [`${IAM_NAMESPACE}/*`] }], Version: "2012-10-17" }, id: "allow", namespace: IAM_NAMESPACE, sourceType: EApiPolicySourceType.MANAGED, version: "1" }] : []);
+	},
+};
+
 const authentication = { guard: OpenApiErrorAuthenticationGuard, type: EApiAuthenticationType.USER };
 const execution = { guards: [OpenApiErrorBlockGuard] };
 
@@ -280,6 +341,8 @@ const execution = { guards: [OpenApiErrorBlockGuard] };
 				},
 			},
 		},
+		// Guards on a controller without authorization
+		[EApiRouteType.GET]: { execution, security: { authentication } },
 		[EApiRouteType.GET_LIST]: {
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
@@ -306,6 +369,30 @@ class OpenApiErrorItemController {
 	})
 	public summary(): { isReady: boolean } {
 		return { isReady: true };
+	}
+
+	@ApiRouteCustom<OpenApiErrorItemEntity>({
+		resource: { action: "items.throttled", entity: OpenApiErrorItemEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.GET, path: "custom/throttled" },
+		throttling: { default: { limit: 1, ttl: 60_000 } },
+	})
+	public throttled(): { isReady: boolean } {
+		return { isReady: true };
+	}
+}
+
+/**
+ * Custom route that a securable and a plain controller of the same entity both inherit.
+ */
+class OpenApiErrorSharedStatusRoutes {
+	@ApiRouteCustom<OpenApiErrorSecuredItemEntity>({
+		resource: { action: "secured-items.status", entity: OpenApiErrorSecuredItemEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.GET, path: "custom/status" },
+	})
+	public status(): { isShared: boolean } {
+		return { isShared: true };
 	}
 }
 
@@ -339,7 +426,7 @@ class OpenApiErrorItemController {
 		[EApiRouteType.UPDATE]: { execution, security: { authentication } },
 	},
 })
-class OpenApiErrorSecuredItemController {
+class OpenApiErrorSecuredItemController extends OpenApiErrorSharedStatusRoutes {
 	@Inject(OpenApiErrorSecuredItemService)
 	public readonly service!: OpenApiErrorSecuredItemService;
 
@@ -365,7 +452,49 @@ class OpenApiErrorSecuredItemController {
 	}
 }
 
-const ENTITIES: Array<new () => object> = [OpenApiErrorOwnerEntity, OpenApiErrorItemEntity, OpenApiErrorSecuredItemEntity];
+@ApiController<OpenApiErrorSecuredItemEntity>({
+	entity: OpenApiErrorSecuredItemEntity,
+	name: "OpenApiErrorPublicItems",
+	path: "openapi-error-public-items",
+	routes: {
+		[EApiRouteType.CREATE]: { generation: { isEnabled: false } },
+		[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
+		[EApiRouteType.GET]: { generation: { isEnabled: false } },
+		[EApiRouteType.GET_LIST]: { generation: { isEnabled: false } },
+		[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
+		[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
+	},
+})
+class OpenApiErrorPublicItemController extends OpenApiErrorSharedStatusRoutes {
+	@Inject(OpenApiErrorSecuredItemService)
+	public readonly service!: OpenApiErrorSecuredItemService;
+}
+
+@ApiControllerSecurable()
+@ApiController<OpenApiErrorIamItemEntity>({
+	authorization: {
+		defaultMode: EApiAuthorizationMode.IAM,
+		policyNamespace: IAM_NAMESPACE,
+		resourceDefinition: { entity: OpenApiErrorIamItemEntity, fields: [{ isFilterable: true, path: "resource.id", queryPath: "id" }], namespace: IAM_NAMESPACE, resourcePath: `${IAM_NAMESPACE}/{id}`, resourceType: IAM_NAMESPACE },
+	},
+	entity: OpenApiErrorIamItemEntity,
+	name: "OpenApiErrorIamItems",
+	path: "openapi-error-iam-items",
+	routes: {
+		[EApiRouteType.CREATE]: { generation: { isEnabled: false } },
+		[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
+		[EApiRouteType.GET]: { security: { authentication } },
+		[EApiRouteType.GET_LIST]: { generation: { isEnabled: false } },
+		[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
+		[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
+	},
+})
+class OpenApiErrorIamItemController {
+	@Inject(OpenApiErrorIamItemService)
+	public readonly service!: OpenApiErrorIamItemService;
+}
+
+const ENTITIES: Array<new () => object> = [OpenApiErrorOwnerEntity, OpenApiErrorItemEntity, OpenApiErrorSecuredItemEntity, OpenApiErrorIamItemEntity];
 
 const ITEMS: string = "/openapi-error-items";
 const ITEM: string = "/openapi-error-items/{id}";
@@ -374,6 +503,11 @@ const SECURED_ITEM: string = "/openapi-error-secured-items/{id}";
 const ITEM_SUMMARY: string = "/openapi-error-items/custom/summary";
 const SECURED_EXPORT: string = "/openapi-error-secured-items/custom/export";
 const SECURED_PING: string = "/openapi-error-secured-items/custom/ping";
+const ITEM_THROTTLED: string = "/openapi-error-items/custom/throttled";
+const SECURED_STATUS: string = "/openapi-error-secured-items/custom/status";
+const PUBLIC_STATUS: string = "/openapi-error-public-items/custom/status";
+const IAM_ITEMS: string = "/openapi-error-iam-items";
+const IAM_ITEM: string = "/openapi-error-iam-items/{id}";
 
 const OWNER_ID: string = "3c2b1a09-8f7e-4d6c-9b5a-4e3d2c1b0a9f";
 const OWNER_MISSING_ID: string = "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a";
@@ -385,6 +519,11 @@ const ADMIN_HEADERS: Record<string, string> = { "x-role": "admin", "x-user-id": 
 const DENIED_HEADERS: Record<string, string> = { "x-role": "guest", "x-user-id": "guest-1" };
 const BLOCKED_HEADERS: Record<string, string> = { ...ADMIN_HEADERS, "x-block": "true" };
 const FORBIDDEN_HEADERS: Record<string, string> = { ...ADMIN_HEADERS, "x-forbid": "true" };
+const GUARD_CRASH_HEADERS: Record<string, string> = { ...ADMIN_HEADERS, "x-guard-crash": "true" };
+const AUTHENTICATION_CRASH_HEADERS: Record<string, string> = { "x-auth-crash": "true" };
+const IAM_ALLOWED_HEADERS: Record<string, string> = { "x-user-id": IAM_ALLOWED_USER };
+const IAM_DENIED_HEADERS: Record<string, string> = { "x-user-id": "iam-denied" };
+const IAM_CRASH_HEADERS: Record<string, string> = { "x-user-id": IAM_CRASH_USER };
 
 const LONG_ID: string = "x".repeat(65);
 const EXPLODE: Record<string, string> = { "x-explode": "true" };
@@ -397,10 +536,10 @@ const ADMIN_EXPLODE: Record<string, string> = { ...ADMIN_HEADERS, ...EXPLODE };
  * @param {HttpStatus} expectedStatus - Status the request must produce.
  * @param {string} name - Case name.
  * @param {string} url - Request URL.
- * @param {Pick<IWireCase, "headers" | "payload">} [request] - Headers and payload.
+ * @param {Pick<IWireCase, "body" | "contentType" | "headers" | "payload" | "precedingRequests">} [request] - Headers, payload or raw body, and the requests sent before it.
  * @returns {IWireCase} The wire case.
  */
-function wireCase(method: TSwaggerMethod, path: string, expectedStatus: HttpStatus, name: string, url: string, request: Pick<IWireCase, "headers" | "payload"> = {}): IWireCase {
+function wireCase(method: TSwaggerMethod, path: string, expectedStatus: HttpStatus, name: string, url: string, request: Pick<IWireCase, "body" | "contentType" | "headers" | "payload" | "precedingRequests"> = {}): IWireCase {
 	return { ...request, expectedStatus, method: method.toUpperCase() as IWireCase["method"], name: `${method} ${path} ${String(expectedStatus)} ${name}`, operation: { method, path }, url };
 }
 
@@ -416,9 +555,9 @@ const WIRE_CASES: Array<IWireCase> = [
 	wireCase("post", ITEMS, HttpStatus.INTERNAL_SERVER_ERROR, "unexpected failure", ITEMS, { headers: EXPLODE, payload: ITEM_BODY }),
 	wireCase("get", ITEMS, HttpStatus.BAD_REQUEST, "typed filter", `${ITEMS}?limit=10&page=1&code[operator]=eq&code[value]=x`),
 	wireCase("get", ITEMS, HttpStatus.INTERNAL_SERVER_ERROR, "unexpected failure", `${ITEMS}?limit=10&page=1`, { headers: EXPLODE }),
-	wireCase("get", ITEM, HttpStatus.BAD_REQUEST, "path DTO validation", `${ITEMS}/${LONG_ID}`),
-	wireCase("get", ITEM, HttpStatus.NOT_FOUND, "row not found", `${ITEMS}/item-missing`),
-	wireCase("get", ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "unexpected failure", `${ITEMS}/item-1`, { headers: EXPLODE }),
+	wireCase("get", ITEM, HttpStatus.BAD_REQUEST, "path DTO validation", `${ITEMS}/${LONG_ID}`, { headers: ADMIN_HEADERS }),
+	wireCase("get", ITEM, HttpStatus.NOT_FOUND, "row not found", `${ITEMS}/item-missing`, { headers: ADMIN_HEADERS }),
+	wireCase("get", ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "unexpected failure", `${ITEMS}/item-1`, { headers: ADMIN_EXPLODE }),
 	wireCase("put", ITEM, HttpStatus.BAD_REQUEST, "body DTO validation", `${ITEMS}/item-1`, { payload: { code: "code-1", name: "", ownerId: OWNER_ID } }),
 	wireCase("put", ITEM, HttpStatus.NOT_FOUND, "row not found", `${ITEMS}/item-missing`, { payload: { code: "code-9", name: "Changed", owner: OWNER_ID, ownerId: OWNER_ID } }),
 	wireCase("put", ITEM, HttpStatus.CONFLICT, "unique violation", `${ITEMS}/item-1`, { payload: { code: "code-other", name: "Changed", owner: OWNER_ID, ownerId: OWNER_ID } }),
@@ -449,6 +588,8 @@ const WIRE_CASES: Array<IWireCase> = [
 	wireCase("delete", SECURED_ITEM, HttpStatus.BAD_REQUEST, "path DTO validation", `${SECURED_ITEMS}/not-a-uuid`, { headers: ADMIN_HEADERS }),
 	wireCase("delete", SECURED_ITEM, HttpStatus.NOT_FOUND, "row not found", `${SECURED_ITEMS}/${SECURED_MISSING_ID}`, { headers: ADMIN_HEADERS }),
 	wireCase("delete", SECURED_ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "unexpected failure", `${SECURED_ITEMS}/${SECURED_ID}`, { headers: ADMIN_EXPLODE }),
+	wireCase("get", IAM_ITEM, HttpStatus.BAD_REQUEST, "path DTO validation", `${IAM_ITEMS}/${LONG_ID}`, { headers: IAM_ALLOWED_HEADERS }),
+	wireCase("get", IAM_ITEM, HttpStatus.NOT_FOUND, "row not found", `${IAM_ITEMS}/iam-missing`, { headers: IAM_ALLOWED_HEADERS }),
 ];
 
 const SECURED_OPERATIONS: Array<{ method: TSwaggerMethod; path: string; payload?: Record<string, unknown>; url: string }> = [
@@ -460,13 +601,40 @@ const SECURED_OPERATIONS: Array<{ method: TSwaggerMethod; path: string; payload?
 	{ method: "delete", path: SECURED_ITEM, url: `${SECURED_ITEMS}/${SECURED_ID}` },
 ];
 
-// Guard rejections skip CorrelationIDResponseBodyInterceptor, and a handler 403 passes through it
+// Guard rejections and guard failures skip CorrelationIDResponseBodyInterceptor, and a handler 403 passes through it
 const GUARD_CASES: Array<IWireCase> = SECURED_OPERATIONS.flatMap((operation: (typeof SECURED_OPERATIONS)[number]): Array<IWireCase> => [
 	wireCase(operation.method, operation.path, HttpStatus.UNAUTHORIZED, "authentication guard", operation.url, { payload: operation.payload }),
 	wireCase(operation.method, operation.path, HttpStatus.FORBIDDEN, "authorization deny", operation.url, { headers: DENIED_HEADERS, payload: operation.payload }),
 	wireCase(operation.method, operation.path, HttpStatus.FORBIDDEN, "guard returning false", operation.url, { headers: BLOCKED_HEADERS, payload: operation.payload }),
 	wireCase(operation.method, operation.path, HttpStatus.FORBIDDEN, "handler refusal", operation.url, { headers: FORBIDDEN_HEADERS, payload: operation.payload }),
-]).concat([wireCase("get", SECURED_EXPORT, HttpStatus.UNAUTHORIZED, "custom route authentication guard", SECURED_EXPORT), wireCase("get", SECURED_EXPORT, HttpStatus.FORBIDDEN, "custom route authorization deny", SECURED_EXPORT, { headers: DENIED_HEADERS }), wireCase("get", SECURED_PING, HttpStatus.FORBIDDEN, "ApiMethod route authorization deny", SECURED_PING, { headers: DENIED_HEADERS })]);
+	wireCase(operation.method, operation.path, HttpStatus.INTERNAL_SERVER_ERROR, "execution guard failure", operation.url, { headers: GUARD_CRASH_HEADERS, payload: operation.payload }),
+	wireCase(operation.method, operation.path, HttpStatus.INTERNAL_SERVER_ERROR, "authentication guard failure", operation.url, { headers: AUTHENTICATION_CRASH_HEADERS, payload: operation.payload }),
+]).concat([
+	wireCase("get", SECURED_EXPORT, HttpStatus.UNAUTHORIZED, "custom route authentication guard", SECURED_EXPORT),
+	wireCase("get", SECURED_EXPORT, HttpStatus.FORBIDDEN, "custom route authorization deny", SECURED_EXPORT, { headers: DENIED_HEADERS }),
+	wireCase("get", SECURED_PING, HttpStatus.FORBIDDEN, "ApiMethod route authorization deny", SECURED_PING, { headers: DENIED_HEADERS }),
+	wireCase("get", SECURED_STATUS, HttpStatus.FORBIDDEN, "inherited custom route authorization deny", SECURED_STATUS, { headers: DENIED_HEADERS }),
+	wireCase("get", ITEM, HttpStatus.UNAUTHORIZED, "authentication guard without authorization", `${ITEMS}/item-1`),
+	wireCase("get", ITEM, HttpStatus.FORBIDDEN, "guard returning false without authorization", `${ITEMS}/item-1`, { headers: BLOCKED_HEADERS }),
+	wireCase("get", ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "execution guard failure without authorization", `${ITEMS}/item-1`, { headers: GUARD_CRASH_HEADERS }),
+	wireCase("get", ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "authentication guard failure without authorization", `${ITEMS}/item-1`, { headers: AUTHENTICATION_CRASH_HEADERS }),
+	wireCase("get", ITEM_THROTTLED, HttpStatus.TOO_MANY_REQUESTS, "route throttling", ITEM_THROTTLED, { precedingRequests: 1 }),
+	wireCase("get", IAM_ITEM, HttpStatus.UNAUTHORIZED, "IAM authentication guard", `${IAM_ITEMS}/iam-1`),
+	wireCase("get", IAM_ITEM, HttpStatus.FORBIDDEN, "IAM deny", `${IAM_ITEMS}/iam-1`, { headers: IAM_DENIED_HEADERS }),
+	wireCase("get", IAM_ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "IAM document source failure", `${IAM_ITEMS}/iam-1`, { headers: IAM_CRASH_HEADERS }),
+]);
+
+const BODY_OPERATIONS: Array<{ method: TSwaggerMethod; path: string; url: string }> = [{ method: "post", path: ITEMS, url: ITEMS }, { method: "put", path: ITEM, url: `${ITEMS}/item-1` }, { method: "patch", path: ITEM, url: `${ITEMS}/item-1` }, ...SECURED_OPERATIONS.filter((operation: (typeof SECURED_OPERATIONS)[number]): boolean => operation.payload !== undefined)];
+
+// Over the Fastify default body limit of 1 MiB
+const OVERSIZED_BODY: string = JSON.stringify({ name: "x".repeat(1_100_000) });
+
+// The body parser answers before guards and interceptors run
+const BODY_PARSER_CASES: Array<IWireCase> = BODY_OPERATIONS.flatMap((operation: (typeof BODY_OPERATIONS)[number]): Array<IWireCase> => [
+	wireCase(operation.method, operation.path, HttpStatus.BAD_REQUEST, "malformed JSON body", operation.url, { body: "{bad", contentType: "application/json" }),
+	wireCase(operation.method, operation.path, HttpStatus.PAYLOAD_TOO_LARGE, "body over the size limit", operation.url, { body: OVERSIZED_BODY, contentType: "application/json" }),
+	wireCase(operation.method, operation.path, HttpStatus.UNSUPPORTED_MEDIA_TYPE, "unsupported media type", operation.url, { body: "<item/>", contentType: "text/xml" }),
+]);
 
 // The exception filter is optional, so every mode must keep the schema equal to the wire
 const EXCEPTION_FILTER_MODES: Array<IExceptionFilterMode> = [
@@ -514,7 +682,13 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 	};
 
 	const validateWire = async (wireCase: IWireCase): Promise<{ body: unknown; errors: unknown }> => {
-		const response = await fastify.inject({ headers: wireCase.headers, method: wireCase.method, payload: wireCase.payload, url: wireCase.url });
+		const request = { headers: { ...wireCase.headers, ...(wireCase.contentType ? { "content-type": wireCase.contentType } : {}) }, method: wireCase.method, payload: wireCase.body ?? wireCase.payload, url: wireCase.url };
+
+		for (let index: number = 0; index < (wireCase.precedingRequests ?? 0); index++) {
+			await fastify.inject(request);
+		}
+
+		const response = await fastify.inject(request);
 
 		expect(response.statusCode, `${wireCase.name}: ${JSON.stringify(response.json())}`).toBe(wireCase.expectedStatus);
 		expect(declaredStatuses(wireCase.operation.path, wireCase.operation.method), wireCase.name).toContain(wireCase.expectedStatus);
@@ -531,9 +705,16 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 	beforeAll(async () => {
 		container = await new PostgreSqlContainer("postgres:17-alpine").start();
 		const moduleReference = await Test.createTestingModule({
-			controllers: [OpenApiErrorItemController, OpenApiErrorSecuredItemController],
-			imports: [TypeOrmModule.forRoot({ dropSchema: true, entities: ENTITIES, synchronize: true, type: "postgres", url: container.getConnectionUri() }), TypeOrmModule.forFeature(ENTITIES), ApiAuthorizationModule.forRoot({}), ApiSubscriberModule],
-			providers: [OpenApiErrorOwnerService, OpenApiErrorItemService, OpenApiErrorSecuredItemService, OpenApiErrorAuthenticationGuard, OpenApiErrorBlockGuard, OpenApiErrorSecuredItemPolicy, OpenApiErrorItemRouteSubscriber, OpenApiErrorSecuredItemRouteSubscriber],
+			controllers: [OpenApiErrorItemController, OpenApiErrorSecuredItemController, OpenApiErrorPublicItemController, OpenApiErrorIamItemController],
+			imports: [
+				TypeOrmModule.forRoot({ dropSchema: true, entities: ENTITIES, synchronize: true, type: "postgres", url: container.getConnectionUri() }),
+				TypeOrmModule.forFeature(ENTITIES),
+				ApiAuthorizationModule.forRoot({ iam: { attachmentSources: [iamAttachmentSource], documentSources: [iamDocumentSource] } }),
+				ApiSubscriberModule,
+				// Routes without throttling config never reach this limit
+				ThrottlerModule.forRoot([{ limit: 10_000, ttl: 60_000 }]),
+			],
+			providers: [OpenApiErrorOwnerService, OpenApiErrorItemService, OpenApiErrorSecuredItemService, OpenApiErrorIamItemService, OpenApiErrorAuthenticationGuard, OpenApiErrorBlockGuard, OpenApiErrorSecuredItemPolicy, OpenApiErrorItemRouteSubscriber, OpenApiErrorSecuredItemRouteSubscriber, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 		}).compile();
 
 		app = moduleReference.createNestApplication(new FastifyAdapter());
@@ -556,10 +737,12 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 		const ownerService: OpenApiErrorOwnerService = app.get(OpenApiErrorOwnerService);
 		const itemService: OpenApiErrorItemService = app.get(OpenApiErrorItemService);
 		const securedService: OpenApiErrorSecuredItemService = app.get(OpenApiErrorSecuredItemService);
+		const iamService: OpenApiErrorIamItemService = app.get(OpenApiErrorIamItemService);
 
 		await itemService.repository.createQueryBuilder().delete().execute();
 		await ownerService.repository.createQueryBuilder().delete().execute();
 		await securedService.repository.createQueryBuilder().delete().execute();
+		await iamService.repository.createQueryBuilder().delete().execute();
 		await ownerService.repository.save({ id: OWNER_ID, name: "Owner" });
 		await itemService.repository.save([
 			{ code: "code-1", id: "item-1", name: "One" },
@@ -569,6 +752,7 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 			{ id: SECURED_ID, rank: 1 },
 			{ id: SECURED_OTHER_ID, rank: 2 },
 		]);
+		await iamService.repository.save({ id: "iam-1", name: "One" });
 	});
 
 	afterAll(async () => {
@@ -577,25 +761,38 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 	});
 
 	it("declares exactly the error statuses each configuration can return", () => {
-		expect(declaredStatuses(ITEMS, "post")).toEqual([400, 404, 409, 422, 500]);
+		expect(declaredStatuses(ITEMS, "post")).toEqual([400, 404, 409, 413, 415, 422, 500]);
 		expect(declaredStatuses(ITEMS, "get")).toEqual([400, 500]);
-		expect(declaredStatuses(ITEM, "get")).toEqual([400, 404, 500]);
-		expect(declaredStatuses(ITEM, "put")).toEqual([400, 404, 409, 500]);
-		expect(declaredStatuses(ITEM, "patch")).toEqual([400, 404, 409, 500]);
+		expect(declaredStatuses(ITEM, "get")).toEqual([400, 401, 403, 404, 500]);
+		expect(declaredStatuses(ITEM, "put")).toEqual([400, 404, 409, 413, 415, 500]);
+		expect(declaredStatuses(ITEM, "patch")).toEqual([400, 404, 409, 413, 415, 500]);
 		expect(declaredStatuses(ITEM, "delete")).toEqual([400, 404, 500]);
 
-		expect(declaredStatuses(SECURED_ITEMS, "post")).toEqual([400, 401, 403, 409, 500]);
+		expect(declaredStatuses(SECURED_ITEMS, "post")).toEqual([400, 401, 403, 409, 413, 415, 500]);
 		expect(declaredStatuses(SECURED_ITEMS, "get")).toEqual([400, 401, 403, 500]);
 		expect(declaredStatuses(SECURED_ITEM, "get")).toEqual([400, 401, 403, 404, 500]);
-		expect(declaredStatuses(SECURED_ITEM, "put")).toEqual([400, 401, 403, 404, 409, 500]);
-		expect(declaredStatuses(SECURED_ITEM, "patch")).toEqual([400, 401, 403, 404, 409, 500]);
+		expect(declaredStatuses(SECURED_ITEM, "put")).toEqual([400, 401, 403, 404, 409, 413, 415, 500]);
+		expect(declaredStatuses(SECURED_ITEM, "patch")).toEqual([400, 401, 403, 404, 409, 413, 415, 500]);
 		expect(declaredStatuses(SECURED_ITEM, "delete")).toEqual([400, 401, 403, 404, 500]);
+
+		expect(declaredStatuses(IAM_ITEM, "get")).toEqual([400, 401, 403, 404, 500]);
 	});
 
 	it("declares the guard statuses of custom routes from their config", () => {
 		expect(declaredStatuses(ITEM_SUMMARY, "get")).toEqual([]);
 		expect(declaredStatuses(SECURED_EXPORT, "get")).toEqual([401, 403]);
 		expect(declaredStatuses(SECURED_PING, "get")).toEqual([403]);
+		expect(declaredStatuses(ITEM_THROTTLED, "get")).toEqual([429]);
+	});
+
+	it("declares 403 on an inherited custom route only for the securable controller", async () => {
+		expect(declaredStatuses(SECURED_STATUS, "get")).toEqual([403]);
+		expect(declaredStatuses(PUBLIC_STATUS, "get")).toEqual([]);
+
+		const response = await fastify.inject({ method: "GET", url: PUBLIC_STATUS });
+
+		expect(response.statusCode).toBe(HttpStatus.OK);
+		expect(response.json()).toEqual({ isShared: true });
 		expect(document.paths[SECURED_EXPORT]?.get?.responses[String(HttpStatus.FORBIDDEN)]).toMatchObject({ description: "Forbidden" });
 	});
 
@@ -616,7 +813,7 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 	});
 
 	it("reproduces every declared error status on the wire", () => {
-		const covered: Array<string> = [...new Set([...WIRE_CASES, ...GUARD_CASES].map((wireCase: IWireCase): string => `${wireCase.operation.method} ${wireCase.operation.path} ${String(wireCase.expectedStatus)}`))].sort();
+		const covered: Array<string> = [...new Set([...WIRE_CASES, ...GUARD_CASES, ...BODY_PARSER_CASES].map((wireCase: IWireCase): string => `${wireCase.operation.method} ${wireCase.operation.path} ${String(wireCase.expectedStatus)}`))].sort();
 		const declared: Array<string> = Object.entries(document.paths)
 			.filter(([path]: [string, unknown]): boolean => path.startsWith("/openapi-error-"))
 			.flatMap(([path, item]: [string, OpenAPIObject["paths"][string]]): Array<string> => (["delete", "get", "patch", "post", "put"] as const).filter((method: TSwaggerMethod): boolean => item[method] !== undefined).flatMap((method: TSwaggerMethod): Array<string> => declaredStatuses(path, method).map((status: number): string => `${method} ${path} ${String(status)}`)))
@@ -626,6 +823,12 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 	});
 
 	it.each(GUARD_CASES.map((wireCase: IWireCase): [string, IWireCase] => [wireCase.name, wireCase]))("matches the declared schema on a guard or handler refusal: %s", async (_name: string, wireCase: IWireCase) => {
+		const { body, errors } = await validateWire(wireCase);
+
+		expect(errors, JSON.stringify(body)).toBeNull();
+	});
+
+	it.each(BODY_PARSER_CASES.map((wireCase: IWireCase): [string, IWireCase] => [wireCase.name, wireCase]))("matches the declared schema on a body parser refusal: %s", async (_name: string, wireCase: IWireCase) => {
 		const { body, errors } = await validateWire(wireCase);
 
 		expect(errors, JSON.stringify(body)).toBeNull();

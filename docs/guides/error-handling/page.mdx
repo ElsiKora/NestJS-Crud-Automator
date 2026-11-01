@@ -526,31 +526,51 @@ Without the filter, or when a filter of yours handles the failure without `Corre
 
 Generated routes declare exactly the error statuses they can return with their configuration:
 
-| Status | Declared on                           | Returned for                                                                                                                                         |
-| ------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `400`  | every route                           | request DTO validation by your `ValidationPipe`, typed GET_LIST and CURSOR codes, foreign key violations, invalid request relation references        |
-| `401`  | routes with `security.authentication` | your authentication guard                                                                                                                            |
-| `403`  | routes with a guard that can refuse   | `security.authentication` or `execution.guards` returning `false`, and every route of an `@ApiControllerSecurable()` controller with `authorization` |
-| `404`  | GET, UPDATE, PARTIAL_UPDATE, DELETE   | a missing row; CREATE declares it too when `relations.request` loads a relation, for a missing related row                                           |
-| `409`  | CREATE, UPDATE, PARTIAL_UPDATE        | unique violations                                                                                                                                    |
-| `500`  | every route                           | unexpected failures                                                                                                                                  |
+| Status | Declared on                           | Returned for                                                                                                                                                         |
+| ------ | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | every route                           | request DTO validation by your `ValidationPipe`, typed GET_LIST and CURSOR codes, foreign key violations, invalid request relation references, a malformed JSON body |
+| `401`  | routes with `security.authentication` | your authentication guard                                                                                                                                            |
+| `403`  | routes with a guard that can refuse   | `security.authentication` or `execution.guards` returning `false`, and every route of an `@ApiControllerSecurable()` controller with `authorization`                 |
+| `404`  | GET, UPDATE, PARTIAL_UPDATE, DELETE   | a missing row; CREATE declares it too when `relations.request` loads a relation, for a missing related row                                                           |
+| `409`  | CREATE, UPDATE, PARTIAL_UPDATE        | unique violations                                                                                                                                                    |
+| `413`  | CREATE, UPDATE, PARTIAL_UPDATE        | a body over the body parser limit, 1 MiB by default in Fastify                                                                                                       |
+| `415`  | CREATE, UPDATE, PARTIAL_UPDATE        | a body with a content type the body parser does not accept                                                                                                           |
+| `500`  | every route                           | unexpected failures, including a guard, an authentication guard, or an IAM policy source that throws                                                                 |
 
 GET_LIST never declares `404`. Each `request.<target>.validators` entry adds the status of its `exception`, such as `422` for `UnprocessableEntityException`.
 
-Custom routes (`@ApiRouteCustom` and `@ApiMethod`) follow the same rule for guard statuses: `security.authentication` declares `401` and `403`, `execution.guards` declares `403`, and every route of an `@ApiControllerSecurable()` controller with `authorization` declares `403`. Their other error statuses come from `response.errors`, because Crud Automator cannot see what the handler throws.
+Custom routes (`@ApiRouteCustom` and `@ApiMethod`) follow the same rules for the statuses Crud Automator can see in their config:
 
-Every declared status uses the `Exception<Status>DTO` schema of that status, for example `ExceptionBadRequestDTO`:
+- `security.authentication` declares `401` and `403`, and `execution.guards` declares `403`;
+- every route of an `@ApiControllerSecurable()` controller with `authorization` declares `403`, also a route the controller inherits from a base class; a sibling controller that inherits the same route without being securable does not;
+- `throttling.default` declares `429`;
+- a POST, PUT, or PATCH route declares `400`, `413`, and `415` of the body parser.
 
-- `statusCode`, `message`, `error`, `correlationID`, and `timestamp` are required on `400`, `404`, `409`, `500`, and validator statuses;
-- on the guard statuses `401`, `403`, and `429` only `statusCode` and `message` are required; `correlationID`, `error`, and `timestamp` are described as optional, because they are sent only when `CorrelationIDResponseBodyExceptionFilter` is registered;
+Their other error statuses come from `response.errors`, because Crud Automator cannot see what the handler throws.
+
+Every declared status uses the `Exception<Status>DTO` schema of that status, for example `ExceptionBadRequestDTO`. A field is required only when the body has it on every source of that status, with or without `CorrelationIDResponseBodyExceptionFilter`:
+
+- `statusCode`, `message`, `error`, `correlationID`, and `timestamp` are required on `404`, `409`, and validator statuses, which only the handler chain returns;
+- on `400`, `401`, `403`, `413`, `415`, `429`, and `500` only `statusCode` and `message` are required; `correlationID`, `error`, and `timestamp` are described as optional, because these statuses can arise before the interceptor runs;
 - `message` is a string or an array of strings and `error` is a string, with no pattern or length limit;
 - `details` exists only on `400` (`FOREIGN_KEY_VIOLATION`, `INVALID_REFERENCE`) and `409` (`UNIQUE_VIOLATION`) and is discriminated by `details.type`.
 
-Errors from the handler pass `CorrelationIDResponseBodyInterceptor` and carry every field. A guard rejection runs before the interceptor, so without the exception filter its body has only `statusCode` and `message` (`error` too when a guard returns `false`). A `403` thrown from the handler, such as a route subscriber, still carries every field and matches the same schema; see [Rate Limiting Errors](#rate-limiting-errors).
+### Fields Without the Exception Filter
+
+Errors from the handler chain pass `CorrelationIDResponseBodyInterceptor` and carry every field. Failures before it carry only what Nest and Fastify send, unless `CorrelationIDResponseBodyExceptionFilter` is registered:
+
+| Source                                                                | Statuses              | Fields without the filter                                         |
+| --------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------- |
+| Pipes, the handler, route subscribers, request validators             | every declared status | `statusCode`, `message`, `error`, `correlationID`, `timestamp`    |
+| The body parser: a malformed, oversized, or unsupported body          | `400`, `413`, `415`   | `statusCode`, `message`                                           |
+| A guard that rejects or returns `false`, `ThrottlerGuard`             | `401`, `403`, `429`   | `statusCode`, `message`, and `error` when a guard returns `false` |
+| A guard, an authentication guard, or an IAM policy source that throws | `500`                 | `statusCode`, `message`                                           |
+
+With the filter, every status carries every field. A `403` thrown from the handler, such as a route subscriber, carries every field and matches the same schema; see [Rate Limiting Errors](#rate-limiting-errors).
 
 ### Declaring Other Statuses
 
-Statuses that come from your application, such as a `429` from a global `ThrottlerGuard` or another status from your own guard, are not visible to Crud Automator. Declare them per route with `documentation.response.statuses`:
+Statuses that come from your application, such as a `429` from a global `ThrottlerGuard` on a route without `throttling.default` or another status from your own guard, are not visible to Crud Automator. Declare them per route with `documentation.response.statuses`. A status you declare there replaces the response Crud Automator would declare for it, so its description is yours alone:
 
 ```typescript filename="user.controller.ts" copy
 import { HttpStatus } from "@nestjs/common";
@@ -712,7 +732,7 @@ From 5.0.0, every error body from `CorrelationIDResponseBodyInterceptor` has `co
 
 Outside an HTTP context, such as an RPC handler or a gateway with `@UseInterceptors`, the interceptor passes the call through unchanged and logs one warning per interceptor instance, not per call. Before 5.0.0 it failed there, because it read HTTP headers from the call arguments.
 
-The exception DTOs of generated routes now declare `error` as required, next to `correlationID`, `message`, `statusCode`, and `timestamp`. `message` and `error` are free text: `message` is a string or an array of strings, and neither has a pattern or a length limit. Clients generated from the OpenAPI document get the new field and the wider `message` type.
+The exception DTOs of generated routes now declare `error` as required, next to `correlationID`, `message`, `statusCode`, and `timestamp`, on the statuses that only the handler chain returns; see [Error Responses in OpenAPI](#error-responses-in-openapi) for the statuses that can arise before the interceptor. `message` and `error` are free text: `message` is a string or an array of strings, and neither has a pattern or a length limit. Clients generated from the OpenAPI document get the new field and the wider `message` type.
 
 From 5.0.0, `CorrelationIDResponseBodyExceptionFilter` gives failures outside the handler chain the same contract. Nothing changes until you add `app.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(app.get(HttpAdapterHost)))`. After that, these responses change:
 
@@ -742,8 +762,11 @@ From 5.0.0, generated routes declare the error statuses they can return instead 
 
 - every route declares `400`, and secured routes declare `403`;
 - `401` is declared only with `security.authentication`;
+- CREATE, UPDATE, and PARTIAL_UPDATE declare `413` and `415`;
 - custom routes (`@ApiRouteCustom`, `@ApiMethod`) declare `401` and `403` from `security.authentication`, `execution.guards`, and a securable controller with `authorization`, even when `response.errors` leaves `hasUnauthorized` or `hasForbidden` unset;
-- `ExceptionUnauthorizedDTO`, `ExceptionForbiddenDTO`, and `ExceptionTooManyRequestsDTO` require only `statusCode` and `message`, and `correlationID`, `error`, and `timestamp` become optional, also on routes that declared `401` before;
+- custom routes declare `429` with `throttling.default`, and POST, PUT, and PATCH custom routes declare `400`, `413`, and `415`, even when `response.errors` leaves `hasBadRequest` or `hasTooManyRequests` unset;
+- a status in `documentation.response.statuses` replaces the response Crud Automator declares for it instead of joining both descriptions;
+- `ExceptionBadRequestDTO`, `ExceptionUnauthorizedDTO`, `ExceptionForbiddenDTO`, `ExceptionPayloadTooLargeDTO`, `ExceptionUnsupportedMediaTypeDTO`, `ExceptionTooManyRequestsDTO`, and `ExceptionInternalServerErrorDTO` require only `statusCode` and `message`, and `correlationID`, `error`, and `timestamp` become optional, also on routes that declared these statuses before;
 - GET_LIST no longer declares `404`; CREATE declares it with `relations.request`;
 - `details` is declared only on `400` and `409`, with the variants of that status;
 - an invalid request relation reference answers `details.type: "INVALID_REFERENCE"`, described by `ExceptionDetailsInvalidReferenceDTO`.
