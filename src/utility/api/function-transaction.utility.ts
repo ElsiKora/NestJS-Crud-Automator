@@ -125,7 +125,7 @@ export async function ApiFunctionExecuteWithTransaction<E extends IApiBaseEntity
 
 		return await ApiFunctionTransactionRuntime.execute({
 			callback: executeWithEventManager,
-			dataSource: options.repository.manager.connection,
+			dataSource: options.repository.manager.dataSource,
 			owner: {
 				action: options.action,
 				entityName: options.entity.name,

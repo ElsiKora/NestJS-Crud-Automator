@@ -195,7 +195,7 @@ class GeneratedReadContractEntity {
 class GeneratedReadContractService extends ApiServiceBase<GeneratedReadContractEntity> {
 	public readonly repository: Repository<GeneratedReadContractEntity> = {
 		manager: {
-			connection: {
+			dataSource: {
 				driver: {
 					normalizeType: (column: { type?: unknown }): string => (column.type === "int" ? "integer" : String(column.type ?? "")),
 					postgres: {

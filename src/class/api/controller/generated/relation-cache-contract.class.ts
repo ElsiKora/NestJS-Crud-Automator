@@ -14,7 +14,7 @@ export class ApiControllerGeneratedRelationCacheContract {
 			return;
 		}
 
-		const dataSourceOptions: object = repository.manager.connection.options;
+		const dataSourceOptions: object = repository.manager.dataSource.options;
 		const requestedRelationLoadStrategy: unknown = this.readDataProperty(properties, "relationLoadStrategy");
 		const defaultRelationLoadStrategy: unknown = this.readDataProperty(dataSourceOptions, "relationLoadStrategy");
 

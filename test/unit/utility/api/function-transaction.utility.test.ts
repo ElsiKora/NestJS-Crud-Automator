@@ -18,7 +18,7 @@ function createRepository<E extends IApiBaseEntity>(): { dataSource: DataSource;
 	const { dataSource, entityManager, queryRunner } = createTransactionFixture();
 	const repository = {
 		manager: {
-			connection: dataSource,
+			dataSource: dataSource,
 		},
 	} as unknown as Repository<E>;
 

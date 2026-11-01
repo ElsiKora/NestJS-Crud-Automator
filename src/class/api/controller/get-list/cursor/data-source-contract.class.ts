@@ -69,7 +69,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 			throw ErrorException("CURSOR GET_LIST entity cannot use a TypeORM afterLoad listener");
 		}
 
-		for (const subscriber of repository.manager.connection.subscribers) {
+		for (const subscriber of repository.manager.dataSource.subscribers) {
 			if (this.hasAfterLoad(subscriber) && this.isApplicable(subscriber, target)) {
 				throw ErrorException("CURSOR GET_LIST entity cannot use an applicable TypeORM afterLoad subscriber");
 			}
@@ -126,8 +126,8 @@ export class ApiControllerGetListCursorDataSourceContract {
 	}
 
 	private static assertExactPostgresTextParser<E extends IApiBaseEntity>(repository: Repository<E>, storageContract: string, normalizedStorageType: string): void {
-		const connection: Repository<E>["manager"]["connection"] = repository.manager.connection;
-		const driver: unknown = connection.driver;
+		const dataSource: Repository<E>["manager"]["dataSource"] = repository.manager.dataSource;
+		const driver: unknown = dataSource.driver;
 		const postgres: unknown = driver && typeof driver === "object" && "postgres" in driver ? driver.postgres : undefined;
 		const driverTypes: unknown = postgres && typeof postgres === "object" && "types" in postgres ? postgres.types : undefined;
 		const getTypeParser: unknown = driverTypes && typeof driverTypes === "object" && "getTypeParser" in driverTypes ? driverTypes.getTypeParser : undefined;
@@ -306,7 +306,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 	}
 
 	private static getDriverType<E extends IApiBaseEntity>(repository: Repository<E>): string | undefined {
-		const options: unknown = repository.manager.connection.options;
+		const options: unknown = repository.manager.dataSource.options;
 		const type: unknown = options && typeof options === "object" && "type" in options ? options.type : undefined;
 
 		return typeof type === "string" ? type : undefined;
@@ -426,7 +426,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 	}
 
 	private static hasCustomPostgresTypes<E extends IApiBaseEntity>(repository: Repository<E>): boolean {
-		const options: unknown = repository.manager.connection.options;
+		const options: unknown = repository.manager.dataSource.options;
 		const extra: unknown = options && typeof options === "object" && "extra" in options ? options.extra : undefined;
 
 		return Boolean(extra && typeof extra === "object" && Object.hasOwn(extra, "types"));
@@ -467,10 +467,10 @@ export class ApiControllerGetListCursorDataSourceContract {
 	}
 
 	private static isPostgresBinaryMode<E extends IApiBaseEntity>(repository: Repository<E>): boolean {
-		const connection: Repository<E>["manager"]["connection"] = repository.manager.connection;
-		const extra: unknown = connection.options && typeof connection.options === "object" && "extra" in connection.options ? connection.options.extra : undefined;
+		const dataSource: Repository<E>["manager"]["dataSource"] = repository.manager.dataSource;
+		const extra: unknown = dataSource.options && typeof dataSource.options === "object" && "extra" in dataSource.options ? dataSource.options.extra : undefined;
 		const extraBinary: unknown = extra && typeof extra === "object" && "binary" in extra ? extra.binary : undefined;
-		const driver: unknown = connection.driver;
+		const driver: unknown = dataSource.driver;
 		const postgres: unknown = driver && typeof driver === "object" && "postgres" in driver ? driver.postgres : undefined;
 		const postgresDefaults: unknown = postgres && typeof postgres === "object" && "defaults" in postgres ? postgres.defaults : undefined;
 		const defaultBinary: unknown = postgresDefaults && typeof postgresDefaults === "object" && "binary" in postgresDefaults ? postgresDefaults.binary : undefined;
@@ -479,7 +479,7 @@ export class ApiControllerGetListCursorDataSourceContract {
 	}
 
 	private static normalizeActiveStorageType<E extends IApiBaseEntity>(repository: Repository<E>, column: ColumnMetadata): string {
-		const driver: unknown = repository.manager.connection.driver;
+		const driver: unknown = repository.manager.dataSource.driver;
 		const normalizeType: unknown = driver && typeof driver === "object" && "normalizeType" in driver ? driver.normalizeType : undefined;
 
 		if (typeof normalizeType !== "function") {

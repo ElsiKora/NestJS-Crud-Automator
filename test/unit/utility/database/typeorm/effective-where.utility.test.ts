@@ -44,5 +44,14 @@ describe("DatabaseTypeOrmAssertEffectiveWhere and DatabaseTypeOrmAssertRequiredW
 		expect(() => DatabaseTypeOrmAssertEffectiveWhere({ owner })).toThrow('WHERE property "owner.id" is undefined');
 		owner.id = "o";
 		expect(() => DatabaseTypeOrmAssertEffectiveWhere({ owner })).not.toThrow();
+
+		class OwnerLookalike {
+			public get id(): string {
+				return "o";
+			}
+		}
+
+		// TypeORM 1 reads only own keys and drops an instance that has none
+		expect(() => DatabaseTypeOrmAssertEffectiveWhere({ owner: new OwnerLookalike() })).toThrow('WHERE property "owner" must contain at least one condition');
 	});
 });

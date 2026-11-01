@@ -408,7 +408,7 @@ describe("ApiFunctionUpdate", () => {
 
 		const repository = {
 			findOne: vi.fn(async () => ({ id: "base", name: "stale" })),
-			manager: { connection: transaction.dataSource },
+			manager: { dataSource: transaction.dataSource },
 			save: vi.fn(async (value: UpdateEntity) => value),
 		} as unknown as Repository<UpdateEntity>;
 		const service = buildUpdateService(repository, EApiFunctionTransactionMode.REQUIRED);
@@ -539,7 +539,7 @@ function createPatchFixture() {
 	};
 	const manager = { getRepository: vi.fn(() => repository) } as unknown as EntityManager;
 	const transaction = createTransactionFixture(manager);
-	const baseRepository = { manager: { connection: transaction.dataSource } } as Repository<UpdateEntity>;
+	const baseRepository = { manager: { dataSource: transaction.dataSource } } as Repository<UpdateEntity>;
 	const before = vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockResolvedValue(undefined);
 	const after = vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
 	const error = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);

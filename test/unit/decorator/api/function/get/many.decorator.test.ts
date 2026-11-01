@@ -27,7 +27,7 @@ class GetManyService {
 function createGeneratedRepository(find: Repository<GetManyEntity>["find"]): Repository<GetManyEntity> {
 	return {
 		find,
-		manager: { connection: { subscribers: [] } },
+		manager: { dataSource: { subscribers: [] } },
 		metadata: { afterLoadListeners: [], target: GetManyEntity },
 	} as unknown as Repository<GetManyEntity>;
 }
@@ -125,7 +125,7 @@ describe("ApiFunctionGetMany", () => {
 		});
 		expect(find.mock.calls[0]?.[0]).toMatchObject({ order: { id: "ASC" }, take: 11 });
 		expect(find.mock.calls[0]?.[0]?.cache).toBe(false);
-		expect(find.mock.calls[0]?.[0]?.join).toBeUndefined();
+		expect((find.mock.calls[0]?.[0] as Record<string, unknown> | undefined)?.join).toBeUndefined();
 		expect(find.mock.calls[0]?.[0]?.lock).toBeUndefined();
 		expect(find.mock.calls[0]?.[0]?.select).toBeUndefined();
 		expect(find.mock.calls[0]?.[0]?.skip).toBeUndefined();

@@ -183,7 +183,7 @@ function createRouteService(dataSource?: DataSource): ApiServiceBase<RuntimeRout
 		Object.defineProperty(service, "repository", {
 			value: {
 				manager: {
-					connection: dataSource,
+					dataSource: dataSource,
 				},
 			} as Repository<RuntimeRouteEntity>,
 		});
@@ -262,7 +262,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 		Object.defineProperty(service, "repository", {
 			value: {
 				manager: {
-					connection: transaction.dataSource,
+					dataSource: transaction.dataSource,
 				},
 			} as Repository<RuntimeRouteEntity>,
 		});

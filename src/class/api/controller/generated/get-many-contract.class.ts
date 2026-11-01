@@ -111,7 +111,7 @@ export class ApiControllerGeneratedGetManyContract {
 		const subscriberProperties: TApiFunctionGetManyProperties<E> = ApiControllerGeneratedSecuritySnapshot.detach((await callback(beforeProperties)) ?? beforeProperties);
 
 		this.assertSupportedCandidateProperties(subscriberProperties);
-		session.state.candidateProperties = this.createCandidateProperties(subscriberProperties) as TApiFunctionGetManyProperties<IApiBaseEntity>;
+		session.state.candidateProperties = this.createCandidateProperties(subscriberProperties);
 		this.assertStableCandidateWhere(session.state.candidateProperties.where);
 		session.state.isCandidateWhereScoped = ApiControllerGeneratedScopeWhereContract.contains(session.state.candidateProperties.where, session.baseProperties.where);
 
@@ -123,7 +123,7 @@ export class ApiControllerGeneratedGetManyContract {
 
 		return this.STORAGE.run(
 			{
-				baseProperties: ApiControllerGeneratedSecuritySnapshot.detach(baseProperties) as TApiFunctionGetManyProperties<IApiBaseEntity>,
+				baseProperties: ApiControllerGeneratedSecuritySnapshot.detach(baseProperties),
 				state: { isPrepared: false },
 			},
 			callback,

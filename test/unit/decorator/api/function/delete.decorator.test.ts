@@ -238,7 +238,7 @@ describe("ApiFunctionDelete", () => {
 		const transaction = createTransactionFixture(eventManager);
 		const repository = {
 			findOne: vi.fn(async () => ({ id: "base", name: "base" })),
-			manager: { connection: transaction.dataSource },
+			manager: { dataSource: transaction.dataSource },
 			remove: vi.fn(async (value: DeleteEntity) => value),
 		} as unknown as Repository<DeleteEntity>;
 		const service = buildDeleteService(repository);

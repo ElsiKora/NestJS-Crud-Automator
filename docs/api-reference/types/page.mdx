@@ -134,7 +134,7 @@ type TSwaggerHeadersObject = NonNullable<NonNullable<OpenAPIObject["components"]
 type TSwaggerSecurityRequirementObject = NonNullable<OpenAPIObject["security"]>[number];
 ```
 
-Each type is derived from the public `OpenAPIObject` of the installed `@nestjs/swagger`, so it works on every supported 11.x release, including the ones whose root does not export the OpenAPI interfaces. `TSwaggerComponentSchema` is one entry of `components.schemas`, either a schema or a `$ref`. `TSwaggerSchemaObject` and `TSwaggerReferenceObject` split it into those two branches. Do not import them from `@nestjs/swagger/dist/*`: those paths are closed from 11.4.3.
+Each type is derived from the public `OpenAPIObject` of the installed `@nestjs/swagger`, so it follows the supported release. `TSwaggerComponentSchema` is one entry of `components.schemas`, either a schema or a `$ref`. `TSwaggerSchemaObject` and `TSwaggerReferenceObject` split it into those two branches. Do not import them from `@nestjs/swagger/dist/*`: `@nestjs/swagger` 12 exports only its root and `./plugin`.
 
 ## Related resources
 

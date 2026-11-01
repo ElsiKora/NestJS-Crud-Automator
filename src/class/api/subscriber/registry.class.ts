@@ -38,7 +38,7 @@ class ApiSubscriberRegistry {
 	}
 
 	public getFunctionSubscriberRegistrationOrder<E extends IApiBaseEntity>(subscriber: IApiSubscriberFunction<E>): number {
-		return this.FUNCTION_SUBSCRIBER_REGISTRATION_ORDER.get(subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>) ?? Number.MAX_SAFE_INTEGER;
+		return this.FUNCTION_SUBSCRIBER_REGISTRATION_ORDER.get(subscriber) ?? Number.MAX_SAFE_INTEGER;
 	}
 
 	public getFunctionSubscribers<E extends IApiBaseEntity>(entityName: string, functionType?: EApiFunctionType, action?: string): Array<IApiSubscriberFunction<E>> {
@@ -60,12 +60,12 @@ class ApiSubscriberRegistry {
 			this.FUNCTION_SUBSCRIBERS.set(entityName, wrapper);
 		}
 
-		if (!this.FUNCTION_SUBSCRIBER_REGISTRATION_ORDER.has(subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>)) {
-			this.FUNCTION_SUBSCRIBER_REGISTRATION_ORDER.set(subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>, this.nextFunctionSubscriberRegistrationOrder);
+		if (!this.FUNCTION_SUBSCRIBER_REGISTRATION_ORDER.has(subscriber)) {
+			this.FUNCTION_SUBSCRIBER_REGISTRATION_ORDER.set(subscriber, this.nextFunctionSubscriberRegistrationOrder);
 			this.nextFunctionSubscriberRegistrationOrder += 1;
 		}
 
-		wrapper.addSubscriber(subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>, properties.priority, properties);
+		wrapper.addSubscriber(subscriber, properties.priority, properties);
 
 		subscriberRegistryLogger.debug(`Total function subscribers for "${entityName}": ${wrapper.getSubscriberCount()}`);
 		subscriberRegistryLogger.debug(`Registered function subscriber entities: [${[...this.FUNCTION_SUBSCRIBERS.values()].map((registeredWrapper: SubscriberWrapper<IApiSubscriberFunction<IApiBaseEntity>>) => registeredWrapper.getName()).join(", ")}]`);
@@ -93,7 +93,7 @@ class ApiSubscriberRegistry {
 	 * @returns {void}
 	 */
 	public unregisterFunctionSubscriber<E extends IApiBaseEntity>(subscriber: IApiSubscriberFunction<E>): void {
-		this.removeSubscriber(this.FUNCTION_SUBSCRIBERS, subscriber as unknown as IApiSubscriberFunction<IApiBaseEntity>);
+		this.removeSubscriber(this.FUNCTION_SUBSCRIBERS, subscriber);
 	}
 
 	/**

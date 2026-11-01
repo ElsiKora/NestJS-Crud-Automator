@@ -598,7 +598,7 @@ export class ApiRouteRuntime {
 
 			return await ApiFunctionTransactionRuntime.execute({
 				callback,
-				dataSource: repository.manager.connection,
+				dataSource: repository.manager.dataSource,
 				owner: {
 					entityName: options.properties.entity.name ?? options.entityMetadata.tableName,
 					kind: EApiFunctionTransactionOwnerKind.ROUTE,

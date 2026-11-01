@@ -7,8 +7,13 @@ env:
 
 jobs:
   test:
-    name: Test
+    name: Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["22.x", "24.x", "26.x"]
 
     steps:
       - name: Checkout Code
@@ -17,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ matrix.node-version }}
 
       - name: Install dependencies
         run: npm install
@@ -38,7 +43,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-reports
+          name: test-reports-node-${{ matrix.node-version }}
           path: |
             coverage/
             reports/
@@ -50,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        swagger-version: ["11.0.3", "11.4.2", "11.x"]
+        swagger-version: ["12.0.0", "12.x"]
 
     steps:
       - name: Checkout Code

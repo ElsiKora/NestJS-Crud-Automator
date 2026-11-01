@@ -313,14 +313,16 @@ Observation is a separate diagnostic projection. It neither expands the ordinary
 
 ## Peer Ranges
 
-- Every peer dependency has an upper bound and keeps its lower bound. For 1.x and later lines the bound is the next major: `@nestjs/common`, `@nestjs/core`, and `@nestjs/swagger` `<12`, `@nestjs/throttler` `<7`, `lodash` `<5`. For 0.x lines it is the next minor: `class-transformer` `<0.6`, `class-validator` `<0.16`. `typeorm` is `<1`. NestJS 12 and TypeORM 1 are not supported.
-- CI installs every peer at the latest release inside its range; only `@nestjs/swagger` also runs against older releases (11.0.3 and 11.4.2). Other lower bounds are declared, not tested.
-- `@nestjs/passport`, `@nestjs/platform-fastify`, and `fastify` are not peers: `dist` imports none of them (`fastify` appears only as `import type` in `src`). `CorrelationIDResponseBodyInterceptor` needs the Fastify adapter. Upgrading an installed peer past its range exits 0 with `npm warn ERESOLVE overriding peer dependency` and leaves `npm ls <peer>` `invalid`; adding Automator after such a peer fails with `ERESOLVE`. Install peers with explicit ranges; an unversioned `npm install` picks NestJS 12 and TypeORM 1.
-- `@nestjs/swagger` is supported as `>=11.0.3 <12`. `@nestjs/swagger` 12 requires NestJS 12 and is not supported.
-- Crud Automator imports only the public `@nestjs/swagger` entry point. Its `dist/*` paths are closed by the `exports` map from 11.4.3 on, and CI fails on any import of them.
+- Every peer dependency has an upper bound at the next major (next minor for 0.x lines): `@nestjs/common` and `@nestjs/core` `>=12.3.2 <13`, `@nestjs/swagger` `>=12.0.0 <13`, `@nestjs/throttler` `>=6.7.1 <7`, `typeorm` `>=1.1.2 <2`, `class-transformer` `>=0.5.1 <0.6`, `class-validator` `>=0.15.1 <0.16`, `lodash` `>=4.18.1 <5`. NestJS 11, Swagger 11 and TypeORM 0.3 need 4.x.
+- `engines.node` is `^22.13.0 || >=24.11.0` (TypeORM 1's range). CI runs the full suite on the latest 22.x, 24.x and 26.x.
+- CI installs every peer at the latest release inside its range; `@nestjs/swagger` also runs against 12.0.0. Other lower bounds are the tested releases at the time of the bump.
+- `@nestjs/passport`, `@nestjs/platform-fastify`, and `fastify` are not peers: `dist` imports none of them (`fastify` appears only as `import type` in `src`). `CorrelationIDResponseBodyInterceptor` needs the Fastify adapter. Upgrading an installed peer past its range exits 0 with `npm warn ERESOLVE overriding peer dependency` and leaves `npm ls <peer>` `invalid`; adding Automator after such a peer fails with `ERESOLVE`. Install peers with explicit ranges.
+- Crud Automator imports only the public `@nestjs/swagger` entry point. Swagger 12 exports only `.` and `./plugin`, and CI fails on any import of `@nestjs/swagger/dist/*`.
 - `TSwaggerComponentSchema` (one `components.schemas` entry), `TSwaggerHeadersObject`, `TSwaggerReferenceObject`, `TSwaggerSchemaObject`, and `TSwaggerSecurityRequirementObject` are derived from the public `OpenAPIObject` type and exported from the package root.
-- Generated documents vary with the installed Swagger release, not with Automator: from 11.4.3 `multipleOf` on a numeric query parameter sits inside its `schema`; before 11.3.0 object properties have no `type: object`; before 11.2.4 array filter value items carry `type: string` instead of `minLength`/`maxLength`.
-- `SWAGGER_METADATA_CONSTANT` (`src/constant/swagger`) is internal and holds the Swagger metadata keys Automator reads and writes. Those strings are Swagger internals, so CI runs the unit suite and two Swagger e2e files (`swagger.e2e.test.ts`, `typed-query-swagger.e2e.test.ts`) against the lowest supported version 11.0.3, against 11.4.2, and against the latest 11.x.
+- `multipleOf` on a numeric query parameter sits inside its `schema` (Swagger behavior from 11.4.3).
+- `SWAGGER_METADATA_CONSTANT` (`src/constant/swagger`) is internal and holds the Swagger metadata keys Automator reads and writes. Those strings are Swagger internals, so CI runs the unit suite and two Swagger e2e files (`swagger.e2e.test.ts`, `typed-query-swagger.e2e.test.ts`) against 12.0.0 and the latest 12.x.
+- `path-to-regexp` stays on 8.x, the release `@nestjs/core` 12 pins, so route paths are parsed the way Nest matches them.
+- TypeORM 1: use `manager.dataSource` (not the deprecated `connection`); the `sqlite` driver is gone (tests use `better-sqlite3`); `PostgresDataSourceOptions` replaces `PostgresConnectionOptions`; `select` and `relations` take objects, not arrays; the find option `join` is removed.
 
 ## 3.0 Export Migration
 

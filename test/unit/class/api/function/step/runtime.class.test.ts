@@ -28,7 +28,7 @@ const createRepository = () => {
 	const managerRepository = {} as Repository<FunctionStepEntity>;
 	const repository = {
 		manager: {
-			connection: dataSource,
+			dataSource: dataSource,
 			getRepository: vi.fn().mockReturnValue(managerRepository),
 		},
 	} as unknown as Repository<FunctionStepEntity>;

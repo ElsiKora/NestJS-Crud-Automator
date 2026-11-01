@@ -873,11 +873,12 @@ describe("CorrelationIDResponseBodyExceptionFilter outside HTTP (E2E)", () => {
 		expect(unhandled).toEqual([]);
 	});
 
-	it("does not reach gateways when the interceptor is registered globally", async () => {
+	it("passes a gateway call through a globally registered interceptor, which Nest 12 runs on gateways, with one warning", async () => {
 		const bare: IGatewayResult = await runGateway("bare-ws", [E2eBareGateway]);
 
 		expect(await runGateway("bare-ws", [E2eBareGateway], false, true)).toEqual(bare);
-		expect(warningLog).not.toHaveBeenCalled();
+		expect(warningLog).toHaveBeenCalledTimes(1);
+		expect(warningLog.mock.calls[0]?.[0]).toBe("Not an HTTP context (ws): the call passes without the correlation contract");
 	});
 
 	it("passes a gateway call through an interceptor applied to the gateway unchanged with one warning", async () => {

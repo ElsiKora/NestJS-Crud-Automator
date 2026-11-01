@@ -222,7 +222,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 		}
 	});
 
-	it("documents that TypeORM drops an undefined property from a partially effective WHERE branch", async () => {
+	it("documents that TypeORM rejects an undefined property in a partially effective WHERE branch", async () => {
 		const dataSource: DataSource = new DataSource({
 			database: ":memory:",
 			entities: [SCOPE_ENTITY_SCHEMA, SCOPE_OPERATOR_SCHEMA],
@@ -233,11 +233,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 		await dataSource.initialize();
 
 		try {
-			const sql: string = dataSource.getRepository(ScopeEntity).createQueryBuilder("scope").setFindOptions({ where: partialWhere }).getSql();
-			const whereSql: string = sql.split(" WHERE ")[1] ?? "";
-
-			expect(whereSql).toContain('"scope"."status"');
-			expect(whereSql).not.toContain('"scope"."tenantId"');
+			expect(() => dataSource.getRepository(ScopeEntity).createQueryBuilder("scope").setFindOptions({ where: partialWhere }).getSql()).toThrow("Undefined value encountered in property 'scope.tenantId'");
 			expect(() => AuthorizationScopeMergeWhere({} as TApiAuthorizationScopeWhere<ScopeEntity>, partialWhere)).toThrow("Authorization scope WHERE object must contain an effective predicate");
 		} finally {
 			await dataSource.destroy();
@@ -275,7 +271,7 @@ describe("AuthorizationScopeMergeWhere", () => {
 		}
 	});
 
-	it("documents that TypeORM drops an ineffective nested relation class instance", async () => {
+	it("documents how TypeORM handles an ineffective nested relation class instance", async () => {
 		const dataSource: DataSource = new DataSource({
 			database: ":memory:",
 			entities: [SCOPE_ENTITY_SCHEMA, SCOPE_OPERATOR_SCHEMA],
@@ -287,13 +283,11 @@ describe("AuthorizationScopeMergeWhere", () => {
 		await dataSource.initialize();
 
 		try {
-			const sql: string = dataSource.getRepository(ScopeEntity).createQueryBuilder("scope").setFindOptions({ where: partialWhere }).getSql();
 			const lookalikeSql: string = dataSource.getRepository(ScopeEntity).createQueryBuilder("scope").setFindOptions({ where: inheritedOperatorLookalike }).getSql();
-			const whereSql: string = sql.split(" WHERE ")[1] ?? "";
 			const lookalikeWhereSql: string = lookalikeSql.split(" WHERE ")[1] ?? "";
 
-			expect(whereSql).toContain('"scope"."status"');
-			expect(whereSql).not.toContain('"scope__scope_operator"."id"');
+			// An instance whose own properties are all undefined is rejected; one without own properties is still dropped
+			expect(() => dataSource.getRepository(ScopeEntity).createQueryBuilder("scope").setFindOptions({ where: partialWhere }).getSql()).toThrow("All properties of the nested object are undefined");
 			expect(lookalikeWhereSql).toContain('"scope"."status"');
 			expect(lookalikeWhereSql).not.toContain('"scope__scope_operator"."id"');
 			expect(() => AuthorizationScopeMergeWhere({} as TApiAuthorizationScopeWhere<ScopeEntity>, partialWhere)).toThrow("Authorization scope WHERE object must contain an effective predicate");

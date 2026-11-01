@@ -230,7 +230,7 @@ describe("ApiService", () => {
 		const transaction = createTransactionFixture();
 		const repository = {
 			manager: {
-				connection: transaction.dataSource,
+				dataSource: transaction.dataSource,
 			},
 			save: vi.fn(async (entity: Partial<ServiceEntity>) => ({ ...entity }) as ServiceEntity),
 		};
@@ -260,7 +260,7 @@ describe("ApiService", () => {
 		const transaction = createTransactionFixture(eventManager as unknown as EntityManager);
 		const repository = {
 			manager: {
-				connection: transaction.dataSource,
+				dataSource: transaction.dataSource,
 			},
 			save: vi.fn(async (entity: Partial<ServiceEntity>) => ({ ...entity, id: "repo" }) as ServiceEntity),
 		};
@@ -306,7 +306,7 @@ describe("ApiService", () => {
 		const repository = {
 			findOne: vi.fn(async () => existingEntity),
 			manager: {
-				connection: transaction.dataSource,
+				dataSource: transaction.dataSource,
 			},
 			save: vi.fn(async (entity: Partial<ServiceEntity>) => ({ ...entity, id: "repo" }) as ServiceEntity),
 		};
@@ -353,7 +353,7 @@ describe("ApiService", () => {
 		const repository = {
 			findOne: vi.fn(async () => existingEntity),
 			manager: {
-				connection: transaction.dataSource,
+				dataSource: transaction.dataSource,
 			},
 			remove: vi.fn(async (entity: ServiceEntity) => entity),
 		};

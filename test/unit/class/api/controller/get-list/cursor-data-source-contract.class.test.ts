@@ -63,7 +63,7 @@ function createDriverRepository(type: string, field: TApiControllerGetListQueryC
 
 	return {
 		manager: {
-			connection: {
+			dataSource: {
 				driver: {
 					normalizeType: (column: { type?: unknown }): string => String(column.type ?? ""),
 					...(type === "postgres" ? { postgres: { types: { getTypeParser: createPostgresTextParser } } } : {}),

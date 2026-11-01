@@ -74,12 +74,12 @@ Version `3.0.2` is the published baseline before the current generated-route wor
 
 ### Prerequisites
 
-Make sure you have the following dependencies installed in your NestJS project:
+Crud Automator 5.x runs on Node.js `^22.13.0 || >=24.11.0`. Make sure you have the following dependencies installed in your NestJS project:
 
-- NestJS `@nestjs/common` and `@nestjs/core` `>=11.1.24 <12`
-- `@nestjs/swagger` `>=11.0.3 <12`
-- `@nestjs/throttler` `>=6.5.0 <7`
-- TypeORM `>=0.3.20 <1`
+- NestJS `@nestjs/common` and `@nestjs/core` `>=12.3.2 <13`
+- `@nestjs/swagger` `>=12.0.0 <13`
+- `@nestjs/throttler` `>=6.7.1 <7`
+- TypeORM `>=1.1.2 <2`
 - `class-validator` `>=0.15.1 <0.16`
 - `class-transformer` `>=0.5.1 <0.6`
 - `lodash` `>=4.18.1 <5`
@@ -87,12 +87,10 @@ Make sure you have the following dependencies installed in your NestJS project:
 You might need to install these peer dependencies if they're not already in your project:
 
 ```bash
-npm install @nestjs/common@^11.1.24 @nestjs/core@^11.1.24 @nestjs/swagger@^11.0.3 @nestjs/throttler@^6.5.0 typeorm@^0.3.20 class-transformer@^0.5.1 class-validator@^0.15.1 lodash@^4.18.1
+npm install @nestjs/common@^12.3.2 @nestjs/core@^12.3.2 @nestjs/swagger@^12.0.0 @nestjs/throttler@^6.7.1 typeorm@^1.1.2 class-transformer@^0.5.1 class-validator@^0.15.1 lodash@^4.18.1
 ```
 
-Keep the version ranges in the command: without them npm installs the latest releases, such as NestJS 12 and TypeORM 1, which are outside the supported ranges.
-
-`@nestjs/swagger` 12 requires NestJS 12 and is not supported. Every `@nestjs/swagger` 11 release from `11.0.3` up is supported, including the releases from `11.4.3` that restrict package imports through an `exports` map. See the [migration notes](https://elsikora.com/docs/nestjs-crud-automator/getting-started#migration-notes).
+Keep the version ranges in the command, so npm does not pick a future major outside the supported ranges. NestJS 11, `@nestjs/swagger` 11 and TypeORM 0.3 need Crud Automator 4.x. See [Migrating to 5.0](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-5-0).
 
 ## 💡 Usage
 

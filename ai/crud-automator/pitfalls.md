@@ -217,7 +217,7 @@ Crud Automator never loads `.env` (before 5.0.0 it ran `dotenv` on import). Load
 
 ## Private Swagger Imports
 
-Do not import `@nestjs/swagger/dist/*`, not even for types: the paths are closed from 11.4.3 on. Use the package root, or the `TSwagger*` OpenAPI types from Crud Automator for types the root of an older 11.x release does not export. Keep `@nestjs/swagger` on 11.x; version 12 requires NestJS 12 and is not supported.
+Do not import `@nestjs/swagger/dist/*`, not even for types: Swagger 12 exports only the root and `./plugin`. Use the package root or the `TSwagger*` OpenAPI types from Crud Automator. 5.x needs `@nestjs/swagger` 12 with NestJS 12; Swagger 11 belongs to 4.x.
 
 ## Table Inheritance Read Responses
 

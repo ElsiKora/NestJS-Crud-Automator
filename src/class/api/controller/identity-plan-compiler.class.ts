@@ -14,6 +14,7 @@ import { UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT } from "@constant/safe-object-pro
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+// path-to-regexp stays on 8.x, the release @nestjs/core 12 pins, so route paths are parsed the way Nest matches them
 import { parse } from "path-to-regexp";
 
 const IDENTITY_PARAMETER_PATTERN: RegExp = /^[A-Za-z_$][\w$]*$/u;

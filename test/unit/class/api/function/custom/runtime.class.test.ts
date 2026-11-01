@@ -25,7 +25,7 @@ const createRepository = () => {
 	const { dataSource } = createTransactionFixture(transactionManager);
 	const repository = {
 		manager: {
-			connection: dataSource,
+			dataSource: dataSource,
 			getRepository: vi.fn().mockReturnValue(transactionRepository),
 		},
 	} as unknown as Repository<FunctionRuntimeEntity>;
