@@ -2,7 +2,6 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { ColumnType } from "typeorm";
 import type { ColumnMetadataArgs } from "typeorm/metadata-args/ColumnMetadataArgs";
-import type { DiscriminatorValueMetadataArgs } from "typeorm/metadata-args/DiscriminatorValueMetadataArgs";
 import type { RelationMetadataArgs } from "typeorm/metadata-args/RelationMetadataArgs";
 import type { TableMetadataArgs } from "typeorm/metadata-args/TableMetadataArgs";
 
@@ -25,22 +24,24 @@ export function GenerateEntityInformation<E>(entity: IApiBaseEntity): IApiEntity
 			throw ErrorException(`Table for entity ${String(entity.name)} not found in metadata storage`);
 		}
 
-		const namingStrategy = (tableName: string | undefined): string => new DefaultNamingStrategy().tableName(entity.name ?? "UnknownResource", tableName);
-
-		if (!table.name && table.type === "entity-child") {
-			const discriminatorValue: DiscriminatorValueMetadataArgs | undefined = getMetadataArgsStorage().discriminatorValues.find(({ target }: DiscriminatorValueMetadataArgs): boolean => target == entity);
-
-			if (!discriminatorValue?.value) {
-				throw ErrorException(`Discriminator value for entity ${String(entity.name)} not found in metadata storage`);
-			} else if (typeof discriminatorValue.value === "string") {
-				return namingStrategy(discriminatorValue.value);
-			} else {
-				// eslint-disable-next-line @elsikora/typescript/no-unsafe-argument,@elsikora/typescript/no-unsafe-member-access
-				return namingStrategy(discriminatorValue.value?.name);
-			}
+		if (table.type !== "entity-child") {
+			return new DefaultNamingStrategy().tableName(entity.name ?? "UnknownResource", table.name);
 		}
 
-		return namingStrategy(table.name);
+		let current: unknown = Object.getPrototypeOf(table.target);
+
+		while (typeof current === "function" && current !== Function.prototype) {
+			const candidate: unknown = current;
+			const parentTable: TableMetadataArgs | undefined = getMetadataArgsStorage().tables.find(({ target }: TableMetadataArgs): boolean => target === candidate);
+
+			if (parentTable && parentTable.type !== "entity-child") {
+				return new DefaultNamingStrategy().tableName(current.name, parentTable.name);
+			}
+
+			current = Object.getPrototypeOf(current);
+		}
+
+		throw ErrorException(`Table inheritance root for child entity ${String(entity.name)} not found in metadata storage`);
 	})();
 
 	const storage: MetadataStorage = MetadataStorage.getInstance();

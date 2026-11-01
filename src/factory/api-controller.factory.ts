@@ -14,6 +14,7 @@ import type { DeepPartial } from "typeorm";
 import { ApiControllerGetListQueryPlanCompiler } from "@class/api/controller/get-list/query";
 import { ApiControllerIdentityPlanCompiler } from "@class/api/controller/identity-plan-compiler.class";
 import { ApiControllerReadPlanCompiler } from "@class/api/controller/read-plan-compiler.class";
+import { ApiControllerTableInheritancePlanCompiler } from "@class/api/controller/table-inheritance-plan-compiler.class";
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiRouteType } from "@enum/decorator/api";
@@ -40,7 +41,9 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		protected target: TApiControllerTargetMethod<E, M>,
 		private readonly properties: IApiControllerProperties<E>,
 	) {
-		this.ENTITY = GenerateEntityInformation<E>(properties.entity);
+		const entityInformation: IApiEntity<E> = GenerateEntityInformation<E>(properties.entity);
+
+		this.ENTITY = { ...entityInformation, tableInheritance: ApiControllerTableInheritancePlanCompiler.compile(properties, entityInformation) };
 
 		if (!this.ENTITY.primaryKey) {
 			throw ErrorException(`Primary key for entity ${this.properties.entity.name ?? "UnknownResource"} not found`);
@@ -51,6 +54,10 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.ENTITY_METADATA_KEY, this.properties.entity, this.target);
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, this.properties, this.target);
+	}
+
+	assertTableInheritanceChildren(): void {
+		ApiControllerTableInheritancePlanCompiler.assertChildEntitiesLoaded(this.target.name, this.ENTITY.tableInheritance);
 	}
 
 	createMethod(method: EApiRouteType): void {

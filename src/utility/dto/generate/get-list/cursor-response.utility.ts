@@ -1,4 +1,5 @@
 import type { Type } from "@nestjs/common";
+import type { TApiPropertyObjectProperties, TTypeDiscriminator } from "@type/decorator/api/property";
 import type { TDtoGenerateGetListResponseResourceClass } from "@type/utility";
 
 import { API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
@@ -11,11 +12,12 @@ import { PickType } from "@nestjs/swagger";
 /**
  * Generates a DTO for cursor-paginated list responses.
  * @param {TDtoGenerateGetListResponseResourceClass} resourceClass - The class representing the entity being listed
- * @param {TDtoGenerateGetListResponseResourceClass} responseResourceClass - The response DTO class for individual items
+ * @param {Array<TDtoGenerateGetListResponseResourceClass> | TDtoGenerateGetListResponseResourceClass} responseResourceClass - The response DTO class for individual items, or every item variant
  * @param {string} name - The name for the generated DTO class
+ * @param {TTypeDiscriminator} [itemDiscriminator] - Discriminator selecting the item DTO when items are polymorphic
  * @returns {Type<unknown>} A generated DTO class for cursor-paginated list responses
  */
-export function DtoGenerateGetListCursorResponse(resourceClass: TDtoGenerateGetListResponseResourceClass, responseResourceClass: TDtoGenerateGetListResponseResourceClass, name: string): Type<unknown> {
+export function DtoGenerateGetListCursorResponse(resourceClass: TDtoGenerateGetListResponseResourceClass, responseResourceClass: Array<TDtoGenerateGetListResponseResourceClass> | TDtoGenerateGetListResponseResourceClass, name: string, itemDiscriminator?: TTypeDiscriminator): Type<unknown> {
 	class ApiListGetCursorResponse extends PickType(resourceClass, [] as const) {
 		@ApiPropertyObject({
 			entity: resourceClass,
@@ -24,8 +26,9 @@ export function DtoGenerateGetListCursorResponse(resourceClass: TDtoGenerateGetL
 			isUniqueItems: true,
 			maxItems: LIST_DTO_CONSTANT.MAXIMUM_LIST_LENGTH,
 			minItems: 0,
+			...(itemDiscriminator ? { discriminator: itemDiscriminator } : {}),
 			type: responseResourceClass,
-		})
+		} as TApiPropertyObjectProperties)
 		items!: Array<TDtoGenerateGetListResponseResourceClass>;
 
 		@ApiPropertyString({

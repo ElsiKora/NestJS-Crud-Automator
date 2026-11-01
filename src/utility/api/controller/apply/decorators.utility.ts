@@ -7,15 +7,17 @@ import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
+import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 import type { TApiControllerMethodMap } from "@type/factory/api/controller";
 
 import { ApiMethod } from "@decorator/api/method.decorator";
-import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import { EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { ApiControllerBuildRouteDocumentation } from "@utility/api/controller/build-route-documentation.utility";
 import { ApiControllerGetListQueryOpenApiDecorators } from "@utility/api/controller/get-list/query";
-import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerReadPlanAssert } from "@utility/api/controller/read";
+import { ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
@@ -73,7 +75,7 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 	queryPlan?: IApiControllerGetListQueryPlan,
 	identityPlan?: IApiControllerIdentityPlan,
 ): void {
-	const responseDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.RESPONSE, routeConfig, queryPlan, undefined, identityPlan);
+	const responseDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(properties, entity, method, routeConfig, queryPlan, identityPlan);
 	const customDecorators: Array<MethodDecorator> = [...decorators];
 
 	switch (method) {
@@ -151,11 +153,11 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
  * @param {RequestMethod} requestMethod - Nest request method for the route.
  * @param {string} path - Route path segment.
  * @param {HttpStatus} status - Successful HTTP status code.
- * @param {Type<unknown> | undefined} responseType - Swagger and serialization response DTO type.
+ * @param {TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined} responseType - Swagger and serialization response DTO type or discriminated variants.
  * @param {NonNullable<IApiRouteMetadata<E>["response"]>["errors"]} errors - Standard error response flags.
  * @returns {IApiRouteMetadata<E>} Route metadata consumed by ApiMethod and the route runtime.
  */
-function createRouteMetadata<E extends IApiBaseEntity>(properties: IApiControllerProperties<E>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType>, routeType: EApiRouteType, requestMethod: RequestMethod, path: string, status: HttpStatus, responseType: Type<unknown> | undefined, errors: NonNullable<IApiRouteMetadata<E>["response"]>["errors"]): IApiRouteMetadata<E> {
+function createRouteMetadata<E extends IApiBaseEntity>(properties: IApiControllerProperties<E>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType>, routeType: EApiRouteType, requestMethod: RequestMethod, path: string, status: HttpStatus, responseType: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined, errors: NonNullable<IApiRouteMetadata<E>["response"]>["errors"]): IApiRouteMetadata<E> {
 	return {
 		documentation: ApiControllerBuildRouteDocumentation({ documentation: routeConfig.documentation, resourceName: properties.name ?? properties.entity.name ?? "UnknownResource", routeType }),
 		resource: {
@@ -163,13 +165,13 @@ function createRouteMetadata<E extends IApiBaseEntity>(properties: IApiControlle
 			entity: properties.entity as Type<E>,
 		},
 		response: {
+			...(ApiRouteIsDiscriminatedDtoProperties(responseType) ? { discriminator: responseType.discriminator, type: responseType.type } : { type: responseType }),
 			errors,
 			headers: routeConfig.response?.headers,
 			serialization: routeConfig.response?.serialization ?? {
 				isEnabled: responseType !== undefined && status !== HttpStatus.NO_CONTENT,
 			},
 			status,
-			type: responseType,
 		},
 		route: {
 			method: requestMethod,

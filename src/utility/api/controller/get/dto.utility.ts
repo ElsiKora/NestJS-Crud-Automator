@@ -8,6 +8,7 @@ import type { IApiControllerPropertiesRouteGetListResponseDtoConfig } from "@int
 import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
+import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 import type { ObjectLiteral } from "typeorm";
 
 import { EApiControllerGetListQueryPaginationMode, EApiDtoType as EApiDtoTypeValue, EApiRouteType as EApiRouteTypeValue } from "@enum/decorator/api";
@@ -19,6 +20,7 @@ import { DtoGenerate, DtoGenerateGetListResponse } from "@utility/dto";
 import { DtoGenerateGetListCursorResponse } from "@utility/dto/generate/get-list";
 import { DtoGenerateIdentityReadParameters } from "@utility/dto/generate/identity-read-parameters.utility";
 import { DtoGenerateReadParameters } from "@utility/dto/generate/read-parameters.utility";
+import { DtoGenerateTableInheritanceResponse } from "@utility/dto/generate/table-inheritance-response.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
 const getListItemResponseDtoCache: Map<string, Type<unknown>> = new Map<string, Type<unknown>>();
@@ -68,11 +70,15 @@ export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R exte
 	const configuredDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown> | undefined = routeConfig.dto?.[dtoType];
 
 	if (configuredDto) {
-		if (method === EApiRouteTypeValue.GET_LIST && dtoType === EApiDtoTypeValue.RESPONSE && isGetListResponseDtoConfig(configuredDto)) {
-			return getGetListItemResponseDto(properties.entity, entity, configuredDto, method, dtoType, queryPlan);
+		if (!isGetListResponseDtoConfig(configuredDto)) {
+			return configuredDto;
 		}
 
-		return configuredDto as Type<unknown>;
+		if (method !== EApiRouteTypeValue.GET_LIST || dtoType !== EApiDtoTypeValue.RESPONSE) {
+			throw ErrorException("Custom item response DTO configuration is supported only for the GET_LIST RESPONSE DTO");
+		}
+
+		return getGetListItemResponseDto(properties.entity, entity, configuredDto, method, dtoType, queryPlan);
 	}
 
 	if (dtoType === EApiDtoTypeValue.PARAMETERS) {
@@ -89,6 +95,30 @@ export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R exte
 	const effectiveQueryPlan: IApiControllerGetListQueryPlan | undefined = method === EApiRouteTypeValue.GET_LIST && (dtoType === EApiDtoTypeValue.QUERY || isCursorGetListResponse) ? queryPlan : undefined;
 
 	return DtoGenerate(properties.entity, entity, method, dtoType, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard, effectiveQueryPlan);
+}
+
+/**
+ * Resolves the response DTO of a generated route, including polymorphic table inheritance reads.
+ * @template E - Entity type
+ * @template R - Route type
+ * @param {IApiControllerProperties<E>} properties - Controller properties
+ * @param {IApiEntity<E>} entity - Entity metadata
+ * @param {R} method - Route method
+ * @param {TApiControllerPropertiesRoute<E, R>} routeConfig - Route-specific configuration
+ * @param {IApiControllerGetListQueryPlan} [queryPlan] - Route-scoped GET_LIST plan.
+ * @param {IApiControllerIdentityPlan} [identityPlan] - Internal GET identity alias plan.
+ * @returns {TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined} Response DTO, discriminated variants, or undefined.
+ */
+export function ApiControllerGetResponseDto<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, routeConfig: TApiControllerPropertiesRoute<E, R>, queryPlan?: IApiControllerGetListQueryPlan, identityPlan?: IApiControllerIdentityPlan): TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined {
+	const isPolymorphicRead: boolean = (method === EApiRouteTypeValue.GET || method === EApiRouteTypeValue.GET_LIST) && !routeConfig.dto?.[EApiDtoTypeValue.RESPONSE];
+
+	if (isPolymorphicRead && entity.tableInheritance?.variants.length) {
+		ApiControllerIdentityPlanAssert(routeConfig, identityPlan);
+
+		return DtoGenerateTableInheritanceResponse(properties.entity, entity, entity.tableInheritance, method, routeConfig.autoDto?.[EApiDtoTypeValue.RESPONSE], routeConfig.security?.authentication?.guard, queryPlan);
+	}
+
+	return ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoTypeValue.RESPONSE, routeConfig, queryPlan, undefined, identityPlan);
 }
 
 /**

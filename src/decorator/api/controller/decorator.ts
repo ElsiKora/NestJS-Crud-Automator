@@ -36,10 +36,11 @@ export const ApiController =
 
 		// eslint-disable-next-line @elsikora/typescript/no-explicit-any
 		const ValidatedController: { new (...arguments_: Array<any>): {}; prototype: {} } = class extends target {
-			// eslint-disable-next-line @elsikora/typescript/no-useless-constructor, @elsikora/typescript/no-explicit-any
+			// eslint-disable-next-line @elsikora/typescript/no-explicit-any
 			constructor(..._arguments: any) {
 				// eslint-disable-next-line @elsikora/typescript/no-unsafe-argument
 				super(..._arguments);
+				factory.assertTableInheritanceChildren();
 			}
 		};
 		Object.defineProperty(ValidatedController, "name", { value: target.name });

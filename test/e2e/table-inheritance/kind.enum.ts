@@ -1,0 +1,7 @@
+export enum EPaymentDetailKind {
+	BANK_TRANSFER = "BANK_TRANSFER",
+	CARD_TRANSFER = "CARD_TRANSFER",
+	FORM_POST = "FORM_POST",
+	LEGACY = "LEGACY",
+	QR = "QR",
+}

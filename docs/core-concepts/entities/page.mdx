@@ -278,6 +278,123 @@ author: UserEntity;
 comments: CommentEntity[];
 ```
 
+## Table Inheritance
+
+A generated controller over a TypeORM single-table-inheritance root serves polymorphic GET and GET_LIST responses without any DTO or option. Each row is serialized through the DTO of its own variant, so child columns reach the response and the fields of other variants do not.
+
+```typescript filename="deposit-detail.entity.ts" copy
+export enum EDepositDetailType {
+	CARD_TRANSFER = "CARD_TRANSFER",
+	FORM_POST = "FORM_POST",
+	QR = "QR",
+}
+
+@Entity("deposit_detail")
+@TableInheritance({ column: { enum: EDepositDetailType, name: "type", type: "enum" } })
+export class DepositDetailEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ type: EApiPropertyDescribeType.UUID, description: "Detail identifier" })
+	id: string;
+
+	@Column({ enum: EDepositDetailType, type: "enum" })
+	@ApiPropertyDescribe({ type: EApiPropertyDescribeType.ENUM, enum: EDepositDetailType, enumName: "EDepositDetailType", description: "Detail type" })
+	type: EDepositDetailType;
+}
+
+@ChildEntity(EDepositDetailType.CARD_TRANSFER)
+export class DepositDetailCardTransferEntity extends DepositDetailEntity {
+	@Column({ nullable: true, type: "varchar" })
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "Card number",
+		format: EApiPropertyStringType.STRING,
+		minLength: 1,
+		maxLength: 19,
+		pattern: "/^[0-9]+$/",
+		exampleValue: "4111111111111111",
+	})
+	cardNumber: string;
+}
+```
+
+```typescript filename="deposit-detail.controller.ts" copy
+import "./deposit-detail-card-transfer.entity";
+
+import { DepositDetailEntity } from "./deposit-detail.entity";
+
+@ApiController<DepositDetailEntity>({
+	entity: DepositDetailEntity,
+	name: "DepositDetails",
+	path: "deposit-details",
+	routes: {
+		[EApiRouteType.GET]: {},
+		[EApiRouteType.GET_LIST]: {},
+	},
+})
+export class DepositDetailController {
+	constructor(public readonly service: DepositDetailService) {}
+}
+```
+
+GET answers with `DepositDetailEntityGetResponseCardTransferDTO` and its siblings, described in Swagger as `oneOf` with a discriminator mapping. GET_LIST keeps its usual wrapper (`DepositDetailEntityGetListResponseItemsDTO`, or `DepositDetailEntityGetListCursorResponseItemsDTO` in CURSOR mode), and its `items` are `oneOf` over `DepositDetailEntityGetListResponseCardTransferDTO` and its siblings. The suffix is the discriminator value in camel case. The discriminator property stays in every response.
+
+The root must declare and describe the discriminator column. A manual RESPONSE DTO on a route keeps that route as it is.
+
+### Which Classes Become Variants
+
+Variants are read from TypeORM metadata:
+
+- A leaf child entity is always a variant. Its value is the `@ChildEntity(...)` argument or, without one, the class name.
+- The root and any intermediate child entity are variants only when the discriminator column can store their value, meaning the column has no `enum` or the enum contains the value. With an enum column they usually are not. On a `varchar` column the root is a variant, because `save()` through the root repository writes its class name as the value.
+
+These cases fail at startup: a leaf value outside the column enum, a non-string or empty discriminator value, two values that produce the same DTO name suffix, and a discriminator column that is missing or undescribed on the root. A manual RESPONSE DTO on both read routes takes the entity out of this contract.
+
+A row whose discriminator value has no variant fails the request with `500`. The response does not echo the value, and nothing is serialized through a guessed DTO.
+
+### Loading Child Entities
+
+Variants are compiled once when `@ApiController` decorates the class, so every child entity file must be imported before the controller file. Import them for their side effects, as above, or through a barrel. A glob in the data source `entities` option runs later and does not count.
+
+The controller constructor compares the variants with the child entities loaded by then and fails startup with a message naming the missing classes, before Swagger is generated. This also fires for a child class that is imported late and never registered in the data source. A REQUEST-scoped controller is constructed on its first request, so that request reports the error instead.
+
+### Shared Columns Between Variants
+
+Put columns shared by some variants on an abstract child entity:
+
+```typescript
+@ChildEntity()
+export abstract class DepositDetailTransferEntity extends DepositDetailEntity {
+	@Column({ nullable: true, type: "varchar" })
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.STRING,
+		description: "Bank name",
+		format: EApiPropertyStringType.STRING,
+		minLength: 1,
+		maxLength: 64,
+		pattern: "/^.+$/",
+		exampleValue: "Bank",
+	})
+	bankName: string;
+}
+```
+
+A plain class with `@Column` between the root and a child makes `DataSource.initialize()` throw, without Automator being involved: a child takes its columns from its parent by property name, and the parent tree of TypeORM leaves such classes out. A plain class without columns is fine.
+
+### What Stays On The Root
+
+Filters, order, pagination, HOOKS and IAM scope, and `read.scope.parameters` work on root columns only. CURSOR order fields must be root columns, and each variant must keep the proof CURSOR requires for them; see [Pagination](/docs/nestjs-crud-automator/guides/pagination#table-inheritance-roots).
+
+Generated CREATE, UPDATE, PARTIAL_UPDATE, and DELETE keep working on the root columns. Their bodies and responses are the plain DTOs of the root, without child columns.
+
+Relations declared on a child entity are covered in [Relations](/docs/nestjs-crud-automator/guides/relations#relations-on-child-entities).
+
+### Migration Notes
+
+- A generated GET or GET_LIST over a table inheritance root returns the full polymorphic shape instead of silently stripped variant columns, and its Swagger schema is `oneOf`. Clients that depend on the reduced shape need a manual RESPONSE DTO on the route.
+- A controller whose child entity files load after it fails startup. Import those files before the controller.
+- A REQUEST-scoped controller reports that error on its first request.
+- Numeric discriminator values fail startup. Keep a manual RESPONSE DTO on the read routes of such an entity.
+
 ## DTO Generation Control
 
 Use `isAutoDtoEnabled: false` when a described property must remain outside all automatically generated DTOs:

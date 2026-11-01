@@ -6,7 +6,7 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiPropertyDescribeType, EApiPropertyStringType } from "@enum/decorator/api";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { ChildEntity, Column, Entity, ManyToOne, PrimaryGeneratedColumn, TableInheritance } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 @Entity("info_entities")
@@ -68,6 +68,27 @@ class InfoRelationOwnerEntity {
 	public target!: InfoRelationTargetEntity;
 }
 
+@Entity("info_inheritance_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class InfoInheritanceRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	public type!: string;
+}
+
+@ChildEntity()
+class InfoInheritanceDefaultValueEntity extends InfoInheritanceRootEntity {}
+
+@ChildEntity()
+abstract class InfoInheritanceIntermediateEntity extends InfoInheritanceRootEntity {}
+
+abstract class InfoInheritancePlainBase extends InfoInheritanceIntermediateEntity {}
+
+@ChildEntity("NESTED")
+class InfoInheritanceNestedEntity extends InfoInheritancePlainBase {}
+
 describe("GenerateEntityInformation", () => {
 	it("builds entity metadata with table name and primary key", () => {
 		const metadata = GenerateEntityInformation<InfoEntity>(InfoEntity as unknown as IApiBaseEntity);
@@ -91,6 +112,19 @@ describe("GenerateEntityInformation", () => {
 		expect(metadata.columns.find((column) => column.name === "slug")?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]).toMatchObject({
 			type: EApiPropertyDescribeType.STRING,
 		});
+	});
+
+	it("resolves the root table for a child entity without an explicit discriminator value", () => {
+		const metadata = GenerateEntityInformation<InfoInheritanceDefaultValueEntity>(InfoInheritanceDefaultValueEntity as unknown as IApiBaseEntity);
+
+		expect(metadata.tableName).toBe("info_inheritance_roots");
+	});
+
+	it("resolves the root table through intermediate child entities and plain classes", () => {
+		const metadata = GenerateEntityInformation<InfoInheritanceNestedEntity>(InfoInheritanceNestedEntity as unknown as IApiBaseEntity);
+
+		expect(metadata.tableName).toBe("info_inheritance_roots");
+		expect(metadata.primaryKey?.name).toBe("id");
 	});
 
 	it("preserves TypeORM relation target metadata", () => {

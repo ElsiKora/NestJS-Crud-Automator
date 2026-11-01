@@ -69,6 +69,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 		if (isCursor) {
 			this.validateCursorPlan(entity, entityMetadata, order, cursorFields, routeConfig);
+			this.validateCursorTableInheritanceVariants(entityMetadata, cursorFields, routeConfig);
 		}
 
 		const normalizedOrder: Record<string, unknown> = {
@@ -938,6 +939,24 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 
 		throw ErrorException(`CURSOR GET_LIST order field "${field.path}" is not supported by PostgreSQL CURSOR v1`);
+	}
+
+	private static validateCursorTableInheritanceVariants<E>(entityMetadata: IApiEntity<E>, cursorFields: ReadonlyArray<string>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>): void {
+		for (const variant of entityMetadata.tableInheritance?.variants ?? []) {
+			if (this.hasAfterLoadListener(variant.entity)) {
+				throw ErrorException(`CURSOR GET_LIST entity variant ${String(variant.entityMetadata.name)} cannot declare TypeORM after-load listeners`);
+			}
+
+			for (const fieldName of cursorFields) {
+				if (this.hasPropertyAccessor(variant.entity, fieldName)) {
+					throw ErrorException(`CURSOR GET_LIST order field "${fieldName}" must be a raw data property on entity variant ${String(variant.entityMetadata.name)}, not an accessor`);
+				}
+
+				if (!routeConfig.dto?.[EApiDtoType.RESPONSE]) {
+					this.validateCursorResponseExposure(variant.entityMetadata, fieldName);
+				}
+			}
+		}
 	}
 
 	private static validateStaticValue(value: unknown, field: IApiControllerGetListQueryPlanFilterField): void {

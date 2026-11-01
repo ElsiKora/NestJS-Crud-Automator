@@ -49,6 +49,7 @@ The core philosophy of this library is built on four pillars: being **Declarativ
 - ✨ **🌐 Full support for TypeScript with strong typing throughout the library**
 - ✨ **Hooks and Subscriber System:** Intercept and extend business logic at both the controller and service level.
 - ✨ **Dynamic and Polymorphic DTOs:** Generate DTOs on-the-fly based on discriminator fields.
+- ✨ **Polymorphic Reads For Table Inheritance:** Serve TypeORM single-table-inheritance roots through per-variant GET and GET_LIST responses with no DTOs.
 - ✨ **Guard-Based Field Exposure:** Generate route-specific response DTOs based on configured guard classes.
 - ✨ **🔐 Declarative Authorization Policies:** Subscriber-style policies with automatic guard wiring, scopes, and response transforms.
 - ✨ **Request Tracing:** Built-in `CorrelationIDResponseBodyInterceptor` to correlate requests and logs.
@@ -1491,6 +1492,34 @@ Generated mandatory reads bypass explicit, inherited, and globally enabled TypeO
 
 Because unsigned tokens carry reversible order values, every potential order/tie field must be selected, persisted, non-null, exactly representable, free of TypeORM value transformers/accessors, and unconditionally raw-exposed in the response. Entity `@AfterLoad` listeners are rejected at bootstrap, and applicable active TypeORM `afterLoad` subscribers fail before query I/O. Automator snapshots each subscriber's `listenTo()` target once; subscriber implementations and PostgreSQL parser configuration are trusted TypeORM extension code and must be deterministic. Before decoding, the actual transaction repository proves the supported PostgreSQL storage, hydration, comparison, and canonical wire domain; everything outside the v1 matrix fails closed. Request-only DTO bounds, lengths, patterns, and `multipleOf` rules do not constrain the opaque seek boundary, and `BIGINT_STRING` values never convert through `Number`. Later function, route, authorization, relation, DTO, and serialization work may redact unrelated fields but cannot change cardinality, row sequence, protected raw tuples, cursors, or the flat envelope.
 
+### Polymorphic Reads For Table Inheritance
+
+A generated controller over a TypeORM single-table-inheritance root needs no DTO or option. Import the child entity files before the controller:
+
+```typescript
+import "./deposit-detail-card-transfer.entity";
+import "./deposit-detail-qr.entity";
+
+import { DepositDetailEntity } from "./deposit-detail.entity";
+
+@ApiController<DepositDetailEntity>({
+	entity: DepositDetailEntity,
+	name: "DepositDetails",
+	path: "deposit-details",
+	routes: {
+		[EApiRouteType.GET]: {},
+		[EApiRouteType.GET_LIST]: {},
+	},
+})
+export class DepositDetailController {
+	constructor(public readonly service: DepositDetailService) {}
+}
+```
+
+Each row is serialized through the DTO of its variant, such as `DepositDetailEntityGetResponseCardTransferDTO`, and Swagger describes GET and the GET_LIST `items` as `oneOf` with a discriminator mapping. A row whose discriminator value has no variant fails with `500` without echoing the value, and a child entity loaded after the controller fails startup with the class names and the fix.
+
+Filters, order, pagination, and HOOKS/IAM scope stay on root columns. CURSOR order fields must be root columns that every variant still proves. Generated writes keep working on the root columns only. An existing controller over such a root changes from silently stripped variant fields to the full polymorphic shape; a manual RESPONSE DTO keeps the old shape. See [Table Inheritance](https://elsikora.com/docs/nestjs-crud-automator/core-concepts/entities#table-inheritance) for the variant rules and migration notes.
+
 ## 🧭 Migrating to 4.0
 
 Generated controller routes now resolve and capture the exact service function before the Automator-managed route transaction or repository I/O. GET, GET_LIST, GET_MANY, UPDATE, and DELETE accept only a function produced for the same entity and function type by `@ApiService` or the matching built-in `@ApiFunctionGet`, `@ApiFunctionGetList`, `@ApiFunctionGetMany`, `@ApiFunctionUpdate`, or `@ApiFunctionDelete` decorator. Undecorated overrides, instance shadows, accessors, and wrong-entity/type decorators fail closed before the method body runs. Generated UPDATE also preflights a protected GET when response relation loading requires a reload.
@@ -1522,6 +1551,7 @@ The roadmap is aligned with the current source contract rather than older docs-o
 - REST CRUD controller and service generation for TypeORM entities
 - Entity-driven DTO generation for body, query, parameters, and response contracts, including controller-scoped typed GET_LIST query plans and inherited read-path parameter DTOs
 - Custom DTO support, including nested manual DTOs and GET_LIST item response DTOs
+- Polymorphic GET and GET_LIST responses for TypeORM single-table-inheritance roots, with `oneOf` Swagger schemas and fail-closed serialization
 - Swagger/OpenAPI metadata generation for generated and custom routes
 - Default page/limit and opt-in bidirectional cursor pagination, typed filtering, client ordering plus server defaults/tie-breakers, request validators, and request/response transformers
 - Generated nested GET/GET_LIST owner scoping through exact inherited path-parameter mappings

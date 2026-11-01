@@ -201,6 +201,20 @@ The package does not ship a consumer-side typed URL/bracket-filter builder in th
 
 Do not import `@nestjs/swagger/dist/*`, not even for types: the paths are closed from 11.4.3 on. Use the package root, or the `TSwagger*` OpenAPI types from Crud Automator for types the root of an older 11.x release does not export. Keep `@nestjs/swagger` on 11.x; version 12 requires NestJS 12 and is not supported.
 
+## Table Inheritance Read Responses
+
+Do not add DTOs, options, or a list of variants for a single-table-inheritance root: generated GET and GET_LIST already produce them from TypeORM metadata.
+
+Import every child entity file before the controller. Variants compile at decoration, so a child reachable only through an `entities` glob misses that moment. The controller constructor then fails startup naming the classes, before Swagger. A child imported late and never registered in the data source fails the same way, and a REQUEST-scoped controller reports it on its first request.
+
+Do not place a plain class with `@Column` between the root and a child: `DataSource.initialize()` throws, because TypeORM takes child columns from the parent by property name and leaves such classes out of the parent tree. Use a `@ChildEntity() abstract class`. A plain class without columns is fine.
+
+Do not expect filters, order, pagination, HOOKS/IAM scope, or read scope on child columns; they stay on the root. Generated writes stay parent-only, so their bodies and responses carry no child columns.
+
+Do not promise a to-many child relation through `relations.response`: it does not deliver one. Use a generated controller on the child table with `read.scope.parameters`, or an eager `OBJECT` array with `isArray`, `dataType`, and a manual item DTO. A child-only key in `relations.response.load.include` does not compile on `@ApiController<Root>` until the root declares it with `declare`.
+
+Numeric discriminator values fail startup. Rows with a value that has no variant fail with `500`, so adding a value to the column enum without a child entity breaks reads of those rows until the child exists.
+
 ## Removed 3.0 Exports
 
 Use `EApiGetDefaultStringFormatPropertiesBigIntStringSign` instead of the removed `TApiGetDefaultStringFormatPropertiesBigIntStringSign` type. Do not import the removed `EHasPairedCustomSuffixesFieldsArgumentType`, `THasPairedCustomSuffixesFieldsOperationConfig`, or `VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT`; `HasPairedCustomSuffixesFieldsValidator` remains public. Import supported symbols from the package root.

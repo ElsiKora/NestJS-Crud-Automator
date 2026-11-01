@@ -37,4 +37,15 @@ describe("DtoGenerateCacheKey", () => {
 
 		expect(key).toBe("PublicController_TestEntity_getList_query_no-guard_plan-a_{}");
 	});
+
+	it("scopes polymorphic response variants by name", () => {
+		const key = DtoGenerateCacheKey({
+			dtoType: EApiDtoType.RESPONSE,
+			entityName: "TestEntity",
+			method: EApiRouteType.GET,
+			responseVariantName: "TestEntityGetResponseCardTransferDTO",
+		});
+
+		expect(key).toBe("no-controller_TestEntity_get_response_no-guard_no-query-plan_{}_TestEntityGetResponseCardTransferDTO");
+	});
 });

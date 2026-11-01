@@ -388,6 +388,10 @@ export class CreatePaymentDto {
 }
 ```
 
+### Generated Polymorphic Read Responses
+
+A generated controller over a TypeORM table inheritance root builds its polymorphic GET and GET_LIST responses by itself, so it needs no DTO here. See [Table Inheritance](/docs/nestjs-crud-automator/core-concepts/entities#table-inheritance). A manual RESPONSE DTO on such a route replaces that behavior for the route.
+
 ## Extending Auto-Generated DTOs
 
 Extend auto-generated DTOs with additional logic:

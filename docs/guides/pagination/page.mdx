@@ -175,6 +175,12 @@ If the client supplies the pair, it replaces `defaultOrder`; server `tieBreakers
 
 When `order.fields` enables no client fields, the generated CURSOR query DTO and OpenAPI schema omit `orderBy` and `orderDirection`, requests containing either control are rejected, and the server default/tie-breaker order remains fixed. The broad TypeScript query helper remains entity-shaped like its PAGE counterpart; generated route metadata is the exact per-route request contract.
 
+## Table Inheritance Roots
+
+Cursor mode works over a [table inheritance](/docs/nestjs-crud-automator/core-concepts/entities#table-inheritance) root. Its `items` are polymorphic, and the envelope stays `items`, `nextCursor`, and `previousCursor`.
+
+Order fields must be root columns; a child column fails at bootstrap. The cursor proof must hold for every variant as well as for the root: a variant with an `@AfterLoad` listener, an accessor over an order field, or a response DTO that hides an order field fails at bootstrap.
+
 ## Choosing A Mode
 
 Use PAGE when the UI needs page numbers, random access, or totals. Use CURSOR for next/previous navigation, feeds, and large ordered collections where avoiding large offsets is useful. Cursor mode cannot jump to an arbitrary page because it navigates from a known order position.

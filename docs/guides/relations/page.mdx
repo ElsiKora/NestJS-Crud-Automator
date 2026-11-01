@@ -245,6 +245,60 @@ Load relations only when needed:
 author: UserEntity;
 ```
 
+## Relations On Child Entities
+
+A relation declared on a child entity of a [table inheritance](/docs/nestjs-crud-automator/core-concepts/entities#table-inheritance) root loads through the root repository, and the variant DTO carries it.
+
+A to-one relation works through `relations.response` as usual. The key is not part of `FindOptionsRelations<Root>`, so `include: { issuer: true }` does not compile on `@ApiController<Root>` until the root declares it with `declare issuer?: IssuerEntity;`.
+
+```typescript
+@ChildEntity(EDepositDetailType.CARD_TRANSFER)
+export class DepositDetailCardTransferEntity extends DepositDetailEntity {
+	@ManyToOne(() => IssuerEntity, { nullable: true })
+	@ApiPropertyDescribe({ type: EApiPropertyDescribeType.RELATION, description: "Issuer" })
+	issuer: IssuerEntity;
+}
+```
+
+`relations.response` does not deliver a to-many relation. There are two ways to serve one.
+
+A generated controller on the child table, scoped by the owner path parameter, needs no manual DTO and costs a second request:
+
+```typescript
+@ApiController<DepositDetailFormFieldEntity>({
+	entity: DepositDetailFormFieldEntity,
+	path: "deposit-details/:detailId/form-fields",
+	routes: {
+		[EApiRouteType.GET_LIST]: {
+			read: { scope: { parameters: [{ field: "detailId", parameter: "detailId" }] } },
+		},
+	},
+})
+export class DepositDetailFormFieldController {
+	constructor(public readonly service: DepositDetailFormFieldService) {}
+}
+```
+
+An eager `OBJECT` array puts the rows in the variant response itself. It needs a manual item DTO, and the relation then loads on every read of that entity:
+
+```typescript
+@ChildEntity(EDepositDetailType.FORM_POST)
+export class DepositDetailFormPostEntity extends DepositDetailEntity {
+	@OneToMany(() => DepositDetailFormFieldEntity, ({ detail }) => detail, { eager: true })
+	@ApiPropertyDescribe({
+		type: EApiPropertyDescribeType.OBJECT,
+		dataType: DepositDetailFormFieldItemDto,
+		description: "Form fields",
+		isArray: true,
+		isUniqueItems: false,
+		minItems: 0,
+		maxItems: 100,
+		shouldValidateNested: true,
+	})
+	fields: Array<Relation<DepositDetailFormFieldEntity>>;
+}
+```
+
 ## Filtering by Relations
 
 Generated GET_LIST relation filters use explicit one-level relation property paths. To filter by a related entity id, include the `id` field in the query path.

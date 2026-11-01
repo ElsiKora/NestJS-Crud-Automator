@@ -6,3 +6,4 @@ export { DtoGenerateException } from "./exception.utility";
 export { DtoGenerateFilterDecorator } from "./filter-decorator.utility";
 export { DtoGenerateGetListResponse } from "./get-list";
 export { DtoGenerateRelationResponse } from "./relation-response.utility";
+export { DtoGenerateTableInheritanceResponse } from "./table-inheritance-response.utility";

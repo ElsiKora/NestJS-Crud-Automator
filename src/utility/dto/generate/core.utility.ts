@@ -20,7 +20,7 @@ import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoGenerateCacheKey } from "@utility/dto/generate/cache-key.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
 import { DtoGenerateFilterDecorator } from "@utility/dto/generate/filter-decorator.utility";
-import { DtoGenerateGetListCursorResponse, DtoGenerateGetListQueryProperties, DtoGenerateGetListResponse } from "@utility/dto/generate/get-list";
+import { DtoGenerateGetListItemsResponse, DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list";
 import { DtoGetGetListQueryBaseClass } from "@utility/dto/get/get-list-query-base-class.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "@utility/dto/is/should-be-generated.utility";
@@ -43,11 +43,12 @@ const dtoGenerateCache: Map<string, Type<unknown>> = new Map<string, Type<unknow
  * @param {IApiControllerPropertiesRouteAutoDtoConfig} [dtoConfig] - Optional configuration for automatic DTO generation
  * @param {Type<CanActivate>} [currentGuard] - Optional authentication guard for property visibility control
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Normalized route plan that narrows generated GET_LIST query fields.
+ * @param {string} [responseVariantName] - Class name of a polymorphic response variant, which is always an item DTO without a list wrapper.
  * @returns {Type<unknown> | undefined} The generated DTO class or undefined if no DTO should be generated
  * @throws {Error} When primary key metadata is missing
  * @template E - The entity type
  */
-export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> | undefined {
+export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan, responseVariantName?: string): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
 		return undefined;
 	}
@@ -63,6 +64,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		guardName: currentGuard?.name,
 		method,
 		queryPlanSignature: isCursorGetListResponse ? EApiControllerGetListQueryPaginationMode.CURSOR : queryPlan?.signature,
+		responseVariantName,
 	});
 
 	const cached: Type<unknown> | undefined = dtoGenerateCache.get(cacheKey);
@@ -156,7 +158,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	}
 
 	Object.defineProperty(GeneratedDTO, "name", {
-		value: queryPlan && method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? queryPlan.schemaName : `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`,
+		value: responseVariantName ?? (queryPlan && method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? queryPlan.schemaName : `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}DTO`),
 	});
 
 	DtoAutoContextPush(GeneratedDTO.prototype, method, dtoType);
@@ -275,12 +277,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		ApiExtraModels(...extraModels)(GeneratedDTO);
 	}
 
-	let result: Type<unknown> = GeneratedDTO;
-
-	if (method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE) {
-		// @ts-ignore The generated entity/DTO constructors satisfy the wrapper generator at runtime.
-		result = ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR ? DtoGenerateGetListCursorResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}Cursor${CamelCaseString(dtoType)}ItemsDTO`) : DtoGenerateGetListResponse(entity, GeneratedDTO, `${entityMetadata.name ?? "UnknownResource"}${CamelCaseString(method)}${CamelCaseString(dtoType)}ItemsDTO`);
-	}
+	const result: Type<unknown> = isGetListResponse && !responseVariantName ? DtoGenerateGetListItemsResponse(entity, entityMetadata, GeneratedDTO, queryPlan) : GeneratedDTO;
 
 	dtoGenerateCache.set(cacheKey, result);
 

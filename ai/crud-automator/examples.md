@@ -224,6 +224,32 @@ Use `after=<nextCursor>` to continue and `before=<previousCursor>` to go back. D
 
 CURSOR v1 is PostgreSQL-only. Its TypeORM order declarations may be `boolean`; signed `smallint` or `integer`, including increment-generated columns whose PostgreSQL DDL uses `SMALLSERIAL`/`SERIAL`; numeric enums stored as `smallint`/`integer`; signed `bigint`, including increment-generated `BIGSERIAL` DDL, exposed as canonical decimal `BIGINT_STRING`; or native `uuid`. The SERIAL-family names are DDL forms, not TypeORM column type literals. CURSOR requires standard PostgreSQL text parsers. Every other storage type or driver fails closed for CURSOR, while PAGE behavior is unchanged.
 
+## Table Inheritance Read Responses
+
+No DTO or option. The child entity files are imported before the controller, and the root declares and describes the discriminator column.
+
+```ts
+import "./deposit-detail-card-transfer.entity";
+import "./deposit-detail-qr.entity";
+
+import { DepositDetailEntity } from "./deposit-detail.entity";
+
+@ApiController<DepositDetailEntity>({
+	entity: DepositDetailEntity,
+	name: "DepositDetails",
+	path: "deposit-details",
+	routes: {
+		[EApiRouteType.GET]: {},
+		[EApiRouteType.GET_LIST]: {},
+	},
+})
+export class DepositDetailController {
+	constructor(public readonly service: DepositDetailService) {}
+}
+```
+
+GET responds through `DepositDetailEntityGetResponseCardTransferDTO` and its siblings. GET_LIST keeps `DepositDetailEntityGetListResponseItemsDTO` over `DepositDetailEntityGetListResponseCardTransferDTO` and its siblings. Columns shared by some variants go on a `@ChildEntity() abstract class`, not on a plain class between the root and the child.
+
 ## Route Controls And Validators
 
 ```ts

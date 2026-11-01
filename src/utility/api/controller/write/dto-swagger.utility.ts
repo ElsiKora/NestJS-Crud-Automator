@@ -9,12 +9,14 @@ import type { Type } from "@nestjs/common";
 import type { TMetadata } from "@type/class";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
+import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 
 import { MetadataStorage } from "@class/metadata-storage.class";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { EApiDtoType, EApiPropertyDescribeType } from "@enum/decorator/api";
-import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetDtoWithReadPlan, ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
+import { ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
 
@@ -77,9 +79,9 @@ export function ApiControllerWriteDtoSwaggerWithReadPlan<E extends IApiBaseEntit
 	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, queryPlan, readPlan, identityPlan);
 	const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.QUERY, routeConfig, queryPlan, readPlan, identityPlan);
 	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, queryPlan, readPlan, identityPlan);
-	const responseDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.RESPONSE, routeConfig, queryPlan, readPlan, identityPlan);
+	const responseDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(properties, entity, method, routeConfig, queryPlan, identityPlan);
 
-	const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, responseDto];
+	const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, ...(ApiRouteIsDiscriminatedDtoProperties(responseDto) ? responseDto.type : [responseDto])];
 
 	for (const dto of dtoList) {
 		for (const swaggerDto of dto ? [dto, ...GetRegisteredAutoDtoChildrenRecursive(dto.prototype as object)] : []) {
