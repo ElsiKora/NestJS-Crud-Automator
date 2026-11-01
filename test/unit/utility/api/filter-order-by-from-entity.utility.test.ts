@@ -136,6 +136,18 @@ class VisibilityEntity {
 
 	@Column({ type: "int" })
 	@ApiPropertyDescribe({
+		description: "listed in responses without its value",
+		properties: { [EApiRouteType.GET_LIST]: { [EApiDtoType.RESPONSE]: { isExpose: false, isResponse: true } } },
+		format: EApiPropertyNumberType.INTEGER,
+		maximum: 100,
+		minimum: 0,
+		multipleOf: 1,
+		type: EApiPropertyDescribeType.NUMBER,
+	} as TApiPropertyDescribeProperties)
+	public exposeHidden!: number;
+
+	@Column({ type: "int" })
+	@ApiPropertyDescribe({
 		description: "listed in responses for administrators only",
 		properties: { [EApiRouteType.GET_LIST]: { [EApiDtoType.RESPONSE]: { guard: { guards: [AdminGuard] } } } },
 		format: EApiPropertyNumberType.INTEGER,

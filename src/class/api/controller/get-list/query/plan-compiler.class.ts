@@ -28,6 +28,7 @@ import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
 import { DtoGetDecoratorConfig } from "@utility/dto/get/decorator-config.utility";
+import { DtoIsPropertyExposedInListResponse } from "@utility/dto/is/property/exposed-in-list-response.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/get.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
@@ -869,7 +870,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 		const effectiveResponse: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(EApiRouteType.GET_LIST, metadata, EApiDtoType.RESPONSE);
 
-		if (effectiveResponse.guard || !DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, fieldName, metadata, column.isPrimary) || effectiveResponse.isEnabled === false || effectiveResponse.isResponse !== true || effectiveResponse.isExpose !== true) {
+		if (effectiveResponse.guard || !DtoIsPropertyExposedInListResponse(fieldName, metadata, column.isPrimary)) {
 			throw ErrorException(`CURSOR GET_LIST order field "${fieldName}" must be unconditionally raw-exposed in the generated response`);
 		}
 	}
