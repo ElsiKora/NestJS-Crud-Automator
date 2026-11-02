@@ -1,9 +1,11 @@
+import type { Type } from "@nestjs/common";
+
 import { Inject } from "@nestjs/common";
 
 import { ApiController, EApiControllerRelationReferenceShape, EApiRouteType } from "../../../src/index";
 
-import { E2eRelationReferenceObjectCodePostEntity, E2eRelationReferenceScalarCodePostEntity, E2eRelationReferenceScalarIdPostEntity } from "./entity";
-import { E2eRelationReferenceObjectCodePostService, E2eRelationReferenceScalarCodePostService, E2eRelationReferenceScalarIdPostService } from "./service";
+import { E2eRelationReferenceIntegerPostEntity, E2eRelationReferenceObjectCodePostEntity, E2eRelationReferenceScalarCodePostEntity, E2eRelationReferenceScalarIdPostEntity } from "./entity";
+import { E2eRelationReferenceIntegerPostService, E2eRelationReferenceObjectCodePostService, E2eRelationReferenceScalarCodePostService, E2eRelationReferenceScalarIdPostService } from "./service";
 
 const DISABLED = { generation: { isEnabled: false } } as const;
 
@@ -96,3 +98,42 @@ export class E2eRelationReferenceTwoObjectController {
 export class E2eRelationReferenceTwoScalarController {
 	public constructor(@Inject(E2eRelationReferenceObjectCodePostService) public readonly service: E2eRelationReferenceObjectCodePostService) {}
 }
+
+@ApiController<E2eRelationReferenceIntegerPostEntity>({
+	entity: E2eRelationReferenceIntegerPostEntity,
+	name: "E2eRelationReferenceIntegerObjectPosts",
+	path: "relation-reference-integer-object-posts",
+	routes: buildReadRoutes({ target: true, targets: true }, EApiControllerRelationReferenceShape.OBJECT, "id"),
+} as never)
+export class E2eRelationReferenceIntegerObjectController {
+	public constructor(@Inject(E2eRelationReferenceIntegerPostService) public readonly service: E2eRelationReferenceIntegerPostService) {}
+}
+
+@ApiController<E2eRelationReferenceIntegerPostEntity>({
+	entity: E2eRelationReferenceIntegerPostEntity,
+	name: "E2eRelationReferenceIntegerScalarPosts",
+	path: "relation-reference-integer-scalar-posts",
+	routes: buildReadRoutes({ target: true, targets: true }, EApiControllerRelationReferenceShape.SCALAR, "id"),
+} as never)
+export class E2eRelationReferenceIntegerScalarController {
+	public constructor(@Inject(E2eRelationReferenceIntegerPostService) public readonly service: E2eRelationReferenceIntegerPostService) {}
+}
+
+/**
+ * Creates a controller class with one fixed name, for applications in one process that configure it differently.
+ * @param {object} include - Relations the routes load.
+ * @returns {Type<unknown>} Controller class named E2eRelationReferenceTwinController.
+ */
+export const createE2eRelationReferenceTwinController = (include: object): Type<unknown> => {
+	@ApiController<E2eRelationReferenceObjectCodePostEntity>({
+		entity: E2eRelationReferenceObjectCodePostEntity,
+		name: "E2eRelationReferenceTwinPosts",
+		path: "relation-reference-twin-posts",
+		routes: buildReadRoutes(include, EApiControllerRelationReferenceShape.SCALAR, "code"),
+	} as never)
+	class E2eRelationReferenceTwinController {
+		public constructor(@Inject(E2eRelationReferenceObjectCodePostService) public readonly service: E2eRelationReferenceObjectCodePostService) {}
+	}
+
+	return E2eRelationReferenceTwinController;
+};

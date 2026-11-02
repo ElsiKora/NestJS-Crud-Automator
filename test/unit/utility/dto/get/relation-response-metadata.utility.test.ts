@@ -6,11 +6,11 @@ import type { Type } from "@nestjs/common";
 
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiControllerRelationReferenceShape, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EApiControllerRelationReferenceShape, EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { plainToInstance } from "class-transformer";
-import { Column, Entity, JoinColumn, JoinTable, ManyToMany, ManyToOne, OneToOne, PrimaryColumn, PrimaryGeneratedColumn, type Relation } from "typeorm";
+import { Column, DeleteDateColumn, Entity, JoinColumn, JoinTable, ManyToMany, ManyToOne, OneToOne, PrimaryColumn, PrimaryGeneratedColumn, type Relation } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 const CODE_DESCRIBE = {
@@ -138,6 +138,120 @@ class RelationReferenceUnitBadKeyEntity {
 	public author?: null | RelationReferenceUnitAuthorEntity;
 }
 
+@Entity("relation_reference_unit_integer_targets")
+class RelationReferenceUnitIntegerTargetEntity {
+	@PrimaryGeneratedColumn()
+	@ApiPropertyDescribe({ description: "id", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 1000, minimum: 1, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER })
+	public id!: number;
+}
+
+@Entity("relation_reference_unit_text_targets")
+class RelationReferenceUnitTextTargetEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(CODE_DESCRIBE)
+	public id!: string;
+}
+
+@Entity("relation_reference_unit_undescribed_targets")
+class RelationReferenceUnitUndescribedTargetEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+}
+
+@Entity("relation_reference_unit_no_id_targets")
+class RelationReferenceUnitNoIdTargetEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(CODE_DESCRIBE)
+	public code!: string;
+}
+
+@Entity("relation_reference_unit_composite_targets")
+class RelationReferenceUnitCompositeTargetEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(CODE_DESCRIBE)
+	public code!: string;
+}
+
+@Entity("relation_reference_unit_soft_targets")
+class RelationReferenceUnitSoftTargetEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@DeleteDateColumn()
+	public deletedAt?: Date | null;
+}
+
+class RelationReferenceUnitSoftBase {
+	@DeleteDateColumn()
+	public deletedAt?: Date | null;
+}
+
+@Entity("relation_reference_unit_inherited_soft_targets")
+class RelationReferenceUnitInheritedSoftTargetEntity extends RelationReferenceUnitSoftBase {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+}
+
+@Entity("relation_reference_unit_kinds")
+class RelationReferenceUnitKindsEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@ManyToOne(() => RelationReferenceUnitIntegerTargetEntity)
+	@ApiPropertyDescribe({ description: "integer target", type: EApiPropertyDescribeType.RELATION })
+	public integerTarget?: null | RelationReferenceUnitIntegerTargetEntity;
+
+	@ManyToOne(() => RelationReferenceUnitTextTargetEntity)
+	@ApiPropertyDescribe({ description: "text target", type: EApiPropertyDescribeType.RELATION })
+	public textTarget?: null | RelationReferenceUnitTextTargetEntity;
+
+	@ManyToOne(() => RelationReferenceUnitUndescribedTargetEntity)
+	@ApiPropertyDescribe({ description: "undescribed target", type: EApiPropertyDescribeType.RELATION })
+	public undescribedTarget?: null | RelationReferenceUnitUndescribedTargetEntity;
+
+	@ManyToOne(() => RelationReferenceUnitNoIdTargetEntity)
+	@ApiPropertyDescribe({ description: "no id target", type: EApiPropertyDescribeType.RELATION })
+	public noIdTarget?: null | RelationReferenceUnitNoIdTargetEntity;
+
+	@ManyToOne(() => RelationReferenceUnitCompositeTargetEntity)
+	@JoinColumn([
+		{ name: "compositeId", referencedColumnName: "id" },
+		{ name: "compositeCode", referencedColumnName: "code" },
+	])
+	@ApiPropertyDescribe({ description: "composite target", type: EApiPropertyDescribeType.RELATION })
+	public compositeTarget?: null | RelationReferenceUnitCompositeTargetEntity;
+
+	@Column({ nullable: true, type: "varchar" })
+	public compositeId?: null | string;
+
+	@Column({ type: "varchar" })
+	public compositeCode!: string;
+
+	@ManyToOne(() => RelationReferenceUnitSoftTargetEntity, { nullable: false })
+	@ApiPropertyDescribe({ description: "soft target", type: EApiPropertyDescribeType.RELATION })
+	public softTarget!: RelationReferenceUnitSoftTargetEntity;
+
+	@ManyToOne(() => RelationReferenceUnitInheritedSoftTargetEntity, { nullable: false })
+	@ApiPropertyDescribe({ description: "inherited soft target", type: EApiPropertyDescribeType.RELATION })
+	public inheritedSoftTarget!: RelationReferenceUnitInheritedSoftTargetEntity;
+
+	@ManyToMany(() => RelationReferenceUnitSoftTargetEntity)
+	@JoinTable({ name: "relation_reference_unit_kind_soft_targets" })
+	@ApiPropertyDescribe({ description: "soft targets", type: EApiPropertyDescribeType.RELATION })
+	public softTargets?: Array<RelationReferenceUnitSoftTargetEntity>;
+
+	@ManyToOne(() => RelationReferenceUnitAuthorEntity, { lazy: true })
+	@ApiPropertyDescribe({ description: "lazy target", type: EApiPropertyDescribeType.RELATION })
+	public lazyTarget?: Promise<null | RelationReferenceUnitAuthorEntity>;
+}
+
 interface ISwaggerProperty {
 	format?: string;
 	isArray?: boolean;
@@ -166,6 +280,10 @@ const postMetadata: IApiEntity<RelationReferenceUnitPostEntity> = GenerateEntity
 const generate = (method: EApiRouteType, dtoType: EApiDtoType, responseRelations?: IApiControllerPropertiesRouteBaseRelationsResponse<RelationReferenceUnitPostEntity>): Type<unknown> => DtoGenerate(RelationReferenceUnitPostEntity, postMetadata, method, dtoType, "RelationReferenceUnitPost", undefined, undefined, undefined, undefined, undefined, undefined, responseRelations) as Type<unknown>;
 
 const property = (dto: Type<unknown>, name: string): ISwaggerProperty => Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, dto.prototype as object, name) as ISwaggerProperty;
+
+const kindsMetadata: IApiEntity<RelationReferenceUnitKindsEntity> = GenerateEntityInformation<RelationReferenceUnitKindsEntity>(RelationReferenceUnitKindsEntity);
+
+const generateKinds = (include: Record<string, unknown>, shape: EApiControllerRelationReferenceShape, key: string | undefined, schemaPrefix: string): Type<unknown> => DtoGenerate(RelationReferenceUnitKindsEntity, kindsMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, schemaPrefix, undefined, undefined, undefined, undefined, undefined, undefined, { load: { include: include as never }, reference: { key, shape } }) as Type<unknown>;
 
 describe("DtoGetRelationResponseMetadata through DtoGenerate", () => {
 	describe("projected relations", () => {
@@ -268,6 +386,16 @@ describe("DtoGetRelationResponseMetadata through DtoGenerate", () => {
 			expect(generate(EApiRouteType.CREATE, EApiDtoType.RESPONSE, relations(EApiControllerRelationReferenceShape.OBJECT, "code"))).toBe(object);
 		});
 
+		it("gives two includes with one reference two DTO classes and reuses each", () => {
+			const authorOnly: Type<unknown> = generate(EApiRouteType.PARTIAL_UPDATE, EApiDtoType.RESPONSE, relations(EApiControllerRelationReferenceShape.SCALAR, "code", { author: true }));
+			const tagsOnly: Type<unknown> = generate(EApiRouteType.PARTIAL_UPDATE, EApiDtoType.RESPONSE, relations(EApiControllerRelationReferenceShape.SCALAR, "code", { tags: true }));
+
+			expect(authorOnly).not.toBe(tagsOnly);
+			expect(property(authorOnly, "author").type).toBe("string");
+			expect(property(tagsOnly, "author").type).not.toBe("string");
+			expect(generate(EApiRouteType.PARTIAL_UPDATE, EApiDtoType.RESPONSE, relations(EApiControllerRelationReferenceShape.SCALAR, "code", { author: true }))).toBe(authorOnly);
+		});
+
 		it("keeps request DTOs independent of the response relations", () => {
 			const body: Type<unknown> = generate(EApiRouteType.CREATE, EApiDtoType.BODY);
 
@@ -285,7 +413,98 @@ describe("DtoGetRelationResponseMetadata through DtoGenerate", () => {
 			["mentor", "must be a scalar property of RelationReferenceUnitAuthorEntity"],
 			["nickname", "must not be nullable on RelationReferenceUnitAuthorEntity"],
 		])("rejects the key %s", (key: string, message: string) => {
-			expect(() => DtoGenerate(RelationReferenceUnitBadKeyEntity, badKeyMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "RelationReferenceUnitBadKey", undefined, undefined, undefined, undefined, undefined, undefined, { load: { include: { author: true } }, reference: { key, shape: EApiControllerRelationReferenceShape.SCALAR } })).toThrow(`Response relation reference key "${key}" of RelationReferenceUnitBadKeyEntity.author ${message}`);
+			expect(() => DtoGenerate(RelationReferenceUnitBadKeyEntity, badKeyMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "RelationReferenceUnitBadKey", undefined, undefined, undefined, undefined, undefined, undefined, { load: { include: { author: true } }, reference: { key, shape: EApiControllerRelationReferenceShape.SCALAR } })).toThrow(
+				`Response relation reference key "${key}" of RelationReferenceUnitBadKeyEntity.author in the get response DTO of controller prefix "RelationReferenceUnitBadKey" ${message}`,
+			);
+		});
+
+		it("names the controller and the route of a refused key", () => {
+			expect(() => DtoGenerate(RelationReferenceUnitBadKeyEntity, badKeyMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "RelationReferenceUnitNamed", undefined, undefined, undefined, undefined, undefined, undefined, { load: { include: { author: true } }, reference: { key: "secret", shape: EApiControllerRelationReferenceShape.OBJECT } })).toThrow(/the get response DTO of controller prefix "RelationReferenceUnitNamed"/);
+			expect(() => DtoGenerate(RelationReferenceUnitBadKeyEntity, badKeyMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "RelationReferenceUnitNamed", undefined, undefined, undefined, undefined, "ReadOne", undefined, { load: { include: { author: true } }, reference: { key: "secret", shape: EApiControllerRelationReferenceShape.OBJECT } })).toThrow(/the ReadOne response DTO of controller prefix "RelationReferenceUnitNamed"/);
+		});
+
+		it("does not check the key of a relation outside the include", () => {
+			expect(() => generateKinds({ integerTarget: true }, EApiControllerRelationReferenceShape.OBJECT, "id", "RelationReferenceUnitOutside")).not.toThrow();
+		});
+	});
+
+	describe("the id reference key", () => {
+		it.each([
+			[EApiControllerRelationReferenceShape.OBJECT, undefined],
+			[EApiControllerRelationReferenceShape.OBJECT, "id"],
+			[EApiControllerRelationReferenceShape.SCALAR, undefined],
+			[EApiControllerRelationReferenceShape.SCALAR, "id"],
+		])("publishes the integer id of the target for %s with key %s", (shape: EApiControllerRelationReferenceShape, key?: string) => {
+			const dto: Type<unknown> = generateKinds({ integerTarget: true }, shape, key, `RelationReferenceUnitInteger${shape}${String(key)}`);
+			const reference: ISwaggerProperty = property(dto, "integerTarget");
+			const value: ISwaggerProperty = shape === EApiControllerRelationReferenceShape.SCALAR ? reference : property(reference.type as Type<unknown>, "id");
+
+			expect(value.type).toBe("integer");
+			expect(value.format).not.toBe("uuid");
+		});
+
+		it("publishes the text id of the target", () => {
+			const dto: Type<unknown> = generateKinds({ textTarget: true }, EApiControllerRelationReferenceShape.SCALAR, "id", "RelationReferenceUnitText");
+
+			expect(property(dto, "textTarget")).toMatchObject({ pattern: "^[a-z-]+$", type: "string" });
+			expect(property(dto, "textTarget").format).not.toBe("uuid");
+		});
+
+		it.each([
+			["undescribedTarget", "must be described with @ApiPropertyDescribe on RelationReferenceUnitUndescribedTargetEntity"],
+			["noIdTarget", "must be described with @ApiPropertyDescribe on RelationReferenceUnitNoIdTargetEntity"],
+			["compositeTarget", "cannot identify a row of RelationReferenceUnitCompositeTargetEntity, because its primary key has 2 columns"],
+		])("refuses %s at startup, naming the controller and the route", (name: string, message: string) => {
+			for (const shape of [EApiControllerRelationReferenceShape.OBJECT, EApiControllerRelationReferenceShape.SCALAR]) {
+				const generateRefused = (): unknown => generateKinds({ [name]: true }, shape, undefined, `RelationReferenceUnitRefused${name}${shape}`);
+
+				expect(generateRefused).toThrow(message);
+				expect(generateRefused).toThrow(`the get response DTO of controller prefix "RelationReferenceUnitRefused${name}${shape}"`);
+			}
+		});
+
+		it("allows a described key other than id on a composite target", () => {
+			const dto: Type<unknown> = generateKinds({ compositeTarget: true }, EApiControllerRelationReferenceShape.SCALAR, "code", "RelationReferenceUnitCompositeCode");
+
+			expect(property(dto, "compositeTarget").type).toBe("string");
+		});
+	});
+
+	describe("to-one nullability of a target that can be soft-deleted", () => {
+		it.each(["softTarget", "inheritedSoftTarget"])("makes the non-null relation %s nullable", (name: string) => {
+			const inside: Type<unknown> = generateKinds({ [name]: true }, EApiControllerRelationReferenceShape.SCALAR, "id", `RelationReferenceUnitSoftIn${name}`);
+			const outside: Type<unknown> = generateKinds({}, EApiControllerRelationReferenceShape.SCALAR, "id", `RelationReferenceUnitSoftOut${name}`);
+
+			expect(property(inside, name).nullable).toBe(true);
+			expect(property(outside, name).nullable).toBe(true);
+		});
+
+		it("never makes a to-many relation nullable", () => {
+			const dto: Type<unknown> = generateKinds({ softTargets: true }, EApiControllerRelationReferenceShape.SCALAR, "id", "RelationReferenceUnitSoftMany");
+
+			expect(property(dto, "softTargets").nullable).toBe(false);
+		});
+	});
+
+	describe("composite join columns", () => {
+		it("makes the relation nullable when any join column is nullable", () => {
+			const dto: Type<unknown> = generateKinds({}, EApiControllerRelationReferenceShape.SCALAR, "id", "RelationReferenceUnitCompositeJoin");
+
+			expect(property(dto, "compositeTarget").nullable).toBe(true);
+		});
+	});
+
+	describe("refused relation config", () => {
+		it("names the property when a load has no reference", () => {
+			expect(() => DtoGenerate(RelationReferenceUnitKindsEntity, kindsMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "RelationReferenceUnitNoReference", undefined, undefined, undefined, undefined, undefined, undefined, { load: { include: { softTarget: true } } } as never)).toThrow(/RelationReferenceUnitKindsEntity\.softTarget .*must set relations\.response\.reference/);
+		});
+
+		it.each([EApiControllerRelationReferenceShape.OBJECT, EApiControllerRelationReferenceShape.SCALAR])("refuses a lazy relation in the include for %s", (shape: EApiControllerRelationReferenceShape) => {
+			expect(() => generateKinds({ lazyTarget: true }, shape, "id", `RelationReferenceUnitLazy${shape}`)).toThrow(/RelationReferenceUnitKindsEntity\.lazyTarget .*lazy/);
+		});
+
+		it("keeps a lazy relation outside the include", () => {
+			expect(property(generateKinds({}, EApiControllerRelationReferenceShape.OBJECT, "id", "RelationReferenceUnitLazyOutside"), "lazyTarget")).toBeDefined();
 		});
 	});
 });
