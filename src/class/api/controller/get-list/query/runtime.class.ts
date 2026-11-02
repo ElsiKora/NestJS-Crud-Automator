@@ -120,6 +120,17 @@ export class ApiControllerGetListQueryRuntime {
 		}) as unknown as IApiControllerGetListQueryRuntimeResult;
 	}
 
+	/**
+	 * Converts one client filter value by its field type, as a typed filter does.
+	 * @param {unknown} value - Raw filter value.
+	 * @param {Pick<IApiControllerGetListQueryPlanFilterField, "metadata" | "type">} field - Field type and metadata.
+	 * @returns {unknown} Converted value.
+	 * @throws {BadRequestException} With `INVALID_FILTER` when the value does not fit the field type.
+	 */
+	public static parseFilterValue(value: unknown, field: Pick<IApiControllerGetListQueryPlanFilterField, "metadata" | "type">): unknown {
+		return this.parseValue(value, field);
+	}
+
 	private static compileOrder(orderBy: string | undefined, orderDirection: EFilterOrderDirection | undefined, plan: IApiControllerGetListQueryPlan): ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> {
 		const configuredEntries: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry> = orderBy && orderDirection ? [{ direction: orderDirection, field: orderBy }, ...(plan.order.tieBreakers ?? [])] : [...(plan.order.defaultOrder ?? []), ...(plan.order.tieBreakers ?? [])];
 		const fields: Set<string> = new Set<string>();
@@ -352,7 +363,7 @@ export class ApiControllerGetListQueryRuntime {
 		return parsed;
 	}
 
-	private static parseValue(value: unknown, field: IApiControllerGetListQueryPlanFilterField): unknown {
+	private static parseValue(value: unknown, field: Pick<IApiControllerGetListQueryPlanFilterField, "metadata" | "type">): unknown {
 		const fieldType: EApiPropertyDescribeType = field.type;
 
 		if (fieldType === EApiPropertyDescribeType.OBJECT || fieldType === EApiPropertyDescribeType.RELATION) {

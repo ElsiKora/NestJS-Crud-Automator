@@ -3,6 +3,7 @@ import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { FindOptionsWhere } from "typeorm";
 
+import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperation } from "@enum/filter";
@@ -19,6 +20,7 @@ import { GenerateEntityInformation } from "@utility/generate-entity-information.
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
  * @param {Type<CanActivate>} currentGuard - Optional guard used to mirror generated query DTO visibility.
  * @returns {FindOptionsWhere<E>} The TypeORM filter object for the query
+ * @throws {Error} A bad request with `INVALID_FILTER` when a numeric filter value is not a number
  * @template E - The entity type
  */
 export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>, currentGuard?: Type<CanActivate>): FindOptionsWhere<E> {
@@ -50,7 +52,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 
 				if (!column || !columnMetadata || !DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, key, columnMetadata, column.isPrimary, currentGuard) || columnMetadata.type === EApiPropertyDescribeType.RELATION) continue;
 
-				filterRecord[key] = ApiControllerGetListTransformOperation(operation, value);
+				filterRecord[key] = ApiControllerGetListTransformOperation(operation, isValuelessOperator ? value : parseNumericValue(value, columnMetadata));
 			} else {
 				// eslint-disable-next-line @elsikora/typescript/no-magic-numbers
 				if (path.length !== 2) continue;
@@ -81,7 +83,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 
 				const relationFilter: Record<string, unknown> = (filterRecord[relationName] ?? {}) as Record<string, unknown>;
 
-				relationFilter[nestedPropertyName] = ApiControllerGetListTransformOperation(operation, value);
+				relationFilter[nestedPropertyName] = ApiControllerGetListTransformOperation(operation, isValuelessOperator ? value : parseNumericValue(value, nestedColumnMetadata));
 
 				filterRecord[relationName] = relationFilter;
 			}
@@ -89,4 +91,20 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 	}
 
 	return filter;
+}
+
+/**
+ * Converts the value or values of a numeric filter the way a typed filter does, so a raw string never reaches the database.
+ * @param {unknown} value - Filter value, or the array of a values filter.
+ * @param {TApiPropertyDescribeProperties} metadata - Described property metadata of the filtered column.
+ * @returns {unknown} Parsed numbers for a numeric column; any other column keeps its value.
+ */
+function parseNumericValue(value: unknown, metadata: TApiPropertyDescribeProperties): unknown {
+	if (metadata.type !== EApiPropertyDescribeType.NUMBER) {
+		return value;
+	}
+
+	const field: { metadata: TApiPropertyDescribeProperties; type: EApiPropertyDescribeType } = { metadata, type: metadata.type };
+
+	return Array.isArray(value) ? value.map((item: unknown): unknown => ApiControllerGetListQueryRuntime.parseFilterValue(item, field)) : ApiControllerGetListQueryRuntime.parseFilterValue(value, field);
 }

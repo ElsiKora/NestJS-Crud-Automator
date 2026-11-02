@@ -410,26 +410,25 @@ export class ApiRouteRuntime {
 				// Date-time values the DTO or plan accepted must also name a calendar instant before any query.
 				ApiControllerGetListQueryRuntime.assertDateTimeFilterValues(requestQuery, this.resolveDateTimeFilterPaths(options.controller.service, requestQuery));
 
+				const {
+					limit,
+					orderBy,
+					orderDirection,
+					page,
+					...getListQuery
+				}: {
+					limit: number;
+					orderBy?: keyof E;
+					orderDirection?: EFilterOrderDirection;
+					page?: number;
+				} = query;
+				// Converted before the transaction, so a numeric filter value that is not a number sends no SQL.
+				const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard);
 				const service: ApiServiceBase<E> = options.controller.service;
 				const getManyFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetManyProperties<E>) => Promise<Array<E>>) | undefined = cursorRuntimeQuery ? ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_MANY, EApiFunctionType.GET_MANY, options.properties.entity) : undefined;
 				const getListFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetListProperties<E>) => Promise<unknown>) | undefined = cursorRuntimeQuery ? undefined : ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_LIST, EApiFunctionType.GET_LIST, options.properties.entity);
 
 				return await this.executeGeneratedTransaction(options, routeConfig, async (eventManager: EntityManager | undefined): Promise<unknown> => {
-					const generatedQuery: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode.CURSOR | EApiControllerGetListQueryPaginationMode.PAGE> = query;
-
-					const {
-						limit,
-						orderBy,
-						orderDirection,
-						page,
-						...getListQuery
-					}: {
-						limit: number;
-						orderBy?: keyof E;
-						orderDirection?: EFilterOrderDirection;
-						page?: number;
-					} = generatedQuery;
-					const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard);
 					const routeScopedFilter: TApiAuthorizationScopeWhere<E> = readPlan ? AuthorizationScopeMergeWhere(filter, ApiControllerReadScopeWhere(targets.parameters, readPlan)) : filter;
 					const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(routeScopedFilter, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
 					const effectiveLimit: number = runtimeQuery?.limit ?? limit;
