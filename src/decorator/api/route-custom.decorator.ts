@@ -78,7 +78,7 @@ export function ApiRouteCustom<E extends IApiBaseEntity>(properties: IApiRouteCu
 
 	return function (target: object, propertyKey: string | symbol, descriptor: PropertyDescriptor): void {
 		ApiRoutePushParametersContext(Reflect.get(properties.dto ?? {}, EApiDtoType.PARAMETERS), properties.route.type);
-		ApiControllerRequestRelationsValidator.register<E>(target, properties.resource.entity, `Custom route ${target.constructor.name}.${String(propertyKey)}`, properties.relations?.request);
+		ApiControllerRequestRelationsValidator.register<E>(target, properties.resource.entity, `Custom route ${target.constructor.name}.${String(propertyKey)}`, properties.relations?.request, undefined, properties.route.type);
 
 		const originalMethod: (...methodArguments: Array<unknown>) => unknown = descriptor.value as (...methodArguments: Array<unknown>) => unknown;
 		const bodyArgumentIndex: number | undefined = resolveRouteArgumentIndex(target, propertyKey, RouteParamtypes.BODY);

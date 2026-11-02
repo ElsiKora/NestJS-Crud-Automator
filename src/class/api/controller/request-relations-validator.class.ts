@@ -6,8 +6,9 @@ import type { TTypeOrmInheritanceMetadataArguments, TTypeOrmMetadataArgumentsSto
 import type { EntityMetadata } from "typeorm";
 
 import { ApiServiceBase } from "@class/api/service-base.class";
-import { EApiControllerRelationReferenceShape, EApiFunctionTransactionMode } from "@enum/decorator/api";
+import { EApiControllerRelationReferenceShape, EApiFunctionTransactionMode, EApiRouteType } from "@enum/decorator/api";
 import { DatabaseTypeOrmGetChildEntities } from "@utility/database/typeorm/get/child-entities.utility";
+import { DatabaseTypeOrmIsInverseSideRelation } from "@utility/database/typeorm/is/inverse-side-relation.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
@@ -61,14 +62,16 @@ export class ApiControllerRequestRelationsValidator {
 	 * This is its own rule, not a TypeORM limit: a relation of one child entity does not belong to the other rows a controller over the root writes.
 	 * A lock on a route with transaction mode NONE is one of those, because the route never runs in a transaction.
 	 * Other modes pass: an outer scope can supply the transaction, so its absence stays a request-time error.
+	 * So is a `OneToMany` or inverse `OneToOne` reference on a CREATE route: a create only inserts, and binding an existing row writes that row.
 	 * @param {TApiEntityReference} entity - Entity of the route.
 	 * @param {string} owner - Route description that prefixes the message, such as `Controller UserController route create`.
 	 * @param {IApiControllerPropertiesRouteBaseRelationsRequest<E> | undefined} relationConfig - Request relation configuration of the route.
 	 * @param {EApiFunctionTransactionMode} [transactionMode] - Transaction mode of a generated route; a custom route has none.
+	 * @param {EApiRouteType} [routeType] - Type of the route: the generated route type, or the `route.type` a custom route declares.
 	 * @returns {void}
 	 * @template E - The entity type
 	 */
-	public static assertStatic<E extends IApiBaseEntity>(entity: TApiEntityReference, owner: string, relationConfig: IApiControllerPropertiesRouteBaseRelationsRequest<E> | undefined, transactionMode?: EApiFunctionTransactionMode): void {
+	public static assertStatic<E extends IApiBaseEntity>(entity: TApiEntityReference, owner: string, relationConfig: IApiControllerPropertiesRouteBaseRelationsRequest<E> | undefined, transactionMode?: EApiFunctionTransactionMode, routeType?: EApiRouteType): void {
 		const load: IApiControllerPropertiesRouteBaseRelationsRequest<E>["load"] = relationConfig?.load;
 
 		if (!load) {
@@ -102,6 +105,10 @@ export class ApiControllerRequestRelationsValidator {
 			if (includeValue !== false && services[relationKey] === "") {
 				throw ErrorException(`${owner} relations.request key "${relationKey}" must not override its service with an empty name`);
 			}
+
+			if (includeValue !== false && routeType === EApiRouteType.CREATE && DatabaseTypeOrmIsInverseSideRelation(entity, relationKey)) {
+				throw ErrorException(`${owner} relations.request key "${relationKey}" references existing rows whose foreign key lives in the related row, a OneToMany or the inverse side of a OneToOne, so binding one would update that row, and a create only inserts. Remove "${relationKey}" from the include, and bind existing rows through the UPDATE of the related row, setting its reference to ${String(entity.name)}.`);
+			}
 		}
 
 		for (const [relationKey, relationLock] of Object.entries(locks)) {
@@ -121,11 +128,12 @@ export class ApiControllerRequestRelationsValidator {
 	 * @param {string} owner - Route description that prefixes the message.
 	 * @param {IApiControllerPropertiesRouteBaseRelationsRequest<E> | undefined} relationConfig - Request relation configuration of the route.
 	 * @param {EApiFunctionTransactionMode} [transactionMode] - Transaction mode of a generated route; a custom route has none.
+	 * @param {EApiRouteType} [routeType] - Type of the route: the generated route type, or the `route.type` a custom route declares.
 	 * @returns {void}
 	 * @template E - The entity type
 	 */
-	public static register<E extends IApiBaseEntity>(prototype: object, entity: TApiEntityReference, owner: string, relationConfig: IApiControllerPropertiesRouteBaseRelationsRequest<E> | undefined, transactionMode?: EApiFunctionTransactionMode): void {
-		this.assertStatic<E>(entity, owner, relationConfig, transactionMode);
+	public static register<E extends IApiBaseEntity>(prototype: object, entity: TApiEntityReference, owner: string, relationConfig: IApiControllerPropertiesRouteBaseRelationsRequest<E> | undefined, transactionMode?: EApiFunctionTransactionMode, routeType?: EApiRouteType): void {
+		this.assertStatic<E>(entity, owner, relationConfig, transactionMode, routeType);
 
 		if (!relationConfig?.load) {
 			return;

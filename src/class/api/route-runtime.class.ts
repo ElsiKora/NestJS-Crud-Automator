@@ -61,6 +61,7 @@ import { ApiControllerHasResponseRelationInclude } from "@utility/api/controller
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ApiControllerParametersDtoGet, ApiControllerParametersResolveRequest, ApiControllerParametersValidate } from "@utility/api/controller/parameters";
 import { ApiControllerPathIsExactInstant, ApiControllerPathPlanGet, ApiControllerPathRouteParameters, ApiControllerPathWhere } from "@utility/api/controller/path";
+import { ApiControllerRejectCreateInverseSideKeys } from "@utility/api/controller/reject-create-inverse-side-keys.utility";
 import { ApiControllerRejectToManyUpdateKeys } from "@utility/api/controller/reject-to-many-update-keys.utility";
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
 import { ApiControllerTransformData, ApiControllerTransformRouteData } from "@utility/api/controller/transform-data.utility";
@@ -151,6 +152,10 @@ export class ApiRouteRuntime {
 
 			if (options.metadata.route.type === EApiRouteType.PARTIAL_UPDATE || options.metadata.route.type === EApiRouteType.UPDATE) {
 				ApiControllerRejectToManyUpdateKeys(options.metadata.resource.entity, request.body);
+			}
+
+			if (options.metadata.route.type === EApiRouteType.CREATE) {
+				ApiControllerRejectCreateInverseSideKeys(options.metadata.resource.entity, request.body);
 			}
 
 			await this.executeRequestTargets(options.metadata, options.runtimeProperties, request, contextData);
@@ -418,6 +423,7 @@ export class ApiRouteRuntime {
 
 		switch (method) {
 			case EApiRouteType.CREATE: {
+				ApiControllerRejectCreateInverseSideKeys(options.properties.entity, targets.body);
 				const pathPlan: IApiControllerPathPlan = this.resolvePathPlan(options);
 
 				await this.executeGeneratedRequestPipeline(options, targets, pathPlan.scopeParameters.length > 0 ? [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.BODY] : [EApiControllerRequestTarget.BODY]);

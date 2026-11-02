@@ -400,6 +400,7 @@ Each failure is a class-validator `ValidationError` with `constraints` and `prop
 | `requestBodyReservedKey`          | The body holds the key `__proto__`, `constructor`, `hasOwnProperty` or `prototype`                       |
 | `requestBodyNulCharacter`         | A string or key in the body holds a NUL character                                                        |
 | `requestPropertyRenamed`          | A body or query sends a renamed property under its property key                                          |
+| `whitelistValidation`             | A CREATE body references existing rows through a `OneToMany` or inverse `OneToOne` relation              |
 | `pathParameterNotCanonical`       | Integer text of a path value is not canonical, such as `016` or `-0`, or a UUID path value is upper-case |
 | `pathParameterNoText`             | A route's PARAMETERS DTO gives a path value no text authorization can read                               |
 | `pathParameterConversionMismatch` | That DTO gives a path value other text with and without implicit conversion                              |

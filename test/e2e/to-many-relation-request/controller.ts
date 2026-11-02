@@ -2,20 +2,22 @@ import { BadRequestException, Body, HttpStatus, Inject, Param, RequestMethod } f
 
 import { ApiController, ApiControllerObservable, ApiRouteCustom, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiRouteType, EErrorStringAction } from "../../../src/index";
 
-import { E2eHydrationDetailEntity, E2eHydrationPostEntity } from "./entity";
+import { E2eHydrationDetailEntity, E2eHydrationNoteEntity, E2eHydrationPostEntity } from "./entity";
 import { E2eHydrationAttachmentService, E2eHydrationDetailService, E2eHydrationNoteService, E2eHydrationOwnerService, E2eHydrationPostService, E2eHydrationTagService } from "./service";
 
 const REQUEST_INCLUDE = { attachments: true, notes: true, owner: true, profile: true, tags: true } as const;
 const REQUEST_RELATIONS = { load: { include: REQUEST_INCLUDE }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.SCALAR } } as const;
 const RESPONSE_RELATIONS = { load: { include: REQUEST_INCLUDE }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } as const;
 const RELATIONS = { request: REQUEST_RELATIONS, response: RESPONSE_RELATIONS } as const;
+/** A create only inserts, so its request include leaves out the OneToMany relations, whose rows it would have to update. */
+const CREATE_RELATIONS = { request: { load: { include: { owner: true, profile: true, tags: true } }, reference: REQUEST_RELATIONS.reference }, response: RESPONSE_RELATIONS } as const;
 
 @ApiController<E2eHydrationPostEntity>({
 	entity: E2eHydrationPostEntity,
 	name: "E2eHydrationPosts",
 	path: "hydration-posts",
 	routes: {
-		[EApiRouteType.CREATE]: { relations: RELATIONS },
+		[EApiRouteType.CREATE]: { relations: CREATE_RELATIONS },
 		[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
 		[EApiRouteType.GET]: { generation: { isEnabled: false } },
 		[EApiRouteType.GET_LIST]: { generation: { isEnabled: false } },
@@ -220,4 +222,25 @@ export class E2eHydrationObservedPostController {
 
 		return { id };
 	}
+}
+
+/** Binds an existing note to a post through the update of the note, the way a create cannot. */
+@ApiController<E2eHydrationNoteEntity>({
+	entity: E2eHydrationNoteEntity,
+	name: "E2eHydrationNotes",
+	path: "hydration-notes",
+	routes: {
+		[EApiRouteType.CREATE]: { generation: { isEnabled: false } },
+		[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
+		[EApiRouteType.GET]: { generation: { isEnabled: false } },
+		[EApiRouteType.GET_LIST]: { generation: { isEnabled: false } },
+		[EApiRouteType.PARTIAL_UPDATE]: { relations: { request: { load: { include: { post: true } }, reference: REQUEST_RELATIONS.reference }, response: { load: { include: { post: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } } },
+		[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
+	},
+} as never)
+export class E2eHydrationNoteController {
+	public constructor(
+		@Inject(E2eHydrationNoteService) public readonly service: E2eHydrationNoteService,
+		@Inject(E2eHydrationPostService) public readonly postService: E2eHydrationPostService,
+	) {}
 }

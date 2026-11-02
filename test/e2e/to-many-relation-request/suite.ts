@@ -11,10 +11,10 @@ import { Test } from "@nestjs/testing";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiSubscriberModule, EApiExceptionDetailsType } from "../../../src/index";
+import { ApiAuthorizationModule, ApiController, ApiSubscriberModule, EApiControllerRelationReferenceShape, EApiExceptionDetailsType, EApiRouteType } from "../../../src/index";
 import { E2eValidationPipe } from "../app/validation-pipe";
 
-import { E2eHydrationDetailController, E2eHydrationObservedPostController, E2eHydrationOrderedPostController, E2eHydrationPostController, E2eHydrationUnhydratedPostController, HYDRATION_CUSTOM_REFUSED_TITLE, HYDRATION_CUSTOM_VALIDATOR_CALLS, HYDRATION_ORDERED_VALIDATOR_CALLS } from "./controller";
+import { E2eHydrationDetailController, E2eHydrationNoteController, E2eHydrationObservedPostController, E2eHydrationOrderedPostController, E2eHydrationPostController, E2eHydrationUnhydratedPostController, HYDRATION_CUSTOM_REFUSED_TITLE, HYDRATION_CUSTOM_VALIDATOR_CALLS, HYDRATION_ORDERED_VALIDATOR_CALLS } from "./controller";
 import { E2eHydrationAttachmentEntity, E2eHydrationBankDetailEntity, E2eHydrationCardDetailEntity, E2eHydrationDetailEntity, E2eHydrationNoteEntity, E2eHydrationOwnerEntity, E2eHydrationPostEntity, E2eHydrationTagEntity } from "./entity";
 import { E2eHydrationAttachmentService, E2eHydrationDetailService, E2eHydrationNoteService, E2eHydrationOwnerService, E2eHydrationPostService, E2eHydrationTagService } from "./service";
 import { E2eHydrationPostRouteSubscriber, HYDRATION_REPLACED_BODY_TITLE } from "./subscriber";
@@ -86,7 +86,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 
 		beforeAll(async () => {
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eHydrationDetailController, E2eHydrationObservedPostController, E2eHydrationOrderedPostController, E2eHydrationPostController, E2eHydrationUnhydratedPostController],
+				controllers: [E2eHydrationDetailController, E2eHydrationNoteController, E2eHydrationObservedPostController, E2eHydrationOrderedPostController, E2eHydrationPostController, E2eHydrationUnhydratedPostController],
 				imports: [TypeOrmModule.forRoot({ ...(await options.createDataSourceOptions()), dropSchema: true, entities: ENTITIES, logging: false, synchronize: true } as DataSourceOptions), TypeOrmModule.forFeature(ENTITIES), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [{ provide: APP_PIPE, useClass: E2eValidationPipe }, E2eHydrationAttachmentService, E2eHydrationDetailService, E2eHydrationNoteService, E2eHydrationOwnerService, E2eHydrationPostRouteSubscriber, E2eHydrationPostService, E2eHydrationTagService],
 			}).compile();
@@ -139,20 +139,39 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 				expect((await readStoredPost(body.id)).tags).toEqual([TAG_C]);
 			});
 
-			// Binding a OneToMany row writes its foreign key, which changes a stored row, and a create only inserts.
+			// A create only inserts: binding an existing OneToMany row writes its foreign key, so such a route cannot start.
+			it.each(["attachments", "notes"])("refuses at startup a CREATE route whose request include has the OneToMany %s", (relationName: string) => {
+				const decorate = (): unknown =>
+					ApiController<E2eHydrationPostEntity>({
+						entity: E2eHydrationPostEntity,
+						name: "E2eHydrationRefusedPosts",
+						path: "hydration-refused-posts",
+						routes: { [EApiRouteType.CREATE]: { relations: { request: { load: { include: { [relationName]: true } }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.SCALAR } } } } },
+					} as never)(class E2eHydrationRefusedPostController {} as never);
+
+				expect(decorate).toThrow(`relations.request key "${relationName}" references existing rows whose foreign key lives in the related row`);
+				expect(decorate).toThrow("bind existing rows through the UPDATE of the related row, setting its reference to E2eHydrationPostEntity");
+			});
+
+			it("binds an existing OneToMany row through the update of that row", async () => {
+				const response = await fastify.inject({ method: "PATCH", payload: { post: POST }, url: `/hydration-notes/${NOTE_FREE}` });
+
+				expect(response.statusCode).toBe(HttpStatus.OK);
+				expect(await readStoredPost(POST)).toEqual({ ...STORED_POST, notes: [NOTE_ATTACHED_FIRST, NOTE_ATTACHED_SECOND, NOTE_FREE] });
+			});
+
 			it.each([
-				["a free OneToMany row", NOTE_FREE],
-				["a OneToMany row of another post", NOTE_ATTACHED_FIRST],
-			])("refuses a reference to %s with 409 and writes nothing", async (_name: string, note: string) => {
+				["the key of a OneToMany row of another post", NOTE_ATTACHED_FIRST],
+				["a key-only object of a free OneToMany row", [{ id: NOTE_FREE }]],
+			])("answers 400 to a OneToMany reference the CREATE body does not declare, %s, and writes nothing", async (_name: string, notes: unknown) => {
 				const postsBefore: number = await manager.count(E2eHydrationPostEntity);
 				const notesBefore: Array<E2eHydrationNoteEntity> = await manager.find(E2eHydrationNoteEntity, { order: { id: "ASC" }, relations: { post: true } });
-				const response = await fastify.inject({ method: "POST", payload: { notes: note, title: "created" }, url: "/hydration-posts" });
+				const response = await fastify.inject({ method: "POST", payload: { notes, title: "created" }, url: "/hydration-posts" });
 
-				expect(response.statusCode).toBe(HttpStatus.CONFLICT);
-				expect(response.json()).toMatchObject({ details: { type: EApiExceptionDetailsType.UNIQUE_VIOLATION }, error: "Conflict", message: "E2EHYDRATIONPOSTENTITY_DUPLICATE_KEY", statusCode: HttpStatus.CONFLICT });
+				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+				expect(response.json()).toMatchObject({ error: "Bad Request", message: ["property notes should not exist"], statusCode: HttpStatus.BAD_REQUEST });
 				expect(await manager.count(E2eHydrationPostEntity)).toBe(postsBefore);
 				expect(await manager.find(E2eHydrationNoteEntity, { order: { id: "ASC" }, relations: { post: true } })).toEqual(notesBefore);
-				expect(await readStoredPost(POST)).toEqual(STORED_POST);
 			});
 
 			it("keeps hydrating a to-one reference into a single entity", async () => {
@@ -396,13 +415,14 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 			expect(body.owner).toEqual(expect.objectContaining({ id: OWNER }));
 		});
 
-		it("keeps to-many references single UUID properties in the CREATE body", () => {
+		it("keeps a ManyToMany reference a single UUID property in the CREATE body and leaves OneToMany relations out", () => {
 			const properties = (document.components?.schemas?.E2eHydrationPostCreateBodyDTO as TSwaggerSchemaObject).properties as Record<string, TSwaggerSchemaObject>;
 
-			for (const relationName of ["attachments", "notes", "tags"]) {
-				expect(properties[relationName]?.type).toBe("string");
-				expect(properties[relationName]?.format).toBe("uuid");
-			}
+			expect(properties.tags?.type).toBe("string");
+			expect(properties.tags?.format).toBe("uuid");
+			expect(Object.keys(properties)).toEqual(expect.arrayContaining(["owner", "profile", "tags", "title"]));
+			expect(Object.keys(properties)).not.toEqual(expect.arrayContaining(["attachments"]));
+			expect(Object.keys(properties)).not.toEqual(expect.arrayContaining(["notes"]));
 		});
 
 		it("leaves no empty schema that nothing references in the components", () => {

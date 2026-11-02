@@ -14,6 +14,10 @@ export class E2eHydrationNoteEntity {
 	})
 	public id!: string;
 
+	@ApiPropertyDescribe({
+		description: "post",
+		type: EApiPropertyDescribeType.RELATION,
+	})
 	@ManyToOne(() => E2eHydrationPostEntity, (post: E2eHydrationPostEntity): Array<E2eHydrationNoteEntity> | undefined => post.notes, { nullable: true })
 	public post?: null | Relation<E2eHydrationPostEntity>;
 }

@@ -5,9 +5,11 @@ import type { IApiControllerPropertiesRouteBaseRelationsRequest } from "@interfa
 
 import { ApiServiceBase } from "@class/api";
 import { ApiControllerRequestRelationsValidator } from "@class/api/controller/request-relations-validator.class";
-import { EApiControllerRelationReferenceShape } from "@enum/decorator/api";
+import { EApiControllerRelationReferenceShape, EApiRouteType } from "@enum/decorator/api";
 import { Column, DataSource, Entity, ManyToOne, PrimaryGeneratedColumn, Repository } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { InverseSideParentEntity } from "../../../utility/database/typeorm/is/fixture/inverse-side-relation.entity";
 
 const OWNER: string = "Route";
 const SCALAR_REFERENCE = { shape: EApiControllerRelationReferenceShape.SCALAR };
@@ -62,6 +64,32 @@ function assertStatic(relationConfig: IApiControllerPropertiesRouteBaseRelations
 }
 
 describe("ApiControllerRequestRelationsValidator", () => {
+	describe("assertStatic on a CREATE route", () => {
+		const assertRoute = (include: Record<string, unknown>, routeType: EApiRouteType | undefined): void => {
+			ApiControllerRequestRelationsValidator.assertStatic(InverseSideParentEntity as never, OWNER, config({ include }), undefined, routeType);
+		};
+
+		const assertCreate = (include: Record<string, unknown>): void => {
+			assertRoute(include, EApiRouteType.CREATE);
+		};
+
+		it.each([
+			["a OneToMany", "children"],
+			["the inverse side of a OneToOne", "profile"],
+		])("refuses %s, because binding an existing row would update it", (_name: string, relationKey: string) => {
+			expect(() => assertCreate({ [relationKey]: true })).toThrow(`Route relations.request key "${relationKey}" references existing rows whose foreign key lives in the related row, a OneToMany or the inverse side of a OneToOne, so binding one would update that row, and a create only inserts. Remove "${relationKey}" from the include, and bind existing rows through the UPDATE of the related row, setting its reference to InverseSideParentEntity.`);
+			expect(() => assertCreate({ [relationKey]: { tags: true } })).toThrow(`Route relations.request key "${relationKey}" references existing rows`);
+		});
+
+		it("accepts the relations a create can bind, and a disabled include", () => {
+			expect(() => assertCreate({ children: false, owned: true, owner: true, profile: false, tags: true })).not.toThrow();
+		});
+
+		it.each([EApiRouteType.PARTIAL_UPDATE, EApiRouteType.UPDATE, undefined])("leaves a OneToMany include to the %s route", (routeType: EApiRouteType | undefined) => {
+			expect(() => assertRoute({ children: true, profile: true }, routeType)).not.toThrow();
+		});
+	});
+
 	describe("assertStatic", () => {
 		it("accepts a missing configuration, a configuration without load, and a valid one", () => {
 			expect(() => assertStatic(undefined)).not.toThrow();

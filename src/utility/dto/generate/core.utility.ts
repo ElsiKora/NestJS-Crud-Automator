@@ -13,6 +13,7 @@ import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
 import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DatabaseTypeOrmIsInverseSideRelation } from "@utility/database/typeorm/is/inverse-side-relation.utility";
 import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
 import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
@@ -123,12 +124,18 @@ export function DtoGenerate<E>(
 
 	// A generated update writes a to-many relation as the full new set, so its body never declares one.
 	const isUpdateBody: boolean = (method === EApiRouteType.PARTIAL_UPDATE || method === EApiRouteType.UPDATE) && dtoType === EApiDtoType.BODY;
+	// A create only inserts, and binding an existing row of a OneToMany or an inverse OneToOne writes that row, so its body never declares one.
+	const isCreateBody: boolean = method === EApiRouteType.CREATE && dtoType === EApiDtoType.BODY;
 
 	// A write to one row is addressed by its key, so a relation in its body cannot name a key column either.
 	const lockedFields: ReadonlyArray<string> = [...(pathFields ?? []), ...(isUpdateBody ? entityMetadata.columns.filter((column: IApiEntityColumn<E>): boolean => column.isPrimary).map((column: IApiEntityColumn<E>): string => String(column.name)) : [])];
 
 	for (const column of entityMetadata.columns) {
 		if (isUpdateBody && (column.type === "one-to-many" || column.type === "many-to-many")) {
+			continue;
+		}
+
+		if (isCreateBody && (column.type === "one-to-many" || column.type === "one-to-one") && DatabaseTypeOrmIsInverseSideRelation(entity, column.name as string)) {
 			continue;
 		}
 

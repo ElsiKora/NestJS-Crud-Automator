@@ -311,11 +311,19 @@ describe.each(DRIVERS)("Generated CREATE never overwrites an existing row on $na
 			["the body names an existing primary key", { id: "item-foreign", name: "Hijacked", tenantId: IN_SCOPE }],
 			["the body repeats an existing row exactly", { code: "code-foreign", id: "item-foreign", name: "Foreign item", tenantId: OUT_OF_SCOPE }],
 			["a cascade would rename an existing related row", { id: "item-new", name: "New", owner: { id: "owner-foreign", name: "hacked" }, tenantId: IN_SCOPE }],
-			["the body would take over an existing child row", { children: [{ id: "child-foreign" }], id: "item-new", name: "New", tenantId: IN_SCOPE }],
+			["the body would take over and change an existing child row", { children: [{ id: "child-foreign", name: "Taken" }], id: "item-new", name: "New", tenantId: IN_SCOPE }],
 		])("answers the duplicate key body and keeps every row when %s", async (_name: string, payload: object) => {
 			const response = await send("POST", path, payload);
 
 			expect.soft(response).toEqual({ body: DUPLICATE_ITEM, status: 409 });
+			await expectUntouched();
+		});
+
+		// A key-only OneToMany item is a reference, which a create cannot bind, so it is refused before the create runs.
+		it("answers 400 and keeps every row when the body references an existing child row by its key", async () => {
+			const response = await send("POST", path, { children: [{ id: "child-foreign" }], id: "item-new", name: "New", tenantId: IN_SCOPE });
+
+			expect.soft(response).toEqual({ body: { error: "Bad Request", message: ["property children should not exist"], statusCode: 400 }, status: 400 });
 			await expectUntouched();
 		});
 

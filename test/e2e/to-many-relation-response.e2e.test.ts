@@ -226,11 +226,10 @@ describe("To-many response relations (E2E)", () => {
 		}
 	});
 
-	it("keeps to-many relations in the request schema unchanged", () => {
+	it("keeps a ManyToMany reference a single UUID in the CREATE body and leaves the OneToMany out, because a create cannot bind its rows", () => {
 		const properties: Record<string, TSwaggerSchemaObject> = getSchemaProperties("E2eToManyObjectPostCreateBodyDTO");
 
-		expect(properties.comments?.type).toBe("string");
-		expect(properties.comments?.format).toBe("uuid");
+		expect(properties.comments).toBeUndefined();
 		expect(properties.tags?.type).toBe("string");
 		expect(properties.tags?.format).toBe("uuid");
 	});

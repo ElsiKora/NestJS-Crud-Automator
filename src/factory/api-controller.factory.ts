@@ -165,7 +165,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			const methodName: TApiControllerMethodNameMap[typeof method] = ApiControllerGetMethodName(method);
 			let queryPlan: IApiControllerGetListQueryPlan | undefined;
 
-			ApiControllerRequestRelationsValidator.register<E>(this.targetPrototype, this.properties.entity, `Controller ${this.target.name} route ${method}`, routeConfig.relations?.request, routeConfig.transaction?.mode);
+			ApiControllerRequestRelationsValidator.register<E>(this.targetPrototype, this.properties.entity, `Controller ${this.target.name} route ${method}`, routeConfig.relations?.request, routeConfig.transaction?.mode, method);
 
 			this.pathPlan ??= ApiControllerPathPlanCompiler.compile(this.target, this.properties.path, this.ENTITY, this.properties, method);
 			const pathPlan: IApiControllerPathPlan = this.pathPlan;
