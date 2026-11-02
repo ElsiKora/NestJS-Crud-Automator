@@ -307,6 +307,7 @@ A generated `GET_LIST` route validates its query against the published OpenAPI s
 
 - `orderDirection` is lowercase `asc` or `desc`, and `orderBy` and `orderDirection` are sent together or not at all.
 - `limit` and `page` are required, and `limit` is at most 100. `isnull` and `notnull` take no value.
+- An integer filter value is canonical decimal text and a boolean filter value is `true` or `false`, on typed and untyped filters alike, as in every other request value: `1e2`, `1.0`, `016` and a boolean `1` or `0` return `400`.
 - Filter values follow the entity property: number bounds, string length, format and pattern. An empty or malformed number or uuid value, such as `amount[value]=`, returns `400 FILTER_NOT_VALID` instead of `500` on PostgreSQL or no rows on SQLite.
 - A `date` column filter is `YYYY-MM-DD` text, a `time` column filter is `HH:mm:ss` text, and both are compared as written in every time zone. A date-time filter is the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`, as `Date.prototype.toISOString()` writes it; a value without milliseconds, with an offset or without a zone returns `400`.
 - A membership filter with one value, such as `status[operator]=in&status[values]=active`, now works.
@@ -350,6 +351,16 @@ Under a host `ValidationPipe`, a request value of an `@ApiPropertyDate` property
 Type `DATE` and `TIME` properties of request DTOs as `string`, and change custom handlers that call `Date` methods on them. Without a host pipe a generated route does not check the body, as before, and stores the text as sent.
 
 `@ApiPropertyString` with `format: EApiPropertyStringType.DATE` now fails at decoration, on request and response properties, and an entity property described with `@ApiPropertyDescribe({ type: EApiPropertyDescribeType.STRING, format: EApiPropertyStringType.DATE })` fails when a generated DTO is built from it, naming that DTO. It accepted any text `new Date()` could read and turned it into a `Date`. On a DTO use `@ApiPropertyDate` with `EApiPropertyDateType.DATE`, or `DATE_TIME` for an instant. On an entity use `@ApiPropertyDescribe({ type: EApiPropertyDescribeType.DATE, format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE })`.
+
+## Path Values
+
+A generated route, and an IAM custom route with a PARAMETERS DTO, check each path value against its column before authorization and before any query, with or without a host `ValidationPipe`. A value outside the column rule returns `400` instead of a database error or `404`:
+
+- Integer text is canonical decimal text: `/items/016` and `/items/-0` return `400`.
+- A UUID is lower-case: `/items/AAAAAAAA-...` returns `400` with `id must be a lower-case UUID` instead of being lower-cased, because a database reads either letter case as one key while a policy compares text. Send the lower-case UUID.
+- A decimal, numeric, float, double or money column as a path value fails at startup on a securable route, in HOOKS mode as in IAM mode. Use an integer, UUID or text key.
+
+On a securable route the guard refuses the value ahead of your pipe, with `ApiRequestValidationException`, so the filter shown under [Request Body Limits](#request-body-limits) translates it too. See [Validation: Migration Notes](/docs/nestjs-crud-automator/guides/validation#migration-notes).
 
 ## Checking The Upgrade
 

@@ -26,7 +26,7 @@ const STARTUP_SAMPLES: Array<string> = ["1", "Aa"];
 const BOOLEAN_SAMPLES: Array<string> = ["true", "false"];
 
 /**
- * Rejects a path value held in a decimal column on a route whose authorization compares text: a database reads `1.5`, `1.50` and `01.5` as one key, so no Deny value can name it.
+ * Rejects a path value held in a decimal column on a securable route: a database reads `1.5`, `1.50` and `01.5` as one key, while an IAM Deny and a HOOKS policy on `context.parameters` compare text, so no policy value can name it.
  * @param {IApiControllerParametersRule} rule - Path value rule of the route.
  * @param {string} route - Controller and method, for the error message.
  * @returns {void}
@@ -35,9 +35,25 @@ const BOOLEAN_SAMPLES: Array<string> = ["true", "false"];
 export function ApiControllerParametersAssertComparableColumns(rule: IApiControllerParametersRule, route: string): void {
 	for (const [parameter, column] of rule.columns ?? []) {
 		if (ApiControllerParametersIsDecimalColumn(column.type)) {
-			throw ErrorException(`${route} holds the path parameter "${parameter}" in the ${String(column.type)} column "${String(column.name)}", and a database reads many spellings of such a value as one key, so an IAM Deny cannot name it: use an integer, UUID or text key on this route`);
+			throw ErrorException(`${route} holds the path parameter "${parameter}" in the ${String(column.type)} column "${String(column.name)}", and a database reads many spellings of such a value as one key, so a policy that compares its text, an IAM Deny or a HOOKS condition on context.parameters, cannot name it: use an integer, UUID or text key on this route`);
 		}
 	}
+}
+
+/**
+ * Rejects a path value held in a decimal column on a securable custom route that gets no path value rule: a HOOKS route, whose policy compares `context.parameters` as text.
+ * Each path parameter is read from the DTO property exposed under its name, or from the property of that name.
+ * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
+ * @param {ReadonlyArray<string>} pathParameters - Path parameter names of the controller and route paths.
+ * @param {string} route - Controller and method, for the error message.
+ * @returns {void}
+ * @throws {Error} When a path parameter is copied from a decimal column.
+ */
+export function ApiControllerParametersAssertComparableCopies(dto: Type<unknown>, pathParameters: ReadonlyArray<string>, route: string): void {
+	const exposure: IApiControllerParametersRouteDtoExposure = ApiControllerParametersRouteDtoReadExposure(dto);
+	const properties: Map<string, string> = new Map<string, string>(pathParameters.map((parameter: string): [string, string] => [parameter, exposure.names.get(parameter) ?? parameter]));
+
+	ApiControllerParametersAssertComparableColumns({ columns: readCopiedColumns(dto, properties), dto }, route);
 }
 
 /**
@@ -180,7 +196,7 @@ function assertRouteDtoLimits(dto: Type<unknown>, properties: ReadonlyMap<string
 		}
 
 		if (validationMetadata.some((metadata: TValidationMetadata): boolean => metadata.propertyName === property && (metadata.groups?.length ?? 0) > 0)) {
-			throw fail(parameter, "a validator of it is limited to class-validator groups, which the guard does not run, so the value could never be checked the same way: remove the groups");
+			throw fail(parameter, "a validator of it is limited to class-validator groups: the guard runs every validator, while a host pipe with groups runs only those of its groups, so the two would check the value differently: remove the groups");
 		}
 	}
 }
@@ -262,7 +278,7 @@ function readSampleText(dto: Type<unknown>, sample: Record<string, string>, prop
  * @param {ReadonlySet<string>} parameters - Path parameter names.
  * @param {string} route - Controller and method, for the error message.
  * @returns {Map<string, string>} The property of each path parameter.
- * @throws {Error} When the DTO drops a path parameter, two properties expose its name, or a `@Transform` hides which property holds it.
+ * @throws {Error} When the DTO drops a path parameter, two properties expose its name, or a `@Transform` hides which property holds it, by throwing or by writing a constant under several keys.
  */
 function resolveProperties(dto: Type<unknown>, parameters: ReadonlySet<string>, route: string): Map<string, string> {
 	const exposure: IApiControllerParametersRouteDtoExposure = ApiControllerParametersRouteDtoReadExposure(dto);
@@ -279,6 +295,12 @@ function resolveProperties(dto: Type<unknown>, parameters: ReadonlySet<string>, 
 
 		if (shadowed) {
 			throw ErrorException(`${route} reads the path parameter "${parameter}" through PARAMETERS DTO "${dto.name}", where the properties "${shadowed.join('" and "')}" both expose that name, so one overwrites the other: expose it from one property`);
+		}
+
+		const ambiguous: [string, Array<string>] | undefined = holder === undefined ? [...exposure.ambiguousProperties].find(([property, keys]: [string, Array<string>]): boolean => property !== parameter && keys.includes(parameter)) : undefined;
+
+		if (ambiguous) {
+			throw ErrorException(`${route} reads the path parameter "${parameter}" through PARAMETERS DTO "${dto.name}", where the property "${ambiguous[0]}" writes the same value under "${ambiguous[1].join('" and "')}" whatever the sample, so the guard cannot tell which property holds it: remove the constant @Transform, or add { toClassOnly: true } to it`);
 		}
 
 		if (holder === undefined && exposure.properties.has(parameter) && !exposure.failedProperties.has(parameter) && [...exposure.names.values()].includes(parameter)) {

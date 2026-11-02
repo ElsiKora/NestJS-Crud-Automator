@@ -9,7 +9,7 @@ const requestParametersCache: WeakMap<object, Record<string, unknown>> = new Wea
  * Resolves the typed path values of one request.
  * The values are validated and converted once, by whichever of the authorization guard and the route runtime runs first, and every later reader of the same request gets the cached result.
  * @template E - Entity type owned by the generated route.
- * @param {unknown} request - HTTP request object, used as the cache key.
+ * @param {unknown} request - HTTP request object, used as the cache key; its `params` hold the text the client sent, before a host pipe changed the letter case of a UUID.
  * @param {IApiControllerParametersRule | undefined} rule - Path value rule of the route: the generated route rule of the handler, or the custom route rule of the controller.
  * @param {Partial<E> | undefined} parameters - Path values as Nest passed them to the handler.
  * @returns {Promise<Partial<E> | undefined>} A copy of the typed path values, or the given values when the route has no path value rule.
@@ -27,7 +27,8 @@ export async function ApiControllerParametersResolveRequest<E extends IApiBaseEn
 		return { ...cached } as Partial<E>;
 	}
 
-	const validated: Partial<E> = await ApiControllerParametersValidate<E>(rule, parameters);
+	const sent: unknown = cacheKey ? Reflect.get(cacheKey, "params") : undefined;
+	const validated: Partial<E> = await ApiControllerParametersValidate<E>(rule, parameters, typeof sent === "object" && sent !== null ? (sent as Record<string, unknown>) : undefined);
 
 	if (cacheKey) {
 		requestParametersCache.set(cacheKey, validated);

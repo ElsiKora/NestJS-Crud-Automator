@@ -393,18 +393,18 @@ This works with or without `CorrelationIDResponseBodyExceptionFilter`. A failure
 
 Each failure is a class-validator `ValidationError` with `constraints` and `property`. A path value that a class-validator rule refuses keeps that failure exactly as class-validator built it, with its `value` and `target`, so your `exceptionFactory` gets what your pipe would get: a UUID path value answers `{"code":"VALIDATION_FAILED","errors":[{"path":"id","rule":"UUID"}]}` through a factory that maps `isUuid` to `UUID`, the same as behind the pipe. Every other failure in the table below never has `value` or `target`.
 
-| Constraint                        | Failure                                                                            |
-| --------------------------------- | ---------------------------------------------------------------------------------- |
-| `requestBodyMaximumKeys`          | An object in the body holds over 1000 keys                                         |
-| `requestBodyMaximumDepth`         | The body nests deeper than 64 levels                                               |
-| `requestBodyReservedKey`          | The body holds the key `__proto__`, `constructor`, `hasOwnProperty` or `prototype` |
-| `requestBodyNulCharacter`         | A string or key in the body holds a NUL character                                  |
-| `requestPropertyRenamed`          | A body or query sends a renamed property under its property key                    |
-| `pathParameterNotCanonical`       | Integer text of a path value is not canonical, such as `016` or `-0`               |
-| `pathParameterNoText`             | A route's PARAMETERS DTO gives a path value no text authorization can read         |
-| `pathParameterConversionMismatch` | That DTO gives a path value other text with and without implicit conversion        |
-| `pathParameterUnstable`           | That DTO gives other text when it runs again on its own output                     |
-| `isDefined`                       | A `read.scope` or identity path value is missing                                   |
+| Constraint                        | Failure                                                                                                  |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `requestBodyMaximumKeys`          | An object in the body holds over 1000 keys                                                               |
+| `requestBodyMaximumDepth`         | The body nests deeper than 64 levels                                                                     |
+| `requestBodyReservedKey`          | The body holds the key `__proto__`, `constructor`, `hasOwnProperty` or `prototype`                       |
+| `requestBodyNulCharacter`         | A string or key in the body holds a NUL character                                                        |
+| `requestPropertyRenamed`          | A body or query sends a renamed property under its property key                                          |
+| `pathParameterNotCanonical`       | Integer text of a path value is not canonical, such as `016` or `-0`, or a UUID path value is upper-case |
+| `pathParameterNoText`             | A route's PARAMETERS DTO gives a path value no text authorization can read                               |
+| `pathParameterConversionMismatch` | That DTO gives a path value other text with and without implicit conversion                              |
+| `pathParameterUnstable`           | That DTO gives other text when it runs again on its own output                                           |
+| `isDefined`                       | A `read.scope` or identity path value is missing                                                         |
 
 For a body limit, `property` is the dotted path in the body, such as `payload.items.1`, and is empty for the body itself; for a path value it is the path parameter name. For a reserved key it ends with the key; for a NUL in a key it stops at the object that holds the key. For `requestPropertyRenamed` it is the property key alone, without its path. That failure is thrown while the pipe converts the request, before it validates, so `exceptionFactory` does not see it either. The path holds keys the client sent, so do not put it in a response. The constraint names are stable, so translate those.
 

@@ -54,10 +54,10 @@ export function ApiControllerParametersRouteDtoFindDropped(dto: Type<unknown>, p
  * Finds the name each DTO property is exposed under, by writing each property back alone with two sample values.
  * The key whose value follows the samples is the name; a sibling's `@Transform` on its unset value gives the same result both times, whatever that result is.
  * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
- * @returns {IApiControllerParametersRouteDtoExposure} The exposed names, the properties that could not be written back, and the names two properties share.
+ * @returns {IApiControllerParametersRouteDtoExposure} The exposed names, the properties that could not be written back, the keys of each property written under more than one key whatever the sample, and the names two properties share.
  */
 export function ApiControllerParametersRouteDtoReadExposure(dto: Type<unknown>): IApiControllerParametersRouteDtoExposure {
-	const exposure: IApiControllerParametersRouteDtoExposure = { failedProperties: new Set<string>(), names: new Map<string, string>(), properties: listProperties(dto), shadowedProperties: new Map<string, Array<string>>() };
+	const exposure: IApiControllerParametersRouteDtoExposure = { ambiguousProperties: new Map<string, Array<string>>(), failedProperties: new Set<string>(), names: new Map<string, string>(), properties: listProperties(dto), shadowedProperties: new Map<string, Array<string>>() };
 
 	for (const property of exposure.properties) {
 		try {
@@ -71,6 +71,8 @@ export function ApiControllerParametersRouteDtoReadExposure(dto: Type<unknown>):
 				}
 
 				exposure.names.set(name, property);
+			} else if (name !== undefined) {
+				exposure.ambiguousProperties.set(property, [name, ...others]);
 			}
 		} catch {
 			exposure.failedProperties.add(property);

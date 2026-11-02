@@ -9,6 +9,7 @@ import { PATH_PARAMETER_FAILURE_CONSTANT } from "@constant/path-parameter-failur
 import { validate } from "class-validator";
 
 import { ApiControllerParametersIsIntegerColumn } from "./column/numeric-type.utility";
+import { ApiControllerParametersIsUuidColumn } from "./column/uuid-type.utility";
 import { ApiControllerParametersConvert } from "./convert.utility";
 import { ApiControllerParametersCreateFailure } from "./create-failure.utility";
 import { ApiControllerParametersRouteDtoValidate } from "./route-dto.utility";
@@ -23,16 +24,18 @@ const CANONICAL_INTEGER_PATTERN: RegExp = /^(?:0|-?[1-9]\d*)$/;
  * @template E - Entity type owned by the route.
  * @param {IApiControllerParametersRule | Type<unknown>} rule - Path value rule of the route, or a single DTO built from the described column types.
  * @param {Partial<E> | undefined} parameters - Path values after route-before subscribers and PARAMETERS transformers.
+ * @param {Record<string, unknown>} [sent] - Path values as the client sent them, whose letter case a host pipe may already have changed in `parameters`; `parameters` when omitted.
  * @returns {Promise<Partial<E>>} Path values converted to the described column types, such as a number for a NUMBER column.
  * @throws {ApiRequestValidationException} With the class-validator failures as they are, and the body a Nest `ValidationPipe` returns, when any path value fails its described type or the configured DTO.
  */
-export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(rule: IApiControllerParametersRule | Type<unknown>, parameters: Partial<E> | undefined): Promise<Partial<E>> {
+export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(rule: IApiControllerParametersRule | Type<unknown>, parameters: Partial<E> | undefined, sent?: Record<string, unknown>): Promise<Partial<E>> {
 	const { columns, configuredDto, dto, routeDtoProperties }: IApiControllerParametersRule = typeof rule === "function" ? { dto: rule } : rule;
 	const parameterRecord: Record<string, unknown> = parameters ?? {};
+	const sentRecord: Record<string, unknown> = sent ?? parameterRecord;
 
 	if (routeDtoProperties) {
 		const values: Record<string, unknown> = await ApiControllerParametersRouteDtoValidate(dto, routeDtoProperties, parameterRecord);
-		assertCanonicalIntegers(columns, values);
+		assertCanonicalText(columns, sentRecord, values);
 
 		return values as Partial<E>;
 	}
@@ -70,27 +73,31 @@ export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(
 		}
 	}
 
-	assertCanonicalIntegers(columns, validated);
+	assertCanonicalText(columns, sentRecord, validated);
 
 	return validated as Partial<E>;
 }
 
 /**
- * Refuses a text that a database would read as an integer it does not spell canonically: IAM compares text, so `016` would pass a Deny on `16` and find its row.
- * A value described as a number is already canonical; a text form stays legal for a bigint, where a JavaScript number would lose digits.
+ * Refuses a text that a database reads as a key it does not spell canonically, because IAM compares text: `016` would pass a Deny on `16`, and an upper-case UUID a Deny on its lower-case form, and still find the row.
+ * A value described as a number is already canonical; a text form stays legal for a bigint, where a JavaScript number would lose digits. A UUID is checked as sent, so it is refused rather than lower-cased.
  * @param {ReadonlyMap<string, IApiEntityColumn<unknown>> | undefined} columns - The entity column of each path parameter.
+ * @param {Record<string, unknown>} sent - Path values as sent.
  * @param {Record<string, unknown>} values - Converted path values.
  * @returns {void}
- * @throws {ApiRequestValidationException} When the text of an integer column is not canonical.
+ * @throws {ApiRequestValidationException} When the text of an integer or UUID column is not canonical.
  */
-function assertCanonicalIntegers(columns: ReadonlyMap<string, IApiEntityColumn<unknown>> | undefined, values: Record<string, unknown>): void {
+function assertCanonicalText(columns: ReadonlyMap<string, IApiEntityColumn<unknown>> | undefined, sent: Record<string, unknown>, values: Record<string, unknown>): void {
 	const failures: Array<ValidationError> = [];
 
 	for (const [parameter, column] of columns ?? []) {
 		const value: unknown = values[parameter];
+		const sentValue: unknown = sent[parameter];
 
 		if (typeof value === "string" && ApiControllerParametersIsIntegerColumn(column.type) && !CANONICAL_INTEGER_PATTERN.test(value)) {
 			failures.push(ApiControllerParametersCreateFailure(parameter, PATH_PARAMETER_FAILURE_CONSTANT.NOT_CANONICAL_CONSTRAINT, `${parameter} must be a decimal integer without leading zeros`));
+		} else if (typeof sentValue === "string" && ApiControllerParametersIsUuidColumn(column) && sentValue !== sentValue.toLowerCase()) {
+			failures.push(ApiControllerParametersCreateFailure(parameter, PATH_PARAMETER_FAILURE_CONSTANT.NOT_CANONICAL_CONSTRAINT, `${parameter} must be a lower-case UUID`));
 		}
 	}
 
