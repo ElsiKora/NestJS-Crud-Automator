@@ -1,33 +1,16 @@
+import type { Type } from "@nestjs/common";
+
 import { ValidationPipe } from "@nestjs/common";
 import { PIPES_METADATA } from "@nestjs/common/internal";
 import { ErrorException } from "@utility/error/exception.utility";
 import { Expose, Transform } from "class-transformer";
-import { Equals } from "class-validator";
+import { ValidateBy } from "class-validator";
 
-// The value the probe DTO gives its property, through class-transformer, and the value it refuses, through class-validator.
-const PROBE_KEPT_VALUE: string = "crud-automator-probe-kept";
-const PROBE_REFUSED_VALUE: string = "crud-automator-probe-refused";
-
-/**
- * A DTO whose property class-transformer replaces and class-validator then accepts, so a pipe that reads it with other packages refuses it.
- */
-class ApiControllerParametersValidationPipeKeptProbe {
-	// eslint-disable-next-line @elsikora/typescript/naming-convention
-	@Equals(PROBE_KEPT_VALUE, { always: true })
-	@Expose()
-	@Transform((): string => PROBE_KEPT_VALUE, { toClassOnly: true })
-	public value!: string;
-}
-
-/**
- * A DTO whose property class-validator refuses, so a pipe that accepts it validates with another package.
- */
-class ApiControllerParametersValidationPipeRefusedProbe {
-	// eslint-disable-next-line @elsikora/typescript/naming-convention
-	@Equals(PROBE_REFUSED_VALUE, { always: true })
-	@Expose()
-	public value!: string;
-}
+// The prefix class-transformer puts before a probe value, and the probe values a real class-validator has seen.
+const PROBE_KEPT_PREFIX: string = "crud-automator-probe-kept:";
+const PROBE_SEEN_VALUES: Set<string> = new Set<string>();
+let probeCounter: number = 0;
+let probeClass: Type<unknown> | undefined;
 
 /**
  * Rejects a `ValidationPipe` instance in `@UsePipes` whose `expectedType` replaces the PARAMETERS DTO with another class, which would convert a path value by another rule than the guard ran.
@@ -45,25 +28,26 @@ export function ApiControllerParametersAssertValidationPipeOptions(pipe: unknown
 
 /**
  * Checks that a `ValidationPipe` converts a path value with the class-transformer and class-validator a PARAMETERS DTO is declared with.
- * Nest keeps `transformerPackage` and `validatorPackage` in variables shared by every `ValidationPipe` of the process, not on the instance, so the pipe is run on two probe DTOs: another class-transformer would skip a `@Transform`, and another class-validator would skip a rule, either of which could give the handler another value than the policy saw.
+ * Nest keeps `transformerPackage` and `validatorPackage` in variables shared by every `ValidationPipe` of the process, not on the instance, so the pipe is run once on a probe DTO: another class-transformer would skip its `@Transform`, and another class-validator would skip its rule, either of which could give the handler another value than the policy saw.
+ * The probe passes every check, so the pipe never calls its `exceptionFactory`; it does run the packages of the pipe, which is what is checked. The probe DTO is declared on the first check, see {@link getProbeClass}.
  * @param {ValidationPipe} pipe - Pipe instance that Nest runs.
  * @param {string} route - Controller and method, for the error message.
  * @param {"controller" | "method"} place - Where `@UsePipes` declares the pipe.
- * @returns {Promise<void>} Resolves when the pipe reads the probes as the guard does.
- * @throws {Error} When the pipe reads a probe with other packages.
+ * @returns {Promise<void>} Resolves when the pipe reads the probe as the guard does.
+ * @throws {Error} When the pipe reads the probe with other packages.
  */
 export async function ApiControllerParametersAssertValidationPipePackages(pipe: ValidationPipe, route: string, place: "controller" | "method"): Promise<void> {
-	const isKeptAccepted: boolean = await pipe.transform({ value: "probe" }, { data: undefined, metatype: ApiControllerParametersValidationPipeKeptProbe, type: "param" }).then(
-		(): boolean => true,
-		(): boolean => false,
-	);
+	probeCounter += 1;
+	const sent: string = String(probeCounter);
+	const kept: string = `${PROBE_KEPT_PREFIX}${sent}`;
 
-	const isRefusedAccepted: boolean = await pipe.transform({ value: "probe" }, { data: undefined, metatype: ApiControllerParametersValidationPipeRefusedProbe, type: "param" }).then(
-		(): boolean => true,
-		(): boolean => false,
-	);
+	await pipe.transform({ value: sent }, { data: undefined, metatype: getProbeClass(), type: "param" }).catch((): undefined => undefined);
 
-	if (!isKeptAccepted || isRefusedAccepted) {
+	const isRead: boolean = PROBE_SEEN_VALUES.has(kept);
+	PROBE_SEEN_VALUES.delete(kept);
+	PROBE_SEEN_VALUES.delete(sent);
+
+	if (!isRead) {
 		throw ErrorException(`${route} runs ValidationPipe from @UsePipes on the ${place} with another class-transformer or class-validator than its PARAMETERS DTO is declared with, set by transformerPackage or validatorPackage on some ValidationPipe of the application, so it could convert a path value to another value than the policy saw: remove transformerPackage and validatorPackage`);
 	}
 }
@@ -89,4 +73,41 @@ export function ApiControllerParametersReadValidationPipes(controller: object, h
 	}
 
 	return entries;
+}
+
+/**
+ * Returns the probe DTO, declared on first use, so an application without `ValidationPipe` in `@UsePipes` on a route with a path parameter never registers it.
+ * Its one property is changed by a `@Transform` and checked by a class-validator rule that records the value it sees and always accepts it, so a pipe never fails on it and never calls its `exceptionFactory`.
+ * Declaring it leaves one class in the metadata of class-transformer and class-validator for the life of the process, with a property named `value`.
+ * @returns {Type<unknown>} The probe DTO class.
+ */
+function getProbeClass(): Type<unknown> {
+	if (probeClass) {
+		return probeClass;
+	}
+
+	class ApiControllerParametersValidationPipeProbe {
+		@Expose()
+		@Transform(({ value }: { value: unknown }): string => `${PROBE_KEPT_PREFIX}${String(value)}`, { toClassOnly: true })
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		@ValidateBy({ name: "crudAutomatorValidationPipeProbe", validator: { validate: recordProbeValue } }, { always: true })
+		public value!: string;
+	}
+
+	probeClass = ApiControllerParametersValidationPipeProbe;
+
+	return probeClass;
+}
+
+/**
+ * Records a value the probe rule sees and accepts it.
+ * @param {unknown} value - Value of the probe property after class-transformer.
+ * @returns {boolean} Always true, so the pipe never fails on the probe.
+ */
+function recordProbeValue(value: unknown): boolean {
+	if (typeof value === "string") {
+		PROBE_SEEN_VALUES.add(value);
+	}
+
+	return true;
 }
