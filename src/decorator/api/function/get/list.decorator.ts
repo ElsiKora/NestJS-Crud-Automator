@@ -108,7 +108,7 @@ export function ApiFunctionGetList<E extends IApiBaseEntity>(properties: IApiFun
 			});
 		};
 
-		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.GET_LIST, entity);
+		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.GET_LIST, entity, transactionMode);
 
 		return descriptor;
 	};

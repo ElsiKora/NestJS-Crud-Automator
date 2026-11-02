@@ -6,7 +6,7 @@ import type { TApiServiceProperties } from "@type/decorator/api/service";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiFunction } from "@decorator/api/function";
-import { EApiFunctionType } from "@enum/decorator/api";
+import { EApiFunctionTransactionMode, EApiFunctionType } from "@enum/decorator/api";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
@@ -76,7 +76,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
-					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.GET_LIST, EApiFunctionType.GET_LIST, entity);
+					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.GET_LIST, EApiFunctionType.GET_LIST, entity, functions?.[EApiFunctionType.GET_LIST]?.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS);
 				}
 
 				if (ApiServiceShouldDefineFunction(this, originalConstructor.prototype, EApiFunctionType.GET)) {
@@ -118,7 +118,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
-					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.GET, EApiFunctionType.GET, entity);
+					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.GET, EApiFunctionType.GET, entity, functions?.[EApiFunctionType.GET]?.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS);
 				}
 
 				if (ApiServiceShouldDefineFunction(this, originalConstructor.prototype, EApiFunctionType.GET_MANY)) {
@@ -160,7 +160,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
-					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.GET_MANY, EApiFunctionType.GET_MANY, entity);
+					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.GET_MANY, EApiFunctionType.GET_MANY, entity, functions?.[EApiFunctionType.GET_MANY]?.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS);
 				}
 
 				if (ApiServiceShouldDefineFunction(this, originalConstructor.prototype, EApiFunctionType.CREATE)) {
@@ -244,7 +244,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
-					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.UPDATE, EApiFunctionType.UPDATE, entity);
+					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.UPDATE, EApiFunctionType.UPDATE, entity, functions?.[EApiFunctionType.UPDATE]?.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS);
 				}
 
 				if (ApiServiceShouldDefineFunction(this, originalConstructor.prototype, EApiFunctionType.DELETE)) {
@@ -286,12 +286,15 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
-					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.DELETE, EApiFunctionType.DELETE, entity);
+					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.DELETE, EApiFunctionType.DELETE, entity, functions?.[EApiFunctionType.DELETE]?.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS);
 				}
 			}
 		};
 
 		Object.setPrototypeOf(ExtendedClass, originalConstructor);
+
+		// The wrapper keeps the name of the service, so errors and Nest name the class the application declared.
+		Object.defineProperty(ExtendedClass, "name", { value: originalConstructor.name });
 
 		return ExtendedClass as TFunction;
 	};

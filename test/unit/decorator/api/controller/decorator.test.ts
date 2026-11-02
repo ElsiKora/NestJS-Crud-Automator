@@ -257,13 +257,19 @@ describe("ApiController", () => {
 		const disabled = { generation: { isEnabled: false } };
 		const allDisabled = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: disabled, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
 		const bootstrap = async (entity: Function, routes: object): Promise<void> => {
+			const describedEntity = createDescribedEntity(entity);
+			const get = async (): Promise<IApiBaseEntity> => ({});
+
+			// A CREATE route reads its response through a protected GET function of the service.
+			ApiControllerGeneratedFunctionCapability.mark(get, EApiFunctionType.GET, describedEntity as never);
+
 			class CheckedController {
 				public receiptService: FactoryService = new FactoryService();
 
-				public service: { repository: unknown } = { repository: dataSource.getRepository(entity) };
+				public service: { get: typeof get; repository: unknown } = { get, repository: dataSource.getRepository(entity) };
 			}
 
-			const Decorated = ApiController<IApiBaseEntity>({ entity: createDescribedEntity(entity), routes } as never)(CheckedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+			const Decorated = ApiController<IApiBaseEntity>({ entity: describedEntity, routes } as never)(CheckedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
 
 			await new Decorated().onApplicationBootstrap();
 		};

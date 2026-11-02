@@ -108,7 +108,7 @@ export function ApiFunctionGetMany<E extends IApiBaseEntity>(properties: IApiFun
 			});
 		};
 
-		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.GET_MANY, entity);
+		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.GET_MANY, entity, transactionMode);
 
 		return descriptor;
 	};

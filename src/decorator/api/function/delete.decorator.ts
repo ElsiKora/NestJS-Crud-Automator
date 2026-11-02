@@ -109,7 +109,7 @@ export function ApiFunctionDelete<E extends IApiBaseEntity>(properties: IApiFunc
 			});
 		};
 
-		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.DELETE, entity);
+		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.DELETE, entity, transactionMode);
 
 		return descriptor;
 	};

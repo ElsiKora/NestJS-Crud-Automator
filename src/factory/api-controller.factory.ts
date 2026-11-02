@@ -30,6 +30,7 @@ import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/a
 import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/controller/apply/decorators.utility";
 import { ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/apply/metadata.utility";
 import { ApiControllerAssertRouteCursorDataSource, ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert";
+import { ApiControllerAssertGeneratedGetFunction } from "@utility/api/controller/assert-generated-get-function.utility";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerGetListQueryPlanGet, ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response-published-fields.utility";
@@ -292,7 +293,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	/**
-	 * Validates the table inheritance children and, when a generated route is enabled, the service repository, the route relation loads, and a CURSOR route's database contract against the initialized data source.
+	 * Validates the table inheritance children and, when a generated route is enabled, the service repository, the route relation loads, a CURSOR route's database contract against the initialized data source, and the GET function a route reads its response through.
 	 * @param {object} controller - The controller instance Nest bootstraps
 	 * @throws {Error} When the controller cannot serve its routes on the active data source
 	 */
@@ -313,6 +314,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		}
 
 		ApiControllerAssertRouteCursorDataSource(this.targetPrototype, repository, this.properties.routes[EApiRouteType.GET_LIST], `Controller "${this.target.name}" route "${EApiRouteType.GET_LIST}"`);
+		ApiControllerAssertGeneratedGetFunction(this.properties, Reflect.get(controller, "service") as object, this.target.name);
 	}
 
 	/**

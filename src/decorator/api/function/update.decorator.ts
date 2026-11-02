@@ -183,7 +183,7 @@ export function ApiFunctionUpdate<E extends IApiBaseEntity>(properties: IApiFunc
 			});
 		};
 
-		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.UPDATE, entity);
+		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.UPDATE, entity, transactionMode);
 
 		return descriptor;
 	};

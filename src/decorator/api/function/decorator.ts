@@ -10,7 +10,7 @@ import { ApiFunctionGet } from "@decorator/api/function/get/decorator";
 import { ApiFunctionGetList } from "@decorator/api/function/get/list.decorator";
 import { ApiFunctionGetMany } from "@decorator/api/function/get/many.decorator";
 import { ApiFunctionUpdate } from "@decorator/api/function/update.decorator";
-import { EApiFunctionType } from "@enum/decorator/api";
+import { EApiFunctionTransactionMode, EApiFunctionType } from "@enum/decorator/api";
 import { ErrorException } from "@utility/error/exception.utility";
 
 /**
@@ -91,7 +91,7 @@ export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctio
 		};
 
 		if (type !== EApiFunctionType.CREATE && type !== EApiFunctionType.CUSTOM) {
-			ApiControllerGeneratedFunctionCapability.mark(descriptor.value, type, entity);
+			ApiControllerGeneratedFunctionCapability.mark(descriptor.value, type, entity, properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS);
 		}
 
 		return descriptor;
