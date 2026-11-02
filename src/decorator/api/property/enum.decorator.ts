@@ -8,11 +8,12 @@ import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
+import { ClassTransformerAutomatorTransform } from "@utility/class-transformer/automator-transform.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
-import { Exclude, Transform } from "class-transformer";
+import { Exclude } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, Validate, ValidateIf } from "class-validator";
 
 /**
@@ -215,7 +216,7 @@ function buildRequestDecorators(properties: TApiPropertyEnumProperties): Array<P
 		if (properties.isArray === true) {
 			// A lone value, such as `?names=abc`, is a one-item list, as for every list type; a comma list is one item, which the item rules check.
 			decorators.push(
-				Transform(({ value }: { value: unknown }): unknown => (value === undefined || value === null || Array.isArray(value) ? value : [value]), { toClassOnly: true }),
+				ClassTransformerAutomatorTransform(({ value }: { value: unknown }): unknown => (value === undefined || value === null || Array.isArray(value) ? value : [value]), { toClassOnly: true }),
 				IsArray(),
 				ArrayMinSize(properties.minItems),
 				ArrayMaxSize(properties.maxItems),
