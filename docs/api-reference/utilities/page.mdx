@@ -21,9 +21,11 @@ const entityInfo = GenerateEntityInformation(UserEntity);
 // Returns: { tableName: "users", primaryKey: { name: "id", ... }, columns: [...] }
 ```
 
+Tables, columns, and relations are matched to the class and its ancestors, not by name, so a same-named class does not contribute to the result.
+
 ### ResolveMetadataTarget
 
-Resolves an entity reference to the class that `MetadataStorage` keys its metadata by. A class is returned as is, an `EntitySchema` resolves to its `target` class, and a `{ name }` reference resolves through TypeORM entity metadata to the one `@Entity` class with that name. A name that matches no entity class or several entity classes throws an error that names the target.
+Resolves an entity reference to the class that `MetadataStorage` keys its metadata by. A class is returned as is, an `EntitySchema` resolves to its `target` class, and a `{ name }` reference resolves to the one class registered with that name by TypeORM's `@Entity` decorator (`getMetadataArgsStorage().tables`). It reads decorator registrations, not the entity metadata of a `DataSource`, so a name known only through a `DataSource` fails, or resolves to an unrelated `@Entity` class that has the same name. An `EntitySchema` without a `target` class always fails. A name that matches no entity class or several entity classes throws an error that names the target.
 
 **Location:** `src/utility/resolve/metadata-target.utility.ts`
 

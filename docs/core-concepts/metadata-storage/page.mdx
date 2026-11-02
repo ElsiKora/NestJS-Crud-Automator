@@ -92,9 +92,38 @@ Code paths that receive an entity as a `{ name }` reference, such as a string re
 
 - a class is used as is;
 - an `EntitySchema` resolves to its `target` class;
-- a name resolves through TypeORM entity metadata to the one `@Entity` class with that name.
+- a name resolves to the one class registered with that name by TypeORM's `@Entity` decorator.
 
-A name that matches no entity class, or several entity classes, fails at startup with an error that names the target, such as `Metadata target "UserEntity" matches 2 entity classes in TypeORM metadata. Pass the entity class instead of its name.` Pass the class instead of the name.
+`ResolveMetadataTarget` reads decorator registrations (`getMetadataArgsStorage().tables`), not the entity metadata of a `DataSource`. A `{ name }` reference sees only `@Entity` classes, so a name known only through a `DataSource` fails, or resolves to an unrelated `@Entity` class that has the same name. An `EntitySchema` without a `target` class always fails.
+
+A name that matches no entity class, or several entity classes, fails at startup with an error that names the target, such as `Metadata target "UserEntity" matches 2 entity classes in TypeORM metadata (tables users and legacy_users). Pass the entity class instead of its name.` Pass the class instead of the name.
+
+Every GET_LIST route resolves the string relation targets it can filter by the same way, including a route with a manual QUERY DTO. A route with a typed filter can reach to-one relations only; any other route can reach every relation visible to its query. A target that names no `@Entity` class is skipped as not filterable; a target that names several fails at startup instead of being skipped.
+
+The check runs when the controller is decorated and again when Nest instantiates it, so import order does not change the outcome: a second class with the target's name that is imported after the controller file still fails startup.
+
+A class that arrives after the controllers were instantiated, for example through `LazyModuleLoader`, cannot fail startup. From then on a request that filters through that relation fails with the same `matches 2 entity classes` error and a 500 response, on routes with and without a typed filter. Requests that do not reach the relation keep working. A route with a typed filter resolves such a target again only after the TypeORM table registry grew, so an unchanged registry adds no work per request.
+
+## Other Registries Keyed by Class
+
+The registries the package keeps for entities use the class as the key as well, so two entity classes that share a name, for example in two modules, keep their own:
+
+- route and function subscribers: `apiSubscriberRegistry.getFunctionSubscribers(UserEntity)` and `getRouteSubscribers(UserEntity)` take the class, and a request runs the subscribers of the route's entity class (or of the repository's metadata class), never of a class looked up by name;
+- transaction lifecycle events, which carry the entity class;
+- authorization policy subscribers, and the rules cached for each registered subscriber instance;
+- generated body, query, and response DTOs (`IDtoGenerateCacheKey` carries the entity class as `entity` and the guard class as `guard`, and tells validator classes in `dtoConfig` apart), including the GET_LIST page and cursor item wrappers, which are keyed by the entity class and the item class.
+
+Two GET_LIST item classes with the same name on one entity would get the same wrapper name, so startup fails with an error that asks for a unique response DTO name. One wrapper name also cannot serve both PAGE and CURSOR routes of one entity, in either order. The same name on two entities is a [schema name](/docs/nestjs-crud-automator/core-concepts/dtos) collision, which fails the startup of an application that has both routes.
+
+Generated DTO names start with the prefix of the controller, not with the entity name. Same-named entities in different modules get separate DTOs under the names of their controllers. Two controller classes with one name fail the startup of one application, and the error names both modules; in two separate applications each one gets the DTOs of its own entity class.
+
+The same holds for guards. Two guard classes with one name keep the fields of their own `guard` rules: on two controllers each one gets its own DTO, and two same-named controllers fail the startup of one application as above, or get a DTO each in two separate applications.
+
+`GenerateEntityInformation` and the GET_LIST query plan match TypeORM tables, columns, and relations to the class itself, so two same-named entity classes keep their own table, primary key, columns, and relations.
+
+A controller's service repository must be for the controller's entity: the entity itself, its table inheritance root, or a child of it. `TypeOrmModule.forFeature([DocA, DocB])` with two classes named `Doc` gives both one repository token, so the last one registered wins. A controller with an enabled generated route whose repository is for a class outside that lineage fails at startup with an error that names both classes and their tables, such as `Controller "DocAController" serves entity Doc (table doc_a), but its service repository is for Doc (table doc_b).` Declare each class in its own module, or give the classes different names. A controller whose generated routes are all disabled is not checked, and neither is anything that is not a TypeORM `Repository`, such as a mock passed to `Test.overrideProvider`.
+
+Nest does not run the bootstrap hook of a REQUEST-scoped controller, and a lazy-loaded module's hook runs too late to stop startup, so such a controller can only have its repository checked when a generated route runs: its first request answers 500 with the same error in the log. The other startup checks do run for a REQUEST-scoped controller at startup, the same as for a singleton: a second class with the target's name that arrives after startup leaves a plain list answering 200 and fails only the requests that filter through that relation.
 
 ## Metadata Retrieval
 
@@ -210,6 +239,8 @@ Metadata is stored in memory for the lifetime of the application. This is typica
 - The amount of metadata is proportional to entity complexity
 - No dynamic metadata accumulation occurs during runtime
 
+The store holds classes in a `Map` so that `getAllEntitiesMetadata()` can list them, which keeps every registered class alive. A class declared again, by hot module replacement or by a test that declares an entity class inside a function, is a new class: it registers its own entry next to the old one instead of replacing it. After a module is evaluated again, for example by hot module replacement, `vi.resetModules()`, or an import through a second path, a string relation target that names its entity classes matches both copies, so controller startup fails with the `matches 2 entity classes` error. Reference the relation target by class, or restart the process.
+
 ## Debugging Metadata
 
 To inspect stored metadata during development:
@@ -259,12 +290,20 @@ class CustomMetadataManager {
 
 ## Migration Notes
 
-Before 5.0.0, MetadataStorage was keyed by class name and the last write won. A class declared later with the name of an entity or of one of its base classes replaced that entity's property metadata, so generated DTOs, validation, Swagger schemas, and IAM scope compilation could use the other class's descriptions. From 5.0.0, metadata is keyed by class:
+Before 5.0.0, MetadataStorage was keyed by class name. Classes that shared a name, including an entity and a class named like one of its base classes, wrote into one entry property by property: each property kept the description written last for it, and properties of either class appeared on both. Generated DTOs, validation, Swagger schemas, and IAM scope compilation could therefore mix the descriptions of the two classes. From 5.0.0, metadata is keyed by class:
 
 - `setMetadata`, `getMetadata`, and their callers take the class instead of its name. Replace `getMetadata("UserEntity", ...)` with `getMetadata(UserEntity, ...)`; for a `{ name }` reference, call `getMetadata(ResolveMetadataTarget(reference), ...)`.
 - `getMetadata(Class)` and `getMetadata(Class, property)` include the metadata of the class's ancestors. Code that read each ancestor's name in a loop can read the class once.
 - `getAllEntitiesMetadata()` returns a `Map` keyed by class instead of a record keyed by name. Read entries with `.get(UserEntity)` or iterate the map.
+- `getMetadata`, `setMetadata`, `apiSubscriberRegistry.getFunctionSubscribers` and `getRouteSubscribers`, and the policy registry's `buildAggregatedPolicy`, `hasSubscriberForEntity`, and `invalidateCache` throw a `TypeError` when they receive anything but a class, such as a class name, instead of answering as if nothing were registered.
+- A controller with an enabled generated route fails startup when its service repository is for a class outside the lineage of its entity. Before 5.0.0 two same-named classes in one `forFeature` shared one repository token, so one controller silently read and wrote the other class's table. Declare the classes in separate modules or give them different names. For a controller that only has custom routes, disable the generated ones.
 - A `{ name }` entity reference, such as a string relation target, that matches no `@Entity` class or several `@Entity` classes with that name fails startup with `Metadata target "<name>" ...`. Pass the class, or give the classes distinct names.
+- Subscriber, policy, and generated DTO registries are keyed by class. `apiSubscriberRegistry.getFunctionSubscribers` and `getRouteSubscribers` take the class instead of its name, and `IDtoGenerateCacheKey` takes `entity` instead of `entityName` and `guard` instead of `guardName`. Two guard classes with one name no longer share a generated DTO.
+- A request runs the subscribers of the route's entity class, or of the repository's metadata class (`repository.metadata.target`). A string `repository.target` is never resolved per request, so register subscribers for the class, not for a name.
+- Two GET_LIST `{ itemType }` classes with the same name on one entity fail startup instead of sharing one wrapper. Give one of them a distinct `name`. One wrapper `name` also cannot serve both PAGE and CURSOR routes of one entity, in either order.
+- A GET_LIST route with a manual QUERY DTO now also fails startup when a relation it can filter by has a string target that names several `@Entity` classes, whichever of the classes and the controller is imported first. Pass the class, or give the classes distinct names.
+- `GenerateEntityInformation` matches tables, columns, and relations by class instead of by name. Two same-named `@Entity` classes no longer share columns or a primary key, so code that relied on those merged columns must read them from the class that declares them.
+- `ResolveMetadataTarget` and string relation targets resolve only classes registered with `@Entity`. A `{ name }` reference sees only `@Entity` classes, so a name known only through a `DataSource` fails, or resolves to an unrelated `@Entity` class that has the same name. An `EntitySchema` without a `target` class always fails. Pass a class.
 
 ## Next Steps
 

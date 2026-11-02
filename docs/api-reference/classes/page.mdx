@@ -177,7 +177,7 @@ Abstract base class for all subscribers.
 
 ### MetadataStorage
 
-Singleton class for storing and retrieving entity property metadata. Metadata is keyed by the class, never by its name, and a class sees its own metadata merged with its ancestors'.
+Singleton class for storing and retrieving entity property metadata. Metadata is keyed by the class, never by its name, and a class sees its own metadata merged with its ancestors'. `setMetadata` and `getMetadata` throw a `TypeError` when they receive a class name instead of the class.
 
 **Location:** `src/class/metadata-storage.class.ts`
 

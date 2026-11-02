@@ -361,7 +361,7 @@ async onBeforeCreate(
 
 ## Application Shutdown
 
-`ApiSubscriberModule` adds an application's subscribers to the process-wide `apiSubscriberRegistry` in `onModuleInit` and removes them in `onApplicationShutdown`. No consumer code is required. `app.close()` runs this hook without `enableShutdownHooks()`, which only makes process signals follow the same order:
+`ApiSubscriberModule` adds an application's subscribers to the process-wide `apiSubscriberRegistry` in `onModuleInit` and removes them in `onApplicationShutdown`. The registry keys subscribers by entity class, so subscribers of two entity classes that share a name stay apart; `getFunctionSubscribers` and `getRouteSubscribers` take the class. No consumer code is required. `app.close()` runs this hook without `enableShutdownHooks()`, which only makes process signals follow the same order:
 
 ```
 1. onModuleDestroy hooks
