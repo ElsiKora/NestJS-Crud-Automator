@@ -24,7 +24,7 @@ import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { API_CONTROLLER_TESTING_GUIDE_URL } from "@constant/api-controller-testing-guide.constant";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { DTO_SCHEMA_NAME_CONSTANT } from "@constant/utility/dto/schema-name.constant";
-import { EApiDtoType, EApiFunctionTransactionMode, EApiRouteType } from "@enum/decorator/api";
+import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { Controller, UseFilters } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/api";
@@ -82,24 +82,18 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	/**
-	 * Fails startup when a generated CREATE could never succeed, instead of failing every request.
+	 * Fails startup when a generated CREATE could never identify the row it stores, instead of failing every request.
 	 * @param {Repository<E>} repository - Repository of the controller's service.
 	 * @param {boolean} isSecurable - Whether the route runs under authorization.
 	 * @returns {void}
-	 * @throws {Error} When the route cannot own a transaction or cannot identify the row it creates.
+	 * @throws {Error} When the route cannot identify the row it creates.
 	 */
 	assertCreateRoute(repository: Repository<E>, isSecurable: boolean): void {
 		if (!this.isMethodGenerated(EApiRouteType.CREATE)) {
 			return;
 		}
 
-		const source: string = `Controller "${this.target.name}" route "${EApiRouteType.CREATE}"`;
-
-		if (this.properties.routes[EApiRouteType.CREATE]?.transaction?.mode === EApiFunctionTransactionMode.NONE) {
-			throw ErrorException(`${source} cannot use transaction mode NONE, because a generated create checks the stored row before it commits`);
-		}
-
-		ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(repository, source, isSecurable);
+		ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(repository, `Controller "${this.target.name}" route "${EApiRouteType.CREATE}"`, isSecurable);
 	}
 
 	/**
@@ -332,9 +326,10 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		const isSecurable: boolean = Boolean(Reflect.getMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, controller.constructor));
 		const pendingRepository: Repository<E> | undefined = this.getPendingRepository(service);
 
-		// A data source the application starts later has no metadata to check yet, so a create checks its key on each request instead.
+		// A data source the application starts later has no metadata to check yet, so a create checks its key on each request instead; the service functions need no metadata.
 		if (pendingRepository) {
 			this.assertCreateRoute(pendingRepository, isSecurable);
+			ApiControllerAssertRouteFunctions(this.properties, service as object, this.target.name);
 
 			return;
 		}
@@ -349,7 +344,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 
 		this.assertCreateRoute(repository, isSecurable);
 		ApiControllerAssertRouteCursorDataSource(this.targetPrototype, repository, this.properties.routes[EApiRouteType.GET_LIST], `Controller "${this.target.name}" route "${EApiRouteType.GET_LIST}"`);
-		ApiControllerAssertRouteFunctions(this.properties, Reflect.get(controller, "service") as object, this.target.name);
+		ApiControllerAssertRouteFunctions(this.properties, service as object, this.target.name);
 	}
 
 	/**

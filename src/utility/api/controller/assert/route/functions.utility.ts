@@ -23,12 +23,13 @@ const ROUTE_FUNCTIONS: ReadonlyArray<[EApiRouteType, ReadonlyArray<IApiControlle
 
 /**
  * Refuses a controller whose generated route calls a service function it cannot run.
- * Every function the route calls must be protected by its built-in decorator, and must be able to run in the transaction the route holds: MANDATORY needs the transaction that only a REQUIRED or MANDATORY route holds, and NONE refuses it.
+ * Every function the route calls must be protected by its built-in decorator, and must be able to run in the transaction the route holds: MANDATORY needs the transaction that a REQUIRED or MANDATORY route holds, and NONE refuses it.
+ * A generated CREATE route always holds a transaction, because it checks the row it stored before it commits, so it refuses route mode NONE and a NONE function under any route mode.
  * @param {IApiControllerProperties<E>} properties - Properties of the controller.
  * @param {object} service - The `service` of the controller, whose repository the bootstrap already checked.
  * @param {string} controllerName - Controller named in the error.
  * @template E - The entity type
- * @throws {Error} When an enabled route calls a function the service does not protect with its built-in decorator, a plain override included, or one in a transaction mode it cannot run in.
+ * @throws {Error} When an enabled CREATE route runs in mode NONE, or an enabled route calls a function the service does not protect with its built-in decorator, a plain override included, or one in a transaction mode it cannot run in.
  */
 export function ApiControllerAssertRouteFunctions<E extends IApiBaseEntity>(properties: IApiControllerProperties<E>, service: object, controllerName: string): void {
 	const serviceName: string = service.constructor.name;
@@ -39,7 +40,13 @@ export function ApiControllerAssertRouteFunctions<E extends IApiBaseEntity>(prop
 		}
 
 		const routeMode: EApiFunctionTransactionMode = properties.routes[routeType]?.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS;
-		const isTransactionHeld: boolean = routeMode === EApiFunctionTransactionMode.MANDATORY || routeMode === EApiFunctionTransactionMode.REQUIRED;
+		const isCreate: boolean = routeType === EApiRouteType.CREATE;
+
+		if (isCreate && routeMode === EApiFunctionTransactionMode.NONE) {
+			throw ErrorException(`Controller "${controllerName}" route "${routeType}" runs in transaction mode NONE, but a generated create always runs in a transaction, because it checks the row it stored before it commits. Set the route transaction mode to SUPPORTS, REQUIRED or MANDATORY.`);
+		}
+
+		const isTransactionHeld: boolean = isCreate || routeMode === EApiFunctionTransactionMode.MANDATORY || routeMode === EApiFunctionTransactionMode.REQUIRED;
 
 		for (const routeFunction of routeFunctions) {
 			const { decorator, failure, functionType, purpose }: IApiControllerRouteFunction = routeFunction;
@@ -60,6 +67,10 @@ export function ApiControllerAssertRouteFunctions<E extends IApiBaseEntity>(prop
 
 			if (functionMode === EApiFunctionTransactionMode.MANDATORY && !isTransactionHeld) {
 				throw ErrorException(`Controller "${controllerName}" route "${routeType}" runs in transaction mode ${routeMode}, but the ${functionType.toUpperCase()} function of service "${serviceName}" runs in mode MANDATORY and needs a transaction the route does not hold, so the route would fail ${failure}. Set the route transaction mode to REQUIRED, or the ${functionType.toUpperCase()} function mode to SUPPORTS or REQUIRED.`);
+			}
+
+			if (functionMode === EApiFunctionTransactionMode.NONE && isCreate) {
+				throw ErrorException(`Controller "${controllerName}" route "${routeType}" runs in transaction mode ${routeMode}, but the ${functionType.toUpperCase()} function of service "${serviceName}" runs in mode NONE and refuses the transaction every generated create holds, so the route would fail ${failure}. Set the ${functionType.toUpperCase()} function mode to SUPPORTS or REQUIRED.`);
 			}
 
 			if (functionMode === EApiFunctionTransactionMode.NONE && isTransactionHeld) {
