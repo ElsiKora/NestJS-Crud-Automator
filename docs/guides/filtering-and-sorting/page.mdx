@@ -97,6 +97,8 @@ A date-time filter now accepts only the published `YYYY-MM-DDTHH:mm:ss.sssZ` for
 
 A route without a typed filter used to bind a date-time filter value as text. On SQLite, `2024-03-01T09:30:00.000Z` was compared as text with the stored `2024-03-01 10:00:00.000`, which dropped rows of the same day, and on PostgreSQL a column with a value transformer answered `500`. Such a value now binds as the instant it names, as on a typed route. A `Date` that a route-before subscriber writes into a date-time filter used to return `400` and is now accepted on every route. A typed `defaultCondition` on a date-time field now also accepts a UTC instant string, and any other string fails at startup with an error that names the controller and the route.
 
+A route without a typed filter used to bind a boolean filter value as text. On SQLite, `isActive[operator]=eq&isActive[value]=true` compared `'true'` with the stored `1` and matched no row, while PostgreSQL found the rows. `true` and `false` now bind as booleans for `eq`, `ne`, `in` and `notin`, on direct and one-hop relation fields, as on a typed route, so every database returns the same rows.
+
 ## Route-Owned Typed Query Plans
 
 Entity `@ApiPropertyDescribe` and TypeORM metadata remain the source for generated GET_LIST query DTOs. A generated GET_LIST route can optionally add `filter`, `order`, and `pagination` under `request[EApiControllerRequestTarget.QUERY]`. Automator compiles the metadata and this route overlay into one immutable plan used by the runtime DTO, strict parser, TypeORM predicates, and OpenAPI.
@@ -384,6 +386,8 @@ GET /users?isActive[operator]=isnull
 // Is not null
 GET /users?isActive[operator]=notnull
 ```
+
+A boolean field has no `excl` operation: `isActive[operator]=excl` returns `400` before any SQL.
 
 ### Enum Operations
 

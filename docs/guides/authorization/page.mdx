@@ -648,13 +648,17 @@ IAM conditions support exactly these operators, exposed as `EApiPolicyConditionO
 | `StringNotEquals`         | the value differs from the expected value      |
 | `StringNotEqualsIfExists` | the value is absent or differs from it         |
 
-Any other operator, and any operand that is not a string, number, or boolean, is a document validation error: `ApiAuthorizationIamDocumentValidator` rejects the document when it is loaded from a document source, so a typo can never silently turn a statement into a no-op. If an unknown operator still reaches evaluation, it fails closed: the key holds for a Deny and fails for an Allow.
+Any other operator is a document validation error: `ApiAuthorizationIamDocumentValidator` rejects the document when it is loaded from a document source, so a typo can never silently turn a statement into a no-op. If an unknown operator still reaches evaluation, it fails closed: the key holds for a Deny and fails for an Allow. An operand that is a list, an object or `null` has no text to compare: the validator logs a warning and the key fails closed the same way: the key fails for an Allow and holds for a Deny, whose other keys still decide whether it matches. In a planned scope such a `resource.*` key cannot compile (see [Deny semantics](#deny-semantics)). None of these answers `500`.
 
 Keys inside one statement are ANDed. `principal.*` and `request.*` keys are evaluated in memory; `resource.*` keys are evaluated in memory when the resource is already loaded (for example in `ApiAuthorizationSimulator` with `resource`) and are otherwise planned into a database scope.
 
 ### Allow scopes
 
-The query planner compiles `StringEquals` and `StringEqualsIfExists` Allow conditions on `resource.*` fields marked `isFilterable` into the decision scope. Allow statements are ORed with each other and intersected with boundary scopes. An Allow statement whose `resource.*` keys use another operator, a non-filterable or unmapped field, an unresolved `${...}` variable, a value that is `""` or resolves to `null` or `""`, or an object value is not matched.
+The query planner compiles `StringEquals` and `StringEqualsIfExists` Allow conditions on `resource.*` fields marked `isFilterable` into the decision scope. Allow statements are ORed with each other and intersected with boundary scopes. An Allow statement whose `resource.*` keys use another operator, a non-filterable or unmapped field, an unresolved `${...}` variable, a value that is `""` or resolves to `null` or `""`, a `queryPath` TypeORM cannot resolve to a column, a list, object or `null` value, or on a boolean column a value other than `true`, `false` or that exact text is not matched.
+
+The planner reads each `queryPath` through the TypeORM metadata of the resource entity, at every step: relations of any depth, embedded entities, and columns inherited from a parent class or a single-table-inheritance parent. A path that does not end on a column TypeORM maps, such as a misspelled property, a relation itself, or a step past a column, does not compile.
+
+A boolean column is one TypeORM types as `boolean`, `bool` or `bit` (the SQL Server boolean), including a bare `@Column()` on a `boolean` property, or one described as `BOOLEAN`; it needs no `@ApiPropertyDescribe`. On it, `true`, `false` and the text `"true"` and `"false"` bind as booleans in Allow scopes, Deny exclusions and exact row-scoped Deny patterns, so each database compares them with its stored form, such as `1` and `0` on SQLite and MySQL. Any other value, such as `"1"`, `"TRUE"`, `"yes"` or the number `1`, equals no stored boolean in the in-memory evaluator, so it does not compile. A resource entity that no TypeORM decorator maps, such as one registered only through an `EntitySchema`, has no column types to read, so none of its `resource.*` keys compile.
 
 ### Deny semantics
 
@@ -662,7 +666,7 @@ Generated routes evaluate IAM once, before the resource is loaded. A matched Den
 
 - **No `resource.*` keys** — the whole request is denied with `403`.
 - **`resource.*` keys that all compile** — the Deny becomes a row exclusion: its condition is negated and ANDed with the Allow scope. Lists omit excluded rows, and `GET`, `UPDATE`, `PARTIAL_UPDATE`, and `DELETE` of an excluded row answer `404`, exactly like a row outside an Allow scope.
-- **Any `resource.*` key that cannot compile** (another operator, a non-filterable or unmapped field, an unresolved `${...}` variable, a value that resolves to `null` or `""`, an object value) — the whole request is denied with `403`.
+- **Any `resource.*` key that cannot compile** (another operator, a non-filterable or unmapped field, a `queryPath` TypeORM cannot resolve to a column, an unresolved `${...}` variable, a value that resolves to `null` or `""`, a list, object or `null` value, a value other than `true` or `false` on a boolean column) — the whole request is denied with `403`.
 - **`CREATE`** — a Deny with `resource.*` keys denies the whole request, because there is no stored row to exclude. Custom routes whose action is `<policyNamespace>:create` follow the same rule. A Deny whose `Resource` names a concrete row, such as `gameport:admin:item/item-1`, is not applied on `CREATE`: the request is evaluated against the collection resource, so that pattern does not match and the row is created. To refuse a value on `CREATE`, use an Allow scope instead (see [Scoped CREATE](#scoped-create)).
 
 By De Morgan, the keys of one Deny become top-level OR branches of the exclusion. The kept rows are exactly the rows the in-memory evaluator allows once the resource is loaded. That evaluator compares values as strings and treats a stored `NULL` as a present value that normalizes to an empty string, so `NULL` never equals a non-empty value and always differs from it. The `IfExists` operators only behave differently for paths that are missing entirely, which a stored row never has, so for stored rows they compile like their plain forms:
@@ -725,6 +729,7 @@ A list request (`GET_LIST`, or a custom route whose action is `<policyNamespace>
 
 - `gameport:admin:item/item-1` excludes `id = 'item-1'`
 - `gameport:admin:item/abc*` excludes ids starting with `abc`; literal `%`, `_`, and `!` are escaped and the prefix is matched with `NOT LIKE ... ESCAPE '!'`
+- with `resourcePath: "bool:item/{isFeatured}"` on a boolean column, `bool:item/true` excludes `isFeatured = true`; only `true` and `false` map, so `bool:item/1` or `bool:item/TRUE` denies the list with `403`
 
 Rows whose placeholder field is `NULL` stay visible, because their resource string renders the placeholder as `*`, which no row-scoped pattern matches.
 
@@ -915,7 +920,7 @@ IAM Deny statements are compiled into row exclusions instead of being applied to
 
 - A Deny with `resource.*` keys that compile now hides the matching rows: row routes (`GET`, `UPDATE`, `PARTIAL_UPDATE`, `DELETE`) answer `404` instead of `403`, and lists omit the rows instead of failing. A Deny whose `resource.*` keys cannot compile, which was ignored before, now denies the whole request with `403`.
 - Custom routes that run their own queries must apply `decision.scope.where`; it carries both Allow scopes and Deny exclusions.
-- Condition operators outside `EApiPolicyConditionOperator` and non-scalar condition operands now throw when a document source returns the document, instead of evaluating to false. `null` operands are rejected too; to check that a `principal.*` or `request.*` value is absent, compare it with `""`, which the evaluator treats the same as a missing value.
+- Condition operators outside `EApiPolicyConditionOperator` now throw when a document source returns the document, instead of evaluating to false. A list, object or `null` operand is logged as a warning and fails closed: the key fails for an Allow and holds for a Deny, whose other keys still decide whether it matches. It no longer answers `500`. To check that a `principal.*` or `request.*` value is absent, compare it with `""`, which the evaluator treats the same as a missing value.
 - An Allow statement whose `resource.*` value is `""` or resolves to `null` or `""` is no longer compiled into an equality scope; the statement is unmatched, so without another matching Allow the request is an implicit deny.
 - Row-scoped list Deny patterns that cannot be mapped, such as a prefix pattern that crosses a placeholder or runs over several of them, deny the list with `403`.
 
