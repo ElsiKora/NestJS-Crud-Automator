@@ -130,6 +130,21 @@ class ResponseProtoRootEntity {
 @ChildEntity("__proto__")
 class ResponseProtoChildEntity extends ResponseProtoRootEntity {}
 
+@Entity("response_suffix_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class ResponseSuffixRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("fooDto")
+class ResponseSuffixFooEntity extends ResponseSuffixRootEntity {}
+
 class ResponseValidatorConstraint {
 	public validate(): boolean {
 		return true;
@@ -207,6 +222,13 @@ describe("DtoGenerateTableInheritanceResponse", () => {
 			expect(instanceToPlain(serializeGet(qrRow))).toEqual({ id: ROW_ID, kind: EResponseKind.QR, qrPayload: "qr" });
 		});
 
+		it("does not repeat the DTO suffix of a discriminator value", () => {
+			const { discriminator }: TApiRouteDiscriminatedDtoProperties = generateFor(ResponseSuffixRootEntity) as TApiRouteDiscriminatedDtoProperties;
+
+			expect(ResponseSuffixFooEntity).toBeDefined();
+			expect(discriminator.mapping.fooDto?.name).toBe("ResponseSuffixRootEntityGetResponseFooDTO");
+		});
+
 		it("fails closed on an unmapped discriminator value without echoing it", () => {
 			const error: Error = captureError(() => serializeGet({ id: ROW_ID, kind: SECRET_VALUE }));
 
@@ -225,8 +247,8 @@ describe("DtoGenerateTableInheritanceResponse", () => {
 
 	describe("GET_LIST", () => {
 		it("keeps the list wrapper name for page and cursor envelopes", () => {
-			expect(generateList().name).toBe("TestControllerGetListResponseItemsDTO");
-			expect(generateList(cursorQueryPlan).name).toBe("TestControllerGetListCursorResponseItemsDTO");
+			expect(generateList().name).toBe("TestControllerGetListPageDTO");
+			expect(generateList(cursorQueryPlan).name).toBe("TestControllerGetListCursorPageDTO");
 		});
 
 		it("serializes mixed rows into their variant shape and keeps the discriminator", () => {
@@ -311,7 +333,7 @@ describe("DtoGenerateTableInheritanceResponse", () => {
 
 			expect(other).not.toBe(generateGet());
 			expect(other.discriminator.mapping[EResponseKind.QR]?.name).toBe("OtherControllerGetResponseQrDTO");
-			expect(otherList.name).toBe("OtherControllerGetListResponseItemsDTO");
+			expect(otherList.name).toBe("OtherControllerGetListPageDTO");
 		});
 	});
 

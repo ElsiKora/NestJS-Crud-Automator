@@ -504,7 +504,7 @@ describe("DtoGenerate", () => {
 		expect(secondResponseDto).not.toBe(firstResponseDto);
 		expect(firstResponseDto.name).toBe("FirstDtoGetResponseDTO");
 		expect(secondResponseDto.name).toBe("SecondDtoGetResponseDTO");
-		expect(secondListResponseDto.name).toBe("SecondDtoGetListResponseItemsDTO");
+		expect(secondListResponseDto.name).toBe("SecondDtoGetListPageDTO");
 		expect(getNestedNames(firstResponseDto)).toEqual(["FirstDtoGetResponseOwnerDTO", "FirstDtoGetResponseDynamicVariantDTO"]);
 		expect(getNestedNames(secondResponseDto)).toEqual(["SecondDtoGetResponseOwnerDTO", "SecondDtoGetResponseDynamicVariantDTO"]);
 	});
@@ -550,7 +550,7 @@ describe("DtoGenerate", () => {
 		expect(createBodyDtoCached).toBe(createBodyDto);
 		expect(createBodyDto?.name).toBe("TestControllerCreateBodyDTO");
 		expect(queryDto?.name).toBe("TestControllerGetListQueryDTO");
-		expect(responseDto?.name).toBe("TestControllerGetListResponseItemsDTO");
+		expect(responseDto?.name).toBe("TestControllerGetListPageDTO");
 
 		if (!createBodyDto || !queryDto || !responseDto) {
 			throw new Error("Expected generated body, query, and response DTOs.");

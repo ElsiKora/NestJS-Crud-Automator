@@ -9,6 +9,7 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
 import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DatabaseTypeOrmGetChildEntities } from "@utility/database/typeorm/get/child-entities.utility";
+import { DtoSchemaNameStripSuffix } from "@utility/dto/schema-name/strip-suffix.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
@@ -105,21 +106,19 @@ export class ApiControllerTableInheritancePlanCompiler {
 
 		const sortedVariants: Array<IApiControllerTableInheritanceVariant> = variants.toSorted((left: IApiControllerTableInheritanceVariant, right: IApiControllerTableInheritanceVariant): number => (left.discriminatorValue < right.discriminatorValue ? -1 : 1));
 
-		this.assertVariantNames(root, String(entityMetadata.name), sortedVariants);
+		this.assertVariantNames(root, sortedVariants);
 
 		return { childEntities, discriminatorPropertyName, rootEntity: root, variants: sortedVariants };
 	}
 
 	/**
 	 * Rejects discriminator values with characters outside `[A-Za-z0-9_-]`, which the DTO name would drop or carry into an invalid OpenAPI name,
-	 * and values whose DTO name suffix is empty, repeated, or turns a GET_LIST variant into the name of the list wrapper.
+	 * and values whose DTO name suffix is empty or repeated.
 	 * @param {Type<unknown>} root - Table inheritance root class.
-	 * @param {string} rootName - Root entity name that follows the controller name in every generated DTO name.
 	 * @param {ReadonlyArray<IApiControllerTableInheritanceVariant>} variants - Variants sorted by discriminator value.
 	 * @returns {void}
 	 */
-	private static assertVariantNames(root: Type<unknown>, rootName: string, variants: ReadonlyArray<IApiControllerTableInheritanceVariant>): void {
-		const listNamePrefix: string = `${rootName}${CamelCaseString(EApiRouteType.GET_LIST)}${CamelCaseString(EApiDtoType.RESPONSE)}`;
+	private static assertVariantNames(root: Type<unknown>, variants: ReadonlyArray<IApiControllerTableInheritanceVariant>): void {
 		const suffixOwners: Map<string, string> = new Map<string, string>();
 
 		for (const { discriminatorValue } of variants) {
@@ -127,15 +126,11 @@ export class ApiControllerTableInheritancePlanCompiler {
 				throw ErrorException(`Discriminator value "${discriminatorValue}" of ${root.name} must use only letters, digits, "_" and "-", because it becomes part of generated DTO names`);
 			}
 
-			const suffix: string = CamelCaseString(discriminatorValue);
+			const suffix: string = DtoSchemaNameStripSuffix(CamelCaseString(discriminatorValue));
 			const owner: string | undefined = suffixOwners.get(suffix);
 
 			if (suffix === "" || owner !== undefined) {
 				throw ErrorException(`Discriminator values of ${root.name} must produce unique non-empty DTO name suffixes, "${discriminatorValue}" conflicts with "${owner ?? ""}"`);
-			}
-
-			if (`${listNamePrefix}${suffix}DTO` === `${listNamePrefix}ItemsDTO`) {
-				throw ErrorException(`Discriminator value "${discriminatorValue}" of ${root.name} produces a GET_LIST DTO name ending in ${listNamePrefix}ItemsDTO, which is the generated GET_LIST wrapper name`);
 			}
 
 			suffixOwners.set(suffix, discriminatorValue);

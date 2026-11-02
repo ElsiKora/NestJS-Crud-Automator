@@ -202,7 +202,7 @@ describe("generated DTO names with two controllers on one entity (E2E)", () => {
 	it("gives each controller its own response component names", () => {
 		const names: Array<string> = ["/admin/dto-name-items/{id}", "/public/dto-name-items/{id}", "/admin/dto-name-items", "/public/dto-name-items"].map((path: string): string => getResponseSchema(path).name);
 
-		expect(names).toEqual(["E2eDtoNameAdminItemGetResponseDTO", "E2eDtoNamePublicItemGetResponseDTO", "E2eDtoNameAdminItemGetListResponseItemsDTO", "E2eDtoNamePublicItemGetListResponseItemsDTO"]);
+		expect(names).toEqual(["E2eDtoNameAdminItemGetResponseDTO", "E2eDtoNamePublicItemGetResponseDTO", "E2eDtoNameAdminItemGetListPageDTO", "E2eDtoNamePublicItemGetListPageDTO"]);
 	});
 });
 
@@ -243,9 +243,9 @@ describe("generated DTO names with one controller on an entity (E2E)", () => {
 	});
 
 	it("matches the previous document apart from the generated component names", () => {
-		// Captured on dev at 4a38d328, before the schema prefix rule, with run-dependent examples normalized. The controller is E2eDtoNameRecordController, so its prefix is E2eDtoNameRecord.
+		// Captured on dev at 4a38d328, before the schema prefix rule, with run-dependent examples normalized. The controller is E2eDtoNameRecordController, so its prefix is E2eDtoNameRecord, and the GET_LIST wrapper is named GetListPageDTO.
 		const previousDocument: unknown = JSON.parse(readFileSync(new URL("controller-dto-names/record.dev-openapi.json", import.meta.url), "utf8"));
-		const renameGenerated = (name: string): string => name.replace(/^E2eDtoNameRecordEntity/, "E2eDtoNameRecord");
+		const renameGenerated = (name: string): string => name.replace(/^E2eDtoNameRecordEntity/, "E2eDtoNameRecord").replace(/GetListResponseItemsDTO$/, "GetListPageDTO");
 
 		expect(JSON.stringify(sortKeys(normalizeExamples(document)))).toBe(JSON.stringify(sortKeys(renameComponents(previousDocument, renameGenerated))));
 	});

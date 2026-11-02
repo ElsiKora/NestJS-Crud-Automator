@@ -54,7 +54,7 @@ describe("openapi-rename-map script (E2E)", () => {
 		expect(result.stderr.replaceAll(SIGNATURE_PATTERN, "<signature>").trimEnd().split("\n")).toEqual([
 			"Ambiguous old names, not in the map:",
 			"  E2eRenameMapItemEntityGetListResponseDTO -> E2eRenameMapAdminItemGetListResponseDTO (GET /admin/rename-map-items), E2eRenameMapPublicItemGetListResponseDTO (GET /public/rename-map-items)",
-			"  E2eRenameMapItemEntityGetListResponseItemsDTO -> E2eRenameMapAdminItemGetListResponseItemsDTO (GET /admin/rename-map-items), E2eRenameMapPublicItemGetListResponseItemsDTO (GET /public/rename-map-items)",
+			"  E2eRenameMapItemEntityGetListResponseItemsDTO -> E2eRenameMapAdminItemGetListPageDTO (GET /admin/rename-map-items), E2eRenameMapPublicItemGetListPageDTO (GET /public/rename-map-items)",
 			"  E2eRenameMapItemEntityGetResponseDTO -> E2eRenameMapAdminItemGetResponseDTO (GET /admin/rename-map-items/{id}), E2eRenameMapPublicItemGetResponseDTO (GET /public/rename-map-items/{id})",
 			"Old components that no operation pairs with a new component, not in the map:",
 			"  E2eRenameMapAdminItemControllerE2eRenameMapItemEntityGetListQuery<signature>DTO",

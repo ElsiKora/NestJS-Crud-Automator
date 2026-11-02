@@ -4,7 +4,7 @@ import type { TApiPropertyObjectWithDiscriminatorProperties } from "@type/decora
 import type { TDtoGenerateGetListResponseResourceClass } from "@type/utility";
 import type { ObjectLiteral } from "typeorm";
 
-import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import { EApiControllerGetListQueryPaginationMode, EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerateGetListCursorResponse } from "@utility/dto/generate/get-list/cursor-response.utility";
@@ -23,7 +23,5 @@ export function DtoGenerateGetListItemsResponse(entity: ObjectLiteral, itemDto: 
 	// The entity is a constructor at runtime; ObjectLiteral only does not say so.
 	const resourceClass: TDtoGenerateGetListResponseResourceClass = entity as TDtoGenerateGetListResponseResourceClass;
 
-	return ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR
-		? DtoGenerateGetListCursorResponse(resourceClass, itemDto, `${resourceName}Cursor${CamelCaseString(EApiDtoType.RESPONSE)}ItemsDTO`, `the getList cursor response of controller prefix "${schemaPrefix}"`)
-		: DtoGenerateGetListResponse(resourceClass, itemDto, `${resourceName}${CamelCaseString(EApiDtoType.RESPONSE)}ItemsDTO`, `the getList page response of controller prefix "${schemaPrefix}"`);
+	return ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR ? DtoGenerateGetListCursorResponse(resourceClass, itemDto, `${resourceName}CursorPageDTO`, `the getList cursor response of controller prefix "${schemaPrefix}"`) : DtoGenerateGetListResponse(resourceClass, itemDto, `${resourceName}PageDTO`, `the getList page response of controller prefix "${schemaPrefix}"`);
 }

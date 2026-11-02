@@ -377,6 +377,54 @@ class PlanItemsRootEntity {
 @ChildEntity("ITEMS")
 class PlanItemsChildEntity extends PlanItemsRootEntity {}
 
+@Entity("plan_dto_value_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class PlanDtoValueRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("DTO")
+class PlanDtoValueChildEntity extends PlanDtoValueRootEntity {}
+
+@Entity("plan_dto_clash_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class PlanDtoClashRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("DTO")
+class PlanDtoClashUpperEntity extends PlanDtoClashRootEntity {}
+
+@ChildEntity("dto")
+class PlanDtoClashLowerEntity extends PlanDtoClashRootEntity {}
+
+@Entity("plan_dto_suffix_roots")
+@TableInheritance({ column: { name: "type", type: "varchar" } })
+class PlanDtoSuffixRootEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@StringDescribe("type")
+	public type!: string;
+}
+
+@ChildEntity("VIP")
+class PlanDtoSuffixVipEntity extends PlanDtoSuffixRootEntity {}
+
+@ChildEntity("VIP_DTO")
+class PlanDtoSuffixVipDtoEntity extends PlanDtoSuffixRootEntity {}
+
 @Entity("plan_invalid_name_roots")
 @TableInheritance({ column: { name: "type", type: "varchar" } })
 class PlanInvalidNameRootEntity {
@@ -559,9 +607,26 @@ describe("ApiControllerTableInheritancePlanCompiler", () => {
 			expect(() => compile(PlanUnselectedRootEntity)).toThrow(`Table inheritance root ${PlanUnselectedRootEntity.name} must select its discriminator column "type", remove select: false`);
 		});
 
-		it("rejects a value that turns a list variant into the list wrapper name", () => {
+		it("accepts the value ITEMS, whose list variant name no longer matches a list wrapper name", () => {
 			expect(PlanItemsChildEntity).toBeDefined();
-			expect(() => compile(PlanItemsRootEntity)).toThrow(`Discriminator value "ITEMS" of ${PlanItemsRootEntity.name} produces a GET_LIST DTO name ending in ${PlanItemsRootEntity.name}GetListResponseItemsDTO, which is the generated GET_LIST wrapper name`);
+			expect(variantValues(compile(PlanItemsRootEntity))).toEqual(["ITEMS", PlanItemsRootEntity.name]);
+		});
+
+		it("accepts the value DTO, a legal discriminator value that is only the suffix", () => {
+			expect(PlanDtoValueChildEntity).toBeDefined();
+			expect(variantValues(compile(PlanDtoValueRootEntity))).toEqual(["DTO", PlanDtoValueRootEntity.name]);
+		});
+
+		it("rejects the values DTO and dto, which give one DTO name suffix", () => {
+			expect(PlanDtoClashUpperEntity).toBeDefined();
+			expect(PlanDtoClashLowerEntity).toBeDefined();
+			expect(() => compile(PlanDtoClashRootEntity)).toThrow(`Discriminator values of ${PlanDtoClashRootEntity.name} must produce unique non-empty DTO name suffixes, "dto" conflicts with "DTO"`);
+		});
+
+		it("rejects two values that differ only by a trailing DTO, which give one DTO name suffix", () => {
+			expect(PlanDtoSuffixVipEntity).toBeDefined();
+			expect(PlanDtoSuffixVipDtoEntity).toBeDefined();
+			expect(() => compile(PlanDtoSuffixRootEntity)).toThrow(`Discriminator values of ${PlanDtoSuffixRootEntity.name} must produce unique non-empty DTO name suffixes, "VIP_DTO" conflicts with "VIP"`);
 		});
 
 		it.each([

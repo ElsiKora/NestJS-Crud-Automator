@@ -267,7 +267,7 @@ describe("table inheritance read responses (E2E)", () => {
 			const schema: Record<string, unknown> = responseSchema("/payment-details");
 			const wrapper: { properties: { items: { discriminator: { mapping: Record<string, string>; propertyName: string }; items: { oneOf?: Array<unknown> }; oneOf?: Array<unknown>; type: string } } } = componentSchema(schema.$ref) as never;
 
-			expect(schema.$ref).toBe("#/components/schemas/PaymentDetailGetListResponseItemsDTO");
+			expect(schema.$ref).toBe("#/components/schemas/PaymentDetailGetListPageDTO");
 			expect(wrapper.properties.items.type).toBe("array");
 			expect(wrapper.properties.items.items.oneOf).toHaveLength(4);
 			expect(wrapper.properties.items.discriminator.propertyName).toBe("kind");
@@ -288,7 +288,7 @@ describe("table inheritance read responses (E2E)", () => {
 			const schema: Record<string, unknown> = responseSchema("/payment-details-cursor");
 			const wrapper: { properties: { items: { items: { oneOf?: Array<unknown> } } } } = componentSchema(schema.$ref) as never;
 
-			expect(schema.$ref).toBe("#/components/schemas/PaymentDetailCursorGetListCursorResponseItemsDTO");
+			expect(schema.$ref).toBe("#/components/schemas/PaymentDetailCursorGetListCursorPageDTO");
 			expect(wrapper.properties.items.items.oneOf).toHaveLength(4);
 		});
 	});

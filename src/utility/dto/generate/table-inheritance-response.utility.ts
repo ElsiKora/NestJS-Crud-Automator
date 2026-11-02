@@ -15,6 +15,7 @@ import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerateCacheKey } from "@utility/dto/generate/cache-key.utility";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { DtoGenerateGetListItemsResponse } from "@utility/dto/generate/get-list";
+import { DtoSchemaNameStripSuffix } from "@utility/dto/schema-name/strip-suffix.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { Transform } from "class-transformer";
 
@@ -61,7 +62,7 @@ export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, en
 	const variantNamePrefix: string = `${schemaPrefix}${CamelCaseString(method)}${CamelCaseString(EApiDtoType.RESPONSE)}`;
 
 	const mappingEntries: Array<[string, Type<unknown>]> = plan.variants.map((variant: IApiControllerTableInheritanceVariant): [string, Type<unknown>] => {
-		const variantDto: Type<unknown> | undefined = DtoGenerate(variant.entity, variant.entityMetadata, method, EApiDtoType.RESPONSE, schemaPrefix, dtoConfig, currentGuard, undefined, `${variantNamePrefix}${CamelCaseString(variant.discriminatorValue)}DTO`);
+		const variantDto: Type<unknown> | undefined = DtoGenerate(variant.entity, variant.entityMetadata, method, EApiDtoType.RESPONSE, schemaPrefix, dtoConfig, currentGuard, undefined, `${variantNamePrefix}${DtoSchemaNameStripSuffix(CamelCaseString(variant.discriminatorValue))}DTO`);
 
 		if (!variantDto) {
 			throw ErrorException(`Response DTO for table inheritance variant ${String(variant.entityMetadata.name)} was not generated`);

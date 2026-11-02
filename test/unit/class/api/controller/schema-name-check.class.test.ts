@@ -6,16 +6,23 @@ import type { TestingModule } from "@nestjs/testing";
 import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { ApiPropertyCopy } from "@decorator/api/property/copy.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
+import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
+import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiRouteCustom } from "@decorator/api/route-custom.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields } from "@enum/decorator/api/controller/get-list/query";
+import { EApiControllerRequestTarget } from "@enum/decorator/api/controller/request";
+import { EFilterOrderDirection } from "@enum/filter";
 
 import { Body, Catch, Controller, Get, HttpStatus, Injectable, Module, Param, Post, Query, RequestMethod, Scope, UseFilters } from "@nestjs/common";
 import { RouterModule } from "@nestjs/core";
 import { Transport } from "@nestjs/microservices";
 import { ApiExtraModels, ApiOkResponse, ApiProperty, ApiQuery } from "@nestjs/swagger";
+import { FastifyAdapter } from "@nestjs/platform-fastify";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../../../src/module/api";
@@ -60,6 +67,123 @@ class SchemaBootOwnedItemEntity {
 	@ManyToOne(() => SchemaBootOwnerEntity)
 	@ApiPropertyDescribe({ description: "owner", type: EApiPropertyDescribeType.RELATION })
 	public owner!: SchemaBootOwnerEntity;
+}
+
+@Entity("schema_boot_risky_targets")
+class SchemaBootRiskyTargetEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+}
+
+// Relations named like the fixed parts of generated DTO names, so a nested name would hit a wrapper or a request DTO name if one could.
+@Entity("schema_boot_risky_rows")
+class SchemaBootRiskyRowEntity {
+	@ManyToOne(() => SchemaBootRiskyTargetEntity)
+	@ApiPropertyDescribe({ description: "body", type: EApiPropertyDescribeType.RELATION })
+	public body!: SchemaBootRiskyTargetEntity;
+
+	@ManyToOne(() => SchemaBootRiskyTargetEntity)
+	@ApiPropertyDescribe({ description: "cursor", type: EApiPropertyDescribeType.RELATION })
+	public cursor!: SchemaBootRiskyTargetEntity;
+
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@OneToMany(() => SchemaBootRiskyLineEntity, (line: SchemaBootRiskyLineEntity): SchemaBootRiskyRowEntity => line.row)
+	@ApiPropertyDescribe({ description: "items", type: EApiPropertyDescribeType.RELATION })
+	public items!: Array<SchemaBootRiskyLineEntity>;
+
+	@ManyToOne(() => SchemaBootRiskyTargetEntity)
+	@ApiPropertyDescribe({ description: "page", type: EApiPropertyDescribeType.RELATION })
+	public page!: SchemaBootRiskyTargetEntity;
+
+	@ManyToOne(() => SchemaBootRiskyTargetEntity)
+	@ApiPropertyDescribe({ description: "parameters", type: EApiPropertyDescribeType.RELATION })
+	public parameters!: SchemaBootRiskyTargetEntity;
+
+	@ManyToOne(() => SchemaBootRiskyTargetEntity)
+	@ApiPropertyDescribe({ description: "query", type: EApiPropertyDescribeType.RELATION })
+	public query!: SchemaBootRiskyTargetEntity;
+
+	@ManyToOne(() => SchemaBootRiskyTargetEntity)
+	@ApiPropertyDescribe({ description: "response", type: EApiPropertyDescribeType.RELATION })
+	public response!: SchemaBootRiskyTargetEntity;
+}
+
+@Entity("schema_boot_risky_lines")
+class SchemaBootRiskyLineEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@ManyToOne(() => SchemaBootRiskyRowEntity)
+	@ApiPropertyDescribe({ description: "row", type: EApiPropertyDescribeType.RELATION })
+	public row!: SchemaBootRiskyRowEntity;
+}
+
+class SchemaBootManualInnerDto {
+	@ApiPropertyString({ description: "version", entity: SchemaBootManualInnerDto, exampleValue: "1", format: EApiPropertyStringType.STRING, maxLength: 16, minLength: 1, pattern: "/^.+$/" } as never)
+	public version!: string;
+}
+
+class SchemaBootManualOtherDto {
+	@ApiPropertyString({ description: "other", entity: SchemaBootManualOtherDto, exampleValue: "1", format: EApiPropertyStringType.STRING, maxLength: 16, minLength: 1, pattern: "/^.+$/" } as never)
+	public other!: string;
+}
+
+class SchemaBootManualDocumentDto {
+	@ApiPropertyObject({ description: "inner", entity: SchemaBootManualDocumentDto, type: SchemaBootManualInnerDto } as never)
+	public inner!: SchemaBootManualInnerDto;
+}
+
+// A property named dto holds a manual object with a property of the same name as a sibling of dto.
+@Entity("schema_boot_manual_dto_rows")
+class SchemaBootManualDtoRowEntity {
+	@Column({ nullable: true, type: "simple-json" })
+	@ApiPropertyDescribe({ dataType: SchemaBootManualDocumentDto, description: "dto", isNullable: true, shouldValidateNested: true, type: EApiPropertyDescribeType.OBJECT } as never)
+	public dto?: unknown;
+
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@Column({ nullable: true, type: "simple-json" })
+	@ApiPropertyDescribe({ dataType: SchemaBootManualOtherDto, description: "inner", isNullable: true, shouldValidateNested: true, type: EApiPropertyDescribeType.OBJECT } as never)
+	public inner?: unknown;
+}
+
+// Relations whose names are only the DTO suffix, which stay legal names.
+@Entity("schema_boot_dto_named_rows")
+class SchemaBootDtoNamedRowEntity {
+	@ManyToOne(() => SchemaBootRiskyTargetEntity)
+	@ApiPropertyDescribe({ description: "dto", type: EApiPropertyDescribeType.RELATION })
+	public dto!: SchemaBootRiskyTargetEntity;
+
+	@ManyToOne(() => SchemaBootRiskyTargetEntity)
+	@ApiPropertyDescribe({ description: "DTO", type: EApiPropertyDescribeType.RELATION })
+	public DTO!: SchemaBootRiskyTargetEntity;
+
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+}
+
+// Two relations that normalize to one name segment.
+@Entity("schema_boot_dto_clash_rows")
+class SchemaBootDtoClashRowEntity {
+	@ManyToOne(() => SchemaBootRiskyTargetEntity)
+	@ApiPropertyDescribe({ description: "dto", type: EApiPropertyDescribeType.RELATION })
+	public _dto!: SchemaBootRiskyTargetEntity;
+
+	@ManyToOne(() => SchemaBootRiskyTargetEntity)
+	@ApiPropertyDescribe({ description: "dto", type: EApiPropertyDescribeType.RELATION })
+	public dto!: SchemaBootRiskyTargetEntity;
+
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
 }
 
 const DISABLED: { generation: { isEnabled: false } } = { generation: { isEnabled: false } };
@@ -626,6 +750,105 @@ describe("schema name check at bootstrap", () => {
 			}
 
 			await expect(start({ controllers: [SchemaBootRequestController] })).rejects.toThrow('OpenAPI component name "SchemaBootRequestAddressDTO" belongs to two different classes');
+		});
+	});
+
+	describe("relations whose names are only the DTO suffix", () => {
+		it("starts with relations named dto and DTO, each under its own component name", async () => {
+			@ApiController<SchemaBootDtoNamedRowEntity>({ entity: SchemaBootDtoNamedRowEntity, path: "dto-named-rows", routes: GET_ONLY_ROUTES })
+			class SchemaBootDtoNamedController {
+				public service!: never;
+			}
+
+			const application = (await Test.createTestingModule({ controllers: [SchemaBootDtoNamedController], imports: [ApiAuthorizationModule.forRoot(), ApiSubscriberModule] }).compile()).createNestApplication(new FastifyAdapter());
+
+			await application.init();
+
+			const schemaNames: Array<string> = Object.keys(SwaggerModule.createDocument(application, new DocumentBuilder().build()).components?.schemas ?? {});
+
+			await application.close();
+
+			expect(schemaNames).toEqual(expect.arrayContaining(["SchemaBootDtoNamedGetResponseDtoDTO", "SchemaBootDtoNamedGetResponseDTODTO"]));
+		});
+
+		it("keeps the Dto segment in the path of a manual object under a property named dto", async () => {
+			@ApiController<SchemaBootManualDtoRowEntity>({ entity: SchemaBootManualDtoRowEntity, path: "manual-dto-rows", routes: GET_ONLY_ROUTES })
+			class SchemaBootManualDtoController {
+				public service!: never;
+			}
+
+			const application = (await Test.createTestingModule({ controllers: [SchemaBootManualDtoController], imports: [ApiAuthorizationModule.forRoot(), ApiSubscriberModule] }).compile()).createNestApplication(new FastifyAdapter());
+
+			await application.init();
+
+			const schemaNames: Array<string> = Object.keys(SwaggerModule.createDocument(application, new DocumentBuilder().build()).components?.schemas ?? {});
+
+			await application.close();
+
+			expect(schemaNames).toEqual(expect.arrayContaining(["SchemaBootManualDtoGetResponseDtoDTO", "SchemaBootManualDtoGetResponseDtoInnerDTO", "SchemaBootManualDtoGetResponseInnerDTO"]));
+		});
+
+		it("fails startup naming the component when a sibling normalizes to the same segment as dto", async () => {
+			@ApiController<SchemaBootDtoClashRowEntity>({ entity: SchemaBootDtoClashRowEntity, path: "dto-clash-rows", routes: GET_ONLY_ROUTES })
+			class SchemaBootDtoClashController {
+				public service!: never;
+			}
+
+			await expect(start({ controllers: [SchemaBootDtoClashController] })).rejects.toThrow('OpenAPI component name "SchemaBootDtoClashGetResponseDtoDTO" belongs to two different classes');
+		});
+	});
+
+	describe("relations named like fixed name parts", () => {
+		it("starts GET, page GET_LIST, cursor GET_LIST, CREATE and UPDATE routes with one component name per class", async () => {
+			@ApiController<SchemaBootRiskyRowEntity>({ entity: SchemaBootRiskyRowEntity, path: "risky-page-rows", routes: { [EApiRouteType.DELETE]: DISABLED } })
+			class SchemaBootRiskyPageController {
+				public service!: never;
+			}
+
+			@ApiController<SchemaBootRiskyRowEntity>({
+				entity: SchemaBootRiskyRowEntity,
+				path: "risky-cursor-rows",
+				routes: {
+					...NO_GENERATED_ROUTES,
+					[EApiRouteType.GET_LIST]: {
+						request: {
+							[EApiControllerRequestTarget.QUERY]: {
+								order: { fields: {}, tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }], unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT },
+								pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR },
+							},
+						},
+					},
+				},
+			} as never)
+			class SchemaBootRiskyCursorController {
+				public service!: never;
+			}
+
+			const application = (await Test.createTestingModule({ controllers: [SchemaBootRiskyPageController, SchemaBootRiskyCursorController], imports: [ApiAuthorizationModule.forRoot(), ApiSubscriberModule] }).compile()).createNestApplication(new FastifyAdapter());
+
+			await application.init();
+
+			const schemaNames: Array<string> = Object.keys(SwaggerModule.createDocument(application, new DocumentBuilder().build()).components?.schemas ?? {});
+
+			await application.close();
+
+			expect(checkRuns.count).toBe(1);
+			expect(schemaNames).toEqual(
+				expect.arrayContaining([
+					"SchemaBootRiskyPageGetListPageDTO",
+					"SchemaBootRiskyPageGetListResponseItemsDTO",
+					"SchemaBootRiskyPageGetListResponsePageDTO",
+					"SchemaBootRiskyCursorGetListCursorPageDTO",
+					"SchemaBootRiskyCursorGetListResponseCursorDTO",
+					"SchemaBootRiskyCursorGetListResponseItemsDTO",
+					"SchemaBootRiskyPageGetResponseBodyDTO",
+					"SchemaBootRiskyPageGetResponseParametersDTO",
+					"SchemaBootRiskyPageGetResponseQueryDTO",
+					"SchemaBootRiskyPageGetResponseResponseDTO",
+					"SchemaBootRiskyPageCreateResponseItemsDTO",
+					"SchemaBootRiskyPageUpdateResponsePageDTO",
+				]),
+			);
 		});
 	});
 });

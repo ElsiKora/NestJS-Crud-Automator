@@ -218,8 +218,8 @@ describe("table inheritance with package features (E2E)", () => {
 
 		it("describes page and cursor list items as oneOf over the variants", () => {
 			for (const [schemaPrefix, wrapper] of [
-				["IntegrationDetail", "GetListResponseItemsDTO"],
-				["IntegrationDetailCursor", "GetListCursorResponseItemsDTO"],
+				["IntegrationDetail", "GetListPageDTO"],
+				["IntegrationDetailCursor", "GetListCursorPageDTO"],
 			]) {
 				expect(schema(`${schemaPrefix}${wrapper}`).properties.items).toMatchObject({ items: { oneOf: [{ $ref: `#/components/schemas/${schemaPrefix}GetListResponseCardDTO` }, { $ref: `#/components/schemas/${schemaPrefix}GetListResponseFormDTO` }] } });
 			}
