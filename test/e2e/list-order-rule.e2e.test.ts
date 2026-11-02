@@ -15,7 +15,7 @@ import { DataSource } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleItemController, E2eListOrderRuleItemEntity, E2eListOrderRuleItemService, E2eListOrderRuleManualItemController, E2eListOrderRuleOwnerEntity, E2eListOrderRuleSharedLabelController, E2eListOrderRuleSharedRankController, E2eListOrderRuleTypedItemController } from "./list-order-rule";
+import { E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleItemController, E2eListOrderRuleItemEntity, E2eListOrderRuleItemService, E2eListOrderRuleManualItemController, E2eListOrderRuleOwnerEntity, E2eListOrderRuleSharedLabelController, E2eListOrderRuleSharedRankController, E2eListOrderRuleTypedItemController, E2eListOrderRuleVariantController } from "./list-order-rule";
 
 class ListOrderRuleLogger implements Logger {
 	public readonly queries: Array<string> = [];
@@ -76,7 +76,7 @@ describe.each([
 			const entities: Array<new () => unknown> = [E2eListOrderRuleItemEntity, E2eListOrderRuleOwnerEntity];
 			const connection = { dropSchema: true, entities, logger: queryLogger, logging: true, synchronize: true } as const;
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleItemController, E2eListOrderRuleManualItemController, E2eListOrderRuleSharedLabelController, E2eListOrderRuleSharedRankController, E2eListOrderRuleTypedItemController],
+				controllers: [E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleItemController, E2eListOrderRuleManualItemController, E2eListOrderRuleSharedLabelController, E2eListOrderRuleSharedRankController, E2eListOrderRuleTypedItemController, E2eListOrderRuleVariantController],
 				imports: [TypeOrmModule.forRoot(container ? { ...connection, type: "postgres", url: container.getConnectionUri() } : { ...connection, database: ":memory:", type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eListOrderRuleItemService],
 			}).compile();
@@ -171,6 +171,15 @@ describe.each([
 			expect(await expectRejected(`/list-order-rule/shared-rank?${PAGE}&orderBy=label&orderDirection=asc`)).toContain("orderBy must be one of the following values: rank");
 			expect(await expectRejected(`/list-order-rule/shared-label?${PAGE}&orderBy=rank&orderDirection=asc`)).toContain("orderBy must be one of the following values: label");
 			expect((await fastify.inject({ method: "GET", url: `/list-order-rule/shared-rank?${PAGE}&orderBy=rank&orderDirection=asc` })).statusCode).toBe(HttpStatus.OK);
+		});
+
+		it("limits a custom route with response variants to the fields every variant publishes", () => {
+			expect(getOrderByEnum(document, "/list-order-rule/variants")).toEqual(["label"]);
+		});
+
+		it.runIf(createPipe !== undefined)("validates the order of a custom route with response variants", async () => {
+			expect(await expectRejected(`/list-order-rule/variants?${PAGE}&orderBy=rank&orderDirection=asc`)).toContain("orderBy must be one of the following values: label");
+			expect((await fastify.inject({ method: "GET", url: `/list-order-rule/variants?${PAGE}&orderBy=label&orderDirection=asc` })).statusCode).toBe(HttpStatus.OK);
 		});
 
 		it("completes a one-sided order from a manual QUERY DTO class default", async () => {
