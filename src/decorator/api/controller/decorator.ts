@@ -9,7 +9,11 @@ import { EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerFactory } from "@factory/api-controller.factory";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert/route-relation-loads.utility";
+import { DatabaseTypeOrmGetRepositoryGap } from "@utility/database/typeorm/get/repository-gap.utility";
 import { DatabaseTypeOrmIsRepository } from "@utility/database/typeorm/is/repository.utility";
+import { ErrorException } from "@utility/error/exception.utility";
+
+const TESTING_GUIDE_URL: string = "https://elsikora.com/docs/nestjs-crud-automator/guides/testing";
 
 /**
  * Automatically generates CRUD endpoints for an entity.
@@ -62,14 +66,14 @@ export const ApiController =
 			}
 
 			/**
-			 * Validates response relation loads against the initialized data source, then runs the controller's own hook.
+			 * Validates the service repository and the route relation loads against the initialized data source, then runs the controller's own hook.
 			 * @returns {Promise<void>} Resolves when the controller bootstrap finished
 			 */
 			public async onApplicationBootstrap(): Promise<void> {
 				const repository: unknown = (this as { service?: { repository?: unknown } }).service?.repository;
 
 				if (!DatabaseTypeOrmIsRepository(repository)) {
-					throw new Error(`Controller "${target.name}": service has no TypeORM repository`);
+					throw ErrorException(`Controller "${target.name}" of entity "${options.entity.name}": service.repository is not a TypeORM repository because ${DatabaseTypeOrmGetRepositoryGap(repository) ?? "it is unrecognized"}. In tests, use a repository of an in-memory DataSource and stub its methods: ${TESTING_GUIDE_URL}`);
 				}
 
 				if (Object.values(EApiRouteType).some((routeType: EApiRouteType): boolean => options.routes[routeType]?.generation?.isEnabled !== false)) {

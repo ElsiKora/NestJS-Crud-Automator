@@ -166,8 +166,8 @@ class SwaggerNestedDiscriminatorBodyDto {
 
 class SwaggerAuthenticationGuard {}
 
-// The documentation app never queries; controllers only need a repository with metadata at bootstrap.
-const swaggerDataSource: DataSource = new DataSource({ entities: [SwaggerAutoDtoEntity], type: "postgres" });
+// The documentation app never queries; its controllers use a repository of an in-memory DataSource.
+const swaggerDataSource: DataSource = new DataSource({ database: ":memory:", entities: [SwaggerAutoDtoEntity], type: "better-sqlite3" });
 
 class SwaggerGeneratedService extends ApiServiceBase<SwaggerAutoDtoEntity> {
 	public get repository(): Repository<SwaggerAutoDtoEntity> {
@@ -452,7 +452,7 @@ describe("Swagger request DTO documentation (E2E)", () => {
 		}).compile();
 
 		app = moduleReference.createNestApplication(new FastifyAdapter());
-		await (swaggerDataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+		await swaggerDataSource.initialize();
 		await app.init();
 
 		document = SwaggerModule.createDocument(
@@ -481,6 +481,7 @@ describe("Swagger request DTO documentation (E2E)", () => {
 
 	afterAll(async () => {
 		await app?.close();
+		await swaggerDataSource.destroy();
 	});
 
 	it("reaches every component from a route", () => {

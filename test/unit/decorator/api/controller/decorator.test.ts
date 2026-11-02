@@ -513,9 +513,10 @@ describe("ApiController", () => {
 
 		// A second TypeORM copy brands its own classes, so its repository fails instanceof but keeps the shape.
 		await expect(bootstrap({ repository: { manager: repository.manager, metadata: repository.metadata } })).rejects.toThrow('Controller "ForeignController" route "create": @RelationId property "readerIds" of entity "KeyPageJournalEntity"');
-		await expect(bootstrap({ repository: {} })).rejects.toThrow('Controller "ForeignController": service has no TypeORM repository');
-		await expect(bootstrap({})).rejects.toThrow('Controller "ForeignController": service has no TypeORM repository');
-		await expect(bootstrap(undefined)).rejects.toThrow('Controller "ForeignController": service has no TypeORM repository');
+		await expect(bootstrap({ repository: { find: vi.fn() } })).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a TypeORM repository because its metadata is not TypeORM entity metadata. In tests, use a repository of an in-memory DataSource and stub its methods: https://elsikora.com/docs/nestjs-crud-automator/guides/testing');
+		await expect(bootstrap({ repository: { metadata: repository.metadata } })).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a TypeORM repository because its manager is not a TypeORM entity manager bound to a data source.');
+		await expect(bootstrap({})).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a TypeORM repository because the service has no repository.');
+		await expect(bootstrap(undefined)).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a TypeORM repository because the service has no repository.');
 
 		vi.restoreAllMocks();
 	});

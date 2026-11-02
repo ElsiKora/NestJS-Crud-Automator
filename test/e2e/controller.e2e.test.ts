@@ -9,7 +9,7 @@ import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator"
 import { ApiService } from "@decorator/api/service/decorator";
 import { EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { Column, DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 @Entity("controller_entities")
 class ControllerEntity {
@@ -45,53 +45,58 @@ class ControllerEntity {
 	public count!: number;
 }
 
-// The repository is mocked; only its metadata and manager come from a data source that never connects.
-const controllerDataSource: DataSource = new DataSource({ entities: [ControllerEntity], type: "postgres" });
-
 @ApiService({ entity: ControllerEntity })
 class ControllerService extends ApiServiceBase<ControllerEntity> {
-	public readonly repository = {
-		findAndCount: vi.fn(async (): Promise<[Array<ControllerEntity>, number]> => [[{ count: 1, id: "id-1", name: "item" }], 1]),
-		findOne: vi.fn(async (): Promise<ControllerEntity> => ({ count: 2, id: "id-1", name: "found" })),
-		get manager(): unknown {
-			return controllerDataSource.manager;
-		},
-		get metadata(): unknown {
-			return controllerDataSource.getMetadata(ControllerEntity);
-		},
-		remove: vi.fn(async (entity: ControllerEntity): Promise<ControllerEntity> => entity),
-		save: vi.fn(async (entity: Partial<ControllerEntity>): Promise<ControllerEntity> => ({ count: entity.count ?? 1, id: entity.id ?? "id-1", name: entity.name ?? "saved" })),
-	} as unknown as Repository<ControllerEntity>;
+	public constructor(public readonly repository: Repository<ControllerEntity>) {
+		super();
+	}
 }
+
+let controllerRepository: Repository<ControllerEntity>;
 
 class ControllerClass {
 	public service: ControllerService;
 
 	public constructor() {
-		this.service = new ControllerService();
+		this.service = new ControllerService(controllerRepository);
 	}
 }
 
+const ControllerFactory = ApiController<IApiBaseEntity>({
+	entity: ControllerEntity,
+	routes: {
+		[EApiRouteType.CREATE]: {},
+		[EApiRouteType.DELETE]: {},
+		[EApiRouteType.GET]: {},
+		[EApiRouteType.GET_LIST]: {},
+		[EApiRouteType.PARTIAL_UPDATE]: {},
+		[EApiRouteType.UPDATE]: {},
+	},
+})(ControllerClass);
+
 describe("ApiController (E2E)", () => {
+	let dataSource: DataSource;
+
+	// The documented testing recipe: a real repository of an in-memory DataSource with stubbed methods.
+	beforeAll(async () => {
+		dataSource = await new DataSource({ database: ":memory:", entities: [ControllerEntity], synchronize: true, type: "better-sqlite3" }).initialize();
+		controllerRepository = dataSource.getRepository(ControllerEntity);
+		vi.spyOn(controllerRepository, "findAndCount").mockResolvedValue([[{ count: 1, id: "id-1", name: "item" }], 1]);
+		vi.spyOn(controllerRepository, "findOne").mockResolvedValue({ count: 2, id: "id-1", name: "found" });
+		vi.spyOn(controllerRepository, "remove").mockImplementation(async (entity: unknown): Promise<never> => entity as never);
+		vi.spyOn(controllerRepository, "save").mockImplementation(async (entity: unknown): Promise<never> => ({ count: 1, id: "id-1", name: "saved", ...(entity as object) }) as never);
+	});
+
+	afterAll(async () => {
+		await dataSource.destroy();
+	});
+
 	it("executes CRUD methods through generated routes", async () => {
-		await (controllerDataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
-
-		const ControllerFactory = ApiController<IApiBaseEntity>({
-			entity: ControllerEntity,
-			routes: {
-				[EApiRouteType.CREATE]: {},
-				[EApiRouteType.DELETE]: {},
-				[EApiRouteType.GET]: {},
-				[EApiRouteType.GET_LIST]: {},
-				[EApiRouteType.PARTIAL_UPDATE]: {},
-				[EApiRouteType.UPDATE]: {},
-			},
-		})(ControllerClass);
-
 		const controller = new ControllerFactory() as ControllerClass & Record<string, any>;
 		const headers: Record<string, string> = {};
 		const ip = "127.0.0.1";
 
+		await controller.onApplicationBootstrap();
 		await controller.create({ id: "id-1", name: "created", count: 1 }, headers, ip);
 		await controller.get({ id: "id-1" }, headers, ip);
 		await controller.getList({ limit: 10, page: 1 }, headers, ip);
@@ -99,9 +104,20 @@ describe("ApiController (E2E)", () => {
 		await controller.partialUpdate({ id: "id-1" }, { name: "patched" }, headers, ip);
 		await controller.delete({ id: "id-1" }, headers, ip);
 
-		expect(controller.service.repository.save).toHaveBeenCalled();
-		expect(controller.service.repository.findOne).toHaveBeenCalled();
-		expect(controller.service.repository.findAndCount).toHaveBeenCalled();
-		expect(controller.service.repository.remove).toHaveBeenCalled();
+		expect(controllerRepository.save).toHaveBeenCalled();
+		expect(controllerRepository.findOne).toHaveBeenCalled();
+		expect(controllerRepository.findAndCount).toHaveBeenCalled();
+		expect(controllerRepository.remove).toHaveBeenCalled();
+	});
+
+	it("rejects a mocked service at bootstrap, because it has no TypeORM repository", async () => {
+		class MockedServiceController {
+			public service: object = { get: vi.fn(), getList: vi.fn() };
+		}
+
+		const Decorated = ApiController<IApiBaseEntity>({ entity: ControllerEntity, routes: {} })(MockedServiceController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+		const controller = new Decorated();
+
+		await expect(controller.onApplicationBootstrap()).rejects.toThrow('Controller "MockedServiceController" of entity "ControllerEntity": service.repository is not a TypeORM repository because the service has no repository.');
 	});
 });

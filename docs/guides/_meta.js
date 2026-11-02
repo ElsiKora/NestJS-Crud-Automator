@@ -11,6 +11,7 @@ export default {
 	pagination: "Pagination",
 	relations: "Relations",
 	"release-notes-3-0": "3.0 Release Notes",
+	testing: "Testing",
 	transformers: "Transformers",
 	validation: "Validation",
 };

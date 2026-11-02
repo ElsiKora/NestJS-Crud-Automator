@@ -20,5 +20,9 @@ describe("index exports", () => {
 		expect(indexExports).not.toHaveProperty("CorrelationIDResolve");
 		expect(indexExports).toHaveProperty("FormatErrorEvidenceForLog");
 		expect(indexExports).toHaveProperty("IsRegularExpressionValidator");
+		expect(indexExports).not.toHaveProperty("ApiControllerAssertRouteCursorDataSource");
+		expect(indexExports).not.toHaveProperty("ApiControllerAssertRouteRelationLoads");
+		expect(indexExports).not.toHaveProperty("DatabaseTypeOrmGetRepositoryGap");
+		expect(indexExports).not.toHaveProperty("DatabaseTypeOrmIsRepository");
 	});
 });

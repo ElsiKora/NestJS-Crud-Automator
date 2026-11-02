@@ -66,6 +66,7 @@ import { ApiRouteResponseIsListEnvelope } from "@utility/api/route/response/is-l
 import { ApiRouteSerializeResponse } from "@utility/api/route/response/serialize.utility";
 import { AuthorizationDecisionApplyResult, AuthorizationDecisionAttachResource, AuthorizationDecisionResolveFromRequest } from "@utility/authorization/decision";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
+import { DatabaseTypeOrmGetRepositoryGap } from "@utility/database/typeorm/get/repository-gap.utility";
 import { DatabaseTypeOrmIsRepository } from "@utility/database/typeorm/is/repository.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { instanceToPlain, plainToInstance } from "class-transformer";
@@ -424,7 +425,7 @@ export class ApiRouteRuntime {
 				}
 
 				// Date-time values the DTO or plan accepted must also name a calendar instant before any query.
-				ApiControllerGetListQueryRuntime.assertDateTimeFilterValues(requestQuery, this.resolveDateTimeFilterPaths(options.controller.service, requestQuery));
+				ApiControllerGetListQueryRuntime.assertDateTimeFilterValues(requestQuery, this.resolveDateTimeFilterPaths(options.controller.service, requestQuery, `Controller "${(options.controller as object).constructor.name}" route "${options.method}"`));
 
 				const {
 					limit,
@@ -730,14 +731,16 @@ export class ApiRouteRuntime {
 	 * It reads the query itself, so routes without a compiled filter plan resolve the same paths.
 	 * @param {unknown} service - Service of the route
 	 * @param {Record<string, unknown>} query - Query as the request carries it
+	 * @param {string} source - Controller and route named in the error
 	 * @returns {ReadonlyMap<string, boolean>} Filter paths over date and time columns, each with whether its column stores an exact instant
+	 * @throws {Error} When the service has no TypeORM repository, so the filter values cannot be checked
 	 */
-	private static resolveDateTimeFilterPaths(service: unknown, query: Record<string, unknown>): ReadonlyMap<string, boolean> {
+	private static resolveDateTimeFilterPaths(service: unknown, query: Record<string, unknown>, source: string): ReadonlyMap<string, boolean> {
 		const repository: unknown = (service as { repository?: unknown } | undefined)?.repository;
 		const dateTimePaths: Map<string, boolean> = new Map<string, boolean>();
 
 		if (!DatabaseTypeOrmIsRepository(repository)) {
-			throw ErrorException("Repository is not available in this context");
+			throw ErrorException(`${source}: service.repository is not a TypeORM repository because ${DatabaseTypeOrmGetRepositoryGap(repository) ?? "it is unrecognized"}, so its date and time filter values cannot be checked`);
 		}
 
 		for (const key of Object.keys(query)) {

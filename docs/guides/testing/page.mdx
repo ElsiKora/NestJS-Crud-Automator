@@ -1,0 +1,87 @@
+# Testing
+
+Generated controllers check their service repository at application bootstrap, so a controller test needs a real TypeORM repository. Build it from an in-memory DataSource and stub the repository methods the test controls.
+
+## Repository Of An In-Memory DataSource
+
+Create a `better-sqlite3` DataSource in memory, take the entity repository from it, and stub single methods with `vi.spyOn` (or `jest.spyOn`). Provide that repository under the token `@InjectRepository` reads:
+
+```typescript filename="user.controller.spec.ts" copy
+import type { INestApplication } from "@nestjs/common";
+import type { Repository } from "typeorm";
+
+import { ApiAuthorizationModule } from "@elsikora/nestjs-crud-automator";
+import { FastifyAdapter } from "@nestjs/platform-fastify";
+import { Test } from "@nestjs/testing";
+import { getRepositoryToken } from "@nestjs/typeorm";
+import { DataSource } from "typeorm";
+import { afterAll, beforeAll, expect, it, vi } from "vitest";
+
+import { UserController } from "./user.controller";
+import { UserEntity } from "./user.entity";
+import { UserService } from "./user.service";
+
+const USER_ID: string = "aaaaaaaa-0000-4000-8000-000000000001";
+
+let app: INestApplication;
+let dataSource: DataSource;
+let repository: Repository<UserEntity>;
+
+beforeAll(async () => {
+	dataSource = await new DataSource({ database: ":memory:", entities: [UserEntity], synchronize: true, type: "better-sqlite3" }).initialize();
+	repository = dataSource.getRepository(UserEntity);
+	vi.spyOn(repository, "findOne").mockResolvedValue({ id: USER_ID, username: "john_doe" } as UserEntity);
+
+	const moduleReference = await Test.createTestingModule({
+		controllers: [UserController],
+		imports: [ApiAuthorizationModule.forRoot()],
+		providers: [UserService, { provide: getRepositoryToken(UserEntity), useValue: repository }],
+	}).compile();
+
+	app = moduleReference.createNestApplication(new FastifyAdapter());
+	await app.init();
+});
+
+afterAll(async () => {
+	await app.close();
+	await dataSource.destroy();
+});
+
+it("serves a generated route from the stubbed repository", async () => {
+	const response = await app
+		.getHttpAdapter()
+		.getInstance()
+		.inject({ method: "GET", url: `/users/${USER_ID}` });
+
+	expect(response.statusCode).toBe(200);
+	expect(response.json()).toEqual({ id: USER_ID, username: "john_doe" });
+	expect(repository.findOne).toHaveBeenCalledOnce();
+});
+```
+
+- `synchronize: true` creates the tables, so a method the test does not stub still runs a real query.
+- `ApiAuthorizationModule.forRoot()` provides the guard every generated route uses.
+- Install `better-sqlite3` as a development dependency. An entity whose column types SQLite does not support needs a DataSource of its own database type instead, such as a PostgreSQL test container.
+
+## What Does Not Work
+
+- A plain object as the repository, such as `{ provide: getRepositoryToken(UserEntity), useValue: { findOne: vi.fn() } }`, fails at bootstrap: it has no TypeORM entity metadata, so the date and time filter checks and the relation load checks could not run.
+- A mocked service, such as `{ provide: UserService, useValue: { get: vi.fn() } }`, fails at bootstrap too, because it has no repository. Generated routes also accept only the methods `@ApiService` installs.
+
+The bootstrap error names the controller, the entity, and the missing part:
+
+```text
+[NestJS-Crud-Automator] Controller "UserController" of entity "UserEntity": service.repository is not a TypeORM repository because its metadata is not TypeORM entity metadata. In tests, use a repository of an in-memory DataSource and stub its methods: https://elsikora.com/docs/nestjs-crud-automator/guides/testing
+```
+
+The check reads TypeORM's own type markers instead of `instanceof`, so a repository built by a second installed copy of TypeORM, as a pnpm workspace or monorepo can resolve, passes.
+
+## Migration Notes
+
+Before 5.0.0, a controller started with any `service.repository`, so a plain-object repository mock was enough for a controller test. From 5.0.0 every `@ApiController` fails at application bootstrap unless `service.repository` is a TypeORM repository, also when every generated route is disabled. Replace a repository or service mock with the [repository of an in-memory DataSource](#repository-of-an-in-memory-datasource).
+
+## Next Steps
+
+- [Services](/docs/nestjs-crud-automator/core-concepts/services) - Inject the entity repository
+- [Controllers](/docs/nestjs-crud-automator/core-concepts/controllers) - Configure generated routes
+- [Migrating to 5.0](/docs/nestjs-crud-automator/guides/migrating-to-5-0) - Every breaking change of 5.0.0

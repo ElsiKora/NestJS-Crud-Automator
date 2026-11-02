@@ -9,7 +9,7 @@ import { KeyPageInstantEntity } from "./function/fixture/key-page-instant.entity
 import { KeyPageLedgerEntity } from "./function/fixture/key-page-ledger.entity";
 import { KeyPageMssqlEntity } from "./function/fixture/key-page-mssql.entity";
 
-const resolve = (service: unknown, query: Record<string, unknown>): ReadonlyMap<string, boolean> => (ApiRouteRuntime as unknown as { resolveDateTimeFilterPaths: (service: unknown, query: Record<string, unknown>) => ReadonlyMap<string, boolean> }).resolveDateTimeFilterPaths(service, query);
+const resolve = (service: unknown, query: Record<string, unknown>): ReadonlyMap<string, boolean> => (ApiRouteRuntime as unknown as { resolveDateTimeFilterPaths: (service: unknown, query: Record<string, unknown>, source: string) => ReadonlyMap<string, boolean> }).resolveDateTimeFilterPaths(service, query, 'Controller "LedgerController" route "getList"');
 
 describe("ApiRouteRuntime date and time filter paths", () => {
 	it("marks the date and time value paths of a query and whether each stores an instant, through relations and embedded parts", async () => {
@@ -66,8 +66,8 @@ describe("ApiRouteRuntime date and time filter paths", () => {
 	});
 
 	it("fails closed for a service without a recognized repository", () => {
-		expect(() => resolve({}, { "plainAt[value]": "x" })).toThrow("Repository is not available in this context");
-		expect(() => resolve(undefined, { "plainAt[value]": "x" })).toThrow("Repository is not available in this context");
-		expect(() => resolve({ repository: { metadata: {} } }, { "plainAt[value]": "x" })).toThrow("Repository is not available in this context");
+		expect(() => resolve({}, { "plainAt[value]": "x" })).toThrow('Controller "LedgerController" route "getList": service.repository is not a TypeORM repository because the service has no repository, so its date and time filter values cannot be checked');
+		expect(() => resolve(undefined, { "plainAt[value]": "x" })).toThrow('Controller "LedgerController" route "getList": service.repository is not a TypeORM repository because the service has no repository');
+		expect(() => resolve({ repository: { metadata: {} } }, { "plainAt[value]": "x" })).toThrow('Controller "LedgerController" route "getList": service.repository is not a TypeORM repository because its metadata is not TypeORM entity metadata');
 	});
 });
