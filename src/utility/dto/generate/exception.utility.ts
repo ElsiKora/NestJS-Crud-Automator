@@ -48,8 +48,8 @@ const ERROR_MESSAGE_PROPERTY_OPTIONS: ApiPropertyOptions = {
 
 const exceptionDtoCache: Map<number, Type<unknown>> = new Map<number, Type<unknown>>();
 
-// A NotFoundException without arguments, an HttpException with a string, and the body parser all answer without it
-const ERROR_NAME_NOTE: string = "sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered";
+// An object response keeps its own shape, so a NotFoundException without arguments answers without it, with or without the interceptor
+const ERROR_NAME_NOTE: string = "sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure";
 
 /**
  * Details variants each status can carry on the wire, keyed by the details `type` discriminator.

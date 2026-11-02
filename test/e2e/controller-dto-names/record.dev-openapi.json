@@ -2157,7 +2157,7 @@
 						"readOnly": true
 					},
 					"error": {
-						"description": "Error name, sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered",
+						"description": "Error name, sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure",
 						"example": "Conflict",
 						"nullable": false,
 						"readOnly": true,
@@ -2215,7 +2215,7 @@
 						"type": "string"
 					},
 					"error": {
-						"description": "Error name, sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered",
+						"description": "Error name, sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure",
 						"example": "Internal Server Error",
 						"nullable": false,
 						"readOnly": true,
@@ -2273,7 +2273,7 @@
 						"type": "string"
 					},
 					"error": {
-						"description": "Error name, sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered",
+						"description": "Error name, sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure",
 						"example": "Not Found",
 						"nullable": false,
 						"readOnly": true,
@@ -2355,7 +2355,7 @@
 						"readOnly": true
 					},
 					"error": {
-						"description": "Error name, sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered",
+						"description": "Error name, sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure",
 						"example": "Bad Request",
 						"nullable": false,
 						"readOnly": true,
@@ -2493,7 +2493,7 @@
 						"type": "string"
 					},
 					"error": {
-						"description": "Error name, sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered",
+						"description": "Error name, sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure",
 						"example": "Payload Too Large",
 						"nullable": false,
 						"readOnly": true,
@@ -2551,7 +2551,7 @@
 						"type": "string"
 					},
 					"error": {
-						"description": "Error name, sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered",
+						"description": "Error name, sent when the exception sets it, or when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter answers a string or array response, an http-errors value, or an unknown failure",
 						"example": "Unsupported Media Type",
 						"nullable": false,
 						"readOnly": true,

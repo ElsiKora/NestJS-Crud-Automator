@@ -562,22 +562,22 @@ Every declared status uses the `Exception<Status>DTO` schema of that status, for
 
 - `correlationID` and `timestamp` are never required: they appear when the interceptor or the filter handles the error, and both are optional components;
 - `statusCode` and `message` are required on every status;
-- `error` is never required: `throw new NotFoundException()` without the interceptor answers `{ "message": "Not Found", "statusCode": 404 }`, and a `new HttpException("gone", 404)` from a route subscriber answers `{ "statusCode": 404, "message": "gone" }`;
+- `error` is never required: an object response keeps its own shape, so `throw new NotFoundException()` answers `{ "message": "Not Found", "statusCode": 404 }` plus `correlationID` and `timestamp` when the interceptor or the filter handles it, and a `new HttpException("gone", 404)` from a route subscriber answers `{ "statusCode": 404, "message": "gone" }` without the interceptor;
 - `message` is a string or an array of strings and `error` is a string, with no pattern or length limit;
 - `details` exists only on `400` (`FOREIGN_KEY_VIOLATION`, `INVALID_REFERENCE`, `TO_MANY_UPDATE_KEY`) and `409` (`UNIQUE_VIOLATION`) and is discriminated by `details.type`: each variant has its own single `type` value, so a body matches exactly one.
 
 ### Fields Without the Exception Filter
 
-Errors from the handler chain pass `CorrelationIDResponseBodyInterceptor` and carry every field. Failures before it carry only what Nest and the adapter send, unless `CorrelationIDResponseBodyExceptionFilter` is registered:
+Errors from the handler chain pass `CorrelationIDResponseBodyInterceptor`, which adds `correlationID` and `timestamp`. Failures before it carry only what Nest and the adapter send, unless `CorrelationIDResponseBodyExceptionFilter` is registered. `error` comes from the exception in both cases, or from a body the interceptor or the filter builds for a string or array response, an http-errors value, or an unknown failure:
 
 | Source                                                                                                     | Statuses              | Fields without the filter                                         |
 | ---------------------------------------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------- |
-| Pipes, the handler, route subscribers, request validators                                                  | every declared status | `statusCode`, `message`, `error`, `correlationID`, `timestamp`    |
+| Pipes, the handler, route subscribers, request validators                                                  | every declared status | `statusCode`, `message`, `correlationID`, `timestamp`             |
 | The body parser: a malformed, oversized, or unsupported body                                               | `400`, `413`, `415`   | `statusCode`, `message`                                           |
 | A guard that rejects or returns `false`, `ThrottlerGuard`                                                  | `401`, `403`, `429`   | `statusCode`, `message`, and `error` when a guard returns `false` |
 | A guard, an authentication guard, an authorization principal resolver, or an IAM policy source that throws | `500`                 | `statusCode`, `message`                                           |
 
-With the filter, every status carries every field. A `403` thrown from the handler, such as a route subscriber, carries every field and matches the same schema; see [Rate Limiting Errors](#rate-limiting-errors).
+With the filter, every status carries `statusCode`, `correlationID`, and `timestamp`, and `message` and `error` as the rule above gives them. A `403` thrown from the handler, such as a route subscriber, carries `correlationID` and `timestamp` through the interceptor and matches the same schema; see [Rate Limiting Errors](#rate-limiting-errors).
 
 ### Declaring Other Statuses
 
