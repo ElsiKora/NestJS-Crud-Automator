@@ -77,10 +77,23 @@ Generates DTO classes from entity metadata.
 **Location:** `src/utility/dto/generate/core.utility.ts`
 
 ```typescript
-function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan, responseVariantName?: string, routeName?: string): Type<unknown> | undefined;
+function DtoGenerate<E>(
+	entity: ObjectLiteral,
+	entityMetadata: IApiEntity<E>,
+	method: EApiRouteType,
+	dtoType: EApiDtoType,
+	schemaPrefix: string,
+	dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig,
+	currentGuard?: Type<CanActivate>,
+	queryPlan?: IApiControllerGetListQueryPlan,
+	responseVariantName?: string,
+	routeName?: string,
+	listResponseDto?: ReadonlyArray<Type<unknown>> | Type<unknown>,
+	responseRelations?: IApiControllerPropertiesRouteBaseRelationsResponse<E>,
+): Type<unknown> | undefined;
 ```
 
-`schemaPrefix` is the schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`. It starts every generated DTO name, so two controllers on one entity never share an OpenAPI component. `routeName` is the PascalCase handler method name of a custom route; it takes the place of the route type in the generated names. See [Generated Schema Names](/docs/nestjs-crud-automator/core-concepts/dtos#generated-schema-names).
+`schemaPrefix` is the schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`. It starts every generated DTO name, so two controllers on one entity never share an OpenAPI component. `routeName` is the PascalCase handler method name of a custom route; it takes the place of the route type in the generated names. See [Generated Schema Names](/docs/nestjs-crud-automator/core-concepts/dtos#generated-schema-names). `responseRelations` is the `relations.response` config of the route; it shapes the relation properties of a RESPONSE DTO and is ignored for any other DTO type.
 
 **Internal Use:** Called automatically for DTO generation.
 

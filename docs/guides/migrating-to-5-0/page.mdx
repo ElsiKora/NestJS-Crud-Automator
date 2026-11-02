@@ -112,8 +112,9 @@ See [Error Handling: Migration Notes](/docs/nestjs-crud-automator/guides/error-h
 ## Relation Responses
 
 - A to-many relation in `relations.response.load.include` is sent as an array, `[]` when it has no rows. Before 5.0.0, an `OBJECT` reference sent `{}` and a `SCALAR` reference left the key out.
-- An `OBJECT` reference on a key other than `id` sends that key, `{ "code": "a" }` instead of `{}`. The key must be described with `@ApiPropertyDescribe` on the related entity as a non-nullable scalar, or the application fails at startup.
-- The response schema of each route describes its relations as the route sends them: the scalar key for `SCALAR`, an object with the configured key for `OBJECT`, an array for to-many. A relation is required only when the route always sends it, because it is included or eager, and a to-one relation is `nullable` when TypeORM can return `null` for it. Regenerate clients from the new OpenAPI document.
+- An `OBJECT` reference on a key other than `id` sends that key, `{ "code": "a" }` instead of `{}`.
+- For every reference shape, the application fails at startup when the reference key, `id` included, is not a described, non-nullable scalar of the related entity, when `id` is the key on a target with a composite primary key, when `load` has no `reference`, or when a `lazy: true` relation is in `include`. A `SCALAR` on an undescribed or nullable key used to send the value, so such a route needs `@ApiPropertyDescribe` on the key, or another key.
+- The response schema of each route describes its relations as the route sends them: the scalar key for `SCALAR`, an object with the configured key for `OBJECT`, an array for to-many, with the type of the key on the related entity, so an integer `id` is no longer a UUID. A relation is required only when the route always sends it, because it is included or eager, whatever `isRequired` says. A to-one relation is `nullable` when TypeORM can return `null` for it, which includes a target with a `@DeleteDateColumn`. Regenerate clients from the new OpenAPI document.
 
 See [Relations: Migration Notes](/docs/nestjs-crud-automator/guides/relations#migration-notes).
 
