@@ -78,6 +78,9 @@ const NO_ORDER_MESSAGE: (property: string) => string = (property: string): strin
 const BETWEEN_MESSAGE: (group: string) => string = (group: string): string => `group "${group}" with between operation requires exactly 2 values`;
 
 const REJECTED_CASES: Array<{ messages: Array<string>; query: string }> = [
+	{ messages: ["isFeatured[value] must be a boolean value"], query: `${PAGE}&isFeatured[operator]=eq&isFeatured[value]=1` },
+	{ messages: ["isFeatured[value] must be a boolean value"], query: `${PAGE}&isFeatured[operator]=eq&isFeatured[value]=0` },
+	{ messages: ["each value in isFeatured[values] must be a boolean value"], query: `${PAGE}&isFeatured[operator]=in&isFeatured[values]=1` },
 	{ messages: [ORDER_BY_MESSAGE], query: `${PAGE}&orderBy=nope&orderDirection=asc` },
 	{ messages: [ORDER_BY_MESSAGE], query: `${PAGE}&orderBy=unsortable&orderDirection=desc` },
 	{ messages: [ORDER_BY_MESSAGE], query: `${PAGE}&orderBy=undescribed&orderDirection=desc` },
@@ -125,11 +128,8 @@ const ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
 	{ labels: ["Alpha", "Gamma"], query: `${PAGE}&status[operator]=in&status[values]=active&orderBy=label&orderDirection=asc` },
 	{ labels: ["Beta"], query: `${PAGE}&status[operator]=notin&status[values]=active` },
 	{ labels: ["Alpha"], query: `${PAGE}&label[operator]=in&label[values]=Alpha` },
-	{ labels: ["Alpha"], query: `${PAGE}&isFeatured[operator]=in&isFeatured[values]=1` },
 	{ labels: ["Alpha"], query: `${PAGE}&label[operator]=cont&label[value]=lph` },
 	{ labels: ["Alpha", "Beta", "Gamma"], query: `${PAGE}&createdAt[operator]=gt&createdAt[value]=2020-01-01T00:00:00.000Z&orderBy=label&orderDirection=asc` },
-	{ labels: ["Alpha"], query: `${PAGE}&isFeatured[operator]=eq&isFeatured[value]=1` },
-	{ labels: ["Beta", "Gamma"], query: `${PAGE}&isFeatured[operator]=eq&isFeatured[value]=0&orderBy=label&orderDirection=asc` },
 	{ labels: ["Beta"], query: `${PAGE}&releasedOn[operator]=eq&releasedOn[value]=2024-02-02` },
 	{ labels: ["Beta", "Gamma"], query: `${PAGE}&note[operator]=isnull&orderBy=label&orderDirection=asc` },
 	{ labels: ["Alpha"], query: `${PAGE}&note[operator]=notnull` },

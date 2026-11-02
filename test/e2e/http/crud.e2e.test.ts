@@ -900,7 +900,6 @@ describe("CRUD routes (E2E)", () => {
 			{ expected: ["filter-2"], query: "count[operator]=gt&count[value]=3" },
 			{ expected: ["filter-1"], query: "count[operator]=lt&count[value]=3" },
 			{ expected: ["filter-3"], query: "code[operator]=isnull" },
-			{ expected: ["filter-1", "filter-3"], query: "isActive[operator]=eq&isActive[value]=1" },
 			{ expected: ["filter-2", "filter-3"], query: "createdAt[operator]=gt&createdAt[value]=2024-01-15T00:00:00.000Z" },
 		];
 
@@ -918,6 +917,14 @@ describe("CRUD routes (E2E)", () => {
 				.sort();
 			expect(ids).toEqual([...scenario.expected].sort());
 		}
+
+		const rejectedBooleanResponse = await fastify.inject({
+			headers: adminHeaders,
+			method: "GET",
+			url: "/items?limit=10&page=1&isActive[operator]=eq&isActive[value]=1",
+		});
+
+		expect(rejectedBooleanResponse.statusCode).toBe(400);
 	});
 
 	it("applies strict typed GET_LIST filters, relation paths, and ordering", async () => {

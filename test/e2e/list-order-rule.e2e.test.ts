@@ -219,20 +219,29 @@ describe.each([
 		it("binds the parsed number of a numeric filter value on a route without a typed filter", async () => {
 			const ordered: string = `${ITEMS}?${PAGE}&orderBy=rank&orderDirection=asc`;
 
-			expect(await listLabels(`${ordered}&rank[operator]=eq&rank[value]=1e2`)).toEqual(["Delta"]);
-			expect(await listLabels(`${ordered}&rank[operator]=eq&rank[value]=1.0`)).toEqual(["Beta"]);
-			expect(await listLabels(`${ordered}&rank[operator]=gt&rank[value]=2.0`)).toEqual(["Gamma", "Delta"]);
-			expect(await listLabels(`${ordered}&rank[operator]=in&rank[values]=1.0&rank[values]=1e2`)).toEqual(["Beta", "Delta"]);
-			expect(await listLabels(`${ordered}&rank[operator]=in&rank[values]=2.0`)).toEqual(["Alpha"]);
-			expect(await listLabels(`${ordered}&rank[operator]=between&rank[values]=1.0&rank[values]=2e0`)).toEqual(["Beta", "Alpha"]);
-			expect(await listLabels(`${ordered}&owner.level[operator]=eq&owner.level[value]=1.0`)).toEqual(["Beta"]);
+			expect(await listLabels(`${ordered}&rank[operator]=eq&rank[value]=100`)).toEqual(["Delta"]);
+			expect(await listLabels(`${ordered}&rank[operator]=eq&rank[value]=1`)).toEqual(["Beta"]);
+			expect(await listLabels(`${ordered}&rank[operator]=gt&rank[value]=2`)).toEqual(["Gamma", "Delta"]);
+			expect(await listLabels(`${ordered}&rank[operator]=in&rank[values]=1&rank[values]=100`)).toEqual(["Beta", "Delta"]);
+			expect(await listLabels(`${ordered}&rank[operator]=in&rank[values]=2`)).toEqual(["Alpha"]);
+			expect(await listLabels(`${ordered}&rank[operator]=between&rank[values]=1&rank[values]=2`)).toEqual(["Beta", "Alpha"]);
+			expect(await listLabels(`${ordered}&owner.level[operator]=eq&owner.level[value]=1`)).toEqual(["Beta"]);
+		});
+
+		it.each(["1e2", "1.0", "016", "0x10"])("rejects the integer filter value '%s', which is not canonical, on a route without a typed filter", async (value: string) => {
+			await expectRejected(`${ITEMS}?${PAGE}&rank[operator]=eq&rank[value]=${value}`);
+			await expectRejected(`${ITEMS}?${PAGE}&rank[operator]=in&rank[values]=${value}`);
+			await expectRejected(`${ITEMS}?${PAGE}&rank[operator]=between&rank[values]=${value}&rank[values]=200`);
+			await expectRejected(`${ITEMS}?${PAGE}&owner.level[operator]=eq&owner.level[value]=${value}`);
 		});
 
 		it("gives the same answer to a numeric filter value as a typed filter", async () => {
 			const ordered: string = `${TYPED_ITEMS}?${PAGE}&orderBy=rank&orderDirection=asc`;
 
-			expect(await listLabels(`${ordered}&rank[operator]=eq&rank[value]=1e2`)).toEqual(["Delta"]);
-			expect(await listLabels(`${ordered}&rank[operator]=eq&rank[value]=1.0`)).toEqual(["Beta"]);
+			expect(await listLabels(`${ordered}&rank[operator]=eq&rank[value]=100`)).toEqual(["Delta"]);
+			expect(await listLabels(`${ordered}&rank[operator]=eq&rank[value]=1`)).toEqual(["Beta"]);
+			await expectRejected(`${TYPED_ITEMS}?${PAGE}&rank[operator]=eq&rank[value]=1e2`);
+			await expectRejected(`${TYPED_ITEMS}?${PAGE}&rank[operator]=eq&rank[value]=1.0`);
 			await expectRejected(`${TYPED_ITEMS}?${PAGE}&rank[operator]=eq&rank[value]=`);
 			await expectRejected(`${TYPED_ITEMS}?${PAGE}&rank[operator]=eq&rank[value]=%20`);
 		});
