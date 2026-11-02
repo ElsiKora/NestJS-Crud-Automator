@@ -4,6 +4,7 @@ import type { TApiPropertyDateProperties } from "@type/decorator/api/property";
 import type { TransformFnParams } from "class-transformer";
 import type { ValidationOptions } from "class-validator";
 
+import { DtoPropertyDateRejectedValue } from "@class/utility/dto/property/date-rejected-value.class";
 import { PROPERTY_DATE_DECORATOR_API_CONSTANT } from "@constant/decorator/api/property-date.constant";
 import { EApiPropertyDataType, EApiPropertyDateIdentifier, EApiPropertyDateType } from "@enum/decorator/api";
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
@@ -12,6 +13,7 @@ import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
+import { ClassTransformerGetStorage } from "@utility/class-transformer/get-storage.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { IsDateFormatValue } from "@utility/is/date-format-value.utility";
@@ -257,9 +259,10 @@ function buildResponseDecorators(properties: TApiPropertyDateProperties): Array<
 }
 
 /**
- * Builds the request transform. Only a `DATE_TIME` value in its published form becomes a Date; every other value stays as sent, so the validator names the published form.
- * A `DATE` or `TIME` value is never converted, so the stored text does not depend on the process time zone. An array property wraps a single value.
- * Under `enableImplicitConversion` class-transformer turns a value into a Date before this transform runs when the property is typed `Date`, so the transform reads the value as sent instead.
+ * Builds the request transform. It judges the value the client sent, read under the property's exposed name, so the outcome does not depend on decorator order or on class-transformer's implicit conversion.
+ * A value sent outside the published form becomes a DtoPropertyDateRejectedValue, which no later transform can turn into a valid value and the validator refuses.
+ * A published `DATE_TIME` value becomes a Date; `DATE` and `TIME` values stay text, so the stored text does not depend on the process time zone. A value the client did not send, such as a Date the server set, is judged as the transform chain left it.
+ * An array property wraps a single value and judges each item.
  * @param {TApiPropertyDateProperties} properties - The property configuration
  * @returns {Array<PropertyDecorator>} The request transform, or none for a response property
  * @private
@@ -269,26 +272,28 @@ function buildTransformDecorators(properties: TApiPropertyDateProperties): Array
 
 	if (!properties.isResponse) {
 		const format: EApiPropertyDateType = properties.format;
+		const isArray: boolean = properties.isArray ?? false;
 
-		if (properties.isArray) {
-			decorators.push(
-				Transform(
-					({ key, obj, value }: TransformFnParams): unknown => {
-						if (value === undefined || value === null) {
-							return value;
-						}
+		decorators.push((target: object, propertyKey: string | symbol): void => {
+			Transform(
+				({ obj, value }: TransformFnParams): unknown => {
+					const sent: unknown = readSentValue(obj, target, propertyKey);
 
-						const sent: unknown = readSentValue(obj, key);
-						const sentItems: Array<unknown> = Array.isArray(sent) ? sent : [sent];
+					if (!isArray) {
+						return toRequestValue(value, sent, format);
+					}
 
-						return (Array.isArray(value) ? (value as Array<unknown>) : [value]).map((item: unknown, index: number): unknown => toRequestValue(restoreSentValue(item, sentItems[index]), format));
-					},
-					{ toClassOnly: true },
-				),
-			);
-		} else {
-			decorators.push(Transform(({ key, obj, value }: TransformFnParams): unknown => toRequestValue(restoreSentValue(value, readSentValue(obj, key)), format), { toClassOnly: true }));
-		}
+					if (value === undefined || value === null) {
+						return value;
+					}
+
+					const sentItems: Array<unknown> = Array.isArray(sent) ? sent : [sent];
+
+					return (Array.isArray(value) ? (value as Array<unknown>) : [value]).map((item: unknown, index: number): unknown => toRequestValue(item, sentItems[index], format));
+				},
+				{ toClassOnly: true },
+			)(target, propertyKey);
+		});
 	}
 
 	return decorators;
@@ -395,36 +400,40 @@ function isPublishedValue(value: unknown, format: EApiPropertyDateType): boolean
 }
 
 /**
- * Reads a property of the plain object being transformed as the client sent it.
+ * Reads the property of the plain object being transformed as the client sent it, under the name `@Expose({ name })` gives it on the wire.
  * @param {unknown} source - Plain object class-transformer reads, `obj` of the transform.
- * @param {string} key - Property key.
- * @returns {unknown} The sent value, or undefined when the source is not an object.
+ * @param {object} target - Decorated DTO prototype.
+ * @param {string | symbol} propertyKey - Decorated property key.
+ * @returns {unknown} The sent value, or undefined when the source is not an object or does not carry it.
  * @private
  */
-function readSentValue(source: unknown, key: string): unknown {
-	return typeof source === "object" && source !== null ? Reflect.get(source, key) : undefined;
+function readSentValue(source: unknown, target: object, propertyKey: string | symbol): unknown {
+	if (typeof source !== "object" || source === null) {
+		return undefined;
+	}
+
+	const wireName: string | symbol = ClassTransformerGetStorage(target, propertyKey).findExposeMetadata(target.constructor, propertyKey)?.options?.name ?? propertyKey;
+
+	return Reflect.get(source, wireName);
 }
 
 /**
- * Undoes class-transformer's implicit conversion: a Date built from a value that was not a Date is replaced by that value, so only a Date the server set counts as one.
- * @param {unknown} value - Value after class-transformer's own conversion.
- * @param {unknown} sent - The same value as sent, or undefined when it cannot be read.
- * @returns {unknown} The value as sent when the conversion made the Date, otherwise the value.
- * @private
- */
-function restoreSentValue(value: unknown, sent: unknown): unknown {
-	return value instanceof Date && sent !== undefined && !(sent instanceof Date) ? sent : value;
-}
-
-/**
- * Turns a `DATE_TIME` value in its published form into the instant it names and returns every other value as sent.
- * @param {unknown} value - One request value, or one item of an array property.
+ * Judges one request value by the value the client sent.
+ * A sent value outside the published form is rejected, whatever transforms made of it. A Date that class-transformer built from a sent value that was not a Date is replaced by the sent value. A published `DATE_TIME` value becomes the instant it names.
+ * @param {unknown} value - Value as the transform chain left it.
+ * @param {unknown} sent - The same value as sent, or undefined when the client did not send it.
  * @param {EApiPropertyDateType} format - Date property format whose published pattern applies.
- * @returns {unknown} A Date for a published instant, otherwise the value as sent.
+ * @returns {unknown} The value the validator checks.
  * @private
  */
-function toRequestValue(value: unknown, format: EApiPropertyDateType): unknown {
-	return format === EApiPropertyDateType.DATE_TIME && IsDateFormatValue(value, format) ? new Date(value) : value;
+function toRequestValue(value: unknown, sent: unknown, format: EApiPropertyDateType): unknown {
+	if (sent !== undefined && sent !== null && !isPublishedValue(sent, format)) {
+		return new DtoPropertyDateRejectedValue(sent);
+	}
+
+	const current: unknown = value instanceof Date && sent !== undefined && !(sent instanceof Date) ? sent : value;
+
+	return format === EApiPropertyDateType.DATE_TIME && IsDateFormatValue(current, format) ? new Date(current) : current;
 }
 
 /**

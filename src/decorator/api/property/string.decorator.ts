@@ -675,7 +675,7 @@ function validateOptions(properties: TApiPropertyStringProperties, target: objec
 
 	// A date has one published form and one rule, which ApiPropertyDate holds.
 	if (properties.format === EApiPropertyStringType.DATE) {
-		errors.push(`Property '${ApiPropertyGetTargetClassName(target)}.${String(propertyKey)}' cannot use format DATE; describe a calendar date with ApiPropertyDate and EApiPropertyDateType.DATE`);
+		errors.push(`Property '${ApiPropertyGetTargetClassName(target)}.${String(propertyKey)}' cannot use format DATE. Describe a calendar date with ApiPropertyDate and EApiPropertyDateType.DATE, or on an entity with ApiPropertyDescribe({ type: EApiPropertyDescribeType.DATE, format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE })`);
 	}
 
 	if ((!properties.isResponse && (!properties.exampleValue || !properties.pattern)) || (properties.exampleValue && properties.pattern)) {

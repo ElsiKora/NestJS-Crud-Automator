@@ -25,7 +25,7 @@ Use `GetDefaultStringFormatProperties(format)` when you want the package default
 
 - Emits `@ApiProperty` with the correct format, pattern, and example. Arrays automatically wrap the schema in `items`.
 - Adds format-specific validators pulled from `class-validator` (e.g., `IsEmail`, `IsPhoneNumber`, `IsStrongPassword`, `IsJWT`, `IsHexColor`).
-- Refuses `format: EApiPropertyStringType.DATE` at decoration, on request and response properties. Describe a calendar date with [`@ApiPropertyDate`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-date) and `EApiPropertyDateType.DATE`, which holds it to `YYYY-MM-DD` text.
+- Refuses `format: EApiPropertyStringType.DATE` at decoration, on request and response properties. Describe a calendar date with [`@ApiPropertyDate`](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-date) and `EApiPropertyDateType.DATE`, which holds it to `YYYY-MM-DD` text, or on an entity with `@ApiPropertyDescribe({ type: EApiPropertyDescribeType.DATE, format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE })`.
 - Registers request validators (`Matches`, `Length`, presence guards, array validators) unless `isResponse` is `true`.
 - Applies `ApiResponseProperty`, `Expose`, or `Exclude` on response DTOs.
 
