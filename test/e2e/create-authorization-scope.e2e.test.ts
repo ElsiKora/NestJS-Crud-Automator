@@ -96,19 +96,7 @@ class CreateScopeRequiredFunctionItemService extends ApiServiceBase<CreateScopeI
 	public readonly repository!: Repository<CreateScopeItemEntity>;
 }
 
-@Injectable()
-@ApiService({
-	entity: CreateScopeItemEntity,
-	functions: {
-		[EApiFunctionType.CREATE]: { transaction: { mode: EApiFunctionTransactionMode.NONE } },
-	},
-})
-class CreateScopeNoneFunctionItemService extends ApiServiceBase<CreateScopeItemEntity> {
-	@InjectRepository(CreateScopeItemEntity)
-	public readonly repository!: Repository<CreateScopeItemEntity>;
-}
-
-type TCreateScopeItemService = CreateScopeItemService | CreateScopeNoneFunctionItemService | CreateScopeRequiredFunctionItemService;
+type TCreateScopeItemService = CreateScopeItemService | CreateScopeRequiredFunctionItemService;
 
 @Injectable()
 class CreateScopeAuthGuard implements IAuthGuard {
@@ -232,7 +220,6 @@ function createScopeController(path: string, mode: EApiAuthorizationMode, transa
 const HOOKS_SUPPORTS_PATH: string = "create-scope-hooks-supports";
 const IAM_SUPPORTS_PATH: string = "create-scope-iam-supports";
 const REQUIRED_FUNCTION_PATH: string = "create-scope-required-function";
-const NONE_FUNCTION_PATH: string = "create-scope-none-function";
 
 const scopedRoutes: Array<{ mode: EApiAuthorizationMode; path: string; transactionMode: EApiFunctionTransactionMode }> = [
 	{ mode: EApiAuthorizationMode.HOOKS, path: HOOKS_SUPPORTS_PATH, transactionMode: EApiFunctionTransactionMode.SUPPORTS },
@@ -278,7 +265,7 @@ describe("Generated CREATE authorization scope (E2E)", () => {
 
 	beforeAll(async () => {
 		@Module({
-			controllers: [...scopedRoutes.map(({ mode, path, transactionMode }) => createScopeController(path, mode, transactionMode, CreateScopeItemService)), createScopeController(REQUIRED_FUNCTION_PATH, EApiAuthorizationMode.HOOKS, EApiFunctionTransactionMode.SUPPORTS, CreateScopeRequiredFunctionItemService), createScopeController(NONE_FUNCTION_PATH, EApiAuthorizationMode.HOOKS, EApiFunctionTransactionMode.SUPPORTS, CreateScopeNoneFunctionItemService)],
+			controllers: [...scopedRoutes.map(({ mode, path, transactionMode }) => createScopeController(path, mode, transactionMode, CreateScopeItemService)), createScopeController(REQUIRED_FUNCTION_PATH, EApiAuthorizationMode.HOOKS, EApiFunctionTransactionMode.SUPPORTS, CreateScopeRequiredFunctionItemService)],
 			imports: [
 				TypeOrmModule.forRoot({
 					database: ":memory:",
@@ -298,7 +285,7 @@ describe("Generated CREATE authorization scope (E2E)", () => {
 				}),
 				ApiSubscriberModule,
 			],
-			providers: [CreateScopeAuthGuard, CreateScopeFunctionSubscriber, CreateScopeItemService, CreateScopeNoneFunctionItemService, CreateScopePolicy, CreateScopeRequiredFunctionItemService],
+			providers: [CreateScopeAuthGuard, CreateScopeFunctionSubscriber, CreateScopeItemService, CreateScopePolicy, CreateScopeRequiredFunctionItemService],
 		})
 		class CreateScopeAppModule {}
 
@@ -345,11 +332,6 @@ describe("Generated CREATE authorization scope (E2E)", () => {
 			expect(await createItem(REQUIRED_FUNCTION_PATH, "item-out-of-scope", OUT_OF_SCOPE_TENANT_ID)).toBe(403);
 			expect(await repository.findOneBy({ id: "item-out-of-scope" })).toBeNull();
 			expect(CreateScopeFunctionSubscriber.lifecycle).toEqual(["rollback:ROUTE"]);
-		});
-
-		it("fails closed on a NONE CREATE function before writing a scoped row", async () => {
-			expect(await createItem(NONE_FUNCTION_PATH, "item-none-function", IN_SCOPE_TENANT_ID)).toBe(500);
-			expect(await repository.findOneBy({ id: "item-none-function" })).toBeNull();
 		});
 	});
 

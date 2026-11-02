@@ -32,6 +32,13 @@ const ROUTE_FUNCTIONS: ReadonlyArray<[EApiRouteType, TCheckedFunctionType, strin
 	[EApiRouteType.UPDATE, EApiFunctionType.GET, READ_PURPOSE],
 ];
 
+/**
+ * Each checked route other than CREATE, which always holds a transaction, with the functions it calls.
+ */
+const MODE_ROUTE_FUNCTIONS: ReadonlyArray<[EApiRouteType, TCheckedFunctionType, string]> = ROUTE_FUNCTIONS.filter(([routeType]: [EApiRouteType, TCheckedFunctionType, string]): boolean => routeType !== EApiRouteType.CREATE);
+
+const HELD_CREATE_ROUTE_MODES: ReadonlyArray<EApiFunctionTransactionMode> = [EApiFunctionTransactionMode.SUPPORTS, EApiFunctionTransactionMode.REQUIRED, EApiFunctionTransactionMode.MANDATORY];
+
 const WRITE_ROUTE_TYPES: ReadonlyArray<EApiRouteType> = [EApiRouteType.CREATE, EApiRouteType.DELETE, EApiRouteType.PARTIAL_UPDATE, EApiRouteType.UPDATE];
 
 @Entity("e2e_generated_function_startup_items")
@@ -140,7 +147,7 @@ describe("Generated routes and the service functions they call at startup (E2E)"
 		await expect(start(createService({}, EApiFunctionType.GET), EApiRouteType.DELETE)).resolves.toBeDefined();
 	});
 
-	describe.each(ROUTE_FUNCTIONS)("route %s and its %s function", (routeType: EApiRouteType, functionType: TCheckedFunctionType) => {
+	describe.each(MODE_ROUTE_FUNCTIONS)("route %s and its %s function", (routeType: EApiRouteType, functionType: TCheckedFunctionType) => {
 		const name: string = functionType.toUpperCase();
 
 		it.each([EApiFunctionTransactionMode.NONE, EApiFunctionTransactionMode.SUPPORTS])("refuses route mode %s with a MANDATORY function", async (routeMode: EApiFunctionTransactionMode) => {
@@ -164,11 +171,31 @@ describe("Generated routes and the service functions they call at startup (E2E)"
 		});
 	});
 
-	describe.each<[EApiFunctionTransactionMode, EApiFunctionTransactionMode]>([
-		[EApiFunctionTransactionMode.REQUIRED, EApiFunctionTransactionMode.MANDATORY],
-		[EApiFunctionTransactionMode.NONE, EApiFunctionTransactionMode.NONE],
-	])("in route mode %s with every function in mode %s", (routeMode: EApiFunctionTransactionMode, functionMode: EApiFunctionTransactionMode) => {
-		it.each(WRITE_ROUTE_TYPES)("answers %s", async (routeType: EApiRouteType) => {
+	describe.each([EApiFunctionType.CREATE, EApiFunctionType.GET] as const)("route create and its %s function", (functionType: TCheckedFunctionType) => {
+		const name: string = functionType.toUpperCase();
+		const failure: string = functionType === EApiFunctionType.CREATE ? "when it writes" : "when it reads its response, after any write it made";
+
+		it.each(HELD_CREATE_ROUTE_MODES)("starts route mode %s with a MANDATORY function, because a generated create always holds a transaction", async (routeMode: EApiFunctionTransactionMode) => {
+			await expect(start(createService(createModes(EApiFunctionTransactionMode.SUPPORTS, functionType, EApiFunctionTransactionMode.MANDATORY)), EApiRouteType.CREATE, routeMode)).resolves.toBeDefined();
+		});
+
+		it.each(HELD_CREATE_ROUTE_MODES)("refuses route mode %s with a NONE function at startup, because a generated create always holds a transaction", async (routeMode: EApiFunctionTransactionMode) => {
+			await expect(start(createService(createModes(EApiFunctionTransactionMode.SUPPORTS, functionType, EApiFunctionTransactionMode.NONE)), EApiRouteType.CREATE, routeMode)).rejects.toThrow(
+				`Controller "GeneratedFunctionStartupController" route "create" runs in transaction mode ${routeMode}, but the ${name} function of service "GeneratedFunctionStartupService" runs in mode NONE and refuses the transaction every generated create holds, so the route would fail ${failure}. Set the ${name} function mode to SUPPORTS or REQUIRED.`,
+			);
+		});
+
+		it("refuses route mode NONE, because a generated create always runs in a transaction", async () => {
+			await expect(start(createService(createModes(EApiFunctionTransactionMode.NONE)), EApiRouteType.CREATE, EApiFunctionTransactionMode.NONE)).rejects.toThrow('Controller "GeneratedFunctionStartupController" route "create" runs in transaction mode NONE, but a generated create always runs in a transaction, because it checks the row it stored before it commits');
+		});
+	});
+
+	describe.each<[EApiFunctionTransactionMode, EApiFunctionTransactionMode, ReadonlyArray<EApiRouteType>]>([
+		[EApiFunctionTransactionMode.REQUIRED, EApiFunctionTransactionMode.MANDATORY, WRITE_ROUTE_TYPES],
+		[EApiFunctionTransactionMode.SUPPORTS, EApiFunctionTransactionMode.MANDATORY, [EApiRouteType.CREATE]],
+		[EApiFunctionTransactionMode.NONE, EApiFunctionTransactionMode.NONE, WRITE_ROUTE_TYPES.filter((routeType: EApiRouteType): boolean => routeType !== EApiRouteType.CREATE)],
+	])("in route mode %s with every function in mode %s", (routeMode: EApiFunctionTransactionMode, functionMode: EApiFunctionTransactionMode, routeTypes: ReadonlyArray<EApiRouteType>) => {
+		it.each(routeTypes)("answers %s", async (routeType: EApiRouteType) => {
 			const application: INestApplication = await start(createService(createModes(functionMode)), routeType, routeMode);
 			const fastify: { inject: (options: { method: string; payload?: object; url: string }) => Promise<{ body: string; json: () => unknown; statusCode: number }> } = application.getHttpAdapter().getInstance();
 			const repository: Repository<GeneratedFunctionStartupItemEntity> = application.get<DataSource>(getDataSourceToken()).getRepository(GeneratedFunctionStartupItemEntity);

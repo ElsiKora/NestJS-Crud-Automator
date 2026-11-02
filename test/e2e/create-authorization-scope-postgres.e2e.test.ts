@@ -34,7 +34,6 @@ import {
 	AuthorizationResolveDefaultPrincipal,
 	EApiAuthenticationType,
 	EApiAuthorizationMode,
-	EApiFunctionTransactionMode,
 	EApiFunctionType,
 	EApiPropertyDateIdentifier,
 	EApiPropertyDateType,
@@ -290,14 +289,6 @@ class ScopedItemService extends ApiServiceBase<ScopedItemEntity> {
 
 @Injectable()
 @ApiServiceObservable()
-@ApiService({ entity: ScopedItemEntity, functions: { [EApiFunctionType.GET]: { transaction: { mode: EApiFunctionTransactionMode.NONE } } } })
-class ScopedGetNoneItemService extends ApiServiceBase<ScopedItemEntity> {
-	@InjectRepository(ScopedItemEntity)
-	public readonly repository!: Repository<ScopedItemEntity>;
-}
-
-@Injectable()
-@ApiServiceObservable()
 @ApiService({ entity: ScopedItemEntity })
 class ScopedDecoratedCreateService extends ApiServiceBase<ScopedItemEntity> {
 	@InjectRepository(ScopedItemEntity)
@@ -414,7 +405,7 @@ const disabledRoutes = {
 
 const createRoute = { [EApiRouteType.CREATE]: { security: { authentication: { guard: ScopedAuthGuard, type: EApiAuthenticationType.USER } } } };
 
-type TScopedItemService = ScopedDecoratedCreateService | ScopedGetNoneItemService | ScopedItemService;
+type TScopedItemService = ScopedDecoratedCreateService | ScopedItemService;
 
 function createItemController(path: string, service: Type<TScopedItemService>): Type<unknown> {
 	class ScopedItemController {
@@ -511,7 +502,7 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 		container = await new PostgreSqlContainer("postgres:17-alpine").start();
 
 		@Module({
-			controllers: [createItemController("create-scope-pg", ScopedItemService), createItemController("create-scope-pg-get-none", ScopedGetNoneItemService), createItemController("create-scope-pg-decorated", ScopedDecoratedCreateService), ScopedCompositeController, ScopedEventController, OpenEventController, TriggerRegionController, ...temporalKeyFixtures.flatMap((fixture: ITemporalKeyFixture): Array<Type<unknown>> => fixture.controllers)],
+			controllers: [createItemController("create-scope-pg", ScopedItemService), createItemController("create-scope-pg-decorated", ScopedDecoratedCreateService), ScopedCompositeController, ScopedEventController, OpenEventController, TriggerRegionController, ...temporalKeyFixtures.flatMap((fixture: ITemporalKeyFixture): Array<Type<unknown>> => fixture.controllers)],
 			imports: [
 				TypeOrmModule.forRoot({
 					database: container.getDatabase(),
@@ -531,7 +522,7 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 				ApiAuthorizationModule.forRoot({ principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user) } }),
 				ApiSubscriberModule,
 			],
-			providers: [ScopedAuthGuard, ScopedCompositePolicy, ScopedCompositeService, ScopedCompositeSubscriber, ScopedDecoratedCreateService, ScopedEventPolicy, ScopedEventService, TriggerRegionService, ...temporalKeyFixtures.flatMap((fixture: ITemporalKeyFixture): Array<Type<unknown>> => fixture.providers), ScopedGetNoneItemService, ScopedItemPolicy, ScopedItemRouteSubscriber, ScopedItemService, ScopedItemSubscriber],
+			providers: [ScopedAuthGuard, ScopedCompositePolicy, ScopedCompositeService, ScopedCompositeSubscriber, ScopedDecoratedCreateService, ScopedEventPolicy, ScopedEventService, TriggerRegionService, ...temporalKeyFixtures.flatMap((fixture: ITemporalKeyFixture): Array<Type<unknown>> => fixture.providers), ScopedItemPolicy, ScopedItemRouteSubscriber, ScopedItemService, ScopedItemSubscriber],
 		})
 		class ScopedModule {}
 
@@ -698,13 +689,6 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 	});
 
 	describe("function modes and subscribers", () => {
-		it("persists nothing when the GET function is configured as NONE", async () => {
-			const response = await postItem("create-scope-pg-get-none", "get-none", IN_SCOPE);
-
-			expect(response.statusCode).toBe(500);
-			expect(await items.countBy({ id: "get-none" })).toBe(0);
-		});
-
 		it("refuses an in-scope row that onBeforeGet narrows out of the reload", async () => {
 			ScopedItemSubscriber.narrowReload = true;
 

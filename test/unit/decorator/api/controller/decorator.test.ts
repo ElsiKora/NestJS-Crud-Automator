@@ -254,7 +254,7 @@ describe("ApiController", () => {
 		}
 
 		it("names the controller and the reason of a NONE route", async () => {
-			await expect(createController({ [EApiRouteType.CREATE]: { transaction: { mode: EApiFunctionTransactionMode.NONE } } }, true).onApplicationBootstrap()).rejects.toThrow('Controller "StartupController" route "create" cannot use transaction mode NONE, because a generated create checks the stored row before it commits');
+			await expect(createController({ [EApiRouteType.CREATE]: { transaction: { mode: EApiFunctionTransactionMode.NONE } } }, true).onApplicationBootstrap()).rejects.toThrow('Controller "StartupController" route "create" runs in transaction mode NONE, but a generated create always runs in a transaction, because it checks the row it stored before it commits');
 		});
 
 		it("names the controller and the reason of an undecorated create", async () => {

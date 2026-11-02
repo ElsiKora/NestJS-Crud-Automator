@@ -132,8 +132,6 @@ describe("ApiControllerAssertRouteFunctions", () => {
 	});
 
 	describe.each<[EApiRouteType, TCheckedFunctionType]>([
-		[EApiRouteType.CREATE, EApiFunctionType.CREATE],
-		[EApiRouteType.CREATE, EApiFunctionType.GET],
 		[EApiRouteType.DELETE, EApiFunctionType.DELETE],
 		[EApiRouteType.GET, EApiFunctionType.GET],
 		[EApiRouteType.PARTIAL_UPDATE, EApiFunctionType.UPDATE],
@@ -150,6 +148,38 @@ describe("ApiControllerAssertRouteFunctions", () => {
 			} else {
 				expect(assertion).not.toThrow();
 			}
+		});
+	});
+
+	describe.each<[TCheckedFunctionType]>([[EApiFunctionType.CREATE], [EApiFunctionType.GET]])("route create and its %s function", (functionType: TCheckedFunctionType) => {
+		const HELD_ROUTE_MODES: ReadonlyArray<EApiFunctionTransactionMode | undefined> = [undefined, EApiFunctionTransactionMode.SUPPORTS, EApiFunctionTransactionMode.REQUIRED, EApiFunctionTransactionMode.MANDATORY];
+
+		/**
+		 * Runs the check on a create route whose other functions run in SUPPORTS.
+		 * @param {EApiFunctionTransactionMode} functionMode - Mode of the checked function.
+		 * @param {EApiFunctionTransactionMode | undefined} routeMode - Mode of the create route.
+		 * @returns {() => void} The check.
+		 */
+		function createAssertion(functionMode: EApiFunctionTransactionMode, routeMode: EApiFunctionTransactionMode | undefined): () => void {
+			const modes: Record<TCheckedFunctionType, EApiFunctionTransactionMode> = { ...ALL_SUPPORTS, [functionType]: functionMode };
+
+			return (): void => ApiControllerAssertRouteFunctions(createProperties(EApiRouteType.CREATE, routeMode), createService(modes), "ItemController");
+		}
+
+		it.each(HELD_ROUTE_MODES)("starts a MANDATORY function under route mode %s, because a generated create always holds a transaction", (routeMode: EApiFunctionTransactionMode | undefined) => {
+			expect(createAssertion(EApiFunctionTransactionMode.MANDATORY, routeMode)).not.toThrow();
+		});
+
+		it.each(HELD_ROUTE_MODES)("refuses a NONE function under route mode %s, because a generated create always holds a transaction", (routeMode: EApiFunctionTransactionMode | undefined) => {
+			const name: string = functionType.toUpperCase();
+
+			expect(createAssertion(EApiFunctionTransactionMode.NONE, routeMode)).toThrow(
+				`Controller "ItemController" route "create" runs in transaction mode ${routeMode ?? EApiFunctionTransactionMode.SUPPORTS}, but the ${name} function of service "AssertFunctionsService" runs in mode NONE and refuses the transaction every generated create holds, so the route would fail ${functionType === EApiFunctionType.CREATE ? "when it writes" : "when it reads its response, after any write it made"}. Set the ${name} function mode to SUPPORTS or REQUIRED.`,
+			);
+		});
+
+		it.each([EApiFunctionTransactionMode.SUPPORTS, EApiFunctionTransactionMode.REQUIRED, EApiFunctionTransactionMode.MANDATORY, EApiFunctionTransactionMode.NONE])("refuses route mode NONE with a %s function, because a generated create always runs in a transaction", (functionMode: EApiFunctionTransactionMode) => {
+			expect(createAssertion(functionMode, EApiFunctionTransactionMode.NONE)).toThrow('Controller "ItemController" route "create" runs in transaction mode NONE, but a generated create always runs in a transaction, because it checks the row it stored before it commits. Set the route transaction mode to SUPPORTS, REQUIRED or MANDATORY.');
 		});
 	});
 });

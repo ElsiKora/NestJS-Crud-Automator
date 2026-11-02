@@ -110,8 +110,8 @@ async function createApp(metadata: { controllers: Array<Type<unknown>>; entities
 
 describe("Generated CREATE route at startup (E2E)", () => {
 	it.each([
-		["a NONE route", StartupNoneRouteController, StartupItemService, 'Controller "StartupNoneRouteController" route "create" cannot use transaction mode NONE, because a generated create checks the stored row before it commits'],
-		["an undecorated create", StartupUndecoratedController, StartupUndecoratedService, 'Controller "StartupUndecoratedController" route "create": Generated create service function is not protected by its built-in decorator'],
+		["a NONE route", StartupNoneRouteController, StartupItemService, 'Controller "StartupNoneRouteController" route "create" runs in transaction mode NONE, but a generated create always runs in a transaction, because it checks the row it stored before it commits'],
+		["an undecorated create", StartupUndecoratedController, StartupUndecoratedService, 'Controller "StartupUndecoratedController" route "create" writes through the CREATE function of service "StartupUndecoratedService", but its create method is a plain method'],
 	])("fails startup for %s, naming the controller and the reason", async (_name: string, controller: Type<unknown>, service: Type<unknown>, message: string) => {
 		const { app, dataSource } = await createApp({ controllers: [controller], entities: [StartupItemEntity], providers: [service] });
 
