@@ -137,4 +137,79 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("generated row routes on %
 			expect((response.json() as { name: string }).name).toBe("orig");
 		});
 	});
+
+	describe("a reduced key naming more than one row", () => {
+		beforeEach(async () => {
+			await dataSource.query("DELETE FROM row_path_transactions");
+			await dataSource.query(`INSERT INTO row_path_transactions ("id", "createdAt", "name") VALUES ('a', '2026-01-01 00:00:00.000', 'first'), ('a', '2026-01-02 00:00:00.000', 'second')`);
+		});
+
+		it.each([
+			["GET", undefined],
+			["PATCH", { name: "changed" }],
+			["PUT", { name: "changed" }],
+			["DELETE", undefined],
+		])("%s answers 500 before any change", async (method: string, payload: object | undefined) => {
+			const before: Array<Record<string, unknown>> = await rows("row_path_transactions", `"createdAt"`);
+			const response: TResponse = await send(method, "/transaction/a", payload);
+
+			expect(response.statusCode).toBe(500);
+			expect(response.body).not.toContain("first");
+			expect(await rows("row_path_transactions", `"createdAt"`)).toEqual(before);
+		});
+	});
+
+	describe.each([
+		["UTC", 0],
+		["Asia/Tokyo", -540],
+		["America/New_York", 300],
+	])("a date and time key column in the path, in a %s process", (timeZone: string, offset: number) => {
+		const INSTANT: string = "2026-01-15T05:06:07.123Z";
+		const LITERAL: string = driver === "postgres" ? INSTANT : "2026-01-15 05:06:07.123";
+		const previousTimeZone: string | undefined = process.env.TZ;
+
+		beforeAll(() => {
+			process.env.TZ = timeZone;
+		});
+
+		afterAll(() => {
+			if (previousTimeZone === undefined) {
+				delete process.env.TZ;
+			} else {
+				process.env.TZ = previousTimeZone;
+			}
+		});
+
+		beforeEach(async () => {
+			await dataSource.query("DELETE FROM row_path_ledgers");
+			await dataSource.query(`INSERT INTO row_path_ledgers ("id", "createdAt", "name") VALUES ('a', '${LITERAL}', 'orig')`);
+		});
+
+		it("runs in that time zone", () => {
+			expect(new Date(INSTANT).getTimezoneOffset()).toBe(offset);
+		});
+
+		it("reads the row by its exact instant and no other", async () => {
+			const response: TResponse = await send("GET", `/ledger/a/${INSTANT}`);
+
+			expect(response.statusCode).toBe(200);
+			expect(response.json()).toMatchObject({ createdAt: INSTANT, id: "a", name: "orig" });
+			expect((await send("GET", "/ledger/a/2026-01-15T05:06:07.124Z")).statusCode).toBe(404);
+		});
+
+		it("writes the row in place", async () => {
+			expect((await send("PATCH", `/ledger/a/${INSTANT}`, { name: "patched" })).statusCode).toBe(200);
+			expect((await send("PUT", `/ledger/a/${INSTANT}`, { name: "put" })).statusCode).toBe(200);
+			expect(await rows("row_path_ledgers", `"id"`)).toEqual([expect.objectContaining({ id: "a", name: "put" })]);
+			expect((await send("DELETE", `/ledger/a/${INSTANT}`)).statusCode).toBe(204);
+			expect(await rows("row_path_ledgers", `"id"`)).toEqual([]);
+		});
+
+		it.each([["2026-01-15T05:06:07Z"], ["2026-01-15"], ["2026-01-15T14:06:07.123%2B09:00"], ["2026-01-15T05:06:07.123"], ["garbage"], ["2026-13-45T05:06:07.123Z"]])("refuses the form %s", async (form: string) => {
+			expect((await send("GET", `/ledger/a/${form}`)).statusCode).toBe(400);
+			expect((await send("PATCH", `/ledger/a/${form}`, { name: "x" })).statusCode).toBe(400);
+			expect((await send("DELETE", `/ledger/a/${form}`)).statusCode).toBe(400);
+			expect(await rows("row_path_ledgers", `"id"`)).toEqual([expect.objectContaining({ id: "a", name: "orig" })]);
+		});
+	});
 });

@@ -75,6 +75,37 @@ export class RowPathSqliteTransactionEntity {
 	public name!: string;
 }
 
+// A key column a JavaScript Date reproduces exactly, so it can be addressed in the path.
+@Entity("row_path_ledgers")
+export class RowPathPostgresLedgerEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@PrimaryColumn({ precision: 3, type: "timestamptz" })
+	@ApiPropertyDescribe(CREATED_AT_PROPERTY)
+	public createdAt!: Date;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
+}
+
+@Entity("row_path_ledgers")
+export class RowPathSqliteLedgerEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@PrimaryColumn({ type: "datetime" })
+	@ApiPropertyDescribe(CREATED_AT_PROPERTY)
+	public createdAt!: Date;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
+}
+
 @Injectable()
 @ApiService({ entity: RowPathProbeEntity })
 class RowPathProbeService extends ApiServiceBase<RowPathProbeEntity> {
@@ -103,6 +134,30 @@ class RowPathSqliteTransactionService extends ApiServiceBase<RowPathSqliteTransa
 	public readonly repository!: Repository<RowPathSqliteTransactionEntity>;
 }
 
+@Injectable()
+@ApiService({ entity: RowPathPostgresLedgerEntity })
+class RowPathPostgresLedgerService extends ApiServiceBase<RowPathPostgresLedgerEntity> {
+	@InjectRepository(RowPathPostgresLedgerEntity)
+	public readonly repository!: Repository<RowPathPostgresLedgerEntity>;
+}
+
+@Injectable()
+@ApiService({ entity: RowPathSqliteLedgerEntity })
+class RowPathSqliteLedgerService extends ApiServiceBase<RowPathSqliteLedgerEntity> {
+	@InjectRepository(RowPathSqliteLedgerEntity)
+	public readonly repository!: Repository<RowPathSqliteLedgerEntity>;
+}
+
+@ApiController<RowPathPostgresLedgerEntity>({ entity: RowPathPostgresLedgerEntity, path: "ledger", routes: {} })
+class RowPathPostgresLedgerController {
+	constructor(public readonly service: RowPathPostgresLedgerService) {}
+}
+
+@ApiController<RowPathSqliteLedgerEntity>({ entity: RowPathSqliteLedgerEntity, path: "ledger", routes: {} })
+class RowPathSqliteLedgerController {
+	constructor(public readonly service: RowPathSqliteLedgerService) {}
+}
+
 @ApiController<RowPathProbeEntity>({ entity: RowPathProbeEntity, path: "probe", routes: {} })
 class RowPathProbeController {
 	constructor(public readonly service: RowPathProbeService) {}
@@ -123,13 +178,13 @@ class RowPathSqliteTransactionController {
 	constructor(public readonly service: RowPathSqliteTransactionService) {}
 }
 
-const POSTGRES_ENTITIES: Array<new () => object> = [RowPathItemEntity, RowPathPostgresTransactionEntity, RowPathProbeEntity];
-const SQLITE_ENTITIES: Array<new () => object> = [RowPathItemEntity, RowPathProbeEntity, RowPathSqliteTransactionEntity];
+const POSTGRES_ENTITIES: Array<new () => object> = [RowPathItemEntity, RowPathPostgresLedgerEntity, RowPathPostgresTransactionEntity, RowPathProbeEntity];
+const SQLITE_ENTITIES: Array<new () => object> = [RowPathItemEntity, RowPathProbeEntity, RowPathSqliteLedgerEntity, RowPathSqliteTransactionEntity];
 
-@Module({ controllers: [RowPathItemController, RowPathPostgresTransactionController, RowPathProbeController], imports: [TypeOrmModule.forFeature(POSTGRES_ENTITIES)], providers: [RowPathItemService, RowPathPostgresTransactionService, RowPathProbeService] })
+@Module({ controllers: [RowPathItemController, RowPathPostgresLedgerController, RowPathPostgresTransactionController, RowPathProbeController], imports: [TypeOrmModule.forFeature(POSTGRES_ENTITIES)], providers: [RowPathItemService, RowPathPostgresLedgerService, RowPathPostgresTransactionService, RowPathProbeService] })
 class RowPathPostgresModule {}
 
-@Module({ controllers: [RowPathItemController, RowPathProbeController, RowPathSqliteTransactionController], imports: [TypeOrmModule.forFeature(SQLITE_ENTITIES)], providers: [RowPathItemService, RowPathProbeService, RowPathSqliteTransactionService] })
+@Module({ controllers: [RowPathItemController, RowPathProbeController, RowPathSqliteLedgerController, RowPathSqliteTransactionController], imports: [TypeOrmModule.forFeature(SQLITE_ENTITIES)], providers: [RowPathItemService, RowPathProbeService, RowPathSqliteLedgerService, RowPathSqliteTransactionService] })
 class RowPathSqliteModule {}
 
 export const ROW_PATH_FIXTURES: Record<TRowPathDriver, TRowPathFixture> = {
