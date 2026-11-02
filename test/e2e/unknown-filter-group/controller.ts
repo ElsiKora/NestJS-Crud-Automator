@@ -17,7 +17,7 @@ const disabledRoutes = {
 } as const;
 
 export class E2eUnknownFilterManualDto {
-	@IsIn(["cont", "eq", "isnull"])
+	@IsIn(["cont", "eq", "in", "isnull"])
 	@IsOptional()
 	public "label[operator]"?: string;
 

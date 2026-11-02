@@ -248,6 +248,18 @@ describe.each([
 				await expectRejected(`/unknown-filter/manual-items?${PAGE}&${query}`, FILTER_NOT_VALID_BODY);
 			});
 
+			// The operator decides the value key, as the generated DTO's pairing validator holds it: a single-value operator takes [value], a membership operator [values].
+			it.each(["label[operator]=eq&label[values]=", "label[operator]=eq&label[values]=Alpha&label[values]=Beta", "label[operator]=in&label[value]=Alpha"])("rejects the group %s whose value key its operator does not take", async (query: string) => {
+				await expectRejected(`/unknown-filter/manual-items?${PAGE}&${query}`, FILTER_NOT_VALID_BODY);
+			});
+
+			it.each([
+				{ labels: ["Beta"], query: "label[operator]=in&label[values]=Beta" },
+				{ labels: ["Alpha", "Beta"], query: "label[operator]=in&label[values]=Alpha&label[values]=Beta" },
+			])("serves $query on a manual QUERY DTO", async ({ labels, query }: { labels: Array<string>; query: string }) => {
+				expect(await listLabels(`/unknown-filter/manual-items?${PAGE}&${BY_LABEL}&${query}`)).toEqual(labels);
+			});
+
 			it("rejects filter groups a manual QUERY DTO does not publish", async () => {
 				await expectRejected(`/unknown-filter/manual-items?${PAGE}&rank[operator]=eq&rank[value]=1`, { error: "Bad Request", message: [unknown("rank[operator]"), unknown("rank[value]")], statusCode: HttpStatus.BAD_REQUEST });
 				await expectRejected(`/unknown-filter/manual-items?${PAGE}&id[operator]=eq&id[value]=${ITEM_ALPHA}`, { error: "Bad Request", message: [unknown("id[operator]"), unknown("id[value]")], statusCode: HttpStatus.BAD_REQUEST });

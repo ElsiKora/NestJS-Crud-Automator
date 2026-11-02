@@ -12,7 +12,7 @@ import { BadRequestException } from "@nestjs/common";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
 import { DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list/query-properties.utility";
-import { Column, Entity, IsNull, JoinColumn, ManyToOne, Not, OneToMany, OneToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Between, Column, Entity, In, IsNull, JoinColumn, ManyToOne, Not, OneToMany, OneToOne, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 import { OwnerGroupEntity, OwnerMetadata } from "./fixture/owner";
@@ -213,8 +213,23 @@ describe("ApiControllerGetListTransformFilter", () => {
 		["a valueless operator with values", { "name[operator]": EFilterOperation.NOTNULL, "name[values]": ["x", "y"] }],
 		["a null value", { "name[operator]": EFilterOperation.EQ, "name[value]": null }],
 		["a group without a field", { "[operator]": EFilterOperation.EQ, "[value]": "x" }],
+		["a single-value operator with empty values", { "name[operator]": EFilterOperation.EQ, "name[values]": "" }],
+		["a single-value operator with several values", { "name[operator]": EFilterOperation.EQ, "name[values]": ["a", "b"] }],
+		["a single-value operator with a repeated value", { "name[operator]": EFilterOperation.EQ, "name[value]": ["a", "b"] }],
+		["a membership operator with a value", { "name[operator]": EFilterOperation.IN, "name[value]": "a" }],
+		["a range operator with a value", { "name[operator]": EFilterOperation.BETWEEN, "name[value]": "a" }],
+		["a range operator with one of its values", { "name[operator]": EFilterOperation.BETWEEN, "name[values]": "a" }],
+		["a range operator with three values", { "name[operator]": EFilterOperation.BETWEEN, "name[values]": ["a", "b", "c"] }],
 	])("rejects %s", (_case: string, query: Record<string, unknown>) => {
 		expectInvalidFilter(query, GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity));
+	});
+
+	it("applies values as the list a generated QUERY DTO reads, a single value included", () => {
+		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
+
+		expect(ApiControllerGetListTransformFilter<ItemEntity>({ "name[operator]": EFilterOperation.IN, "name[values]": "a" }, metadata)).toEqual({ name: In(["a"]) });
+		expect(ApiControllerGetListTransformFilter<ItemEntity>({ "name[operator]": EFilterOperation.IN, "name[values]": ["a", "b"] }, metadata)).toEqual({ name: In(["a", "b"]) });
+		expect(ApiControllerGetListTransformFilter<ItemEntity>({ "name[operator]": EFilterOperation.BETWEEN, "name[values]": ["a", "b"] }, metadata)).toEqual({ name: Between("a", "b") });
 	});
 
 	it("leaves keys that are not filter groups, and keys a subscriber cleared, to the QUERY DTO", () => {
