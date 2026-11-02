@@ -60,7 +60,7 @@ import { ApiControllerHandleRequestRelations } from "@utility/api/controller/han
 import { ApiControllerHasResponseRelationInclude } from "@utility/api/controller/has-response-relation-include.utility";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ApiControllerParametersDtoGet, ApiControllerParametersResolveRequest, ApiControllerParametersValidate } from "@utility/api/controller/parameters";
-import { ApiControllerPathPlanGet, ApiControllerPathRouteParameters, ApiControllerPathWhere } from "@utility/api/controller/path";
+import { ApiControllerPathIsExactInstant, ApiControllerPathPlanGet, ApiControllerPathRouteParameters, ApiControllerPathWhere } from "@utility/api/controller/path";
 import { ApiControllerRejectToManyUpdateKeys } from "@utility/api/controller/reject-to-many-update-keys.utility";
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
 import { ApiControllerTransformData, ApiControllerTransformRouteData } from "@utility/api/controller/transform-data.utility";
@@ -817,6 +817,7 @@ export class ApiRouteRuntime {
 
 	/**
 	 * Reads the key of the rows a where clause names, through the active transaction. Several rows mean the deployed key promise is wrong, which a client cannot fix.
+	 * Rows are counted as the database returns them: entity hydration merges rows whose keys are equal once a `Date` drops what is finer than a millisecond, so it would count two such rows as one.
 	 * @template E - Entity type owned by the service.
 	 * @param {ApiServiceBase<E>} service - Service of the route.
 	 * @param {TApiAuthorizationScopeWhere<E>} where - Where clause, with the request's security scope applied.
@@ -826,19 +827,35 @@ export class ApiRouteRuntime {
 	 * @throws {InternalServerErrorException} When the where clause names several rows.
 	 */
 	private static async findKeyMatches<E extends IApiBaseEntity>(service: ApiServiceBase<E>, where: NonNullable<TApiAuthorizationScopeWhere<E>>, primaryFields: ReadonlyArray<string>, eventManager: EntityManager | undefined): Promise<Array<E>> {
-		const matches: Array<E> = await this.resolveActiveRepository(service, eventManager).find({
-			// eslint-disable-next-line @elsikora/typescript/naming-convention
-			loadEagerRelations: false,
-			select: Object.fromEntries(primaryFields.map((field: string): [string, boolean] => [field, true])) as FindOptionsSelect<E>,
-			take: PATH_MATCH_LIMIT,
-			where,
-		});
+		const matches: { entities: Array<E>; raw: Array<unknown> } = await this.resolveActiveRepository(service, eventManager)
+			.createQueryBuilder()
+			.setFindOptions({
+				// eslint-disable-next-line @elsikora/typescript/naming-convention
+				loadEagerRelations: false,
+				select: Object.fromEntries(primaryFields.map((field: string): [string, boolean] => [field, true])) as FindOptionsSelect<E>,
+				where,
+			})
+			.distinct(true)
+			.limit(PATH_MATCH_LIMIT)
+			.getRawAndEntities();
 
-		if (matches.length > 1) {
+		if (matches.raw.length > 1) {
 			throw new InternalServerErrorException("Route path names more than one row");
 		}
 
-		return matches;
+		return matches.entities;
+	}
+
+	/**
+	 * Tells whether a JavaScript `Date` reproduces every value a column of the entity stores.
+	 * @param {Repository<IApiBaseEntity>} repository - Repository of the entity.
+	 * @param {string} field - Property name of the column.
+	 * @returns {boolean} Whether the column keeps at most milliseconds.
+	 */
+	private static isExactInstantColumn(repository: Repository<IApiBaseEntity>, field: string): boolean {
+		const column: TTypeOrmColumnMetadata | undefined = repository.metadata.findColumnWithPropertyPath(field);
+
+		return column !== undefined && ApiControllerPathIsExactInstant(repository.manager.dataSource.driver.normalizeType(column), column.precision);
 	}
 
 	/**
@@ -958,7 +975,7 @@ export class ApiRouteRuntime {
 	}
 
 	/**
-	 * Resolves the where clause of a row by its key. A `Date` of a key column may have lost a finer stored value, so the other key columns identify the row when any exist.
+	 * Resolves the where clause of a row by its key. A `Date` of a key column that stores finer values than a millisecond may have lost part of the stored value, so the other key columns identify the row when any exist, and must name only that row.
 	 * @template E - Entity type owned by the service.
 	 * @param {ApiServiceBase<E>} service - Service of the route.
 	 * @param {Record<string, unknown>} key - Value of every key column.
@@ -967,7 +984,8 @@ export class ApiRouteRuntime {
 	 * @returns {Promise<FindOptionsWhere<E>>} The where clause.
 	 */
 	private static async resolveKeyWhere<E extends IApiBaseEntity>(service: ApiServiceBase<E>, key: Record<string, unknown>, primaryFields: ReadonlyArray<string>, eventManager?: EntityManager): Promise<FindOptionsWhere<E>> {
-		const exactFields: Array<string> = primaryFields.filter((field: string): boolean => !(key[field] instanceof Date));
+		const repository: unknown = (service as { repository?: unknown }).repository;
+		const exactFields: Array<string> = repository instanceof Repository ? primaryFields.filter((field: string): boolean => !(key[field] instanceof Date) || this.isExactInstantColumn(repository as Repository<IApiBaseEntity>, field)) : [...primaryFields];
 
 		if (exactFields.length === 0 || exactFields.length === primaryFields.length) {
 			return key as FindOptionsWhere<E>;

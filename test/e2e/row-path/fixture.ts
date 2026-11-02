@@ -51,7 +51,23 @@ export class RowPathPostgresTransactionEntity {
 	@ApiPropertyDescribe(TEXT_PROPERTY)
 	public id!: string;
 
-	@PrimaryColumn({ precision: 6, type: "timestamptz" })
+	@PrimaryColumn({ default: () => "clock_timestamp()", precision: 6, type: "timestamptz" })
+	@ApiPropertyDescribe(CREATED_AT_PROPERTY)
+	public createdAt!: Date;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
+}
+
+// The same key on a timestamp without a time zone, which also stores microseconds.
+@Entity("row_path_local_transactions")
+export class RowPathPostgresLocalTransactionEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@PrimaryColumn({ precision: 6, type: "timestamp" })
 	@ApiPropertyDescribe(CREATED_AT_PROPERTY)
 	public createdAt!: Date;
 
@@ -128,6 +144,13 @@ class RowPathPostgresTransactionService extends ApiServiceBase<RowPathPostgresTr
 }
 
 @Injectable()
+@ApiService({ entity: RowPathPostgresLocalTransactionEntity })
+class RowPathPostgresLocalTransactionService extends ApiServiceBase<RowPathPostgresLocalTransactionEntity> {
+	@InjectRepository(RowPathPostgresLocalTransactionEntity)
+	public readonly repository!: Repository<RowPathPostgresLocalTransactionEntity>;
+}
+
+@Injectable()
 @ApiService({ entity: RowPathSqliteTransactionEntity })
 class RowPathSqliteTransactionService extends ApiServiceBase<RowPathSqliteTransactionEntity> {
 	@InjectRepository(RowPathSqliteTransactionEntity)
@@ -173,15 +196,20 @@ class RowPathPostgresTransactionController {
 	constructor(public readonly service: RowPathPostgresTransactionService) {}
 }
 
+@ApiController<RowPathPostgresLocalTransactionEntity>({ entity: RowPathPostgresLocalTransactionEntity, path: "local-transaction", rowPath: { fields: ["id"] }, routes: {} })
+class RowPathPostgresLocalTransactionController {
+	constructor(public readonly service: RowPathPostgresLocalTransactionService) {}
+}
+
 @ApiController<RowPathSqliteTransactionEntity>({ entity: RowPathSqliteTransactionEntity, path: "transaction", rowPath: { fields: ["id"] }, routes: {} })
 class RowPathSqliteTransactionController {
 	constructor(public readonly service: RowPathSqliteTransactionService) {}
 }
 
-const POSTGRES_ENTITIES: Array<new () => object> = [RowPathItemEntity, RowPathPostgresLedgerEntity, RowPathPostgresTransactionEntity, RowPathProbeEntity];
+const POSTGRES_ENTITIES: Array<new () => object> = [RowPathItemEntity, RowPathPostgresLedgerEntity, RowPathPostgresLocalTransactionEntity, RowPathPostgresTransactionEntity, RowPathProbeEntity];
 const SQLITE_ENTITIES: Array<new () => object> = [RowPathItemEntity, RowPathProbeEntity, RowPathSqliteLedgerEntity, RowPathSqliteTransactionEntity];
 
-@Module({ controllers: [RowPathItemController, RowPathPostgresLedgerController, RowPathPostgresTransactionController, RowPathProbeController], imports: [TypeOrmModule.forFeature(POSTGRES_ENTITIES)], providers: [RowPathItemService, RowPathPostgresLedgerService, RowPathPostgresTransactionService, RowPathProbeService] })
+@Module({ controllers: [RowPathItemController, RowPathPostgresLedgerController, RowPathPostgresLocalTransactionController, RowPathPostgresTransactionController, RowPathProbeController], imports: [TypeOrmModule.forFeature(POSTGRES_ENTITIES)], providers: [RowPathItemService, RowPathPostgresLedgerService, RowPathPostgresLocalTransactionService, RowPathPostgresTransactionService, RowPathProbeService] })
 class RowPathPostgresModule {}
 
 @Module({ controllers: [RowPathItemController, RowPathProbeController, RowPathSqliteLedgerController, RowPathSqliteTransactionController], imports: [TypeOrmModule.forFeature(SQLITE_ENTITIES)], providers: [RowPathItemService, RowPathProbeService, RowPathSqliteLedgerService, RowPathSqliteTransactionService] })

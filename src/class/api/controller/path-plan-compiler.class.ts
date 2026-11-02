@@ -13,6 +13,7 @@ import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.co
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT } from "@constant/safe-object-property-names.constant";
 import { EApiControllerRequestTarget, EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { ApiControllerPathIsExactInstant } from "@utility/api/controller/path/is-exact-instant.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 // path-to-regexp stays on 8.x, the release @nestjs/core 12 pins, so route paths are parsed the way Nest matches them
@@ -24,7 +25,6 @@ interface IPathParameter {
 	name: string;
 }
 
-const MAXIMUM_PATH_INSTANT_PRECISION: number = 3;
 const ROW_ROUTE_TYPES: ReadonlySet<EApiRouteType> = new Set<EApiRouteType>([EApiRouteType.DELETE, EApiRouteType.GET, EApiRouteType.PARTIAL_UPDATE, EApiRouteType.UPDATE]);
 
 export class ApiControllerPathPlanCompiler {
@@ -147,14 +147,12 @@ export class ApiControllerPathPlanCompiler {
 		const isInstant: boolean = columnType !== undefined && DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType);
 		const isDateTime: boolean = columnType !== undefined && DATABASE_COLUMN_TYPE_CONSTANT.DATE_TIME.has(columnType);
 
-		if (isDeclaredDate || (!isInstant && !isDateTime && metadata.type !== EApiPropertyDescribeType.DATE) || columnType === "datetime") {
+		if (isDeclaredDate || (!isInstant && !isDateTime && metadata.type !== EApiPropertyDescribeType.DATE)) {
 			return;
 		}
 
-		const isExact: boolean = isInstant && typeof column.precision === "number" && column.precision >= 0 && column.precision <= MAXIMUM_PATH_INSTANT_PRECISION;
-
-		if (!isExact) {
-			throw ErrorException(`Controller ${controllerName} path field "${String(column.name)}" of a composite key must be a timestamptz column with precision 0 to ${String(MAXIMUM_PATH_INSTANT_PRECISION)}: leave it out of rowPath or change the column`);
+		if (!ApiControllerPathIsExactInstant(columnType, column.precision)) {
+			throw ErrorException(`Controller ${controllerName} path field "${String(column.name)}" of a composite key must be a timestamptz column with precision 0 to 3, or a datetime column with no precision or precision 0 to 3: leave it out of rowPath or change the column`);
 		}
 	}
 

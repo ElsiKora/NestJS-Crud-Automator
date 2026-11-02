@@ -75,6 +75,40 @@ class RowPathContractMilliLedgerEntity {
 	public createdAt!: Date;
 }
 
+// MySQL and MariaDB keep microseconds in datetime(6); SQLite ignores the precision a datetime declares.
+@Entity("row_path_contract_micro_datetime_ledgers")
+class RowPathContractMicroDatetimeLedgerEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@PrimaryColumn({ precision: 6, type: "datetime" })
+	@ApiPropertyDescribe(INSTANT_PROPERTY)
+	public createdAt!: Date;
+}
+
+@Entity("row_path_contract_datetime_ledgers")
+class RowPathContractDatetimeLedgerEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@PrimaryColumn({ type: "datetime" })
+	@ApiPropertyDescribe(INSTANT_PROPERTY)
+	public createdAt!: Date;
+}
+
+@Entity("row_path_contract_milli_datetime_ledgers")
+class RowPathContractMilliDatetimeLedgerEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@PrimaryColumn({ precision: 3, type: "datetime" })
+	@ApiPropertyDescribe(INSTANT_PROPERTY)
+	public createdAt!: Date;
+}
+
 class ManualParametersDto {}
 
 let controllerCount: number = 0;
@@ -165,15 +199,20 @@ describe("rowPath contract", () => {
 			["precision 6", RowPathContractMicroLedgerEntity],
 			["the default precision", RowPathContractDefaultPrecisionLedgerEntity],
 			["no time zone", RowPathContractLocalLedgerEntity],
+			["a datetime with precision 6", RowPathContractMicroDatetimeLedgerEntity],
 		])("fails startup on %s", (_label: string, entity: object) => {
 			expect(() => {
 				compile({}, entity);
-			}).toThrow('path field "createdAt" of a composite key must be a timestamptz column with precision 0 to 3');
+			}).toThrow('path field "createdAt" of a composite key must be a timestamptz column with precision 0 to 3, or a datetime column with no precision or precision 0 to 3');
 		});
 
-		it("starts with precision 3", () => {
+		it.each([
+			["a timestamptz with precision 3", RowPathContractMilliLedgerEntity],
+			["a datetime with no precision", RowPathContractDatetimeLedgerEntity],
+			["a datetime with precision 3", RowPathContractMilliDatetimeLedgerEntity],
+		])("starts with %s", (_label: string, entity: object) => {
 			expect(() => {
-				compile({}, RowPathContractMilliLedgerEntity);
+				compile({}, entity);
 			}).not.toThrow();
 		});
 

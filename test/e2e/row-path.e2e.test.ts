@@ -159,6 +159,60 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("generated row routes on %
 		});
 	});
 
+	describe.each(
+		driver === "postgres"
+			? [
+					["transaction", "row_path_transactions"],
+					["local-transaction", "row_path_local_transactions"],
+				]
+			: [["transaction", "row_path_transactions"]],
+	)("rows of /%s whose key instants differ only below a millisecond", (path: string, table: string) => {
+		const literal = (fraction: string): string => `2026-01-01 00:00:00.${fraction}`;
+
+		it.each([
+			["123", "123456", "GET", undefined],
+			["123", "123456", "PATCH", { name: "changed" }],
+			["123", "123456", "PUT", { name: "changed" }],
+			["123", "123456", "DELETE", undefined],
+			["123456", "123789", "GET", undefined],
+			["123456", "123789", "PATCH", { name: "changed" }],
+			["123456", "123789", "PUT", { name: "changed" }],
+			["123456", "123789", "DELETE", undefined],
+		])("count as two rows: .%s and .%s, %s answers 500 before any change", async (first: string, second: string, method: string, payload: object | undefined) => {
+			await dataSource.query(`DELETE FROM ${table}`);
+			await dataSource.query(`INSERT INTO ${table} ("id", "createdAt", "name") VALUES ('d', '${literal(first)}', 'first'), ('d', '${literal(second)}', 'second')`);
+			const before: Array<Record<string, unknown>> = await rows(table, `"createdAt"`);
+			const response: TResponse = await send(method, `/${path}/d`, payload);
+
+			expect(response.statusCode).toBe(500);
+			expect(response.body).not.toContain("first");
+			expect(await rows(table, `"createdAt"`)).toEqual(before);
+		});
+	});
+
+	describe("the reload after CREATE on a key column left out of the path", () => {
+		beforeEach(async () => {
+			await dataSource.query("DELETE FROM row_path_transactions");
+			await dataSource.query(`INSERT INTO row_path_transactions ("id", "createdAt", "name") VALUES ('a', '2026-01-01 00:00:00.000', 'old')`);
+		});
+
+		// Postgres sets a microsecond instant the inserted row returns only to the millisecond, so the reload leaves it out and the other key columns must name one row.
+		it.runIf(driver === "postgres")("answers 500 when the other key columns also name a sibling row", async () => {
+			const response: TResponse = await send("POST", "/transaction", { id: "a", name: "new" });
+
+			expect(response.statusCode).toBe(500);
+			expect(response.body).not.toContain("old");
+			expect(await rows("row_path_transactions", `"createdAt"`)).toHaveLength(2);
+		});
+
+		it.runIf(driver === "postgres")("answers the created row when no sibling shares the other key columns", async () => {
+			const response: TResponse = await send("POST", "/transaction", { id: "b", name: "new" });
+
+			expect(response.statusCode).toBe(201);
+			expect((response.json() as { name: string }).name).toBe("new");
+		});
+	});
+
 	describe.each([
 		["UTC", 0],
 		["Asia/Tokyo", -540],
