@@ -165,11 +165,11 @@ describe.each([
 			});
 		});
 
-		it("answers INVALID_ORDER when only one order property is sent on the legacy path", async () => {
+		it("answers ORDER_NOT_VALID when only one order property is sent on the legacy path", async () => {
 			for (const query of [`${PAGE}&orderBy=label`, `${PAGE}&orderDirection=asc`]) {
 				const response = await fastify.inject({ method: "GET", url: `${LEGACY_PATH}?${query}` });
 
-				expect(response.json()).toEqual({ error: "Bad Request", message: ["INVALID_ORDER"], statusCode: HttpStatus.BAD_REQUEST });
+				expect(response.json()).toEqual({ error: "Bad Request", message: ["ORDER_NOT_VALID"], statusCode: HttpStatus.BAD_REQUEST });
 			}
 		});
 

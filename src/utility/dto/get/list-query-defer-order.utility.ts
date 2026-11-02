@@ -73,5 +73,5 @@ export function DtoGetListQueryDeferOrder<E>(dto: Type<unknown>, entityMetadata:
 
 	// class-validator drops an inherited validator on a property the derived class also validates, and the generated DTO validates "object", so the pair check has a property of its own.
 	ValidateIf((): boolean => Object.keys(resolveOrderBy()).length > 0)(prototype, "orderPair");
-	Validate(AllOrNoneOfListedPropertiesValidator, ["orderBy", "orderDirection"], { message: "INVALID_ORDER" })(prototype, "orderPair");
+	Validate(AllOrNoneOfListedPropertiesValidator, ["orderBy", "orderDirection"], { message: "ORDER_NOT_VALID" })(prototype, "orderPair");
 }

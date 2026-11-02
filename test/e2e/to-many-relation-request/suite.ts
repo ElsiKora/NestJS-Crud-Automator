@@ -174,7 +174,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 				const body = response.json() as { details?: unknown; message: string };
 
 				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-				expect(body.message).toContain("INVALID_REFERENCE");
+				expect(body.message).toContain("REFERENCE_NOT_VALID");
 				expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update" });
 				expect(await readStoredPost(POST)).toEqual(STORED_POST);
 			});
@@ -251,7 +251,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 			const body = response.json() as { details?: unknown; message: string };
 
 			expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-			expect(body.message).toContain("INVALID_REFERENCE");
+			expect(body.message).toContain("REFERENCE_NOT_VALID");
 			expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update" });
 			expect(await readStoredPost(POST)).toEqual(STORED_POST);
 		});
@@ -292,7 +292,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 				const body = response.json() as { details?: unknown; message: string };
 
 				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-				expect(body.message).toContain("INVALID_REFERENCE");
+				expect(body.message).toContain("REFERENCE_NOT_VALID");
 				expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update" });
 				expect(await readStoredDetails()).toEqual(STORED_DETAILS);
 			});
@@ -316,7 +316,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 				const body = response.json() as { details?: unknown; message: string };
 
 				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-				expect(body.message).toContain("INVALID_REFERENCE");
+				expect(body.message).toContain("REFERENCE_NOT_VALID");
 				expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update" });
 				expect(await readStoredPost(POST)).toEqual(STORED_POST);
 			});
@@ -358,7 +358,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 				const body = response.json() as { details?: unknown; message: string };
 
 				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-				expect(body.message).toContain("INVALID_REFERENCE");
+				expect(body.message).toContain("REFERENCE_NOT_VALID");
 				expect(body.details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update" });
 				expect(HYDRATION_CUSTOM_VALIDATOR_CALLS).toEqual([]);
 				expect(await readStoredPost(POST)).toEqual(STORED_POST);
@@ -368,7 +368,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 				const refused = await fastify.inject({ method, payload: { title: HYDRATION_CUSTOM_REFUSED_TITLE }, url: `/hydration-observed-posts/${POST}` });
 
 				expect(refused.statusCode).toBe(HttpStatus.BAD_REQUEST);
-				expect((refused.json() as { message: string }).message).not.toContain("INVALID_REFERENCE");
+				expect((refused.json() as { message: string }).message).not.toContain("REFERENCE_NOT_VALID");
 				expect(HYDRATION_CUSTOM_VALIDATOR_CALLS).toHaveLength(1);
 				expect(await readStoredPost(POST)).toEqual(STORED_POST);
 

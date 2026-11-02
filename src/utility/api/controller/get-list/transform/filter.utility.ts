@@ -22,7 +22,7 @@ import { GenerateRelationEntityInformation } from "@utility/generate-relation-en
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
  * @param {Type<CanActivate>} currentGuard - Optional guard used to mirror generated query DTO visibility.
  * @returns {FindOptionsWhere<E>} The TypeORM filter object for the query
- * @throws {Error} A bad request with `INVALID_FILTER` when a number or uuid filter value is outside the published schema
+ * @throws {Error} A bad request with `FILTER_NOT_VALID` when a number or uuid filter value is outside the published schema
  * @template E - The entity type
  */
 export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>, currentGuard?: Type<CanActivate>): FindOptionsWhere<E> {
@@ -93,7 +93,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 /**
  * Parses the number, uuid, enum, and date values of a filter group into the values the query binds.
  * The QUERY DTO reads an empty number as 0 and takes the name of a numeric enum member, so the route parses the text the request carries before any SQL runs. A date-time binds as the Date it names, as on a typed route; a calendar date and a time of day stay text.
- * A value outside the published schema of the column answers 400 INVALID_FILTER.
+ * A value outside the published schema of the column answers 400 FILTER_NOT_VALID.
  * @param {EFilterOperation} operation - Filter operation of the group
  * @param {unknown} value - The `[value]` or `[values]` of the group as the request carries it
  * @param {TApiPropertyDescribeProperties} metadata - Describe metadata of the filtered column

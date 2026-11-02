@@ -1071,17 +1071,6 @@ describe("CRUD routes (E2E)", () => {
 		expect(response.json().message).toBe(errorCode);
 	});
 
-	it.each([["orderBy=owner.name&orderDirection=asc"], ["orderBy=owner&orderDirection=asc"], ["orderBy=missing&orderDirection=asc"], ["orderBy=name&orderDirection=sideways"]])("rejects invalid legacy order input with ORDER_NOT_VALID: %s", async (order) => {
-		const response = await fastify.inject({
-			headers: adminHeaders,
-			method: "GET",
-			url: `/items?limit=10&page=1&${order}`,
-		});
-
-		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-		expect(response.json().message).toBe("ORDER_NOT_VALID");
-	});
-
 	it.each([
 		["limit=0&page=1", "LIMIT_NOT_VALID"],
 		["limit=10&page=0", "PAGE_NOT_VALID"],

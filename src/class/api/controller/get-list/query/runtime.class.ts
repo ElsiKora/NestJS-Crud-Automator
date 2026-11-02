@@ -26,7 +26,7 @@ export class ApiControllerGetListQueryRuntime {
 	 * A value is a calendar date or a date-time of a year from 0001 to 9999 that exists in the calendar; on an instant column a date-time also names its zone with `Z` or a numeric offset with minutes. An operator that takes no value is not checked.
 	 * @param {Record<string, unknown>} query - Query as the request carries it
 	 * @param {ReadonlyMap<string, boolean>} dateTimePaths - Filter paths over date and time columns, each with whether its column stores an exact instant
-	 * @throws {BadRequestException} INVALID_FILTER when a value of such a path is not such a date-time
+	 * @throws {BadRequestException} FILTER_NOT_VALID when a value of such a path is not such a date-time
 	 */
 	public static assertDateTimeFilterValues(query: Record<string, unknown>, dateTimePaths: ReadonlyMap<string, boolean>): void {
 		for (const [path, isInstant] of dateTimePaths) {
@@ -39,7 +39,7 @@ export class ApiControllerGetListQueryRuntime {
 			const values: ReadonlyArray<unknown> = [query[`${path}[value]`], query[`${path}[values]`]].flat();
 
 			if (values.some((value: unknown): boolean => typeof value === "string" && !this.isDateTimeFilterValue(value, isInstant))) {
-				throw new BadRequestException("INVALID_FILTER");
+				throw new BadRequestException("FILTER_NOT_VALID");
 			}
 		}
 	}

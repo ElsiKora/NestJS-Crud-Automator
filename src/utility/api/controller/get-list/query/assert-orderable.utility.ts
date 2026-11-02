@@ -25,14 +25,14 @@ const ORDERABLE_FIELDS: WeakMap<object, ReadonlySet<string>> = new WeakMap<objec
  * @param {object} requestQuery - The query the client sent.
  * @param {object} query - The query the DTO produced.
  * @returns {void}
- * @throws {BadRequestException} With `INVALID_ORDER` when the route cannot order by the values.
+ * @throws {BadRequestException} With `ORDER_NOT_VALID` when the route cannot order by the values.
  */
 export function ApiControllerGetListQueryAssertOrderable<E extends IApiBaseEntity>(properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>, dto: Type<unknown>, requestQuery: object, query: object): void {
 	const orderBy: unknown = Reflect.get(query, "orderBy");
 	const orderDirection: unknown = Reflect.get(query, "orderDirection");
 
 	if (isSentByClient(dto, requestQuery, "orderDirection", orderDirection) && !EnumIsValue(EFilterOrderDirection, orderDirection)) {
-		throw new BadRequestException("INVALID_ORDER");
+		throw new BadRequestException("ORDER_NOT_VALID");
 	}
 
 	if (!isSentByClient(dto, requestQuery, "orderBy", orderBy)) {
@@ -50,7 +50,7 @@ export function ApiControllerGetListQueryAssertOrderable<E extends IApiBaseEntit
 	}
 
 	if (typeof orderBy !== "string" || !orderableFields.has(orderBy)) {
-		throw new BadRequestException("INVALID_ORDER");
+		throw new BadRequestException("ORDER_NOT_VALID");
 	}
 }
 

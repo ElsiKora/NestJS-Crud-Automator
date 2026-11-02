@@ -16,7 +16,7 @@ const PAGINATION_AND_ORDER_PROPERTIES: ReadonlyArray<string> = ["limit", "orderB
  * @param {Type<unknown>} dto - QUERY DTO of the route, generated or manual.
  * @param {Q} query - Raw query after route-before subscribers and QUERY transformers.
  * @returns {Promise<Q>} Query with validated pagination and order values.
- * @throws {BadRequestException} With the flattened class-validator messages, the same body a Nest `ValidationPipe` returns, when any value fails the DTO; with `INVALID_ORDER` when only one of orderBy and orderDirection is set.
+ * @throws {BadRequestException} With the flattened class-validator messages, the same body a Nest `ValidationPipe` returns, when any value fails the DTO; with `ORDER_NOT_VALID` when only one of orderBy and orderDirection is set.
  */
 export async function ApiControllerGetListQueryValidate<Q extends object>(dto: Type<unknown>, query: Q): Promise<Q> {
 	const instance: unknown = plainToInstance(dto, query);
@@ -56,7 +56,7 @@ export async function ApiControllerGetListQueryValidate<Q extends object>(dto: T
 	const orderDirection: unknown = Reflect.get(validated, "orderDirection");
 
 	if ((orderBy === undefined) !== (orderDirection === undefined)) {
-		throw new BadRequestException("INVALID_ORDER");
+		throw new BadRequestException("ORDER_NOT_VALID");
 	}
 
 	return validated;

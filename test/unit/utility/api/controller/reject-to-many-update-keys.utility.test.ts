@@ -153,7 +153,7 @@ describe("ApiControllerRejectToManyUpdateKeys", () => {
 				response: {
 					details: { propertyName, reason: "to-many reference is not allowed on update" },
 					error: "Bad Request",
-					message: "REJECTTOMANYPOST_INVALID_REFERENCE",
+					message: "REJECTTOMANYPOST_REFERENCE_NOT_VALID",
 					statusCode: 400,
 				},
 			}),

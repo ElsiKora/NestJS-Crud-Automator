@@ -190,7 +190,7 @@ describe("PAGE and CURSOR reads of a temporal primary key with joins and filters
 				const rejected = await fastify.inject({ method: "GET", url: `/${path}&bookedAt[operator]=gte&bookedAt[value]=2024-03-01T10:00:00` });
 
 				expect(rejected.statusCode, JSON.stringify(rejected.json())).toBe(HttpStatus.BAD_REQUEST);
-				expect(JSON.stringify(rejected.json())).toContain("INVALID_FILTER");
+				expect(JSON.stringify(rejected.json())).toContain("FILTER_NOT_VALID");
 				expect((await fastify.inject({ method: "GET", url: `/${path}&bookedAt[operator]=gte&bookedAt[value]=2024-03-01T10:00:00.000Z` })).statusCode).toBe(HttpStatus.OK);
 			}
 		} finally {
@@ -225,7 +225,7 @@ describe("PAGE and CURSOR reads of a temporal primary key with joins and filters
 			const rejected = await fastify.inject({ method: "GET", url: `/${path}&bookedAt[operator]=gte&bookedAt[value]=${value}` });
 
 			expect(rejected.statusCode, `${path} ${JSON.stringify(rejected.json())}`).toBe(HttpStatus.BAD_REQUEST);
-			expect(JSON.stringify(rejected.json())).toMatch(/INVALID_FILTER|must be in YYYY-MM-DDTHH:mm:ss\.sssZ format/u);
+			expect(JSON.stringify(rejected.json())).toMatch(/FILTER_NOT_VALID|must be in YYYY-MM-DDTHH:mm:ss\.sssZ format/u);
 		}
 	});
 

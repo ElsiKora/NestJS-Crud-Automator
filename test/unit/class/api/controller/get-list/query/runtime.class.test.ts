@@ -945,7 +945,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 			name: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
 		});
 
-		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection, page: 1 }, plan)).toThrow("INVALID_ORDER");
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection, page: 1 }, plan)).toThrow("ORDER_NOT_VALID");
 	});
 
 	it("enforces the typed direct-scalar order overlay", () => {
@@ -1214,16 +1214,16 @@ describe("typed GET_LIST query plan and runtime", () => {
 
 		// Each zone-less form takes the zone of whoever parses it; "+05" has no minutes and JavaScript reads no instant from it.
 		for (const zoneLess of ["2024-03-01T10:00:00", "2024-03-01T10:00:00.123", "2024-03-01 10:00:00", "2024-03-01T10:00", "March 1, 2024 10:00:00", "2024-03-01T10:00:00+", "2024-03-01T15:30:00+05", "1709287200000", "2024-03"]) {
-			expect(() => assertValue("safeTimestamptz", zoneLess)).toThrow("INVALID_FILTER");
-			expect(() => assertValue("account.openedAt", zoneLess)).toThrow("INVALID_FILTER");
+			expect(() => assertValue("safeTimestamptz", zoneLess)).toThrow("FILTER_NOT_VALID");
+			expect(() => assertValue("account.openedAt", zoneLess)).toThrow("FILTER_NOT_VALID");
 		}
 
 		for (const zoned of ["2024-03-01T10:00:00Z", "2024-03-01T10:00:00z", "2024-03-01 10:00Z", "2024-03-01T15:30:00+05:30", "2024-03-01T15:30:00+0530", "2024-03-01T04:30:00-05:30", "2024-03-01"]) {
 			expect(() => assertValue("safeTimestamptz", zoned)).not.toThrow();
 		}
 
-		expect(() => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ "safeTimestamptz[operator]": EFilterOperation.BETWEEN, "safeTimestamptz[values]": ["2024-03-01T10:00:00Z", "2024-03-01T10:00:00"] }, instantPaths)).toThrow("INVALID_FILTER");
-		expect(() => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ "safeTimestamptz[operator]": EFilterOperation.IN, "safeTimestamptz[values]": "2024-03-01T10:00:00" }, instantPaths)).toThrow("INVALID_FILTER");
+		expect(() => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ "safeTimestamptz[operator]": EFilterOperation.BETWEEN, "safeTimestamptz[values]": ["2024-03-01T10:00:00Z", "2024-03-01T10:00:00"] }, instantPaths)).toThrow("FILTER_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ "safeTimestamptz[operator]": EFilterOperation.IN, "safeTimestamptz[values]": "2024-03-01T10:00:00" }, instantPaths)).toThrow("FILTER_NOT_VALID");
 		expect(() => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ "safeTimestamptz[operator]": EFilterOperation.BETWEEN, "safeTimestamptz[values]": ["2024-03-01T10:00:00Z", "2024-03-02T10:00:00Z"] }, instantPaths)).not.toThrow();
 		// An operator that takes no value, or none the route reads, leaves its value unchecked.
 		expect(() => assertValue("safeTimestamptz", "2024-03-01T10:00:00", EFilterOperation.ISNULL)).not.toThrow();
@@ -1243,8 +1243,8 @@ describe("typed GET_LIST query plan and runtime", () => {
 
 		// Each of these reaches the database as a date it rejects, or as another date than the client named.
 		for (const invalid of ["0000-01-01T00:00:00Z", "0000-01-01", "2024-02-30T10:00:00Z", "2024-02-30", "2024-13-01", "2024-03-01T24:00:00Z", "2024-03-01T25:00:00Z", "2024-03-01T10:60:00Z", "2024-03-01T10:00:60Z", "2024-03-01T10:00:00+25:00", "0001-01-01T00:00:00+01:00", "9999-12-31T23:00:00-05:00", "-000001-01-01T00:00:00Z", "+275760-09-13T00:00:00.001Z", "2024-03-01T10:00 junk+05:30", "2024-03-01junk", "2024-03-01Z", ""]) {
-			expect(() => assertValue("safeTimestamptz", invalid), invalid).toThrow("INVALID_FILTER");
-			expect(() => assertValue("unsafeTimestamp", invalid), invalid).toThrow("INVALID_FILTER");
+			expect(() => assertValue("safeTimestamptz", invalid), invalid).toThrow("FILTER_NOT_VALID");
+			expect(() => assertValue("unsafeTimestamp", invalid), invalid).toThrow("FILTER_NOT_VALID");
 		}
 
 		for (const valid of ["0001-01-01T00:00:00Z", "0001-01-01", "9999-12-31T23:59:59.999Z", "9999-12-31", "2024-02-29T10:00:00Z", "2024-02-29", "2024-03-01T10:00:00.123456789Z", "2024-03-01 10:00Z"]) {
@@ -1268,8 +1268,8 @@ describe("typed GET_LIST query plan and runtime", () => {
 		}
 
 		expect(() => assertValue("unsafeTimestamp", "2024-03-01T10:00")).not.toThrow();
-		expect(() => assertValue("unsafeTimestamp", "2024-02-30T10:00:00")).toThrow("INVALID_FILTER");
-		expect(() => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ "unsafeTimestamp[operator]": EFilterOperation.BETWEEN, "unsafeTimestamp[values]": ["2024-03-01T10:00:00", "2024-02-30T10:00:00"] }, dateTimePaths)).toThrow("INVALID_FILTER");
+		expect(() => assertValue("unsafeTimestamp", "2024-02-30T10:00:00")).toThrow("FILTER_NOT_VALID");
+		expect(() => ApiControllerGetListQueryRuntime.assertDateTimeFilterValues({ "unsafeTimestamp[operator]": EFilterOperation.BETWEEN, "unsafeTimestamp[values]": ["2024-03-01T10:00:00", "2024-02-30T10:00:00"] }, dateTimePaths)).toThrow("FILTER_NOT_VALID");
 	});
 
 	it("rejects a zone-less date-time filter value on a timestamp column in a non-UTC process zone", () => {
@@ -1287,7 +1287,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 		process.env.TZ = "Asia/Kolkata";
 
 		try {
-			expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1, "unsafeTimestamp[operator]": EFilterOperation.GTE, "unsafeTimestamp[value]": "2024-03-01T10:00:00" }, plan)).toThrow("INVALID_FILTER");
+			expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1, "unsafeTimestamp[operator]": EFilterOperation.GTE, "unsafeTimestamp[value]": "2024-03-01T10:00:00" }, plan)).toThrow("FILTER_NOT_VALID");
 			expect(ApiControllerGetListQueryRuntime.parse({ limit: 10, page: 1, "unsafeTimestamp[operator]": EFilterOperation.GTE, "unsafeTimestamp[value]": "2024-03-01T04:30:00.000Z" }, plan).ast?.nodes[0]?.value).toEqual(new Date("2024-03-01T04:30:00.000Z"));
 		} finally {
 			if (originalTimezone === undefined) {
@@ -1508,7 +1508,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(seekWhere.map((branch: Record<string, { type: string; value: unknown }>): Record<string, string> => Object.fromEntries(Object.entries(branch).map(([field, operator]: [string, { type: string; value: unknown }]): [string, string] => [field, operator.type])))).toEqual([{ rank: "lessThan" }, { createdAt: "lessThan", rank: "equal" }, { createdAt: "equal", id: "moreThan", rank: "equal" }]);
 		expect(seekWhere[1]?.createdAt?.value).toBe("2024-02-29T12:34:56.789Z");
 		expect(seekWhere[2]?.createdAt?.value).toBe("2024-02-29T12:34:56.789Z");
-		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash: reorderedHash, cursor: first.nextCursor as string, direction: "after", limit: 1, onBeforeQuery: vi.fn(), order: parsed.order, plan, run: seekRun })).rejects.toThrow("INVALID_CURSOR");
+		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash: reorderedHash, cursor: first.nextCursor as string, direction: "after", limit: 1, onBeforeQuery: vi.fn(), order: parsed.order, plan, run: seekRun })).rejects.toThrow("CURSOR_NOT_VALID");
 	});
 
 	it.each([
@@ -1547,7 +1547,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 		const forgedCursor = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 		const forgedRun = vi.fn(async (): Promise<Array<CompositeTimestampCursorQueryEntity>> => []);
 
-		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash, cursor: forgedCursor, direction: "after", limit: 1, onBeforeQuery: vi.fn(), order: parsed.order, plan, run: forgedRun })).rejects.toThrow("INVALID_CURSOR");
+		await expect(ApiControllerGetListCursorRuntime.execute({ baseProperties: { where: {} }, contextHash, cursor: forgedCursor, direction: "after", limit: 1, onBeforeQuery: vi.fn(), order: parsed.order, plan, run: forgedRun })).rejects.toThrow("CURSOR_NOT_VALID");
 		expect(forgedRun).not.toHaveBeenCalled();
 	});
 

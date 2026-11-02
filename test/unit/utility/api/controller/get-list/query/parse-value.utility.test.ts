@@ -19,7 +19,7 @@ describe("ApiControllerGetListQueryParseValue", () => {
 	});
 
 	it.each(["", " ", "1.5", "abc", "null", "Infinity", null, undefined, ["1"]])("rejects %j as an integer", (value: unknown) => {
-		expect(() => ApiControllerGetListQueryParseValue(value, INTEGER_METADATA)).toThrow("INVALID_FILTER");
+		expect(() => ApiControllerGetListQueryParseValue(value, INTEGER_METADATA)).toThrow("FILTER_NOT_VALID");
 	});
 
 	it("parses a fractional number on a double column", () => {
@@ -31,10 +31,10 @@ describe("ApiControllerGetListQueryParseValue", () => {
 	});
 
 	it.each(["", "not-a-uuid", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa", 1, null])("rejects %j as a uuid", (value: unknown) => {
-		expect(() => ApiControllerGetListQueryParseValue(value, UUID_METADATA)).toThrow("INVALID_FILTER");
+		expect(() => ApiControllerGetListQueryParseValue(value, UUID_METADATA)).toThrow("FILTER_NOT_VALID");
 	});
 
 	it.each([EApiPropertyDescribeType.OBJECT, EApiPropertyDescribeType.RELATION])("rejects any value on a %s field", (type: EApiPropertyDescribeType) => {
-		expect(() => ApiControllerGetListQueryParseValue("x", { type } as TApiPropertyDescribeProperties)).toThrow("INVALID_FILTER");
+		expect(() => ApiControllerGetListQueryParseValue("x", { type } as TApiPropertyDescribeProperties)).toThrow("FILTER_NOT_VALID");
 	});
 });

@@ -13,7 +13,7 @@ const UUID_VALUE_PATTERN: RegExp = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i
  * @param {unknown} value - One filter value as the request carries it
  * @param {Readonly<TApiPropertyDescribeProperties>} metadata - Describe metadata of the filtered field
  * @returns {unknown} The value to bind
- * @throws {BadRequestException} INVALID_FILTER when the value is outside the published schema of the field
+ * @throws {BadRequestException} FILTER_NOT_VALID when the value is outside the published schema of the field
  */
 export function ApiControllerGetListQueryParseValue(value: unknown, metadata: Readonly<TApiPropertyDescribeProperties>): unknown {
 	switch (metadata.type) {
@@ -102,5 +102,5 @@ export function ApiControllerGetListQueryParseValue(value: unknown, metadata: Re
 		}
 	}
 
-	throw new BadRequestException("INVALID_FILTER");
+	throw new BadRequestException("FILTER_NOT_VALID");
 }

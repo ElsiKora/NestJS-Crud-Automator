@@ -293,7 +293,7 @@ A generated `GET_LIST` route validates its query against the published OpenAPI s
 
 - `orderDirection` is lowercase `asc` or `desc`, and `orderBy` and `orderDirection` are sent together or not at all.
 - `limit` and `page` are required, and `limit` is at most 100. `isnull` and `notnull` take no value.
-- Filter values follow the entity property: number bounds, string length, format and pattern. An empty or malformed number or uuid value, such as `amount[value]=`, returns `400 INVALID_FILTER` instead of `500` on PostgreSQL or no rows on SQLite.
+- Filter values follow the entity property: number bounds, string length, format and pattern. An empty or malformed number or uuid value, such as `amount[value]=`, returns `400 FILTER_NOT_VALID` instead of `500` on PostgreSQL or no rows on SQLite.
 - A `date` column filter is `YYYY-MM-DD` text, a `time` column filter is `HH:mm:ss` text, and both are compared as written in every time zone. A date-time filter is the UTC instant `YYYY-MM-DDTHH:mm:ss.sssZ`, as `Date.prototype.toISOString()` writes it; a value without milliseconds, with an offset or without a zone returns `400`.
 - A membership filter with one value, such as `status[operator]=in&status[values]=active`, now works.
 - A numeric enum filter takes the number the schema publishes, such as `level[operator]=eq&level[value]=1`, on every route and in every pipe mode. Only the exact text of a member stands for it, so `1.0` or the member's name returns `400`.

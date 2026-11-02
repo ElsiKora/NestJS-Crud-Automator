@@ -180,7 +180,7 @@ describe.each<IHostPipeCase>([{ name: "no host pipe" }, { createPipe: () => new 
 			const response = await fastify.inject({ method: "GET", url: `${path}?${PAGE}&${order}` });
 
 			expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.BAD_REQUEST);
-			expect(JSON.stringify(response.json())).toContain("INVALID_ORDER");
+			expect(JSON.stringify(response.json())).toContain("ORDER_NOT_VALID");
 		}
 	});
 
@@ -216,7 +216,7 @@ describe.each<IHostPipeCase>([{ name: "no host pipe" }, { createPipe: () => new 
 			const response = await fastify.inject({ method: "GET", url: `/list-lazy-response/same-file-custom?${PAGE}&${order}` });
 
 			expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.BAD_REQUEST);
-			expect(JSON.stringify(response.json())).toContain("INVALID_ORDER");
+			expect(JSON.stringify(response.json())).toContain("ORDER_NOT_VALID");
 		});
 	}
 });

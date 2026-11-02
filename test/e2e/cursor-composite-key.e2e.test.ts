@@ -294,7 +294,7 @@ describe("generated CURSOR pagination over a composite primary key (E2E)", () =>
 		["a missing key component", (payload: TCursorPayload): void => void payload.values.pop()],
 		["an extra key component", (payload: TCursorPayload): void => void payload.values.push(WALLET_A)],
 		["a tampered context", (payload: TCursorPayload): void => void (payload.c = "0".repeat(64))],
-	])("rejects %s as INVALID_CURSOR", async (_label, tamper) => {
+	])("rejects %s as CURSOR_NOT_VALID", async (_label, tamper) => {
 		const page: TCursorPage = await getPage("/cursor-transactions?limit=2");
 		const payload: TCursorPayload = decodeCursor(String(page.nextCursor));
 
@@ -303,10 +303,10 @@ describe("generated CURSOR pagination over a composite primary key (E2E)", () =>
 		const response = await fastify.inject({ method: "GET", url: `/cursor-transactions?limit=2&after=${encodeCursor(payload)}` });
 
 		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-		expect(response.json()).toMatchObject({ message: "INVALID_CURSOR" });
+		expect(response.json()).toMatchObject({ message: "CURSOR_NOT_VALID" });
 	});
 
-	it("rejects cross-context tokens as INVALID_CURSOR", async () => {
+	it("rejects cross-context tokens as CURSOR_NOT_VALID", async () => {
 		const unfiltered: TCursorPage = await getPage("/cursor-transactions?limit=2");
 		const filtered: TCursorPage = await getPage(`/cursor-transactions?limit=2&walletId[operator]=eq&walletId[value]=${WALLET_A}`);
 		const settlements: TCursorPage = await getPage("/cursor-settlements?limit=2");
@@ -319,7 +319,7 @@ describe("generated CURSOR pagination over a composite primary key (E2E)", () =>
 
 		for (const response of responses) {
 			expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-			expect(response.json()).toMatchObject({ message: "INVALID_CURSOR" });
+			expect(response.json()).toMatchObject({ message: "CURSOR_NOT_VALID" });
 		}
 	});
 

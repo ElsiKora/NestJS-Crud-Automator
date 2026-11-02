@@ -100,8 +100,6 @@ Configured typed GET_LIST plans return stable `400` codes independently of the h
 
 Unknown or disabled typed-query fields fail closed instead of being silently ignored.
 
-A GET_LIST route without `filter`, `order`, or `pagination` configuration checks `orderBy` and `orderDirection` too. An `orderBy` outside the fields of its generated QUERY DTO, or an unknown `orderDirection`, returns `400 ORDER_NOT_VALID` before any database work, even when the host `ValidationPipe` does not validate the query.
-
 ## Rejected Value Codes
 
 Every code for a rejected value has one form: the name of what was rejected, then `_NOT_VALID`. The error string enums have no `INVALID_*`, `WRONG_*`, `MALFORMED_*`, or `BAD_{property}` values.
@@ -586,18 +584,17 @@ async fetchExternalData(id: string): Promise<Data> {
 
 From 5.0.0 every rejected value code uses the `{NAME}_NOT_VALID` form described in [Rejected Value Codes](#rejected-value-codes). Responses change:
 
-| Before 5.0.0                                                                                                                               | From 5.0.0                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
-| `INVALID_FILTER`                                                                                                                           | `FILTER_NOT_VALID`                         |
-| `INVALID_ORDER`                                                                                                                            | `ORDER_NOT_VALID`                          |
-| `INVALID_CURSOR`                                                                                                                           | `CURSOR_NOT_VALID`                         |
-| `INVALID_LIMIT`, `INVALID_PAGE`                                                                                                            | `LIMIT_NOT_VALID`, `PAGE_NOT_VALID`        |
-| `INVALID_PARAMETERS`                                                                                                                       | `PARAMETERS_NOT_VALID`                     |
-| `{ENTITY}_INVALID_REFERENCE`                                                                                                               | `{ENTITY}_REFERENCE_NOT_VALID`             |
-| `{ENTITY}_INVALID_DYNAMIC_VALUE_SPECIFIED`                                                                                                 | `{ENTITY}_DYNAMIC_VALUE_NOT_VALID`         |
-| `KEY_FOR_TRANSFORM_NOT_IN_OBJECT`                                                                                                          | `{ENTITY}_KEY_FOR_TRANSFORM_NOT_IN_OBJECT` |
-| `{ENTITY}_IN_FUTURE`                                                                                                                       | `{ENTITY}_TIMESTAMP_IN_FUTURE`             |
-| `500 {ENTITY}_FETCHING_LIST_ERROR` for an unsortable `orderBy` or unknown `orderDirection` on a GET_LIST route without query configuration | `400 ORDER_NOT_VALID`                      |
+| Before 5.0.0                               | From 5.0.0                                 |
+| ------------------------------------------ | ------------------------------------------ |
+| `INVALID_FILTER`                           | `FILTER_NOT_VALID`                         |
+| `INVALID_ORDER`                            | `ORDER_NOT_VALID`                          |
+| `INVALID_CURSOR`                           | `CURSOR_NOT_VALID`                         |
+| `INVALID_LIMIT`, `INVALID_PAGE`            | `LIMIT_NOT_VALID`, `PAGE_NOT_VALID`        |
+| `INVALID_PARAMETERS`                       | `PARAMETERS_NOT_VALID`                     |
+| `{ENTITY}_INVALID_REFERENCE`               | `{ENTITY}_REFERENCE_NOT_VALID`             |
+| `{ENTITY}_INVALID_DYNAMIC_VALUE_SPECIFIED` | `{ENTITY}_DYNAMIC_VALUE_NOT_VALID`         |
+| `KEY_FOR_TRANSFORM_NOT_IN_OBJECT`          | `{ENTITY}_KEY_FOR_TRANSFORM_NOT_IN_OBJECT` |
+| `{ENTITY}_IN_FUTURE`                       | `{ENTITY}_TIMESTAMP_IN_FUTURE`             |
 
 The enum keys change too, so code that uses a removed key no longer compiles:
 

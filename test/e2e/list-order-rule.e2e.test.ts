@@ -146,7 +146,7 @@ describe.each([
 		});
 
 		it.each(["secret", "missing", "owner", "owner.level"])("rejects orderBy=%s on a manual QUERY DTO without any query", async (field: string) => {
-			expect(await expectRejected(`${MANUAL_ITEMS}?${PAGE}&orderBy=${field}&orderDirection=asc`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`${MANUAL_ITEMS}?${PAGE}&orderBy=${field}&orderDirection=asc`)).toContain("ORDER_NOT_VALID");
 		});
 
 		it("rejects a repeated orderBy on a manual QUERY DTO without any query", async () => {
@@ -154,7 +154,7 @@ describe.each([
 		});
 
 		it("applies the orderable rule to a field a manual QUERY DTO allows", async () => {
-			expect(await expectRejected(`/list-order-rule/allow-hidden-items?${PAGE}&orderBy=secret&orderDirection=asc`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`/list-order-rule/allow-hidden-items?${PAGE}&orderBy=secret&orderDirection=asc`)).toContain("ORDER_NOT_VALID");
 			expect(await expectRejected(`/list-order-rule/allow-hidden-items?${PAGE}&orderBy=rank&orderDirection=asc`)).toContain("orderBy must be one of the following values: secret");
 		});
 
@@ -163,11 +163,11 @@ describe.each([
 		});
 
 		it.each(["secret", "missing", "owner", "owner.level"])("rejects an aliased orderBy of %s on a manual QUERY DTO without any query", async (field: string) => {
-			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&sort=${field}&dir=asc`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&sort=${field}&dir=asc`)).toContain("ORDER_NOT_VALID");
 		});
 
 		it("rejects the property name of an aliased orderBy on a hidden field without any query", async () => {
-			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&orderBy=secret&orderDirection=asc`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&orderBy=secret&orderDirection=asc`)).toContain("ORDER_NOT_VALID");
 		});
 
 		it("orders by an orderable field through the aliases of a manual QUERY DTO", async () => {
@@ -176,33 +176,33 @@ describe.each([
 		});
 
 		it.each(["ASC", "nope", "asc,desc"])("rejects an aliased orderDirection of %s without any query", async (direction: string) => {
-			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&sort=rank&dir=${direction}`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&sort=rank&dir=${direction}`)).toContain("ORDER_NOT_VALID");
 		});
 
 		it.each(["sort=rank", "dir=asc"])("rejects %s alone through the aliases of a manual QUERY DTO", async (order: string) => {
-			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&${order}`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&${order}`)).toContain("ORDER_NOT_VALID");
 		});
 
 		it("rejects an orderDirection a manual QUERY DTO leaves unchecked without any query", async () => {
-			expect(await expectRejected(`${MANUAL_ITEMS}?${PAGE}&orderBy=rank&orderDirection=ASC`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`${MANUAL_ITEMS}?${PAGE}&orderBy=rank&orderDirection=ASC`)).toContain("ORDER_NOT_VALID");
 		});
 
 		it("keeps the class default of an aliased order as the route's own order, which a client cannot name", async () => {
 			expect(await listLabels(`${ALIAS_DEFAULT_ITEMS}?${PAGE}`)).toEqual(["Beta", "Gamma", "Alpha", "Delta"]);
-			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=secret&dir=asc`)).toContain("INVALID_ORDER");
-			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=secret`)).toContain("INVALID_ORDER");
-			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&orderBy=secret&orderDirection=asc`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=secret&dir=asc`)).toContain("ORDER_NOT_VALID");
+			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=secret`)).toContain("ORDER_NOT_VALID");
+			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&orderBy=secret&orderDirection=asc`)).toContain("ORDER_NOT_VALID");
 			expect(await listLabels(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=rank&dir=desc`)).toEqual(["Delta", "Gamma", "Alpha", "Beta"]);
 		});
 
 		it("keeps a manual QUERY DTO class default as the route's own order, which a client cannot name", async () => {
 			expect(await listLabels(`/list-order-rule/default-order-items?${PAGE}`)).toEqual(["Beta", "Gamma", "Alpha", "Delta"]);
-			expect(await expectRejected(`/list-order-rule/default-order-items?${PAGE}&orderBy=secret&orderDirection=desc`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`/list-order-rule/default-order-items?${PAGE}&orderBy=secret&orderDirection=desc`)).toContain("ORDER_NOT_VALID");
 		});
 
 		it.each([ITEMS, TYPED_ITEMS, MANUAL_ITEMS])("rejects a one-sided order on %s", async (path: string) => {
-			expect(await expectRejected(`${path}?${PAGE}&orderBy=rank`)).toContain("INVALID_ORDER");
-			expect(await expectRejected(`${path}?${PAGE}&orderDirection=asc`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`${path}?${PAGE}&orderBy=rank`)).toContain("ORDER_NOT_VALID");
+			expect(await expectRejected(`${path}?${PAGE}&orderDirection=asc`)).toContain("ORDER_NOT_VALID");
 		});
 
 		it.each(["", "%20"])("rejects the blank numeric filter value '%s' before any query", async (value: string) => {
@@ -238,7 +238,7 @@ describe.each([
 				const response = await fastify.inject({ method: "GET", url: `/list-order-rule/plain-custom?${PAGE}&${order}` });
 
 				expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.BAD_REQUEST);
-				expect(JSON.stringify(response.json())).toContain("INVALID_ORDER");
+				expect(JSON.stringify(response.json())).toContain("ORDER_NOT_VALID");
 			});
 		}
 

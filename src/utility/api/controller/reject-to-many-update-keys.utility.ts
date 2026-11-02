@@ -40,7 +40,7 @@ export function ApiControllerRejectToManyUpdateKeys<E extends IApiBaseEntity>(en
 				reason: TO_MANY_UPDATE_REJECTION_REASON,
 			},
 			error: "Bad Request",
-			message: ErrorString({ entity, type: EErrorStringAction.INVALID_REFERENCE }),
+			message: ErrorString({ entity, type: EErrorStringAction.REFERENCE_NOT_VALID }),
 			statusCode: HttpStatus.BAD_REQUEST,
 		});
 	}

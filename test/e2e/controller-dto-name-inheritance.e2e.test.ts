@@ -252,7 +252,7 @@ describe("an inherited custom update route under two decorated controllers (E2E)
 		const body = response.json() as { details?: unknown; message: string };
 
 		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-		expect(body.message).toContain("INVALID_REFERENCE");
+		expect(body.message).toContain("REFERENCE_NOT_VALID");
 		expect(body.details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update" });
 		expect(await readTitle()).toBe("stored");
 	});
