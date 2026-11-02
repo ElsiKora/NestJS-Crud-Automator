@@ -72,6 +72,22 @@ export class CreatePostDTO {
 }
 ```
 
+## Array options
+
+Every `@ApiProperty*` decorator checks its array options when it decorates, and an error names the decorator, the DTO class and the property:
+
+- A request array must declare `minItems`, `maxItems` and `isUniqueItems`. The types require them, and JavaScript or `any` can still leave one out; a missing `minItems` or `maxItems` would reject every value. A response array (`isResponse: true`) may leave them out, and its schema then publishes none.
+- `minItems` and `maxItems` must be non-negative integers, with `minItems` not above `maxItems`. `NaN` from `Number(process.env.X)` and `Number.POSITIVE_INFINITY` fail here.
+- `isArray` and `isUniqueItems` must be booleans.
+
+## Migration Notes
+
+### 5.0.0
+
+- Before 5.0.0, the boolean, date, enum, number, string and UUID decorators rejected at decoration only a negative bound, `minItems` above `maxItems`, and `isUniqueItems` with `maxItems` of 1 or less. A request array without `minItems` or `maxItems` decorated and every request then failed with `must contain at least undefined elements` or `must contain no more than undefined elements`, one without `isUniqueItems` only left `uniqueItems` out of the schema, a `NaN` bound rejected every value, and an array with a non-boolean `isArray` skipped the checks. Each of these now fails at decoration. Declare valid values, and give a number read from the environment a default.
+- `maxItems: Number.POSITIVE_INFINITY` and a fractional bound compiled and worked before, and now fail at decoration. Declare a finite integer.
+- The options type of every `@ApiProperty*` decorator includes `TApiPropertyBaseResponseArrayProperties`, a response array whose bounds are optional, and `@ApiPropertyBoolean` takes the new `TApiPropertyBooleanProperties`. Code that reads the options and narrows on `isArray === true` gets `minItems`, `maxItems` and `isUniqueItems` as possibly `undefined`; also check `isResponse !== true` to read the required bounds of a request array.
+
 ## Related resources
 
 - [Core Concepts – Entities](/docs/nestjs-crud-automator/core-concepts/entities)

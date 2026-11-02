@@ -79,7 +79,7 @@ Neutral manual DTO fields do not need to be marked with `isResponse: true` just 
 
 ### 5.0.0
 
-- A request array without `minItems`, `maxItems` or `isUniqueItems` fails at decoration. Before, it decorated and its validators then rejected every value. Declare all three bounds, or mark a response-only property `isResponse: true`.
+- A request array without `minItems`, `maxItems` or `isUniqueItems` fails at decoration. Before, it decorated, a missing `minItems` or `maxItems` then rejected every value, and a missing `isUniqueItems` only left `uniqueItems` out of the schema. Declare all three bounds, or mark a response-only property `isResponse: true`.
 - A `minItems` or `maxItems` that is not a non-negative integer, or an `isUniqueItems` that is not a boolean, fails at decoration on request and response arrays, and so does an `isArray` that is not a boolean. Before, such a bound decorated and could reject every request value, such an `isUniqueItems` only reached the OpenAPI schema, and such an `isArray` skipped the bound checks. Pass valid values; a number read from the environment needs a default.
 - `TApiPropertyObjectProperties` includes `TApiPropertyBaseResponseArrayProperties`, a response array whose bounds are optional. Code that reads the options and narrows on `isArray === true` gets `minItems`, `maxItems` and `isUniqueItems` as possibly `undefined`; also check `isResponse !== true` to read the required bounds of a request array.
 
