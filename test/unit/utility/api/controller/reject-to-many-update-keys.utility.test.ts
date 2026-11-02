@@ -95,12 +95,51 @@ class RejectToManyLateDetail {
 	public id!: string;
 }
 
+class RejectToManyLateMeta {
+	@JoinTable({ name: "reject_to_many_late_meta_tags" })
+	@ManyToMany(() => RejectToManyTag)
+	public embTags?: Array<RejectToManyTag>;
+}
+
+@Entity("reject_to_many_late_embedded_details")
+@TableInheritance({ column: { name: "kind", type: "varchar" } })
+class RejectToManyLateEmbeddedDetail {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+}
+
+@Entity("reject_to_many_late_table_details")
+@TableInheritance({ column: { name: "kind", type: "varchar" } })
+class RejectToManyLateTableDetail {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+}
+
+// Holds a relation TypeORM already knows about, so @ChildEntity on it later adds a table and nothing else.
+class RejectToManyLateTableCard extends RejectToManyLateTableDetail {
+	@JoinTable({ name: "reject_to_many_late_table_card_tags" })
+	@ManyToMany(() => RejectToManyTag)
+	public lateTags?: Array<RejectToManyTag>;
+}
+
+@Entity("reject_to_many_late_relation_posts")
+class RejectToManyLateRelationPost {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+}
+
+@Entity("reject_to_many_late_embedded_posts")
+class RejectToManyLateEmbeddedPost {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+}
+
 describe("ApiControllerRejectToManyUpdateKeys", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
-	const reject = (body: Record<string, unknown> | undefined): void => ApiControllerRejectToManyUpdateKeys(RejectToManyPost, body as never);
+	const reject = (body: Record<string, unknown> | undefined): void => ApiControllerRejectToManyUpdateKeys(RejectToManyPost, body);
 
 	it.each([
 		["an inherited ManyToMany reference", "tags", "tag-1"],
@@ -135,12 +174,12 @@ describe("ApiControllerRejectToManyUpdateKeys", () => {
 	});
 
 	it.each([null, "tag-1"])("rejects a child entity's to-many key on a table inheritance root route from TypeORM metadata alone (%s)", (value: null | string) => {
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyDetail, { cardTags: value, label: "changed" } as never)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "cardTags", reason: "to-many reference is not allowed on update" } }) }));
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyDetail, { cardTags: value, label: "changed" })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "cardTags", reason: "to-many reference is not allowed on update" } }) }));
 	});
 
 	it("rejects its own to-many key on a child entity route and accepts its columns", () => {
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCard, { label: "changed" } as never)).not.toThrow();
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCard, { cardTags: null } as never)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "cardTags", reason: "to-many reference is not allowed on update" } }) }));
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCard, { label: "changed" })).not.toThrow();
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCard, { cardTags: null })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "cardTags", reason: "to-many reference is not allowed on update" } }) }));
 	});
 
 	it("accepts columns, to-one references, undefined to-many keys and no body", () => {
@@ -153,20 +192,20 @@ describe("ApiControllerRejectToManyUpdateKeys", () => {
 		const filterRelations = vi.spyOn(storage, "filterRelations");
 		const filterEmbeddeds = vi.spyOn(storage, "filterEmbeddeds");
 
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { tags: null } as never)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "tags", reason: "to-many reference is not allowed on update" } }) }));
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { tags: null })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "tags", reason: "to-many reference is not allowed on update" } }) }));
 		expect(filterRelations).toHaveBeenCalled();
 
 		filterRelations.mockClear();
 		filterEmbeddeds.mockClear();
 
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { tags: null } as never)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "tags", reason: "to-many reference is not allowed on update" } }) }));
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { id: "post-1" } as never)).not.toThrow();
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { tags: null })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "tags", reason: "to-many reference is not allowed on update" } }) }));
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyCachedPost, { id: "post-1" })).not.toThrow();
 		expect(filterRelations).not.toHaveBeenCalled();
 		expect(filterEmbeddeds).not.toHaveBeenCalled();
 	});
 
 	it("reads TypeORM metadata again when a child entity registers after the paths were cached", () => {
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyLateDetail, { lateTags: null } as never)).not.toThrow();
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyLateDetail, { lateTags: null })).not.toThrow();
 
 		@ChildEntity("LATE")
 		class RejectToManyLateCard extends RejectToManyLateDetail {
@@ -176,6 +215,55 @@ describe("ApiControllerRejectToManyUpdateKeys", () => {
 		}
 
 		expect(RejectToManyLateCard.name).toBe("RejectToManyLateCard");
-		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyLateDetail, { lateTags: null } as never)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "lateTags", reason: "to-many reference is not allowed on update" } }) }));
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyLateDetail, { lateTags: null })).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName: "lateTags", reason: "to-many reference is not allowed on update" } }) }));
+	});
+
+	const expectRejected = (entity: Parameters<typeof ApiControllerRejectToManyUpdateKeys>[0], body: Record<string, unknown>, propertyName: string): void => {
+		expect(() => ApiControllerRejectToManyUpdateKeys(entity, body)).toThrow(expect.objectContaining({ response: expect.objectContaining({ details: { propertyName, reason: "to-many reference is not allowed on update" } }) }));
+	};
+
+	it("reads TypeORM metadata again when a late child entity reaches a to-many only through an embedded column", () => {
+		const body: Record<string, unknown> = { meta: { embTags: null } };
+
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyLateEmbeddedDetail, body)).not.toThrow();
+
+		@ChildEntity("LATE_EMBEDDED")
+		class RejectToManyLateEmbeddedCard extends RejectToManyLateEmbeddedDetail {
+			@Column(() => RejectToManyLateMeta)
+			public meta?: RejectToManyLateMeta;
+		}
+
+		expect(RejectToManyLateEmbeddedCard.name).toBe("RejectToManyLateEmbeddedCard");
+		expectRejected(RejectToManyLateEmbeddedDetail, body, "meta.embTags");
+	});
+
+	it("reads TypeORM metadata again when only a table registers", () => {
+		const body: Record<string, unknown> = { lateTags: null };
+
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyLateTableDetail, body)).not.toThrow();
+
+		ChildEntity("LATE_TABLE")(RejectToManyLateTableCard);
+
+		expectRejected(RejectToManyLateTableDetail, body, "lateTags");
+	});
+
+	it("reads TypeORM metadata again when only a relation registers", () => {
+		const body: Record<string, unknown> = { lateTags: null };
+
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyLateRelationPost, body)).not.toThrow();
+
+		ManyToMany(() => RejectToManyTag)(RejectToManyLateRelationPost.prototype, "lateTags");
+
+		expectRejected(RejectToManyLateRelationPost, body, "lateTags");
+	});
+
+	it("reads TypeORM metadata again when only an embedded column registers", () => {
+		const body: Record<string, unknown> = { meta: { embTags: null } };
+
+		expect(() => ApiControllerRejectToManyUpdateKeys(RejectToManyLateEmbeddedPost, body)).not.toThrow();
+
+		Column(() => RejectToManyLateMeta)(RejectToManyLateEmbeddedPost.prototype, "meta");
+
+		expectRejected(RejectToManyLateEmbeddedPost, body, "meta.embTags");
 	});
 });
