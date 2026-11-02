@@ -674,8 +674,8 @@ describe("Generated CREATE authorization scope on PostgreSQL (E2E)", () => {
 			const queries: Array<string> = readQueries();
 
 			expect(queries).toEqual(scopedQueries);
-			// The save lookup, the insert, the identity count, the reload and the count after it, plus the transaction boundaries.
-			expect(queries.map((query: string): string => query.split(" ")[0] ?? "")).toEqual(["START", "SELECT", "INSERT", "SELECT", "SELECT", "SELECT", "COMMIT"]);
+			// The lookup of the body key, which a create refuses when a row holds it, the save lookup, the insert, the identity count, the reload and the count after it, plus the transaction boundaries.
+			expect(queries.map((query: string): string => query.split(" ")[0] ?? "")).toEqual(["START", "SELECT", "SELECT", "INSERT", "SELECT", "SELECT", "SELECT", "COMMIT"]);
 		});
 	});
 
