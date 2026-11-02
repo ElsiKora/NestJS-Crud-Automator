@@ -8,8 +8,8 @@ import { E2eRelationReferenceObjectCodePostService, E2eRelationReferenceScalarCo
 const DISABLED = { generation: { isEnabled: false } } as const;
 
 /**
- * Builds GET and GET_LIST routes that load author, editor and tags and project them into one reference shape.
- * The eager reviewer relation is left out of the include, so it is never projected.
+ * Builds read and write routes that load author, editor and tags and project them into one reference shape.
+ * The eager reviewer and the lazy reader are left out of the include, so they are never projected.
  * @param {EApiControllerRelationReferenceShape} shape - Response reference shape.
  * @param {string} key - Response reference key.
  * @returns {object} Controller routes.
@@ -18,12 +18,12 @@ const buildRoutes = (shape: EApiControllerRelationReferenceShape, key: string): 
 	const relations: object = { response: { load: { include: { author: true, editor: true, tags: true } }, reference: { key, shape } } };
 
 	return {
-		[EApiRouteType.CREATE]: DISABLED,
+		[EApiRouteType.CREATE]: { relations },
 		[EApiRouteType.DELETE]: DISABLED,
 		[EApiRouteType.GET]: { relations },
 		[EApiRouteType.GET_LIST]: { relations },
-		[EApiRouteType.PARTIAL_UPDATE]: DISABLED,
-		[EApiRouteType.UPDATE]: DISABLED,
+		[EApiRouteType.PARTIAL_UPDATE]: { relations },
+		[EApiRouteType.UPDATE]: { relations },
 	};
 };
 

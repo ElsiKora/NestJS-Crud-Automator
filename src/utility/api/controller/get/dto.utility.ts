@@ -99,7 +99,7 @@ export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R exte
 	// A manual list response limits ordering to the item properties it publishes.
 	const listResponseDto: Type<unknown> | undefined = method === EApiRouteTypeValue.GET_LIST && dtoType === EApiDtoTypeValue.QUERY && routeConfig.dto?.[EApiDtoTypeValue.RESPONSE] ? ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoTypeValue.RESPONSE, routeConfig, schemaPrefix, queryPlan) : undefined;
 
-	return DtoGenerate(properties.entity, entity, method, dtoType, schemaPrefix, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard, effectiveQueryPlan, undefined, routeName, listResponseDto);
+	return DtoGenerate(properties.entity, entity, method, dtoType, schemaPrefix, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard, effectiveQueryPlan, undefined, routeName, listResponseDto, dtoType === EApiDtoTypeValue.RESPONSE ? routeConfig.relations?.response : undefined);
 }
 
 /**
@@ -121,7 +121,7 @@ export function ApiControllerGetResponseDto<E extends IApiBaseEntity, R extends 
 	if (isPolymorphicRead && entity.tableInheritance?.variants.length) {
 		ApiControllerIdentityPlanAssert(routeConfig, identityPlan);
 
-		return DtoGenerateTableInheritanceResponse(properties.entity, entity, entity.tableInheritance, method, schemaPrefix, routeConfig.autoDto?.[EApiDtoTypeValue.RESPONSE], routeConfig.security?.authentication?.guard, queryPlan);
+		return DtoGenerateTableInheritanceResponse(properties.entity, entity, entity.tableInheritance, method, schemaPrefix, routeConfig.autoDto?.[EApiDtoTypeValue.RESPONSE], routeConfig.security?.authentication?.guard, queryPlan, routeConfig.relations?.response);
 	}
 
 	return ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoTypeValue.RESPONSE, routeConfig, schemaPrefix, queryPlan, undefined, identityPlan);

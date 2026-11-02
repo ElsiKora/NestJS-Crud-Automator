@@ -1,6 +1,6 @@
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerTableInheritancePlan, IApiControllerTableInheritanceVariant } from "@interface/class/api/controller/table-inheritance";
-import type { IApiControllerPropertiesRouteAutoDtoConfig } from "@interface/decorator/api";
+import type { IApiControllerPropertiesRouteAutoDtoConfig, IApiControllerPropertiesRouteBaseRelationsResponse } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { CanActivate, Type } from "@nestjs/common";
 import type { TTypeDiscriminator } from "@type/decorator/api/property";
@@ -36,9 +36,10 @@ const tableInheritanceResponseCache: WeakMap<ObjectLiteral, Map<string, TApiRout
  * @param {IApiControllerPropertiesRouteAutoDtoConfig} [dtoConfig] - Optional automatic DTO configuration.
  * @param {Type<CanActivate>} [currentGuard] - Optional authentication guard for property visibility control.
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Compiled plan selecting the list envelope.
+ * @param {IApiControllerPropertiesRouteBaseRelationsResponse<E>} [responseRelations] - Response relation config of the route, which shapes the relation properties of each variant.
  * @returns {TApiRouteDiscriminatedDtoProperties | Type<unknown>} Discriminated variants for GET or the list wrapper for GET_LIST.
  */
-export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, plan: IApiControllerTableInheritancePlan, method: EApiRouteType, schemaPrefix: string, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan): TApiRouteDiscriminatedDtoProperties | Type<unknown> {
+export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, plan: IApiControllerTableInheritancePlan, method: EApiRouteType, schemaPrefix: string, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan, responseRelations?: IApiControllerPropertiesRouteBaseRelationsResponse<E>): TApiRouteDiscriminatedDtoProperties | Type<unknown> {
 	const isCursor: boolean = method === EApiRouteType.GET_LIST && ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
 
 	const cacheKey: string = DtoGenerateCacheKey({
@@ -49,6 +50,7 @@ export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, en
 		guard: currentGuard,
 		method,
 		queryPlanSignature: isCursor ? EApiControllerGetListQueryPaginationMode.CURSOR : undefined,
+		responseRelations,
 		responseVariantName: plan.variants.map(({ discriminatorValue, entity: variantEntity }: IApiControllerTableInheritanceVariant): string => `${discriminatorValue}:${DtoGenerateCacheClassIdentifier(variantEntity as { name: string } & object)}`).join(","),
 	});
 	const entityResponseCache: Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>> = tableInheritanceResponseCache.get(entity) ?? new Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>>();
@@ -64,7 +66,7 @@ export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, en
 	const variantNamePrefix: string = `${schemaPrefix}${CamelCaseString(method)}${CamelCaseString(EApiDtoType.RESPONSE)}`;
 
 	const mappingEntries: Array<[string, Type<unknown>]> = plan.variants.map((variant: IApiControllerTableInheritanceVariant): [string, Type<unknown>] => {
-		const variantDto: Type<unknown> | undefined = DtoGenerate(variant.entity, variant.entityMetadata, method, EApiDtoType.RESPONSE, schemaPrefix, dtoConfig, currentGuard, undefined, `${variantNamePrefix}${DtoSchemaNameStripSuffix(CamelCaseString(variant.discriminatorValue))}DTO`);
+		const variantDto: Type<unknown> | undefined = DtoGenerate(variant.entity, variant.entityMetadata, method, EApiDtoType.RESPONSE, schemaPrefix, dtoConfig, currentGuard, undefined, `${variantNamePrefix}${DtoSchemaNameStripSuffix(CamelCaseString(variant.discriminatorValue))}DTO`, undefined, undefined, responseRelations);
 
 		if (!variantDto) {
 			throw ErrorException(`Response DTO for table inheritance variant ${String(variant.entityMetadata.name)} was not generated`);

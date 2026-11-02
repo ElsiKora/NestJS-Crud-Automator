@@ -179,23 +179,6 @@ export class E2eToManyScalarPostController {
 	}
 }
 
-@ApiController<E2eToManyPostEntity>({
-	entity: E2eToManyPostEntity,
-	name: "E2eToManyObjectCodePosts",
-	path: "to-many-object-code-posts",
-	routes: {
-		...DISABLED_DELETE,
-		[EApiRouteType.CREATE]: { generation: { isEnabled: false } },
-		[EApiRouteType.GET]: { relations: { response: { load: { include: { author: true, tags: true } }, reference: { key: "code", shape: EApiControllerRelationReferenceShape.OBJECT } } } },
-		[EApiRouteType.GET_LIST]: { generation: { isEnabled: false } },
-		[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
-		[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
-	},
-} as never)
-export class E2eToManyObjectCodePostController {
-	public constructor(@Inject(E2eToManyPostService) public readonly service: E2eToManyPostService) {}
-}
-
 @ApiController<E2eToManyOrderEntity>({
 	entity: E2eToManyOrderEntity,
 	name: "E2eToManyObjectOrders",

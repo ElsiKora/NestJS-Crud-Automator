@@ -22,7 +22,6 @@ import {
 	E2eToManyItemsRelationEntity,
 	E2eToManyLedgerEntity,
 	E2eToManyLedgerService,
-	E2eToManyObjectCodePostController,
 	E2eToManyObjectLedgerController,
 	E2eToManyObjectOrderController,
 	E2eToManyObjectPostController,
@@ -100,7 +99,7 @@ describe("To-many response relations (E2E)", () => {
 
 	beforeAll(async () => {
 		const moduleReference = await Test.createTestingModule({
-			controllers: [E2eToManyEnvelopePostController, E2eToManyObjectCodePostController, E2eToManyObjectLedgerController, E2eToManyObjectOrderController, E2eToManyObjectPostController, E2eToManyScalarLedgerController, E2eToManyScalarOrderController, E2eToManyScalarPostController],
+			controllers: [E2eToManyEnvelopePostController, E2eToManyObjectLedgerController, E2eToManyObjectOrderController, E2eToManyObjectPostController, E2eToManyScalarLedgerController, E2eToManyScalarOrderController, E2eToManyScalarPostController],
 			imports: [
 				TypeOrmModule.forRoot({
 					database: ":memory:",
@@ -274,13 +273,6 @@ describe("To-many response relations (E2E)", () => {
 			expectReferences(post.comments, [COMMENT_FIRST, COMMENT_SECOND]);
 			expectReferences(post.tags, [TAG_FIRST, TAG_SECOND]);
 		});
-	});
-
-	it("gives empty objects for an OBJECT reference on a key the relation DTO does not expose", async () => {
-		const post = await send("GET", `/to-many-object-code-posts/${POST_FULL}`, HttpStatus.OK);
-
-		expect(post.tags).toEqual([{}, {}]);
-		expect(post.author).toEqual({});
 	});
 
 	describe("custom route list envelopes", () => {

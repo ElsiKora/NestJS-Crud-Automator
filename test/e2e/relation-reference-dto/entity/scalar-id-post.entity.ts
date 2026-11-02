@@ -1,14 +1,14 @@
 import "reflect-metadata";
 
 import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyStringType } from "../../../../src/index";
-import { Column, Entity, JoinTable, ManyToMany, ManyToOne, PrimaryColumn, type Relation } from "typeorm";
+import { Column, Entity, JoinTable, ManyToMany, ManyToOne, PrimaryGeneratedColumn, type Relation } from "typeorm";
 
 import { E2eRelationReferenceAuthorEntity } from "./author.entity";
 import { E2eRelationReferenceTagEntity } from "./tag.entity";
 
 @Entity("e2e_relation_reference_scalar_id_posts")
 export class E2eRelationReferenceScalarIdPostEntity {
-	@PrimaryColumn({ type: "varchar" })
+	@PrimaryGeneratedColumn("uuid")
 	@ApiPropertyDescribe({
 		description: "id",
 		type: EApiPropertyDescribeType.UUID,
@@ -47,6 +47,13 @@ export class E2eRelationReferenceScalarIdPostEntity {
 	})
 	@ManyToOne(() => E2eRelationReferenceAuthorEntity, { eager: true, nullable: true })
 	public reviewer?: null | Relation<E2eRelationReferenceAuthorEntity>;
+
+	@ApiPropertyDescribe({
+		description: "reader",
+		type: EApiPropertyDescribeType.RELATION,
+	})
+	@ManyToOne(() => E2eRelationReferenceAuthorEntity, { nullable: true })
+	public reader?: null | Relation<E2eRelationReferenceAuthorEntity>;
 
 	@ApiPropertyDescribe({
 		description: "tags",

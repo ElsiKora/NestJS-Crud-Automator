@@ -109,6 +109,14 @@ Remove a condition instead of setting it to `undefined`, and use `IsNull()` inst
 
 See [Error Handling: Migration Notes](/docs/nestjs-crud-automator/guides/error-handling#migration-notes).
 
+## Relation Responses
+
+- A to-many relation in `relations.response.load.include` is sent as an array, `[]` when it has no rows. Before 5.0.0, an `OBJECT` reference sent `{}` and a `SCALAR` reference left the key out.
+- An `OBJECT` reference on a key other than `id` sends that key, `{ "code": "a" }` instead of `{}`. The key must be described with `@ApiPropertyDescribe` on the related entity as a non-nullable scalar, or the application fails at startup.
+- The response schema of each route describes its relations as the route sends them: the scalar key for `SCALAR`, an object with the configured key for `OBJECT`, an array for to-many. A relation is required only when the route always sends it, because it is included or eager, and a to-one relation is `nullable` when TypeORM can return `null` for it. Regenerate clients from the new OpenAPI document.
+
+See [Relations: Migration Notes](/docs/nestjs-crud-automator/guides/relations#migration-notes).
+
 ## No `.env` Loading
 
 Importing the package no longer runs `dotenv`'s `config()`, and the package has no `dotenv` dependency. `NCD_LOG_LEVEL` and every other variable come from `process.env` only. Load the file in the application, for example with `node --env-file=.env` or `ConfigModule.forRoot()` from `@nestjs/config`. Each logger reads `NCD_LOG_LEVEL` at its first message, so a value loaded during bootstrap applies. See [Utilities: Migration Notes](/docs/nestjs-crud-automator/api-reference/utilities#migration-notes).

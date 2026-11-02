@@ -116,7 +116,23 @@ To-many relations (`OneToMany`, `ManyToMany`) are projected element by element, 
 
 Null elements inside a loaded array are left in place, the same way a `null` to-one value is left unchanged. The order of to-many elements is not guaranteed: it is whatever the database returns for the relation load.
 
-Generated Swagger describes a response `RELATION` from its TypeORM relation type: a to-one relation as `{ id }`, a to-many relation as an array of `{ id }`. The schema depends on neither `reference.shape` nor the route's relation loading, so it matches the wire only for `OBJECT` with the `id` key on a route that loads the relation. With `SCALAR` the wire carries `"a1"` or `["a1"]` while Swagger still shows `{ id }` or `[{ id }]`. On a route that does not load the relation, because it has no `relations.response` or its `include` omits the relation, Swagger still shows a required property while the key is absent from the wire: read a to-many relation defensively there, since `post.comments.map(...)` throws on `undefined`.
+### Response Schema
+
+The generated response DTO of a route describes each relation exactly as that route sends it, and Swagger is generated from the same DTO, so the schema matches the wire for every reference shape and key, to-one and to-many:
+
+| Relation on the route                 | Swagger                                                                             |
+| ------------------------------------- | ----------------------------------------------------------------------------------- |
+| In `include`, `OBJECT` on `id`        | `{ id }`, or an array of it for a to-many relation                                  |
+| In `include`, `OBJECT` on another key | an object with only that key, described as on the related entity, or an array of it |
+| In `include`, `SCALAR` on `id`        | a UUID string, or an array of them                                                  |
+| In `include`, `SCALAR` on another key | the value of that key, described as on the related entity, or an array of them      |
+| Not in `include`, eager or lazy       | the relation DTO, `{ id }`, or an array of it                                       |
+
+This applies whatever describes the relation property, `RELATION` or `OBJECT` with a `dataType`, because the projection replaces any included relation with its reference. A reference key other than `id` must be described with `@ApiPropertyDescribe` on the related entity as a non-nullable scalar, since the reference identifies the related row; otherwise the application fails at startup with an error that names the key and the relation. To-many arrays have `minItems: 0` and no `maxItems`.
+
+A relation property is required when the route always sends it: it is in `include` with a truthy value, or it is eager. Every other relation is optional, because a route that does not load it leaves the key out. A to-one relation is nullable when TypeORM can return `null` for it: the owner side unless the relation is `nullable: false` or its join column is a non-null or primary column, and always the inverse side of a one-to-one relation. A to-many relation is never `null`; an empty set is `[]`.
+
+Each controller on an entity gets its own response DTOs, named after the controller, so two controllers with different `include` or reference config do not describe each other's wire. `AdminPostController` and `PublicPostController` produce `AdminPostGetResponseAuthorDTO` and `PublicPostGetResponseAuthorDTO`.
 
 `FULL` and `PRESERVE` are not 3.0 modes. Any configured `relations.response.load` requires an `OBJECT` or `SCALAR` reference and projects the loaded relation. To retain a complete relation, omit Automator response loading, load it through another application-owned path, and use a manual response DTO or transformer.
 
@@ -239,7 +255,7 @@ The library uses these injected services to hydrate request relation references.
 
 ### Eager Loading
 
-Relations marked as eager are always loaded:
+Relations marked as eager are always loaded. A route that does not include an eager relation sends it through the relation DTO, `{ "id": "..." }` or `null`, and the response schema marks it required:
 
 ```typescript
 @ManyToOne(() => UserEntity, { eager: true })
@@ -464,7 +480,7 @@ With that configuration, `{ author: { code: "author-001" } }` is validated and h
 
 The generated request DTO of a `RELATION` is a single UUID property. With a global `ValidationPipe` that example request is rejected with `400` before hydration, because `{ author: { code: "author-001" } }` is not a UUID. Under a global pipe, send `{ author: "<uuid>" }` with a `SCALAR` request reference on `id`, or declare a manual body DTO that accepts the object reference.
 
-The generated response DTO of a relation exposes only `id`, so a response `OBJECT` reference with any other `key` currently gives `{}`, or `[{}]` for a to-many relation: the serializer strips the key. Use `SCALAR` for a key other than `id`, or a manual response DTO that exposes that key.
+The response DTO describes `author` as the `code` value, typed by the `code` property of the related entity, so that property must be described with `@ApiPropertyDescribe`. With `OBJECT` on `code`, the response is `{ "author": { "code": "author-001" } }` and the schema is an object with only `code`.
 
 ### To-Many Request References
 
@@ -644,7 +660,7 @@ A relation with no rows is now `[]` in both shapes. Clients that read `comments`
 
 Generated Swagger changes with it: a to-many `RELATION` in a response schema is now `type: array` with `items` pointing at the same relation DTO, instead of a single object. Clients generated from the document get an array type. Request schemas and validation are unchanged. A manual DTO that uses `ApiPropertyCopy` on such a response property inherits the array.
 
-This covers every response schema with a to-many `RELATION`, including routes that do not load it. There the key stays absent from the wire while the schema now says required array, as it said required object before, so a client that trusts the schema and calls `post.comments.map(...)` throws where the response itself did not change. Load the relation on that route, disable the property for that route's response, or read it defensively.
+This covers every response schema with a to-many `RELATION`, including routes that do not load it. There the key stays absent from the wire, and the schema describes the array as optional, so a client generated from it must handle a missing `comments`.
 
 From 5.0.0, `{ items }` is no longer read from the shape of a response alone. An entity with an `items` property, such as `Order.items`, now has its relations projected on GET, CREATE, UPDATE, PARTIAL_UPDATE and custom routes. Before, they were skipped: an unserialized response could return the full related row, and `SCALAR` returned an object. A custom route that returns a `{ items, totalCount }` envelope keeps working without a declared type, unless its `resource.entity` owns an `items` property, as a column, a relation, Automator metadata or through a parent class. Such a route now reads the whole `{ items, totalCount }` object as one entity. When the route's `load.include` leaves out `items`, the listed rows come back without their relations projected. When it includes the entity's own `items` relation, every listed row collapses into its reference: `{ "items": [{ "id": "o1" }], "totalCount": 1 }`, or `"items": ["o1"]` with `SCALAR`. Declare `route: { type: EApiRouteType.GET_LIST }` on such a route. A custom route that declares another type, such as `GET`, no longer has its `{ items }` read as an envelope.
 
@@ -660,6 +676,18 @@ From 5.0.0, request hydration of to-many references changes too. In the CREATE b
 A custom route handler that read a to-many request relation as one entity must read the first element of the array. A client that sent a to-many reference or `null` on an update and relied on the `200` must drop the key or move the change to a custom route of another type. A custom UPDATE or PARTIAL_UPDATE route whose handler reads a to-many key from the body must take it under another property name or change its `route.type`. The `400` applies to every to-many relation of the entity, including one left out of `relations.request`, excluded with `include: false`, on a route without `relations.request`, inside an embedded column, or declared only on a child of a table inheritance root.
 
 This `400` is new: before 5.0.0 a to-many key on an update never returned it. Its body is `{ "details": { "propertyName": "tags", "reason": "to-many reference is not allowed on update" }, "error": "Bad Request", "message": "POSTENTITY_INVALID_REFERENCE", "statusCode": 400 }`, with `propertyName` the dotted path for an embedded relation. The `400` `INVALID_REFERENCE` body for a to-one reference is unchanged: `details` still carry `expectedShape`, `propertyName` and `referenceKey`.
+
+From 5.0.0, the response DTO and Swagger of a route follow its `relations.response` config, and an `OBJECT` reference on a key other than `id` sends that key:
+
+| Change                                           | Before                         | After                                                    |
+| ------------------------------------------------ | ------------------------------ | -------------------------------------------------------- |
+| `OBJECT` on `code`, wire                         | `"author": {}`, `"tags": [{}]` | `"author": { "code": "a" }`, `"tags": [{ "code": "t" }]` |
+| `OBJECT` on `code`, Swagger                      | `{ id }`                       | `{ code }`, described as on the related entity           |
+| `SCALAR`, Swagger                                | `{ id }`                       | the key value, or an array of them                       |
+| Relation the route does not always send, Swagger | required as described          | optional                                                 |
+| Nullable to-one relation, Swagger                | `nullable` as described        | `nullable: true` when TypeORM can return `null`          |
+
+An `OBJECT` or `SCALAR` reference key other than `id` must be a described, non-nullable scalar of the related entity. A route whose key is not described, such as a column the related DTO never exposed, now fails at startup instead of sending `{}`. Regenerate clients from the new OpenAPI document; a client that read `author.id` on an `OBJECT` reference on `code` must read `author.code`.
 
 From 5.0.0, generated routes no longer register an empty `<Entity><Method>Body<property>DTO` component for every relation property. Nothing referenced these components; an OpenAPI client generated from the document loses those empty types.
 

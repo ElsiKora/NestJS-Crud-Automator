@@ -38,6 +38,8 @@ const UUID_PATTERN: RegExp = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-
 type TReference = (id: string, code: string) => unknown;
 
 interface IShapeCase {
+	/** Expected Swagger schema of one to-many item, after $ref and allOf are resolved. */
+	itemSchema: Record<string, unknown>;
 	/** Expected Swagger schema of one reference, after $ref and allOf are resolved. */
 	referenceSchema: Record<string, unknown>;
 	path: string;
@@ -57,18 +59,22 @@ interface IPostWire {
 const SHAPE_CASES: ReadonlyArray<IShapeCase> = [
 	{
 		path: "relation-reference-scalar-id-posts",
+		// Array decorators of the library replace the items schema without a type, for request DTOs as well.
+		itemSchema: { format: "uuid" },
 		reference: (id: string): unknown => id,
 		referenceSchema: { format: "uuid", type: "string" },
 		title: "SCALAR with key id",
 	},
 	{
 		path: "relation-reference-scalar-code-posts",
+		itemSchema: { pattern: "^[a-z-]+$" },
 		reference: (_id: string, code: string): unknown => code,
-		referenceSchema: { type: "string" },
+		referenceSchema: { pattern: "^[a-z-]+$", type: "string" },
 		title: "SCALAR with key code",
 	},
 	{
 		path: "relation-reference-object-code-posts",
+		itemSchema: { properties: { code: { type: "string" } }, required: ["code"] },
 		reference: (_id: string, code: string): unknown => ({ code }),
 		referenceSchema: { properties: { code: { type: "string" } }, required: ["code"] },
 		title: "OBJECT with key code",
@@ -79,7 +85,7 @@ describe("Response relation reference DTOs (E2E)", () => {
 	let app: INestApplication | undefined;
 	let document: OpenAPIObject;
 	let fastify: {
-		inject: (options: { method: string; url: string }) => Promise<{ body: string; json: () => unknown; statusCode: number }>;
+		inject: (options: { method: string; payload?: object; url: string }) => Promise<{ body: string; json: () => unknown; statusCode: number }>;
 	};
 
 	/**
@@ -149,7 +155,8 @@ describe("Response relation reference DTOs (E2E)", () => {
 			return;
 		}
 
-		if (schema.type === "string") {
+		// Array decorators of the library describe string items by format and pattern without a type.
+		if (schema.type === "string" || (schema.type === undefined && (schema.format !== undefined || schema.pattern !== undefined))) {
 			expect(typeof value, `${location} must be a string`).toBe("string");
 
 			if (schema.format === "uuid") {
@@ -174,22 +181,26 @@ describe("Response relation reference DTOs (E2E)", () => {
 		throw new Error(`${location}: unsupported schema ${JSON.stringify(schema)}`);
 	};
 
-	const getResponseSchema = (path: string, isList: boolean): TSwaggerComponentSchema => {
+	const getResponseSchema = (path: string, isList: boolean, method: "get" | "patch" | "post" | "put" = "get"): TSwaggerComponentSchema => {
 		const pathKey: string | undefined = Object.keys(document.paths).find((candidate: string): boolean => (isList ? candidate === `/${path}` : candidate.startsWith(`/${path}/{`)));
 
 		expect(pathKey, `OpenAPI path for /${path}`).toBeDefined();
 
-		const content: Record<string, { schema: TSwaggerComponentSchema }> | undefined = (document.paths[pathKey as string]?.get?.responses?.[String(HttpStatus.OK)] as { content?: Record<string, { schema: TSwaggerComponentSchema }> } | undefined)?.content;
+		const status: HttpStatus = method === "post" ? HttpStatus.CREATED : HttpStatus.OK;
+		const content: Record<string, { schema: TSwaggerComponentSchema }> | undefined = (document.paths[pathKey as string]?.[method]?.responses?.[String(status)] as { content?: Record<string, { schema: TSwaggerComponentSchema }> } | undefined)?.content;
+
+		expect(content?.["application/json"]?.schema, `${method.toUpperCase()} /${path} ${status} response schema`).toBeDefined();
 
 		return content?.["application/json"]?.schema as TSwaggerComponentSchema;
 	};
 
-	const getItemProperties = (path: string, isList: boolean): Record<string, TSwaggerComponentSchema> => {
+	const getItemSchema = (path: string, isList: boolean): TSwaggerSchemaObject => {
 		const response: TSwaggerSchemaObject = resolveSchema(getResponseSchema(path, isList));
-		const item: TSwaggerSchemaObject = isList ? resolveSchema((resolveSchema(response.properties?.items as TSwaggerComponentSchema).items ?? {}) as TSwaggerComponentSchema) : response;
 
-		return item.properties as Record<string, TSwaggerComponentSchema>;
+		return isList ? resolveSchema((resolveSchema(response.properties?.items as TSwaggerComponentSchema).items ?? {}) as TSwaggerComponentSchema) : response;
 	};
+
+	const getItemProperties = (path: string, isList: boolean): Record<string, TSwaggerComponentSchema> => getItemSchema(path, isList).properties as Record<string, TSwaggerComponentSchema>;
 
 	const read = async (path: string, isList: boolean): Promise<{ body: unknown; posts: Array<IPostWire>; raw: string }> => {
 		const response = await fastify.inject({ method: "GET", url: isList ? `/${path}?limit=10&page=1&orderBy=title&orderDirection=asc` : `/${path}/${POST_FULL}` });
@@ -255,7 +266,7 @@ describe("Response relation reference DTOs (E2E)", () => {
 		await app?.close();
 	});
 
-	describe.each(SHAPE_CASES)("$title", ({ path, reference, referenceSchema }: IShapeCase) => {
+	describe.each(SHAPE_CASES)("$title", ({ itemSchema, path, reference, referenceSchema }: IShapeCase) => {
 		describe.each([
 			["GET", false],
 			["GET_LIST", true],
@@ -286,7 +297,7 @@ describe("Response relation reference DTOs (E2E)", () => {
 				expect(editor).toMatchObject(referenceSchema);
 				expect(editor.nullable).toBe(false);
 				expect(tags.type).toBe("array");
-				expect(resolveSchema(tags.items as TSwaggerComponentSchema)).toMatchObject(referenceSchema);
+				expect(resolveSchema(tags.items as TSwaggerComponentSchema)).toMatchObject(itemSchema);
 			});
 
 			it("describes the eager reviewer outside the include as a nullable id object", async () => {
@@ -297,6 +308,19 @@ describe("Response relation reference DTOs (E2E)", () => {
 				expect(posts.find((post: IPostWire): boolean => post.id === POST_EMPTY)?.reviewer).toEqual({ id: AUTHOR_SECOND });
 				expect(reviewer).toMatchObject({ properties: { id: { format: "uuid", type: "string" } } });
 				expect(reviewer.nullable).toBe(true);
+			});
+
+			it("requires exactly the relations the route always sends", async () => {
+				const { posts } = await read(path, isList);
+				const required: Array<string> = getItemSchema(path, isList).required ?? [];
+
+				expect(required).toEqual(expect.arrayContaining(["author", "editor", "reviewer", "tags"]));
+				expect(required).not.toContain("reader");
+				expect(getItemProperties(path, isList).reader).toBeDefined();
+
+				for (const post of posts) {
+					expect(Object.keys(post)).not.toContain("reader");
+				}
 			});
 
 			it("sends a body that is valid against the OpenAPI response schema", async () => {
@@ -311,6 +335,24 @@ describe("Response relation reference DTOs (E2E)", () => {
 					expectWireMatchesSchema(schema, empty.json(), "response");
 				}
 			});
+		});
+
+		it.each([
+			["post", "POST", HttpStatus.CREATED],
+			["patch", "PATCH", HttpStatus.OK],
+			["put", "PUT", HttpStatus.OK],
+		] as const)("sends a %s response that is valid against the OpenAPI response schema", async (method: "patch" | "post" | "put", verb: string, status: HttpStatus) => {
+			const response = await fastify.inject({
+				method: verb,
+				payload: method === "post" ? { editor: AUTHOR_FIRST, title: `z-created-${path}` } : { title: "a-full" },
+				url: method === "post" ? `/${path}` : `/${path}/${POST_FULL}`,
+			} as never);
+			const body: IPostWire = response.json() as IPostWire;
+
+			expect(response.statusCode, response.body).toBe(status);
+			expect(body.editor).toEqual(method === "post" ? reference(AUTHOR_FIRST, "author-first") : reference(AUTHOR_SECOND, "author-second"));
+			expect(Object.keys(body)).toContain("reviewer");
+			expectWireMatchesSchema(getResponseSchema(path, method === "post", method), body, `${verb} response`);
 		});
 	});
 });

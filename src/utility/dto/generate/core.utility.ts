@@ -1,6 +1,6 @@
 import type { EFilterOperation } from "@enum/filter";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
-import type { IApiControllerPropertiesRouteAutoDtoConfig } from "@interface/decorator/api";
+import type { IApiControllerPropertiesRouteAutoDtoConfig, IApiControllerPropertiesRouteBaseRelationsResponse } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
@@ -21,6 +21,7 @@ import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
 import { DtoGenerateFilterDecorator } from "@utility/dto/generate/filter-decorator.utility";
 import { DtoGenerateGetListItemsResponse, DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list";
 import { DtoGetGetListQueryBaseClass } from "@utility/dto/get/get-list-query-base-class.utility";
+import { DtoGetRelationResponseMetadata } from "@utility/dto/get/relation-response-metadata.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { DtoIsShouldBeGenerated } from "@utility/dto/is/should-be-generated.utility";
 import { DtoSchemaNameGetRouteOrigin } from "@utility/dto/schema-name/route-origin.utility";
@@ -50,17 +51,33 @@ const dtoGenerateCache: WeakMap<ObjectLiteral, Map<string, Type<unknown>>> = new
  * @param {string} [responseVariantName] - Class name of a polymorphic response variant, which is always an item DTO without a list wrapper.
  * @param {string} [routeName] - PascalCase handler method name of a custom route; it replaces the route type in the generated names.
  * @param {ReadonlyArray<Type<unknown>> | Type<unknown>} [listResponseDto] - Manual or item-config list response DTO of a GET_LIST route, or the response variants of a custom one, which limit the generated QUERY DTO's orderBy enum.
+ * @param {IApiControllerPropertiesRouteBaseRelationsResponse<E>} [responseRelations] - Response relation config of the route, which shapes the relation properties of a RESPONSE DTO.
  * @returns {Type<unknown> | undefined} The generated DTO class or undefined if no DTO should be generated
  * @throws {Error} When primary key metadata is missing
  * @template E - The entity type
  */
-export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan, responseVariantName?: string, routeName?: string, listResponseDto?: ReadonlyArray<Type<unknown>> | Type<unknown>): Type<unknown> | undefined {
+export function DtoGenerate<E>(
+	entity: ObjectLiteral,
+	entityMetadata: IApiEntity<E>,
+	method: EApiRouteType,
+	dtoType: EApiDtoType,
+	schemaPrefix: string,
+	dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig,
+	currentGuard?: Type<CanActivate>,
+	queryPlan?: IApiControllerGetListQueryPlan,
+	responseVariantName?: string,
+	routeName?: string,
+	listResponseDto?: ReadonlyArray<Type<unknown>> | Type<unknown>,
+	responseRelations?: IApiControllerPropertiesRouteBaseRelationsResponse<E>,
+): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
 		return undefined;
 	}
 
 	const isGetListResponse: boolean = method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.RESPONSE;
 	const isCursorGetListResponse: boolean = isGetListResponse && ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
+
+	const isResponse: boolean = dtoType === EApiDtoType.RESPONSE;
 
 	const cacheKey: string = DtoGenerateCacheKey({
 		controllerName: schemaPrefix,
@@ -71,6 +88,7 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		listResponseDto,
 		method,
 		queryPlanSignature: isCursorGetListResponse ? EApiControllerGetListQueryPaginationMode.CURSOR : queryPlan?.signature,
+		responseRelations: isResponse ? responseRelations : undefined,
 		responseVariantName,
 		routeName,
 	});
@@ -106,9 +124,11 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		}
 
 		if (column.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] && DtoIsPropertyShouldBeMarked(method, dtoType, column.name as string, column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties, column.isPrimary, currentGuard)) {
+			const metadata: TApiPropertyDescribeProperties = column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties;
+
 			markedProperties.push({
 				isPrimary: column.isPrimary,
-				metadata: column.metadata[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties,
+				metadata: isResponse && column.relation ? DtoGetRelationResponseMetadata(entity, entityMetadata, column, metadata, method, dtoNameBase, responseRelations) : metadata,
 				name: column.name,
 			});
 		}

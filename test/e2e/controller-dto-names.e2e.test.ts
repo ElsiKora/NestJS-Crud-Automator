@@ -245,7 +245,16 @@ describe("generated DTO names with one controller on an entity (E2E)", () => {
 		const previousDocument: unknown = JSON.parse(readFileSync(new URL("controller-dto-names/record.dev-openapi.json", import.meta.url), "utf8"));
 		const renameGenerated = (name: string): string => name.replace(/^E2eDtoNameRecordEntity/, "E2eDtoNameRecord").replace(/GetListResponseItemsDTO$/, "GetListPageDTO");
 
-		expect(JSON.stringify(sortKeys(normalizeExamples(document)))).toBe(JSON.stringify(sortKeys(renameComponents(previousDocument, renameGenerated))));
+		const expectedDocument: OpenAPIObject = renameComponents(previousDocument, renameGenerated) as OpenAPIObject;
+
+		// The route does not load owner, so since the capture the response schemas no longer require it.
+		for (const [name, schema] of Object.entries(expectedDocument.components?.schemas ?? {}) as Array<[string, { required?: Array<string> }]>) {
+			if (name.endsWith("ResponseDTO") && schema.required) {
+				schema.required = schema.required.filter((property: string): boolean => property !== "owner");
+			}
+		}
+
+		expect(JSON.stringify(sortKeys(normalizeExamples(document)))).toBe(JSON.stringify(sortKeys(expectedDocument)));
 	});
 });
 
