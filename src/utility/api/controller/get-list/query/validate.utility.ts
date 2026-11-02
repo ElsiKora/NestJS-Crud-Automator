@@ -1,9 +1,9 @@
 import type { Type } from "@nestjs/common";
-import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
 
 import { BadRequestException } from "@nestjs/common";
 import { ApiRouteValidationFlattenErrors } from "@utility/api/route/validation-flatten-errors.utility";
+import { ErrorException } from "@utility/error/exception.utility";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 
@@ -19,7 +19,12 @@ const PAGINATION_AND_ORDER_PROPERTIES: ReadonlyArray<string> = ["limit", "orderB
  * @throws {BadRequestException} With the flattened class-validator messages, the same body a Nest `ValidationPipe` returns, when any value fails the DTO.
  */
 export async function ApiControllerGetListQueryValidate<Q extends object>(dto: Type<unknown>, query: Q): Promise<Q> {
-	const instance: Record<string, unknown> = plainToInstance(dto as ClassConstructor<Record<string, unknown>>, query as Record<string, unknown>);
+	const instance: unknown = plainToInstance(dto, query);
+
+	if (typeof instance !== "object" || instance === null) {
+		throw ErrorException("GET_LIST QUERY DTO must convert a query into an object");
+	}
+
 	// eslint-disable-next-line @elsikora/typescript/naming-convention
 	const errors: Array<ValidationError> = await validate(instance, { forbidUnknownValues: false });
 
@@ -27,13 +32,15 @@ export async function ApiControllerGetListQueryValidate<Q extends object>(dto: T
 		throw new BadRequestException(ApiRouteValidationFlattenErrors(errors));
 	}
 
-	const validated: Record<string, unknown> = { ...(query as Record<string, unknown>) };
+	const validated: Q = { ...query };
 
 	for (const property of PAGINATION_AND_ORDER_PROPERTIES) {
-		if (instance[property] !== undefined) {
-			validated[property] = instance[property];
+		const value: unknown = Reflect.get(instance, property);
+
+		if (value !== undefined) {
+			Reflect.set(validated, property, value);
 		}
 	}
 
-	return validated as Q;
+	return validated;
 }
