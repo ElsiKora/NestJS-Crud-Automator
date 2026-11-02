@@ -88,6 +88,7 @@ it("serves a generated route from the stubbed repository", async () => {
 
 - `synchronize: true` creates the tables, so a method the test does not stub still runs a real query.
 - `ApiAuthorizationModule.forRoot()` provides the guard every generated route uses.
+- A generated CREATE counts the row it stored through its own transaction, past the stubs, and answers 500 unless exactly one row matches the key. Let `save` store the row in the in-memory database, or insert the row a stubbed `save` answers with before the request.
 - The sample needs `better-sqlite3`, `@nestjs/testing`, `@nestjs/platform-fastify`, and `vitest` as development dependencies, next to the packages the application already uses. Nest resolves the constructor parameters from decorator metadata, so run Vitest with a transform that emits it, such as `unplugin-swc`.
 
 ### Column Types SQLite Rejects
