@@ -9,6 +9,8 @@ describe("index exports", () => {
 		expect(indexExports).toHaveProperty("ApiAuthorizationEngine");
 		expect(indexExports).toHaveProperty("ApiAuthorizationPolicyRegistry");
 		expect(indexExports).toHaveProperty("ApiPropertyDescribe");
+		expect(indexExports).toHaveProperty("ApiRequestValidationException");
+		expect(indexExports).toHaveProperty("ApiRequestValidationGetErrors");
 		expect(indexExports).toHaveProperty("EApiRouteGuardStage");
 		expect(indexExports).toHaveProperty("EApiRouteType");
 		expect(indexExports).toHaveProperty("AuthorizationDecisionApplyResult");
