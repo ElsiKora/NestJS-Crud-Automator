@@ -3,6 +3,7 @@ export * from "./apply-auto-expose.utility.test";
 export * from "./auto-dto-context-queue.utility.test";
 export * from "./camel-case-string.utility.test";
 export * from "./capitalize-string.utility.test";
+export * from "./class-transformer";
 export * from "./defer-property-decorator-execution.utility.test";
 export * from "./format-unknown-for-log.utility.test";
 export * from "./generate-entity-information.utility.test";

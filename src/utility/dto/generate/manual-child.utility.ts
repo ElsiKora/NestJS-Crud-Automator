@@ -3,6 +3,7 @@ import type { Type } from "@nestjs/common";
 import type { TManualDtoPropertyMetadata } from "@type/utility/dto/manual-property-metadata.type";
 
 import { CONTEXTUAL_MANUAL_DTO_CONSTANT } from "@constant/dto/contextual-manual.constant";
+import { ClassTransformerCopyExposure } from "@utility/class-transformer/copy-exposure.utility";
 import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
 import { DtoAutoContextPush } from "@utility/dto/auto/context/push.utility";
 import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/get.utility";
@@ -14,7 +15,7 @@ const contextualManualDtoCache: WeakMap<Type<unknown>, Map<string, Type<unknown>
 
 /**
  * Generates a path-aware DTO wrapper for a nested manual DTO inside an auto-generated CRUD DTO.
- * The wrapper replays all original `ApiProperty*` decorators so Swagger, validation, and
+ * The wrapper replays all original `ApiProperty*` decorators and copies every `@Expose` and `@Exclude`, so Swagger, validation, and
  * class-transformer semantics remain intact while the schema name becomes context-specific.
  * @param {Type<unknown>} sourceDto - Source manual DTO class.
  * @param {EApiRouteType} method - Current auto DTO route method.
@@ -87,6 +88,8 @@ export function DtoGenerateContextualManualDto(sourceDto: Type<unknown>, method:
 
 	dtoCache.set(className, GeneratedDTO);
 	DtoAutoContextPush(GeneratedDTO.prototype, method, dtoType);
+
+	ClassTransformerCopyExposure(sourceDto, GeneratedDTO);
 
 	try {
 		for (const [propertyKey, metadata] of propertyMetadata.entries()) {
