@@ -18,7 +18,7 @@ Use it when a controller method is not standard CRUD but should still behave lik
 
 - Metadata fields (`resource`, `route`, `documentation`, `security`, `throttling`, and response `status`, `type`, `headers`, `errors`, `serialization`) are stored as `IApiRouteMetadata`.
 - Runtime fields (`request`, target-first response transformers, `relations`, `dto`, and `autoDto`) are stored as `IApiRouteRuntimeProperties`.
-- `execution.guards` and `execution.interceptors` are applied by the same `@ApiMethod` composition path used by generated routes, including [guard stages](/docs/nestjs-crud-automator/api-reference/decorators/api-method/api-method#guard-stages) relative to `security.authentication.guard` and `ApiAuthorizationGuard`. Custom interceptors run before the internal route-runtime interceptor.
+- `execution.guards` and `execution.interceptors` are applied by the same `@ApiMethod` composition path used by generated routes, including [guard stages](/docs/nestjs-crud-automator/api-reference/decorators/api-method/api-method#guard-stages) relative to `security.authentication.guard` and `ApiAuthorizationGuard`. Custom interceptors run before the internal route-runtime interceptor and after the [request body limits](/docs/nestjs-crud-automator/guides/validation#request-body-limits).
 - Response target keys such as `[EApiControllerResponseTarget.RESPONSE]` belong only to runtime properties, not method metadata.
 
 On a securable controller, startup requires `resource.action` and a `resource.entity` equal to the controller entity, also for a route inherited from a base class.

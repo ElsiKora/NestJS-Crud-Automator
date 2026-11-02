@@ -356,7 +356,7 @@ phones: PhoneEntity[];
 - `@ApiPropertyDate` items are compared by instant: `2026-01-01T00:00:00Z` and `2026-01-01T03:00:00+03:00` are the same item.
 - `@ApiPropertyUUID` items are compared without regard to case. `@ApiPropertyString` items are compared exactly. So is a UUID inside an object item: `[{ "id": "A1…" }, { "id": "a1…" }]` is two items.
 - `@ApiPropertyObject` items are compared by value, whatever their key order. An item of a DTO class is compared on the properties the class declares with validators, so an undeclared key that `whitelist` strips cannot make two items distinct. Without `whitelist` the key stays on the item and still does not count: `[{ "id": 1, "note": "a" }, { "id": 1, "note": "b" }]` answers `400` when `note` has no validator. A free-form item with no declared properties is compared on all its keys.
-- Items may nest up to 64 levels, the item itself being the first. Past that the array answers `400` with `<property> must not nest items more than 64 levels deep`, whether or not it holds duplicates.
+- Items may nest up to 64 levels, the item itself being the first. Past that the array answers `400` with `<property> must not nest items more than 64 levels deep`, whether or not it holds duplicates. In a body on an `@ApiMethod` route the [request body limits](#request-body-limits) refuse first, with their own message.
 - An item of a class that shows no enumerable data compares by identity, so it never equals another instance. That covers an empty instance of a class with no validators, which makes `[{}, {}]` on such a class two items, and what a custom `@Transform` can produce, such as a `Map`, a `Set`, a `RegExp` or a class with only private fields. Plain `{}` items and items of a class that declares properties still compare by value.
 
 ## Validation Groups
@@ -431,6 +431,52 @@ bootstrap();
 
 A global `ValidationPipe` does not validate root-level discriminated `@ApiRouteCustom` bodies: Crud Automator selects the variant DTO, transforms it, and validates it itself. Mirror the pipe options you need on the discriminated body config with `validatorOptions`, `transformOptions`, and `exceptionFactory`. `exceptionFactory` behaves like the `ValidationPipe` option and may be sync or async: it receives the selected variant's native `ValidationError[]`, or one synthetic `mustMatchDiscriminatorMapping` error without `value` for a non-object body or a missing or unknown discriminator, and its return value is thrown. Discriminator messages never echo the rejected value. Errors thrown while transforming the selected variant, including an `HttpException` or any other error from your own `@Transform`, are not passed to `exceptionFactory` and propagate unchanged, exactly as with Nest `ValidationPipe`. See [`@ApiRouteCustom`](/docs/nestjs-crud-automator/api-reference/decorators/api-method/api-route-custom#root-level-discriminated-dtos) for a full example.
 
+## Request Body Limits
+
+A request body deeper than 64 levels, or with an object holding more than 1000 keys, answers `400` on every route that goes through `@ApiMethod`: generated routes, `@ApiRouteCustom` and `@ApiMethod` itself. The values are fixed and there is no option. The answer has the shape of any other validation failure and never echoes a client key:
+
+```json
+{
+	"statusCode": 400,
+	"message": ["request body must not hold an object with more than 1000 keys"],
+	"error": "Bad Request",
+	"timestamp": 1704067200000,
+	"correlationID": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+A body that is too deep gets `request body must not nest more than 64 levels deep`.
+
+- The body is the first level, and each object or array inside it is one more. A scalar is not a level. Array items count toward depth; array length is not limited here, so use `maxItems` for that.
+- The check runs after every guard and before any pipe, so an anonymous or forbidden caller still gets `401` or `403`, whatever the body. It also runs before the transform of a [root-level discriminated body](#root-level-discriminated-custom-route-bodies). Because no pipe has run, neither a `ValidationPipe` `exceptionFactory` nor a discriminated `exceptionFactory` is called for this `400`, and no subscriber error hook fires.
+- Global and controller interceptors, and a `@UseInterceptors` written below the route decorator, run before the check and see the unchecked body. `execution.interceptors` run after it.
+- The check looks at the parsed body as it stands when it runs. A scalar, a raw `Buffer` or a stream is not walked, and neither is a class instance such as a `Date` that an earlier interceptor put in the body. A route with a custom parser that keeps its bytes in `rawBody` is limited by what that parser leaves in `body`.
+- It applies to every method, so a `DELETE` with an oversized body is refused too. A `GET` with no body is not affected.
+- Query and path parameters are not part of this check.
+
+### Plain Routes And `bodyLimit`
+
+A host `@Post()` with `@Body()` that does not use `@ApiMethod` or `@ApiRouteCustom` is not covered. On such a route, the transforming `ValidationPipe` is the expensive step, because the `class-transformer` it calls is quadratic in the keys of one object. Bound those routes with the adapter's body limit.
+
+Cost of one request on a plain route with a transforming `ValidationPipe`, over a real socket, on one object of 8-byte members, which is the worst case for its size. NestJS 12.3, `class-transformer` 0.5.1, Node.js 26, median of 5 requests on a busy development machine:
+
+| Body size | Keys in the object | Fastify                                           | Express                 |
+| --------- | ------------------ | ------------------------------------------------- | ----------------------- |
+| 64 KiB    | 8,190              | `200`, about 50 ms CPU                            | `200`, about 55 ms CPU  |
+| 100 KiB   | 12,798             | `200`, about 100 ms CPU                           | `200`, about 100 ms CPU |
+| 256 KiB   | 32,766             | `200`, about 600 ms CPU                           | `413`, about 1 ms CPU   |
+| 1 MiB     | 131,070            | `200`, about 11 s CPU, and the event loop is held | `413`, about 6 ms CPU   |
+
+The table uses each adapter's default limit: 1 MiB on Fastify and 100 KiB on Express. Express already stops before the expensive range, so it needs nothing unless you raised its limit. Fastify needs a lower one where plain routes take JSON:
+
+```typescript filename="main.ts" copy
+const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ bodyLimit: 102400 }));
+```
+
+With `bodyLimit: 102400`, a body just under the limit costs about 100 ms and answers `200`, and a 256 KiB body answers `413` for about 2 ms. A client still writing a much larger body when the server answers can see a connection reset instead of the `413`; that happened at 1 MiB against this limit.
+
+`bodyLimit` stays useful on `@ApiMethod` routes as well. A 1 MiB body made of many small objects passes the limits above and cost about 400 ms in the same measurement.
+
 ## Validation in Subscribers
 
 Perform custom validation in subscribers:
@@ -464,6 +510,8 @@ export class UserValidationSubscriber extends ApiRouteSubscriberBase<UserEntity>
 ### 5.0.0
 
 `isUniqueItems: true` on a request array is now enforced. Before 5.0.0 it only set `uniqueItems` in the OpenAPI schema, so `?uniques=7&uniques=7` passed validation and now answers `400`, as does an array whose items nest more than 64 levels. Set `isUniqueItems: false` on an array that accepts repeated values, or remove repeats in the client.
+
+Bodies over the [request body limits](#request-body-limits) now answer `400` on every `@ApiMethod` route: deeper than 64 levels, or with an object holding more than 1000 keys. Before 5.0.0 they reached the pipe, where a wide body held the event loop and a deep one could overflow the stack. There is no option to raise the limits. Send a free-form object of more than 1000 keys as an array of entries, and bound plain routes with the adapter's `bodyLimit`.
 
 ## Next Steps
 

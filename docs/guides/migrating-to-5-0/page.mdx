@@ -232,6 +232,10 @@ A named `@Expose`, own or inherited, next to `isExpose: false` or an `@Exclude` 
 
 An application bundled with two copies of `class-transformer` now fails at decoration with `Cannot read class-transformer metadata`. The `class-transformer` peer range is `>=0.5.1 <0.5.2`. See [DTOs: `@Expose` Migration Notes](/docs/nestjs-crud-automator/core-concepts/dtos#expose-migration-notes).
 
+## Request Body Limits
+
+A request body deeper than 64 levels, or with an object holding more than 1000 keys, now answers `400` on every generated route, `@ApiRouteCustom` and `@ApiMethod` route, after the guards and before any pipe. The limits are fixed. Send a free-form object of more than 1000 keys as an array of entries. A plain Nest route is not covered, so bound it with the adapter's `bodyLimit`. See [Validation: Request Body Limits](/docs/nestjs-crud-automator/guides/validation#request-body-limits).
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.

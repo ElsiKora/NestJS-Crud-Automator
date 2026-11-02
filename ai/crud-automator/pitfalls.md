@@ -167,6 +167,12 @@ Omitted route config and `SUPPORTS` must not add a new `BEGIN`. `MANDATORY` requ
 
 Root-level discriminated `@ApiRouteCustom` bodies are validated by Crud Automator, not by the host `ValidationPipe`, so a global `exceptionFactory`, `whitelist`, or `transformOptions` does not apply. Mirror them on the body config (`exceptionFactory`, `validatorOptions`, `transformOptions`); set `validatorOptions.validationError: { target: false, value: false }` when the factory must not see submitted values.
 
+## Oversized Request Bodies
+
+A body deeper than 64 levels or with an object of more than 1000 keys answers `400` on every `@ApiMethod`, generated and `@ApiRouteCustom` route. Do not add an option or a per-route override, and do not design a free-form request object that can pass 1000 keys; use an array of entries. No `exceptionFactory` or subscriber error hook sees this `400`. Global and controller interceptors run before the check, so they see the unchecked body.
+
+A plain Nest route with a transforming `ValidationPipe` is not covered, and `class-transformer` is quadratic in the keys of one object: 1 MiB in one object held the event loop for about 11 s on Fastify's default `bodyLimit`. Set `new FastifyAdapter({ bodyLimit })` where plain routes take JSON. Express defaults to 100 KiB.
+
 ## Serializing The Interceptor Cause
 
 `CorrelationIDResponseBodyInterceptor` rethrows a new `HttpException` with what it caught in `cause`: the `ThrottlerException` or `HttpException` itself, whose own cause stays at `exception.cause.cause`, otherwise the value as thrown, which may not be an `Error`. A filter must answer with `exception.getResponse()`, which is always an object with `correlationID`, `statusCode`, and `timestamp`, and with `error` and `message` unless the thrown object response left them out, and report only `FormatErrorEvidenceForLog(exception.cause)`.
