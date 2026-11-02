@@ -122,6 +122,26 @@ describe("ApiControllerGetListQueryPlanCompiler order fields", () => {
 		expect(() => compileOrderField("rank", { isCursor: true, isResponseDto: true })).toThrow(`${ROUTE} "rank" is not orderable: the manual GET_LIST response DTO does not publish it`);
 	});
 
+	it.each([
+		["defaultOrder", { defaultOrder: [{ direction: EFilterOrderDirection.ASC, field: "exposeHidden" }], tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }] }],
+		[
+			"tieBreakers",
+			{
+				tieBreakers: [
+					{ direction: EFilterOrderDirection.ASC, field: "exposeHidden" },
+					{ direction: EFilterOrderDirection.ASC, field: "id" },
+				],
+			},
+		],
+	])("names the route of a hidden CURSOR %s field", (_name: string, entries: Record<string, unknown>) => {
+		const routeConfig = {
+			request: { [EApiControllerRequestTarget.QUERY]: { order: { ...entries, fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT }, pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR } } },
+			security: { authentication: { guard: OrderFieldUserGuard } },
+		} as unknown as TApiControllerPropertiesRoute<OrderFieldReasonEntity, EApiRouteType.GET_LIST>;
+
+		expect(() => ApiControllerGetListQueryPlanCompiler.compile(OrderFieldReasonController, OrderFieldReasonEntity, getEntityMetadata(), routeConfig)).toThrow('Controller "OrderFieldReasonController" route "getList": CURSOR GET_LIST order field "exposeHidden" must be unconditionally raw-exposed in the generated response');
+	});
+
 	it.each(["missing", "owner.name"])("keeps the scalar path message for %s, which names no direct scalar column", (field: string) => {
 		expect(() => compileOrderField(field)).toThrow(`${ROUTE} "${field}" is not an enabled direct scalar path`);
 	});
