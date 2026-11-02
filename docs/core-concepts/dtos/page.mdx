@@ -167,7 +167,13 @@ export class PublicGameResponseDto {
 }
 ```
 
-Keep `@Expose({ name: "id" })` above the Automator property decorator so the explicit class-transformer alias is applied last.
+The order of `@Expose` and the Automator property decorator does not matter, and neither does when a lazy `entity` resolves. An explicit `@Expose` keeps its name, groups and versions, also one inherited from a parent class; the property decorator exposes a property under its own name only when no `@Expose` covers it. `isExpose: false` and `@Exclude` win over an `@Expose` in either order.
+
+#### `@Expose` Migration Notes
+
+Before 5.0.0 an `@ApiProperty*` decorator that ran after an explicit `@Expose` erased it, so only `@Expose` above the property decorator with an `entity` that resolves at once kept its name. A property that lost its name that way now reads and writes the declared name; remove the `@Expose` to keep the property name.
+
+An application bundled so that `class-transformer` resolves to another entry than its CommonJS one fails at decoration with `Cannot read class-transformer metadata`. Resolve `class-transformer` to `cjs/index.js`, or leave it external.
 
 ### Response DTOs
 

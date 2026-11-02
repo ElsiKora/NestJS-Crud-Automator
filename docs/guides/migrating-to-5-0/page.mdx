@@ -224,6 +224,10 @@ Inside code that is generic over `E`, `getList` needs `{ limit, page } as TApiCo
 
 See [Entities: Migration Notes](/docs/nestjs-crud-automator/core-concepts/entities#migration-notes).
 
+## Explicit `@Expose` With `@ApiProperty*`
+
+An explicit `@Expose` now keeps its name, groups and versions whatever the decorator order. Before 5.0.0 an `@ApiProperty*` decorator erased it silently when it ran after the `@Expose`: with `@ApiProperty*` above `@Expose`, with a lazy `entity` in either order, and when a child class redeclared a property whose `@Expose` is on the parent. Such a property now reads and writes the name its `@Expose` declares, so its wire name changes. Remove the `@Expose` to keep the property name. See [DTOs: `@Expose` Migration Notes](/docs/nestjs-crud-automator/core-concepts/dtos#expose-migration-notes).
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.
