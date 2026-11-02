@@ -54,6 +54,8 @@ The DTO publishes `limit`, `page`, `orderBy`, `orderDirection` and its filter gr
 
 A route with a typed filter rejects the same keys, every key outside its plan, with `400 FILTER_NOT_VALID`. Both routes therefore reject unknown keys; only the body differs.
 
+A filter never answers unfiltered. A manual QUERY DTO has no pairing validator of its own, so the route refuses a filter group it cannot apply with `400 FILTER_NOT_VALID`, before any SQL: `label[value]=x` or `label[operator]=eq` alone, both `[value]` and `[values]`, or a value next to `isnull` or `notnull`. A manual QUERY DTO that publishes a filter group the route can never apply, on an unknown column, the root primary key, a hidden column, a bare relation, a deep path or a to-many path, fails at startup with an error that names the controller, the DTO and the key. Other keys it publishes, such as `campaign`, are its own and the route does not use them.
+
 ### Migration Notes
 
 Before 5.0.0, these routes relied on a host `ValidationPipe`. Without one, an unknown `orderBy` or missing pagination returned `500`, `limit` had no upper bound, an unknown operator returned the unfiltered list, and an invalid filter value returned `500` on PostgreSQL.
@@ -77,6 +79,7 @@ An `in` or `notin` filter with one item, such as `status[operator]=in&status[val
 - A filter group for a field the DTO does not publish, such as a misspelled field or `id[...]`: correct or remove it. The route used to ignore the group and return the unfiltered list, with or without a host pipe. To filter by the primary key, add a typed `filter` to the route.
 - A filter on an entity column that a manual QUERY DTO does not declare: declare the `[operator]` and `[value]` or `[values]` properties on the DTO. The route used to apply it from entity metadata.
 - A filter through a to-many relation, such as `tags.name[...]` on a `@OneToMany` or `@ManyToMany` property: use a typed plan's to-one paths, a generated controller on the child table, or a custom method. The generated QUERY DTO and OpenAPI used to publish these filters and the route applied them; the DTO now publishes and the route applies one-hop to-one paths only, as typed plans do.
+- With a manual QUERY DTO, an incomplete filter group, both `[value]` and `[values]`, or a value next to `isnull` or `notnull`: send a complete group. The route used to skip the group and return the unfiltered list. A DTO that publishes a filter the route cannot apply now fails at startup.
 - Any other query key the DTO does not publish, such as a cache-buster `_=1730000000` (jQuery `cache: false` and some HTTP clients add one), `utm_source` and other tracking parameters, or a misspelled plain key: remove it, or declare it on a manual QUERY DTO. The route used to ignore these keys.
 
 The route validates the raw request query, not the value a host pipe returns. A custom pipe that rewrites the query, for example one that lowercases `orderDirection=ASC`, no longer rescues such a request: the route still answers `400`. Fix the client, or rewrite the query in a route-before subscriber, whose result the route validates.
