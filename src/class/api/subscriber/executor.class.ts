@@ -7,6 +7,7 @@ import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/ap
 import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route/error-execution-context.interface";
 import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route/execution/context";
 import type { IApiFunctionSubscriberProperties } from "@interface/decorator/api/subscriber";
+import type { TMetadataStorageTarget } from "@type/class";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { apiSubscriberRegistry } from "@class/api/subscriber/registry.class";
@@ -15,6 +16,7 @@ import { SERVICE_API_DECORATOR_CONSTANT } from "@constant/decorator/api/service.
 import { EApiFunctionSubscriberTransactionExpectation, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
 const subscriberLogger: LoggerUtility = LoggerUtility.getLogger("ApiSubscriberExecutor");
@@ -46,8 +48,8 @@ export class ApiSubscriberExecutor {
 			return;
 		}
 
-		const entityName: string = ApiSubscriberExecutor.resolveEntityName(entity, context);
-		const subscribers: Array<IApiSubscriberFunction<IApiBaseEntity>> = apiSubscriberRegistry.getFunctionSubscribers(entityName, functionType, action ?? context.action);
+		const entityTarget: TMetadataStorageTarget = ApiSubscriberExecutor.resolveEntityTarget(entity, context);
+		const subscribers: Array<IApiSubscriberFunction<IApiBaseEntity>> = apiSubscriberRegistry.getFunctionSubscribers(entityTarget, functionType, action ?? context.action);
 
 		await ApiFunctionContextStorage.runWithoutStepContext(async (): Promise<void> => {
 			for (const subscriber of subscribers) {
@@ -57,7 +59,7 @@ export class ApiSubscriberExecutor {
 				if (typeof hook === "function") {
 					const properties: IApiFunctionSubscriberProperties<IApiBaseEntity> | undefined = apiSubscriberRegistry.getFunctionSubscriberProperties(subscriber);
 					ApiSubscriberExecutor.assertFunctionSubscriberTransactionExpectation(subscriber.constructor.name, properties, context);
-					subscriberLogger.verbose(`Executing function error hook ${hookName} from ${subscriber.constructor.name} for entity ${entityName}`);
+					subscriberLogger.verbose(`Executing function error hook ${hookName} from ${subscriber.constructor.name} for entity ${entityTarget.name}`);
 					await hook.call(subscriber, context, error);
 				}
 			}
@@ -69,8 +71,8 @@ export class ApiSubscriberExecutor {
 			return context.result;
 		}
 
-		const entityName: string = ApiSubscriberExecutor.resolveEntityName(entity, context);
-		const subscribers: Array<IApiSubscriberFunction<IApiBaseEntity>> = apiSubscriberRegistry.getFunctionSubscribers(entityName, functionType, action ?? context.action);
+		const entityTarget: TMetadataStorageTarget = ApiSubscriberExecutor.resolveEntityTarget(entity, context);
+		const subscribers: Array<IApiSubscriberFunction<IApiBaseEntity>> = apiSubscriberRegistry.getFunctionSubscribers(entityTarget, functionType, action ?? context.action);
 		let result: TResult | undefined = context.result;
 
 		await ApiFunctionContextStorage.runWithoutStepContext(async (): Promise<void> => {
@@ -81,7 +83,7 @@ export class ApiSubscriberExecutor {
 				if (typeof hook === "function") {
 					const properties: IApiFunctionSubscriberProperties<IApiBaseEntity> | undefined = apiSubscriberRegistry.getFunctionSubscriberProperties(subscriber);
 					ApiSubscriberExecutor.assertFunctionSubscriberTransactionExpectation(subscriber.constructor.name, properties, context);
-					subscriberLogger.verbose(`Executing function hook ${hookName} from ${subscriber.constructor.name} for entity ${entityName}`);
+					subscriberLogger.verbose(`Executing function hook ${hookName} from ${subscriber.constructor.name} for entity ${entityTarget.name}`);
 					const hookResult: TResult | undefined = (await hook.call(subscriber, { ...context, result })) as TResult | undefined;
 
 					if (hookResult !== undefined) {
@@ -99,15 +101,15 @@ export class ApiSubscriberExecutor {
 			return;
 		}
 
-		const entityName: string = ApiSubscriberExecutor.resolveEntityName(entity, context);
-		const subscribers: Array<IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>> = apiSubscriberRegistry.getRouteSubscribers<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(entityName, constructor, routeType, action ?? context.action);
+		const entityTarget: TMetadataStorageTarget = ApiSubscriberExecutor.resolveEntityTarget(entity, context);
+		const subscribers: Array<IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>> = apiSubscriberRegistry.getRouteSubscribers<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(entityTarget, constructor, routeType, action ?? context.action);
 
 		for (const subscriber of subscribers) {
 			const hookName: string = ApiSubscriberExecutor.resolveHookName(onType, routeType);
 			const hook: unknown = Reflect.get(subscriber, hookName);
 
 			if (typeof hook === "function") {
-				subscriberLogger.verbose(`Executing route error hook ${hookName} from ${subscriber.constructor.name} for entity ${entityName}`);
+				subscriberLogger.verbose(`Executing route error hook ${hookName} from ${subscriber.constructor.name} for entity ${entityTarget.name}`);
 				await hook.call(subscriber, context, error);
 			}
 		}
@@ -118,8 +120,8 @@ export class ApiSubscriberExecutor {
 			return context.result;
 		}
 
-		const entityName: string = ApiSubscriberExecutor.resolveEntityName(entity, context);
-		const subscribers: Array<IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>> = apiSubscriberRegistry.getRouteSubscribers<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(entityName, constructor, routeType, action ?? context.action);
+		const entityTarget: TMetadataStorageTarget = ApiSubscriberExecutor.resolveEntityTarget(entity, context);
+		const subscribers: Array<IApiSubscriberRoute<IApiBaseEntity, EApiRouteSubscriberAuthorizationExpectation, EApiControllerGetListQueryPaginationMode>> = apiSubscriberRegistry.getRouteSubscribers<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(entityTarget, constructor, routeType, action ?? context.action);
 		let result: TResult | undefined = context.result;
 
 		for (const subscriber of subscribers) {
@@ -127,7 +129,7 @@ export class ApiSubscriberExecutor {
 			const hook: unknown = Reflect.get(subscriber, hookName);
 
 			if (typeof hook === "function") {
-				subscriberLogger.verbose(`Executing route hook ${hookName} from ${subscriber.constructor.name} for entity ${entityName}`);
+				subscriberLogger.verbose(`Executing route hook ${hookName} from ${subscriber.constructor.name} for entity ${entityTarget.name}`);
 				const hookResult: TResult | undefined = (await hook.call(subscriber, { ...context, result })) as TResult | undefined;
 
 				if (hookResult !== undefined) {
@@ -144,8 +146,8 @@ export class ApiSubscriberExecutor {
 			return;
 		}
 
-		const entityName: string = ApiSubscriberExecutor.resolveEntityName(entity, context);
-		const subscribers: Array<IApiSubscriberFunction<IApiBaseEntity>> = apiSubscriberRegistry.getFunctionSubscribers(entityName, functionType, action ?? context.action);
+		const entityTarget: TMetadataStorageTarget = ApiSubscriberExecutor.resolveEntityTarget(entity, context);
+		const subscribers: Array<IApiSubscriberFunction<IApiBaseEntity>> = apiSubscriberRegistry.getFunctionSubscribers(entityTarget, functionType, action ?? context.action);
 
 		for (const subscriber of subscribers) {
 			if (!ApiSubscriberExecutor.hasFunctionSubscriberHook(subscriber, onType, functionType)) {
@@ -175,27 +177,48 @@ export class ApiSubscriberExecutor {
 		return typeof subscriber[ApiSubscriberExecutor.resolveHookName(onType, functionType) as keyof IApiSubscriberFunction<IApiBaseEntity>] === "function";
 	}
 
-	private static resolveEntityName(entity: IApiBaseEntity, context?: { DATA?: unknown }): string {
+	/**
+	 * Reads a nested value of the execution context data without trusting its shape.
+	 * @param {unknown} data - Execution context data.
+	 * @param {ReadonlyArray<string>} path - Property names to follow.
+	 * @returns {unknown} The value at the path, or undefined when the path does not exist.
+	 */
+	private static readDataPath(data: unknown, path: ReadonlyArray<string>): unknown {
+		let current: unknown = data;
+
+		for (const key of path) {
+			if (current === null || (typeof current !== "object" && typeof current !== "function")) {
+				return undefined;
+			}
+
+			current = Reflect.get(current, key);
+		}
+
+		return current;
+	}
+
+	/**
+	 * Resolves the entity class whose subscribers run for an execution context.
+	 * The class comes from the route properties, the custom route resource, the repository metadata, or the repository target, in that order,
+	 * and falls back to the constructor of the entity instance. Names are never resolved here, so a request never looks an entity up by name.
+	 * @param {IApiBaseEntity} entity - Entity instance passed to the hooks.
+	 * @param {{ DATA?: unknown }} [context] - Execution context of the hooks.
+	 * @param {unknown} [context.DATA] - Context data that may carry the route properties, route metadata, or repository.
+	 * @returns {TMetadataStorageTarget} The entity class subscribers are registered for.
+	 */
+	private static resolveEntityTarget(entity: IApiBaseEntity, context?: { DATA?: unknown }): TMetadataStorageTarget {
 		const data: unknown = context?.DATA;
-		const entityMetadataName: unknown = data && typeof data === "object" && "entityMetadata" in data ? (data as { entityMetadata?: { name?: unknown } }).entityMetadata?.name : undefined;
+		const candidates: Array<unknown> = [ApiSubscriberExecutor.readDataPath(data, ["properties", "entity"]), ApiSubscriberExecutor.readDataPath(data, ["metadata", "resource", "entity"]), ApiSubscriberExecutor.readDataPath(data, ["repository", "metadata", "target"]), ApiSubscriberExecutor.readDataPath(data, ["repository", "target"])];
 
-		if (typeof entityMetadataName === "string" && entityMetadataName.length > 0) {
-			return entityMetadataName;
+		for (const candidate of candidates) {
+			if (IsEntityConstructor(candidate)) {
+				return candidate;
+			}
 		}
 
-		const propertyEntityName: unknown = data && typeof data === "object" && "properties" in data ? (data as { properties?: { entity?: { name?: unknown } } }).properties?.entity?.name : undefined;
+		const entityConstructor: unknown = entity.constructor;
 
-		if (typeof propertyEntityName === "string" && propertyEntityName.length > 0) {
-			return propertyEntityName;
-		}
-
-		const repositoryName: unknown = data && typeof data === "object" && "repository" in data ? ((data as { repository?: { metadata?: { name?: unknown }; target?: { name?: unknown } } }).repository?.metadata?.name ?? (data as { repository?: { target?: { name?: unknown } } }).repository?.target?.name) : undefined;
-
-		if (typeof repositoryName === "string" && repositoryName.length > 0) {
-			return repositoryName;
-		}
-
-		return entity.constructor.name;
+		return IsEntityConstructor(entityConstructor) ? entityConstructor : Object;
 	}
 
 	private static resolveFunctionSubscriberEventManager(context: { DATA?: unknown }): unknown {

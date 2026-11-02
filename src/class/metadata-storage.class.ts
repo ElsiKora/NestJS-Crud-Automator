@@ -2,6 +2,8 @@ import type { IMetadataEntry } from "@interface/class";
 import type { TMetadata, TMetadataStorageTarget } from "@type/class";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
+import { AssertEntityClass } from "@utility/assert/entity-class.utility";
+import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
 const metadataStorageLogger: LoggerUtility = LoggerUtility.getLogger("MetadataStorage");
@@ -88,6 +90,8 @@ export class MetadataStorage {
 	public getMetadata(target: TMetadataStorageTarget, propertyName: string): IMetadataEntry | undefined;
 	public getMetadata<K extends keyof IMetadataEntry>(target: TMetadataStorageTarget, propertyName: string, key: K): IMetadataEntry[K] | undefined;
 	public getMetadata(target: TMetadataStorageTarget, propertyName?: string, key?: keyof IMetadataEntry): IMetadataEntry | IMetadataEntry[keyof IMetadataEntry] | TMetadata | undefined {
+		AssertEntityClass("MetadataStorage.getMetadata", target);
+
 		const wrappers: Array<EntityMetadataWrapper> = this.getLineageWrappers(target);
 
 		if (wrappers.length === 0) return undefined;
@@ -122,6 +126,8 @@ export class MetadataStorage {
 	 * @template K - Metadata key type.
 	 */
 	public setMetadata<K extends keyof IMetadataEntry>(target: TMetadataStorageTarget, propertyName: string | symbol, key: K, value: IMetadataEntry[K]): void {
+		AssertEntityClass("MetadataStorage.setMetadata", target);
+
 		let wrapper: EntityMetadataWrapper | undefined = this.REGISTRY.get(target);
 
 		if (!wrapper) {
@@ -143,8 +149,8 @@ export class MetadataStorage {
 		const wrappers: Array<EntityMetadataWrapper> = [];
 		let current: unknown = target;
 
-		while (typeof current === "function" && current !== Function.prototype) {
-			const wrapper: EntityMetadataWrapper | undefined = this.REGISTRY.get(current as TMetadataStorageTarget);
+		while (IsEntityConstructor(current) && current !== Function.prototype) {
+			const wrapper: EntityMetadataWrapper | undefined = this.REGISTRY.get(current);
 
 			if (wrapper) {
 				wrappers.push(wrapper);

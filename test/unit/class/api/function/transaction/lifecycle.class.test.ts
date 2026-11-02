@@ -1,5 +1,6 @@
 import type { IApiFunctionTransactionFailure } from "@interface/class/api/function";
 import type { IApiSubscriberFunction, IApiSubscriberFunctionTransactionContext } from "@interface/class/api/subscriber/function";
+import type { TMetadataStorageTarget } from "@type/class";
 
 import { ApiFunctionTransactionCommitUnknownOutcomeException, ApiFunctionTransactionPostCommitException, ApiFunctionTransactionRollbackException } from "@class/api/function/transaction/exception";
 import { ApiFunctionTransactionLifecycle } from "@class/api/function/transaction/lifecycle.class";
@@ -9,9 +10,9 @@ import { EApiFunctionTransactionFailureStage, EApiFunctionTransactionOutcome, EA
 import { resetApiSubscriberRegistry } from "@test/unit/fixture";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-function createSucceededRegistry(entityName: string, functionTypes: ReadonlyArray<EApiFunctionType>): ApiFunctionTransactionRegistry {
+function createSucceededRegistry(entity: TMetadataStorageTarget, functionTypes: ReadonlyArray<EApiFunctionType>): ApiFunctionTransactionRegistry {
 	const registry: ApiFunctionTransactionRegistry = new ApiFunctionTransactionRegistry("transaction-id", {
-		entityName,
+		entityName: entity.name,
 		functionType: functionTypes[0] ?? EApiFunctionType.CREATE,
 		kind: EApiFunctionTransactionOwnerKind.FUNCTION,
 		methodName: "owner",
@@ -19,7 +20,7 @@ function createSucceededRegistry(entityName: string, functionTypes: ReadonlyArra
 
 	for (const functionType of functionTypes) {
 		const sequence: number = registry.beginEvent({
-			entityName,
+			entity,
 			functionType,
 			isSubscriberObservable: true,
 			methodName: functionType,
@@ -70,7 +71,7 @@ describe("ApiFunctionTransactionLifecycle", () => {
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: LifecycleOrderingEntity, functions: [{ type: EApiFunctionType.UPDATE }], priority: 1 }, secondSubscriber);
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: LifecycleOrderingEntity, functions: [{ type: EApiFunctionType.CREATE }], priority: 10 }, highSubscriber);
 
-		const registry: ApiFunctionTransactionRegistry = createSucceededRegistry(LifecycleOrderingEntity.name, [EApiFunctionType.CREATE, EApiFunctionType.UPDATE]);
+		const registry: ApiFunctionTransactionRegistry = createSucceededRegistry(LifecycleOrderingEntity, [EApiFunctionType.CREATE, EApiFunctionType.UPDATE]);
 
 		await ApiFunctionTransactionLifecycle.executeAfterCommit(registry);
 
@@ -95,7 +96,7 @@ describe("ApiFunctionTransactionLifecycle", () => {
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FirstEntity }, firstSubscriber);
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: SecondEntity }, secondSubscriber);
 
-		await ApiFunctionTransactionLifecycle.executeAfterCommit(createSucceededRegistry(SecondEntity.name, [EApiFunctionType.CREATE]));
+		await ApiFunctionTransactionLifecycle.executeAfterCommit(createSucceededRegistry(SecondEntity, [EApiFunctionType.CREATE]));
 
 		expect(FirstEntity.name).toBe(SecondEntity.name);
 		expect(firstSubscriber.onAfterCommit).not.toHaveBeenCalled();
@@ -131,7 +132,7 @@ describe("ApiFunctionTransactionLifecycle", () => {
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: LifecycleCommitFailureEntity, priority: 2 }, firstSubscriber);
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: LifecycleCommitFailureEntity, priority: 1 }, secondSubscriber);
 
-		const registry: ApiFunctionTransactionRegistry = createSucceededRegistry(LifecycleCommitFailureEntity.name, [EApiFunctionType.CREATE]);
+		const registry: ApiFunctionTransactionRegistry = createSucceededRegistry(LifecycleCommitFailureEntity, [EApiFunctionType.CREATE]);
 		let thrownError: unknown;
 
 		try {
@@ -177,7 +178,7 @@ describe("ApiFunctionTransactionLifecycle", () => {
 
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: LifecycleRollbackEntity }, subscriber);
 
-		const registry: ApiFunctionTransactionRegistry = createSucceededRegistry(LifecycleRollbackEntity.name, [EApiFunctionType.UPDATE]);
+		const registry: ApiFunctionTransactionRegistry = createSucceededRegistry(LifecycleRollbackEntity, [EApiFunctionType.UPDATE]);
 
 		await expect(ApiFunctionTransactionLifecycle.executeAfterRollback(registry, operationError)).rejects.toBe(operationError);
 		expect(subscriber.onAfterRollback).toHaveBeenCalledTimes(1);
@@ -209,7 +210,7 @@ describe("ApiFunctionTransactionLifecycle", () => {
 
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: LifecycleRollbackFailureEntity }, subscriber);
 
-		const registry: ApiFunctionTransactionRegistry = createSucceededRegistry(LifecycleRollbackFailureEntity.name, [EApiFunctionType.DELETE]);
+		const registry: ApiFunctionTransactionRegistry = createSucceededRegistry(LifecycleRollbackFailureEntity, [EApiFunctionType.DELETE]);
 		let thrownError: unknown;
 
 		try {
@@ -257,7 +258,7 @@ describe("ApiFunctionTransactionLifecycle", () => {
 
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: LifecycleUnknownCommitEntity }, subscriber);
 
-		const registry: ApiFunctionTransactionRegistry = createSucceededRegistry(LifecycleUnknownCommitEntity.name, [EApiFunctionType.CREATE]);
+		const registry: ApiFunctionTransactionRegistry = createSucceededRegistry(LifecycleUnknownCommitEntity, [EApiFunctionType.CREATE]);
 
 		await expect(ApiFunctionTransactionLifecycle.executeCommitUnknown(registry, commitError)).rejects.toMatchObject({
 			commitFailure: {

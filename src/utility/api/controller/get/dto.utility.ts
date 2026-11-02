@@ -23,9 +23,9 @@ import { DtoGenerateReadParameters } from "@utility/dto/generate/read-parameters
 import { DtoGenerateTableInheritanceResponse } from "@utility/dto/generate/table-inheritance-response.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
-const getListItemResponseDtoCache: Map<string, Type<unknown>> = new Map<string, Type<unknown>>();
-const getListCursorItemResponseDtoCache: WeakMap<object, WeakMap<object, Map<string, Type<unknown>>>> = new WeakMap<object, WeakMap<object, Map<string, Type<unknown>>>>();
-const getListCursorItemResponseDtoNameOwnerCache: WeakMap<object, Map<string, object>> = new WeakMap<object, Map<string, object>>();
+const getListItemResponseDtoCache: WeakMap<object, WeakMap<object, Map<string, Type<unknown>>>> = new WeakMap<object, WeakMap<object, Map<string, Type<unknown>>>>();
+const getListItemResponseDtoNameOwnerCache: WeakMap<object, Map<string, object>> = new WeakMap<object, Map<string, object>>();
+const getListItemResponseDtoNameModeCache: WeakMap<object, Map<string, EApiControllerGetListQueryPaginationMode>> = new WeakMap<object, Map<string, EApiControllerGetListQueryPaginationMode>>();
 
 /**
  * Resolves a DTO class for a generated controller route.
@@ -81,7 +81,7 @@ export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R exte
 			throw ErrorException("Custom item response DTO configuration is supported only for the GET_LIST RESPONSE DTO");
 		}
 
-		return getGetListItemResponseDto(properties.entity, entity, configuredDto, method, dtoType, schemaPrefix, queryPlan);
+		return getGetListItemResponseDto(properties.entity, configuredDto, method, dtoType, schemaPrefix, queryPlan);
 	}
 
 	if (dtoType === EApiDtoTypeValue.PARAMETERS) {
@@ -142,57 +142,46 @@ function buildGetListItemResponseDtoName(config: IApiControllerPropertiesRouteGe
 /**
  * Generates or returns a cached list wrapper around a configured custom item response DTO.
  * @param {ObjectLiteral} resourceClass - Entity class used for wrapper metadata.
- * @param {IApiEntity<E>} entity - Entity metadata used for naming.
  * @param {IApiControllerPropertiesRouteGetListResponseDtoConfig} config - Custom item response DTO config.
  * @param {EApiRouteType} method - Current route type.
  * @param {EApiDtoType} dtoType - Current DTO type.
  * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Compiled pagination plan selecting the page or cursor wrapper.
  * @returns {Type<unknown>} Generated list wrapper DTO class.
- * @template E - Entity type.
  */
-function getGetListItemResponseDto<E extends IApiBaseEntity>(resourceClass: ObjectLiteral, entity: IApiEntity<E>, config: IApiControllerPropertiesRouteGetListResponseDtoConfig, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> {
-	const isCursor: boolean = ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
+function getGetListItemResponseDto(resourceClass: ObjectLiteral, config: IApiControllerPropertiesRouteGetListResponseDtoConfig, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> {
+	const paginationMode: EApiControllerGetListQueryPaginationMode = ApiControllerGetListQueryGetPaginationMode(queryPlan);
+	const isCursor: boolean = paginationMode === EApiControllerGetListQueryPaginationMode.CURSOR;
 	const defaultName: string = buildGetListItemResponseDtoName(config, method, dtoType, schemaPrefix);
-
-	if (!isCursor) {
-		const cacheKey: string = `${entity.name ?? "UnknownResource"}_${config.itemType.name}_${defaultName}`;
-		const cached: Type<unknown> | undefined = getListItemResponseDtoCache.get(cacheKey);
-
-		if (cached) {
-			return cached;
-		}
-
-		// @ts-ignore The existing list wrapper generator accepts the entity constructor at runtime.
-		const dto: Type<unknown> = DtoGenerateGetListResponse(resourceClass, config.itemType, defaultName, `the getList page response of controller prefix "${schemaPrefix}"`);
-		getListItemResponseDtoCache.set(cacheKey, dto);
-
-		return dto;
-	}
-
-	const name: string = config.name ?? `${defaultName}Cursor`;
-	const cacheKey: string = `${entity.name ?? "UnknownResource"}_${name}_cursor`;
-	const nameOwnerKey: string = `${entity.name ?? "UnknownResource"}_${name}`;
-	let nameOwnerCache: Map<string, object> | undefined = getListCursorItemResponseDtoNameOwnerCache.get(resourceClass);
+	const name: string = isCursor ? (config.name ?? `${defaultName}Cursor`) : defaultName;
+	let nameOwnerCache: Map<string, object> | undefined = getListItemResponseDtoNameOwnerCache.get(resourceClass);
 
 	if (!nameOwnerCache) {
 		nameOwnerCache = new Map<string, object>();
-		getListCursorItemResponseDtoNameOwnerCache.set(resourceClass, nameOwnerCache);
+		getListItemResponseDtoNameOwnerCache.set(resourceClass, nameOwnerCache);
 	}
 
-	const currentNameOwner: object | undefined = nameOwnerCache.get(nameOwnerKey);
-	const hasPageConflict: boolean = [...getListItemResponseDtoCache.values()].some((dto: Type<unknown>): boolean => dto.name === name);
+	let nameModeCache: Map<string, EApiControllerGetListQueryPaginationMode> | undefined = getListItemResponseDtoNameModeCache.get(resourceClass);
 
-	if (hasPageConflict || (currentNameOwner && currentNameOwner !== config.itemType)) {
+	if (!nameModeCache) {
+		nameModeCache = new Map<string, EApiControllerGetListQueryPaginationMode>();
+		getListItemResponseDtoNameModeCache.set(resourceClass, nameModeCache);
+	}
+
+	const currentNameOwner: object | undefined = nameOwnerCache.get(name);
+	const currentNameMode: EApiControllerGetListQueryPaginationMode | undefined = nameModeCache.get(name);
+
+	if ((currentNameOwner && currentNameOwner !== config.itemType) || (currentNameMode && currentNameMode !== paginationMode)) {
 		throw ErrorException(`GET_LIST item response DTO wrapper name "${name}" is already used by another item constructor or pagination mode; configure a unique response DTO name`);
 	}
 
-	nameOwnerCache.set(nameOwnerKey, config.itemType);
-	let resourceCache: undefined | WeakMap<object, Map<string, Type<unknown>>> = getListCursorItemResponseDtoCache.get(resourceClass);
+	nameOwnerCache.set(name, config.itemType);
+	nameModeCache.set(name, paginationMode);
+	let resourceCache: undefined | WeakMap<object, Map<string, Type<unknown>>> = getListItemResponseDtoCache.get(resourceClass);
 
 	if (!resourceCache) {
 		resourceCache = new WeakMap<object, Map<string, Type<unknown>>>();
-		getListCursorItemResponseDtoCache.set(resourceClass, resourceCache);
+		getListItemResponseDtoCache.set(resourceClass, resourceCache);
 	}
 
 	let itemCache: Map<string, Type<unknown>> | undefined = resourceCache.get(config.itemType);
@@ -202,15 +191,15 @@ function getGetListItemResponseDto<E extends IApiBaseEntity>(resourceClass: Obje
 		resourceCache.set(config.itemType, itemCache);
 	}
 
-	const cached: Type<unknown> | undefined = itemCache.get(cacheKey);
+	const cached: Type<unknown> | undefined = itemCache.get(name);
 
 	if (cached) {
 		return cached;
 	}
 
 	// @ts-ignore The existing list wrapper generators accept the entity constructor at runtime.
-	const dto: Type<unknown> = DtoGenerateGetListCursorResponse(resourceClass, config.itemType, name, `the getList cursor response of controller prefix "${schemaPrefix}"`);
-	itemCache.set(cacheKey, dto);
+	const dto: Type<unknown> = isCursor ? DtoGenerateGetListCursorResponse(resourceClass, config.itemType, name, `the getList cursor response of controller prefix "${schemaPrefix}"`) : DtoGenerateGetListResponse(resourceClass, config.itemType, name, `the getList page response of controller prefix "${schemaPrefix}"`);
+	itemCache.set(name, dto);
 
 	return dto;
 }

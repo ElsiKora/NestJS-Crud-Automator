@@ -10,6 +10,7 @@ import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/deco
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
+import { GenerateRelationEntityInformation } from "@utility/generate-relation-entity-information.utility";
 
 /**
  * Resolves metadata-backed GET_LIST filter properties for legacy or normalized-plan DTO generation.
@@ -87,13 +88,9 @@ export function DtoGenerateGetListQueryProperties<E>(
 
 		if (!relationColumn?.relation?.target) continue;
 
-		let relationEntityMetadata: IApiEntity<unknown>;
+		const relationEntityMetadata: IApiEntity<unknown> | undefined = GenerateRelationEntityInformation(relationColumn.relation.target);
 
-		try {
-			relationEntityMetadata = GenerateEntityInformation(relationColumn.relation.target);
-		} catch {
-			continue;
-		}
+		if (!relationEntityMetadata) continue;
 
 		for (const relationProperty of relationEntityMetadata.columns) {
 			const relationPropertyMetadata: TApiPropertyDescribeProperties | undefined = relationProperty.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;

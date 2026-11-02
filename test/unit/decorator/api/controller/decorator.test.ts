@@ -22,7 +22,7 @@ import { KeyPageJournalEntity } from "@test/unit/class/api/function/fixture/key-
 import { KeyPageReceiptEntity } from "@test/unit/class/api/function/fixture/key-page-receipt.entity";
 import { ApiControllerAssertSchemaNames } from "@utility/api/controller/assert-schema-names.utility";
 import { LoggerUtility } from "@utility/logger.utility";
-import { Column, DataSource, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Column, DataSource, Entity, getMetadataArgsStorage, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
 // Two entity classes with one name make a string relation target ambiguous.
@@ -114,6 +114,21 @@ class FactoryController {
 	}
 }
 
+// The key page fixtures have no Automator metadata; a described child of the entity is in the lineage of its repository.
+const createDescribedEntity = (entity: Function): Function => {
+	const DescribedEntity = class extends (entity as new () => object) {};
+
+	Entity("controller_decorator_described")(DescribedEntity);
+
+	for (const { options, propertyName, target } of getMetadataArgsStorage().columns) {
+		if (target === entity && options.primary) {
+			ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })(DescribedEntity.prototype, propertyName);
+		}
+	}
+
+	return DescribedEntity;
+};
+
 describe("ApiController", () => {
 	it("initializes factory routes and executes CRUD methods", async () => {
 		const ControllerClass = ApiController<IApiBaseEntity>({
@@ -201,7 +216,7 @@ describe("ApiController", () => {
 
 		const createController = (getRoute: object): { onApplicationBootstrap: () => Promise<void> } => {
 			const Decorated = ApiController<IApiBaseEntity>({
-				entity: FactoryEntity,
+				entity: createDescribedEntity(KeyPageJournalEntity),
 				routes: {
 					[EApiRouteType.CREATE]: disabled,
 					[EApiRouteType.DELETE]: disabled,
@@ -238,7 +253,7 @@ describe("ApiController", () => {
 				public service: { repository: unknown } = { repository: dataSource.getRepository(entity) };
 			}
 
-			const Decorated = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes } as never)(CheckedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+			const Decorated = ApiController<IApiBaseEntity>({ entity: createDescribedEntity(entity), routes } as never)(CheckedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
 
 			await new Decorated().onApplicationBootstrap();
 		};

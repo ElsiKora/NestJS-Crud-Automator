@@ -191,8 +191,8 @@ async function main(): Promise<void> {
 	await scenario("close() shuts down and removes the subscribers", async () => {
 		await app.close();
 
-		assert.equal(apiSubscriberRegistry.getFunctionSubscribers<SmokeItemEntity>(SmokeItemEntity.name).length, 0);
-		assert.equal(apiSubscriberRegistry.getRouteSubscribers<SmokeItemEntity>(SmokeItemEntity.name).length, 0);
+		assert.equal(apiSubscriberRegistry.getFunctionSubscribers<SmokeItemEntity>(SmokeItemEntity).length, 0);
+		assert.equal(apiSubscriberRegistry.getRouteSubscribers<SmokeItemEntity>(SmokeItemEntity).length, 0);
 	});
 
 	process.stdout.write(`${results.join("\n")}\n`);

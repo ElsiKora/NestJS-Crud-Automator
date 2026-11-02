@@ -1,3 +1,4 @@
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
@@ -7,10 +8,11 @@ import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperation } from "@enum/filter";
+import { ApiControllerGetListTransformGetRelationTarget } from "@utility/api/controller/get-list/transform/get-relation-target.utility";
 import { ApiControllerGetListTransformOperation } from "@utility/api/controller/get-list/transform/operation.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
-import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
+import { GenerateRelationEntityInformation } from "@utility/generate-relation-entity-information.utility";
 
 /**
  * Transforms query parameters into TypeORM FindOptionsWhere filter objects.
@@ -61,18 +63,13 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 
 				if (!relationName || !nestedPropertyName) continue;
 
-				const relationColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>) => column.name == relationName);
-				const relationMetadata: TApiPropertyDescribeProperties | undefined = relationColumn?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
+				const relationTarget: IApiBaseEntity | undefined = ApiControllerGetListTransformGetRelationTarget(entityMetadata, relationName, currentGuard);
 
-				if (!relationColumn || relationMetadata?.type !== EApiPropertyDescribeType.RELATION || !relationColumn.relation?.target || !DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, relationName, relationMetadata, relationColumn.isPrimary, currentGuard)) continue;
+				if (!relationTarget) continue;
 
-				let relationEntityMetadata: IApiEntity<unknown>;
+				const relationEntityMetadata: IApiEntity<unknown> | undefined = GenerateRelationEntityInformation(relationTarget);
 
-				try {
-					relationEntityMetadata = GenerateEntityInformation(relationColumn.relation.target);
-				} catch {
-					continue;
-				}
+				if (!relationEntityMetadata) continue;
 
 				const nestedColumn: IApiEntityColumn<unknown> | undefined = relationEntityMetadata.columns.find((column: IApiEntityColumn<unknown>) => column.name == nestedPropertyName);
 				const nestedColumnMetadata: TApiPropertyDescribeProperties | undefined = nestedColumn?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;

@@ -1,6 +1,7 @@
 import type { EApiFunctionTransactionOutcome } from "@enum/decorator/api";
 import type { IApiFunctionTransaction, IApiFunctionTransactionObservationMeasurement, IApiFunctionTransactionObservationOptions, IApiFunctionTransactionObservationSelector, IApiFunctionTransactionObservationSnapshot } from "@interface/class/api/function";
 import type { IApiSubscriberFunctionTransactionContext } from "@interface/class/api/subscriber/function";
+import type { TMetadataStorageTarget } from "@type/class";
 import type { TApiFunctionTransactionEvent, TApiFunctionTransactionOwner, TApiFunctionTransactionTraceType } from "@type/class/api/function/transaction";
 
 import { API_FUNCTION_TRANSACTION_OBSERVATION_CONSTANT } from "@constant/api-function-transaction-observation.constant";
@@ -10,6 +11,7 @@ import { ErrorException } from "@utility/error/exception.utility";
 export class ApiFunctionTransactionRegistry {
 	private readonly EVENTS: Array<{
 		action?: string;
+		entity: TMetadataStorageTarget;
 		entityName: string;
 		error?: unknown;
 		functionType: TApiFunctionTransactionTraceType;
@@ -74,7 +76,17 @@ export class ApiFunctionTransactionRegistry {
 		});
 	}
 
-	public beginEvent(options: { action?: string; entityName: string; functionType: TApiFunctionTransactionTraceType; isSubscriberObservable: boolean; methodName: string }): number {
+	/**
+	 * Registers a pending function event of this transaction.
+	 * @param {{ action?: string; entity: TMetadataStorageTarget; functionType: TApiFunctionTransactionTraceType; isSubscriberObservable: boolean; methodName: string }} options - Event details.
+	 * @param {string} [options.action] - Custom action of the function.
+	 * @param {TMetadataStorageTarget} options.entity - Entity class the function works on; function subscribers are looked up by it.
+	 * @param {TApiFunctionTransactionTraceType} options.functionType - Function type of the event.
+	 * @param {boolean} options.isSubscriberObservable - Whether function subscribers observe the event.
+	 * @param {string} options.methodName - Name of the service method.
+	 * @returns {number} Sequence number of the event.
+	 */
+	public beginEvent(options: { action?: string; entity: TMetadataStorageTarget; functionType: TApiFunctionTransactionTraceType; isSubscriberObservable: boolean; methodName: string }): number {
 		if (this.eventSnapshot) {
 			throw ErrorException("Cannot register an event after transaction lifecycle dispatch has started");
 		}
@@ -83,6 +95,7 @@ export class ApiFunctionTransactionRegistry {
 
 		this.EVENTS.push({
 			...options,
+			entityName: options.entity.name,
 			sequence,
 		});
 
@@ -164,6 +177,22 @@ export class ApiFunctionTransactionRegistry {
 
 		event.error = error;
 		event.status = EApiFunctionTransactionEventStatus.FAILED;
+	}
+
+	/**
+	 * Returns the entity class of a registered event, which is what function subscribers are registered for.
+	 * @param {number} sequence - Sequence number of the event.
+	 * @returns {TMetadataStorageTarget} The entity class of the event.
+	 * @throws {Error} When no event has that sequence number.
+	 */
+	public getEventEntity(sequence: number): TMetadataStorageTarget {
+		const event: (typeof this.EVENTS)[number] | undefined = this.EVENTS.find((candidate: (typeof this.EVENTS)[number]) => candidate.sequence === sequence);
+
+		if (!event) {
+			throw ErrorException(`Transaction event ${String(sequence)} is not registered`);
+		}
+
+		return event.entity;
 	}
 
 	public getEvents(): ReadonlyArray<TApiFunctionTransactionEvent> {

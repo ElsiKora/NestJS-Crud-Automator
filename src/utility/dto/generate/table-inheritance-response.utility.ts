@@ -12,11 +12,13 @@ import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiRouteType } 
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { ApiRouteResolveDiscriminatedDto, ApiRouteValidateDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DtoGenerateCacheClassIdentifier } from "@utility/dto/generate/cache-class-identifier.utility";
 import { DtoGenerateCacheKey } from "@utility/dto/generate/cache-key.utility";
 import { DtoGenerate } from "@utility/dto/generate/core.utility";
 import { DtoGenerateGetListItemsResponse } from "@utility/dto/generate/get-list";
 import { DtoSchemaNameStripSuffix } from "@utility/dto/schema-name/strip-suffix.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { ResolveMetadataTarget } from "@utility/resolve/metadata-target.utility";
 import { Transform } from "class-transformer";
 
 // Keyed by root entity class, so a re-evaluated entity module generates its responses again.
@@ -43,11 +45,11 @@ export function DtoGenerateTableInheritanceResponse<E>(entity: ObjectLiteral, en
 		controllerName: schemaPrefix,
 		dtoConfig,
 		dtoType: EApiDtoType.RESPONSE,
-		entityName: String(entityMetadata.name),
-		guardName: currentGuard?.name,
+		entity: ResolveMetadataTarget(entity),
+		guard: currentGuard,
 		method,
 		queryPlanSignature: isCursor ? EApiControllerGetListQueryPaginationMode.CURSOR : undefined,
-		responseVariantName: plan.variants.map(({ discriminatorValue, entityMetadata: { name } }: IApiControllerTableInheritanceVariant): string => `${discriminatorValue}:${String(name)}`).join(","),
+		responseVariantName: plan.variants.map(({ discriminatorValue, entity: variantEntity }: IApiControllerTableInheritanceVariant): string => `${discriminatorValue}:${DtoGenerateCacheClassIdentifier(variantEntity as { name: string } & object)}`).join(","),
 	});
 	const entityResponseCache: Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>> = tableInheritanceResponseCache.get(entity) ?? new Map<string, TApiRouteDiscriminatedDtoProperties | Type<unknown>>();
 

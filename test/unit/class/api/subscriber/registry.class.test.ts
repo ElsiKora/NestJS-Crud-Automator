@@ -20,7 +20,7 @@ describe("ApiSubscriberRegistry", () => {
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntityPriorityTest, priority: 1 }, lowPrioritySubscriber);
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntityPriorityTest, priority: 10 }, highPrioritySubscriber);
 
-		const subscribers = apiSubscriberRegistry.getFunctionSubscribers<FunctionEntityPriorityTest>(FunctionEntityPriorityTest.name);
+		const subscribers = apiSubscriberRegistry.getFunctionSubscribers<FunctionEntityPriorityTest>(FunctionEntityPriorityTest);
 
 		expect(subscribers[0]).toBe(highPrioritySubscriber);
 		expect(subscribers[1]).toBe(lowPrioritySubscriber);
@@ -35,7 +35,7 @@ describe("ApiSubscriberRegistry", () => {
 		apiSubscriberRegistry.registerRouteSubscriber({ entity: RouteEntityPriorityTest, priority: 2 }, lowPrioritySubscriber);
 		apiSubscriberRegistry.registerRouteSubscriber({ entity: RouteEntityPriorityTest, priority: 8 }, highPrioritySubscriber);
 
-		const subscribers = apiSubscriberRegistry.getRouteSubscribers<RouteEntityPriorityTest>(RouteEntityPriorityTest.name);
+		const subscribers = apiSubscriberRegistry.getRouteSubscribers<RouteEntityPriorityTest>(RouteEntityPriorityTest);
 
 		expect(subscribers[0]).toBe(highPrioritySubscriber);
 		expect(subscribers[1]).toBe(lowPrioritySubscriber);
@@ -58,7 +58,7 @@ describe("ApiSubscriberRegistry", () => {
 		apiSubscriberRegistry.registerRouteSubscriber({ actions: ["custom.action"], entity: RouteEntityFilterTest }, actionSubscriber);
 		apiSubscriberRegistry.registerRouteSubscriber({ controllers: [OtherController], entity: RouteEntityFilterTest }, mismatchSubscriber);
 
-		const subscribers = apiSubscriberRegistry.getRouteSubscribers<RouteEntityFilterTest>(RouteEntityFilterTest.name, MatchingController, EApiRouteType.GET, "custom.action");
+		const subscribers = apiSubscriberRegistry.getRouteSubscribers<RouteEntityFilterTest>(RouteEntityFilterTest, MatchingController, EApiRouteType.GET, "custom.action");
 
 		expect(subscribers).toEqual(expect.arrayContaining([noFilterSubscriber, controllerSubscriber, routeSubscriber, actionSubscriber]));
 		expect(subscribers).not.toContain(mismatchSubscriber);
@@ -77,7 +77,7 @@ describe("ApiSubscriberRegistry", () => {
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntityFilterTest, functions: [{ action: "custom.create", type: EApiFunctionType.CREATE }] }, actionSubscriber);
 		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FunctionEntityFilterTest, functions: [{ action: "custom.delete", type: EApiFunctionType.DELETE }] }, mismatchSubscriber);
 
-		const subscribers = apiSubscriberRegistry.getFunctionSubscribers<FunctionEntityFilterTest>(FunctionEntityFilterTest.name, EApiFunctionType.CREATE, "custom.create");
+		const subscribers = apiSubscriberRegistry.getFunctionSubscribers<FunctionEntityFilterTest>(FunctionEntityFilterTest, EApiFunctionType.CREATE, "custom.create");
 
 		expect(subscribers).toEqual(expect.arrayContaining([noFilterSubscriber, typeSubscriber, actionSubscriber]));
 		expect(subscribers).not.toContain(mismatchSubscriber);
@@ -115,7 +115,7 @@ describe("ApiSubscriberRegistry", () => {
 
 		apiSubscriberRegistry.unregisterFunctionSubscriber(removedSubscriber);
 
-		const subscribers = apiSubscriberRegistry.getFunctionSubscribers<FunctionEntityUnregisterTest>(FunctionEntityUnregisterTest.name);
+		const subscribers = apiSubscriberRegistry.getFunctionSubscribers<FunctionEntityUnregisterTest>(FunctionEntityUnregisterTest);
 
 		expect(subscribers).toHaveLength(3);
 		expect(subscribers[0]).toBe(highPrioritySubscriber);
@@ -139,7 +139,7 @@ describe("ApiSubscriberRegistry", () => {
 
 		apiSubscriberRegistry.unregisterRouteSubscriber(removedSubscriber);
 
-		const subscribers = apiSubscriberRegistry.getRouteSubscribers<RouteEntityUnregisterTest>(RouteEntityUnregisterTest.name);
+		const subscribers = apiSubscriberRegistry.getRouteSubscribers<RouteEntityUnregisterTest>(RouteEntityUnregisterTest);
 
 		expect(subscribers).toHaveLength(3);
 		expect(subscribers[0]).toBe(highPrioritySubscriber);
@@ -181,9 +181,9 @@ describe("ApiSubscriberRegistry", () => {
 		apiSubscriberRegistry.unregisterFunctionSubscriber(thirdSubscriber);
 		apiSubscriberRegistry.unregisterFunctionSubscriber(secondSubscriber);
 
-		expect(apiSubscriberRegistry.getFunctionSubscribers<FirstFunctionEntityTest>(FirstFunctionEntityTest.name)).toEqual([firstSubscriber]);
-		expect(apiSubscriberRegistry.getFunctionSubscribers<SecondFunctionEntityTest>(SecondFunctionEntityTest.name)).toEqual([]);
-		expect(apiSubscriberRegistry.getFunctionSubscribers<ThirdFunctionEntityTest>(ThirdFunctionEntityTest.name)).toEqual([]);
+		expect(apiSubscriberRegistry.getFunctionSubscribers<FirstFunctionEntityTest>(FirstFunctionEntityTest)).toEqual([firstSubscriber]);
+		expect(apiSubscriberRegistry.getFunctionSubscribers<SecondFunctionEntityTest>(SecondFunctionEntityTest)).toEqual([]);
+		expect(apiSubscriberRegistry.getFunctionSubscribers<ThirdFunctionEntityTest>(ThirdFunctionEntityTest)).toEqual([]);
 	});
 
 	it("unregisters a route subscriber of any entity while other entities are registered", () => {
@@ -202,9 +202,9 @@ describe("ApiSubscriberRegistry", () => {
 		apiSubscriberRegistry.unregisterRouteSubscriber(thirdSubscriber);
 		apiSubscriberRegistry.unregisterRouteSubscriber(secondSubscriber);
 
-		expect(apiSubscriberRegistry.getRouteSubscribers<FirstRouteEntityTest>(FirstRouteEntityTest.name)).toEqual([firstSubscriber]);
-		expect(apiSubscriberRegistry.getRouteSubscribers<SecondRouteEntityTest>(SecondRouteEntityTest.name)).toEqual([]);
-		expect(apiSubscriberRegistry.getRouteSubscribers<ThirdRouteEntityTest>(ThirdRouteEntityTest.name)).toEqual([]);
+		expect(apiSubscriberRegistry.getRouteSubscribers<FirstRouteEntityTest>(FirstRouteEntityTest)).toEqual([firstSubscriber]);
+		expect(apiSubscriberRegistry.getRouteSubscribers<SecondRouteEntityTest>(SecondRouteEntityTest)).toEqual([]);
+		expect(apiSubscriberRegistry.getRouteSubscribers<ThirdRouteEntityTest>(ThirdRouteEntityTest)).toEqual([]);
 	});
 
 	it("ignores a subscriber that is not registered", () => {
@@ -220,7 +220,16 @@ describe("ApiSubscriberRegistry", () => {
 		apiSubscriberRegistry.unregisterFunctionSubscriber({} as IApiSubscriberFunction<FunctionEntityUnknownTest>);
 		apiSubscriberRegistry.unregisterRouteSubscriber({} as IApiSubscriberRoute<RouteEntityUnknownTest>);
 
-		expect(apiSubscriberRegistry.getFunctionSubscribers<FunctionEntityUnknownTest>(FunctionEntityUnknownTest.name)).toEqual([functionSubscriber]);
-		expect(apiSubscriberRegistry.getRouteSubscribers<RouteEntityUnknownTest>(RouteEntityUnknownTest.name)).toEqual([routeSubscriber]);
+		expect(apiSubscriberRegistry.getFunctionSubscribers<FunctionEntityUnknownTest>(FunctionEntityUnknownTest)).toEqual([functionSubscriber]);
+		expect(apiSubscriberRegistry.getRouteSubscribers<RouteEntityUnknownTest>(RouteEntityUnknownTest)).toEqual([routeSubscriber]);
+	});
+
+	it.each([
+		["a string", "RouteEntity", 'the string "RouteEntity"'],
+		["an object with a name", { name: "RouteEntity" }, "object"],
+		["undefined", undefined, "undefined"],
+	])("refuses %s instead of returning no subscribers", (_label: string, argument: unknown, received: string) => {
+		expect(() => apiSubscriberRegistry.getFunctionSubscribers(argument as never)).toThrowError(new TypeError(`ApiSubscriberRegistry.getFunctionSubscribers expects the entity class, got ${received}. From 5.0.0, pass the class itself.`));
+		expect(() => apiSubscriberRegistry.getRouteSubscribers(argument as never)).toThrowError(new TypeError(`ApiSubscriberRegistry.getRouteSubscribers expects the entity class, got ${received}. From 5.0.0, pass the class itself.`));
 	});
 });

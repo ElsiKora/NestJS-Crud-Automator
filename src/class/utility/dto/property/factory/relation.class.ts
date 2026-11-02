@@ -10,6 +10,8 @@ import { EApiDtoType } from "@enum/decorator/api";
 import { DtoGenerateRelationResponse } from "@utility/dto/generate/relation-response.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
+const RELATION_COLUMN_TYPES: ReadonlySet<unknown> = new Set<unknown>(["many-to-many", "many-to-one", "one-to-many", "one-to-one"]);
+
 export class DtoPropertyFactoryRelation<E> implements IDtoGenerateFactory<E> {
 	create(metadata: TApiPropertyDescribeUuidProperties, entity: IApiEntity<E>, config: TApiPropertyDescribeDtoProperties, method: EApiRouteType, dtoType: EApiDtoType, propertyName: string, _generatedDTOs?: Record<string, Type<unknown>>, dtoNameBase?: string, dtoPropertyName?: string, hostDtoName?: string): PropertyDecorator {
 		const { description, type, ...restProperties }: TApiPropertyDescribeUuidProperties = metadata;
@@ -20,6 +22,10 @@ export class DtoPropertyFactoryRelation<E> implements IDtoGenerateFactory<E> {
 
 		if (relationDescriptionCandidate) {
 			relationDescription = relationDescriptionCandidate;
+		}
+
+		if (!relationColumn?.relation?.target && RELATION_COLUMN_TYPES.has(relationColumn?.type)) {
+			throw ErrorException(`Property ${relationName} has a TypeORM relation, but its target class has no name or is not loaded yet. Give the target class a name, or check that its module has loaded.`);
 		}
 
 		if (!relationColumn?.relation?.target) {

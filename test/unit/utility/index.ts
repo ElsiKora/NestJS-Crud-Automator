@@ -4,6 +4,7 @@ export * from "./capitalize-string.utility.test";
 export * from "./defer-property-decorator-execution.utility.test";
 export * from "./format-unknown-for-log.utility.test";
 export * from "./generate-entity-information.utility.test";
+export * from "./generate-relation-entity-information.utility.test";
 export * from "./logger.utility.test";
 export * from "./queue-auto-context-retry.utility.test";
 export * from "./register-auto-dto-child.utility.test";

@@ -26,6 +26,7 @@ import { DtoIsShouldBeGenerated } from "@utility/dto/is/should-be-generated.util
 import { DtoSchemaNameGetRouteOrigin } from "@utility/dto/schema-name/route-origin.utility";
 import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { ResolveMetadataTarget } from "@utility/resolve/metadata-target.utility";
 import { AtMostOneOfListedPropertiesValidator } from "@validator/at-most-one-of-listed-properties.validator";
 import { HasPairedCustomSuffixesFieldsValidator } from "@validator/has/paired-custom-suffixes-fields.validator";
 import { Transform } from "class-transformer";
@@ -65,8 +66,8 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		controllerName: schemaPrefix,
 		dtoConfig,
 		dtoType,
-		entityName: String(entityMetadata.name),
-		guardName: currentGuard?.name,
+		entity: ResolveMetadataTarget(entity),
+		guard: currentGuard,
 		listResponseDto,
 		method,
 		queryPlanSignature: isCursorGetListResponse ? EApiControllerGetListQueryPaginationMode.CURSOR : queryPlan?.signature,

@@ -8,8 +8,10 @@ import type { TApiControllerConstructor } from "@type/decorator/api/controller";
 import type { RelationMetadata } from "typeorm";
 
 import { ApiFunctionKeyPageLoader } from "@class/api/function/key-page-loader.class";
+import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/controller-startup-check.constant";
 import { EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerFactory } from "@factory/api-controller.factory";
+import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { Repository } from "typeorm";
 
 /**
@@ -41,14 +43,25 @@ export const ApiController =
 		const factory: ApiControllerFactory<E, EApiControllerGetListQueryPaginationMode> = new ApiControllerFactory<E, EApiControllerGetListQueryPaginationMode>(target, options);
 		factory.init();
 
+		let isStartupChecked: boolean = false;
+
+		const runStartupCheck: () => void = (): void => {
+			factory.assertTableInheritanceChildren();
+			factory.assertListResponseOrder();
+			factory.assertGetListRelationTargets();
+		};
+
 		// eslint-disable-next-line @elsikora/typescript/no-explicit-any
 		const ValidatedController: { new (...arguments_: Array<any>): {}; prototype: {} } = class extends target {
 			// eslint-disable-next-line @elsikora/typescript/no-explicit-any
 			constructor(..._arguments: any) {
 				// eslint-disable-next-line @elsikora/typescript/no-unsafe-argument
 				super(..._arguments);
-				factory.assertTableInheritanceChildren();
-				factory.assertListResponseOrder();
+
+				// A REQUEST-scoped controller is constructed per request, after startup has checked it, so a request never fails this check.
+				if (!isStartupChecked) {
+					runStartupCheck();
+				}
 			}
 
 			/**
@@ -57,6 +70,10 @@ export const ApiController =
 			 */
 			public async onApplicationBootstrap(): Promise<void> {
 				const repository: unknown = (this as { service?: { repository?: unknown } }).service?.repository;
+
+				if (Object.values(EApiRouteType).some((routeType: EApiRouteType): boolean => options.routes[routeType]?.generation?.isEnabled !== false)) {
+					ApiControllerAssertRepositoryEntity(options.entity, repository, target.name);
+				}
 
 				if (repository instanceof Repository) {
 					for (const routeType of Object.values(EApiRouteType)) {
@@ -72,6 +89,14 @@ export const ApiController =
 			}
 		};
 		Object.defineProperty(ValidatedController, "name", { value: target.name });
+		Reflect.defineMetadata(
+			CONTROLLER_STARTUP_CHECK_METADATA_KEY,
+			(isConstructedPerRequest: boolean): void => {
+				runStartupCheck();
+				isStartupChecked = isConstructedPerRequest;
+			},
+			ValidatedController,
+		);
 
 		return ValidatedController as T;
 	};

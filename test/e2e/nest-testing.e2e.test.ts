@@ -60,8 +60,8 @@ describe("Nest TestingModule (E2E)", () => {
 			where: { ownerId: "owner-1" },
 		});
 
-		expect(apiSubscriberRegistry.getFunctionSubscribers(NestSubscriberEntity.name).length).toBeGreaterThan(0);
-		expect(apiSubscriberRegistry.getRouteSubscribers(NestSubscriberEntity.name).length).toBeGreaterThan(0);
+		expect(apiSubscriberRegistry.getFunctionSubscribers(NestSubscriberEntity).length).toBeGreaterThan(0);
+		expect(apiSubscriberRegistry.getRouteSubscribers(NestSubscriberEntity).length).toBeGreaterThan(0);
 
 		registry.clear();
 		await app.close();

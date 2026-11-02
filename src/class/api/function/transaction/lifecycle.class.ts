@@ -209,7 +209,7 @@ export class ApiFunctionTransactionLifecycle {
 				continue;
 			}
 
-			const subscribers: Array<IApiSubscriberFunction<IApiBaseEntity>> = apiSubscriberRegistry.getFunctionSubscribers(event.entityName, event.functionType, event.action);
+			const subscribers: Array<IApiSubscriberFunction<IApiBaseEntity>> = apiSubscriberRegistry.getFunctionSubscribers(registry.getEventEntity(event.sequence), event.functionType, event.action);
 
 			for (const subscriber of subscribers) {
 				const events: Array<TApiFunctionTransactionEvent> = matchedEvents.get(subscriber) ?? [];

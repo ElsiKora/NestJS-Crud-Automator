@@ -29,9 +29,9 @@ import { EFilterOperand, EFilterOperation, EFilterOrderDirection } from "@enum/f
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
 import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response-published-fields.utility";
+import { ApiControllerGetListTransformGetRelationTarget } from "@utility/api/controller/get-list/transform/get-relation-target.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
-import { DatabaseTypeOrmGetEntityClass } from "@utility/database/typeorm/get/entity-class.utility";
 import { DtoGetDecoratorConfig } from "@utility/dto/get/decorator-config.utility";
 import { DtoIsPropertyExposedInListResponse } from "@utility/dto/is/property/exposed/in-list-response.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
@@ -39,8 +39,9 @@ import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metad
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { EnumValues } from "@utility/enum/values.utility";
 import { ErrorException } from "@utility/error/exception.utility";
-import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
+import { GenerateRelationEntityInformation } from "@utility/generate-relation-entity-information.utility";
 import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
+import { ResolveMetadataTarget } from "@utility/resolve/metadata-target.utility";
 import { getMetadataArgsStorage } from "typeorm";
 
 const CURSOR_RESPONSE_PROPERTY_COUNT: number = 3;
@@ -240,17 +241,15 @@ export class ApiControllerGetListQueryPlanCompiler {
 				continue;
 			}
 
-			if (!column.relation?.target || !this.isToOneRelation(column) || !DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, path, metadata, column.isPrimary, currentGuard)) {
+			const relationTarget: IApiBaseEntity | undefined = ApiControllerGetListTransformGetRelationTarget(entityMetadata, path, currentGuard, true);
+
+			if (!relationTarget) {
 				continue;
 			}
 
-			let relationMetadata: IApiEntity<unknown>;
+			const relationMetadata: IApiEntity<unknown> | undefined = GenerateRelationEntityInformation(relationTarget);
 
-			try {
-				relationMetadata = GenerateEntityInformation(column.relation.target);
-			} catch {
-				continue;
-			}
+			if (!relationMetadata) continue;
 
 			for (const relationColumn of relationMetadata.columns) {
 				const nestedMetadata: TApiPropertyDescribeProperties | undefined = this.getPropertyMetadata(relationColumn);
@@ -266,7 +265,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 				const nestedPath: string = `${path}.${nestedName}`;
 
-				fields[nestedPath] = this.createFilterField(nestedPath, nestedMetadata, this.isColumnNullable(column.relation.target, nestedName, nestedMetadata));
+				fields[nestedPath] = this.createFilterField(nestedPath, nestedMetadata, this.isColumnNullable(relationTarget, nestedName, nestedMetadata));
 			}
 		}
 
@@ -648,7 +647,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 	// Reads the columns of the entity class and its parents, as TypeORM does: a property a parent declares keeps the parent's column.
 	private static findColumnMetadata(entity: ObjectLiteral | TApiEntityReference, propertyName: string): TTypeOrmColumnMetadataArguments | undefined {
 		return getMetadataArgsStorage()
-			.filterColumns(GetClassHierarchy(DatabaseTypeOrmGetEntityClass(entity)))
+			.filterColumns(GetClassHierarchy(ResolveMetadataTarget(entity)))
 			.find((column: TTypeOrmColumnMetadataArguments): boolean => column.propertyName === propertyName);
 	}
 
@@ -741,10 +740,6 @@ export class ApiControllerGetListQueryPlanCompiler {
 		const hasExpectedNullability: boolean = isNullable ? properties.isNullable === true : properties.isNullable !== true;
 
 		return hasExpectedArrayShape && hasExpectedNullability && properties.isRequired === true && properties.isResponse === true && properties.isExpose !== false;
-	}
-
-	private static isToOneRelation<E>(column: IApiEntityColumn<E>): boolean {
-		return column.type === "many-to-one" || column.type === "one-to-one";
 	}
 
 	private static isUnsafeCursorFieldName(fieldName: string): boolean {

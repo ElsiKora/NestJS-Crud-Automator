@@ -48,7 +48,7 @@ export async function ApiFunctionExecuteWithTransaction<E extends IApiBaseEntity
 
 		const sequence: number | undefined = registry?.beginEvent({
 			action: options.action,
-			entityName: options.entity.name,
+			entity: options.entity,
 			functionType: options.functionType,
 			isSubscriberObservable,
 			methodName: options.methodName,
@@ -81,7 +81,7 @@ export async function ApiFunctionExecuteWithTransaction<E extends IApiBaseEntity
 
 		const sequence: number | undefined = activeRegistry?.beginEvent({
 			action: options.action,
-			entityName: options.entity.name,
+			entity: options.entity,
 			functionType: options.functionType,
 			isSubscriberObservable,
 			methodName: options.methodName,

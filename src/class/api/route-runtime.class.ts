@@ -43,11 +43,13 @@ import { FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiDtoType } from "@enum/decorator/api";
 import { BadRequestException } from "@nestjs/common";
+import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetListQueryAssertOrderable } from "@utility/api/controller/get-list/query/assert-orderable.utility";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
 import { ApiControllerGetListQueryValidate } from "@utility/api/controller/get-list/query/validate.utility";
+import { ApiControllerGetListTransformAssertRequestRelationTargets } from "@utility/api/controller/get-list/transform/assert-request-relation-targets.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
 import { ApiControllerGetDtoWithReadPlan, ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetPrimaryColumn } from "@utility/api/controller/get/primary-column.utility";
@@ -173,6 +175,9 @@ export class ApiRouteRuntime {
 	}
 
 	public static async executeGenerated<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>): Promise<unknown> {
+		// A REQUEST-scoped or lazy-loaded controller has no bootstrap hook, so its first request is where the repository can be checked.
+		ApiControllerAssertRepositoryEntity(options.properties.entity, (options.controller.service as { repository?: unknown } | undefined)?.repository, options.controller.constructor.name);
+
 		const entityInstance: E = new (options.properties.entity as new () => E)();
 		const authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined = ApiControllerGeneratedSecuritySnapshot.create(AuthorizationDecisionResolveFromRequest(options.targets.authenticationRequest));
 
@@ -390,6 +395,10 @@ export class ApiRouteRuntime {
 
 				const queryPlan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName);
 				let cursorPlan: TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR> | undefined;
+
+				if (queryPlan && !queryPlan.filter.isLegacy) {
+					ApiControllerGetListTransformAssertRequestRelationTargets(requestQuery, options.entityMetadata, routeConfig.security?.authentication?.guard);
+				}
 
 				if (queryPlan && ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR) {
 					const compiledPlan: Partial<TApiControllerGetListQueryCompiledPlan> = queryPlan as Partial<TApiControllerGetListQueryCompiledPlan>;

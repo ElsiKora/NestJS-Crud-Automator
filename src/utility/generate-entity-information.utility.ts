@@ -18,9 +18,10 @@ import { DefaultNamingStrategy, getMetadataArgsStorage } from "typeorm";
  * @template E - The entity type
  */
 export function GenerateEntityInformation<E>(entity: TApiEntityReference): IApiEntity<E> {
+	const metadataTarget: TMetadataStorageTarget = ResolveMetadataTarget(entity);
+
 	const tableName: string = ((): string => {
-		// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
-		const table: TTypeOrmTableMetadataArguments | undefined = getMetadataArgsStorage().tables.find(({ target }: TTypeOrmTableMetadataArguments): boolean => (target as Function).name === entity.name);
+		const table: TTypeOrmTableMetadataArguments | undefined = getMetadataArgsStorage().tables.find(({ target }: TTypeOrmTableMetadataArguments): boolean => target === metadataTarget);
 
 		if (!table) {
 			throw ErrorException(`Table for entity ${String(entity.name)} not found in metadata storage`);
@@ -42,17 +43,12 @@ export function GenerateEntityInformation<E>(entity: TApiEntityReference): IApiE
 	})();
 
 	const storage: MetadataStorage = MetadataStorage.getInstance();
-	const metadataTarget: TMetadataStorageTarget = ResolveMetadataTarget(entity);
-	const entityHierarchy: Array<Type<unknown>> = GetClassHierarchy(entity);
-	const entityNames: Array<string> = entityHierarchy.map((current: Type<unknown>): string => current.name);
-
-	if (entityHierarchy.length === 0 && entity.name) {
-		entityNames.push(entity.name);
-	}
+	const entityHierarchy: Array<Type<unknown>> = GetClassHierarchy(metadataTarget);
+	const entityNames: Set<string> = new Set<string>(entityHierarchy.map((current: Type<unknown>): string => current.name));
 
 	const columnList: Array<TTypeOrmColumnMetadataArguments> = getMetadataArgsStorage().columns.filter(({ target }: TTypeOrmColumnMetadataArguments): boolean => {
 		if (typeof target === "string") {
-			return entityNames.includes(target);
+			return entityNames.has(target);
 		}
 
 		if (typeof target !== "function") {
@@ -61,12 +57,12 @@ export function GenerateEntityInformation<E>(entity: TApiEntityReference): IApiE
 
 		const targetEntity: new (...arguments_: Array<unknown>) => unknown = target as unknown as new (...arguments_: Array<unknown>) => unknown;
 
-		return entityHierarchy.some((currentEntity: Type<unknown>): boolean => currentEntity === targetEntity || currentEntity.name === targetEntity.name) || entityNames.includes(targetEntity.name);
+		return entityHierarchy.includes(targetEntity);
 	});
 
 	const relationList: Array<TTypeOrmRelationMetadataArguments> = getMetadataArgsStorage().relations.filter(({ target }: TTypeOrmRelationMetadataArguments): boolean => {
 		if (typeof target === "string") {
-			return entityNames.includes(target);
+			return entityNames.has(target);
 		}
 
 		if (typeof target !== "function") {
@@ -75,7 +71,7 @@ export function GenerateEntityInformation<E>(entity: TApiEntityReference): IApiE
 
 		const targetEntity: new (...arguments_: Array<unknown>) => unknown = target as unknown as new (...arguments_: Array<unknown>) => unknown;
 
-		return entityHierarchy.some((currentEntity: Type<unknown>): boolean => currentEntity === targetEntity || currentEntity.name === targetEntity.name) || entityNames.includes(targetEntity.name);
+		return entityHierarchy.includes(targetEntity);
 	});
 
 	const entityColumns: Array<IApiEntityColumn<E>> = [

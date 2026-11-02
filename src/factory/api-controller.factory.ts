@@ -25,7 +25,8 @@ import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/api";
 import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/controller/apply/decorators.utility";
 import { ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/apply/metadata.utility";
-import { ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
+import { ApiControllerGetListQueryPlanGet, ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
+import { ApiControllerGetListTransformAssertRelationTargets } from "@utility/api/controller/get-list/transform/assert-relation-targets.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
 import { ApiControllerReadPlanGet, ApiControllerReadPlanSet } from "@utility/api/controller/read";
@@ -67,6 +68,18 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	/**
+	 * Fails startup when a relation target the GET_LIST route can filter by became ambiguous after the controller was decorated, so the outcome does not depend on import order.
+	 * @returns {void}
+	 */
+	assertGetListRelationTargets(): void {
+		const routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST> | undefined = this.properties.routes[EApiRouteType.GET_LIST];
+
+		if (routeConfig?.generation?.isEnabled !== false) {
+			ApiControllerGetListTransformAssertRelationTargets(this.ENTITY, routeConfig?.security?.authentication?.guard, ApiControllerGetListQueryPlanGet(this.targetPrototype, ApiControllerGetMethodName(EApiRouteType.GET_LIST)));
+		}
+	}
+
+	/**
 	 * Fails startup when the manual GET_LIST response of a PAGE route cannot be read or leaves out a typed order field. The read waits until here because the response's lazy types may name classes that did not exist while the controller was decorated.
 	 * @returns {void}
 	 */
@@ -103,6 +116,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 
 			if (method === EApiRouteType.GET_LIST) {
 				queryPlan = ApiControllerGetListQueryPlanCompiler.compile(this.target, this.properties.entity, this.ENTITY, routeConfig as TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>);
+				ApiControllerGetListTransformAssertRelationTargets(this.ENTITY, routeConfig.security?.authentication?.guard, queryPlan);
 
 				if (queryPlan) {
 					ApiControllerGetListQueryPlanSet(this.targetPrototype, methodName, queryPlan);

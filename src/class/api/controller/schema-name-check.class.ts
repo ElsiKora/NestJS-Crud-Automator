@@ -2,6 +2,7 @@ import type { IApiControllerSchemaNameController } from "@interface/utility/sche
 import type { ExceptionFilter, OnApplicationBootstrap } from "@nestjs/common";
 import type { InstanceWrapper, Module } from "@nestjs/core/internal";
 
+import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/controller-startup-check.constant";
 import { Catch, Injectable } from "@nestjs/common";
 import { ModulesContainer } from "@nestjs/core";
 import { ApiControllerAssertSchemaNames } from "@utility/api/controller/assert-schema-names.utility";
@@ -35,6 +36,7 @@ export class ApiControllerSchemaNameCheck implements ExceptionFilter<ApiControll
 	}
 
 	/**
+	 * Runs the startup check of each controller, whose constructor a REQUEST-scoped controller only runs on a request.
 	 * Fails startup when two controller classes of this application have one schema prefix, or two classes in its route schemas have one component name.
 	 * @returns {void}
 	 */
@@ -44,6 +46,14 @@ export class ApiControllerSchemaNameCheck implements ExceptionFilter<ApiControll
 		}
 
 		CHECKED_APPLICATIONS.add(this.modulesContainer);
+
+		for (const module of this.modulesContainer.values()) {
+			for (const wrapper of module.controllers.values()) {
+				if (wrapper.metatype) {
+					(Reflect.getMetadata(CONTROLLER_STARTUP_CHECK_METADATA_KEY, wrapper.metatype) as ((isConstructedPerRequest: boolean) => void) | undefined)?.(!wrapper.isDependencyTreeStatic());
+				}
+			}
+		}
 
 		ApiControllerAssertSchemaNames(
 			[...this.modulesContainer.values()].flatMap((module: Module): Array<IApiControllerSchemaNameController> =>

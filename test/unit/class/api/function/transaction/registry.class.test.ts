@@ -4,6 +4,8 @@ import { ApiFunctionTransactionRegistry } from "@class/api/function/transaction/
 import { EApiFunctionTransactionEventStatus, EApiFunctionTransactionOwnerKind, EApiFunctionTransactionOutcome, EApiFunctionTransactionTraceType, EApiFunctionType } from "@enum/decorator/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+class Account {}
+
 describe("ApiFunctionTransactionRegistry", () => {
 	afterEach(() => vi.restoreAllMocks());
 	it("records immutable ordered success and failure events without payload data", () => {
@@ -14,13 +16,13 @@ describe("ApiFunctionTransactionRegistry", () => {
 			methodName: "create",
 		});
 		const firstSequence: number = registry.beginEvent({
-			entityName: "Account",
+			entity: Account,
 			functionType: EApiFunctionType.CREATE,
 			isSubscriberObservable: true,
 			methodName: "create",
 		});
 		const secondSequence: number = registry.beginEvent({
-			entityName: "Account",
+			entity: Account,
 			functionType: EApiFunctionType.UPDATE,
 			isSubscriberObservable: true,
 			methodName: "update",
@@ -65,13 +67,13 @@ describe("ApiFunctionTransactionRegistry", () => {
 			methodName: "validate",
 		});
 		const stepSequence: number = registry.beginEvent({
-			entityName: "Account",
+			entity: Account,
 			functionType: EApiFunctionTransactionTraceType.STEP,
 			isSubscriberObservable: true,
 			methodName: "validate",
 		});
 		const createSequence: number = registry.beginEvent({
-			entityName: "Account",
+			entity: Account,
 			functionType: EApiFunctionType.CREATE,
 			isSubscriberObservable: true,
 			methodName: "create",
@@ -95,7 +97,7 @@ describe("ApiFunctionTransactionRegistry", () => {
 			name: "checkout",
 		});
 		const sequence: number = registry.beginEvent({
-			entityName: "Account",
+			entity: Account,
 			functionType: EApiFunctionType.CREATE,
 			isSubscriberObservable: true,
 			methodName: "create",
@@ -121,7 +123,7 @@ describe("ApiFunctionTransactionRegistry", () => {
 		expect(Object.isFrozen(context.DATA.transaction.owner)).toBe(true);
 		expect(() =>
 			registry.beginEvent({
-				entityName: "Account",
+				entity: Account,
 				functionType: EApiFunctionType.DELETE,
 				isSubscriberObservable: true,
 				methodName: "delete",
@@ -142,7 +144,7 @@ describe("ApiFunctionTransactionRegistry", () => {
 				selectors: [{ entity: SecretEntity, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "SECRET_METHOD" }],
 			},
 		);
-		const event = registry.beginEvent({ entityName: SecretEntity.name, functionType: EApiFunctionTransactionTraceType.STEP, isSubscriberObservable: false, methodName: "SECRET_METHOD" });
+		const event = registry.beginEvent({ entity: SecretEntity, functionType: EApiFunctionTransactionTraceType.STEP, isSubscriberObservable: false, methodName: "SECRET_METHOD" });
 		expect(now).not.toHaveBeenCalled();
 		const interval = registry.beginObservation({ entity: SecretEntity, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "SECRET_METHOD" });
 		registry.completeObservation(interval, EApiFunctionTransactionEventStatus.FAILED);

@@ -96,8 +96,8 @@ class SubscriberShutdownRouteSubscriber extends ApiRouteSubscriberBase<Subscribe
 
 const expectedEvents = (applicationName: string): Array<string> => [`${applicationName}:route:before`, `${applicationName}:function:before`, `${applicationName}:function:after`, `${applicationName}:route:after`];
 
-const getRegisteredFunctionSubscribers = (): Array<unknown> => apiSubscriberRegistry.getFunctionSubscribers<SubscriberShutdownEntity>(SubscriberShutdownEntity.name);
-const getRegisteredRouteSubscribers = (): Array<unknown> => apiSubscriberRegistry.getRouteSubscribers<SubscriberShutdownEntity>(SubscriberShutdownEntity.name);
+const getRegisteredFunctionSubscribers = (): Array<unknown> => apiSubscriberRegistry.getFunctionSubscribers<SubscriberShutdownEntity>(SubscriberShutdownEntity);
+const getRegisteredRouteSubscribers = (): Array<unknown> => apiSubscriberRegistry.getRouteSubscribers<SubscriberShutdownEntity>(SubscriberShutdownEntity);
 
 describe("Subscriber registry on application shutdown (E2E)", () => {
 	const openContexts: Set<INestApplicationContext> = new Set();

@@ -1,21 +1,23 @@
 import type { IDtoGenerateCacheKey } from "@interface/utility";
 import type { Type } from "@nestjs/common";
 
-const LIST_RESPONSE_IDENTIFIERS: WeakMap<Type<unknown>, number> = new WeakMap<Type<unknown>, number>();
-let nextListResponseIdentifier: number = 0;
+import { DtoGenerateCacheClassIdentifier } from "@utility/dto/generate/cache-class-identifier.utility";
+
+const symbolCacheIdentifiers: Map<symbol, number> = new Map<symbol, number>();
 
 /**
- * Generates a unique cache key for DTO instances based on controller, entity, route, DTO type, guard, manual list response, config, normalized query plan, response variant, and custom route name.
- * @param {IDtoGenerateCacheKey} key - The key object containing entity name, method, DTO type, guard name, and DTO config
+ * Generates a unique cache key for DTO instances based on controller, entity class, route, DTO type, guard class, manual list response class, config, normalized query plan, response variant, and custom route name.
+ * Two entity, guard, or validator classes that share a name get different keys.
+ * @param {IDtoGenerateCacheKey} key - The key object containing entity class, method, DTO type, guard class, and DTO config
  * @returns {string} A unique string key for caching DTO instances
  */
 export function DtoGenerateCacheKey(key: IDtoGenerateCacheKey): string {
-	const baseKey: string = `${key.controllerName ?? "no-controller"}_${key.entityName}_${key.method}_${key.dtoType}_${key.guardName ?? "no-guard"}_${key.queryPlanSignature ?? "no-query-plan"}_${JSON.stringify(key.dtoConfig ?? {})}`;
+	const baseKey: string = `${key.controllerName ?? "no-controller"}_${DtoGenerateCacheClassIdentifier(key.entity)}_${key.method}_${key.dtoType}_${key.guard ? DtoGenerateCacheClassIdentifier(key.guard) : "no-guard"}_${key.queryPlanSignature ?? "no-query-plan"}_${JSON.stringify(key.dtoConfig ?? {}, replaceWithCacheValue)}`;
 
 	const listResponseKey: string = key.listResponseDto
 		? `${baseKey}_list-response-${[key.listResponseDto]
 				.flat()
-				.map((dto: Type<unknown>): number => getListResponseIdentifier(dto))
+				.map((dto: Type<unknown>): string => DtoGenerateCacheClassIdentifier(dto))
 				.join("-")}`
 		: baseKey;
 	const variantKey: string = key.responseVariantName ? `${listResponseKey}_${key.responseVariantName}` : listResponseKey;
@@ -24,18 +26,51 @@ export function DtoGenerateCacheKey(key: IDtoGenerateCacheKey): string {
 }
 
 /**
- * Gives a list response class a key of its own, because two classes may share a name and publish different fields.
- * @param {Type<unknown>} listResponseDto - The list response class.
- * @returns {number} Identifier of that class.
+ * Returns the cache identifier of a symbol, because two symbols with one description are different values.
+ * @param {symbol} target - Symbol in the DTO config.
+ * @returns {string} Cache identifier of the symbol.
  */
-function getListResponseIdentifier(listResponseDto: Type<unknown>): number {
-	let identifier: number | undefined = LIST_RESPONSE_IDENTIFIERS.get(listResponseDto);
+function getSymbolCacheIdentifier(target: symbol): string {
+	let identifier: number | undefined = symbolCacheIdentifiers.get(target);
 
 	if (identifier === undefined) {
-		identifier = nextListResponseIdentifier;
-		nextListResponseIdentifier += 1;
-		LIST_RESPONSE_IDENTIFIERS.set(listResponseDto, identifier);
+		identifier = symbolCacheIdentifiers.size;
+		symbolCacheIdentifiers.set(target, identifier);
 	}
 
-	return identifier;
+	return `${String(target)}#${String(identifier)}`;
+}
+
+/**
+ * Keeps in the serialized DTO config what `JSON.stringify` would drop or flatten: a class, a regular expression, a Map, a Set, a symbol, or a bigint.
+ * @param {string} _key - Property name, unused.
+ * @param {unknown} value - Serialized value.
+ * @returns {unknown} A value that tells this one apart in the serialized config, any other value unchanged.
+ */
+function replaceWithCacheValue(_key: string, value: unknown): unknown {
+	if (typeof value === "function") {
+		return DtoGenerateCacheClassIdentifier(value);
+	}
+
+	if (typeof value === "symbol") {
+		return { $symbol: getSymbolCacheIdentifier(value) };
+	}
+
+	if (typeof value === "bigint") {
+		return { $bigint: String(value) };
+	}
+
+	if (value instanceof RegExp) {
+		return { $regExp: String(value) };
+	}
+
+	if (value instanceof Map) {
+		return { $map: [...value.entries()] };
+	}
+
+	if (value instanceof Set) {
+		return { $set: [...value.values()] };
+	}
+
+	return value;
 }
