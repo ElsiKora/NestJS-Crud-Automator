@@ -58,11 +58,25 @@ export class ApiFunctionCreateInsertGuard implements EntitySubscriberInterface {
 		return result;
 	}
 
+	/**
+	 * Tells whether a row with the key is stored, soft deleted rows included.
+	 * @template E The entity type
+	 * @param {Repository<E>} repository - Repository the create function saves through
+	 * @param {FindOptionsWhere<E>} key - Whole primary key of the row the create function saves
+	 * @returns {Promise<boolean>} Whether the database holds a row with the key
+	 */
 	private static async isStored<E extends ObjectLiteral>(repository: Repository<E>, key: FindOptionsWhere<E>): Promise<boolean> {
 		// A soft deleted row still holds its key, and TypeORM would update it.
 		return await repository.exists({ where: key, withDeleted: true });
 	}
 
+	/**
+	 * Checks one before event of a TypeORM save against the save of the create function it runs in.
+	 * An event outside such a save is left alone. Inside it, the insert of its own row opens the synchronous loop of its before events, in which any update, remove, soft remove or recover is refused, and every event before that insert is refused.
+	 * @param {boolean} isInsert - Whether the event announces an insert
+	 * @param {ObjectLiteral | undefined} entity - Entity object of the event
+	 * @throws {Error} A 409 conflict with `{ENTITY}_DUPLICATE_KEY` when the event would change a row that already exists
+	 */
 	private static observe(isInsert: boolean, entity: ObjectLiteral | undefined): void {
 		const save: IApiFunctionCreateInsertGuardSave | undefined = this.STORAGE.getStore();
 
@@ -96,6 +110,10 @@ export class ApiFunctionCreateInsertGuard implements EntitySubscriberInterface {
 		}
 	}
 
+	/**
+	 * Adds the guard subscriber to the DataSource once.
+	 * @param {DataSource} dataSource - DataSource of the repository the create function saves through
+	 */
 	private static register(dataSource: DataSource): void {
 		// TypeORM replaces the subscriber list when a DataSource initializes again, so the guard checks the list itself.
 		if (!dataSource.subscribers.includes(this.INSTANCE)) {
