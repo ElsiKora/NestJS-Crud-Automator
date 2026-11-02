@@ -8,9 +8,11 @@ import type { Type } from "@nestjs/common";
 
 import { EApiPropertyDescribeType } from "@enum/decorator/api";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
+import { ClassTransformerGetStorage } from "@utility/class-transformer/get-storage.utility";
 import { ClassTransformerReadLimits } from "@utility/class-transformer/read-limits.utility";
 import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/get.utility";
 import { ErrorException } from "@utility/error/exception.utility";
+import { TransformationType } from "class-transformer";
 import { getMetadataStorage, IS_UUID, ValidationTypes } from "class-validator";
 
 import { ApiControllerParametersIsDecimalColumn } from "./column/numeric-type.utility";
@@ -41,27 +43,12 @@ export function ApiControllerParametersAssertComparableColumns(rule: IApiControl
 }
 
 /**
- * Rejects a path value held in a decimal column on a securable custom route that gets no path value rule: a HOOKS route, whose policy compares `context.parameters` as text.
- * Each path parameter is read from the DTO property exposed under its name, or from the property of that name.
- * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
- * @param {ReadonlyArray<string>} pathParameters - Path parameter names of the controller and route paths.
- * @param {string} route - Controller and method, for the error message.
- * @returns {void}
- * @throws {Error} When a path parameter is copied from a decimal column.
- */
-export function ApiControllerParametersAssertComparableCopies(dto: Type<unknown>, pathParameters: ReadonlyArray<string>, route: string): void {
-	const exposure: IApiControllerParametersRouteDtoExposure = ApiControllerParametersRouteDtoReadExposure(dto);
-	const properties: Map<string, string> = new Map<string, string>(pathParameters.map((parameter: string): [string, string] => [parameter, exposure.names.get(parameter) ?? parameter]));
-
-	ApiControllerParametersAssertComparableColumns({ columns: readCopiedColumns(dto, properties), dto }, route);
-}
-
-/**
- * Builds the path value rule of a securable custom route: the guard runs the route's own PARAMETERS DTO on the path values, so IAM sees the values the DTO produces and a handler reads the same values.
+ * Builds the path value rule of a securable custom route, IAM or HOOKS: the guard runs the route's own PARAMETERS DTO on the path values, so a policy sees the values the DTO produces and a handler reads the same values.
+ * A route with a path parameter must declare a PARAMETERS DTO that describes it, because a policy and a handler would otherwise read the text as sent, where `016` or an upper-case UUID names the row a policy denies.
  * Each check on a request also runs here on sample values, so a DTO that could only refuse requests fails at startup. A check on samples cannot see everything, so the limits a sample cannot show are read from the metadata, and the check on each request runs on every real value.
- * @param {IApiControllerParametersCustomRuleOptions} options - Route description: the controller class and the handler name for the error message, the PARAMETERS DTO, the path parameter names of the controller and route paths, and the IAM resource path of the controller.
- * @returns {IApiControllerParametersRule | undefined} The rule, or undefined when the route has no path parameter or no PARAMETERS DTO, so such a route costs nothing per request.
- * @throws {Error} When the DTO cannot give a handler the value IAM saw, or when a resource path placeholder is not copied from an entity column.
+ * @param {IApiControllerParametersCustomRuleOptions} options - Route description: the controller class and the handler name for the error message, the PARAMETERS DTO, the path parameter names of the controller and route paths, and the IAM resource path of the controller, if any.
+ * @returns {IApiControllerParametersRule | undefined} The rule, or undefined when the route has no path parameter, so such a route costs nothing per request.
+ * @throws {Error} When a path parameter has no PARAMETERS DTO that describes it, when the DTO cannot give a handler the value a policy saw, or when a resource path placeholder is not copied from an entity column.
  */
 export function ApiControllerParametersBuildCustomRule(options: IApiControllerParametersCustomRuleOptions): IApiControllerParametersRule | undefined {
 	const route: string = `Controller "${options.controller.name}" method "${options.methodName}"`;
@@ -71,13 +58,20 @@ export function ApiControllerParametersBuildCustomRule(options: IApiControllerPa
 		assertNoResponseProperty(options.dto, route);
 	}
 
+	const [firstParameter]: Array<string> = [...parameters];
+
+	if (firstParameter !== undefined && !options.dto) {
+		throw ErrorException(`${route} has the path parameter "${firstParameter}" but declares no PARAMETERS DTO, so a policy and the handler would read the text as sent, where "016" or an upper-case UUID names the row a policy denies: declare the route with @ApiRouteCustom and a dto[EApiDtoType.PARAMETERS] that describes it with ApiPropertyCopy or an ApiProperty* decorator`);
+	}
+
 	const routeDtoProperties: ReadonlyMap<string, string> | undefined = options.dto && parameters.size > 0 ? resolveProperties(options.dto, parameters, route) : undefined;
 
 	if (options.dto && routeDtoProperties) {
+		assertDescribed(options.dto, routeDtoProperties, route);
 		assertRouteDto(options.dto, routeDtoProperties, route);
 	}
 
-	for (const placeholder of options.resourcePath.matchAll(/\{([\w.-]+)\}/g)) {
+	for (const placeholder of (options.resourcePath ?? "").matchAll(/\{([\w.-]+)\}/g)) {
 		const parameter: string = placeholder[1] ?? "";
 
 		if (parameters.has(parameter) && !isColumnCopy(options.dto, routeDtoProperties?.get(parameter) ?? parameter)) {
@@ -119,6 +113,32 @@ function assertBooleanKeepsItsText(dto: Type<unknown>, properties: ReadonlyMap<s
 			if (readSampleText(dto, sample, property, isImplicit) === (text === "true" ? "false" : "true")) {
 				throw fail(parameter, `its PARAMETERS DTO turns "${text}" into the other boolean value: use ApiPropertyBoolean, or a @Transform that keeps both values`);
 			}
+		}
+	}
+}
+
+/**
+ * Rejects a path parameter that the PARAMETERS DTO holds in no property with a validator, an Automator property decorator, a `@Transform` or a `@Type`: its value would reach a policy and the handler as sent.
+ * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
+ * @param {ReadonlyMap<string, string>} properties - The DTO property that holds each path parameter.
+ * @param {string} route - Controller and method, for the error message.
+ * @returns {void}
+ * @throws {Error} When a path parameter is not described.
+ */
+function assertDescribed(dto: Type<unknown>, properties: ReadonlyMap<string, string>, route: string): void {
+	const described: Set<string> = new Set<string>(
+		getMetadataStorage()
+			.getTargetValidationMetadatas(dto, "", false, false)
+			.map((metadata: TValidationMetadata): string => metadata.propertyName),
+	);
+
+	for (const property of GetManualDtoPropertyMetadata(dto.prototype as object).keys()) {
+		described.add(String(property));
+	}
+
+	for (const [parameter, property] of properties) {
+		if (!described.has(property) && !isConverted(dto, property)) {
+			throw ErrorException(`${route} has the path parameter "${parameter}", which its PARAMETERS DTO "${dto.name}" does not describe, so a policy and the handler would read the text as sent: describe it with ApiPropertyCopy or an ApiProperty* decorator`);
 		}
 	}
 }
@@ -225,6 +245,18 @@ function isColumnCopy(dto: { prototype: object } | undefined, property: string):
 	const source: IApiControllerParametersSource | undefined = dto ? (Reflect.getMetadata(API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY, dto.prototype, property) as IApiControllerParametersSource | undefined) : undefined;
 
 	return source !== undefined && source.metadata.type !== EApiPropertyDescribeType.OBJECT && source.metadata.type !== EApiPropertyDescribeType.RELATION && !("isArray" in source.metadata && source.metadata.isArray === true);
+}
+
+/**
+ * Tells whether class-transformer converts a property of a DTO from the request, which states how the DTO reads it.
+ * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
+ * @param {string} property - DTO property.
+ * @returns {boolean} Whether the property has a plain-to-class `@Transform` or a `@Type`.
+ */
+function isConverted(dto: Type<unknown>, property: string): boolean {
+	const storage: ReturnType<typeof ClassTransformerGetStorage> = ClassTransformerGetStorage(dto.prototype as object, property);
+
+	return storage.findTransformMetadatas(dto, property, TransformationType.PLAIN_TO_CLASS).length > 0 || storage.findTypeMetadata(dto, property) !== undefined;
 }
 
 /**

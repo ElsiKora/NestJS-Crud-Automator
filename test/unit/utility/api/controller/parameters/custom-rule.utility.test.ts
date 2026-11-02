@@ -455,15 +455,25 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, methodName: "noDtoNamed", pathParameters: [], resourcePath: "custom-rule/{id}" })).toBeUndefined();
 	});
 
-	it.each([["an IAM", "custom-rule/item"]])("fails at startup on %s route with a path parameter and no PARAMETERS DTO, whose value a policy would read as sent", (_mode: string, resourcePath: string) => {
+	it.each([
+		["an IAM", "custom-rule/item"],
+		["a HOOKS", undefined],
+	])("fails at startup on %s route with a path parameter and no PARAMETERS DTO, whose value a policy would read as sent", (_mode: string, resourcePath: string | undefined) => {
 		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, methodName: "noDto", pathParameters: ["id"], resourcePath })).toThrow('Controller "CustomRuleController" method "noDto" has the path parameter "id" but declares no PARAMETERS DTO');
 	});
 
 	it.each([
 		["an IAM", "custom-rule/item"],
+		["a HOOKS", undefined],
 		["an IAM resourcePath placeholder on", "custom-rule/{id}"],
-	])("fails at startup on %s path parameter the DTO does not describe, whose value a policy would read as sent", (_case: string, resourcePath: string) => {
+	])("fails at startup on %s path parameter the DTO does not describe, whose value a policy would read as sent", (_case: string, resourcePath: string | undefined) => {
 		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleUndescribedParametersDto, methodName: "undescribed", pathParameters: ["id"], resourcePath })).toThrow('Controller "CustomRuleController" method "undescribed" has the path parameter "id", which its PARAMETERS DTO "CustomRuleUndescribedParametersDto" does not describe');
+	});
+
+	it("builds the rule of a HOOKS route, which has no resource path", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleParametersDto, methodName: "hooks", pathParameters: ["id"], resourcePath: undefined });
+
+		await expect(ApiControllerParametersValidate(rule!, { id: "016" } as never)).rejects.toThrow();
 	});
 
 	it("names the rule a scalar described placeholder misses, since the DTO does describe it", () => {

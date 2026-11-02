@@ -19,8 +19,9 @@ import { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorato
 import { Inject, Injectable, OnApplicationBootstrap, Optional, RequestMethod } from "@nestjs/common";
 import { METHOD_METADATA, MODULE_PATH, PATH_METADATA, VERSION_METADATA } from "@nestjs/common/internal";
 import { DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
-import { ApiControllerParametersAssertComparableColumns, ApiControllerParametersAssertComparableCopies, ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
+import { ApiControllerParametersAssertComparableColumns, ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
 import { ApiControllerParametersDtoGet } from "@utility/api/controller/parameters/dto";
+import { ApiControllerParametersAssertHandlerArguments } from "@utility/api/controller/parameters/handler-arguments.utility";
 import { AuthorizationIsHandlerAuthorized } from "@utility/authorization/is-handler-authorized.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -68,14 +69,14 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
-	 * Registers the path value rule of each IAM custom route with a path parameter and a PARAMETERS DTO, so the guard runs that DTO and authorization sees the canonical text of the values it produces. A generated route already has its rule, and only its columns are checked here.
+	 * Registers the path value rule of each securable custom route with a path parameter, IAM or HOOKS, so the guard runs its PARAMETERS DTO and the policy and the handler see the canonical text of the values it produces. A generated route already has its rule, and only its columns are checked here.
 	 * The rule is built and kept for this controller class: a handler inherited from a base class is shared with its other subclasses, whose resource paths may differ.
-	 * A HOOKS route gets no rule, but a HOOKS policy compares `context.parameters` as text as an IAM Deny does, so a path value held in a decimal column fails startup in both modes.
+	 * A HOOKS policy compares `context.parameters` as text as an IAM Deny does, so both modes need the same rule: a route without a PARAMETERS DTO that describes each path parameter, a path value held in a decimal column, and a handler argument that converts a path value by another rule fail startup.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
 	 * @param {EApiAuthorizationMode} defaultMode - Controller authorization mode.
 	 * @param {string | undefined} resourcePath - IAM resource path of the controller, or undefined when the controller has no IAM resource definition.
 	 * @returns {void}
-	 * @throws {Error} When the PARAMETERS DTO of a route cannot give authorization the text of a path value, a placeholder that is a path parameter is not copied from an entity column, or a path parameter holds a decimal column.
+	 * @throws {Error} When a path parameter has no PARAMETERS DTO that describes it, the DTO cannot give authorization the text of a path value, a placeholder that is a path parameter is not copied from an entity column, a path parameter holds a decimal column, or a handler argument converts a path value by another rule.
 	 */
 	private applyRouteParameterRules(metatype: new (...arguments_: Array<unknown>) => unknown, defaultMode: EApiAuthorizationMode, resourcePath: string | undefined): void {
 		const controllerPathParameters: Array<string> = this.resolvePathParameters(Reflect.getMetadata(PATH_METADATA, metatype));
@@ -100,22 +101,19 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			const dtos: object = runtimeProperties?.dto ?? {};
 			const dto: unknown = Reflect.get(dtos, EApiDtoType.PARAMETERS);
 			const pathParameters: Array<string> = [...controllerPathParameters, ...this.resolvePathParameters(Reflect.getMetadata(PATH_METADATA, handler))];
-
-			if ((metadata.security?.authorization?.mode ?? defaultMode) !== EApiAuthorizationMode.IAM || resourcePath === undefined) {
-				if (this.isDtoClass(dto)) {
-					ApiControllerParametersAssertComparableCopies(dto, pathParameters, `Controller "${metatype.name}" method "${methodName}"`);
-				}
-
-				continue;
-			}
+			const routeDto: (new (...arguments_: Array<unknown>) => unknown) | undefined = this.isDtoClass(dto) ? dto : undefined;
 
 			const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({
 				controller: metatype,
-				dto: this.isDtoClass(dto) ? dto : undefined,
+				dto: routeDto,
 				methodName,
 				pathParameters,
-				resourcePath,
+				resourcePath: (metadata.security?.authorization?.mode ?? defaultMode) === EApiAuthorizationMode.IAM ? resourcePath : undefined,
 			});
+
+			if (pathParameters.length > 0) {
+				ApiControllerParametersAssertHandlerArguments(metatype, methodName, routeDto, `Controller "${metatype.name}" method "${methodName}"`);
+			}
 
 			if (rule) {
 				this.parametersRuleRegistry.set(metatype, handler, rule);

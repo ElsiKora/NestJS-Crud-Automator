@@ -5,5 +5,6 @@ export interface IApiControllerParametersCustomRuleOptions {
 	dto: Type<unknown> | undefined;
 	methodName: string;
 	pathParameters: ReadonlyArray<string>;
-	resourcePath: string;
+	/** IAM resource path of the controller; undefined for a HOOKS route, whose policy reads the path values without one. */
+	resourcePath?: string;
 }
