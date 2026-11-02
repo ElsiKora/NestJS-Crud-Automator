@@ -676,15 +676,13 @@ export class ApiRouteRuntime {
 		const scopedCriteria: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(requestCriteria, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
 		const updateCriteria: TApiAuthorizationScopeWhere<E> = scopedCriteria ?? requestCriteria;
 		markAfterBoundary();
-		const updateResponse: E = await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.UPDATE, updateCriteria, updateCriteria, async (): Promise<E> => await Reflect.apply(updateFunction, service, [updateCriteria, (targets.body ?? {}) as never]));
+		await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.UPDATE, updateCriteria, updateCriteria, async (): Promise<E> => await Reflect.apply(updateFunction, service, [updateCriteria, (targets.body ?? {}) as never]));
 
-		// The route answers with the row it wrote, read as GET reads it, so the response never carries the body's raw relation keys.
-		const writtenRowWhere: FindOptionsWhere<E> = Object.fromEntries(options.entityMetadata.columns.filter((column: IApiEntityColumn<E>): boolean => column.isPrimary).map((column: IApiEntityColumn<E>): [string, unknown] => [String(column.name), updateResponse[column.name]])) as FindOptionsWhere<E>;
-
+		// The route answers with the row it wrote, read as GET reads it by the key the request resolved, so neither the body's raw relation keys nor the update result shape the response.
 		const requestProperties: TApiFunctionGetProperties<E> = {
 			relationLoadStrategy: responseLoad?.relationLoadStrategy,
 			relations: responseLoad?.include,
-			where: AuthorizationScopeMergeWhere(writtenRowWhere, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
+			where: AuthorizationScopeMergeWhere(requestCriteria, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
 		};
 
 		return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => await Reflect.apply(getFunction, service, [requestProperties]));
