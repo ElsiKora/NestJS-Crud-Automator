@@ -1,20 +1,26 @@
 import "reflect-metadata";
 
-import type { INestApplication, Type } from "@nestjs/common";
+import type { CanActivate, DynamicModule, INestApplication, INestMicroservice, OnModuleInit, Provider, Type } from "@nestjs/common";
+import type { ClientProxy } from "@nestjs/microservices";
 import type { OpenAPIObject } from "@nestjs/swagger";
+import type { TestingModule } from "@nestjs/testing";
+import type { AddressInfo } from "node:net";
 import type { Observable } from "rxjs";
 
-import { All, Controller, Get, Head, HttpStatus, Inject, Injectable, Options, Post, Redirect, RequestMethod, Scope, Search, Sse, UseGuards } from "@nestjs/common";
-import { REQUEST } from "@nestjs/core";
+import { All, Controller, Get, Head, HttpStatus, Inject, Injectable, Module, Options, Post, Redirect, RequestMethod, Scope, Search, Sse, UseGuards, Version } from "@nestjs/common";
+import { PATH_METADATA, VERSION_METADATA } from "@nestjs/common/internal";
+import { APP_GUARD, REQUEST, RouterModule } from "@nestjs/core";
+import { ClientProxyFactory, EventPattern, MessagePattern, Transport } from "@nestjs/microservices";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
-import { InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
-import { EMPTY } from "rxjs";
+import { getRepositoryToken, InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
+import { createServer } from "node:net";
+import { EMPTY, firstValueFrom, timeout } from "rxjs";
 import { Column, Entity, PrimaryColumn, Repository } from "typeorm";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiAuthorizationGuard, ApiAuthorizationModule, ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiController, ApiControllerSecurable, ApiMethod, ApiPropertyDescribe, ApiRouteCustom, ApiService, ApiServiceBase, ApiSubscriberModule, EApiAuthorizationMode, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType, METHOD_API_DECORATOR_CONSTANT } from "../../src/index";
+import { ApiAuthorizationBootstrapValidationService, ApiAuthorizationGuard, ApiAuthorizationModule, ApiAuthorizationPolicy, ApiAuthorizationPolicyBase, ApiAuthorizationRuntime, ApiController, ApiControllerSecurable, ApiMethod, ApiPropertyDescribe, ApiRouteCustom, ApiService, ApiServiceBase, ApiSubscriberModule, EApiAuthorizationMode, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType, METHOD_API_DECORATOR_CONSTANT } from "../../src/index";
 
 @Entity("securable_plain_route_items")
 class SecurablePlainRouteItemEntity {
@@ -89,6 +95,47 @@ function plainRouteError(controller: string, method: string, route: string): Err
  */
 function missingModuleError(controller: string): Error {
 	return new Error(`[NestJS-Crud-Automator] Controller "${controller}" is marked with @ApiControllerSecurable() but the application does not import ApiAuthorizationModule, so nothing would validate or authorize its routes: import ApiAuthorizationModule, or remove @ApiControllerSecurable()`);
+}
+
+/**
+ * Builds the startup error of a handler replaced on the controller instance without its authorization.
+ * @param {string} controller - Controller name.
+ * @param {string} method - Method name.
+ * @param {string} route - HTTP method and path.
+ * @returns {Error} The expected error.
+ */
+function replacedHandlerError(controller: string, method: string, route: string): Error {
+	return new Error(`[NestJS-Crud-Automator] Controller "${controller}" method "${method}" serves ${route} through a function set on the controller instance, and Nest takes guards from that function, so the route skips authorization: remove the assignment, for example this.${method} = this.${method}.bind(this) in the constructor. Nest already calls a handler with this set to the controller`);
+}
+
+/**
+ * Builds the startup error of a pattern handler without authorization.
+ * @param {string} controller - Controller name.
+ * @param {string} method - Method name.
+ * @param {string} pattern - The pattern as JSON.
+ * @returns {Error} The expected error.
+ */
+function patternHandlerError(controller: string, method: string, pattern: string): Error {
+	return new Error(`[NestJS-Crud-Automator] Controller "${controller}" method "${method}" handles pattern ${pattern} without authorization: move it to a controller that is not securable`);
+}
+
+/**
+ * Replaces a handler on the instance with a bound copy, the way a constructor of a consumer does.
+ * @param {object} instance - Controller instance.
+ * @param {string} method - Method name.
+ * @param {ReadonlyArray<unknown>} [metadataKeys] - Metadata keys to copy to the bound function.
+ * @returns {void}
+ */
+function bindHandler(instance: object, method: string, metadataKeys: ReadonlyArray<unknown> = []): void {
+	const handlers: Record<string, (...arguments_: Array<unknown>) => unknown> = instance as Record<string, (...arguments_: Array<unknown>) => unknown>;
+	const original: (...arguments_: Array<unknown>) => unknown = handlers[method] as (...arguments_: Array<unknown>) => unknown;
+	const bound: (...arguments_: Array<unknown>) => unknown = original.bind(instance);
+
+	for (const key of metadataKeys) {
+		Reflect.defineMetadata(key, Reflect.getMetadata(key, original), bound);
+	}
+
+	handlers[method] = bound;
 }
 
 class SecurablePlainRouteItemController {
@@ -387,26 +434,457 @@ class RequestScopedDeclaredController extends SecurablePlainRouteItemController 
 	}
 }
 
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "bound-method", routes: NO_GENERATED_ROUTES })
+class BoundApiMethodController extends SecurablePlainRouteItemController {
+	public constructor() {
+		super();
+		bindHandler(this, "denied");
+	}
+
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.deny", "denied"))
+	public denied(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "bound-custom", routes: NO_GENERATED_ROUTES })
+class BoundApiRouteCustomController extends SecurablePlainRouteItemController {
+	public constructor() {
+		super();
+		bindHandler(this, "denied");
+	}
+
+	@ApiRouteCustom<SecurablePlainRouteItemEntity>({ resource: { action: "custom.deny", entity: SecurablePlainRouteItemEntity }, response: { status: HttpStatus.OK, type: undefined }, route: { method: RequestMethod.POST, path: "denied" }, security: { authorization: { mode: EApiAuthorizationMode.HOOKS } } } as never)
+	public denied(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+class BoundDeleteBaseController extends SecurablePlainRouteItemController {
+	public constructor() {
+		super();
+		bindHandler(this, "delete");
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "bound-delete", routes: { ...NO_GENERATED_ROUTES, [EApiRouteType.DELETE]: {} } })
+class BoundGeneratedDeleteController extends BoundDeleteBaseController {}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "define-property", routes: NO_GENERATED_ROUTES })
+class DefinePropertyOverParentController extends SecuredBaseController {
+	public constructor() {
+		super();
+		Object.defineProperty(this, "publish", { value: (): { isReached: boolean } => ({ isReached: true }), writable: true });
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "request-scoped-bound", routes: NO_GENERATED_ROUTES })
+class RequestScopedBoundController extends SecurablePlainRouteItemController {
+	@Inject(REQUEST)
+	public readonly request!: unknown;
+
+	public constructor() {
+		super();
+		bindHandler(this, "denied");
+	}
+
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.deny", "denied"))
+	public denied(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "request-scoped-partial", routes: NO_GENERATED_ROUTES })
+class RequestScopedPartialCopyController extends SecurablePlainRouteItemController {
+	@Inject(REQUEST)
+	public readonly request!: unknown;
+
+	public constructor() {
+		super();
+		bindHandler(this, "allowed", [METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY]);
+	}
+
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.allow", "allowed"))
+	public allowed(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "partial-copy", routes: NO_GENERATED_ROUTES })
+class PartialCopyController extends SecurablePlainRouteItemController {
+	public constructor() {
+		super();
+		bindHandler(this, "allowed", [METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY]);
+	}
+
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.allow", "allowed"))
+	public allowed(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "full-copy", routes: NO_GENERATED_ROUTES })
+class FullCopyController extends SecurablePlainRouteItemController {
+	public constructor() {
+		super();
+
+		const handlers: { allowed: object; denied: object } = this as unknown as { allowed: object; denied: object };
+
+		bindHandler(this, "allowed", Reflect.getMetadataKeys(handlers.allowed));
+		bindHandler(this, "denied", Reflect.getMetadataKeys(handlers.denied));
+	}
+
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.allow", "allowed"))
+	public allowed(): { isReached: boolean } {
+		return { isReached: true };
+	}
+
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.deny", "denied"))
+	public denied(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "counted", routes: NO_GENERATED_ROUTES })
+class CountedPolicyController extends SecurablePlainRouteItemController {
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.allow", "counted"))
+	public counted(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "subclassed-guard-allowed", routes: NO_GENERATED_ROUTES })
+class SubclassedGuardAllowedController extends SecurablePlainRouteItemController {
+	@Get("report")
+	@UseGuards(SubclassedAuthorizationGuard)
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, { resource: { action: "custom.allow", entity: SecurablePlainRouteItemEntity }, route: { method: RequestMethod.GET, path: "report" }, security: { authorization: { mode: EApiAuthorizationMode.HOOKS } } }, SubclassedGuardAllowedController.prototype.report);
+
+@ApiControllerSecurable()
+@UseGuards(ApiAuthorizationGuard)
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "class-guard-allowed", routes: NO_GENERATED_ROUTES })
+class ClassGuardAllowedController extends SecurablePlainRouteItemController {
+	@Get("report")
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, { resource: { action: "custom.allow", entity: SecurablePlainRouteItemEntity }, route: { method: RequestMethod.GET, path: "report" }, security: { authorization: { mode: EApiAuthorizationMode.HOOKS } } }, ClassGuardAllowedController.prototype.report);
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "stripped-path", routes: NO_GENERATED_ROUTES })
+class StrippedPathController extends SecurablePlainRouteItemController {
+	@Get("report")
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@Injectable()
+class StripPathOnModuleInit implements OnModuleInit {
+	public onModuleInit(): void {
+		Reflect.deleteMetadata(PATH_METADATA, StrippedPathController.prototype.report);
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "app-guard", routes: NO_GENERATED_ROUTES })
+class AppGuardOnlyController extends SecurablePlainRouteItemController {
+	@Get("report")
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, { resource: { action: "custom.deny", entity: SecurablePlainRouteItemEntity }, route: { method: RequestMethod.GET, path: "report" }, security: { authorization: { mode: EApiAuthorizationMode.HOOKS } } }, AppGuardOnlyController.prototype.report);
+
+const SAME_NAME_GUARDS: Record<string, new () => CanActivate> = {
+	ApiAuthorizationGuard: class implements CanActivate {
+		public canActivate(): boolean {
+			return true;
+		}
+	},
+};
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "same-name-guard", routes: NO_GENERATED_ROUTES })
+class SameNameGuardController extends SecurablePlainRouteItemController {
+	@Get("report")
+	@UseGuards(SAME_NAME_GUARDS.ApiAuthorizationGuard as Type<CanActivate>)
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, { resource: { action: "custom.deny", entity: SecurablePlainRouteItemEntity }, route: { method: RequestMethod.GET, path: "report" }, security: { authorization: { mode: EApiAuthorizationMode.HOOKS } } }, SameNameGuardController.prototype.report);
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "guard-instance", routes: NO_GENERATED_ROUTES })
+class GuardInstanceController extends SecurablePlainRouteItemController {
+	@Get("report")
+	@UseGuards(Object.create(ApiAuthorizationGuard.prototype) as CanActivate)
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, { resource: { action: "custom.deny", entity: SecurablePlainRouteItemEntity }, route: { method: RequestMethod.GET, path: "report" }, security: { authorization: { mode: EApiAuthorizationMode.HOOKS } } }, GuardInstanceController.prototype.report);
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "no-route-key", routes: NO_GENERATED_ROUTES })
+class MetadataWithoutRouteController extends SecurablePlainRouteItemController {
+	@Get("report")
+	@UseGuards(ApiAuthorizationGuard)
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, { resource: { action: "custom.allow", entity: SecurablePlainRouteItemEntity }, security: { authorization: { mode: EApiAuthorizationMode.HOOKS } } }, MetadataWithoutRouteController.prototype.report);
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "hand-path", routes: NO_GENERATED_ROUTES })
+class HandWrittenPathController extends SecurablePlainRouteItemController {
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+Reflect.defineMetadata(PATH_METADATA, "report", HandWrittenPathController.prototype.report);
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "versioned-handler", routes: NO_GENERATED_ROUTES })
+class VersionedHandlerController extends SecurablePlainRouteItemController {
+	@Get("report")
+	@Version(["2", "3"])
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "versioned-class", routes: NO_GENERATED_ROUTES })
+class VersionedClassController extends SecurablePlainRouteItemController {
+	@Get("report")
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+Reflect.defineMetadata(VERSION_METADATA, "4", VersionedClassController);
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "prefixed", routes: NO_GENERATED_ROUTES })
+class RouterPrefixedController extends SecurablePlainRouteItemController {
+	@Get("report")
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@Module({ controllers: [RouterPrefixedController], imports: [TypeOrmModule.forFeature([SecurablePlainRouteItemEntity])], providers: [SecurablePlainRouteItemService] })
+class RouterPrefixedModule {}
+
+const patternHandlerCalls: Array<string> = [];
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "message-pattern", routes: NO_GENERATED_ROUTES })
+class MessagePatternController extends SecurablePlainRouteItemController {
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.allow", "allowed"))
+	public allowed(): { isReached: boolean } {
+		return { isReached: true };
+	}
+
+	@MessagePattern("securable.message")
+	public message(): { isReached: boolean } {
+		patternHandlerCalls.push("securable.message");
+
+		return { isReached: true };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "event-pattern", routes: NO_GENERATED_ROUTES })
+class EventPatternController extends SecurablePlainRouteItemController {
+	@EventPattern({ cmd: "securable.event" })
+	public event(_data: unknown): void {
+		patternHandlerCalls.push("securable.event");
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "both-transports", routes: NO_GENERATED_ROUTES })
+class ApiMethodWithPatternController extends SecurablePlainRouteItemController {
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.allow", "allowed"))
+	@MessagePattern("securable.allowed")
+	public allowed(): { isReached: boolean } {
+		patternHandlerCalls.push("securable.allowed");
+
+		return { isReached: true };
+	}
+
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.deny", "denied"))
+	@MessagePattern("securable.denied")
+	public denied(): { isReached: boolean } {
+		patternHandlerCalls.push("securable.denied");
+
+		return { isReached: true };
+	}
+}
+
+@Controller("open-pattern")
+class OpenPatternController {
+	@EventPattern("open.event")
+	public event(_data: unknown): void {
+		patternHandlerCalls.push("open.event");
+	}
+
+	@MessagePattern("open.message")
+	public message(): { isReached: boolean } {
+		patternHandlerCalls.push("open.message");
+
+		return { isReached: true };
+	}
+}
+
 describe("Served routes of securable controllers (E2E)", () => {
-	const applications: Array<INestApplication> = [];
+	const applications: Array<INestApplication | INestMicroservice> = [];
+	const clients: Array<ClientProxy> = [];
+
+	/**
+	 * Builds the testing module of the controllers with the authorization module.
+	 * @param {Array<Type<unknown>>} controllers - Controllers to serve.
+	 * @param {ReadonlyArray<Provider>} providers - Additional providers.
+	 * @param {ReadonlyArray<DynamicModule | Type<unknown>>} imports - Additional imports.
+	 * @param {ReadonlyArray<[unknown, unknown]>} overrides - Providers to replace with values.
+	 * @returns {Promise<TestingModule>} The compiled module.
+	 */
+	async function compile(controllers: Array<Type<unknown>>, providers: ReadonlyArray<Provider> = [], imports: ReadonlyArray<DynamicModule | Type<unknown>> = [], overrides: ReadonlyArray<[unknown, unknown]> = []): Promise<TestingModule> {
+		let builder: ReturnType<typeof Test.createTestingModule> = Test.createTestingModule({
+			controllers,
+			imports: [TypeOrmModule.forRoot({ database: ":memory:", dropSchema: true, entities: [SecurablePlainRouteItemEntity], logging: false, synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature([SecurablePlainRouteItemEntity]), ApiAuthorizationModule.forRoot(), ApiSubscriberModule, ...imports],
+			providers: [SecurablePlainRouteItemService, SecurablePlainRouteItemPolicy, ...providers],
+		});
+
+		for (const [token, value] of overrides) {
+			builder = builder.overrideProvider(token).useValue(value);
+		}
+
+		return await builder.compile();
+	}
 
 	/**
 	 * Boots the controllers through the real bootstrap and opens a real socket.
 	 * @param {Array<Type<unknown>>} controllers - Controllers to serve.
+	 * @param {ReadonlyArray<Provider>} [providers] - Additional providers.
+	 * @param {ReadonlyArray<DynamicModule | Type<unknown>>} [imports] - Additional imports.
 	 * @returns {Promise<INestApplication>} The listening application.
 	 */
-	async function boot(controllers: Array<Type<unknown>>): Promise<INestApplication> {
-		const moduleReference = await Test.createTestingModule({
-			controllers,
-			imports: [TypeOrmModule.forRoot({ database: ":memory:", dropSchema: true, entities: [SecurablePlainRouteItemEntity], logging: false, synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature([SecurablePlainRouteItemEntity]), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
-			providers: [SecurablePlainRouteItemService, SecurablePlainRouteItemPolicy],
-		}).compile();
+	async function boot(controllers: Array<Type<unknown>>, providers: ReadonlyArray<Provider> = [], imports: ReadonlyArray<DynamicModule | Type<unknown>> = []): Promise<INestApplication> {
+		const moduleReference: TestingModule = await compile(controllers, providers, imports);
 		const application: INestApplication = moduleReference.createNestApplication(new FastifyAdapter(), { logger: false });
 
 		applications.push(application);
 		await application.listen(0, "127.0.0.1");
 
 		return application;
+	}
+
+	/**
+	 * Boots the controllers with the startup validation replaced, which leaves only what runs per request.
+	 * @param {Array<Type<unknown>>} controllers - Controllers to serve.
+	 * @param {ReadonlyArray<[unknown, unknown]>} [overrides] - More providers to replace with values.
+	 * @returns {Promise<INestApplication>} The listening application.
+	 */
+	async function bootWithoutStartupValidation(controllers: Array<Type<unknown>>, overrides: ReadonlyArray<[unknown, unknown]> = []): Promise<INestApplication> {
+		const moduleReference: TestingModule = await compile(controllers, [], [], [[ApiAuthorizationBootstrapValidationService, {}], ...overrides]);
+		const application: INestApplication = moduleReference.createNestApplication(new FastifyAdapter(), { logger: false });
+
+		applications.push(application);
+		await application.listen(0, "127.0.0.1");
+
+		return application;
+	}
+
+	/**
+	 * Finds a free TCP port for a microservice.
+	 * @returns {Promise<number>} The port.
+	 */
+	async function findFreePort(): Promise<number> {
+		return await new Promise<number>((resolve: (port: number) => void, reject: (error: Error) => void): void => {
+			const server: ReturnType<typeof createServer> = createServer();
+
+			server.once("error", reject);
+			server.listen(0, "127.0.0.1", (): void => {
+				const { port }: AddressInfo = server.address() as AddressInfo;
+
+				server.close((): void => {
+					resolve(port);
+				});
+			});
+		});
+	}
+
+	/**
+	 * Boots a hybrid application: HTTP and a real TCP microservice in one application.
+	 * @param {Array<Type<unknown>>} controllers - Controllers to serve.
+	 * @param {ReadonlyArray<[unknown, unknown]>} [overrides] - Providers to replace with values.
+	 * @returns {Promise<{ application: INestApplication; client: ClientProxy }>} The listening application and a connected TCP client.
+	 */
+	async function bootHybrid(controllers: Array<Type<unknown>>, overrides: ReadonlyArray<[unknown, unknown]> = []): Promise<{ application: INestApplication; client: ClientProxy }> {
+		const port: number = await findFreePort();
+		const moduleReference: TestingModule = await compile(controllers, [], [], overrides);
+		const application: INestApplication = moduleReference.createNestApplication(new FastifyAdapter(), { logger: false });
+
+		applications.push(application);
+		application.connectMicroservice({ options: { host: "127.0.0.1", port }, transport: Transport.TCP });
+		await application.startAllMicroservices();
+		await application.listen(0, "127.0.0.1");
+
+		const client: ClientProxy = ClientProxyFactory.create({ options: { host: "127.0.0.1", port }, transport: Transport.TCP });
+
+		clients.push(client);
+		await client.connect();
+
+		return { application, client };
+	}
+
+	/**
+	 * Sends a message and returns the reply or the error the transport carries back.
+	 * @param {ClientProxy} client - Connected client.
+	 * @param {string} pattern - Message pattern.
+	 * @returns {Promise<unknown>} The reply, or the error.
+	 */
+	async function sendMessage(client: ClientProxy, pattern: string): Promise<unknown> {
+		return await firstValueFrom(client.send(pattern, {}).pipe(timeout(10_000))).catch((error: unknown): unknown => error);
+	}
+
+	/**
+	 * Emits an event and gives the server time to run its handler.
+	 * @param {ClientProxy} client - Connected client.
+	 * @param {unknown} pattern - Event pattern.
+	 * @returns {Promise<void>} Resolves once the handler had its time.
+	 */
+	async function emitEvent(client: ClientProxy, pattern: unknown): Promise<void> {
+		await firstValueFrom(client.emit(pattern, {}));
+		await new Promise<void>((resolve: () => void): void => {
+			setTimeout(resolve, 300);
+		});
 	}
 
 	/**
@@ -440,9 +918,16 @@ describe("Served routes of securable controllers (E2E)", () => {
 	}
 
 	afterEach(async () => {
+		for (const client of clients.splice(0)) {
+			await client.close();
+		}
+
 		for (const application of applications.splice(0)) {
 			await application.close().catch((): void => undefined);
 		}
+
+		patternHandlerCalls.length = 0;
+		vi.restoreAllMocks();
 	});
 
 	describe("a served route that skips authorization stops the application", () => {
@@ -487,6 +972,176 @@ describe("Served routes of securable controllers (E2E)", () => {
 
 		it("refuses the authorization guard without route metadata", async () => {
 			await expect(boot([GuardWithoutMetadataController])).rejects.toThrow(plainRouteError("GuardWithoutMetadataController", "report", "GET /guard-only/report"));
+		});
+
+		it("does not accept an APP_GUARD in place of the guard on the route", async () => {
+			await expect(boot([AppGuardOnlyController], [{ provide: APP_GUARD, useClass: ApiAuthorizationGuard }])).rejects.toThrow(plainRouteError("AppGuardOnlyController", "report", "GET /app-guard/report"));
+		});
+
+		it("does not accept another guard that has the same class name", async () => {
+			await expect(boot([SameNameGuardController])).rejects.toThrow(plainRouteError("SameNameGuardController", "report", "GET /same-name-guard/report"));
+		});
+
+		it("does not accept an instance of the authorization guard", async () => {
+			await expect(boot([GuardInstanceController])).rejects.toThrow(plainRouteError("GuardInstanceController", "report", "GET /guard-instance/report"));
+		});
+
+		it("names the RouterModule prefix of the path", async () => {
+			await expect(boot([], [], [RouterPrefixedModule, RouterModule.register([{ module: RouterPrefixedModule, path: "admin" }])])).rejects.toThrow(plainRouteError("RouterPrefixedController", "report", "GET /admin/prefixed/report"));
+		});
+
+		it("names the versions of a route", async () => {
+			await expect(boot([VersionedHandlerController])).rejects.toThrow(plainRouteError("VersionedHandlerController", "report", "GET /versioned-handler/report (version 2, 3)"));
+		});
+
+		it("names the version of the controller", async () => {
+			await expect(boot([VersionedClassController])).rejects.toThrow(plainRouteError("VersionedClassController", "report", "GET /versioned-class/report (version 4)"));
+		});
+
+		it("leaves out a request method that the route does not declare", async () => {
+			await expect(boot([HandWrittenPathController])).rejects.toThrow(plainRouteError("HandWrittenPathController", "report", "/hand-path/report"));
+		});
+
+		it("refuses hand-written route metadata that has no route", async () => {
+			await expect(boot([MetadataWithoutRouteController])).rejects.toThrow(new Error(`[NestJS-Crud-Automator] Controller "MetadataWithoutRouteController" method "report" route metadata must declare route`));
+		});
+	});
+
+	describe("a handler replaced on the instance keeps going through authorization", () => {
+		it.each<[string, Type<unknown>, string, string, string]>([
+			["an @ApiMethod route bound in the constructor", BoundApiMethodController, "BoundApiMethodController", "denied", "POST /bound-method/denied"],
+			["an @ApiRouteCustom route bound in the constructor", BoundApiRouteCustomController, "BoundApiRouteCustomController", "denied", "POST /bound-custom/denied"],
+			["a generated route bound in a base class constructor", BoundGeneratedDeleteController, "BoundGeneratedDeleteController", "delete", "DELETE /bound-delete/:id"],
+			["a secured method of the parent hidden with defineProperty", DefinePropertyOverParentController, "DefinePropertyOverParentController", "publish", "POST /define-property/publish"],
+			["a bound copy that carries the route metadata but not the guards", PartialCopyController, "PartialCopyController", "allowed", "POST /partial-copy/allowed"],
+		])("refuses %s at startup", async (_case: string, controller: Type<unknown>, name: string, method: string, route: string) => {
+			await expect(boot([controller])).rejects.toThrow(replacedHandlerError(name, method, route));
+		});
+
+		it("accepts a bound copy that carries all the metadata, and authorizes it", async () => {
+			const application: INestApplication = await boot([FullCopyController]);
+
+			expect((await request(application, "POST", "/full-copy/allowed")).status).toBe(HttpStatus.OK);
+			expect((await request(application, "POST", "/full-copy/denied")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+
+		it("denies a request-scoped handler bound in the constructor, which startup cannot see", async () => {
+			const application: INestApplication = await boot([RequestScopedBoundController]);
+
+			expect((await request(application, "POST", "/request-scoped-bound/denied")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+
+		it("denies a request-scoped bound copy that carries the route metadata but not the guards", async () => {
+			const application: INestApplication = await boot([RequestScopedPartialCopyController]);
+
+			expect((await request(application, "POST", "/request-scoped-partial/allowed")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+
+		it("denies a bound generated DELETE and keeps the row, also with startup validation replaced", async () => {
+			const application: INestApplication = await bootWithoutStartupValidation([BoundGeneratedDeleteController]);
+			const repository: Repository<SecurablePlainRouteItemEntity> = application.get(getRepositoryToken(SecurablePlainRouteItemEntity));
+
+			await repository.save({ id: "row-1", name: "Name" });
+
+			expect((await request(application, "DELETE", "/bound-delete/row-1")).status).toBe(HttpStatus.FORBIDDEN);
+			await expect(repository.count()).resolves.toBe(1);
+		});
+
+		it("denies a route whose path metadata a hook removed after the routes were registered", async () => {
+			const application: INestApplication = await boot([StrippedPathController], [StripPathOnModuleInit]);
+
+			expect((await request(application, "GET", "/stripped-path/report")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+	});
+
+	describe("the class guard does not change a route that goes through authorization", () => {
+		it("evaluates the policy once", async () => {
+			const evaluate = vi.spyOn(ApiAuthorizationRuntime.prototype, "evaluate");
+			const application: INestApplication = await boot([CountedPolicyController]);
+
+			expect((await request(application, "POST", "/counted/counted")).status).toBe(HttpStatus.OK);
+			expect(evaluate).toHaveBeenCalledOnce();
+		});
+
+		it("passes a subclass of the authorization guard", async () => {
+			const application: INestApplication = await boot([SubclassedGuardAllowedController]);
+
+			expect((await request(application, "GET", "/subclassed-guard-allowed/report")).status).toBe(HttpStatus.OK);
+		});
+
+		it("passes the authorization guard on the class", async () => {
+			const application: INestApplication = await boot([ClassGuardAllowedController]);
+
+			expect((await request(application, "GET", "/class-guard-allowed/report")).status).toBe(HttpStatus.OK);
+		});
+	});
+
+	describe("a pattern handler counts as a served handler", () => {
+		it("refuses @MessagePattern in a standalone microservice", async () => {
+			const moduleReference: TestingModule = await compile([MessagePatternController]);
+			const microservice: INestMicroservice = moduleReference.createNestMicroservice({ logger: false, options: { host: "127.0.0.1", port: await findFreePort() }, transport: Transport.TCP });
+
+			applications.push(microservice);
+
+			await expect(microservice.listen()).rejects.toThrow(patternHandlerError("MessagePatternController", "message", `"securable.message"`));
+		});
+
+		it("refuses @MessagePattern in a hybrid application", async () => {
+			await expect(bootHybrid([MessagePatternController])).rejects.toThrow(patternHandlerError("MessagePatternController", "message", `"securable.message"`));
+		});
+
+		it("refuses @EventPattern in a hybrid application", async () => {
+			await expect(bootHybrid([EventPatternController])).rejects.toThrow(patternHandlerError("EventPatternController", "event", `{"cmd":"securable.event"}`));
+		});
+
+		it("denies a message over TCP in a hybrid application, also with startup validation replaced", async () => {
+			const { application, client } = await bootHybrid([MessagePatternController], [[ApiAuthorizationBootstrapValidationService, {}]]);
+
+			await expect(sendMessage(client, "securable.message")).resolves.toMatchObject({ message: "Forbidden resource" });
+			expect(patternHandlerCalls).toEqual([]);
+			expect((await request(application, "POST", "/message-pattern/allowed")).status).toBe(HttpStatus.OK);
+		});
+
+		it("denies an event over TCP in a hybrid application, also with startup validation replaced", async () => {
+			const { client } = await bootHybrid([EventPatternController], [[ApiAuthorizationBootstrapValidationService, {}]]);
+
+			await emitEvent(client, { cmd: "securable.event" });
+
+			expect(patternHandlerCalls).toEqual([]);
+		});
+
+		it("asks the policy for @ApiMethod with @MessagePattern over TCP and over HTTP", async () => {
+			const { application, client } = await bootHybrid([ApiMethodWithPatternController]);
+
+			await expect(sendMessage(client, "securable.denied")).resolves.toMatchObject({ message: "Internal server error" });
+			expect((await request(application, "POST", "/both-transports/denied")).status).toBe(HttpStatus.FORBIDDEN);
+			expect(patternHandlerCalls).toEqual([]);
+
+			await expect(sendMessage(client, "securable.allowed")).resolves.toEqual({ isReached: true });
+			expect(patternHandlerCalls).toEqual(["securable.allowed"]);
+		});
+
+		it("keeps pattern handlers on a controller that is not securable", async () => {
+			const { client } = await bootHybrid([OpenPatternController]);
+
+			await expect(sendMessage(client, "open.message")).resolves.toEqual({ isReached: true });
+			await emitEvent(client, "open.event");
+
+			expect(patternHandlerCalls).toEqual(["open.message", "open.event"]);
+		});
+	});
+
+	describe("a test harness that replaces the startup validation and the runtime", () => {
+		it("serves a declared route with the stubbed runtime", async () => {
+			const application: INestApplication = await bootWithoutStartupValidation([DeclaredRoutesController], [[ApiAuthorizationRuntime, { evaluate: async () => ({ effect: "allow", principal: { id: "test" } }) }]]);
+
+			expect((await request(application, "POST", "/declared/denied")).status).toBe(HttpStatus.OK);
+		});
+
+		it("turns off the check of plain routes, and the class guard still answers 403", async () => {
+			const application: INestApplication = await bootWithoutStartupValidation([PlainGetController]);
+
+			expect((await request(application, "GET", "/plain-get/report")).status).toBe(HttpStatus.FORBIDDEN);
 		});
 	});
 
