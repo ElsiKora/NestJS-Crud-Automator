@@ -313,7 +313,7 @@ class AddressDto {
 address: AddressDto;
 ```
 
-A free-form value has no class to validate against. Declare it with `type: Object` (`dataType: Object` in `@ApiPropertyDescribe`), without `shouldValidateNested`, and it keeps its keys under a `whitelist` or `forbidNonWhitelisted` pipe, apart from `__proto__`, `prototype` and `constructor`, which any `ValidationPipe` removes. Only its being an object is checked, and on an array [`isUniqueItems`](#unique-items). Do not put a raw `@ValidateNested()` without `@Type` on a plain object: `whitelist: true` removes every key and `forbidNonWhitelisted: true` rejects them. See [`@ApiPropertyObject`: Free-form objects](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object#free-form-objects).
+A free-form value has no class to validate against. Declare it with `type: Object` (`dataType: Object` in `@ApiPropertyDescribe`), without `shouldValidateNested`, and it keeps its keys under a `whitelist` or `forbidNonWhitelisted` pipe. A key `__proto__`, `constructor`, `hasOwnProperty` or `prototype` at any depth answers `400` on every `@ApiMethod` route before the pipe runs; see [Reserved Keys And NUL](#reserved-keys-and-nul). Only its being an object is checked, and on an array [`isUniqueItems`](#unique-items). Do not put a raw `@ValidateNested()` without `@Type` on a plain object: `whitelist: true` removes every key and `forbidNonWhitelisted: true` rejects them. See [`@ApiPropertyObject`: Free-form objects](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object#free-form-objects).
 
 ## Array Validation
 
@@ -478,8 +478,8 @@ A NUL gets `request body must not hold a NUL character`.
 - These keys would reach `class-transformer`, which builds a value through its `constructor`, and TypeORM, which compares stored JSON through its `hasOwnProperty`. PostgreSQL refuses a NUL in text and JSON. Without the check, each of them answers `500`.
 - Only keys are checked. The same words as values, such as `{ "name": "constructor" }`, pass, and so do keys that only look like them, such as `toString` or `valueOf`.
 - JSON `"\u0000"` is a NUL and is refused; JSON `"\\u0000"` is six characters of text and passes. Send binary data as base64.
-- Fastify's JSON parser already answers `400` for `__proto__` by default, with its own message, before the check runs.
-- A row already stored with such keys, written before 5.0.0 or by another writer, is still read: `GET` and `GET_LIST` return its free-form values as stored.
+- Some of these bodies are refused before the check, with the parser's own `400`. Fastify's JSON parser answers `Body is not valid JSON but content-type is set to 'application/json'` for a `__proto__` key and for a `constructor` key whose value holds `prototype`, such as `{ "a": { "constructor": { "prototype": {} } } }`. `@fastify/multipart` refuses a field named `__proto__` or `constructor`.
+- A row already stored with such keys, written before 5.0.0 or by another writer, is still read: `GET`, a page `GET_LIST` and a cursor `GET_LIST` return its free-form values as stored. A host `ClassSerializerInterceptor` runs `instanceToPlain`, which always drops the keys `constructor` and `__proto__`, so under it those two keys are left out and the rest is answered.
 
 ### Plain Routes And `bodyLimit`
 

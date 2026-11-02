@@ -316,7 +316,7 @@ Use `EApiGetDefaultStringFormatPropertiesBigIntStringSign` instead of the remove
 
 ## Free-Form Objects
 
-Do not put a raw `class-validator` `@ValidateNested()` without `@Type` on a plain object: `whitelist: true` removes every key and `forbidNonWhitelisted: true` rejects them. For a free-form value use `@ApiPropertyObject({ type: Object })` without `shouldValidateNested`, which keeps its keys apart from `__proto__`, `prototype` and `constructor`, removed by any `ValidationPipe`. Under a `ClassSerializerInterceptor` with `strategy: "excludeAll"` a free-form response value comes back as `{}`, at every level, so declare a class or leave the strategy off that route. Nothing inside it is validated beyond `isUniqueItems` comparing array items, so do not treat it as checked input.
+Do not put a raw `class-validator` `@ValidateNested()` without `@Type` on a plain object: `whitelist: true` removes every key and `forbidNonWhitelisted: true` rejects them. For a free-form value use `@ApiPropertyObject({ type: Object })` without `shouldValidateNested`, which keeps its keys; a key `__proto__`, `constructor`, `hasOwnProperty` or `prototype` answers `400` on every `@ApiMethod` route before the pipe. Under a `ClassSerializerInterceptor` with `strategy: "excludeAll"` a free-form response value comes back as `{}`, at every level, so declare a class or leave the strategy off that route. Nothing inside it is validated beyond `isUniqueItems` comparing array items, so do not treat it as checked input.
 
 ## Discriminator Keep Option
 
