@@ -62,6 +62,10 @@ class OrderFieldReasonEntity {
 	@Column({ type: "int" })
 	@ApiPropertyDescribe(describeRank({ [EApiRouteType.GET_LIST]: { [EApiDtoType.RESPONSE]: { isEnabled: false } } }))
 	public responseHidden!: number;
+
+	@Column({ select: false, type: "int" })
+	@ApiPropertyDescribe(describeRank())
+	public unselected!: number;
 }
 
 class OrderFieldReasonItemDto {
@@ -73,14 +77,14 @@ class OrderFieldReasonController {}
 
 const ROUTE: string = 'Controller "OrderFieldReasonController" route "getList": GET_LIST order field';
 
-const createRouteConfig = (field: string, options: { isCursor?: boolean; isResponseDto?: boolean }): TApiControllerPropertiesRoute<OrderFieldReasonEntity, EApiRouteType.GET_LIST> =>
+const createRouteConfig = (field: string, options: { isCursor?: boolean; isEnabled?: boolean; isResponseDto?: boolean }): TApiControllerPropertiesRoute<OrderFieldReasonEntity, EApiRouteType.GET_LIST> =>
 	({
 		...(options.isResponseDto ? { dto: { [EApiDtoType.RESPONSE]: { itemType: OrderFieldReasonItemDto } } } : {}),
 		request: {
 			[EApiControllerRequestTarget.QUERY]: {
 				order: {
 					...(options.isCursor ? { tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }] } : {}),
-					fields: { [field]: { isEnabled: true } },
+					fields: { [field]: { isEnabled: options.isEnabled ?? true } },
 					unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
 				},
 				...(options.isCursor ? { pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR } } : {}),
@@ -91,12 +95,12 @@ const createRouteConfig = (field: string, options: { isCursor?: boolean; isRespo
 
 const getEntityMetadata = (): IApiEntity<OrderFieldReasonEntity> => GenerateEntityInformation<OrderFieldReasonEntity>(OrderFieldReasonEntity as unknown as IApiBaseEntity);
 
-const compileOrderField = (field: string, options: { isCursor?: boolean; isResponseDto?: boolean } = {}): void => {
+const compileOrderField = (field: string, options: { isCursor?: boolean; isEnabled?: boolean; isResponseDto?: boolean } = {}): void => {
 	ApiControllerGetListQueryPlanCompiler.compile(OrderFieldReasonController, OrderFieldReasonEntity, getEntityMetadata(), createRouteConfig(field, options));
 };
 
-const assertOrderField = (field: string): void => {
-	ApiControllerGetListQueryPlanCompiler.assertOrderFieldsPublished(OrderFieldReasonController, OrderFieldReasonEntity, getEntityMetadata(), createRouteConfig(field, { isResponseDto: true }));
+const assertOrderField = (field: string, isEnabled: boolean = true): void => {
+	ApiControllerGetListQueryPlanCompiler.assertOrderFieldsPublished(OrderFieldReasonController, OrderFieldReasonEntity, getEntityMetadata(), createRouteConfig(field, { isEnabled, isResponseDto: true }));
 };
 
 describe("ApiControllerGetListQueryPlanCompiler order fields", () => {
@@ -107,6 +111,7 @@ describe("ApiControllerGetListQueryPlanCompiler order fields", () => {
 		["responseHidden", "the GET_LIST response does not expose it for the route guard"],
 		["responseGuarded", "the GET_LIST response does not expose it for the route guard"],
 		["exposeHidden", "it sets isExpose: false in the GET_LIST response"],
+		["unselected", "its column sets select: false, so TypeORM does not load it"],
 	])("names the route and why %s is not orderable on PAGE and CURSOR routes", (field: string, reason: string) => {
 		expect(() => compileOrderField(field)).toThrow(`${ROUTE} "${field}" is not orderable: ${reason}`);
 		expect(() => compileOrderField(field, { isCursor: true })).toThrow(`${ROUTE} "${field}" is not orderable: ${reason}`);
@@ -116,6 +121,20 @@ describe("ApiControllerGetListQueryPlanCompiler order fields", () => {
 		expect(() => compileOrderField("rank", { isResponseDto: true })).not.toThrow();
 		expect(() => assertOrderField("rank")).toThrow(`${ROUTE} "rank" is not orderable: the manual GET_LIST response DTO does not publish it`);
 		expect(() => assertOrderField("id")).not.toThrow();
+	});
+
+	it("accepts a disabled order field the manual GET_LIST response DTO does not publish once the classes are loaded on a PAGE route", () => {
+		expect(() => compileOrderField("rank", { isEnabled: false, isResponseDto: true })).not.toThrow();
+		expect(() => assertOrderField("rank", false)).not.toThrow();
+	});
+
+	it.each(["autoDtoDisabled", "responseHidden", "responseGuarded", "exposeHidden", "unselected"])("accepts a disabled order field %s that the list response hides on PAGE and CURSOR routes", (field: string) => {
+		expect(() => compileOrderField(field, { isEnabled: false })).not.toThrow();
+		expect(() => compileOrderField(field, { isCursor: true, isEnabled: false })).not.toThrow();
+	});
+
+	it.each(["optedOut", "queryDisabled"])("still refuses a disabled order field %s that is not orderable for another reason", (field: string) => {
+		expect(() => compileOrderField(field, { isEnabled: false })).toThrow(`${ROUTE} "${field}" is not orderable`);
 	});
 
 	it("names a field the manual GET_LIST response DTO does not publish while a CURSOR plan compiles", () => {

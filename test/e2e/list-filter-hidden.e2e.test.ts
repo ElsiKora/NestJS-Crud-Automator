@@ -14,7 +14,7 @@ import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiController, ApiSubscriberModule, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType, EFilterOperation } from "../../src/index";
-import { E2eListHiddenCursorItemController, E2eListHiddenItemController, E2eListHiddenItemEntity, E2eListHiddenItemPolicy, E2eListHiddenItemService, E2eListHiddenManualListDto, E2eListHiddenManualResponseItemController, E2eListHiddenOwnerEntity, E2eListHiddenTypedItemController, E2eListHiddenUserGuard, LIST_HIDDEN_DISABLED_ROUTES, LIST_HIDDEN_SECURITY } from "./list-filter-hidden";
+import { E2eListHiddenCursorItemController, E2eListHiddenItemController, E2eListHiddenItemEntity, E2eListHiddenItemPolicy, E2eListHiddenItemService, E2eListHiddenManualListDto, E2eListHiddenManualResponseItemController, E2eListHiddenOwnerEntity, E2eListHiddenTypedItemController, E2eListHiddenUncheckedItemController, E2eListHiddenUserGuard, LIST_HIDDEN_DISABLED_ROUTES, LIST_HIDDEN_SECURITY } from "./list-filter-hidden";
 
 class HiddenQueryLogger implements Logger {
 	public readonly queries: Array<string> = [];
@@ -213,7 +213,7 @@ describe.each([
 			const entities: Array<new () => unknown> = [E2eListHiddenOwnerEntity, E2eListHiddenItemEntity];
 			const moduleReference = await Test.createTestingModule({
 				// A CURSOR route boots only against PostgreSQL.
-				controllers: [E2eListHiddenItemController, E2eListHiddenTypedItemController, ...(isPostgres ? [E2eListHiddenCursorItemController] : []), E2eListHiddenManualResponseItemController],
+				controllers: [E2eListHiddenItemController, E2eListHiddenTypedItemController, ...(isPostgres ? [E2eListHiddenCursorItemController] : []), E2eListHiddenManualResponseItemController, E2eListHiddenUncheckedItemController],
 				imports: [TypeOrmModule.forRoot(container ? { dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eListHiddenItemPolicy, E2eListHiddenItemService, E2eListHiddenUserGuard],
 			}).compile();
@@ -302,6 +302,25 @@ describe.each([
 				const response = await fastify.inject({ method: "GET", url: `${url}&${query}` });
 
 				expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.BAD_REQUEST);
+				expect(queryLogger.queries).toEqual([]);
+			});
+		});
+
+		describe("on a route the factory built without the startup check", () => {
+			const url: string = "/list-hidden/unchecked-items?limit=10&page=1";
+
+			it("filters by a field the response publishes", async () => {
+				const response = await fastify.inject({ method: "GET", url: `${url}&label[operator]=eq&label[value]=Alpha` });
+
+				expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.OK);
+				expect((response.json() as { items: Array<unknown> }).items, JSON.stringify(response.json())).toHaveLength(1);
+			});
+
+			it("answers a filter on a field the manual list response leaves out with 400 FILTER_NOT_VALID before any SQL", async () => {
+				const response = await fastify.inject({ method: "GET", url: `${url}&rank[operator]=eq&rank[value]=1` });
+
+				expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.BAD_REQUEST);
+				expect(JSON.stringify(response.json())).toContain("FILTER_NOT_VALID");
 				expect(queryLogger.queries).toEqual([]);
 			});
 		});

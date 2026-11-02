@@ -2,7 +2,7 @@ import { Inject } from "@nestjs/common";
 import { ApiProperty } from "@nestjs/swagger";
 import { Expose, Type } from "class-transformer";
 
-import { ApiController, EApiAuthenticationType, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType, EFilterOperation, EFilterOrderDirection } from "../../../src/index";
+import { ApiController, ApiControllerFactory, EApiAuthenticationType, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType, EFilterOperation, EFilterOrderDirection } from "../../../src/index";
 
 import { E2eListHiddenUserGuard } from "./guard";
 import { E2eListHiddenItemEntity } from "./entity";
@@ -94,3 +94,23 @@ export class E2eListHiddenManualResponseItemController {
 	@Inject(E2eListHiddenItemService)
 	public readonly service!: E2eListHiddenItemService;
 }
+
+// Built by the factory alone, so no startup check refuses its rank filter, which the manual list response leaves out.
+export class E2eListHiddenUncheckedItemController {
+	@Inject(E2eListHiddenItemService)
+	public readonly service!: E2eListHiddenItemService;
+}
+
+new ApiControllerFactory<E2eListHiddenItemEntity, EApiControllerGetListQueryPaginationMode>(E2eListHiddenUncheckedItemController, {
+	entity: E2eListHiddenItemEntity,
+	name: "E2eListHiddenUncheckedItems",
+	path: "list-hidden/unchecked-items",
+	routes: {
+		...LIST_HIDDEN_DISABLED_ROUTES,
+		[EApiRouteType.GET_LIST]: {
+			dto: { [EApiDtoType.RESPONSE]: E2eListHiddenManualListDto },
+			request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { label: { allowedOperations: [EFilterOperation.EQ], isEnabled: true }, rank: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } },
+			security: LIST_HIDDEN_SECURITY,
+		},
+	},
+}).init();
