@@ -17,6 +17,7 @@ import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { HttpException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { ApiFunctionGetTransactionRepository } from "@utility/api/function-transaction-repository.utility";
 import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 import { DatabaseTypeOrmAssertRequiredWhere } from "@utility/database/typeorm/assert/required-where.utility";
 import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
@@ -45,7 +46,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<E> => {
 					const entityInstance: E = new entity();
-					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
+					const repository: Repository<E> = eventManager ? ApiFunctionGetTransactionRepository<E>(eventManager, this.repository, entity) : this.repository;
 					let finalProperties: TApiFunctionGetProperties<E>;
 
 					try {
@@ -96,7 +97,7 @@ export function ApiFunctionGet<E extends IApiBaseEntity>(properties: IApiFunctio
 				mode: transactionMode,
 				onPreflightError: async (eventManager: EntityManager | undefined, error: Error): Promise<void> => {
 					const entityInstance: E = new entity();
-					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
+					const repository: Repository<E> = eventManager ? ApiFunctionGetTransactionRepository<E>(eventManager, this.repository, entity) : this.repository;
 
 					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
 						DATA: { eventManager, getProperties, repository },

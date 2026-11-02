@@ -17,6 +17,7 @@ import { EApiSubscriberOnType } from "@enum/decorator/api/on-type.enum";
 import { EErrorStringAction } from "@enum/utility";
 import { EApiExceptionDetailsType } from "@enum/utility/exception-details-type.enum";
 import { BadRequestException, ConflictException, HttpException, HttpStatus, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { ApiFunctionGetTransactionRepository } from "@utility/api/function-transaction-repository.utility";
 import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 import { DatabaseTypeOrmGetForeignKeyViolationDetails } from "@utility/database/typeorm/get/foreign-key-violation-details.utility";
 import { DatabaseTypeOrmGetUniqueViolationDetails } from "@utility/database/typeorm/get/unique-violation-details.utility";
@@ -48,7 +49,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<IApiBaseEntity> => {
 					const entityInstance: E = new entity();
-					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
+					const repository: Repository<E> = eventManager ? ApiFunctionGetTransactionRepository<E>(eventManager, this.repository, entity) : this.repository;
 
 					const executionContext: IApiSubscriberFunctionExecutionContext<E, TApiFunctionCreateProperties<E>, IApiSubscriberFunctionExecutionContextData<E>> = {
 						DATA: { eventManager, repository },
@@ -83,7 +84,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 				mode: transactionMode,
 				onPreflightError: async (eventManager: EntityManager | undefined, error: Error): Promise<void> => {
 					const entityInstance: E = new entity();
-					const repository: Repository<E> = eventManager ? eventManager.getRepository<E>(entity) : this.repository;
+					const repository: Repository<E> = eventManager ? ApiFunctionGetTransactionRepository<E>(eventManager, this.repository, entity) : this.repository;
 
 					const errorExecutionContext: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>> = {
 						DATA: { eventManager, repository },
