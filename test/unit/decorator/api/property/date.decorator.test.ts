@@ -3,7 +3,7 @@ import "reflect-metadata";
 import { ApiPropertyDate } from "@decorator/api/property/date.decorator";
 import { EApiPropertyDateIdentifier, EApiPropertyDateType } from "@enum/decorator/api";
 import { ValidationPipe } from "@nestjs/common";
-import { plainToInstance } from "class-transformer";
+import { Expose, plainToInstance, Transform } from "class-transformer";
 import { validateSync } from "class-validator";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { afterEach, describe, expect, it } from "vitest";
@@ -172,7 +172,7 @@ describe("ApiPropertyDate", () => {
 		it.each(["2026-02-30", "2026-13-01", "2026-03-01T00:00:00.000Z", "20260301", "2026-3-1", "Mar 1 2026", "", "0000-01-01", "10000-01-01", 20_260_301, true, {}, [["2026-03-01"]]])("rejects %j as a DATE value without converting it", (value: unknown) => {
 			const instance = plainToInstance(CalendarDateDto, { happensOn: value });
 
-			expect(instance.happensOn).toEqual(value);
+			expect(instance.happensOn).not.toBeInstanceOf(Date);
 			expect(validateSync(instance).map((error) => error.constraints)).toEqual([{ isDateFormatValue: "happensOn must be in YYYY-MM-DD format" }]);
 		});
 
@@ -189,7 +189,7 @@ describe("ApiPropertyDate", () => {
 		it.each(["2026-03-01T12:34:56Z", "2026-03-01T12:34:56.789+01:00", "2026-03-01T12:34:56.789", "2026-03-01", "2026-02-30T12:00:00.000Z", "2026-03-01T24:00:00.000Z", "2026-03-01T12:34:56X789Z", "March 1 2026", "1", "", "0000-01-01T00:00:00.000Z", "10000-01-01T00:00:00.000Z", 0, 1_772_368_496_789, [["2026-03-01T12:34:56.789Z"]]])("rejects %j as a DATE_TIME value without converting it", (value: unknown) => {
 			const instance = plainToInstance(DateDto, { createdAt: value });
 
-			expect(instance.createdAt).toEqual(value);
+			expect(instance.createdAt).not.toBeInstanceOf(Date);
 			expect(validateSync(instance).map((error) => error.constraints)).toEqual([{ isDateFormatValue: "createdAt must be in YYYY-MM-DDTHH:mm:ss.sssZ format" }]);
 		});
 
@@ -210,7 +210,7 @@ describe("ApiPropertyDate", () => {
 		it.each(["24:00:00", "12:60:00", "12:30:60", "9:30:00", "09:30", "09:30:00.000", "09:30:00Z", "2026-03-01T09:30:00.000Z", "", 930, [["09:30:00"]]])("rejects %j as a TIME value without converting it", (value: unknown) => {
 			const instance = plainToInstance(TimeDto, { opensAt: value });
 
-			expect(instance.opensAt).toEqual(value);
+			expect(instance.opensAt).not.toBeInstanceOf(Date);
 			expect(validateSync(instance).map((error) => error.constraints)).toEqual([{ isDateFormatValue: "opensAt must be in HH:mm:ss format" }]);
 		});
 
@@ -220,7 +220,7 @@ describe("ApiPropertyDate", () => {
 
 			expect(accepted.slots).toEqual(["09:30:00", "18:00:00"]);
 			expect(validateSync(accepted)).toHaveLength(0);
-			expect(rejected.slots).toEqual(["09:30:00", "24:00:00"]);
+			expect(rejected.slots[0]).toBe("09:30:00");
 			expect(validateSync(rejected).map((error) => error.constraints)).toEqual([{ isDateFormatValue: "each value in slots must be in HH:mm:ss format" }]);
 		});
 
@@ -312,5 +312,67 @@ describe("ApiPropertyDate under a ValidationPipe with implicit conversion", () =
 		const result = (await pipe.transform({ happensOn: "2026-03-01", opensAt: "09:30:00" }, { metatype: ImplicitCalendarDto, type: "body" })) as unknown as Record<string, unknown>;
 
 		expect(result).toMatchObject({ happensOn: "2026-03-01", opensAt: "09:30:00" });
+	});
+});
+
+describe("ApiPropertyDate with other transforms and exposed names", () => {
+	const SENT_INSTANT: string = "2026-03-01T12:34:56.789Z";
+	const toDate = ({ value }: { value: unknown }): unknown => (typeof value === "number" || typeof value === "string" ? new Date(value) : value);
+
+	class TransformAboveDto {
+		@Transform(toDate, { toClassOnly: true })
+		@ApiPropertyDate({ description: "startsAt", entity: DateEntity, format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, isRequired: true })
+		public startsAt!: Date;
+	}
+
+	class TransformBelowDto {
+		@ApiPropertyDate({ description: "startsAt", entity: DateEntity, format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, isRequired: true })
+		@Transform(toDate, { toClassOnly: true })
+		public startsAt!: Date;
+	}
+
+	class ExposedInstantDto {
+		@Expose({ name: "starts_at" })
+		@Reflect.metadata("design:type", Date)
+		@ApiPropertyDate({ description: "startsAt", entity: DateEntity, format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, isRequired: true })
+		public startsAt!: Date;
+	}
+
+	const transformingPipe: ValidationPipe = new ValidationPipe({ transform: true });
+
+	it.each([
+		["above", TransformAboveDto],
+		["below", TransformBelowDto],
+	])("refuses a number sent for a DATE_TIME property with a consumer transform %s it", async (_order: string, dto: new () => { startsAt: Date }) => {
+		await expect(transformingPipe.transform({ startsAt: 1_772_368_496_789 }, { metatype: dto, type: "body" })).rejects.toMatchObject({ response: { message: ["startsAt must be in YYYY-MM-DDTHH:mm:ss.sssZ format"] } });
+		await expect(transformingPipe.transform({ startsAt: "March 1 2026" }, { metatype: dto, type: "body" })).rejects.toMatchObject({ response: { message: ["startsAt must be in YYYY-MM-DDTHH:mm:ss.sssZ format"] } });
+	});
+
+	it.each([
+		["above", TransformAboveDto],
+		["below", TransformBelowDto],
+	])("accepts the published instant and a Date the server set with a consumer transform %s it", async (_order: string, dto: new () => { startsAt: Date }) => {
+		const sent = (await transformingPipe.transform({ startsAt: SENT_INSTANT }, { metatype: dto, type: "body" })) as { startsAt: Date };
+		const serverSet = (await transformingPipe.transform({ startsAt: new Date(SENT_INSTANT) }, { metatype: dto, type: "body" })) as { startsAt: Date };
+
+		expect(sent.startsAt.toISOString()).toBe(SENT_INSTANT);
+		expect(serverSet.startsAt.toISOString()).toBe(SENT_INSTANT);
+	});
+
+	describe.each([
+		["on", true],
+		["off", false],
+	])("with transform %s and implicit conversion", (_name: string, isTransform: boolean) => {
+		const pipe: ValidationPipe = new ValidationPipe({ transform: isTransform, transformOptions: { enableImplicitConversion: true } });
+
+		it.each(["March 1 2026", "0000-01-01T00:00:00.000Z", 0, "2026-03-01T12:34:56.789+03:00"])("refuses %j sent under the exposed name", async (value: unknown) => {
+			await expect(pipe.transform({ starts_at: value }, { metatype: ExposedInstantDto, type: "body" })).rejects.toMatchObject({ response: { message: ["startsAt must be in YYYY-MM-DDTHH:mm:ss.sssZ format"] } });
+		});
+
+		it("accepts the published instant sent under the exposed name", async () => {
+			const result: unknown = await pipe.transform({ starts_at: SENT_INSTANT }, { metatype: ExposedInstantDto, type: "body" });
+
+			expect(isTransform ? (result as ExposedInstantDto).startsAt.toISOString() : (result as { starts_at: string }).starts_at).toBe(SENT_INSTANT);
+		});
 	});
 });

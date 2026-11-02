@@ -123,7 +123,7 @@ describe("ApiPropertyString", () => {
 	});
 
 	it.each([false, true])("refuses format DATE at decoration and points to ApiPropertyDate (isResponse: %s)", (isResponse: boolean) => {
-		expect(() => buildStringDto(EApiPropertyStringType.DATE, { exampleValue: "2026-03-01", isResponse, pattern: "/^\\d{4}-\\d{2}-\\d{2}$/" })).toThrow("ApiPropertyString error: Property 'StringDto.value' cannot use format DATE; describe a calendar date with ApiPropertyDate and EApiPropertyDateType.DATE");
+		expect(() => buildStringDto(EApiPropertyStringType.DATE, { exampleValue: "2026-03-01", isResponse, pattern: "/^\\d{4}-\\d{2}-\\d{2}$/" })).toThrow("ApiPropertyString error: Property 'StringDto.value' cannot use format DATE. Describe a calendar date with ApiPropertyDate and EApiPropertyDateType.DATE, or on an entity with ApiPropertyDescribe({ type: EApiPropertyDescribeType.DATE, format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE })");
 	});
 
 	it("throws for invalid regex format", () => {
