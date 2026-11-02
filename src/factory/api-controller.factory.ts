@@ -29,6 +29,7 @@ import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/api";
 import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/controller/apply/decorators.utility";
 import { ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/apply/metadata.utility";
+import { ApiControllerGetInheritedRouteMethod } from "@utility/api/controller/apply/route-methods.utility";
 import { ApiControllerAssertRouteCursorDataSource, ApiControllerAssertRouteFunctions, ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerGetListQueryPlanGet, ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
@@ -348,7 +349,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 
 	/**
 	 * Keeps a route disabled on this controller from being served through a parent controller that generates it.
-	 * Nest serves the closest definition of a method name, so a definition without route metadata hides the parent route. The parent handler stays callable from the controller. A method that the controller or its base classes declare themselves is left alone.
+	 * Nest serves the closest definition of a method name, so a definition without route metadata hides the parent route. The parent handler stays callable from the controller. A method that the controller or its base classes declare themselves is left alone, but a copy that declares responses for this controller, such as `@ApiControllerSecurable()` below `@ApiController` writes, counts as the generated route it calls.
 	 * @param {EApiRouteType} method - Disabled route type.
 	 * @returns {void}
 	 */
@@ -360,7 +361,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			definingPrototype = Object.getPrototypeOf(definingPrototype) as null | object;
 		}
 
-		const inheritedMethod: unknown = definingPrototype ? Object.getOwnPropertyDescriptor(definingPrototype, methodName)?.value : undefined;
+		const inheritedMethod: unknown = ApiControllerGetInheritedRouteMethod(definingPrototype ? Object.getOwnPropertyDescriptor(definingPrototype, methodName)?.value : undefined);
 
 		if (typeof inheritedMethod !== "function" || !ApiControllerFactory.GENERATED_METHODS.has(inheritedMethod)) {
 			return;

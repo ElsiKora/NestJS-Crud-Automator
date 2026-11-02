@@ -2,6 +2,9 @@ import type { TApiControllerRouteHandler } from "@type/utility/api/controller";
 
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 
+// The inherited route method each copy on a controller prototype calls
+const inheritedRouteMethods: WeakMap<TApiControllerRouteHandler, TApiControllerRouteHandler> = new WeakMap<TApiControllerRouteHandler, TApiControllerRouteHandler>();
+
 /**
  * Collects the `ApiMethod` route methods of a prototype and its ancestors, the closest definition of each name first.
  * @param {object} prototype - Prototype to start from.
@@ -28,6 +31,21 @@ export function ApiControllerCollectRouteMethods(prototype: object): Map<string,
 	}
 
 	return descriptors;
+}
+
+/**
+ * Returns the inherited route method a copy from `ApiControllerGetOwnRouteMethod` calls, through every copy, so a check on the inherited method sees through the copies.
+ * @param {unknown} method - A method of a controller prototype.
+ * @returns {unknown} The method the copies call, or the method itself when it is no copy.
+ */
+export function ApiControllerGetInheritedRouteMethod(method: unknown): unknown {
+	let current: unknown = method;
+
+	while (isRouteHandler(current) && inheritedRouteMethods.has(current)) {
+		current = inheritedRouteMethods.get(current);
+	}
+
+	return current;
 }
 
 /**
@@ -61,6 +79,7 @@ export function ApiControllerGetOwnRouteMethod(controllerPrototype: object, meth
 		Reflect.defineMetadata(metadataKey, Reflect.getOwnMetadata(metadataKey, inheritedHandler), ownMethod);
 	}
 
+	inheritedRouteMethods.set(ownMethod, inheritedHandler);
 	const descriptor: PropertyDescriptor = { ...route.descriptor, value: ownMethod };
 	Object.defineProperty(controllerPrototype, methodName, descriptor);
 
