@@ -30,7 +30,7 @@ import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
 import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsOrder, FindOptionsWhere, ObjectLiteral, RelationMetadata, Repository } from "typeorm";
 
-import { ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
+import { ApiControllerGeneratedInsertedKeyStorage, ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiControllerGetListCursorDataSourceContract } from "@class/api/controller/get-list/cursor/data-source-contract.class";
 import { ApiControllerGetListCursorRuntime } from "@class/api/controller/get-list/cursor/runtime.class";
@@ -323,18 +323,22 @@ export class ApiRouteRuntime {
 			case EApiRouteType.CREATE: {
 				await this.executeGeneratedRequestPipeline(options, targets, [EApiControllerRequestTarget.BODY]);
 				const service: ApiServiceBase<E> = options.controller.service;
+				const createFunction: (this: ApiServiceBase<E>, properties: never) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.CREATE, EApiFunctionType.CREATE, options.properties.entity);
 				const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
 
 				return await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<E> => {
-					await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {});
-					const primaryKey: IApiControllerPrimaryColumn<E> = this.resolvePrimaryKey(targets.body, options.entityMetadata);
+					const createInput: DeepPartial<E> = targets.body ?? ({} as DeepPartial<E>);
+					await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, createInput);
+					// An entity without primary key metadata fails here, before the route writes, as GET, PUT, PATCH and DELETE fail.
+					this.resolvePrimaryKey(createInput, options.entityMetadata);
 					markAfterBoundary();
-					const createResponse: E = await options.controller.service.create((targets.body ?? {}) as never);
+					const insertedKey: ObjectLiteral = await ApiControllerGeneratedInsertedKeyStorage.run(createInput, async (): Promise<E> => await Reflect.apply(createFunction, service, [createInput]));
 
+					// The route answers with the row it inserted, read as GET reads it by the key TypeORM saved, so the create result cannot pull another row into the response.
 					const requestProperties: TApiFunctionGetProperties<E> = {
 						relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
 						relations: routeConfig.relations?.response?.load?.include,
-						where: AuthorizationScopeMergeWhere({ [primaryKey.key]: createResponse[primaryKey.key] } as FindOptionsWhere<E>, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
+						where: AuthorizationScopeMergeWhere(insertedKey as FindOptionsWhere<E>, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
 					};
 
 					return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => await Reflect.apply(getFunction, service, [requestProperties]));

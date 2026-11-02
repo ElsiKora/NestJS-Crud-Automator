@@ -90,7 +90,7 @@ export function ApiFunction<E extends IApiBaseEntity, R>(properties: TApiFunctio
 			return modifiedMethod.apply(this, arguments_);
 		};
 
-		if (type !== EApiFunctionType.CREATE && type !== EApiFunctionType.CUSTOM) {
+		if (type !== EApiFunctionType.CUSTOM) {
 			ApiControllerGeneratedFunctionCapability.mark(descriptor.value, type, entity, properties.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS);
 		}
 

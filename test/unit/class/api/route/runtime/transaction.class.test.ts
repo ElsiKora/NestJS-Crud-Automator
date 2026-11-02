@@ -1,11 +1,12 @@
 import type { IApiRouteRuntimeGeneratedExecutionOptions } from "@interface/class/api/route";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
-import type { DataSource, Repository } from "typeorm";
+import type { DataSource, ObjectLiteral, Repository } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionLifecycle } from "@class/api/function/transaction/lifecycle.class";
 import { ApiFunctionTransactionScope } from "@class/api/function/transaction/scope.class";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGeneratedInsertedKeyStorage } from "@class/api/controller/generated/inserted-key-storage.class";
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
@@ -218,10 +219,13 @@ function createRouteService(dataSource?: DataSource): ApiServiceBase<RuntimeRout
 		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.DELETE, criteria);
 	});
 
+	ApiControllerGeneratedFunctionCapability.mark(service.create, EApiFunctionType.CREATE, RuntimeRouteEntity);
 	ApiControllerGeneratedFunctionCapability.mark(service.get, EApiFunctionType.GET, RuntimeRouteEntity);
 	ApiControllerGeneratedFunctionCapability.mark(service.getList, EApiFunctionType.GET_LIST, RuntimeRouteEntity);
 	ApiControllerGeneratedFunctionCapability.mark(service.update, EApiFunctionType.UPDATE, RuntimeRouteEntity);
 	ApiControllerGeneratedFunctionCapability.mark(service.delete, EApiFunctionType.DELETE, RuntimeRouteEntity);
+	// The mocked CREATE functions do not save a row, so the key the route reads by is the id they return.
+	vi.spyOn(ApiControllerGeneratedInsertedKeyStorage, "run").mockImplementation(async (_input: object, callback: () => Promise<unknown>): Promise<ObjectLiteral> => ({ id: ((await callback()) as RuntimeRouteEntity).id }));
 
 	return service;
 }
@@ -253,11 +257,31 @@ describe("ApiRouteRuntime generated transactions", () => {
 		expect(inheritedDelete).not.toHaveBeenCalled();
 	});
 
+	it("rejects an unmarked CREATE before opening a transaction or creating", async () => {
+		const transaction = createTransactionFixture();
+		const service: ApiServiceBase<RuntimeRouteEntity> = new ApiServiceBase<RuntimeRouteEntity>();
+		const create = vi.spyOn(service, "create");
+
+		Object.defineProperty(service, "repository", {
+			value: {
+				manager: {
+					dataSource: transaction.dataSource,
+				},
+			} as Repository<RuntimeRouteEntity>,
+		});
+
+		await expect(ApiRouteRuntime.executeGenerated(createGeneratedCreateOptions(service, { transaction: { mode: EApiFunctionTransactionMode.REQUIRED } }))).rejects.toThrow("Generated create service function is not protected by its built-in decorator");
+		expect(transaction.dataSource.createQueryRunner).not.toHaveBeenCalled();
+		expect(create).not.toHaveBeenCalled();
+	});
+
 	it("rejects an unmarked CREATE reload before opening a transaction or creating", async () => {
 		const transaction = createTransactionFixture();
 		const service: ApiServiceBase<RuntimeRouteEntity> = new ApiServiceBase<RuntimeRouteEntity>();
 		const create = vi.spyOn(service, "create");
 		const get = vi.spyOn(service, "get");
+
+		ApiControllerGeneratedFunctionCapability.mark(create, EApiFunctionType.CREATE, RuntimeRouteEntity);
 
 		Object.defineProperty(service, "repository", {
 			value: createTypeOrmRepositoryStub<RuntimeRouteEntity>(transaction.dataSource),

@@ -5,6 +5,7 @@ import type { CanActivate } from "@nestjs/common";
 
 import { ApiServiceBase } from "@class/api";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGeneratedInsertedKeyStorage } from "@class/api/controller/generated/inserted-key-storage.class";
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/controller-startup-check.constant";
@@ -73,7 +74,13 @@ class FactoryEntity {
 }
 
 class FactoryService extends ApiServiceBase<FactoryEntity> {
-	public override create = vi.fn(async (properties: Partial<FactoryEntity>) => ({ id: properties.id ?? "id-1", name: properties.name ?? "created", count: 1 }) as FactoryEntity);
+	public override create = vi.fn(async (properties: Partial<FactoryEntity>) => {
+		const created: FactoryEntity = { id: properties.id ?? "id-1", name: properties.name ?? "created", count: 1 } as FactoryEntity;
+
+		ApiControllerGeneratedInsertedKeyStorage.claim(properties)?.({ id: created.id });
+
+		return created;
+	});
 	public override get = vi.fn(async (properties: { where?: Partial<FactoryEntity> }) => {
 		ApiControllerGeneratedReadScopeStorage.claim(EApiFunctionType.GET, properties);
 
@@ -101,6 +108,7 @@ class FactoryService extends ApiServiceBase<FactoryEntity> {
 
 	public constructor() {
 		super();
+		ApiControllerGeneratedFunctionCapability.mark(this.create, EApiFunctionType.CREATE, FactoryEntity);
 		ApiControllerGeneratedFunctionCapability.mark(this.get, EApiFunctionType.GET, FactoryEntity);
 		ApiControllerGeneratedFunctionCapability.mark(this.getList, EApiFunctionType.GET_LIST, FactoryEntity);
 		ApiControllerGeneratedFunctionCapability.mark(this.update, EApiFunctionType.UPDATE, FactoryEntity);
@@ -258,15 +266,17 @@ describe("ApiController", () => {
 		const allDisabled = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: disabled, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
 		const bootstrap = async (entity: Function, routes: object): Promise<void> => {
 			const describedEntity = createDescribedEntity(entity);
+			const create = async (): Promise<IApiBaseEntity> => ({});
 			const get = async (): Promise<IApiBaseEntity> => ({});
 
-			// A CREATE route reads its response through a protected GET function of the service.
+			// A CREATE route writes through a protected CREATE function of the service and reads its response through a protected GET function.
+			ApiControllerGeneratedFunctionCapability.mark(create, EApiFunctionType.CREATE, describedEntity as never);
 			ApiControllerGeneratedFunctionCapability.mark(get, EApiFunctionType.GET, describedEntity as never);
 
 			class CheckedController {
 				public receiptService: FactoryService = new FactoryService();
 
-				public service: { get: typeof get; repository: unknown } = { get, repository: dataSource.getRepository(entity) };
+				public service: { create: typeof create; get: typeof get; repository: unknown } = { create, get, repository: dataSource.getRepository(entity) };
 			}
 
 			const Decorated = ApiController<IApiBaseEntity>({ entity: describedEntity, routes } as never)(CheckedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };

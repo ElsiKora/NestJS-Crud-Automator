@@ -4,8 +4,10 @@ import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/ap
 import type { IApiSubscriberFunctionExecutionContextData } from "@interface/class/api/subscriber/function/execution/context/data.interface";
 import type { IApiFunctionCreateExecutorProperties, IApiFunctionProperties } from "@interface/decorator/api";
 import type { TApiFunctionCreateProperties } from "@type/decorator/api/function";
-import type { EntityManager, Repository } from "typeorm";
+import type { EntityManager, ObjectLiteral, Repository } from "typeorm";
 
+import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
+import { ApiControllerGeneratedInsertedKeyStorage } from "@class/api/controller/generated/inserted-key-storage.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode } from "@enum/decorator/api";
@@ -39,6 +41,8 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (this: { repository: Repository<E> }, createProperties: TApiFunctionCreateProperties<E>): Promise<IApiBaseEntity> {
+			const reportInsertedKey: ((key: ObjectLiteral | undefined) => void) | undefined = ApiControllerGeneratedInsertedKeyStorage.claim(createProperties);
+
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<IApiBaseEntity> => {
 					const entityInstance: E = new entity();
@@ -70,7 +74,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 						throw ErrorException("Repository is not available in this context");
 					}
 
-					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? ({} as unknown as TApiFunctionCreateProperties<E>), repository });
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? ({} as unknown as TApiFunctionCreateProperties<E>), reportInsertedKey, repository });
 				},
 				entity,
 				functionType: EApiFunctionType.CREATE,
@@ -92,6 +96,8 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 			});
 		};
 
+		ApiControllerGeneratedFunctionCapability.mark(descriptor.value, EApiFunctionType.CREATE, entity, transactionMode);
+
 		return descriptor;
 	};
 }
@@ -104,7 +110,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
  * @throws {InternalServerErrorException} If the creation operation fails
  */
 async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExecutorProperties<E>): Promise<E> {
-	const { constructor, entity, properties, repository }: IApiFunctionCreateExecutorProperties<E> = options;
+	const { constructor, entity, properties, reportInsertedKey, repository }: IApiFunctionCreateExecutorProperties<E> = options;
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
@@ -116,6 +122,9 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 		} else {
 			result = await repository.save(properties);
 		}
+
+		// A generated route reads its response by the key TypeORM saved, taken before a function subscriber can replace or change the result.
+		reportInsertedKey?.(repository.metadata.getEntityIdMap(result));
 
 		const entityInstance: E = new entity();
 

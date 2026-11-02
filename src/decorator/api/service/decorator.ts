@@ -202,6 +202,7 @@ export function ApiService<E extends IApiBaseEntity>(properties: TApiServiceProp
 						// eslint-disable-next-line @elsikora/typescript/naming-convention
 						writable: true,
 					});
+					ApiControllerGeneratedFunctionCapability.markOwn(this, EApiFunctionType.CREATE, EApiFunctionType.CREATE, entity, functions?.[EApiFunctionType.CREATE]?.transaction?.mode ?? EApiFunctionTransactionMode.SUPPORTS);
 				}
 
 				if (ApiServiceShouldDefineFunction(this, originalConstructor.prototype, EApiFunctionType.UPDATE)) {
