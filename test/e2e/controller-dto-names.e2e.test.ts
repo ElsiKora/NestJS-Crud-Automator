@@ -13,6 +13,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiController, ApiSubscriberModule, EApiRouteType } from "../../src/index";
+import { expectEveryReferenceToResolve } from "./expect-every-reference-to-resolve";
 import { E2eDtoNameAdminItemController, E2eDtoNameCopyController, E2eDtoNameCustomItemController, E2eDtoNameItemEntity, E2eDtoNameItemService, E2eDtoNameOwnerEntity, E2eDtoNamePublicItemController, E2eDtoNameRecordController, E2eDtoNameRecordEntity, E2eDtoNameRecordService } from "./controller-dto-names";
 
 const COMPONENT_REFERENCE_PREFIX: string = "#/components/schemas/";
@@ -94,18 +95,6 @@ interface ISchema {
 	allOf?: Array<ISchema>;
 	items?: ISchema;
 	properties?: Record<string, ISchema>;
-}
-
-/**
- * Asserts that every component reference of a document points at a component of that document.
- * @param {OpenAPIObject} openApiDocument - The generated document.
- * @returns {void}
- */
-function expectEveryReferenceToResolve(openApiDocument: OpenAPIObject): void {
-	const references: Array<string> = [...JSON.stringify(openApiDocument).matchAll(/"#\/components\/schemas\/([^"]+)"/g)].map((match: RegExpExecArray): string => match[1] as string);
-
-	expect(references.length).toBeGreaterThan(0);
-	expect(references.filter((name: string): boolean => !openApiDocument.components?.schemas?.[name])).toEqual([]);
 }
 
 describe("generated DTO names with two controllers on one entity (E2E)", () => {
