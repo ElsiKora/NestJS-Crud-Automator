@@ -12,7 +12,7 @@ import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eListScalarAccountEntity, E2eListScalarCursorKeyController, E2eListScalarDefaultKeyController, E2eListScalarKeyEntity, E2eListScalarKeyService, E2eListScalarPageKeyController } from "./list-query-scalar";
+import { E2eListScalarAccountEntity, E2eListScalarCursorKeyController, E2eListScalarDefaultKeyController, E2eListScalarKeyEntity, E2eListScalarKeyService, E2eListScalarManualKeyController, E2eListScalarPageKeyController } from "./list-query-scalar";
 
 class ScalarQueryLogger implements Logger {
 	public readonly queries: Array<string> = [];
@@ -50,6 +50,7 @@ const KEY_IDS: ReadonlyArray<string> = ["00000000-0000-4000-8000-000000000001", 
 // A route without a typed filter publishes no filter on the primary key, and CURSOR v1 runs on PostgreSQL only.
 const ROUTES: ReadonlyArray<IScalarRoute> = [
 	{ columns: ["amount", "accountId", "account.id"], isPostgresOnly: false, url: "/list-scalar/default-keys?limit=10&page=1" },
+	{ columns: ["amount", "accountId", "account.id"], isPostgresOnly: false, url: "/list-scalar/manual-keys?limit=10&page=1" },
 	{ columns: ["amount", "id", "accountId", "account.id"], isPostgresOnly: false, url: "/list-scalar/page-keys?limit=10&page=1" },
 	{ columns: ["amount", "id", "accountId", "account.id"], isPostgresOnly: true, url: "/list-scalar/cursor-keys?limit=10" },
 ];
@@ -100,7 +101,7 @@ describe.each([
 		beforeAll(async () => {
 			const entities: Array<new () => unknown> = [E2eListScalarAccountEntity, E2eListScalarKeyEntity];
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eListScalarDefaultKeyController, E2eListScalarPageKeyController, E2eListScalarCursorKeyController],
+				controllers: [E2eListScalarDefaultKeyController, E2eListScalarManualKeyController, E2eListScalarPageKeyController, E2eListScalarCursorKeyController],
 				imports: [TypeOrmModule.forRoot(container ? { dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", dropSchema: true, entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eListScalarKeyService],
 			}).compile();
