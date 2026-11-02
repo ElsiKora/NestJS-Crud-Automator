@@ -437,6 +437,28 @@ describe("ApiPropertyObject", () => {
 			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, [name]: value })).toThrow(`ApiPropertyObject error: '${name}' must be a non-negative integer`);
 		});
 
+		it.each([
+			["a number", 1],
+			["a string", "true"],
+			["null", null],
+		])("rejects isArray set to %s, which would skip the bound checks", (_name: string, isArray: unknown) => {
+			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, isArray, maxItems: Number.NaN })).toThrow("ApiPropertyObject error: 'isArray' must be a boolean");
+		});
+
+		it("names the class of a static property", () => {
+			const decorator: PropertyDecorator = Reflect.apply(ApiPropertyObject, undefined, [{ ...BOUNDED_REQUEST_ARRAY, minItems: undefined }]);
+
+			expect(() => decorator(ArrayBoundsDto, "children")).toThrow("Request array property 'ArrayBoundsDto.children' must declare 'minItems'");
+		});
+
+		it("says so when the class has no name", () => {
+			const AnonymousDto: new () => object = (() => class {})();
+			const decorator: PropertyDecorator = Reflect.apply(ApiPropertyObject, undefined, [{ ...BOUNDED_REQUEST_ARRAY, minItems: undefined }]);
+
+			expect(AnonymousDto.name).toBe("");
+			expect(() => decorator(AnonymousDto.prototype, "children")).toThrow("Request array property '<anonymous class>.children' must declare 'minItems'");
+		});
+
 		it("rejects isUniqueItems that is not a boolean", () => {
 			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, isUniqueItems: null })).toThrow("ApiPropertyObject error: 'isUniqueItems' must be a boolean");
 		});
