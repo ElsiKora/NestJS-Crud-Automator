@@ -123,6 +123,8 @@ The generated response DTO and Swagger describe each relation as the route sends
 
 A relation is required in the response schema only when the route always sends it: it is in `include` with a truthy value, or it is eager. An explicit `isRequired` on the relation does not change this. Read any other relation as optional. A to-one relation is nullable when TypeORM can return `null`: a target with a `@DeleteDateColumn`, even on `nullable: false`; the inverse side of a one-to-one relation; otherwise the owner side unless it is `nullable: false` or every join column is non-null or primary. `isNullable` in the describe metadata of a relation does not change its response schema. A to-many relation is `[]` when empty, never `null`. `ApiPropertyCopy` of a relation reads the entity, not a route: it stays `{ id }`, required and non-null.
 
+A generated PUT or PATCH answers with the row as GET reads it on that route. Do not read a relation back from its response unless the route has it in `include` or it is eager: a relation key of the body is stored, not echoed. The result a function `onAfterUpdate` subscriber returns does not reach this response; use a route `onAfterUpdate` subscriber. `service.update()` still returns the saved object, with the raw value of the body under a relation key.
+
 Do not rely on the order of to-many elements: it is not guaranteed. Do not expect nested `load.include` data in a response: projection reduces each direct relation to its reference.
 
 TypeORM `lazy: true` relations are not supported in responses: one in `load.include` fails at startup, and any other serializes to `{}`. Use a non-lazy relation with `load.include`.

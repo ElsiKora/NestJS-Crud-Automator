@@ -163,6 +163,8 @@ Each controller on an entity gets its own response DTOs, named after the control
 
 `FULL` and `PRESERVE` are not 3.0 modes. Any configured `relations.response.load` requires an `OBJECT` or `SCALAR` reference and projects the loaded relation. To retain a complete relation, omit Automator response loading, load it through another application-owned path, and use a manual response DTO or transformer.
 
+A generated `PUT` or `PATCH` answers with the row it wrote, read as `GET` reads it on that route. A response therefore carries a relation only when the route loads it: the relation is in `include`, or it is eager. A relation key of the request body is stored, and it comes back only if the route loads that relation, as a reference with its stored value. `service.update()`, and a custom route that returns its result, still give the saved object with the raw value of the body.
+
 ### Explicit Loading
 
 Specify exactly which relations to load:
@@ -726,6 +728,17 @@ A route now fails at startup, for every reference shape, when its reference key 
 Regenerate clients from the new OpenAPI document; a client that read `author.id` on an `OBJECT` reference on `code` must read `author.code`.
 
 `DtoGenerate` and `DtoGenerateTableInheritanceResponse` take a new optional last parameter `responseRelations`, `DtoGenerateRelationResponse` a new optional `reference` option, and `IDtoGenerateCacheKey` a new optional `responseRelations` field. Existing calls keep working and generate DTOs without a route's relation config.
+
+From 5.0.0, a generated `PUT` or `PATCH` answers with the row as `GET` reads it on every route, not only on a route with an `include`:
+
+| On a route without `include`       | Before 5.0.0              | From 5.0.0                     |
+| ---------------------------------- | ------------------------- | ------------------------------ |
+| Relation key in the body           | The raw value of the body | Left out                       |
+| `null` for a relation in the body  | `null`                    | Left out                       |
+| Eager relation key in the body     | The raw value of the body | `{ id }` with the stored value |
+| `PUT` with a required relation key | The raw value of the body | Left out                       |
+
+A client that read the relation back from such a response must add it to `relations.response.load.include`, or read it with `GET`. The route also runs one more `SELECT` and the `GET` function subscribers once more. The result that a function `onAfterUpdate` subscriber returns no longer reaches the response of a generated route, as was already the case with an `include`; change the response in a route `onAfterUpdate` subscriber. A body that moves the row out of the scope of the caller now gets `404` instead of `200` on such a route, as it already did on a route with an `include`: `REQUIRED` rolls the write back, and under the default `SUPPORTS` the write stays.
 
 From 5.0.0, generated routes no longer register an empty `<Entity><Method>Body<property>DTO` component for every relation property. Nothing referenced these components; an OpenAPI client generated from the document loses those empty types.
 
