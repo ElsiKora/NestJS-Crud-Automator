@@ -21,6 +21,7 @@ import { ApiFunctionGetTransactionRepository } from "@utility/api/function-trans
 import { ApiFunctionExecuteWithTransaction } from "@utility/api/function-transaction.utility";
 import { DatabaseTypeOrmGetForeignKeyViolationDetails } from "@utility/database/typeorm/get/foreign-key-violation-details.utility";
 import { DatabaseTypeOrmGetUniqueViolationDetails } from "@utility/database/typeorm/get/unique-violation-details.utility";
+import { DatabaseTypeOrmIsConcurrencyConflict } from "@utility/database/typeorm/is/concurrency-conflict.utility";
 import { DatabaseTypeOrmIsEntityMetadataNotFound } from "@utility/database/typeorm/is/entity/metadata-not-found.utility";
 import { DatabaseTypeOrmIsEntityNotFound } from "@utility/database/typeorm/is/entity/not-found.utility";
 import { DatabaseTypeOrmIsForeignKeyViolation } from "@utility/database/typeorm/is/foreign-key-violation.utility";
@@ -169,6 +170,10 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 			const detailsBase: ReturnType<typeof DatabaseTypeOrmGetUniqueViolationDetails> = DatabaseTypeOrmGetUniqueViolationDetails(caughtError);
 			const details: object = detailsBase ? { ...detailsBase, type: EApiExceptionDetailsType.UNIQUE_VIOLATION } : { type: EApiExceptionDetailsType.UNIQUE_VIOLATION };
 			error = new ConflictException({ details, error: "Conflict", message, statusCode: HttpStatus.CONFLICT }, { cause: caughtError });
+		}
+
+		if (DatabaseTypeOrmIsConcurrencyConflict(caughtError)) {
+			error = new ConflictException(ErrorString({ entity, type: EErrorStringAction.CONFLICT }), { cause: caughtError });
 		}
 
 		if (error instanceof HttpException) {
