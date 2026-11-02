@@ -154,6 +154,8 @@ export class UserEntity {
 
 `CREATED_AT`, `UPDATED_AT`, and `RECEIVED_AT` identify server-owned infrastructure timestamps. Generated CREATE, UPDATE, and PARTIAL_UPDATE body DTOs omit them while response DTOs retain them. Exclusion follows the semantic identifier, not the property name; use `DATE` for a writable business date.
 
+Columns and relations may also live on abstract base classes and mixins. Automator reads the same chain TypeORM maps: the entity class and every named parent class, stopping at the first class without a name. See [Inherited Entity Metadata](https://elsikora.com/docs/nestjs-crud-automator/core-concepts/entities#inherited-entity-metadata).
+
 Set `isAutoDtoEnabled: false` on `ApiPropertyDescribe` when a described entity property must remain outside every Automator-generated BODY, PARAMETERS, QUERY, and RESPONSE DTO. The property keeps its metadata and TypeORM mapping and remains available to manual DTOs, but it is also omitted from generated Swagger relation components and generated filter/order input. Route- or DTO-level `isEnabled: true` cannot re-enable it. An explicit `ApiPropertyCopy` may deliberately copy it into a manual DTO while retaining the source metadata's other route, DTO, guard, and validation rules.
 
 ### 2. Create a Service

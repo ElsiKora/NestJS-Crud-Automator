@@ -258,6 +258,29 @@ export class ArticleEntity extends BaseContentEntity {
 
 In this example, generated `ArticleEntity` DTOs include `id`, `slug`, and `title`. Inherited relation metadata is also registered as Swagger extra models when relation DTOs are generated.
 
+The inheritance chain is the one TypeORM maps: the entity class and every named parent class, including abstract base classes and the classes that mixin functions return. A class without a name ends the chain, as it does in TypeORM, so name the class a mixin returns:
+
+```typescript
+export function Archivable<TBase extends abstract new (...arguments_: Array<any>) => object>(Base: TBase) {
+	abstract class ArchivableEntity extends Base {
+		@Column({ nullable: true })
+		@ApiPropertyDescribe({
+			type: EApiPropertyDescribeType.DATE,
+			format: EApiPropertyDateType.DATE_TIME,
+			identifier: EApiPropertyDateIdentifier.DATE,
+		})
+		archivedAt?: Date;
+	}
+
+	return ArchivableEntity;
+}
+
+@Entity("articles")
+export class ArticleEntity extends Archivable(BaseContentEntity) {}
+```
+
+When a subclass declares a column again under the same property name, TypeORM keeps the parent's declaration, and so does Automator.
+
 ### Relation Properties
 
 Entity relationship metadata for route-configured loading:
@@ -401,7 +424,12 @@ Relations declared on a child entity are covered in [Relations](/docs/nestjs-cru
 
 ### Migration Notes
 
-From 5.0.0, an existing generated controller over a table inheritance root changes in these ways:
+From 5.0.0, `GenerateEntityInformation` and generated routes read only the chain TypeORM maps:
+
+- Columns and relations declared above a parent class without a name are no longer read, which TypeORM never mapped. Name the class a mixin returns to keep them.
+- A column declared again on a subclass is listed once, with the parent's declaration that TypeORM keeps.
+
+An existing generated controller over a table inheritance root changes in these ways:
 
 - GET and GET_LIST return the full polymorphic shape instead of silently stripped variant columns, and their Swagger schemas are `oneOf`. Clients that depend on the reduced shape need a manual RESPONSE DTO on the route.
 - The 4.x Swagger components `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` are no longer generated. GET refers to the variant DTOs such as `<Prefix>GetResponseCardTransferDTO`, and the GET_LIST wrapper is `<Prefix>GetListPageDTO` with `oneOf` items. `<Prefix>` is the controller's schema prefix, see [Generated Schema Names](/docs/nestjs-crud-automator/core-concepts/dtos#generated-schema-names). Regenerate OpenAPI clients, or keep a manual RESPONSE DTO on the route to keep the old components.

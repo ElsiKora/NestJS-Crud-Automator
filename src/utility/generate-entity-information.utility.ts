@@ -44,35 +44,8 @@ export function GenerateEntityInformation<E>(entity: TApiEntityReference): IApiE
 
 	const storage: MetadataStorage = MetadataStorage.getInstance();
 	const entityHierarchy: Array<Type<unknown>> = GetClassHierarchy(metadataTarget);
-	const entityNames: Set<string> = new Set<string>(entityHierarchy.map((current: Type<unknown>): string => current.name));
-
-	const columnList: Array<TTypeOrmColumnMetadataArguments> = getMetadataArgsStorage().columns.filter(({ target }: TTypeOrmColumnMetadataArguments): boolean => {
-		if (typeof target === "string") {
-			return entityNames.has(target);
-		}
-
-		if (typeof target !== "function") {
-			return false;
-		}
-
-		const targetEntity: new (...arguments_: Array<unknown>) => unknown = target as unknown as new (...arguments_: Array<unknown>) => unknown;
-
-		return entityHierarchy.includes(targetEntity);
-	});
-
-	const relationList: Array<TTypeOrmRelationMetadataArguments> = getMetadataArgsStorage().relations.filter(({ target }: TTypeOrmRelationMetadataArguments): boolean => {
-		if (typeof target === "string") {
-			return entityNames.has(target);
-		}
-
-		if (typeof target !== "function") {
-			return false;
-		}
-
-		const targetEntity: new (...arguments_: Array<unknown>) => unknown = target as unknown as new (...arguments_: Array<unknown>) => unknown;
-
-		return entityHierarchy.includes(targetEntity);
-	});
+	const columnList: Array<TTypeOrmColumnMetadataArguments> = getMetadataArgsStorage().filterColumns(entityHierarchy);
+	const relationList: Array<TTypeOrmRelationMetadataArguments> = getMetadataArgsStorage().filterRelations(entityHierarchy);
 
 	const entityColumns: Array<IApiEntityColumn<E>> = [
 		...columnList.map(({ options, propertyName }: TTypeOrmColumnMetadataArguments) => {

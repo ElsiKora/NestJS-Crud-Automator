@@ -99,6 +99,10 @@ When `read.scope.parameters` is present, Automator owns the generated PARAMETERS
 
 Use explicit `ApiPropertyCopy` when a manual DTO intentionally needs the hidden source property. Copy bypasses only the global auto-DTO boundary; the source metadata's remaining route/DTO, guard, and validation rules still apply. CURSOR cannot order by the property because protected cursor fields must be exposed in the generated response.
 
+## Unnamed Mixin Classes
+
+A mixin that returns `class extends Base {}` produces a class without a name. TypeORM stops its inheritance chain at the first unnamed class, so neither TypeORM nor Automator maps columns or relations declared on it or above it. Name the returned class, for example `abstract class ArchivableEntity extends Base {}`.
+
 ## Relation Metadata Arrays
 
 `ApiPropertyDescribe({ type: EApiPropertyDescribeType.RELATION })` does not currently accept `isArray`, `minItems`, `maxItems`, or `isUniqueItems`. Relation arrays are TypeORM relation shape, not describe-array validator metadata.
