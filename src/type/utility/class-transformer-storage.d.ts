@@ -1,3 +1,3 @@
 declare module "class-transformer/cjs/storage.js" {
-	export const defaultMetadataStorage: { findExposeMetadata: (target: object, propertyName: string) => unknown };
+	export const defaultMetadataStorage: { findExposeMetadata: (target: object, propertyName: string | symbol) => unknown };
 }

@@ -14,6 +14,6 @@ describe("ApplyAutoExpose", () => {
 	it("fails at decoration when it cannot read what @Expose writes, naming the way out", () => {
 		expect(() => {
 			ApplyAutoExpose(TwoStoragesDto.prototype, "value");
-		}).toThrow("Cannot read class-transformer metadata for 'TwoStoragesDto.value': 'class-transformer' and 'class-transformer/cjs/storage.js' resolve to different copies. Resolve 'class-transformer' to its CommonJS entry in your bundler");
+		}).toThrow("Cannot read class-transformer metadata for 'TwoStoragesDto.value': the bundle loads two copies. Alias exactly 'class-transformer' to 'class-transformer/cjs/index.js', set main before module in the bundler's mainFields, or mark both 'class-transformer' and 'class-transformer/cjs/storage.js' external.");
 	});
 });

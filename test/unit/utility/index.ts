@@ -1,3 +1,4 @@
+export * from "./apply-auto-expose-symbol.utility.test";
 export * from "./apply-auto-expose.utility.test";
 export * from "./auto-dto-context-queue.utility.test";
 export * from "./camel-case-string.utility.test";

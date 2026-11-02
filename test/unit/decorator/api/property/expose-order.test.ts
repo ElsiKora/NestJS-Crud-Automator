@@ -9,7 +9,7 @@ import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
 import { EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyNumberType, EApiPropertyStringType } from "@enum/decorator/api";
 import { Exclude, Expose, instanceToPlain, plainToInstance } from "class-transformer";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 class ExposeOrderEntity {}
 
@@ -37,6 +37,18 @@ const ORDERS: Array<[string, boolean]> = [
 	["@Expose below @ApiProperty*", true],
 ];
 
+// Indexes into [@ApiProperty*, @Exclude, @Expose] in the order they run.
+const DECORATOR_ORDERS: Array<[string, Array<number>]> = [
+	["property, exclude, expose", [0, 1, 2]],
+	["property, expose, exclude", [0, 2, 1]],
+	["exclude, property, expose", [1, 0, 2]],
+	["exclude, expose, property", [1, 2, 0]],
+	["expose, property, exclude", [2, 0, 1]],
+	["expose, exclude, property", [2, 1, 0]],
+];
+
+const EXCLUDE_REFUSAL: RegExp = /Cannot combine a named @Expose with @Exclude or isExpose: false on '\w+\.value': class-transformer still reads the exposed name from a plain object into the excluded property\. Remove one of them, or limit the exclude with @Exclude\(\{ toPlainOnly: true \}\)$/;
+
 const MODES: Array<[string, TDecoratorOptions]> = [
 	["a neutral property", { isRequired: true }],
 	["a response property", { isResponse: true }],
@@ -55,11 +67,39 @@ const buildDto = (decorators: Array<PropertyDecorator>): new () => TDtoInstance 
 	return Dto;
 };
 
+const buildNamedDto = (name: string, decorators: Array<PropertyDecorator>): new () => TDtoInstance => {
+	const Dto: new () => TDtoInstance = { [name]: class {} }[name] as new () => TDtoInstance;
+
+	for (const decorator of decorators) {
+		decorator(Dto.prototype, "value");
+	}
+
+	return Dto;
+};
+
 const flushDeferredDecorators = async (): Promise<void> => {
 	await Promise.resolve();
 	await new Promise((resolve: (value: unknown) => void) => {
 		setTimeout(resolve, 0);
 	});
+};
+
+// The refusal waits for the other decorators of the property, so it runs in a microtask; collecting those keeps its error inside the test.
+const runWithDeferredDecorators = (decorate: () => void): void => {
+	const deferred: Array<() => void> = [];
+	const queueSpy = vi.spyOn(globalThis, "queueMicrotask").mockImplementation((handler: () => void): void => {
+		deferred.push(handler);
+	});
+
+	try {
+		decorate();
+
+		for (let handler: (() => void) | undefined = deferred.shift(); handler; handler = deferred.shift()) {
+			handler();
+		}
+	} finally {
+		queueSpy.mockRestore();
+	}
 };
 
 describe.each(DECORATORS)("%s and @Expose", (_name: string, factory: TDecoratorFactory, specificOptions: TDecoratorOptions, value: unknown) => {
@@ -110,13 +150,6 @@ describe.each(DECORATORS)("%s and @Expose", (_name: string, factory: TDecoratorF
 		});
 	});
 
-	it.each(ORDERS)("lets isExpose false win over a name with %s", (_order: string, isExplicitFirst: boolean) => {
-		const decorators: Array<PropertyDecorator> = [apiProperty({ isExpose: false, isResponse: true }), Expose({ name: "wire" })];
-		const Dto: new () => TDtoInstance = buildDto(isExplicitFirst ? decorators.toReversed() : decorators);
-
-		expect(instanceToPlain(Object.assign(new Dto(), { value }))).toEqual({});
-	});
-
 	it("keeps a name its parent class declares when the child redeclares the property", () => {
 		class ParentDto {
 			@Expose({ name: "wire" })
@@ -147,5 +180,142 @@ describe.each(DECORATORS)("%s and @Expose", (_name: string, factory: TDecoratorF
 
 		expect(Object.keys(instanceToPlain(Object.assign(new ChildDto(), { value })))).toEqual(["wire"]);
 		expect(Object.keys(instanceToPlain(Object.assign(new ParentDto(), { value })))).toEqual(["value"]);
+	});
+});
+
+describe.each(DECORATORS)("%s with a named @Expose next to an exclude", (_name: string, factory: TDecoratorFactory, specificOptions: TDecoratorOptions, value: unknown) => {
+	const apiProperty = (options: TDecoratorOptions): PropertyDecorator => Reflect.apply(factory, undefined, [{ ...SHARED_OPTIONS, ...specificOptions, ...options }]);
+	const REFUSAL_MODES: Array<[string, TDecoratorOptions]> = [...MODES, ["a request property", { isRequired: true, isResponse: false }], ["a property with an entity factory", { entity: () => ExposeOrderEntity, isRequired: true }]];
+
+	describe.each(REFUSAL_MODES)("on %s", (_mode: string, modeOptions: TDecoratorOptions) => {
+		it.each(DECORATOR_ORDERS)("refuses @Exclude with the decorators in order %s", (_order: string, order: Array<number>) => {
+			const decorators: Array<PropertyDecorator> = [apiProperty(modeOptions), Exclude(), Expose({ name: "wire" })];
+
+			expect(() => {
+				runWithDeferredDecorators(() => {
+					buildNamedDto(
+						"RefusedDto",
+						order.flatMap((index: number): Array<PropertyDecorator> => decorators.slice(index, index + 1)),
+					);
+				});
+			}).toThrow(EXCLUDE_REFUSAL);
+		});
+
+		it("refuses @Exclude when the name is inherited", () => {
+			class ParentDto {
+				@Expose({ name: "wire" })
+				public value?: unknown;
+			}
+
+			class RefusedDto extends ParentDto {}
+
+			expect(() => {
+				runWithDeferredDecorators(() => {
+					apiProperty(modeOptions)(RefusedDto.prototype, "value");
+					Exclude()(RefusedDto.prototype, "value");
+				});
+			}).toThrow(EXCLUDE_REFUSAL);
+		});
+
+		it("refuses a name next to an inherited @Exclude", () => {
+			class ParentDto {
+				@Exclude()
+				public value?: unknown;
+			}
+
+			class RefusedDto extends ParentDto {}
+
+			expect(() => {
+				runWithDeferredDecorators(() => {
+					apiProperty(modeOptions)(RefusedDto.prototype, "value");
+					Expose({ name: "wire" })(RefusedDto.prototype, "value");
+				});
+			}).toThrow(EXCLUDE_REFUSAL);
+		});
+
+		it("refuses @Exclude with toClassOnly, which leaves the exposed name readable the same way", () => {
+			expect(() => {
+				runWithDeferredDecorators(() => {
+					buildNamedDto("RefusedDto", [apiProperty(modeOptions), Exclude({ toClassOnly: true }), Expose({ name: "wire" })]);
+				});
+			}).toThrow(EXCLUDE_REFUSAL);
+		});
+
+		it.each(ORDERS)("allows @Exclude with toPlainOnly with %s", (_order: string, isExplicitFirst: boolean) => {
+			const decorators: Array<PropertyDecorator> = [apiProperty(modeOptions), Exclude({ toPlainOnly: true }), Expose({ name: "wire" })];
+			let Dto: new () => TDtoInstance = buildNamedDto("AllowedDto", []);
+
+			runWithDeferredDecorators(() => {
+				Dto = buildNamedDto("AllowedDto", isExplicitFirst ? decorators.toReversed() : decorators);
+			});
+
+			expect(instanceToPlain(Object.assign(new Dto(), { value }))).toEqual({});
+			expect(plainToInstance(Dto, { wire: value }).value).toBeDefined();
+		});
+
+		it("allows @Exclude next to an @Expose without a name", () => {
+			let Dto: new () => TDtoInstance = buildNamedDto("AllowedDto", []);
+
+			runWithDeferredDecorators(() => {
+				Dto = buildNamedDto("AllowedDto", [apiProperty(modeOptions), Exclude(), Expose({ groups: ["admin"] })]);
+			});
+
+			expect(instanceToPlain(Object.assign(new Dto(), { value }), { groups: ["admin"] })).toEqual({});
+			expect(plainToInstance(Dto, { value }).value).toBeUndefined();
+		});
+
+		it("allows a name under a class-level @Exclude", () => {
+			@Exclude()
+			class AllowedDto {
+				public value?: unknown;
+			}
+
+			runWithDeferredDecorators(() => {
+				apiProperty(modeOptions)(AllowedDto.prototype, "value");
+				Expose({ name: "wire" })(AllowedDto.prototype, "value");
+			});
+
+			expect(Object.keys(instanceToPlain(Object.assign(new AllowedDto(), { value })))).toEqual(["wire"]);
+		});
+	});
+
+	it.each(ORDERS)("refuses isExpose false with %s", (_order: string, isExplicitFirst: boolean) => {
+		const decorators: Array<PropertyDecorator> = [apiProperty({ isExpose: false, isResponse: true }), Expose({ name: "wire" })];
+
+		expect(() => {
+			runWithDeferredDecorators(() => {
+				buildNamedDto("RefusedDto", isExplicitFirst ? decorators.toReversed() : decorators);
+			});
+		}).toThrow(EXCLUDE_REFUSAL);
+	});
+
+	it("refuses isExpose false when the name is inherited", () => {
+		class ParentDto {
+			@Expose({ name: "wire" })
+			public value?: unknown;
+		}
+
+		class RefusedDto extends ParentDto {}
+
+		expect(() => {
+			runWithDeferredDecorators(() => {
+				apiProperty({ isExpose: false, isResponse: true })(RefusedDto.prototype, "value");
+			});
+		}).toThrow(EXCLUDE_REFUSAL);
+	});
+
+	it("excludes a property given isExpose false without isResponse, which only JavaScript can pass", () => {
+		const Dto: new () => TDtoInstance = buildDto([apiProperty({ isExpose: false })]);
+
+		expect(instanceToPlain(Object.assign(new Dto(), { value }))).toEqual({});
+		expect(plainToInstance(Dto, { value }).value).toBeUndefined();
+	});
+
+	it("refuses isExpose false without isResponse next to a name", () => {
+		expect(() => {
+			runWithDeferredDecorators(() => {
+				buildNamedDto("RefusedDto", [apiProperty({ isExpose: false }), Expose({ name: "wire" })]);
+			});
+		}).toThrow(EXCLUDE_REFUSAL);
 	});
 });
