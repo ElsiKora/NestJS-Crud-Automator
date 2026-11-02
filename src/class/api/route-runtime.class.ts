@@ -2,7 +2,7 @@ import type { EFilterOrderDirection } from "@enum/filter";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
 import type { IApiAuthorizationDecision } from "@interface/class/api/authorization";
-import type { IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
+import type { IApiControllerGetListQueryAstNode, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiRouteRuntimeContextData, IApiRouteRuntimeCustomExecutionOptions, IApiRouteRuntimeGeneratedExecutionOptions, IApiRouteRuntimeGeneratedTargets, IApiRouteRuntimeHttpRequest } from "@interface/class/api/route";
@@ -45,6 +45,7 @@ import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, 
 import { EApiDtoType } from "@enum/decorator/api";
 import { BadRequestException } from "@nestjs/common";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
+import { ApiControllerGetListIsHiddenColumn } from "@utility/api/controller/get-list/is-hidden-column.utility";
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetListQueryAssertOrderable } from "@utility/api/controller/get-list/query/assert-orderable.utility";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
@@ -443,6 +444,12 @@ export class ApiRouteRuntime {
 				} = query;
 				const listResponseDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown> | undefined = (routeConfig as TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>).dto?.[EApiDtoType.RESPONSE];
 				const listPublishedFields: ReadonlySet<string> | undefined = listResponseDto ? ApiControllerGetListResponsePublishedFields(listResponseDto) : undefined;
+
+				// The startup check keeps such a column out of a typed plan; a plan that skipped it, as a bare ApiControllerFactory does, answers as the legacy path does.
+				if (runtimeQuery?.ast?.nodes.some((node: IApiControllerGetListQueryAstNode): boolean => ApiControllerGetListIsHiddenColumn(options.entityMetadata, node.path, routeConfig.security?.authentication?.guard, listPublishedFields))) {
+					throw new BadRequestException("FILTER_NOT_VALID");
+				}
+
 				// Built before the transaction, so a value outside the published schema, or a column the list response hides, answers 400 before any SQL.
 				const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard, listPublishedFields);
 				const service: ApiServiceBase<E> = options.controller.service;

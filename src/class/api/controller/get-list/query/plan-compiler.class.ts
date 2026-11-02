@@ -9,7 +9,7 @@ import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiControllerGetListQueryCompiledOrderField } from "@type/class/api/controller/get-list/compiled/order-field.type";
 import type { TApiControllerGetListQueryCompiledOrder } from "@type/class/api/controller/get-list/compiled/order.type";
 import type { TApiControllerGetListQueryCompiledPlan } from "@type/class/api/controller/get-list/compiled/plan.type";
-import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
+import type { TApiControllerGetListQueryOrderField, TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { TApiControllerGetListQueryRequestTarget } from "@type/decorator/api/controller/get-list/query/request-target.type";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeDtoQueryGetListProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { TManualDtoPropertyMetadata } from "@type/utility/dto/manual-property-metadata.type";
@@ -100,7 +100,8 @@ export class ApiControllerGetListQueryPlanCompiler {
 	}
 
 	/**
-	 * Fails startup when a PAGE route's manual list response cannot be read, or when its typed order names a field the response does not publish. The controller calls this once every class is loaded.
+	 * Fails startup when a PAGE route's manual list response cannot be read, or when its typed order enables a field the response does not publish. The controller calls this once every class is loaded.
+	 * An entry that disables a field needs no published field, since no client may order by it.
 	 * @template E - Entity type
 	 * @param {Type<unknown>} controller - Controller class, which the error names.
 	 * @param {ObjectLiteral} entity - Entity class.
@@ -127,8 +128,8 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 		const serverBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildServerOrderBaseline(entity, entityMetadata, false);
 
-		for (const path of Object.keys(queryTarget?.order?.fields ?? {})) {
-			if (!publishedFields.has(path)) {
+		for (const [path, field] of Object.entries(queryTarget?.order?.fields ?? {})) {
+			if ((field as TApiControllerGetListQueryOrderField | undefined)?.isEnabled !== false && !publishedFields.has(path)) {
 				throw ErrorException(this.describeUnorderableOrderField(controller, entityMetadata, serverBaseline, path, routeConfig.security?.authentication?.guard, publishedFields));
 			}
 		}
@@ -159,8 +160,9 @@ export class ApiControllerGetListQueryPlanCompiler {
 		const describeHiddenFilterField: (path: string) => string = (path: string): string => this.describeHiddenFilterField(controller, entityMetadata, path, currentGuard, publishedFields);
 		const orderBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildOrderBaseline(entity, entityMetadata, serverOrderBaseline, isCursor, currentGuard, publishedFields);
 		const describeUnorderableField: (path: string) => string = (path: string): string => this.describeUnorderableOrderField(controller, entityMetadata, serverOrderBaseline, path, currentGuard, publishedFields);
+		const isHiddenOrderField: (path: string) => boolean = (path: string): boolean => serverOrderBaseline[path] !== undefined && ApiControllerGetListIsHiddenColumn(entityMetadata, path, currentGuard, publishedFields);
 		const filter: IApiControllerGetListQueryPlanFilter = queryTarget.filter ? this.compileFilter(queryTarget.filter, filterBaseline, isCursor, controller, hiddenFilterPaths, describeHiddenFilterField) : Object.freeze({ fields: filterBaseline, isLegacy: !isCursor, ...(isCursor ? { unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT } : {}) });
-		const order: TApiControllerGetListQueryCompiledOrder = queryTarget.order ? this.compileOrder(queryTarget.order, orderBaseline, serverOrderBaseline, isCursor, describeUnorderableField) : Object.freeze({ fields: orderBaseline, isLegacy: true, serverFields: serverOrderBaseline });
+		const order: TApiControllerGetListQueryCompiledOrder = queryTarget.order ? this.compileOrder(queryTarget.order, orderBaseline, serverOrderBaseline, isCursor, describeUnorderableField, isHiddenOrderField) : Object.freeze({ fields: orderBaseline, isLegacy: true, serverFields: serverOrderBaseline });
 		const cursorFields: ReadonlyArray<string> = isCursor ? ApiControllerGetListQueryResolveCursorOrderFields(order) : Object.freeze([]);
 
 		if (isCursor) {
@@ -505,7 +507,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		});
 	}
 
-	private static compileOrder<E>(config: IApiControllerPropertiesRouteGetListQueryOrder<E>, baseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>>, serverBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>>, isCursor: boolean, describeUnorderableField: (path: string) => string): TApiControllerGetListQueryCompiledOrder {
+	private static compileOrder<E>(config: IApiControllerPropertiesRouteGetListQueryOrder<E>, baseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>>, serverBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>>, isCursor: boolean, describeUnorderableField: (path: string) => string, isHiddenField: (path: string) => boolean): TApiControllerGetListQueryCompiledOrder {
 		const rawConfig: Record<string, unknown> = this.requireRecord(config, "GET_LIST order");
 
 		this.requireAllowedKeys(rawConfig, ["defaultOrder", "fields", "tieBreakers", "unlistedFields"], "GET_LIST order");
@@ -515,6 +517,19 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 		for (const [path, rawField] of Object.entries(configuredFields).toSorted(([left]: [string, unknown], [right]: [string, unknown]): number => this.compareStrings(left, right, isCursor))) {
 			const baselineField: TApiControllerGetListQueryCompiledOrderField | undefined = baseline[path];
+
+			// Disabling a column the list response hides states what the plan already does; enabling it fails.
+			if (!baselineField && isHiddenField(path)) {
+				const hiddenField: Record<string, unknown> = this.requireRecord(rawField, `GET_LIST order field "${path}"`);
+
+				if (hiddenField.isEnabled !== false) {
+					throw ErrorException(describeUnorderableField(path));
+				}
+
+				this.requireExactKeys(hiddenField, ["isEnabled"], `Disabled GET_LIST order field "${path}"`);
+
+				continue;
+			}
 
 			if (!baselineField) {
 				throw ErrorException(describeUnorderableField(path));
