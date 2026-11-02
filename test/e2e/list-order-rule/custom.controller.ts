@@ -84,3 +84,11 @@ export class E2eListOrderRuleVariantController {
 		return { items: [], kind: "label" };
 	}
 }
+
+@Controller("list-order-rule/plain-custom")
+export class E2eListOrderRulePlainCustomController {
+	@ApiRouteCustom<E2eListOrderRuleItemEntity>({ autoDto: { [EApiDtoType.QUERY]: {} }, resource: { action: "list-order-rule.plain-custom", entity: E2eListOrderRuleItemEntity }, route: { method: RequestMethod.GET, path: "", type: EApiRouteType.GET_LIST } })
+	public list(@Query() _query: unknown): { items: Array<unknown> } {
+		return { items: [] };
+	}
+}

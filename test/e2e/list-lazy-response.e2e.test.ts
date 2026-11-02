@@ -199,5 +199,12 @@ describe.each<IHostPipeCase>([{ name: "no host pipe" }, { createPipe: () => new 
 			expect(JSON.stringify(refused.json())).toContain("orderBy must be one of the following values: label");
 			expect(accepted.statusCode, JSON.stringify(accepted.json())).toBe(HttpStatus.OK);
 		});
+
+		it.each(["orderBy=label", "orderDirection=asc"])("rejects %s alone through the deferred DTO of a custom route", async (order: string) => {
+			const response = await fastify.inject({ method: "GET", url: `/list-lazy-response/same-file-custom?${PAGE}&${order}` });
+
+			expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.BAD_REQUEST);
+			expect(JSON.stringify(response.json())).toContain("INVALID_ORDER");
+		});
 	}
 });
