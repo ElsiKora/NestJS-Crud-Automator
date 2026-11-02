@@ -1,5 +1,6 @@
 import "reflect-metadata";
 
+import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { ApiPropertyBoolean } from "@decorator/api/property/boolean.decorator";
 import { ApiPropertyDate } from "@decorator/api/property/date.decorator";
 import { ApiPropertyEnum } from "@decorator/api/property/enum.decorator";
@@ -116,7 +117,7 @@ describe.each(DECORATORS)("%s and @Expose", (_name: string, factory: TDecoratorF
 			expect(plainToInstance(Dto, { value }, { excludeExtraneousValues: true }).value).toBeUndefined();
 		});
 
-		it.each(ORDERS)("reads only the exposed name, also with exposeUnsetFields off, with %s", (_order: string, isExplicitFirst: boolean) => {
+		it.each(ORDERS)("refuses the property key in a plain request object in either key order, also with exposeUnsetFields off, with %s", (_order: string, isExplicitFirst: boolean) => {
 			const decorators: Array<PropertyDecorator> = [apiProperty(modeOptions), Expose({ name: "wire" })];
 			let Dto: (new () => TDtoInstance) | undefined;
 
@@ -128,8 +129,36 @@ describe.each(DECORATORS)("%s and @Expose", (_name: string, factory: TDecoratorF
 				throw new Error("The DTO was not built");
 			}
 
-			expect(plainToInstance(Dto, { value }, { exposeUnsetFields: false }).value).toBeUndefined();
-			expect(plainToInstance(Dto, { value, wire: value }, { exposeUnsetFields: false }).value).toBeDefined();
+			const BuiltDto: new () => TDtoInstance = Dto;
+
+			for (const exposeUnsetFields of [true, false]) {
+				expect(() => plainToInstance(BuiltDto, { value }, { exposeUnsetFields })).toThrow(ApiRequestValidationException);
+				expect(() => plainToInstance(BuiltDto, { value, wire: value }, { exposeUnsetFields })).toThrow(ApiRequestValidationException);
+				expect(() => plainToInstance(BuiltDto, { value, wire: value }, { excludeExtraneousValues: true, exposeUnsetFields })).toThrow(ApiRequestValidationException);
+				expect(() => plainToInstance(BuiltDto, { wire: value, value }, { exposeUnsetFields })).toThrow(ApiRequestValidationException);
+				expect(() => plainToInstance(BuiltDto, Object.assign(Object.create(null) as object, { value, wire: value }), { exposeUnsetFields })).toThrow(ApiRequestValidationException);
+				expect(() => plainToInstance(BuiltDto, Object.assign(Object.create(Object.create(null) as object) as object, { value }), { exposeUnsetFields })).toThrow(ApiRequestValidationException);
+				expect(plainToInstance(BuiltDto, { wire: value }, { exposeUnsetFields }).value).toBeDefined();
+			}
+		});
+
+		it.each(ORDERS)("reads only the exposed name of a class instance, also with exposeUnsetFields off, with %s", (_order: string, isExplicitFirst: boolean) => {
+			const decorators: Array<PropertyDecorator> = [apiProperty(modeOptions), Expose({ name: "wire" })];
+			let Dto: (new () => TDtoInstance) | undefined;
+
+			runWithDeferredDecorators(() => {
+				Dto = buildDto(isExplicitFirst ? decorators.toReversed() : decorators);
+			});
+
+			if (!Dto) {
+				throw new Error("The DTO was not built");
+			}
+
+			class Row {
+				public value: unknown = value;
+			}
+
+			expect(plainToInstance(Dto, new Row(), { exposeUnsetFields: false }).value).toBeUndefined();
 		});
 
 		it.each(ORDERS)("keeps every other option with %s", (_order: string, isExplicitFirst: boolean) => {

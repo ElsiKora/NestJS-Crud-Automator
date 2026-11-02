@@ -217,6 +217,16 @@ describe("generated copy of a manual child DTO (E2E)", () => {
 		expect(response.statusCode).toBe(400);
 	});
 
+	it.each([
+		{ childValue: "v", child_wire: "w" },
+		{ child_wire: "w", childValue: "v" },
+	])("refuses the property key of the child next to its exposed name on a generated POST: %j", async (details: Record<string, string>) => {
+		const response = await fastify.inject({ method: "POST", payload: { details }, url: "/manual-child-named" });
+
+		expect(response.statusCode).toBe(400);
+		expect(response.json().message).toEqual(["property childValue should not exist, send it as child_wire"]);
+	});
+
 	describe("transforms and types of the child", () => {
 		const MASKED_PROFILE = { identifier: null, note: { note_wire: "n" }, provider: "google", token: "***" };
 		const SHOWN_PROFILE = { identifier: "shown@example.com", note: { note_wire: "n" }, provider: "email", token: "***" };
