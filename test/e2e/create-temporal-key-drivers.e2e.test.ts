@@ -23,10 +23,12 @@ interface IColumnOptions {
 	type?: unknown;
 }
 
-type TKeyName = "dateFunction" | "inferred" | "instant" | "instantAlias" | "instantDefault" | "instantThree" | "instantTransformed" | "timestamp" | "wall" | "wallDefault" | "wallTransformed" | "wallZero";
+type TKeyName = "dateFunction" | "filledThree" | "inferred" | "instant" | "instantAlias" | "instantDefault" | "instantThree" | "instantTransformed" | "timestamp" | "wall" | "wallDefault" | "wallThree" | "wallTransformed" | "wallZero";
 
 interface IDriverSpec {
 	columns: Partial<Record<TKeyName, IColumnOptions>>;
+	// Keys that can hold a value finer than a millisecond, which a route under authorization refuses at startup.
+	finer: Array<IColumnOptions>;
 	name: string;
 	readAt: (table: string, isInstant: boolean) => string;
 	start: () => Promise<{ container?: StartedTestContainer; options: DataSourceOptions }>;
@@ -77,13 +79,19 @@ const DRIVERS: Array<IDriverSpec> = [
 	{
 		columns: {
 			dateFunction: { default: () => MICROSECOND_DEFAULT, precision: 6, type: Date },
+			filledThree: { default: () => "CURRENT_TIMESTAMP(3)", precision: 3, type: "datetime" },
 			inferred: { default: () => MICROSECOND_DEFAULT, precision: 6 },
 			timestamp: { precision: 3, type: "timestamp" },
 			wall: { precision: 3, type: "datetime" },
 			wallDefault: { default: () => "CURRENT_TIMESTAMP(3)", precision: 3, type: "datetime" },
+			wallThree: { precision: 3, type: "datetime" },
 			wallTransformed: { precision: 3, transformer: secondsTransformer, type: "datetime" },
 			wallZero: { type: "datetime" },
 		},
+		finer: [
+			{ default: () => MICROSECOND_DEFAULT, precision: 6, type: "datetime" },
+			{ precision: 6, type: "datetime" },
+		],
 		name: "mariadb",
 		readAt: (table: string): string => `select cast(at as char) as at from ${table}`,
 		start: startMysqlFamily("mariadb:11", "mariadb", { MARIADB_DATABASE: MYSQL_DATABASE, MARIADB_ROOT_PASSWORD: MYSQL_PASSWORD }),
@@ -91,6 +99,7 @@ const DRIVERS: Array<IDriverSpec> = [
 	{
 		columns: {
 			dateFunction: { default: () => MICROSECOND_DEFAULT, type: Date },
+			filledThree: { default: () => "now()", precision: 3, type: "timestamptz" },
 			inferred: { default: () => MICROSECOND_DEFAULT },
 			instant: { type: "timestamptz" },
 			instantAlias: { type: "timestamp with time zone" },
@@ -99,9 +108,11 @@ const DRIVERS: Array<IDriverSpec> = [
 			instantTransformed: { transformer: secondsTransformer, type: "timestamptz" },
 			wall: { type: "timestamp" },
 			wallDefault: { default: () => "now()", type: "timestamp" },
+			wallThree: { precision: 3, type: "timestamp" },
 			wallTransformed: { transformer: secondsTransformer, type: "timestamp" },
 			wallZero: { precision: 0, type: "timestamp" },
 		},
+		finer: [{ default: () => "now()", type: "timestamptz" }, { type: "timestamp" }, { precision: 6, type: "timestamp" }],
 		name: "cockroachdb",
 		readAt: (table: string, isInstant: boolean): string => `select (at${isInstant ? " at time zone 'UTC'" : ""})::string as at from ${table}`,
 		start: async () => {
@@ -118,13 +129,14 @@ const DRIVERS: Array<IDriverSpec> = [
 ];
 
 // These drivers have no INSERT RETURNING, so only a key the body supplies can identify the created row.
-const BODY_KEY_DRIVERS: Array<{ columns: Array<IColumnOptions>; filled: IColumnOptions; name: string; readAt: (table: string) => string; start: IDriverSpec["start"] }> = [
+const BODY_KEY_DRIVERS: Array<{ columns: Array<IColumnOptions>; filled: IColumnOptions; finer: Array<IColumnOptions>; name: string; readAt: (table: string) => string; start: IDriverSpec["start"] }> = [
 	{
 		columns: [
 			{ precision: 3, type: "datetime" },
 			{ precision: 3, type: "timestamp" },
 		],
 		filled: { default: () => "CURRENT_TIMESTAMP(3)", precision: 3, type: "datetime" },
+		finer: [{ precision: 6, type: "datetime" }],
 		name: "mysql",
 		readAt: (table: string): string => `select cast(at as char) as at, name from ${table} order by at`,
 		start: startMysqlFamily("mysql:8", "mysql", { MYSQL_DATABASE, MYSQL_ROOT_PASSWORD: MYSQL_PASSWORD }),
@@ -132,6 +144,7 @@ const BODY_KEY_DRIVERS: Array<{ columns: Array<IColumnOptions>; filled: IColumnO
 	{
 		columns: [{ type: "datetime" }],
 		filled: { default: () => "CURRENT_TIMESTAMP", type: "datetime" },
+		finer: [],
 		name: "better-sqlite3",
 		readAt: (table: string): string => `select at, name from ${table} order by at`,
 		start: async () => ({ options: { database: ":memory:", type: "better-sqlite3" } }),
@@ -177,7 +190,7 @@ const disabledRoutes = {
 	[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
 };
 
-function createFixture(driver: string, key: string, options: IColumnOptions, isComposite: boolean = false): { controllers: Array<Type<unknown>>; entity: Type<object>; path: string; providers: Array<Type<unknown>>; table: string } {
+function createFixture(driver: string, key: string, options: IColumnOptions, isScoped: boolean = false, isComposite: boolean = false): { controllers: Array<Type<unknown>>; entity: Type<object>; path: string; providers: Array<Type<unknown>>; table: string } {
 	const path: string = `${driver}-${key}`.toLowerCase();
 	const table: string = `temporal_${path.replaceAll("-", "_")}`;
 
@@ -230,6 +243,10 @@ function createFixture(driver: string, key: string, options: IColumnOptions, isC
 
 	const openController = ApiController<never>({ entity: DriverKeyEntity, name: path, path, routes: { [EApiRouteType.CREATE]: {}, ...disabledRoutes } } as never)(OpenDriverKeyController);
 
+	if (!isScoped) {
+		return { controllers: [openController], entity: DriverKeyEntity, path, providers: [DriverKeyPolicy, DriverKeyService], table };
+	}
+
 	const namespace: string = `temporal-${path}`;
 
 	class ScopedDriverKeyController {
@@ -252,8 +269,23 @@ function createFixture(driver: string, key: string, options: IColumnOptions, isC
 	return { controllers: [openController, scopedController], entity: DriverKeyEntity, path, providers: [DriverKeyPolicy, DriverKeyService], table };
 }
 
+async function expectFinerKeyRefused(options: DataSourceOptions, fixture: ReturnType<typeof createFixture>): Promise<void> {
+	@Module({
+		controllers: fixture.controllers,
+		imports: [TypeOrmModule.forRoot({ ...options, dropSchema: true, entities: [fixture.entity], logging: false, synchronize: true } as never), TypeOrmModule.forFeature([fixture.entity]), ApiAuthorizationModule.forRoot({ principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user as never) } } as never), ApiSubscriberModule],
+		providers: [DriverAuthGuard, ...fixture.providers],
+	})
+	class FinerKeyModule {}
+
+	const moduleRef = await Test.createTestingModule({ imports: [FinerKeyModule] }).compile();
+	const app: INestApplication = moduleRef.createNestApplication(new FastifyAdapter());
+
+	await expect(app.init()).rejects.toThrow(`Controller "${CamelCaseString(fixture.path)}ScopedController" route "create" cannot identify the row it creates under authorization: date and time primary column at of ${String(fixture.entity.name)} can hold values finer than a millisecond`);
+	await moduleRef.get(DataSource).destroy();
+}
+
 describe.each(DRIVERS)("Generated CREATE temporal key on $name (E2E)", (driver: IDriverSpec) => {
-	const fixtures = Object.fromEntries(Object.entries(driver.columns).map(([key, options]: [string, IColumnOptions]) => [key, createFixture(driver.name, key, options)])) as Partial<Record<TKeyName, ReturnType<typeof createFixture>>>;
+	const fixtures = Object.fromEntries(Object.entries(driver.columns).map(([key, options]: [string, IColumnOptions]) => [key, createFixture(driver.name, key, options, key === "filledThree" || key === "wallThree")])) as Partial<Record<TKeyName, ReturnType<typeof createFixture>>>;
 	const all: Array<ReturnType<typeof createFixture>> = Object.values(fixtures);
 	const pick = (...keys: Array<TKeyName>): Array<[TKeyName, ReturnType<typeof createFixture>]> => keys.flatMap((key: TKeyName): Array<[TKeyName, ReturnType<typeof createFixture>]> => (fixtures[key] ? [[key, fixtures[key]]] : []));
 	const instants = pick("instant", "instantAlias", "instantDefault");
@@ -261,7 +293,8 @@ describe.each(DRIVERS)("Generated CREATE temporal key on $name (E2E)", (driver: 
 	const finer = pick("instant", "instantThree", "wall");
 	const defaults = pick("dateFunction", "inferred");
 	const transformed = pick("instantTransformed", "wallTransformed");
-	const wall = fixtures.wall as ReturnType<typeof createFixture>;
+	const wallThree = fixtures.wallThree as ReturnType<typeof createFixture>;
+	const filledThree = fixtures.filledThree as ReturnType<typeof createFixture>;
 	const wallZero = fixtures.wallZero as ReturnType<typeof createFixture>;
 	let container: StartedTestContainer | undefined;
 	let options: DataSourceOptions;
@@ -276,6 +309,10 @@ describe.each(DRIVERS)("Generated CREATE temporal key on $name (E2E)", (driver: 
 	afterAll(async () => {
 		await container?.stop();
 	}, 60_000);
+
+	it.each(driver.finer.map((column: IColumnOptions, index: number) => [index, column] as const))("refuses a key finer than a millisecond under authorization at startup, column %i", async (index: number, column: IColumnOptions) => {
+		await expectFinerKeyRefused(options, createFixture(driver.name, `finer${String(index)}`, column, true));
+	});
 
 	describe.each([
 		["without a body pipe", false],
@@ -411,20 +448,28 @@ describe.each(DRIVERS)("Generated CREATE temporal key on $name (E2E)", (driver: 
 			});
 
 			it("stores a row inside the scope and rolls back a row outside it", async () => {
-				const stored = await fastify.inject({ method: "POST", payload: { at: "2024-01-02T03:04:05.678", name: IN_SCOPE }, url: `/${wall.path}-scoped` });
-				const refused = await fastify.inject({ method: "POST", payload: { at: "2024-01-02T03:04:06.678", name: OUT_OF_SCOPE }, url: `/${wall.path}-scoped` });
+				const stored = await fastify.inject({ method: "POST", payload: { at: "2024-01-02T03:04:05.678", name: IN_SCOPE }, url: `/${wallThree.path}-scoped` });
+				const refused = await fastify.inject({ method: "POST", payload: { at: "2024-01-02T03:04:06.678", name: OUT_OF_SCOPE }, url: `/${wallThree.path}-scoped` });
 
 				expect([stored.statusCode, refused.statusCode]).toEqual([201, 403]);
-				expect(await readStored(wall)).toEqual(["2024-01-02 03:04:05.678000"]);
+				expect(await readStored(wallThree)).toEqual(["2024-01-02 03:04:05.678000"]);
+			});
+
+			it("identifies a key the database fills at millisecond precision inside the scope and rolls back a row outside it", async () => {
+				const stored = await fastify.inject({ method: "POST", payload: { name: IN_SCOPE }, url: `/${filledThree.path}-scoped` });
+				const refused = await fastify.inject({ method: "POST", payload: { name: OUT_OF_SCOPE }, url: `/${filledThree.path}-scoped` });
+
+				expect([stored.statusCode, refused.statusCode]).toEqual([201, 403]);
+				expect(await dataSource.getRepository(filledThree.entity).count()).toBe(1);
 			});
 		});
 	});
 });
 
-describe.each(BODY_KEY_DRIVERS)("Generated CREATE temporal key on $name (E2E)", ({ columns, filled, name, readAt, start }) => {
+describe.each(BODY_KEY_DRIVERS)("Generated CREATE temporal key on $name (E2E)", ({ columns, filled, finer, name, readAt, start }) => {
 	const refused: ReturnType<typeof createFixture> = createFixture(name, "filled", filled);
-	const fixtures: Array<ReturnType<typeof createFixture>> = columns.map((column: IColumnOptions) => createFixture(name, String(column.type), column));
-	const composite: ReturnType<typeof createFixture> = createFixture(name, "composite", columns[0] as IColumnOptions, true);
+	const fixtures: Array<ReturnType<typeof createFixture>> = columns.map((column: IColumnOptions) => createFixture(name, String(column.type), column, true));
+	const composite: ReturnType<typeof createFixture> = createFixture(name, "composite", columns[0] as IColumnOptions, true, true);
 	const all: Array<ReturnType<typeof createFixture>> = [...fixtures, composite];
 	let container: StartedTestContainer | undefined;
 	let options: DataSourceOptions;
@@ -453,6 +498,10 @@ describe.each(BODY_KEY_DRIVERS)("Generated CREATE temporal key on $name (E2E)", 
 
 		await expect(app.init()).rejects.toThrow(`Controller "${CamelCaseString(refused.path)}Controller" route "create" cannot identify the row it creates: the database fills date and time primary column at of ${String(refused.entity.name)}, and the ${name} driver cannot read that value back`);
 		await moduleRef.get(DataSource).destroy();
+	});
+
+	it.each(finer.map((column: IColumnOptions, index: number) => [index, column] as const))("refuses a key finer than a millisecond under authorization at startup, column %i", async (index: number, column: IColumnOptions) => {
+		await expectFinerKeyRefused(options, createFixture(name, `finer${String(index)}`, column, true));
 	});
 
 	describe("with a key from the body", () => {

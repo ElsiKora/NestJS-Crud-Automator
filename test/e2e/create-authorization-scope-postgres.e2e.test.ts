@@ -114,7 +114,7 @@ class ScopedEventEntity {
 	@describeString("id")
 	public id!: string;
 
-	@CreateDateColumn({ primary: true, type: "timestamptz" })
+	@CreateDateColumn({ precision: 3, primary: true, type: "timestamptz" })
 	@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.CREATED_AT, type: EApiPropertyDescribeType.DATE } as never)
 	public createdAt!: Date;
 
@@ -144,7 +144,7 @@ class TimestampDefaultKeyEntity {
 	@describeString("id")
 	public id!: string;
 
-	@PrimaryColumn({ default: () => "'1800-01-01 00:00:00'", type: "timestamp" })
+	@PrimaryColumn({ default: () => "'1800-01-01 00:00:00'", precision: 3, type: "timestamp" })
 	@historicTimestampDescribe
 	public at!: Date;
 
@@ -159,7 +159,7 @@ class TimestampBodyKeyEntity {
 	@describeString("id")
 	public id!: string;
 
-	@PrimaryColumn({ type: "timestamp" })
+	@PrimaryColumn({ precision: 3, type: "timestamp" })
 	@bodyTimestampDescribe
 	public at!: Date;
 
@@ -174,7 +174,7 @@ class TimestamptzDefaultKeyEntity {
 	@describeString("id")
 	public id!: string;
 
-	@PrimaryColumn({ default: () => "'1800-01-01 00:00:00+00'", type: "timestamptz" })
+	@PrimaryColumn({ default: () => "'1800-01-01 00:00:00+00'", precision: 3, type: "timestamptz" })
 	@historicTimestampDescribe
 	public at!: Date;
 
@@ -189,7 +189,7 @@ class TimestamptzBodyKeyEntity {
 	@describeString("id")
 	public id!: string;
 
-	@PrimaryColumn({ type: "timestamptz" })
+	@PrimaryColumn({ precision: 3, type: "timestamptz" })
 	@bodyTimestampDescribe
 	public at!: Date;
 
