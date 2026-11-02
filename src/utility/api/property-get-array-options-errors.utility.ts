@@ -1,3 +1,5 @@
+import { ApiPropertyGetTargetClassName } from "@utility/api/property-get-target-class-name.utility";
+
 /**
  * Checks the array options of an `@ApiProperty*` decorator. The types require them on a request array, but JavaScript or `any` can leave one out
  * or pass any value, and `Number(process.env.X)` with X unset is NaN; a size bound like that would then reject every request value.
@@ -14,7 +16,7 @@
 export function ApiPropertyGetArrayOptionsErrors(properties: { isArray?: boolean; isResponse?: boolean; isUniqueItems?: boolean; maxItems?: number; minItems?: number }, target: object, propertyKey: string | symbol): Array<string> {
 	const { isArray, isResponse, isUniqueItems, maxItems, minItems }: { isArray?: boolean; isResponse?: boolean; isUniqueItems?: boolean; maxItems?: number; minItems?: number } = properties;
 
-	const propertyName: string = `'${getTargetClassName(target)}.${String(propertyKey)}'`;
+	const propertyName: string = `'${ApiPropertyGetTargetClassName(target)}.${String(propertyKey)}'`;
 
 	// Anything but `true` skips the checks below, while a truthy value still builds an array property.
 	if (isArray !== undefined && typeof isArray !== "boolean") {
@@ -64,15 +66,4 @@ export function ApiPropertyGetArrayOptionsErrors(properties: { isArray?: boolean
 	}
 
 	return errors;
-}
-
-/**
- * Names the class a property decorator was applied to.
- * @param {object} target - DTO prototype, or the class itself for a static property.
- * @returns {string} The class name, or a placeholder for an anonymous class.
- */
-function getTargetClassName(target: object): string {
-	const owner: { name: string } = typeof target === "function" ? target : target.constructor;
-
-	return owner.name || "<anonymous class>";
 }

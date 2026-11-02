@@ -23,7 +23,6 @@ export class E2eFreeFormItemDto {
 		description: "meta",
 		entity: E2eFreeFormOwnerEntity,
 		isRequired: true,
-		shouldValidateNested: true,
 		type: Object,
 	})
 	public meta!: Record<string, unknown>;
@@ -38,7 +37,6 @@ export class E2eFreeFormBodyDto {
 		isUniqueItems: true,
 		maxItems: 5,
 		minItems: 0,
-		shouldValidateNested: true,
 		type: Object,
 	})
 	public payloads?: Array<Record<string, unknown>>;
@@ -51,7 +49,6 @@ export class E2eFreeFormBodyDto {
 		isUniqueItems: false,
 		maxItems: 5,
 		minItems: 1,
-		shouldValidateNested: true,
 		type: Object,
 	})
 	public repeats?: Array<Record<string, unknown>>;
@@ -60,7 +57,6 @@ export class E2eFreeFormBodyDto {
 		description: "single",
 		entity: E2eFreeFormOwnerEntity,
 		isRequired: false,
-		shouldValidateNested: true,
 		type: Object,
 	})
 	public single?: Record<string, unknown>;
@@ -69,7 +65,6 @@ export class E2eFreeFormBodyDto {
 		description: "undeclared",
 		entity: E2eFreeFormOwnerEntity,
 		isRequired: false,
-		shouldValidateNested: true,
 		type: undefined,
 	})
 	public undeclared?: Record<string, unknown>;
@@ -82,7 +77,6 @@ export class E2eFreeFormBodyDto {
 		isUniqueItems: true,
 		maxItems: 5,
 		minItems: 0,
-		shouldValidateNested: true,
 		type: undefined,
 	})
 	public undeclaredList?: Array<Record<string, unknown>>;

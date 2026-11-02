@@ -20,7 +20,6 @@ export class E2eFreeFormRecordEntity {
 		isUniqueItems: false,
 		maxItems: 5,
 		minItems: 0,
-		shouldValidateNested: true,
 		type: EApiPropertyDescribeType.OBJECT,
 	})
 	public payloads!: Array<Record<string, unknown>>;
@@ -45,7 +44,6 @@ export class E2eFreeFormUndeclaredRecordEntity {
 	@ApiPropertyDescribe({
 		dataType: undefined,
 		description: "meta",
-		shouldValidateNested: true,
 		type: EApiPropertyDescribeType.OBJECT,
 	})
 	public meta!: Record<string, unknown>;
@@ -58,7 +56,6 @@ export class E2eFreeFormUndeclaredRecordEntity {
 		isUniqueItems: true,
 		maxItems: 5,
 		minItems: 0,
-		shouldValidateNested: true,
 		type: EApiPropertyDescribeType.OBJECT,
 	})
 	public metas!: Array<Record<string, unknown>>;

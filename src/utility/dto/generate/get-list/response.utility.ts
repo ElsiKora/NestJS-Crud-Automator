@@ -1,4 +1,4 @@
-import type { TApiPropertyObjectWithDiscriminatorProperties, TApiPropertyObjectWithoutDiscriminatorProperties } from "@type/decorator/api/property";
+import type { TApiPropertyObjectDeclaredClass, TApiPropertyObjectWithDiscriminatorProperties } from "@type/decorator/api/property";
 
 import { LIST_DTO_CONSTANT } from "@constant/dto";
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
@@ -20,7 +20,7 @@ import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
  * @returns {Type<unknown>} A generated DTO class for paginated list responses
  */
 export function DtoGenerateGetListResponse(resourceClass: TDtoGenerateGetListResponseResourceClass, responseResourceClass: Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | TDtoGenerateGetListResponseResourceClass, name: string, origin?: string): Type<unknown> {
-	const itemsProperties: Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | Pick<TApiPropertyObjectWithoutDiscriminatorProperties, "type"> = typeof responseResourceClass === "function" ? { type: responseResourceClass } : { discriminator: responseResourceClass.discriminator, type: responseResourceClass.type };
+	const itemsProperties: { type: TApiPropertyObjectDeclaredClass } | Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> = typeof responseResourceClass === "function" ? { type: responseResourceClass } : { discriminator: responseResourceClass.discriminator, type: responseResourceClass.type };
 
 	class ApiListGetResponse extends PickType(resourceClass, [] as const) {
 		@ApiPropertyNumber({

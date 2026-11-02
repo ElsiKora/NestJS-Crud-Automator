@@ -1,5 +1,5 @@
-import type { Type } from "@nestjs/common";
 import type { TApiPropertyBaseProperties, TApiPropertyBaseResponseArrayProperties } from "@type/decorator/api/property/base";
+import type { TApiPropertyObjectDeclaredClass } from "@type/decorator/api/property/object/declared-class.type";
 import type { TSwaggerReferenceObject, TSwaggerSchemaObject } from "@type/swagger";
 import type { ClassConstructor } from "class-transformer";
 
@@ -7,8 +7,7 @@ export type TApiPropertyObjectWithDiscriminatorProperties = {
 	additionalProperties?: boolean | TSwaggerReferenceObject | TSwaggerSchemaObject;
 	discriminator: TTypeDiscriminator;
 	shouldValidateNested?: boolean;
-	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
-	type: Array<Function> | Array<Type<unknown>>;
+	type: Array<TApiPropertyObjectDeclaredClass>;
 } & (TApiPropertyBaseProperties | TApiPropertyBaseResponseArrayProperties);
 
 export type TTypeDiscriminator = {

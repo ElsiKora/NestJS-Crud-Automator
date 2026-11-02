@@ -1,8 +1,11 @@
 import "reflect-metadata";
 
+import type { TApiPropertyDescribeObjectProperties, TApiPropertyObjectProperties } from "@type/decorator/api/property";
 import type { ValidatorOptions } from "class-validator";
 
+import { DtoPropertyFactoryObject } from "@class/utility/dto/property/factory/object.class";
 import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
+import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
 import { instanceToInstance, plainToInstance } from "class-transformer";
@@ -124,7 +127,6 @@ class FreeFormRequestDto {
 		isUniqueItems: false,
 		maxItems: 3,
 		minItems: 0,
-		shouldValidateNested: true,
 		type: Object,
 	})
 	public payloads?: Array<Record<string, unknown>>;
@@ -133,7 +135,6 @@ class FreeFormRequestDto {
 		description: "single",
 		entity: ObjectEntity,
 		isRequired: false,
-		shouldValidateNested: true,
 		type: Object,
 	})
 	public single?: Record<string, unknown>;
@@ -142,7 +143,6 @@ class FreeFormRequestDto {
 		description: "undeclared",
 		entity: ObjectEntity,
 		isRequired: false,
-		shouldValidateNested: true,
 		type: undefined,
 	})
 	public undeclared?: Record<string, unknown>;
@@ -192,7 +192,6 @@ describe("ApiPropertyObject", () => {
 					isUniqueItems: false,
 					maxItems: 3,
 					minItems: 0,
-					shouldValidateNested: true,
 					type: undefined,
 				})
 				public undeclared!: Array<Record<string, unknown>>;
@@ -215,7 +214,6 @@ describe("ApiPropertyObject", () => {
 					isUniqueItems: true,
 					maxItems: 3,
 					minItems: 0,
-					shouldValidateNested: true,
 					type,
 				})
 				public items!: Array<Record<string, unknown>>;
@@ -238,7 +236,7 @@ describe("ApiPropertyObject", () => {
 			{ name: "no type", type: undefined },
 		])("applies the array option checks at decoration with $name", ({ type }: { type: ObjectConstructor | undefined }) => {
 			const decorate = (options: Record<string, unknown>) => (): void => {
-				ApiPropertyObject({ description: "items", entity: ObjectEntity, isArray: true, isRequired: true, shouldValidateNested: true, type, ...options } as never)(class FreeFormBoundsDto {}.prototype, "items");
+				ApiPropertyObject({ description: "items", entity: ObjectEntity, isArray: true, isRequired: true, type, ...options } as never)(class FreeFormBoundsDto {}.prototype, "items");
 			};
 
 			expect(decorate({ isUniqueItems: false, maxItems: 3 })).toThrow("Request array property 'FreeFormBoundsDto.items' must declare 'minItems'");
@@ -316,6 +314,52 @@ describe("ApiPropertyObject", () => {
 			}
 
 			expect(plainToInstance(TransformedDto, { value: { ...VALUE } }).value).toEqual(VALUE);
+		});
+
+		it("refuses shouldValidateNested: true on a generated free-form property, naming the generated DTO", () => {
+			const decorator = new DtoPropertyFactoryObject<ObjectEntity>().create({ dataType: Object, description: "value", shouldValidateNested: true, type: EApiPropertyDescribeType.OBJECT } as never, { name: "ObjectEntity" } as never, {} as never, EApiRouteType.CREATE, EApiDtoType.BODY, "value");
+
+			expect(() => {
+				decorator(class GeneratedBodyDto {}.prototype, "value");
+			}).toThrow("'GeneratedBodyDto.value' cannot set 'shouldValidateNested' to true");
+		});
+
+		it("says in the types what a free-form value and a declared class allow", () => {
+			const entity: typeof ObjectEntity = ObjectEntity;
+
+			const allowed: Array<TApiPropertyObjectProperties> = [
+				{ description: "free-form", entity, isRequired: true, type: Object },
+				{ description: "free-form", entity, isRequired: true, shouldValidateNested: false, type: undefined },
+				{ description: "free-form", entity, isArray: true, isRequired: true, isUniqueItems: false, maxItems: 3, minItems: 0, type: Object },
+				{ description: "declared", entity, isRequired: true, shouldValidateNested: true, type: ChildDto },
+				{ description: "declared", entity, isRequired: true, shouldValidateNested: true, type: [ChildDto] },
+				{ description: "polymorphic", discriminator: { mapping: { cat: CatDto, dog: DogDto }, propertyName: "kind" }, entity, isRequired: true, shouldValidateNested: true, type: [CatDto, DogDto] },
+			];
+
+			const refused: Array<TApiPropertyObjectProperties> = [
+				// @ts-expect-error a free-form value declares no class to validate against
+				{ description: "free-form", entity, isRequired: true, shouldValidateNested: true, type: Object },
+				// @ts-expect-error a value with no type declares no class to validate against
+				{ description: "free-form", entity, isRequired: true, shouldValidateNested: true, type: undefined },
+				// @ts-expect-error Object is not a class to hold in a tuple
+				{ description: "tuple", entity, isRequired: true, type: [Object] },
+				// @ts-expect-error Object is not a variant of a polymorphic value
+				{ description: "polymorphic", discriminator: { mapping: { cat: CatDto }, propertyName: "kind" }, entity, isRequired: true, type: [Object, CatDto] },
+				// @ts-expect-error omitting the key does not mean free-form, only an explicit undefined does
+				{ description: "free-form", entity, isRequired: true },
+			];
+
+			const described: Array<TApiPropertyDescribeObjectProperties> = [
+				{ dataType: Object, description: "free-form", type: EApiPropertyDescribeType.OBJECT },
+				{ dataType: undefined, description: "free-form", type: EApiPropertyDescribeType.OBJECT },
+				{ dataType: ChildDto, description: "declared", shouldValidateNested: true, type: EApiPropertyDescribeType.OBJECT },
+				// @ts-expect-error a free-form value declares no class to validate against
+				{ dataType: Object, description: "free-form", shouldValidateNested: true, type: EApiPropertyDescribeType.OBJECT },
+				// @ts-expect-error Object is not a class to hold in a tuple
+				{ dataType: [Object], description: "tuple", type: EApiPropertyDescribeType.OBJECT },
+			];
+
+			expect(allowed.length + refused.length + described.length).toBeGreaterThan(0);
 		});
 
 		it("still attaches nested validation to a declared class", () => {

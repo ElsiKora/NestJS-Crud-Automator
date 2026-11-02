@@ -1,5 +1,5 @@
 import type { Type } from "@nestjs/common";
-import type { TApiPropertyObjectWithDiscriminatorProperties, TApiPropertyObjectWithoutDiscriminatorProperties } from "@type/decorator/api/property";
+import type { TApiPropertyObjectDeclaredClass, TApiPropertyObjectWithDiscriminatorProperties } from "@type/decorator/api/property";
 import type { TDtoGenerateGetListResponseResourceClass } from "@type/utility";
 
 import { API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller-cursor.constant";
@@ -19,7 +19,7 @@ import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
  * @returns {Type<unknown>} A generated DTO class for cursor-paginated list responses
  */
 export function DtoGenerateGetListCursorResponse(resourceClass: TDtoGenerateGetListResponseResourceClass, responseResourceClass: Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | TDtoGenerateGetListResponseResourceClass, name: string, origin?: string): Type<unknown> {
-	const itemsProperties: Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> | Pick<TApiPropertyObjectWithoutDiscriminatorProperties, "type"> = typeof responseResourceClass === "function" ? { type: responseResourceClass } : { discriminator: responseResourceClass.discriminator, type: responseResourceClass.type };
+	const itemsProperties: { type: TApiPropertyObjectDeclaredClass } | Pick<TApiPropertyObjectWithDiscriminatorProperties, "discriminator" | "type"> = typeof responseResourceClass === "function" ? { type: responseResourceClass } : { discriminator: responseResourceClass.discriminator, type: responseResourceClass.type };
 
 	class ApiListGetCursorResponse extends PickType(resourceClass, [] as const) {
 		@ApiPropertyObject({

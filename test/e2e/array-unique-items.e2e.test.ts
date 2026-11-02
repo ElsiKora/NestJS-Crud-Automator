@@ -80,7 +80,7 @@ class E2eUniqueItemsObjectsDto {
 }
 
 class E2eUniqueItemsFreeFormDto {
-	@ApiPropertyObject({ description: "items", entity: E2eUniqueItemsEntity, isArray: true, isRequired: true, isUniqueItems: true, maxItems: 3, minItems: 1, shouldValidateNested: true, type: Object })
+	@ApiPropertyObject({ description: "items", entity: E2eUniqueItemsEntity, isArray: true, isRequired: true, isUniqueItems: true, maxItems: 3, minItems: 1, type: Object })
 	public items!: Array<unknown>;
 }
 

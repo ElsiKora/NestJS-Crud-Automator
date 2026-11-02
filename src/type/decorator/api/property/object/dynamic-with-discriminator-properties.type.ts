@@ -1,5 +1,6 @@
 import type { Type } from "@nestjs/common";
 import type { TApiPropertyBaseProperties, TApiPropertyBaseResponseArrayProperties } from "@type/decorator/api/property/base";
+import type { TApiPropertyObjectDeclaredClass } from "@type/decorator/api/property/object/declared-class.type";
 import type { TSwaggerReferenceObject, TSwaggerSchemaObject } from "@type/swagger";
 
 export type TApiPropertyObjectDynamicWithDiscriminatorProperties = {
@@ -8,8 +9,7 @@ export type TApiPropertyObjectDynamicWithDiscriminatorProperties = {
 	generatedDTOs: Record<string, Type<unknown>>;
 	isDynamicallyGenerated: boolean;
 	shouldValidateNested?: boolean;
-	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
-	type: Array<Function> | Array<Type<unknown>>;
+	type: Array<TApiPropertyObjectDeclaredClass>;
 } & (TApiPropertyBaseProperties | TApiPropertyBaseResponseArrayProperties);
 
 export type TTypeDynamicDiscriminator = {

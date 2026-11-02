@@ -313,7 +313,7 @@ class AddressDto {
 address: AddressDto;
 ```
 
-A free-form value has no class to validate against. Declare it with `type: Object` (`dataType: Object` in `@ApiPropertyDescribe`) and it arrives as sent under a `whitelist` or `forbidNonWhitelisted` pipe; only its being an object is checked, and on an array [`isUniqueItems`](#unique-items). Do not put a raw `@ValidateNested()` without `@Type` on a plain object: `whitelist: true` removes every key and `forbidNonWhitelisted: true` rejects them. See [`@ApiPropertyObject`: Free-form objects](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object#free-form-objects).
+A free-form value has no class to validate against. Declare it with `type: Object` (`dataType: Object` in `@ApiPropertyDescribe`), without `shouldValidateNested`, and it keeps its keys under a `whitelist` or `forbidNonWhitelisted` pipe, apart from `__proto__`, `prototype` and `constructor`, which any `ValidationPipe` removes. Only its being an object is checked, and on an array [`isUniqueItems`](#unique-items). Do not put a raw `@ValidateNested()` without `@Type` on a plain object: `whitelist: true` removes every key and `forbidNonWhitelisted: true` rejects them. See [`@ApiPropertyObject`: Free-form objects](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object#free-form-objects).
 
 ## Array Validation
 

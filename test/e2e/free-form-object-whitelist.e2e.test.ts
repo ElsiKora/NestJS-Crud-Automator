@@ -118,6 +118,13 @@ describe.each([
 			expect(response.json()).toEqual({ single: { deep: { kept: true }, id: 1 } });
 		});
 
+		it("answers 400 for a __proto__ key on Fastify, whose body parser refuses it before any pipe", async () => {
+			const response: IInjectResponse = await echoRaw('{"single":{"id":1,"__proto__":{"polluted":true}}}');
+
+			expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.BAD_REQUEST);
+			expect(response.json()).toEqual({ message: "Body is not valid JSON but content-type is set to 'application/json'", statusCode: HttpStatus.BAD_REQUEST });
+		});
+
 		it("keeps a free-form property inside a declared item as sent", async () => {
 			const response: IInjectResponse = await echo({ items: [{ meta: FREE_FORM_VALUE, name: "first" }] });
 
@@ -271,7 +278,7 @@ describe.each([
 			expect(read.statusCode, JSON.stringify(read.json())).toBe(HttpStatus.OK);
 			expect(read.json()).toMatchObject(value);
 
-			const list: IInjectResponse = await fastify.inject({ method: "GET", url: `/free-form-object/undeclared-records?limit=100&page=1&orderBy=id&orderDirection=ASC` });
+			const list: IInjectResponse = await fastify.inject({ method: "GET", url: `/free-form-object/undeclared-records?limit=100&page=1&orderBy=id&orderDirection=asc` });
 			const items: Array<{ id: string }> = (list.json() as { items: Array<{ id: string }> }).items;
 
 			expect(list.statusCode, JSON.stringify(list.json())).toBe(HttpStatus.OK);

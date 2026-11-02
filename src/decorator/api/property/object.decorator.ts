@@ -10,6 +10,7 @@ import { applyDecorators } from "@nestjs/common";
 import { ApiExtraModels, ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
 import { ApiDiscriminatorValidateConfig } from "@utility/api/discriminator-validate-config.utility";
 import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
+import { ApiPropertyGetTargetClassName } from "@utility/api/property-get-target-class-name.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerateContextualManualDto } from "@utility/dto/generate/manual-child.utility";
@@ -124,7 +125,7 @@ function buildApiPropertyOptions(properties: TApiPropertyObjectProperties): ApiP
 
 		apiPropertyOptions.type = "object" as never;
 	} else {
-		apiPropertyOptions.type = properties.type;
+		apiPropertyOptions.type = properties.type ?? Object;
 	}
 
 	apiPropertyOptions.required = properties.isRequired;
@@ -316,22 +317,20 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 				keepDiscriminatorProperty: properties.discriminator.shouldKeepDiscriminatorProperty,
 			}),
 		);
+	} else if (isFreeFormObjectProperties(properties)) {
+		decorators.push(
+			Transform(
+				({ key, obj }: { key: string; obj: Record<string, unknown> }) => {
+					return obj[key];
+				},
+				{ toClassOnly: true },
+			),
+		);
 	} else {
-		if (properties.type === Object) {
-			decorators.push(
-				Transform(
-					({ key, obj }: { key: string; obj: Record<string, unknown> }) => {
-						return obj[key];
-					},
-					{ toClassOnly: true },
-				),
-			);
-		} else if (properties.type !== undefined) {
-			decorators.push(Type(() => properties.type as () => unknown));
-		}
+		decorators.push(Type(() => properties.type as () => unknown));
 	}
 
-	if (properties.isResponse !== true && properties.additionalProperties === true && properties.shouldValidateNested === true && properties.type !== Object) {
+	if (properties.isResponse !== true && properties.additionalProperties === true && properties.shouldValidateNested === true) {
 		decorators.push(
 			Transform(
 				({ type, value }: { type: TransformationType; value: unknown }) => {
@@ -465,8 +464,19 @@ function resolveContextualObjectType(type: NestType<unknown>, method: EApiRouteT
 function validateOptions(properties: TApiPropertyObjectProperties, target: object, propertyKey: string | symbol): void {
 	const errors: Array<string> = [];
 
-	if (properties.isArray && !properties.shouldValidateNested && !properties.isResponse) {
+	const propertyName: string = `'${ApiPropertyGetTargetClassName(target)}.${String(propertyKey)}'`;
+	const isFreeForm: boolean = isFreeFormObjectProperties(properties);
+
+	if (properties.isArray && !properties.shouldValidateNested && !properties.isResponse && !isFreeForm) {
 		errors.push("Array property must be 'shouldValidateNested'");
+	}
+
+	if (isFreeForm && properties.shouldValidateNested === true) {
+		errors.push(`Property ${propertyName} cannot set 'shouldValidateNested' to true: 'type: Object' or an undefined 'type' declares no class to validate against. Remove the option, or pass a class as 'type'`);
+	}
+
+	if (Array.isArray(properties.type) && (properties.type as Array<unknown>).includes(Object)) {
+		errors.push(`Property ${propertyName} cannot list Object in 'type': it declares no class, so every request would fail. Use 'type: Object' for a free-form value, or list the classes of a polymorphic value`);
 	}
 
 	errors.push(...ApiPropertyGetArrayOptionsErrors(properties, target, propertyKey));
