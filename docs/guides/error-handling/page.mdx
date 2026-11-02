@@ -564,7 +564,7 @@ Every declared status uses the `Exception<Status>DTO` schema of that status, for
 - `statusCode` and `message` are required on every status;
 - `error` is never required: an object response keeps its own shape, so `throw new NotFoundException()` answers `{ "message": "Not Found", "statusCode": 404 }` plus `correlationID` and `timestamp` when the interceptor or the filter handles it, and a `new HttpException("gone", 404)` from a route subscriber answers `{ "statusCode": 404, "message": "gone" }` without the interceptor;
 - `message` is a string or an array of strings and `error` is a string, with no pattern or length limit;
-- `details` exists only on `400` (`FOREIGN_KEY_VIOLATION`, `INVALID_REFERENCE`, `TO_MANY_UPDATE_KEY`) and `409` (`UNIQUE_VIOLATION`) and is discriminated by `details.type`: each variant has its own single `type` value, so a body matches exactly one.
+- `details` exists only on `400` (`FOREIGN_KEY_VIOLATION`, `REFERENCE_NOT_VALID`, `TO_MANY_UPDATE_KEY`) and `409` (`UNIQUE_VIOLATION`) and is discriminated by `details.type`: each variant has its own single `type` value, so a body matches exactly one.
 
 ### Fields Without the Exception Filter
 
@@ -783,7 +783,7 @@ From 5.0.0, generated routes declare the error statuses they can return instead 
 - custom routes declare the status of each `request.<target>.validators` exception, and `404` with an enabled relation in `relations.request.load.include` or any key in `relations.response.load.include`;
 - `correlationID` and `timestamp` are no longer required on any status, since they appear only with the optional interceptor or filter;
 - `details` is declared only on `400` and `409`, with the variants of that status, and each variant now declares its own single `type` value instead of the whole `EApiExceptionDetailsType` enum;
-- an invalid request relation reference answers `details.type: "INVALID_REFERENCE"`, described by `ExceptionDetailsInvalidReferenceDTO`;
+- an invalid request relation reference answers `details.type: "REFERENCE_NOT_VALID"`, described by `ExceptionDetailsReferenceNotValidDTO`;
 - a to-many relation key on an update answers `details.type: "TO_MANY_UPDATE_KEY"`, described by `ExceptionDetailsToManyUpdateKeyDTO`; before 5.0.0 this body had no `type`.
 
 Regenerate API clients from the new document. A client that read `details` on other statuses must be updated.

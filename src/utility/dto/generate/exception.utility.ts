@@ -1,6 +1,6 @@
 import { STATUS_CODES } from "node:http";
 
-import { ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsInvalidReferenceDTO, ExceptionDetailsToManyUpdateKeyDTO, ExceptionDetailsUniqueViolationDTO } from "@class/utility/dto/exception/details";
+import { ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsReferenceNotValidDTO, ExceptionDetailsToManyUpdateKeyDTO, ExceptionDetailsUniqueViolationDTO } from "@class/utility/dto/exception/details";
 import { CORRELATION_ID_CONSTANT } from "@constant/correlation-id.constant";
 import { DATE_CONSTANT } from "@constant/date.constant";
 import { NUMBER_CONSTANT } from "@constant/number.constant";
@@ -60,7 +60,7 @@ const EXCEPTION_DETAILS_BY_STATUS: ReadonlyMap<number, Readonly<Record<string, T
 		HttpStatus.BAD_REQUEST,
 		{
 			[EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION]: ExceptionDetailsForeignKeyViolationDTO,
-			[EApiExceptionDetailsType.INVALID_REFERENCE]: ExceptionDetailsInvalidReferenceDTO,
+			[EApiExceptionDetailsType.REFERENCE_NOT_VALID]: ExceptionDetailsReferenceNotValidDTO,
 			[EApiExceptionDetailsType.TO_MANY_UPDATE_KEY]: ExceptionDetailsToManyUpdateKeyDTO,
 		},
 	],

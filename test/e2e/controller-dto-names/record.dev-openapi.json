@@ -2335,7 +2335,7 @@
 						"discriminator": {
 							"mapping": {
 								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
-								"INVALID_REFERENCE": "#/components/schemas/ExceptionDetailsInvalidReferenceDTO",
+								"REFERENCE_NOT_VALID": "#/components/schemas/ExceptionDetailsReferenceNotValidDTO",
 								"TO_MANY_UPDATE_KEY": "#/components/schemas/ExceptionDetailsToManyUpdateKeyDTO"
 							},
 							"propertyName": "type"
@@ -2346,7 +2346,7 @@
 								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
 							},
 							{
-								"$ref": "#/components/schemas/ExceptionDetailsInvalidReferenceDTO"
+								"$ref": "#/components/schemas/ExceptionDetailsReferenceNotValidDTO"
 							},
 							{
 								"$ref": "#/components/schemas/ExceptionDetailsToManyUpdateKeyDTO"
@@ -2400,7 +2400,7 @@
 				"required": ["message", "statusCode"],
 				"type": "object"
 			},
-			"ExceptionDetailsInvalidReferenceDTO": {
+			"ExceptionDetailsReferenceNotValidDTO": {
 				"properties": {
 					"expectedShape": {
 						"description": "ErrorDetails ",
@@ -2434,8 +2434,8 @@
 					},
 					"type": {
 						"description": "ErrorDetails ",
-						"enum": ["INVALID_REFERENCE"],
-						"example": "INVALID_REFERENCE",
+						"enum": ["REFERENCE_NOT_VALID"],
+						"example": "REFERENCE_NOT_VALID",
 						"nullable": false,
 						"readOnly": true,
 						"type": "string"

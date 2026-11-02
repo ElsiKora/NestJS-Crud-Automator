@@ -182,7 +182,7 @@ const TO_MANY_DETAILS = { propertyName: "children", reason: "to-many reference i
 const DETAILS_CASES: Array<IDetailsCase> = [
 	{ body: { children: ["child-1"] }, details: TO_MANY_DETAILS, method: "patch", name: "a to-many key on PATCH", path: "/details-parents/{id}", status: HttpStatus.BAD_REQUEST, url: "/details-parents/parent-1" },
 	{ body: { children: ["child-1"], name: "Parent" }, details: TO_MANY_DETAILS, method: "put", name: "a to-many key on PUT", path: "/details-parents/{id}", status: HttpStatus.BAD_REQUEST, url: "/details-parents/parent-1" },
-	{ body: { parent: { id: "parent-1" } }, isExpressKnownBug: true, details: { expectedShape: EApiControllerRelationReferenceShape.SCALAR, propertyName: "parent", referenceKey: "id", type: EApiExceptionDetailsType.INVALID_REFERENCE }, method: "post", name: "a relation reference of the wrong shape", path: "/details-children/custom/relation", status: HttpStatus.BAD_REQUEST, url: "/details-children/custom/relation" },
+	{ body: { parent: { id: "parent-1" } }, isExpressKnownBug: true, details: { expectedShape: EApiControllerRelationReferenceShape.SCALAR, propertyName: "parent", referenceKey: "id", type: EApiExceptionDetailsType.REFERENCE_NOT_VALID }, method: "post", name: "a relation reference of the wrong shape", path: "/details-children/custom/relation", status: HttpStatus.BAD_REQUEST, url: "/details-children/custom/relation" },
 	{ details: { type: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION }, method: "delete", name: "a foreign key in use", path: "/details-parents/{id}", status: HttpStatus.BAD_REQUEST, url: "/details-parents/parent-1" },
 	{ body: { id: "item-2", name: "One" }, details: { type: EApiExceptionDetailsType.UNIQUE_VIOLATION }, method: "post", name: "a duplicate key", path: "/details-items", status: HttpStatus.CONFLICT, url: "/details-items" },
 ];
@@ -280,7 +280,7 @@ describe.each(ADAPTERS)("exception schemas on %s (E2E)", (adapterName: string, c
 
 		it.each<[string, EApiExceptionDetailsType]>([
 			["ExceptionDetailsForeignKeyViolation", EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION],
-			["ExceptionDetailsInvalidReference", EApiExceptionDetailsType.INVALID_REFERENCE],
+			["ExceptionDetailsReferenceNotValid", EApiExceptionDetailsType.REFERENCE_NOT_VALID],
 			["ExceptionDetailsToManyUpdateKey", EApiExceptionDetailsType.TO_MANY_UPDATE_KEY],
 			["ExceptionDetailsUniqueViolation", EApiExceptionDetailsType.UNIQUE_VIOLATION],
 		])("gives %s its own single type value", (name: string, type: EApiExceptionDetailsType) => {

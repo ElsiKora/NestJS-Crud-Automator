@@ -1,4 +1,4 @@
-import { ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsInvalidReferenceDTO, ExceptionDetailsToManyUpdateKeyDTO, ExceptionDetailsUniqueViolationDTO } from "@class/utility/dto/exception/details";
+import { ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsReferenceNotValidDTO, ExceptionDetailsToManyUpdateKeyDTO, ExceptionDetailsUniqueViolationDTO } from "@class/utility/dto/exception/details";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { EApiExceptionDetailsType } from "@enum/utility";
 import { HttpStatus } from "@nestjs/common";
@@ -60,7 +60,7 @@ describe("DtoGenerateException", () => {
 	it("describes details only for the statuses that carry them", () => {
 		const reference = (dto: { name: string }): string => `#/components/schemas/${dto.name}`;
 
-		expect(getProperty(HttpStatus.BAD_REQUEST, "details")).toMatchObject({ discriminator: { mapping: { [EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION]: reference(ExceptionDetailsForeignKeyViolationDTO), [EApiExceptionDetailsType.INVALID_REFERENCE]: reference(ExceptionDetailsInvalidReferenceDTO), [EApiExceptionDetailsType.TO_MANY_UPDATE_KEY]: reference(ExceptionDetailsToManyUpdateKeyDTO) }, propertyName: "type" }, required: false });
+		expect(getProperty(HttpStatus.BAD_REQUEST, "details")).toMatchObject({ discriminator: { mapping: { [EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION]: reference(ExceptionDetailsForeignKeyViolationDTO), [EApiExceptionDetailsType.REFERENCE_NOT_VALID]: reference(ExceptionDetailsReferenceNotValidDTO), [EApiExceptionDetailsType.TO_MANY_UPDATE_KEY]: reference(ExceptionDetailsToManyUpdateKeyDTO) }, propertyName: "type" }, required: false });
 		expect(getProperty(HttpStatus.CONFLICT, "details")).toMatchObject({ discriminator: { mapping: { [EApiExceptionDetailsType.UNIQUE_VIOLATION]: reference(ExceptionDetailsUniqueViolationDTO) }, propertyName: "type" }, required: false });
 
 		for (const status of [HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.INTERNAL_SERVER_ERROR]) {

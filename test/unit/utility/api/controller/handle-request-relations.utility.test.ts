@@ -351,7 +351,7 @@ describe("ApiControllerHandleRequestRelations", () => {
 					expectedShape: EApiControllerRelationReferenceShape.SCALAR,
 					propertyName: "owner",
 					referenceKey: "id",
-					type: EApiExceptionDetailsType.INVALID_REFERENCE,
+					type: EApiExceptionDetailsType.REFERENCE_NOT_VALID,
 				},
 				message: "RELATIONENTITY_REFERENCE_NOT_VALID",
 				statusCode: 400,

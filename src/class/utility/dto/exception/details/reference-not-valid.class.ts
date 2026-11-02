@@ -13,7 +13,7 @@ const DETAILS_MAX_LENGTH_IDENTIFIER: number = 128;
 
 const DETAILS_PATTERN_IDENTIFIER: string = String.raw`/^[\s\S]{0,128}$/`;
 
-export class ExceptionDetailsInvalidReferenceDTO {
+export class ExceptionDetailsReferenceNotValidDTO {
 	@ApiPropertyEnum({
 		entity: DETAILS_ENTITY,
 		enum: EApiControllerRelationReferenceShape,
@@ -50,11 +50,11 @@ export class ExceptionDetailsInvalidReferenceDTO {
 
 	@ApiPropertyEnum({
 		entity: DETAILS_ENTITY,
-		enum: { INVALID_REFERENCE: EApiExceptionDetailsType.INVALID_REFERENCE },
-		enumName: "ExceptionDetailsInvalidReferenceType",
-		exampleValue: EApiExceptionDetailsType.INVALID_REFERENCE,
+		enum: { REFERENCE_NOT_VALID: EApiExceptionDetailsType.REFERENCE_NOT_VALID },
+		enumName: "ExceptionDetailsReferenceNotValidType",
+		exampleValue: EApiExceptionDetailsType.REFERENCE_NOT_VALID,
 		isRequired: true,
 		isResponse: true,
 	})
-	type: EApiExceptionDetailsType.INVALID_REFERENCE = EApiExceptionDetailsType.INVALID_REFERENCE;
+	type: EApiExceptionDetailsType.REFERENCE_NOT_VALID = EApiExceptionDetailsType.REFERENCE_NOT_VALID;
 }
