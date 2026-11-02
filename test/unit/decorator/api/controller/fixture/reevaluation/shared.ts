@@ -3,7 +3,7 @@ import "reflect-metadata";
 import type * as LibraryModule from "../../../../../../../src/index";
 
 import { ApiProperty } from "@nestjs/swagger";
-import { Column, DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, DataSource, Entity, PrimaryGeneratedColumn, type Repository } from "typeorm";
 
 // The library comes from the test, so evaluating these modules again re-creates the controller and DTO classes but keeps the library, as with an application module under webpack HMR or `vi.resetModules`.
 export const library: typeof LibraryModule = (globalThis as { reevaluationLibrary?: typeof LibraryModule }).reevaluationLibrary as typeof LibraryModule;
@@ -32,7 +32,12 @@ const dataSource: DataSource = new DataSource({ entities: [ReevaluationItemEntit
 // Metadata is enough for the startup check; the test never connects.
 await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
 
-export const REEVALUATION_SERVICE: LibraryModule.ApiServiceBase<ReevaluationItemEntity> = { repository: dataSource.getRepository(ReevaluationItemEntity) } as unknown as LibraryModule.ApiServiceBase<ReevaluationItemEntity>;
+@library.ApiService({ entity: ReevaluationItemEntity })
+class ReevaluationItemService extends library.ApiServiceBase<ReevaluationItemEntity> {
+	public readonly repository: Repository<ReevaluationItemEntity> = dataSource.getRepository(ReevaluationItemEntity);
+}
+
+export const REEVALUATION_SERVICE: LibraryModule.ApiServiceBase<ReevaluationItemEntity> = new ReevaluationItemService();
 
 export class ReevaluationItemNoteDto {
 	@ApiProperty({ type: String })

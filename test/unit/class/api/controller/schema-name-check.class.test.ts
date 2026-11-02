@@ -25,6 +25,8 @@ import { Test } from "@nestjs/testing";
 import { Column, DataSource, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createGeneratedServiceDouble } from "@test/unit/fixture";
+
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../../../src/module/api";
 
 const checkRuns: { count: number } = vi.hoisted(() => ({ count: 0 }));
@@ -209,7 +211,7 @@ await (DATA_SOURCE as unknown as { buildMetadatas: () => Promise<void> }).buildM
  * @returns {never} The service.
  */
 function createService(entity: Function): never {
-	return { repository: DATA_SOURCE.getRepository(entity) } as never;
+	return createGeneratedServiceDouble(entity, DATA_SOURCE.getRepository(entity)) as never;
 }
 
 /**

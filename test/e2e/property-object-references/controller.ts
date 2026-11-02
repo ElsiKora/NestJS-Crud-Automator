@@ -1,8 +1,8 @@
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { ApiExtraModels, PickType } from "@nestjs/swagger";
-import { DataSource } from "typeorm";
+import { DataSource, type Repository } from "typeorm";
 
-import { ApiController, ApiPropertyCopy, ApiPropertyObject, ApiRouteCustom, EApiDtoType, EApiRouteType } from "../../../src/index";
+import { ApiController, ApiPropertyCopy, ApiPropertyObject, ApiRouteCustom, ApiService, ApiServiceBase, EApiDtoType, EApiRouteType } from "../../../src/index";
 
 import { E2eReferenceGeneratedEntity, E2eReferenceSourceEntity } from "./entity";
 import { createObjectOptions, createUnion, createVariant } from "./variant";
@@ -134,7 +134,12 @@ const REFERENCE_DATA_SOURCE: DataSource = new DataSource({ entities: [E2eReferen
 // Metadata is enough for the repository check at bootstrap; the test never connects.
 await (REFERENCE_DATA_SOURCE as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
 
+@ApiService<E2eReferenceGeneratedEntity>({ entity: E2eReferenceGeneratedEntity })
+class E2eReferenceGeneratedService extends ApiServiceBase<E2eReferenceGeneratedEntity> {
+	public readonly repository: Repository<E2eReferenceGeneratedEntity> = REFERENCE_DATA_SOURCE.getRepository(E2eReferenceGeneratedEntity);
+}
+
 @ApiController<E2eReferenceGeneratedEntity>({ entity: E2eReferenceGeneratedEntity, path: "generated-references", routes: { [EApiRouteType.CREATE]: DISABLED, [EApiRouteType.DELETE]: DISABLED, [EApiRouteType.GET_LIST]: DISABLED, [EApiRouteType.PARTIAL_UPDATE]: DISABLED, [EApiRouteType.UPDATE]: DISABLED } })
 export class E2eReferenceGeneratedController {
-	public service: never = { repository: REFERENCE_DATA_SOURCE.getRepository(E2eReferenceGeneratedEntity) } as never;
+	public service: E2eReferenceGeneratedService = new E2eReferenceGeneratedService();
 }

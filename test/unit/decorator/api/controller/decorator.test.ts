@@ -28,6 +28,8 @@ import { LoggerUtility } from "@utility/logger.utility";
 import { Column, DataSource, Entity, getMetadataArgsStorage, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
+import { createGeneratedServiceDouble } from "@test/unit/fixture";
+
 // Two entity classes with one name make a string relation target ambiguous.
 ["decorator_ambiguous_owners_first", "decorator_ambiguous_owners_second"].map((table: string): unknown => {
 	@Entity(table)
@@ -564,14 +566,12 @@ describe("ApiController", () => {
 		const metadata = vi.fn((): unknown => repository.metadata);
 
 		class CountedController {
-			public service: { repository: unknown } = {
-				repository: {
-					get metadata(): unknown {
-						return metadata();
-					},
-					manager: repository.manager,
+			public service: unknown = createGeneratedServiceDouble(FactoryEntity, {
+				get metadata(): unknown {
+					return metadata();
 				},
-			};
+				manager: repository.manager,
+			});
 
 			public onApplicationBootstrap(): void {
 				hook();
@@ -650,7 +650,7 @@ describe("ApiController", () => {
 		await expect(bootstrap({ repository: { find: vi.fn() } }, oneRoute)).rejects.toThrow("because its metadata is not TypeORM entity metadata.");
 		await expect(bootstrap({ repository: dataSource.getRepository(KeyPageJournalEntity) }, oneRoute)).rejects.toThrow("but its service repository is for KeyPageJournalEntity");
 		expect(hook).not.toHaveBeenCalled();
-		await expect(bootstrap({ repository: dataSource.getRepository(FactoryEntity) }, oneRoute)).resolves.toBeUndefined();
+		await expect(bootstrap(createGeneratedServiceDouble(FactoryEntity, dataSource.getRepository(FactoryEntity)), oneRoute)).resolves.toBeUndefined();
 		expect(hook).toHaveBeenCalledOnce();
 
 		vi.restoreAllMocks();
@@ -664,7 +664,7 @@ describe("ApiController", () => {
 		const oneRoute = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: {}, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
 		const bootstrap = async (repository: unknown): Promise<void> => {
 			class WrappedController {
-				public service: { repository: unknown } = { repository };
+				public service: unknown = createGeneratedServiceDouble(FactoryEntity, repository);
 			}
 
 			const Decorated = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes: oneRoute } as never)(WrappedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };

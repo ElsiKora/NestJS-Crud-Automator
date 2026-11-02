@@ -11,7 +11,7 @@ import { Test } from "@nestjs/testing";
 import { Column, DataSource, Entity, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiController, ApiMethod, ApiPropertyDescribe, ApiPropertyObject, ApiRouteCustom, ApiServiceBase, EApiAuthenticationType, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
+import { ApiAuthorizationModule, ApiController, ApiMethod, ApiPropertyDescribe, ApiPropertyObject, ApiRouteCustom, ApiService, ApiServiceBase, EApiAuthenticationType, EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
 import { expectEveryComponentToBeReachable } from "./expect-every-component-to-be-reachable";
 
 type TSwaggerMethod = "delete" | "get" | "patch" | "post" | "put";
@@ -169,6 +169,7 @@ class SwaggerAuthenticationGuard {}
 // The documentation app never queries; its controllers use a repository of an in-memory DataSource.
 const swaggerDataSource: DataSource = new DataSource({ database: ":memory:", entities: [SwaggerAutoDtoEntity], type: "better-sqlite3" });
 
+@ApiService<SwaggerAutoDtoEntity>({ entity: SwaggerAutoDtoEntity })
 class SwaggerGeneratedService extends ApiServiceBase<SwaggerAutoDtoEntity> {
 	public get repository(): Repository<SwaggerAutoDtoEntity> {
 		return swaggerDataSource.getRepository(SwaggerAutoDtoEntity);

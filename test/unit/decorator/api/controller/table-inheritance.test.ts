@@ -13,6 +13,8 @@ import { Test } from "@nestjs/testing";
 import { ChildEntity, Column, DataSource, Entity, PrimaryGeneratedColumn, TableInheritance } from "typeorm";
 import { describe, expect, it } from "vitest";
 
+import { createGeneratedServiceDouble } from "@test/unit/fixture";
+
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../../../src/module/api";
 
 @Entity("startup_check_roots")
@@ -157,7 +159,7 @@ describe("ApiController table inheritance startup check", () => {
 			entity: AddressCheckRootEntity as never,
 			routes: { [EApiRouteType.GET]: {} },
 		})(AddressCheckController);
-		const application: TestingModule = await compileWith(DecoratedController, { repository: dataSource.getRepository(AddressCheckRootEntity) });
+		const application: TestingModule = await compileWith(DecoratedController, createGeneratedServiceDouble(AddressCheckRootEntity, dataSource.getRepository(AddressCheckRootEntity)));
 
 		await expect(application.init()).rejects.toThrow('OpenAPI component name "StartupCheckAddressDTO" belongs to two different classes: property address in AddressCheckGetResponseHomeDTO, and property address in AddressCheckGetResponseWorkDTO');
 	});

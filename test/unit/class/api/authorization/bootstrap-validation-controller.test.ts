@@ -17,6 +17,8 @@ import { Test } from "@nestjs/testing";
 import { DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
+import { createGeneratedServiceDouble } from "@test/unit/fixture";
+
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../../../src/module/api";
 
 @Entity("validation_boot_items")
@@ -102,7 +104,7 @@ describe("authorization bootstrap validation of a decorated controller", () => {
 			@ApiControllerSecurable()
 			@ApiController<ValidationBootItemEntity>({ authorization: HOOKS_DEFAULT, entity: ValidationBootItemEntity, path: "valid", routes: { ...NO_GENERATED_ROUTES, [EApiRouteType.GET]: {} } })
 			class ValidationBootValidController {
-				public service: never = { repository: dataSource.getRepository(ValidationBootItemEntity) } as never;
+				public service: never = createGeneratedServiceDouble(ValidationBootItemEntity, dataSource.getRepository(ValidationBootItemEntity)) as never;
 
 				@ApiMethod<ValidationBootItemEntity>(routeMetadata())
 				public publish(): void {}
