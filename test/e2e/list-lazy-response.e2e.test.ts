@@ -184,6 +184,12 @@ describe.each<IHostPipeCase>([{ name: "no host pipe" }, { createPipe: () => new 
 		}
 	});
 
+	it.each(LAZY_ROUTES)("refuses an orderDirection in another case on %s", async (path: string) => {
+		const response = await fastify.inject({ method: "GET", url: `${path}?${PAGE}&orderBy=label&orderDirection=ASC` });
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+	});
+
 	it("names the published fields in the deferred validation message", async () => {
 		const response = await fastify.inject({ method: "GET", url: `/list-lazy-response/same-file?${PAGE}&orderBy=rank&orderDirection=asc` });
 
