@@ -25,6 +25,15 @@ export async function ApiControllerGetListQueryValidate<Q extends object>(dto: T
 		throw ErrorException("GET_LIST QUERY DTO must convert a query into an object");
 	}
 
+	const defaults: object = new dto() as object;
+
+	// A property exposed under another query name converts to undefined when the query does not set it, which loses its class default.
+	for (const property of PAGINATION_AND_ORDER_PROPERTIES) {
+		if (Reflect.get(instance, property) === undefined && Reflect.get(defaults, property) !== undefined) {
+			Reflect.set(instance, property, Reflect.get(defaults, property));
+		}
+	}
+
 	// eslint-disable-next-line @elsikora/typescript/naming-convention
 	const errors: Array<ValidationError> = await validate(instance, { forbidUnknownValues: false });
 

@@ -408,9 +408,9 @@ export class ApiRouteRuntime {
 				// Only the database query uses the validated copy; subscribers keep the query that route-before subscribers produced.
 				const query: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> = queryDto ? await ApiControllerGetListQueryValidate(queryDto, requestQuery) : requestQuery;
 
-				// A query plan already holds the client's order to its fields; a class default of a manual QUERY DTO stays the route's own order, like a plan's defaultOrder.
-				if (!queryPlan && requestQuery.orderBy !== undefined) {
-					ApiControllerGetListQueryAssertOrderable(options.properties, options.entityMetadata, query.orderBy);
+				// A query plan already holds the client's order to its fields.
+				if (!queryPlan && queryDto) {
+					ApiControllerGetListQueryAssertOrderable(options.properties, options.entityMetadata, queryDto, requestQuery, query);
 				}
 
 				// Date-time values the DTO or plan accepted must also name a calendar instant before any query.
