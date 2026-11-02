@@ -5,7 +5,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 
 import { ApiService, ApiServiceBase, ApiServiceObservable, EApiFunctionTransactionMode, EApiFunctionType, EApiFunctionUpdatePersistenceMode } from "../../../src/index";
 
-import { E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, E2eRelationWriteStampEntity } from "./entity";
+import { E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, E2eRelationWriteStampEntity, E2eRelationWriteTicketEntity } from "./entity";
 
 @Injectable()
 @ApiService({ entity: E2eRelationWritePostEntity })
@@ -41,4 +41,12 @@ export class E2eRelationWriteNotePatchService extends ApiServiceBase<E2eRelation
 export class E2eRelationWriteStampService extends ApiServiceBase<E2eRelationWriteStampEntity> {
 	@InjectRepository(E2eRelationWriteStampEntity)
 	public readonly repository!: Repository<E2eRelationWriteStampEntity>;
+}
+
+@Injectable()
+@ApiService({ entity: E2eRelationWriteTicketEntity })
+@ApiServiceObservable()
+export class E2eRelationWriteTicketService extends ApiServiceBase<E2eRelationWriteTicketEntity> {
+	@InjectRepository(E2eRelationWriteTicketEntity)
+	public readonly repository!: Repository<E2eRelationWriteTicketEntity>;
 }

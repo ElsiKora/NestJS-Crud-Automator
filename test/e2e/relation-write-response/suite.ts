@@ -12,10 +12,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../src/index";
 import { createRelationReferenceSchemaChecker, type IRelationReferenceSchemaChecker } from "../relation-reference-dto";
 
-import { E2eRelationWriteDefaultController, E2eRelationWriteIncludeController, E2eRelationWriteNoteController, E2eRelationWriteNotePatchController, E2eRelationWriteStampController } from "./controller";
-import { E2eRelationWriteAuthorEntity, E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, E2eRelationWriteStampEntity, E2eRelationWriteTagEntity } from "./entity";
-import { E2eRelationWriteNotePatchService, E2eRelationWriteNoteService, E2eRelationWritePostService, E2eRelationWriteStampService } from "./service";
-import { E2eRelationWriteNoteSubscriber, noteUpdateResult } from "./subscriber";
+import { E2eRelationWriteDefaultController, E2eRelationWriteIncludeController, E2eRelationWriteNoteController, E2eRelationWriteNotePatchController, E2eRelationWriteStampController, E2eRelationWriteTicketController } from "./controller";
+import { E2eRelationWriteAuthorEntity, E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, E2eRelationWriteStampEntity, E2eRelationWriteTagEntity, E2eRelationWriteTicketEntity } from "./entity";
+import { E2eRelationWriteNotePatchService, E2eRelationWriteNoteService, E2eRelationWritePostService, E2eRelationWriteStampService, E2eRelationWriteTicketService } from "./service";
+import { E2eRelationWriteNoteSubscriber, E2eRelationWriteTicketSubscriber, noteUpdateResult, ticketCreateResult } from "./subscriber";
 
 const AUTHOR_FIRST: string = "11111111-1111-4111-8111-111111111111";
 const AUTHOR_SECOND: string = "11111111-1111-4111-8111-111111111112";
@@ -27,6 +27,7 @@ const DEFAULT_PATH: string = "relation-write-default-posts";
 const INCLUDE_PATH: string = "relation-write-include-posts";
 const POST: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
 const TAG: string = "33333333-3333-4333-8333-333333333331";
+const TICKET_OTHER: string = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
 
 type TStoredKey = "author" | "editor" | "reviewer";
 type TVerb = "PATCH" | "PUT";
@@ -80,20 +81,20 @@ export function describeRelationWriteResponseSuite(name: string, options: IRelat
 		beforeAll(async () => {
 			const stampControllers: Array<new (...arguments_: Array<never>) => object> = options.hasMicrosecondTimestamps ? [E2eRelationWriteStampController] : [];
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eRelationWriteDefaultController, E2eRelationWriteIncludeController, E2eRelationWriteNoteController, E2eRelationWriteNotePatchController, ...stampControllers],
+				controllers: [E2eRelationWriteDefaultController, E2eRelationWriteIncludeController, E2eRelationWriteNoteController, E2eRelationWriteNotePatchController, E2eRelationWriteTicketController, ...stampControllers],
 				imports: [
 					TypeOrmModule.forRoot({
 						...(await options.createDataSourceOptions()),
 						dropSchema: true,
-						entities: [E2eRelationWriteAuthorEntity, E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, E2eRelationWriteTagEntity, ...(options.hasMicrosecondTimestamps ? [E2eRelationWriteStampEntity] : [])],
+						entities: [E2eRelationWriteAuthorEntity, E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, E2eRelationWriteTagEntity, E2eRelationWriteTicketEntity, ...(options.hasMicrosecondTimestamps ? [E2eRelationWriteStampEntity] : [])],
 						logging: false,
 						synchronize: true,
 					} as DataSourceOptions),
-					TypeOrmModule.forFeature([E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, ...(options.hasMicrosecondTimestamps ? [E2eRelationWriteStampEntity] : [])]),
+					TypeOrmModule.forFeature([E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, E2eRelationWriteTicketEntity, ...(options.hasMicrosecondTimestamps ? [E2eRelationWriteStampEntity] : [])]),
 					ApiAuthorizationModule.forRoot(),
 					ApiSubscriberModule,
 				],
-				providers: [E2eRelationWriteNotePatchService, E2eRelationWriteNoteService, E2eRelationWriteNoteSubscriber, E2eRelationWritePostService, ...(options.hasMicrosecondTimestamps ? [E2eRelationWriteStampService] : [])],
+				providers: [E2eRelationWriteNotePatchService, E2eRelationWriteNoteService, E2eRelationWriteNoteSubscriber, E2eRelationWritePostService, E2eRelationWriteTicketService, E2eRelationWriteTicketSubscriber, ...(options.hasMicrosecondTimestamps ? [E2eRelationWriteStampService] : [])],
 			}).compile();
 
 			app = moduleReference.createNestApplication(new FastifyAdapter());
@@ -120,7 +121,10 @@ export function describeRelationWriteResponseSuite(name: string, options: IRelat
 				{ id: NOTE, presentedId: null, title: "Note" },
 				{ id: NOTE_OTHER, presentedId: null, title: NOTE_OTHER_TITLE },
 			]);
+			await manager.query(`DELETE FROM e2e_relation_write_tickets`);
+			await manager.insert(E2eRelationWriteTicketEntity, { id: TICKET_OTHER, presentedId: null, title: NOTE_OTHER_TITLE });
 			delete noteUpdateResult.replace;
+			delete ticketCreateResult.replace;
 		});
 
 		afterAll(async () => {
@@ -227,6 +231,75 @@ export function describeRelationWriteResponseSuite(name: string, options: IRelat
 				expect(response.statusCode, response.body).toBe(HttpStatus.OK);
 				expect(await readNoteTitles()).toEqual({ [NOTE]: "Changed", [NOTE_OTHER]: NOTE_OTHER_TITLE });
 				expect(response.json()).toMatchObject({ title: "Changed" });
+				expect(response.body).not.toContain(NOTE_OTHER_TITLE);
+			});
+		});
+
+		describe("a function onAfterCreate or a loaded entity that presents another key", () => {
+			const createTicket = async (): Promise<{ body: string; json: () => Record<string, unknown>; statusCode: number }> => await fastify.inject({ method: "POST", payload: { title: "Created" }, url: "/relation-write-tickets" });
+
+			const readCreatedTicket = async (): Promise<{ id: string; title: string }> => {
+				const rows: Array<{ id: string; title: string }> = (await manager.query(`SELECT id, title FROM e2e_relation_write_tickets WHERE id <> '${TICKET_OTHER}'`)) as Array<{ id: string; title: string }>;
+
+				const [row] = rows;
+
+				expect(rows).toHaveLength(1);
+
+				return row as { id: string; title: string };
+			};
+
+			it("answers with the inserted row, read by its generated key", async () => {
+				const response = await createTicket();
+
+				expect(response.statusCode, response.body).toBe(HttpStatus.CREATED);
+				expect(response.json()).toEqual(await readCreatedTicket());
+			});
+
+			it("answers with the inserted row when onAfterCreate returns a partial result", async () => {
+				ticketCreateResult.replace = (): Promise<E2eRelationWriteTicketEntity> => Promise.resolve({ title: "Partial" } as E2eRelationWriteTicketEntity);
+
+				const response = await createTicket();
+
+				expect(response.statusCode, response.body).toBe(HttpStatus.CREATED);
+				expect(response.json()).toEqual({ ...(await readCreatedTicket()), title: "Created" });
+				expect(response.body).not.toContain(NOTE_OTHER_TITLE);
+			});
+
+			it("answers with the inserted row, not the row whose key onAfterCreate returns", async () => {
+				ticketCreateResult.replace = (): Promise<E2eRelationWriteTicketEntity> => Promise.resolve({ id: TICKET_OTHER, title: NOTE_OTHER_TITLE } as E2eRelationWriteTicketEntity);
+
+				const response = await createTicket();
+
+				expect(response.statusCode, response.body).toBe(HttpStatus.CREATED);
+				expect(response.json()).toEqual({ ...(await readCreatedTicket()), title: "Created" });
+				expect(response.body).not.toContain(NOTE_OTHER_TITLE);
+			});
+
+			it("drops a change that onAfterCreate makes to the result in place", async () => {
+				ticketCreateResult.replace = (context): Promise<E2eRelationWriteTicketEntity> => {
+					context.result.title = "Masked";
+
+					return Promise.resolve(context.result);
+				};
+
+				const response = await createTicket();
+
+				expect(response.statusCode, response.body).toBe(HttpStatus.CREATED);
+				expect(response.json()).toEqual({ ...(await readCreatedTicket()), title: "Created" });
+			});
+
+			it("reads the inserted row by its own key when onAfterCreate reloads it and an @AfterLoad presents another key", async () => {
+				ticketCreateResult.replace = async (context): Promise<E2eRelationWriteTicketEntity> => {
+					await context.DATA.repository.update({ id: context.result.id }, { presentedId: TICKET_OTHER });
+
+					return await context.DATA.repository.findOneByOrFail({ id: context.result.id });
+				};
+
+				const response = await createTicket();
+
+				expect(response.statusCode, response.body).toBe(HttpStatus.CREATED);
+				expect(await readCreatedTicket()).toMatchObject({ title: "Created" });
+				expect(response.json()).toMatchObject({ title: "Created" });
 				expect(response.body).not.toContain(NOTE_OTHER_TITLE);
 			});
 		});

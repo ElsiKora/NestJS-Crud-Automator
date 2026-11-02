@@ -1,7 +1,7 @@
 import "reflect-metadata";
 
 import { ApiPropertyDescribe, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType } from "../../../src/index";
-import { AfterLoad, Column, Entity, JoinTable, ManyToMany, ManyToOne, PrimaryColumn, type Relation } from "typeorm";
+import { AfterLoad, Column, Entity, JoinTable, ManyToMany, ManyToOne, PrimaryColumn, PrimaryGeneratedColumn, type Relation } from "typeorm";
 
 const describeId: PropertyDecorator = ApiPropertyDescribe({
 	description: "id",
@@ -104,6 +104,25 @@ export class E2eRelationWritePostEntity {
 export class E2eRelationWriteNoteEntity {
 	@describeId
 	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@Column({ nullable: true, type: "varchar" })
+	public presentedId?: null | string;
+
+	@Column({ type: "varchar" })
+	@describeText
+	public title!: string;
+
+	@AfterLoad()
+	public present(): void {
+		if (this.presentedId) this.id = this.presentedId;
+	}
+}
+
+@Entity("e2e_relation_write_tickets")
+export class E2eRelationWriteTicketEntity {
+	@describeId
+	@PrimaryGeneratedColumn("uuid")
 	public id!: string;
 
 	@Column({ nullable: true, type: "varchar" })

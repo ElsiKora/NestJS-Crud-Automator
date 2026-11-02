@@ -2,8 +2,8 @@ import { Inject } from "@nestjs/common";
 
 import { ApiController, EApiControllerRelationReferenceShape, EApiRouteType } from "../../../src/index";
 
-import { E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, E2eRelationWriteStampEntity } from "./entity";
-import { E2eRelationWriteNotePatchService, E2eRelationWriteNoteService, E2eRelationWritePostService, E2eRelationWriteStampService } from "./service";
+import { E2eRelationWriteNoteEntity, E2eRelationWritePostEntity, E2eRelationWriteStampEntity, E2eRelationWriteTicketEntity } from "./entity";
+import { E2eRelationWriteNotePatchService, E2eRelationWriteNoteService, E2eRelationWritePostService, E2eRelationWriteStampService, E2eRelationWriteTicketService } from "./service";
 
 const DISABLED = { generation: { isEnabled: false } } as const;
 
@@ -69,4 +69,14 @@ export class E2eRelationWriteNotePatchController {
 } as never)
 export class E2eRelationWriteStampController {
 	public constructor(@Inject(E2eRelationWriteStampService) public readonly service: E2eRelationWriteStampService) {}
+}
+
+@ApiController<E2eRelationWriteTicketEntity>({
+	entity: E2eRelationWriteTicketEntity,
+	name: "E2eRelationWriteTickets",
+	path: "relation-write-tickets",
+	routes: { ...buildRoutes(), [EApiRouteType.CREATE]: {}, [EApiRouteType.PARTIAL_UPDATE]: DISABLED, [EApiRouteType.UPDATE]: DISABLED },
+} as never)
+export class E2eRelationWriteTicketController {
+	public constructor(@Inject(E2eRelationWriteTicketService) public readonly service: E2eRelationWriteTicketService) {}
 }
