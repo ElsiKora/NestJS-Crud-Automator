@@ -1,4 +1,4 @@
-import type { IApiAuthorizationModuleOptions } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamQueryField, IApiAuthorizationModuleOptions } from "@interface/class/api/authorization";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { IApiRouteRuntimeProperties } from "@interface/decorator/api";
@@ -28,6 +28,7 @@ import { ApiControllerParametersReadPath } from "@utility/api/controller/paramet
 import { ApiControllerParametersAssertResourcePathPlaceholders } from "@utility/api/controller/parameters/resource-path.utility";
 import { ApiControllerParametersBuildRouteRule } from "@utility/api/controller/parameters/route-rule.utility";
 import { ApiControllerParametersAssertValidationPipePackages, ApiControllerParametersReadValidationPipes } from "@utility/api/controller/parameters/validation-pipe.utility";
+import { AuthorizationIamReadQueryField } from "@utility/authorization/iam-query-field.utility";
 import { AuthorizationIsHandlerAuthorized } from "@utility/authorization/is-handler-authorized.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -607,6 +608,15 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 				authorizationBootstrapValidationLogger.error(`Controller "${controllerName}" resourceDefinition contains duplicate queryPath "${field.queryPath}"`);
 
 				throw ErrorException(`Controller "${controllerName}" resourceDefinition contains duplicate queryPath "${field.queryPath}"`);
+			}
+
+			// A list of related rows has no single value: SQL would compare each joined row and the evaluator reads the list as missing.
+			const queryField: IApiAuthorizationIamQueryField = AuthorizationIamReadQueryField(resourceDefinition.entity, field.queryPath);
+
+			if (queryField.collectionPath !== undefined) {
+				authorizationBootstrapValidationLogger.error(`Controller "${controllerName}" resource field "${field.path}" queryPath "${field.queryPath}" crosses the to-many relation "${queryField.collectionPath}"; map a column of the resource or of a to-one relation`);
+
+				throw ErrorException(`Controller "${controllerName}" resource field "${field.path}" queryPath "${field.queryPath}" crosses the to-many relation "${queryField.collectionPath}"; map a column of the resource or of a to-one relation`);
 			}
 
 			fieldPaths.add(field.path);

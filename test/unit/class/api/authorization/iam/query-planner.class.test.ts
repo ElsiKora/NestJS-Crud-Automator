@@ -7,7 +7,7 @@ import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator"
 import { EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType } from "@enum/decorator/api";
 import { describe, expect, it, vi } from "vitest";
-import { And, ChildEntity, Column, Entity, Equal, IsNull, ManyToOne, Not, PrimaryColumn, TableInheritance } from "typeorm";
+import { And, ChildEntity, Column, Entity, Equal, IsNull, JoinTable, ManyToMany, ManyToOne, Not, OneToMany, PrimaryColumn, TableInheritance } from "typeorm";
 
 @Entity("planner_teams")
 class PlannerTeamEntity {
@@ -25,10 +25,23 @@ class PlannerKeylessEntity {
 	public label!: string;
 }
 
+@Entity("planner_labels")
+class PlannerLabelEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	public name!: string;
+}
+
 @Entity("planner_operators")
 class PlannerOperatorEntity {
 	@PrimaryColumn({ type: "varchar" })
 	public id!: string;
+
+	@JoinTable()
+	@ManyToMany(() => PlannerLabelEntity)
+	public labels!: Array<PlannerLabelEntity>;
 
 	@Column({ nullable: true, type: "varchar" })
 	public name!: null | string;
@@ -71,6 +84,9 @@ class PlannerItemEntity {
 
 	public operatorId!: string;
 
+	@OneToMany(() => PlannerTagEntity, (tag: PlannerTagEntity) => tag.item)
+	public tags!: Array<PlannerTagEntity>;
+
 	@Column({ type: "varchar" })
 	public secret!: string;
 
@@ -89,6 +105,18 @@ class PlannerItemEntity {
 	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({ description: "status", type: EApiPropertyDescribeType.UUID })
 	public status!: string;
+}
+
+@Entity("planner_tags")
+class PlannerTagEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@ManyToOne(() => PlannerItemEntity, (item: PlannerItemEntity) => item.tags)
+	public item!: PlannerItemEntity;
+
+	@Column({ type: "varchar" })
+	public name!: string;
 }
 
 // The same fields with no TypeORM decorator, as for an entity registered only through an EntitySchema.
@@ -135,6 +163,8 @@ const resourceDefinition: IApiAuthorizationResourceDefinition<PlannerItemEntity>
 		{ isFilterable: true, path: "resource.operatorName", queryPath: "operator.name" },
 		{ isFilterable: true, path: "resource.teamLabel", queryPath: "operator.team.label" },
 		{ isFilterable: true, path: "resource.keylessLabel", queryPath: "keyless.label" },
+		{ isFilterable: true, path: "resource.tagName", queryPath: "tags.name" },
+		{ isFilterable: true, path: "resource.operatorLabelName", queryPath: "operator.labels.name" },
 	],
 	namespace: "admin:item",
 	resourcePath: "gameport:admin:item/{id}",
@@ -270,6 +300,10 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 			expect(planAllow({ [operator]: { "resource.status": "archived" } })).toEqual({ isFullyCompilable: false });
 		});
 
+		it.each(["resource.tagName", "resource.operatorLabelName"].flatMap((path: string) => ["StringEquals", "StringEqualsIfExists"].map((operator: string) => [operator, path])))("does not compile %s on the to-many path %s", (operator: string, path: string) => {
+			expect(planAllow({ [operator]: { [path]: "red" } })).toEqual({ isFullyCompilable: false });
+		});
+
 		it.each([
 			["a non-filterable field", { StringEquals: { "resource.secret": "value" } }],
 			["an unmapped field", { StringEquals: { "resource.unknown": "value" } }],
@@ -314,6 +348,10 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 
 		it("negates StringEquals on a relation column like a root column", () => {
 			expect(planDeny([{ condition: { StringEquals: { "resource.teamLabel": "red" } } }]).scope).toEqual({ where: [{ operator: { team: { label: Not(Equal("red")) } } }, { operator: { team: { label: IsNull() } } }] });
+		});
+
+		it.each(["resource.tagName", "resource.operatorLabelName"].flatMap((path: string) => ["StringEquals", "StringEqualsIfExists", "StringNotEquals", "StringNotEqualsIfExists"].map((operator: string) => [operator, path])))("does not compile a Deny %s on the to-many path %s", (operator: string, path: string) => {
+			expect(planDeny([{ condition: { [operator]: { [path]: "red" } } }])).toEqual({ isFullyCompilable: false });
 		});
 
 		it("does not compile a Deny StringEqualsIfExists through a relation to an entity without a primary column", () => {

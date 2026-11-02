@@ -50,6 +50,11 @@ export const E2E_IAM_PARITY_ALIAS_PLACEHOLDER_AUTHORIZATION = authorizationFor("
 
 export const E2E_IAM_PARITY_DOTTED_PLACEHOLDER_AUTHORIZATION = authorizationFor("paritydp:item", "paritydp:item/{owner.tag}", E2E_IAM_PARITY_DIRECT_FIELDS);
 
+// Query paths through a OneToMany and a ManyToMany relation: one row holds many values, so neither compiles or reads.
+export const E2E_IAM_PARITY_TAG_AUTHORIZATION = authorizationFor("paritytg:item", "paritytg:item/{id}", [{ path: "tagName", queryPath: "tags.name" }]);
+
+export const E2E_IAM_PARITY_LABEL_AUTHORIZATION = authorizationFor("paritylb:item", "paritylb:item/{id}", [{ path: "labelName", queryPath: "labels.name" }]);
+
 @Injectable()
 @ApiService({ entity: E2eIamParityItemEntity })
 export class E2eIamParityItemService extends ApiServiceBase<E2eIamParityItemEntity> {
@@ -113,6 +118,20 @@ export class E2eIamParityAliasPlaceholderController {
 @ApiControllerSecurable()
 @ApiController<E2eIamParityItemEntity>({ authorization: E2E_IAM_PARITY_DOTTED_PLACEHOLDER_AUTHORIZATION as never, entity: E2eIamParityItemEntity, name: "E2eIamParityDottedPlaceholderItems", path: "iam-parity/dotted-placeholder-items", routes: LIST_ROUTES })
 export class E2eIamParityDottedPlaceholderController {
+	@Inject(E2eIamParityItemService)
+	public readonly service!: E2eIamParityItemService;
+}
+
+@ApiControllerSecurable()
+@ApiController<E2eIamParityItemEntity>({ authorization: E2E_IAM_PARITY_TAG_AUTHORIZATION as never, entity: E2eIamParityItemEntity, name: "E2eIamParityTagItems", path: "iam-parity/tag-items", routes: LIST_ROUTES })
+export class E2eIamParityTagController {
+	@Inject(E2eIamParityItemService)
+	public readonly service!: E2eIamParityItemService;
+}
+
+@ApiControllerSecurable()
+@ApiController<E2eIamParityItemEntity>({ authorization: E2E_IAM_PARITY_LABEL_AUTHORIZATION as never, entity: E2eIamParityItemEntity, name: "E2eIamParityLabelItems", path: "iam-parity/label-items", routes: LIST_ROUTES })
+export class E2eIamParityLabelController {
 	@Inject(E2eIamParityItemService)
 	public readonly service!: E2eIamParityItemService;
 }

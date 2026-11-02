@@ -7,7 +7,7 @@ import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator"
 import { EApiAuthorizationDecisionType, EApiAuthorizationPrincipalType, EApiPolicyEffect, EApiPolicySourceType } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { describe, expect, it } from "vitest";
-import { Column, Entity, Equal, IsNull, Not, PrimaryColumn } from "typeorm";
+import { Column, Entity, Equal, IsNull, ManyToOne, Not, OneToMany, PrimaryColumn } from "typeorm";
 
 const describeEngineStringProperty = (description: string): PropertyDecorator =>
 	ApiPropertyDescribe({
@@ -26,6 +26,9 @@ class EngineItemEntity {
 	@describeEngineStringProperty("id")
 	public id!: string;
 
+	@OneToMany(() => EngineNoteEntity, (note: EngineNoteEntity) => note.item)
+	public notes?: Array<EngineNoteEntity>;
+
 	@Column({ type: "varchar" })
 	public operatorId!: string;
 
@@ -38,6 +41,18 @@ class EngineItemEntity {
 	@Column({ type: "varchar" })
 	@describeEngineStringProperty("tenantId")
 	public tenantId!: string;
+}
+
+@Entity("engine_notes")
+class EngineNoteEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@ManyToOne(() => EngineItemEntity, (item: EngineItemEntity) => item.notes)
+	public item!: EngineItemEntity;
+
+	@Column({ type: "varchar" })
+	public text!: string;
 }
 
 const itemResourceDefinition: IApiAuthorizationResourceDefinition<EngineItemEntity> = {
@@ -248,10 +263,11 @@ describe("ApiAuthorizationIamEngine", () => {
 				{ isFilterable: true, path: "resource.id", queryPath: "id" },
 				{ isFilterable: true, path: "resource.state", queryPath: "status" },
 				{ isFilterable: true, path: "resource.ownerName", queryPath: "owner.name" },
+				{ isFilterable: true, path: "resource.noteText", queryPath: "notes.text" },
 			],
 			resourcePath: "gameport:admin:item/{state}",
 		};
-		const resource = { id: "item-1", operatorId: "operator-1", owner: { name: "ann" }, secret: "s", status: "archived", tenantId: "t" } as unknown as EngineItemEntity;
+		const resource = { id: "item-1", notes: [{ text: "x" }], operatorId: "operator-1", owner: { name: "ann" }, secret: "s", status: "archived", tenantId: "t" } as unknown as EngineItemEntity;
 		const read = async (statements: ReadonlyArray<IApiPolicyStatement>, loadedResource: EngineItemEntity = resource) => await evaluate({ action: "admin:item:read", resource: loadedResource, resourceDefinition: aliasResourceDefinition, routeType: EApiRouteType.GET, statements });
 
 		it("reads an alias of a root column through its query path", async () => {
@@ -276,6 +292,24 @@ describe("ApiAuthorizationIamEngine", () => {
 			expect((await read([{ ...allowAll, Condition: { StringEquals: { "resource.status": "archived" } } }])).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
 			expect((await read([allowAll, deny({ Condition: { StringEquals: { "resource.status": "active" } } })])).effect).toBe(EApiPolicyEffect.DENY);
 			expect((await read([allowAll, deny({ Condition: { StringEquals: { "resource.state": "active", "resource.status": "archived" } } })])).effect).toBe(EApiPolicyEffect.ALLOW);
+		});
+
+		// A loaded collection holds many values, so neither the array nor a missing value stands for the key.
+		it.each(["StringEquals", "StringEqualsIfExists"])("fails an Allow %s on a to-many query path", async (operator: string) => {
+			expect((await read([{ ...allowAll, Condition: { [operator]: { "resource.noteText": "x" } } }])).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+			expect((await read([{ ...allowAll, Condition: { [operator]: { "resource.noteText": "x" } } }], { ...resource, notes: [] } as unknown as EngineItemEntity)).trace.decisionType).toBe(EApiAuthorizationDecisionType.IMPLICIT_DENY);
+		});
+
+		it.each(["StringEquals", "StringEqualsIfExists", "StringNotEquals", "StringNotEqualsIfExists"])("holds a Deny %s on a to-many query path", async (operator: string) => {
+			expect((await read([allowAll, deny({ Condition: { [operator]: { "resource.noteText": "nothing" } } })])).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+			expect((await read([allowAll, deny({ Condition: { [operator]: { "resource.noteText": "x" } } })], { ...resource, notes: [] } as unknown as EngineItemEntity)).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
+		});
+
+		it("fails an Allow and holds a Deny on a to-many query path for a list", async () => {
+			const list = async (statements: ReadonlyArray<IApiPolicyStatement>) => await evaluate({ action: "admin:item:list", resourceDefinition: aliasResourceDefinition, routeType: EApiRouteType.GET_LIST, statements });
+
+			expect((await list([{ ...allowAll, Condition: { StringEqualsIfExists: { "resource.noteText": "x" } } }])).effect).toBe(EApiPolicyEffect.DENY);
+			expect((await list([allowAll, deny({ Condition: { StringEquals: { "resource.noteText": "nothing" } } })])).trace.decisionType).toBe(EApiAuthorizationDecisionType.EXPLICIT_DENY);
 		});
 
 		it("renders a placeholder that names a field through its query path", async () => {

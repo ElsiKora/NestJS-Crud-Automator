@@ -6,7 +6,8 @@ import { E2eIamParityCompanyEntity } from "./company.entity";
 
 @Entity("e2e_iam_parity_owners")
 export class E2eIamParityOwnerEntity {
-	@ManyToOne(() => E2eIamParityCompanyEntity, { nullable: true })
+	// No foreign key constraint, so an owner can name a company that does not exist.
+	@ManyToOne(() => E2eIamParityCompanyEntity, { createForeignKeyConstraints: false, nullable: true })
 	public company?: E2eIamParityCompanyEntity | null;
 
 	@PrimaryColumn({ length: 36, type: "varchar" })

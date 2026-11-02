@@ -9,6 +9,7 @@ import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiPolicyConditi
 import { EApiRouteType } from "@enum/decorator/api";
 import { Injectable } from "@nestjs/common";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization";
+import { AuthorizationIamReadQueryField } from "@utility/authorization/iam-query-field.utility";
 import { AuthorizationIsCreateRoute } from "@utility/authorization/is-create-route.utility";
 import { AuthorizationIsListRoute } from "@utility/authorization/is-list-route.utility";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
@@ -470,10 +471,10 @@ export class ApiAuthorizationIamEngine {
 					return { isMatched: false };
 				}
 
-				const actualValue: { isDeclared: boolean; value?: unknown } = path.startsWith("resource.") ? this.readResourceValue(options.resourceDefinition, options.resource, path) : { isDeclared: true, value: this.resolvePathValue(evaluationContext, path) };
+				const actualValue: { isDeclared: boolean; isReadable: boolean; value?: unknown } = path.startsWith("resource.") ? this.readResourceValue(options.resourceDefinition, options.resource, path) : { isDeclared: true, isReadable: true, value: this.resolvePathValue(evaluationContext, path) };
 
-				// A `resource.*` key with no field mapping has no query path, so it fails closed as the SQL scope does: it holds for a Deny and fails an Allow.
-				if (!actualValue.isDeclared) {
+				// A `resource.*` key with no field mapping, or one through a to-many relation, has no single column, so it fails closed as the SQL scope does: it holds for a Deny and fails an Allow.
+				if (!actualValue.isReadable) {
 					if (isDeny) {
 						continue;
 					}
@@ -540,17 +541,26 @@ export class ApiAuthorizationIamEngine {
 
 	/**
 	 * Reads a `resource.*` path from a loaded resource through the query path its field mapping declares, the same
-	 * column the SQL scope compares. A path through a relation the resource does not carry reads as missing.
+	 * column the SQL scope compares. A path through a relation the resource does not carry reads as missing. A path
+	 * through a `OneToMany` or `ManyToMany` relation reads a list, which no scope compares as one value, so it is not readable.
 	 * @template E - Entity type.
 	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition with the field mappings.
 	 * @param {E | undefined} resource - Loaded resource.
 	 * @param {string} path - `resource.*` condition path or placeholder path.
-	 * @returns {{ isDeclared: boolean; value?: unknown }} The value at the field's query path, or `isDeclared: false` when no field maps the path.
+	 * @returns {{ isDeclared: boolean; isReadable: boolean; value?: unknown }} The value at the field's query path, whether a field maps the path, and whether its value is one comparable value.
 	 */
-	private readResourceValue<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, resource: E | undefined, path: string): { isDeclared: boolean; value?: unknown } {
+	private readResourceValue<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, resource: E | undefined, path: string): { isDeclared: boolean; isReadable: boolean; value?: unknown } {
 		const field: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = resourceDefinition.fields.find((candidate: IApiAuthorizationResourceDefinition<E>["fields"][number]): boolean => candidate.path === path);
 
-		return field ? { isDeclared: true, value: this.resolvePathValue(resource, field.queryPath) } : { isDeclared: false };
+		if (!field) {
+			return { isDeclared: false, isReadable: false };
+		}
+
+		if (AuthorizationIamReadQueryField(resourceDefinition.entity, field.queryPath).collectionPath !== undefined) {
+			return { isDeclared: true, isReadable: false };
+		}
+
+		return { isDeclared: true, isReadable: true, value: this.resolvePathValue(resource, field.queryPath) };
 	}
 
 	/**
@@ -747,7 +757,7 @@ export class ApiAuthorizationIamEngine {
 
 		for (const match of resourceDefinition.resourcePath.matchAll(/\{([\w.-]+)\}/g)) {
 			const placeholder: string = match[1] ?? "";
-			const resourceValue: { isDeclared: boolean; value?: unknown } = this.readResourceValue(resourceDefinition, resource, `resource.${placeholder}`);
+			const resourceValue: { isDeclared: boolean; isReadable: boolean; value?: unknown } = this.readResourceValue(resourceDefinition, resource, `resource.${placeholder}`);
 			let resolvedValue: unknown;
 
 			if (Object.prototype.hasOwnProperty.call(parameters, placeholder)) {

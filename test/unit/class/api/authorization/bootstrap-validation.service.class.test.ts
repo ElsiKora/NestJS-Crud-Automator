@@ -14,7 +14,7 @@ import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiProp
 import { RequestMethod } from "@nestjs/common";
 import { PATH_METADATA } from "@nestjs/common/internal";
 import { DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
-import { Entity, PrimaryColumn, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, JoinTable, ManyToMany, ManyToOne, OneToMany, PrimaryColumn, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
 @Entity("bootstrap_validation_entities")
@@ -30,6 +30,53 @@ class ValidationEntity {
 		type: EApiPropertyDescribeType.NUMBER,
 	})
 	public id!: number;
+}
+
+@Entity("bootstrap_validation_labels")
+class ValidationLabelEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	public name!: string;
+}
+
+@Entity("bootstrap_validation_owners")
+class ValidationOwnerEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@JoinTable()
+	@ManyToMany(() => ValidationLabelEntity)
+	public labels!: Array<ValidationLabelEntity>;
+
+	@Column({ type: "varchar" })
+	public name!: string;
+}
+
+// An entity with a to-one relation that leads on to a ManyToMany, and a OneToMany of its own.
+@Entity("bootstrap_validation_collection_entities")
+class ValidationCollectionEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@ManyToOne(() => ValidationOwnerEntity)
+	public owner!: ValidationOwnerEntity;
+
+	@OneToMany(() => ValidationNoteEntity, (note: ValidationNoteEntity) => note.item)
+	public notes!: Array<ValidationNoteEntity>;
+}
+
+@Entity("bootstrap_validation_notes")
+class ValidationNoteEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+
+	@ManyToOne(() => ValidationCollectionEntity, (item: ValidationCollectionEntity) => item.notes)
+	public item!: ValidationCollectionEntity;
+
+	@Column({ type: "varchar" })
+	public text!: string;
 }
 
 @Entity("bootstrap_validation_decimal_entities")
@@ -153,6 +200,30 @@ function defineIamControllerMetadata(controller: new () => unknown, resourcePath
 				create: { generation: { isEnabled: false } },
 				delete: { generation: { isEnabled: false } },
 				get: { generation: { isEnabled: false } },
+				getList: { generation: { isEnabled: false } },
+				partialUpdate: { generation: { isEnabled: false } },
+				update: { generation: { isEnabled: false } },
+			},
+		},
+		controller,
+	);
+}
+
+// An IAM controller over the collection entity whose only route is the generated GET.
+function defineCollectionControllerMetadata(controller: new () => unknown, fields: Array<{ isFilterable: boolean; path: string; queryPath: string }>): void {
+	Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
+	Reflect.defineMetadata(
+		CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY,
+		{
+			authorization: {
+				defaultMode: EApiAuthorizationMode.IAM,
+				policyNamespace: "validation",
+				resourceDefinition: { entity: ValidationCollectionEntity, fields, namespace: "validation", resourcePath: "validation/{id}", resourceType: "validation" },
+			},
+			entity: ValidationCollectionEntity,
+			routes: {
+				create: { generation: { isEnabled: false } },
+				delete: { generation: { isEnabled: false } },
 				getList: { generation: { isEnabled: false } },
 				partialUpdate: { generation: { isEnabled: false } },
 				update: { generation: { isEnabled: false } },
@@ -394,6 +465,32 @@ describe("ApiAuthorizationBootstrapValidationService", () => {
 		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, { dto: { [EApiDtoType.PARAMETERS]: ValidationDecimalParametersDto } }, HooksDecimalRouteController.prototype.read);
 
 		expect(() => createIamService([HooksDecimalRouteController], new ApiAuthorizationParametersRuleRegistry()).onApplicationBootstrap()).toThrow('Controller "HooksDecimalRouteController" method "read" holds the path parameter "amount" in the decimal column "amount"');
+	});
+
+	it.each([
+		["a OneToMany relation", "resource.noteText", "notes.text", "notes"],
+		["a ManyToMany relation behind a to-one relation", "resource.ownerLabel", "owner.labels.name", "owner.labels"],
+	])("does not start a resource field whose query path crosses %s", (_name: string, path: string, queryPath: string, collectionPath: string) => {
+		class CollectionFieldController {}
+
+		defineCollectionControllerMetadata(CollectionFieldController, [
+			{ isFilterable: true, path: "resource.ownerName", queryPath: "owner.name" },
+			{ isFilterable: true, path, queryPath },
+		]);
+
+		expect(() => {
+			createIamService([CollectionFieldController], new ApiAuthorizationParametersRuleRegistry()).onApplicationBootstrap();
+		}).toThrow(`Controller "CollectionFieldController" resource field "${path}" queryPath "${queryPath}" crosses the to-many relation "${collectionPath}"; map a column of the resource or of a to-one relation`);
+	});
+
+	it("starts a resource field whose query path crosses only to-one relations", () => {
+		class ToOneFieldController {}
+
+		defineCollectionControllerMetadata(ToOneFieldController, [{ isFilterable: true, path: "resource.ownerName", queryPath: "owner.name" }]);
+
+		expect(() => {
+			createIamService([ToOneFieldController], new ApiAuthorizationParametersRuleRegistry()).onApplicationBootstrap();
+		}).not.toThrow();
 	});
 
 	it("forgets the path value rules of an earlier start", () => {

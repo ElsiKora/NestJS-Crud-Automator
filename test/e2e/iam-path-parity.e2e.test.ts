@@ -21,6 +21,8 @@ import {
 	E2E_IAM_PARITY_ALIAS_PLACEHOLDER_AUTHORIZATION,
 	E2E_IAM_PARITY_DIRECT_AUTHORIZATION,
 	E2E_IAM_PARITY_DOTTED_PLACEHOLDER_AUTHORIZATION,
+	E2E_IAM_PARITY_LABEL_AUTHORIZATION,
+	E2E_IAM_PARITY_TAG_AUTHORIZATION,
 	E2E_IAM_PARITY_USER,
 	E2eIamParityAliasItemController,
 	E2eIamParityAliasPlaceholderController,
@@ -30,7 +32,11 @@ import {
 	E2eIamParityItemController,
 	E2eIamParityItemEntity,
 	E2eIamParityItemService,
+	E2eIamParityLabelController,
+	E2eIamParityLabelEntity,
 	E2eIamParityOwnerEntity,
+	E2eIamParityTagController,
+	E2eIamParityTagEntity,
 } from "./iam-path-parity";
 
 type TCondition = Record<string, Record<string, unknown>>;
@@ -54,18 +60,37 @@ const DOTTED_PLACEHOLDER_ITEMS: string = "/iam-parity/dotted-placeholder-items";
 const PAGE: string = "limit=50&page=1";
 const PRINCIPAL: IApiAuthorizationPrincipal = AuthorizationResolveDefaultPrincipal(E2E_IAM_PARITY_USER);
 
+const ENTITIES: Array<new () => unknown> = [E2eIamParityCompanyEntity, E2eIamParityOwnerEntity, E2eIamParityItemEntity, E2eIamParityTagEntity, E2eIamParityLabelEntity];
+
+// Company c-3 is soft-deleted after it is saved.
 const COMPANIES: Array<E2eIamParityCompanyEntity> = [
 	{ id: "c-1", isVerified: true, name: "acme" },
 	{ id: "c-2", isVerified: false, name: null },
+	{ id: "c-3", isVerified: true, name: "acme" },
 ];
 
+// Owner o-4 names the company c-9, which does not exist.
 const OWNERS: Array<E2eIamParityOwnerEntity> = [
 	{ company: { id: "c-1" } as E2eIamParityCompanyEntity, id: "o-1", isActive: true, tag: "x" },
 	{ company: { id: "c-2" } as E2eIamParityCompanyEntity, id: "o-2", isActive: false, tag: null },
 	{ company: null, id: "o-3", isActive: true, tag: "x" },
+	{ company: { id: "c-9" } as E2eIamParityCompanyEntity, id: "o-4", isActive: true, tag: "x" },
+	{ company: { id: "c-3" } as E2eIamParityCompanyEntity, id: "o-5", isActive: true, tag: "x" },
 ];
 
-// Rows with a full owner chain, a NULL column one and two relations away, a missing company, and a missing owner.
+const LABELS: Array<E2eIamParityLabelEntity> = [
+	{ id: "l-1", name: "secret" },
+	{ id: "l-2", name: "public" },
+];
+
+const TAGS: Array<E2eIamParityTagEntity> = [
+	{ id: "t-1", item: { id: "a" } as E2eIamParityItemEntity, name: "secret" },
+	{ id: "t-2", item: { id: "a" } as E2eIamParityItemEntity, name: "public" },
+	{ id: "t-3", item: { id: "b" } as E2eIamParityItemEntity, name: "secret" },
+];
+
+// Rows with a full owner chain, a NULL column one and two relations away, a missing company, and a missing owner;
+// an owner and a company named by a foreign key with no row behind it, and a soft-deleted company.
 const ITEM_ROWS: Array<E2eIamParityItemEntity> = [
 	{ id: "a", isFeatured: true, label: "Alpha", meta: { isLocked: false, note: "n" }, owner: { id: "o-1" } as E2eIamParityOwnerEntity },
 	{ id: "b", isFeatured: false, label: "Beta", meta: { isLocked: true, note: null }, owner: { id: "o-2" } as E2eIamParityOwnerEntity },
@@ -73,7 +98,12 @@ const ITEM_ROWS: Array<E2eIamParityItemEntity> = [
 	{ id: "d", isFeatured: false, label: "Delta", meta: { isLocked: false, note: null }, owner: null },
 	{ id: "e", isFeatured: true, label: "Epsilon", meta: { isLocked: false, note: "m" }, owner: { id: "o-2" } as E2eIamParityOwnerEntity },
 	{ id: "f", isFeatured: false, label: "Zeta", meta: { isLocked: true, note: "n" }, owner: { id: "o-1" } as E2eIamParityOwnerEntity },
+	{ id: "g", isFeatured: true, label: "Eta", meta: { isLocked: false, note: "n" }, owner: { id: "o-9" } as E2eIamParityOwnerEntity },
+	{ id: "h", isFeatured: false, label: "Theta", meta: { isLocked: true, note: "n" }, owner: { id: "o-4" } as E2eIamParityOwnerEntity },
+	{ id: "i", isFeatured: true, label: "Iota", meta: { isLocked: false, note: null }, owner: { id: "o-5" } as E2eIamParityOwnerEntity },
 ];
+
+const TO_MANY_OPERATORS: Array<string> = ["StringEquals", "StringEqualsIfExists", "StringNotEquals", "StringNotEqualsIfExists"];
 
 // One value per query path, keyed by its direct and its alias condition path: root, embedded, and relation columns.
 const FIELD_VALUES: Array<[string, string, unknown]> = [
@@ -129,6 +159,8 @@ const COMBINED_CASES: Array<[string, TTarget, IPolicyCase]> = [
 	["Deny an IfExists key two relations away under an Allow IfExists key", "alias", { namespace: "paritya:item", statements: [statement("paritya:item", EApiPolicyEffect.ALLOW, key("StringEqualsIfExists", "ownerTag", "x")), statement("paritya:item", EApiPolicyEffect.DENY, key("StringEqualsIfExists", "companyName", "acme"))] }],
 ];
 
+const policyIn = (namespace: string, effect: EApiPolicyEffect, condition: TCondition): IPolicyCase => ({ namespace, statements: effect === EApiPolicyEffect.ALLOW ? [statement(namespace, effect, condition)] : [statement(namespace, EApiPolicyEffect.ALLOW), statement(namespace, effect, condition)] });
+
 const placeholderDeny = (namespace: string, resource: string): IPolicyCase => ({
 	namespace,
 	statements: [
@@ -136,6 +168,30 @@ const placeholderDeny = (namespace: string, resource: string): IPolicyCase => ({
 		{ Action: [`${namespace}:*`], Effect: EApiPolicyEffect.DENY, Resource: [resource] },
 	],
 });
+
+const buildApplication = async (options: TypeOrmModuleOptions, controllers: Array<new () => unknown>, currentPolicy: () => IPolicyCase): Promise<INestApplication> => {
+	const moduleReference = await Test.createTestingModule({
+		controllers,
+		imports: [
+			TypeOrmModule.forRoot(options),
+			TypeOrmModule.forFeature(ENTITIES),
+			ApiAuthorizationModule.forRoot({
+				iam: {
+					attachmentSources: [{ getAttachments: async () => await Promise.resolve({ attachments: [{ policyId: "parity-policy", principalId: PRINCIPAL.id, principalType: EApiAuthorizationPrincipalType.USER }], boundaries: [] }) }],
+					documentSources: [
+						{
+							getDocumentsByIds: async (ids: ReadonlyArray<string>): Promise<ReadonlyArray<IApiPolicyDocumentRecord>> => await Promise.resolve(ids.includes("parity-policy") ? [{ document: { Statement: currentPolicy().statements, Version: "2012-10-17" }, id: "parity-policy", namespace: currentPolicy().namespace, sourceType: EApiPolicySourceType.DATABASE, version: "1" }] : []),
+						},
+					],
+				},
+				principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user as never) },
+			} as never),
+		],
+		providers: [E2eIamParityItemService, E2eIamParityGuard],
+	}).compile();
+
+	return moduleReference.createNestApplication(new FastifyAdapter());
+};
 
 describe.each<{ database: TDatabase; databaseName: string }>([
 	{ database: "sqlite", databaseName: "SQLite" },
@@ -203,28 +259,7 @@ describe.each<{ database: TDatabase; databaseName: string }>([
 			mysqlContainer = await new MySqlContainer("mysql:8.4").start();
 		}
 
-		const entities: Array<new () => unknown> = [E2eIamParityCompanyEntity, E2eIamParityOwnerEntity, E2eIamParityItemEntity];
-		const moduleReference = await Test.createTestingModule({
-			controllers: [E2eIamParityItemController, E2eIamParityAliasItemController, E2eIamParityAliasPlaceholderController, E2eIamParityDottedPlaceholderController],
-			imports: [
-				TypeOrmModule.forRoot(connection(entities)),
-				TypeOrmModule.forFeature(entities),
-				ApiAuthorizationModule.forRoot({
-					iam: {
-						attachmentSources: [{ getAttachments: async () => await Promise.resolve({ attachments: [{ policyId: "parity-policy", principalId: PRINCIPAL.id, principalType: EApiAuthorizationPrincipalType.USER }], boundaries: [] }) }],
-						documentSources: [
-							{
-								getDocumentsByIds: async (ids: ReadonlyArray<string>): Promise<ReadonlyArray<IApiPolicyDocumentRecord>> => await Promise.resolve(ids.includes("parity-policy") ? [{ document: { Statement: policy.statements, Version: "2012-10-17" }, id: "parity-policy", namespace: policy.namespace, sourceType: EApiPolicySourceType.DATABASE, version: "1" }] : []),
-							},
-						],
-					},
-					principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user as never) },
-				} as never),
-			],
-			providers: [E2eIamParityItemService, E2eIamParityGuard],
-		}).compile();
-
-		app = moduleReference.createNestApplication(new FastifyAdapter());
+		app = await buildApplication(connection(ENTITIES), [E2eIamParityItemController, E2eIamParityAliasItemController, E2eIamParityAliasPlaceholderController, E2eIamParityDottedPlaceholderController], () => policy);
 		await app.init();
 		fastify = app.getHttpAdapter().getInstance();
 		simulator = app.get(ApiAuthorizationSimulator);
@@ -232,7 +267,9 @@ describe.each<{ database: TDatabase; databaseName: string }>([
 		const dataSourceManager = repository().manager;
 
 		await dataSourceManager.getRepository(E2eIamParityCompanyEntity).save(COMPANIES);
+		await dataSourceManager.getRepository(E2eIamParityCompanyEntity).softDelete("c-3");
 		await dataSourceManager.getRepository(E2eIamParityOwnerEntity).save(OWNERS);
+		await dataSourceManager.getRepository(E2eIamParityLabelEntity).save(LABELS);
 	}, 300_000);
 
 	beforeEach(async () => {
@@ -264,11 +301,13 @@ describe.each<{ database: TDatabase; databaseName: string }>([
 
 	// The evaluator's own answers: a missing relation is a missing key at any depth, and an alias reads its query path.
 	it.each<[string, TTarget, IPolicyCase, Array<string>]>([
-		["an Allow IfExists key on a missing company or owner", "direct", allowAll("direct", key("StringEqualsIfExists", "owner.company.name", "acme")), ["a", "c", "d", "f"]],
+		["an Allow IfExists key on a missing company or owner", "direct", allowAll("direct", key("StringEqualsIfExists", "owner.company.name", "acme")), ["a", "c", "d", "f", "g", "h", "i"]],
 		["a Deny IfExists key on a missing company or owner", "direct", denyAll("direct", key("StringEqualsIfExists", "owner.company.isVerified", "false")), ["a", "f"]],
 		["a Deny IfExists key on a missing owner", "alias", denyAll("alias", key("StringEqualsIfExists", "ownerTag", "x")), ["b", "e"]],
 		["an Allow key on an alias", "alias", allowAll("alias", key("StringEquals", "ownerId", "o-1")), ["a", "f"]],
-		["a Deny key on an alias of an embedded column", "alias", denyAll("alias", key("StringEquals", "locked", "true")), ["a", "d", "e"]],
+		["a Deny key on an alias of an embedded column", "alias", denyAll("alias", key("StringEquals", "locked", "true")), ["a", "d", "e", "g", "i"]],
+		["an Allow key on a dangling owner or company, or a soft-deleted company", "direct", allowAll("direct", key("StringEquals", "owner.company.isVerified", "true")), ["a", "f"]],
+		["a Deny IfExists key on a dangling owner or company, or a soft-deleted company", "direct", denyAll("direct", key("StringNotEqualsIfExists", "owner.company.name", "acme")), ["a", "f"]],
 	])("allows the expected rows in memory for %s", async (_name: string, target: TTarget, policyCase: IPolicyCase, expected: Array<string>) => {
 		policy = policyCase;
 
@@ -281,7 +320,47 @@ describe.each<{ database: TDatabase; databaseName: string }>([
 	])("keeps the rows the in-memory evaluator allows for a list Deny on %s", async (_name: string, namespace: string, url: string, authorization: typeof E2E_IAM_PARITY_DIRECT_AUTHORIZATION) => {
 		policy = placeholderDeny(namespace, `${namespace}/x`);
 
-		expect(await allowedInMemory(authorization)).toEqual(["b", "d", "e"]);
-		expect(await listIds(url)).toEqual({ ids: ["b", "d", "e"], statusCode: HttpStatus.OK });
+		expect(await allowedInMemory(authorization)).toEqual(["b", "d", "e", "g"]);
+		expect(await listIds(url)).toEqual({ ids: ["b", "d", "e", "g"], statusCode: HttpStatus.OK });
+	});
+
+	// A to-many path cannot reach a controller, so the simulator is the only way to evaluate one: every key fails closed.
+	it.each(
+		[
+			["tags.name", "paritytg:item", "tagName", E2E_IAM_PARITY_TAG_AUTHORIZATION],
+			["labels.name", "paritylb:item", "labelName", E2E_IAM_PARITY_LABEL_AUTHORIZATION],
+		].flatMap(([queryPath, namespace, field, authorization]) => TO_MANY_OPERATORS.flatMap((operator: string) => [EApiPolicyEffect.ALLOW, EApiPolicyEffect.DENY].map((effect: EApiPolicyEffect) => [`${effect} ${operator}`, queryPath as string, namespace as string, field as string, authorization as typeof E2E_IAM_PARITY_DIRECT_AUTHORIZATION, operator, effect] as const))),
+	)("denies every row and the list for %s on the to-many path %s", async (_name: string, _queryPath: string, namespace: string, field: string, authorization: typeof E2E_IAM_PARITY_DIRECT_AUTHORIZATION, operator: string, effect: EApiPolicyEffect) => {
+		const manager = repository().manager;
+
+		await manager.getRepository(E2eIamParityTagEntity).save(TAGS);
+		// Row a holds the secret label, row b both labels, and the other rows none.
+		await repository().save(ITEM_ROWS.slice(0, 2).map((row: E2eIamParityItemEntity, index: number): E2eIamParityItemEntity => ({ ...row, labels: LABELS.slice(0, index + 1) })));
+		// Under a Deny the value matches no row's tags, so a key read as a missing value would serve every row.
+		policy = policyIn(namespace, effect, key(operator, field, effect === EApiPolicyEffect.ALLOW ? "secret" : "nothing"));
+
+		const list = await simulator.evaluate({ action: EApiRouteType.GET_LIST, authorization: authorization as never, entity: E2eIamParityItemEntity, principal: PRINCIPAL, routeType: EApiRouteType.GET_LIST });
+		const decisions: Array<[string, EApiPolicyEffect]> = [];
+
+		for (const row of await repository().find({ relations: { labels: true, tags: true } })) {
+			const decision = await simulator.evaluate({ action: EApiRouteType.GET, authorization: authorization as never, entity: E2eIamParityItemEntity, principal: PRINCIPAL, resource: row, routeType: EApiRouteType.GET });
+
+			decisions.push([row.id, decision.effect]);
+		}
+
+		expect(list.effect).toBe(EApiPolicyEffect.DENY);
+		expect(decisions.sort()).toEqual(ITEM_ROWS.map((row: E2eIamParityItemEntity): [string, EApiPolicyEffect] => [row.id, EApiPolicyEffect.DENY]));
+	});
+});
+
+describe("IAM resource fields over to-many relations (E2E)", () => {
+	it.each([
+		["the OneToMany relation", E2eIamParityTagController, /resource field "resource\.tagName" queryPath "tags\.name" crosses the to-many relation "tags"/],
+		["the ManyToMany relation", E2eIamParityLabelController, /resource field "resource\.labelName" queryPath "labels\.name" crosses the to-many relation "labels"/],
+	])("does not start a controller whose field crosses %s", async (_name: string, controller: new () => unknown, message: RegExp) => {
+		const refused: INestApplication = await buildApplication({ database: ":memory:", dropSchema: true, entities: ENTITIES, synchronize: true, type: "better-sqlite3" }, [controller], () => ({ namespace: "paritytg:item", statements: [] }));
+
+		await expect(refused.init()).rejects.toThrow(message);
+		await refused.close();
 	});
 });
