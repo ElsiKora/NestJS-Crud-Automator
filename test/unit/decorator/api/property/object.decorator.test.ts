@@ -394,42 +394,66 @@ describe("ApiPropertyObject", () => {
 		expect(applyDecorator).toThrow("ApiPropertyObject error: Array property must be 'shouldValidateNested'");
 	});
 
-	it("throws at decoration when a request array leaves out its bounds", () => {
-		const unboundedOptions: Record<string, unknown> = {
+	describe("array bounds at decoration", () => {
+		class ArrayBoundsDto {
+			public children!: Array<ChildDto>;
+		}
+
+		const BOUNDED_REQUEST_ARRAY: Record<string, unknown> = {
 			description: "children",
 			entity: ObjectEntity,
 			isArray: true,
-			isRequired: true,
+			isUniqueItems: false,
 			maxItems: 2,
+			minItems: 0,
 			shouldValidateNested: true,
 			type: ChildDto,
 		};
 
-		const applyDecorator = () => {
-			const decorator = ApiPropertyObject(unboundedOptions as unknown as Parameters<typeof ApiPropertyObject>[0]);
+		// Reflect.apply passes the options the way JavaScript or `any` would, past the property types.
+		const decorate = (options: Record<string, unknown>): void => {
+			const decorator: PropertyDecorator = Reflect.apply(ApiPropertyObject, undefined, [options]);
 
-			decorator({}, "children");
+			decorator(ArrayBoundsDto.prototype, "children");
 		};
 
-		expect(applyDecorator).toThrow("ApiPropertyObject error: Request array property 'children' must declare 'isUniqueItems', 'minItems'");
-	});
+		it.each([
+			["two bounds", { isUniqueItems: undefined, minItems: undefined }, "'isUniqueItems', 'minItems'"],
+			["every bound on an array marked isResponse false", { isResponse: false, isUniqueItems: undefined, maxItems: undefined, minItems: undefined }, "'isUniqueItems', 'maxItems', 'minItems'"],
+		])("names the DTO class, the property and the way out when a request array leaves out %s", (_name: string, overrides: Record<string, unknown>, missing: string) => {
+			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, ...overrides })).toThrow(`ApiPropertyObject error: Request array property 'ArrayBoundsDto.children' must declare ${missing}, or be marked 'isResponse: true' if it is response-only`);
+		});
 
-	it("throws at decoration when an array marked isResponse false leaves out its bounds", () => {
-		const unboundedOptions: Record<string, unknown> = {
-			description: "children",
-			entity: ObjectEntity,
-			isArray: true,
-			isResponse: false,
-			shouldValidateNested: true,
-			type: ChildDto,
-		};
+		it.each([
+			["maxItems", Number.NaN],
+			["maxItems", null],
+			["maxItems", Number.POSITIVE_INFINITY],
+			["maxItems", 1.5],
+			["maxItems", "2"],
+			["minItems", Number.NaN],
+			["minItems", null],
+			["minItems", "0"],
+		])("rejects %s set to %s", (name: string, value: unknown) => {
+			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, [name]: value })).toThrow(`ApiPropertyObject error: '${name}' must be a non-negative integer`);
+		});
 
-		const applyDecorator = () => {
-			const decorator = ApiPropertyObject(unboundedOptions as unknown as Parameters<typeof ApiPropertyObject>[0]);
+		it("rejects isUniqueItems that is not a boolean", () => {
+			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, isUniqueItems: null })).toThrow("ApiPropertyObject error: 'isUniqueItems' must be a boolean");
+		});
 
-			decorator({}, "children");
-		};
+		it("rejects a bad value on a response array too, which may only leave a bound out", () => {
+			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, isResponse: true, isUniqueItems: undefined, maxItems: Number.NaN, minItems: undefined })).toThrow("ApiPropertyObject error: 'maxItems' must be a non-negative integer");
+		});
 
-		expect(applyDecorator).toThrow("ApiPropertyObject error: Request array property 'children' must declare 'isUniqueItems', 'maxItems', 'minItems'");
+		it("keeps the less-than-zero error for a negative bound", () => {
+			expect(() => decorate({ ...BOUNDED_REQUEST_ARRAY, minItems: -1 })).toThrow("ApiPropertyObject error: 'minItems' is less than 0");
+		});
+
+		it.each([
+			["a fully bounded request array", BOUNDED_REQUEST_ARRAY],
+			["a response array without bounds", { ...BOUNDED_REQUEST_ARRAY, isResponse: true, isUniqueItems: undefined, maxItems: undefined, minItems: undefined }],
+		])("accepts %s", (_name: string, options: Record<string, unknown>) => {
+			expect(() => decorate(options)).not.toThrow();
+		});
 	});
 });
