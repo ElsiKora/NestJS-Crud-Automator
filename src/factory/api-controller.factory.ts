@@ -5,6 +5,7 @@ import type { IApiControllerGetListQueryPlan } from "@interface/class/api/contro
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiControllerProperties } from "@interface/decorator/api";
+import type { IApiControllerPropertiesRouteGetListResponseDtoConfig } from "@interface/decorator/api/controller/properties/route";
 import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiControllerMethod } from "@type/class";
@@ -31,6 +32,7 @@ import { ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/
 import { ApiControllerAssertRouteCursorDataSource, ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerGetListQueryPlanGet, ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
+import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response-published-fields.utility";
 import { ApiControllerGetListTransformAssertPublishedFilters } from "@utility/api/controller/get-list/transform/assert-published-filters.utility";
 import { ApiControllerGetListTransformAssertRelationTargets } from "@utility/api/controller/get-list/transform/assert-relation-targets.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
@@ -77,7 +79,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	/**
-	 * Fails startup when the manual QUERY DTO of a GET_LIST route without a typed filter publishes a filter the route cannot apply. The check waits until here because a relation target may be named by a class that did not exist while the controller was decorated.
+	 * Fails startup when the manual QUERY DTO of a GET_LIST route without a typed filter publishes a filter the route cannot apply, or one on a column the list response hides. The check waits until here because a relation target, or a lazy type of the manual list response, may name a class that did not exist while the controller was decorated; assertListResponseOrder runs first and reports a response that cannot be read.
 	 * @returns {void}
 	 */
 	assertGetListPublishedFilters(): void {
@@ -86,7 +88,9 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		const queryPlan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanGet(this.targetPrototype, ApiControllerGetMethodName(EApiRouteType.GET_LIST));
 
 		if (queryDto && routeConfig?.generation?.isEnabled !== false && (!queryPlan || queryPlan.filter.isLegacy)) {
-			ApiControllerGetListTransformAssertPublishedFilters(this.target.name, queryDto, this.ENTITY, routeConfig?.security?.authentication?.guard);
+			const responseDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown> | undefined = routeConfig?.dto?.[EApiDtoType.RESPONSE];
+
+			ApiControllerGetListTransformAssertPublishedFilters(this.target.name, queryDto, this.ENTITY, routeConfig?.security?.authentication?.guard, responseDto ? ApiControllerGetListResponsePublishedFields(responseDto) : undefined);
 		}
 	}
 
