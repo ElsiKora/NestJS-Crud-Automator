@@ -1314,7 +1314,7 @@ describe("typed GET_LIST query plan and runtime", () => {
 		["missing protected item metadata", { itemType: CursorCustomIncompleteItemDto }],
 		["unproven flat wrapper", CursorQueryController],
 	])("refuses a client order field a custom CURSOR response DTO does not publish: %s", (_label, responseDto) => {
-		expect(() => compileCursorPlan({ fields: { rank: { isEnabled: true } }, responseDto })).toThrow('GET_LIST order field "rank" is not an enabled direct scalar path');
+		expect(() => compileCursorPlan({ fields: { rank: { isEnabled: true } }, responseDto })).toThrow('GET_LIST order field "rank" is not orderable: the manual GET_LIST response DTO does not publish it');
 	});
 
 	it("rejects CURSOR bootstrap without explicit order", () => {

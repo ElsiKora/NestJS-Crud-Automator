@@ -1489,7 +1489,7 @@ describe("generated read contract", () => {
 					unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
 				},
 			}),
-		).toThrow('GET_LIST order field "internalSequence" is not an enabled direct scalar path');
+		).toThrow('GET_LIST order field "internalSequence" is not orderable: it sets isAutoDtoEnabled: false');
 	});
 
 	it("allows a globally hidden field only as PAGE server ordering evidence", () => {
