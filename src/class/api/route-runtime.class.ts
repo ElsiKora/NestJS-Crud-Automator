@@ -44,6 +44,7 @@ import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, 
 import { EApiDtoType } from "@enum/decorator/api";
 import { BadRequestException } from "@nestjs/common";
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
+import { ApiControllerGetListQueryAssertOrderable } from "@utility/api/controller/get-list/query/assert-orderable.utility";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
 import { ApiControllerGetListQueryValidate } from "@utility/api/controller/get-list/query/validate.utility";
@@ -406,6 +407,11 @@ export class ApiRouteRuntime {
 				const queryDto: Type<unknown> | undefined = !queryPlan || queryPlan.filter.isLegacy ? ApiControllerGetDtoWithReadPlan(options.properties, options.entityMetadata, options.method, EApiDtoType.QUERY, routeConfig, options.schemaPrefix, queryPlan, readPlan) : undefined;
 				// Only the database query uses the validated copy; subscribers keep the query that route-before subscribers produced.
 				const query: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> = queryDto ? await ApiControllerGetListQueryValidate(queryDto, requestQuery) : requestQuery;
+
+				// A query plan already holds the client's order to its fields; a class default of a manual QUERY DTO stays the route's own order, like a plan's defaultOrder.
+				if (!queryPlan && requestQuery.orderBy !== undefined) {
+					ApiControllerGetListQueryAssertOrderable(options.properties, options.entityMetadata, query.orderBy);
+				}
 
 				// Date-time values the DTO or plan accepted must also name a calendar instant before any query.
 				ApiControllerGetListQueryRuntime.assertDateTimeFilterValues(requestQuery, this.resolveDateTimeFilterPaths(options.controller.service, requestQuery));
