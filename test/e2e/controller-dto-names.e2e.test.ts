@@ -254,6 +254,15 @@ describe("generated DTO names with one controller on an entity (E2E)", () => {
 			}
 		}
 
+		// A body relation over one column is now sent as the value of the column it references, and the owner key is a varchar, so it is no longer a UUID.
+		for (const name of ["E2eDtoNameRecordCreateBodyDTO", "E2eDtoNameRecordPartialUpdateBodyDTO", "E2eDtoNameRecordUpdateBodyDTO"]) {
+			const owner: Record<string, unknown> | undefined = (expectedDocument.components?.schemas?.[name] as undefined | { properties?: Record<string, Record<string, unknown>> })?.properties?.owner;
+
+			if (owner) {
+				Object.assign(owner, { example: "owner-1", format: "string", maxLength: 64, minLength: 1, pattern: "^.+$" });
+			}
+		}
+
 		expect(JSON.stringify(sortKeys(normalizeExamples(document)))).toBe(JSON.stringify(sortKeys(expectedDocument)));
 	});
 });

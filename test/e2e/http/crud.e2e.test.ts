@@ -2027,7 +2027,7 @@ describe("CRUD routes (E2E)", () => {
 		expect(createResponse.statusCode).toBe(400);
 		expect(createResponse.json()).toMatchObject({
 			error: "Bad Request",
-			message: ["owner must be a UUID"],
+			message: ["owner must be a string", "owner must match /^.+$/ regular expression", "owner must be longer than or equal to 1 and shorter than or equal to 64 characters"],
 			statusCode: 400,
 		});
 	});
@@ -2080,7 +2080,7 @@ describe("CRUD routes (E2E)", () => {
 		expect(response.json()).not.toHaveProperty("internalReference");
 	});
 
-	it("returns 404 when relation id is invalid", async () => {
+	it("refuses a relation that names another owner than the one a transformer pins, before loading it", async () => {
 		const createResponse = await fastify.inject({
 			headers: adminHeaders,
 			method: "POST",
@@ -2088,11 +2088,11 @@ describe("CRUD routes (E2E)", () => {
 			url: "/items",
 		});
 
-		expect(createResponse.statusCode).toBe(404);
+		expect(createResponse.statusCode).toBe(400);
 		expect(createResponse.json()).toMatchObject({
-			error: "Not Found",
-			message: "E2EOWNERENTITY_NOT_FOUND",
-			statusCode: 404,
+			details: { propertyName: "owner", reason: "relation must name the same value as the entity's own column" },
+			message: "PARAMETERS_NOT_VALID",
+			statusCode: 400,
 		});
 	});
 

@@ -38,6 +38,19 @@ class RelationRequestUnitBareParentEntity {
 	public tenantId!: string;
 }
 
+@Entity("relation_request_unit_owners")
+class RelationRequestUnitOwnerEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_DESCRIBE)
+	public id!: string;
+}
+
+@Entity("relation_request_unit_bare_owners")
+class RelationRequestUnitBareOwnerEntity {
+	@PrimaryColumn({ type: "varchar" })
+	public id!: string;
+}
+
 @Entity("relation_request_unit_children")
 class RelationRequestUnitChildEntity {
 	@PrimaryColumn({ type: "varchar" })
@@ -62,8 +75,17 @@ class RelationRequestUnitChildEntity {
 
 	@ApiPropertyDescribe(RELATION_DESCRIBE)
 	@JoinColumn({ name: "singleId" })
-	@ManyToOne(() => RelationRequestUnitChildEntity, { nullable: true })
-	public single?: null | Relation<RelationRequestUnitChildEntity>;
+	@ManyToOne(() => RelationRequestUnitOwnerEntity, { nullable: true })
+	public single?: null | Relation<RelationRequestUnitOwnerEntity>;
+
+	@ApiPropertyDescribe({ ...RELATION_DESCRIBE, isNullable: true })
+	@ManyToOne(() => RelationRequestUnitOwnerEntity, { nullable: true })
+	public implicit?: null | Relation<RelationRequestUnitOwnerEntity>;
+
+	@ApiPropertyDescribe(RELATION_DESCRIBE)
+	@JoinColumn({ name: "bareSingleId" })
+	@ManyToOne(() => RelationRequestUnitBareOwnerEntity, { nullable: true })
+	public bareSingle?: null | Relation<RelationRequestUnitBareOwnerEntity>;
 
 	@Column({ nullable: true, type: "varchar" })
 	@ApiPropertyDescribe({ ...TEXT_DESCRIBE, isNullable: true })
@@ -106,8 +128,21 @@ const resolve = (property: string, lockedFields: ReadonlyArray<string>): TApiPro
 };
 
 describe("DtoGetRelationRequestMetadata", () => {
-	it("keeps the describe metadata of a relation over one column", () => {
-		expect(resolve("single", [])).toEqual(RELATION_DESCRIBE);
+	it("describes a relation over one column as the value of the column it references", () => {
+		expect(resolve("single", [])).toEqual({ ...TEXT_DESCRIBE, description: "parent", isAutoDtoEnabled: undefined, isNullable: undefined, properties: undefined });
+	});
+
+	it("reads a many-to-one without @JoinColumn as joining the related primary key, and keeps whether it may be null", () => {
+		expect(resolve("implicit", [])).toEqual({ ...TEXT_DESCRIBE, description: "parent", isAutoDtoEnabled: undefined, isNullable: true, properties: undefined });
+	});
+
+	it("leaves a relation over one column out when its column is locked", () => {
+		expect(resolve("single", ["singleId"])).toBeUndefined();
+		expect(resolve("implicit", ["implicitId"])).toBeUndefined();
+	});
+
+	it("refuses a relation over one column whose referenced column is not described", () => {
+		expect(() => resolve("bareSingle", [])).toThrow('Request relation RelationRequestUnitChildEntity.bareSingle in RelationRequestUnitChildCreateBodyDTO joins column "bareSingleId", so its referenced column "id" must be a scalar described with @ApiPropertyDescribe on RelationRequestUnitBareOwnerEntity');
 	});
 
 	it("describes a relation over several columns as an object of every join column it may write, which may be null", () => {
