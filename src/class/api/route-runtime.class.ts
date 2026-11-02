@@ -10,6 +10,7 @@ import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/
 import type { IApiSubscriberRouteExecutionContextData } from "@interface/class/api/subscriber/route/execution/context";
 import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route/execution/context";
 import type { IApiControllerProperties, IApiControllerPropertiesRouteBaseRelationsResponseLoad, IApiControllerPropertiesRouteBaseRequestTarget, IApiRouteMetadata, IApiRouteRuntimeProperties } from "@interface/decorator/api";
+import type { IApiControllerPropertiesRouteGetListResponseDtoConfig } from "@interface/decorator/api/controller/properties/route";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { IApiControllerPrimaryColumn } from "@interface/utility";
 import type { Type } from "@nestjs/common";
@@ -49,6 +50,7 @@ import { ApiControllerGetListQueryAssertOrderable } from "@utility/api/controlle
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/controller/get-list/query/resolve-cursor-order-fields.utility";
 import { ApiControllerGetListQueryValidate } from "@utility/api/controller/get-list/query/validate.utility";
+import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response-published-fields.utility";
 import { ApiControllerGetListTransformAssertRequestRelationTargets } from "@utility/api/controller/get-list/transform/assert-request-relation-targets.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
 import { ApiControllerGetDtoWithReadPlan, ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
@@ -439,8 +441,10 @@ export class ApiRouteRuntime {
 					orderDirection?: EFilterOrderDirection;
 					page?: number;
 				} = query;
-				// Built before the transaction, so a value outside the published schema answers 400 before any SQL.
-				const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard);
+				const listResponseDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown> | undefined = (routeConfig as TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>).dto?.[EApiDtoType.RESPONSE];
+				const listPublishedFields: ReadonlySet<string> | undefined = listResponseDto ? ApiControllerGetListResponsePublishedFields(listResponseDto) : undefined;
+				// Built before the transaction, so a value outside the published schema, or a column the list response hides, answers 400 before any SQL.
+				const filter: TApiFunctionGetListPropertiesWhere<E> = runtimeQuery?.ast ? ApiControllerGetListQueryRuntime.compileWhere<E>(runtimeQuery.ast) : ApiControllerGetListTransformFilter<E>(runtimeQuery?.filterQuery ?? getListQuery, options.entityMetadata, routeConfig.security?.authentication?.guard, listPublishedFields);
 				const service: ApiServiceBase<E> = options.controller.service;
 				const getManyFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetManyProperties<E>) => Promise<Array<E>>) | undefined = cursorRuntimeQuery ? ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_MANY, EApiFunctionType.GET_MANY, options.properties.entity) : undefined;
 				const getListFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetListProperties<E>) => Promise<unknown>) | undefined = cursorRuntimeQuery ? undefined : ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_LIST, EApiFunctionType.GET_LIST, options.properties.entity);

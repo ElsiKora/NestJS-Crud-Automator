@@ -4,6 +4,8 @@ import type { ColumnType } from "typeorm";
 
 export interface IApiEntityColumn<E> {
 	isPrimary: boolean;
+	/** False for a column TypeORM leaves out of every query unless asked (`select: false`); unset for a relation property. */
+	isSelected?: boolean;
 	metadata?: Record<string, unknown>;
 	name: keyof E;
 	relation?: {

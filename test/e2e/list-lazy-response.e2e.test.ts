@@ -47,7 +47,7 @@ function createUnpublishedOrderController(): new () => unknown {
 		entity: E2eListLazyResponseItemEntity,
 		name: "E2eListLazyUnpublished",
 		path: "list-lazy-response/unpublished",
-		routes: { ...LIST_LAZY_RESPONSE_DISABLED_ROUTES, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: E2eListLazyUnpublishedListDto }, request: { [EApiControllerRequestTarget.QUERY]: { order: { fields: { rank: { isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } } },
+		routes: { ...LIST_LAZY_RESPONSE_DISABLED_ROUTES, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: E2eListLazyUnpublishedListDto }, request: { [EApiControllerRequestTarget.QUERY]: { order: { fields: { id: { isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } } },
 	})
 	class E2eListLazyUnpublishedController {
 		@Inject(E2eListLazyResponseItemService)
@@ -90,7 +90,7 @@ describe("GET_LIST startup errors of a lazy list response (E2E)", () => {
 	it("names the route when a typed order field is not published", () => {
 		const controller: new () => unknown = createUnpublishedOrderController();
 
-		expect(() => new controller()).toThrow('Controller "E2eListLazyUnpublishedController" route "getList": GET_LIST order field "rank" is not orderable: the manual GET_LIST response DTO does not publish it');
+		expect(() => new controller()).toThrow('Controller "E2eListLazyUnpublishedController" route "getList": GET_LIST order field "id" is not orderable: the manual GET_LIST response DTO does not publish it');
 	});
 
 	it("names the route when the response type never resolves", () => {
@@ -172,7 +172,8 @@ describe.each<IHostPipeCase>([{ name: "no host pipe" }, { createPipe: () => new 
 		const response = await fastify.inject({ method: "GET", url: `/list-lazy-response/same-file-empty?${PAGE}&${order}` });
 
 		expect(response.statusCode, JSON.stringify(response.json())).toBe(HttpStatus.BAD_REQUEST);
-		expect(JSON.stringify(response.json())).toContain("is not accepted because no field of this route is orderable");
+		// The empty response publishes no filter either, so the route carries a typed filter that answers ORDER_NOT_VALID without a host pipe.
+		expect(JSON.stringify(response.json())).toContain(createPipe ? "is not accepted because no field of this route is orderable" : "ORDER_NOT_VALID");
 	});
 
 	it.each(["/list-lazy-response/same-file", "/list-lazy-response/same-file-typed"])("refuses a one-sided order on %s", async (path: string) => {

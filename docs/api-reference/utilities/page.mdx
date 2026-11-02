@@ -405,11 +405,19 @@ Transforms filter operations.
 
 ### FilterOrderByFromEntity
 
-Generates order by options from entity: the single source of a GET_LIST `orderBy` enum and its validation. A column is included only when the generated list response exposes its value, its query side is enabled, and `useAsOrderByFilter` is not `false`, for the route guard. The optional `publishedFields` argument limits it to the item properties a manual list response DTO publishes.
+Generates order by options from entity: the single source of a GET_LIST `orderBy` enum and its validation. A column is included only when TypeORM selects it (no `select: false`), the generated list response exposes its value, its query side is enabled, and `useAsOrderByFilter` is not `false`, for the route guard. The optional `publishedFields` argument limits it to the item properties a manual list response DTO publishes.
 
 **Location:** `src/utility/api/filter-order-by-from-entity.utility.ts`
 
 **Internal Use:** Used for sorting configuration.
+
+### ApiControllerGetListIsHiddenColumn
+
+Determines whether a GET_LIST filter path names a described column whose value the list response hides: a `select: false` column, a property the generated list response does not expose for the route guard, or one a manual list response DTO does not publish. A `relation.field` path is hidden when its relation is hidden or the field is hidden on the relation target. Generated filter groups, typed plans and the legacy filter transform leave such a column out, so no client may filter by it.
+
+**Location:** `src/utility/api/controller/get-list/is-hidden-column.utility.ts`
+
+**Internal Use:** Used for list filter configuration.
 
 ## Route Response Utilities
 

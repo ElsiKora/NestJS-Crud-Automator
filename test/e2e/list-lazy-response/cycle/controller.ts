@@ -29,7 +29,7 @@ export class E2eListLazyCycleController {
 	entity: E2eListLazyResponseItemEntity,
 	name: "E2eListLazyCycleTyped",
 	path: "list-lazy-response/cycle-typed",
-	routes: { ...LIST_LAZY_RESPONSE_DISABLED_ROUTES, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: E2eListLazyCycleListDto }, request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT }, order: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT } } } } },
+	routes: { ...LIST_LAZY_RESPONSE_DISABLED_ROUTES, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: E2eListLazyCycleListDto }, request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { id: { isEnabled: false } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT }, order: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT } } } } },
 })
 export class E2eListLazyCycleTypedController {
 	@Inject(E2eListLazyResponseItemService)

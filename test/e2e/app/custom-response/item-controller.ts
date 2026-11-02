@@ -1,6 +1,6 @@
 import { Inject } from "@nestjs/common";
 
-import { ApiController, ApiControllerObservable, ApiControllerSecurable, EApiAuthenticationType, EApiAuthorizationMode, EApiRouteType } from "../../../../src/index";
+import { ApiController, ApiControllerObservable, ApiControllerSecurable, EApiAuthenticationType, EApiAuthorizationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiRouteType } from "../../../../src/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eEntity } from "../entity";
@@ -27,6 +27,12 @@ const authentication = {
 			dto: {
 				response: {
 					itemType: E2eCustomResponseItemDto,
+				},
+			},
+			// The item type publishes none of the entity's query fields under their names, so the route filters by none of them.
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					filter: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT },
 				},
 			},
 		},

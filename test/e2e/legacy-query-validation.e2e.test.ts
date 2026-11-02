@@ -247,10 +247,13 @@ describe.each([
 		});
 
 		it.each(["asc", "desc"])("orders only by fields a manual list response publishes with orderDirection=%s", async (orderDirection: string) => {
-			await expectRejected(`/legacy-query/slim-items?${PAGE}&orderBy=rank&orderDirection=${orderDirection}`, [SLIM_ORDER_BY_MESSAGE]);
-			const typedRank = await fastify.inject({ method: "GET", url: `/legacy-query/typed-slim-items?${PAGE}&orderBy=rank&orderDirection=${orderDirection}` });
+			// A manual list response boots only with a filter on what it publishes, so both routes carry a typed filter and answer alike.
+			for (const path of ["/legacy-query/slim-items", "/legacy-query/typed-slim-items"]) {
+				const rank = await fastify.inject({ method: "GET", url: `${path}?${PAGE}&orderBy=rank&orderDirection=${orderDirection}` });
 
-			expect(typedRank.json()).toEqual({ error: "Bad Request", message: createPipe ? [SLIM_ORDER_BY_MESSAGE] : "ORDER_NOT_VALID", statusCode: HttpStatus.BAD_REQUEST });
+				expect(rank.json()).toEqual({ error: "Bad Request", message: createPipe ? [SLIM_ORDER_BY_MESSAGE] : "ORDER_NOT_VALID", statusCode: HttpStatus.BAD_REQUEST });
+			}
+
 			expect(queryLogger.queries).toEqual([]);
 			const labels: Array<string> = orderDirection === "asc" ? ["Alpha", "Beta", "Gamma"] : ["Gamma", "Beta", "Alpha"];
 
@@ -280,11 +283,16 @@ describe.each([
 			}
 
 			queryLogger.queries.length = 0;
-			await expectRejected(`/legacy-query/summary-items?${PAGE}&orderBy=label&orderDirection=asc`, [NO_ORDER_MESSAGE("orderBy"), NO_ORDER_MESSAGE("orderDirection")]);
-			await expectRejected(`/legacy-query/summary-items?${PAGE}&orderBy=`, [NO_ORDER_MESSAGE("orderBy")]);
-			const typed = await fastify.inject({ method: "GET", url: `/legacy-query/typed-summary-items?${PAGE}&orderBy=label&orderDirection=asc` });
+			// A manual list response boots only with a filter on what it publishes, so both routes carry a typed filter and answer alike.
+			for (const path of ["/legacy-query/summary-items", "/legacy-query/typed-summary-items"]) {
+				const ordered = await fastify.inject({ method: "GET", url: `${path}?${PAGE}&orderBy=label&orderDirection=asc` });
 
-			expect(typed.json()).toEqual({ error: "Bad Request", message: createPipe ? [NO_ORDER_MESSAGE("orderBy"), NO_ORDER_MESSAGE("orderDirection")] : "ORDER_NOT_VALID", statusCode: HttpStatus.BAD_REQUEST });
+				expect(ordered.json()).toEqual({ error: "Bad Request", message: createPipe ? [NO_ORDER_MESSAGE("orderBy"), NO_ORDER_MESSAGE("orderDirection")] : "ORDER_NOT_VALID", statusCode: HttpStatus.BAD_REQUEST });
+			}
+
+			const empty = await fastify.inject({ method: "GET", url: `/legacy-query/summary-items?${PAGE}&orderBy=` });
+
+			expect(empty.statusCode, JSON.stringify(empty.json())).toBe(HttpStatus.BAD_REQUEST);
 			expect(queryLogger.queries).toEqual([]);
 		});
 

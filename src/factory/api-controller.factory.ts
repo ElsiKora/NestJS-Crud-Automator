@@ -103,6 +103,18 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	/**
+	 * Fails startup when the generated GET_LIST query of a PAGE route publishes a filter group on a column its manual list response leaves out. The read waits until here for the same reason as assertListResponseOrder, which runs first and reports a response that cannot be read.
+	 * @returns {void}
+	 */
+	assertListResponseFilters(): void {
+		const routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST> | undefined = this.properties.routes[EApiRouteType.GET_LIST];
+
+		if (routeConfig && routeConfig.generation?.isEnabled !== false) {
+			ApiControllerGetListQueryPlanCompiler.assertFilterFieldsPublished(this.target, this.ENTITY, routeConfig, ApiControllerGetListQueryPlanGet(this.targetPrototype, ApiControllerGetMethodName(EApiRouteType.GET_LIST)));
+		}
+	}
+
+	/**
 	 * Fails startup when the manual GET_LIST response of a PAGE route cannot be read or leaves out a typed order field. The read waits until here because the response's lazy types may name classes that did not exist while the controller was decorated.
 	 * @returns {void}
 	 */

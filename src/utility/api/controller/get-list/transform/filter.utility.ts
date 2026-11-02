@@ -20,11 +20,12 @@ import { EnumIsValue } from "@utility/enum/is-value.utility";
  * @param {Record<string, unknown>} query - The query parameters from the HTTP request
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
  * @param {Type<CanActivate>} currentGuard - Optional guard used to mirror generated query DTO visibility.
+ * @param {ReadonlySet<string>} [publishedFields] - Item properties a manual list response DTO publishes; omitted for a generated response.
  * @returns {FindOptionsWhere<E>} The TypeORM filter object for the query
- * @throws {Error} A bad request with `FILTER_NOT_VALID` when a number or uuid filter value is outside the published schema, or when a filter group is incomplete, carries a value key its operator does not take, or names a field the route cannot apply
+ * @throws {Error} A bad request with `FILTER_NOT_VALID` when a number or uuid filter value is outside the published schema, or when a filter group is incomplete, carries a value key its operator does not take, names a field the route cannot apply, or names a column the list response hides
  * @template E - The entity type
  */
-export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>, currentGuard?: Type<CanActivate>): FindOptionsWhere<E> {
+export function ApiControllerGetListTransformFilter<E>(query: Record<string, unknown>, entityMetadata: IApiEntity<E>, currentGuard?: Type<CanActivate>, publishedFields?: ReadonlySet<string>): FindOptionsWhere<E> {
 	const filter: FindOptionsWhere<E> = {};
 	const filterRecord: Record<string, unknown> = filter;
 
@@ -41,7 +42,7 @@ export function ApiControllerGetListTransformFilter<E>(query: Record<string, unk
 		if ((cleanField !== "operator" && cleanField !== "value" && cleanField !== "values") || query[fullKey] === undefined) continue;
 
 		const operation: unknown = query[`${String(key)}[operator]`];
-		const metadata: TApiPropertyDescribeProperties | undefined = key ? ApiControllerGetListTransformGetFilterMetadata(entityMetadata, key, currentGuard) : undefined;
+		const metadata: TApiPropertyDescribeProperties | undefined = key ? ApiControllerGetListTransformGetFilterMetadata(entityMetadata, key, currentGuard, publishedFields) : undefined;
 
 		if (!key || !metadata || !EnumIsValue(EFilterOperation, operation) || !isPairedGroup(query, key, operation) || query[fullKey] === null) {
 			throw new BadRequestException("FILTER_NOT_VALID");

@@ -7,6 +7,7 @@ import type { TApiPropertyDescribeProperties } from "@type/decorator/api/propert
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { GET_LIST_QUERY_DTO_FACTORY_CONSTANT } from "@constant/factory-dto-get-list-query.constant";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { ApiControllerGetListIsHiddenColumn } from "@utility/api/controller/get-list/is-hidden-column.utility";
 import { ApiControllerGetListIsToOneRelation } from "@utility/api/controller/get-list/is-to-one-relation.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -15,6 +16,7 @@ import { GenerateRelationEntityInformation } from "@utility/generate-relation-en
 
 /**
  * Resolves metadata-backed GET_LIST filter properties for legacy or normalized-plan DTO generation.
+ * A legacy filter leaves out columns the list response hides; a typed plan has already left them out.
  * @param {IApiEntity<E>} entityMetadata - Root entity metadata.
  * @param {Array<{isPrimary: boolean; metadata: TApiPropertyDescribeProperties; name: keyof E}>} markedProperties - Legacy metadata-visible root properties.
  * @param {Type<CanActivate>} currentGuard - Active route guard used by legacy visibility checks.
@@ -75,6 +77,9 @@ export function DtoGenerateGetListQueryProperties<E>(
 	}
 
 	for (const property of markedProperties) {
+		// A column the list response hides publishes no filter group, so no client can infer its values from which rows match.
+		if (ApiControllerGetListIsHiddenColumn(entityMetadata, property.name as string, currentGuard)) continue;
+
 		if (property.metadata.type !== EApiPropertyDescribeType.RELATION) {
 			queryFilterProperties.push({
 				entityMetadata: entityMetadata as IApiEntity<unknown>,
@@ -99,6 +104,8 @@ export function DtoGenerateGetListQueryProperties<E>(
 			if (!relationPropertyMetadata || relationPropertyMetadata.type === EApiPropertyDescribeType.RELATION || relationPropertyMetadata.type === EApiPropertyDescribeType.OBJECT) continue;
 
 			if (!DtoIsPropertyShouldBeMarked(EApiRouteType.GET_LIST, EApiDtoType.QUERY, relationProperty.name, relationPropertyMetadata, false, currentGuard)) continue;
+
+			if (ApiControllerGetListIsHiddenColumn(entityMetadata, `${property.name as string}.${relationProperty.name as string}`, currentGuard)) continue;
 
 			queryFilterProperties.push({
 				entityMetadata: relationEntityMetadata,

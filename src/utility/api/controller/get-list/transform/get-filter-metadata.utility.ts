@@ -5,6 +5,7 @@ import type { TApiPropertyDescribeProperties } from "@type/decorator/api/propert
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { ApiControllerGetListIsHiddenColumn } from "@utility/api/controller/get-list/is-hidden-column.utility";
 import { ApiControllerGetListTransformGetRelationTarget } from "@utility/api/controller/get-list/transform/get-relation-target.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
 import { GenerateRelationEntityInformation } from "@utility/generate-relation-entity-information.utility";
@@ -12,14 +13,20 @@ import { GenerateRelationEntityInformation } from "@utility/generate-relation-en
 /**
  * Returns the describe metadata of the column a GET_LIST filter field applies to, or nothing when a route without a typed filter cannot apply it.
  * This is the one rule for that, shared by the request filter and the startup check of a manual QUERY DTO.
+ * A column the list response hides is never applied, so no client infers its values from which rows match (see ApiControllerGetListIsHiddenColumn).
  * @template E - The entity type
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
  * @param {string} field - Filter field, a column such as `label` or a one-hop to-one path such as `owner.name`.
  * @param {Type<CanActivate>} [currentGuard] - Optional guard used to mirror generated query DTO visibility.
+ * @param {ReadonlySet<string>} [publishedFields] - Item properties a manual list response DTO publishes; omitted for a generated response.
  * @returns {TApiPropertyDescribeProperties | undefined} The describe metadata, or undefined when the field cannot be applied.
  */
-export function ApiControllerGetListTransformGetFilterMetadata<E>(entityMetadata: IApiEntity<E>, field: string, currentGuard?: Type<CanActivate>): TApiPropertyDescribeProperties | undefined {
+export function ApiControllerGetListTransformGetFilterMetadata<E>(entityMetadata: IApiEntity<E>, field: string, currentGuard?: Type<CanActivate>, publishedFields?: ReadonlySet<string>): TApiPropertyDescribeProperties | undefined {
 	const path: Array<string> = field.split(".");
+
+	if (ApiControllerGetListIsHiddenColumn(entityMetadata, field, currentGuard, publishedFields)) {
+		return undefined;
+	}
 
 	if (path.length === 1) {
 		const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((entityColumn: IApiEntityColumn<E>): boolean => entityColumn.name == field);

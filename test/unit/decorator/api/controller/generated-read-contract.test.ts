@@ -758,8 +758,9 @@ function createGeneratedCursorReadController(options?: { responseDto?: { itemTyp
 				request: {
 					[EApiControllerRequestTarget.QUERY]: {
 						filter: {
+							// A manual item DTO leaves out tenantId, and a column the list response hides is never filterable.
 							fields: {
-								tenantId: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
+								tenantId: options?.responseDto === undefined ? { allowedOperations: [EFilterOperation.EQ], isEnabled: true } : { isEnabled: false },
 							},
 							unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
 						},

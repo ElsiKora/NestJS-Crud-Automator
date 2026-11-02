@@ -179,7 +179,8 @@ export class E2eLegacyQueryCursorItemController {
 	path: "legacy-query/slim-items",
 	routes: {
 		...disabledRoutes,
-		[EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: E2eLegacyQuerySlimListDto } },
+		// A manual list response may only boot with filters on what it publishes, so this route lists them; its order stays the metadata-driven one.
+		[EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: E2eLegacyQuerySlimListDto }, request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { label: { allowedOperations: [EFilterOperation.EQ], isEnabled: true }, status: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } },
 	},
 })
 export class E2eLegacyQuerySlimItemController {
@@ -195,7 +196,7 @@ export class E2eLegacyQuerySlimItemController {
 		...disabledRoutes,
 		[EApiRouteType.GET_LIST]: {
 			dto: { [EApiDtoType.RESPONSE]: { itemType: E2eLegacyQuerySlimItemDto } },
-			request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { rank: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } },
+			request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { label: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } },
 		},
 	},
 })
@@ -229,7 +230,8 @@ export class E2eLegacyQuerySummaryItemDto {
 	path: "legacy-query/summary-items",
 	routes: {
 		...disabledRoutes,
-		[EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: { itemType: E2eLegacyQuerySummaryItemDto } } },
+		// The summary item publishes no entity column, so the route filters by none.
+		[EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: { itemType: E2eLegacyQuerySummaryItemDto } }, request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } },
 	},
 })
 export class E2eLegacyQuerySummaryItemController {
@@ -245,7 +247,7 @@ export class E2eLegacyQuerySummaryItemController {
 		...disabledRoutes,
 		[EApiRouteType.GET_LIST]: {
 			dto: { [EApiDtoType.RESPONSE]: { itemType: E2eLegacyQuerySummaryItemDto } },
-			request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { rank: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } },
+			request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { rank: { isEnabled: false } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } },
 		},
 	},
 })

@@ -41,6 +41,7 @@ export const ApiController =
 		const runStartupCheck: () => void = (): void => {
 			factory.assertTableInheritanceChildren();
 			factory.assertListResponseOrder();
+			factory.assertListResponseFilters();
 			factory.assertGetListRelationTargets();
 			factory.assertGetListPublishedFilters();
 		};

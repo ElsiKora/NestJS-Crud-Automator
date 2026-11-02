@@ -2,7 +2,7 @@ import "reflect-metadata";
 
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 
-import { ApiPropertyDescribe, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType } from "../../../src/index";
+import { ApiPropertyDescribe, EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
 
 @Entity("e2e_list_lazy_response_items")
 export class E2eListLazyResponseItemEntity {
@@ -15,6 +15,7 @@ export class E2eListLazyResponseItemEntity {
 	public label!: string;
 
 	@Column({ type: "int" })
-	@ApiPropertyDescribe({ description: "rank", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 1000, minimum: 0, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER })
+	// No lazy list response publishes rank, and a column the list response hides cannot be a list query field.
+	@ApiPropertyDescribe({ description: "rank", exampleValue: 1, format: EApiPropertyNumberType.INTEGER, maximum: 1000, minimum: 0, multipleOf: 1, properties: { [EApiRouteType.GET_LIST]: { [EApiDtoType.QUERY]: { isEnabled: false } } }, type: EApiPropertyDescribeType.NUMBER })
 	public rank!: number;
 }

@@ -40,7 +40,7 @@ export class E2eListLazySameFileController {
 	entity: E2eListLazyResponseItemEntity,
 	name: "E2eListLazySameFileTyped",
 	path: "list-lazy-response/same-file-typed",
-	routes: { ...LIST_LAZY_RESPONSE_DISABLED_ROUTES, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: E2eListLazySameFileListDto }, request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT }, order: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT } } } } },
+	routes: { ...LIST_LAZY_RESPONSE_DISABLED_ROUTES, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: E2eListLazySameFileListDto }, request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { id: { isEnabled: false } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT }, order: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT } } } } },
 })
 export class E2eListLazySameFileTypedController {
 	@Inject(E2eListLazyResponseItemService)
@@ -62,7 +62,7 @@ export class E2eListLazySameFileItemConfigController {
 	entity: E2eListLazyResponseItemEntity,
 	name: "E2eListLazySameFileEmpty",
 	path: "list-lazy-response/same-file-empty",
-	routes: { ...LIST_LAZY_RESPONSE_DISABLED_ROUTES, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: E2eListLazySameFileEmptyListDto } } },
+	routes: { ...LIST_LAZY_RESPONSE_DISABLED_ROUTES, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.RESPONSE]: E2eListLazySameFileEmptyListDto }, request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } } },
 })
 export class E2eListLazySameFileEmptyController {
 	@Inject(E2eListLazyResponseItemService)

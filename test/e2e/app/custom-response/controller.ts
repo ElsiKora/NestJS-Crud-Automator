@@ -1,6 +1,6 @@
 import { Inject } from "@nestjs/common";
 
-import { ApiController, ApiControllerObservable, ApiControllerSecurable, EApiAuthenticationType, EApiAuthorizationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiRouteType, EFilterOperation } from "../../../../src/index";
+import { ApiController, ApiControllerObservable, ApiControllerSecurable, EApiAuthenticationType, EApiAuthorizationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiRouteType } from "../../../../src/index";
 
 import { TestAuthGuard } from "../auth-guard";
 import { E2eEntity } from "../entity";
@@ -41,11 +41,9 @@ const authentication = {
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
 					filter: {
+						// The manual wrapper publishes displayName, not name, so name is hidden from the list response and not filterable.
 						fields: {
-							name: {
-								allowedOperations: [EFilterOperation.EQ],
-								isEnabled: true,
-							},
+							name: { isEnabled: false },
 						},
 						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
 					},

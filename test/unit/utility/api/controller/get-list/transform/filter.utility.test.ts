@@ -281,6 +281,16 @@ describe("ApiControllerGetListTransformFilter", () => {
 		expectInvalidFilter({ [`${field}[operator]`]: EFilterOperation.EQ, [`${field}[value]`]: "x" }, GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity));
 	});
 
+	it("refuses a globally hidden related field even when locally enabled", () => {
+		const metadata = GenerateEntityInformation<ItemEntity>(ItemEntity as unknown as IApiBaseEntity);
+		const query = {
+			"owner.hiddenName[operator]": EFilterOperation.EQ,
+			"owner.hiddenName[value]": "Hidden",
+		};
+
+		expect(() => ApiControllerGetListTransformFilter<ItemEntity>(query, metadata)).toThrow("FILTER_NOT_VALID");
+	});
+
 	it("fails for a nested relation filter whose string relation target names several entity classes", () => {
 		const metadata = GenerateEntityInformation<FilterAmbiguousHolder>(FilterAmbiguousHolder as unknown as IApiBaseEntity);
 		const query = {
