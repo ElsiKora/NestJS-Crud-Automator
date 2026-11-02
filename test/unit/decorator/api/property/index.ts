@@ -5,6 +5,7 @@ export * from "./copy.decorator.test";
 export * from "./date.decorator.test";
 export * from "./describe.decorator.test";
 export * from "./enum.decorator.test";
+export * from "./expose-order.test";
 export * from "./number.decorator.test";
 export * from "./object.decorator.test";
 export * from "./string.decorator.test";
