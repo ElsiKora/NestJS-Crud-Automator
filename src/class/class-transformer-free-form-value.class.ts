@@ -1,16 +1,17 @@
+import { ClassTransformerFreeFormObject } from "@class/class-transformer-free-form-object.class";
 import { instanceToPlain } from "class-transformer";
 
 /**
  * Carries free-form object values through class-transformer's `instanceToPlain`, which drops the keys `constructor` and `__proto__` at any depth and builds a nested value through its own `constructor` key.
- * Inside `ClassTransformerFreeFormValue.instanceToPlain` a free-form value leaves the walk as a symbol and is put back as it was afterwards.
- * Outside it, as in a host `ClassSerializerInterceptor`, the walk gets a copy it can take without failing: the same value without those two keys, which the walk would drop anyway.
+ * Inside `ClassTransformerFreeFormValue.instanceToPlain` a free-form value leaves the walk as a symbol and is put back afterwards as a walkable copy whose JSON is the value as it was.
+ * Outside it, as in a host `ClassSerializerInterceptor`, the walk gets that copy and answers the value without those two keys, which the walk would drop anyway.
  */
 export class ClassTransformerFreeFormValue {
 	// The values held back by the conversion now running, or undefined outside one.
 	private static heldValues: Map<symbol, unknown> | undefined;
 
 	/**
-	 * Converts a value with `instanceToPlain` and keeps every free-form object value in it exactly as it was.
+	 * Converts a value with `instanceToPlain` and keeps the JSON of every free-form object value in it exactly as it was, so a later `instanceToPlain`, such as a host serializer's, can still walk the result.
 	 * @param {unknown} value - Value to convert, such as a response DTO instance or a list of them.
 	 * @returns {unknown} The plain value.
 	 */
@@ -45,7 +46,8 @@ export class ClassTransformerFreeFormValue {
 	}
 
 	/**
-	 * Copies the plain objects and arrays of a value, leaving out the keys class-transformer cannot take. Each copied object has no prototype, so the walk finds no `constructor` to build it with.
+	 * Copies the plain objects and arrays of a value so class-transformer can walk them. An object that holds the key `constructor` or `__proto__` becomes a `ClassTransformerFreeFormObject` with its other keys, whose JSON is the object as it was; any other object becomes a plain object with the same keys.
+	 * The copy serializes to the same JSON as the value, and a walk answers the value without those two keys.
 	 * @param {unknown} value - The free-form value.
 	 * @returns {unknown} The copy.
 	 */
@@ -54,7 +56,7 @@ export class ClassTransformerFreeFormValue {
 			return value;
 		}
 
-		const copies: Map<object, Array<unknown> | Record<string, unknown>> = new Map<object, Array<unknown> | Record<string, unknown>>();
+		const copies: Map<object, object> = new Map<object, object>();
 		const pending: Array<object> = [value];
 
 		while (pending.length > 0) {
@@ -62,7 +64,7 @@ export class ClassTransformerFreeFormValue {
 			const source: object = pending.pop()!;
 
 			if (!copies.has(source)) {
-				copies.set(source, Array.isArray(source) ? [] : (Object.create(null) as Record<string, unknown>));
+				copies.set(source, ClassTransformerFreeFormValue.createCopy(source));
 
 				for (const child of Object.values(source)) {
 					if (ClassTransformerFreeFormValue.isPlainContainer(child)) {
@@ -84,6 +86,19 @@ export class ClassTransformerFreeFormValue {
 	}
 
 	/**
+	 * Creates the empty copy of one array or object, before its keys are set.
+	 * @param {object} source - The array or object to copy.
+	 * @returns {object} An array, a stand-in for an object that holds `constructor` or `__proto__`, or a plain object.
+	 */
+	private static createCopy(source: object): object {
+		if (Array.isArray(source)) {
+			return [];
+		}
+
+		return Object.hasOwn(source, "constructor") || Object.hasOwn(source, "__proto__") ? new ClassTransformerFreeFormObject(source) : {};
+	}
+
+	/**
 	 * Checks whether a value is an array or an object with no class of its own, which is what a free-form value holds.
 	 * @param {unknown} value - Value to check.
 	 * @returns {boolean} True for an array, a plain object or a null-prototype object.
@@ -99,28 +114,27 @@ export class ClassTransformerFreeFormValue {
 	}
 
 	/**
-	 * Puts the held values back where `instanceToPlain` left their symbols. It walks only the plain value class-transformer built, never into a value it puts back.
+	 * Puts a walkable copy of each held value back where `instanceToPlain` left its symbol. It walks only the arrays and plain objects class-transformer built, never a Buffer, a typed array or a value it puts back.
 	 * @param {unknown} plain - The plain value.
 	 * @param {Map<symbol, unknown>} heldValues - The values held back, by symbol.
 	 * @returns {unknown} The plain value with every free-form value in place.
 	 */
 	private static restore(plain: unknown, heldValues: Map<symbol, unknown>): unknown {
 		if (typeof plain === "symbol") {
-			return heldValues.has(plain) ? heldValues.get(plain) : plain;
+			return heldValues.has(plain) ? ClassTransformerFreeFormValue.copyWalkable(heldValues.get(plain)) : plain;
 		}
 
-		const pending: Array<unknown> = [plain];
+		const pending: Array<object> = ClassTransformerFreeFormValue.isPlainContainer(plain) ? [plain] : [];
 
 		while (pending.length > 0) {
-			const container: unknown = pending.pop();
+			// eslint-disable-next-line @elsikora/typescript/no-non-null-assertion -- The loop runs while the list holds items.
+			const container: object = pending.pop()!;
 
-			if (typeof container === "object" && container !== null) {
-				for (const [key, child] of Object.entries(container)) {
-					if (typeof child === "symbol" && heldValues.has(child)) {
-						ClassTransformerFreeFormValue.setOwnValue(container, key, heldValues.get(child));
-					} else {
-						pending.push(child);
-					}
+			for (const [key, child] of Object.entries(container)) {
+				if (typeof child === "symbol" && heldValues.has(child)) {
+					ClassTransformerFreeFormValue.setOwnValue(container, key, ClassTransformerFreeFormValue.copyWalkable(heldValues.get(child)));
+				} else if (ClassTransformerFreeFormValue.isPlainContainer(child)) {
+					pending.push(child);
 				}
 			}
 		}
