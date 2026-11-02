@@ -1,5 +1,7 @@
 import type { IApiFunctionTransaction } from "@interface/class/api/function";
-import type { EntityManager } from "typeorm";
+import type { DataSource, EntityManager } from "typeorm";
+
+import { setTimeout } from "node:timers/promises";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionLifecycle } from "@class/api/function/transaction/lifecycle.class";
@@ -13,6 +15,113 @@ import { createTransactionFixture } from "@test/unit/fixture";
 describe("ApiFunctionTransactionRuntime", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
+	});
+
+	describe("on a driver with one connection", () => {
+		const OWNER = { entityName: "Entity", kind: EApiFunctionTransactionOwnerKind.ROUTE, methodName: "create", routeType: EApiRouteType.CREATE } as const;
+
+		function createTrackedDataSource(type: string): { dataSource: DataSource; events: Array<string> } {
+			const { dataSource, queryRunner } = createTransactionFixture();
+			const events: Array<string> = [];
+
+			Object.assign(dataSource, { options: { type } });
+			vi.mocked(queryRunner.startTransaction).mockImplementation(async () => {
+				events.push("begin");
+			});
+			vi.mocked(queryRunner.commitTransaction).mockImplementation(async () => {
+				events.push("commit");
+			});
+			vi.mocked(queryRunner.rollbackTransaction).mockImplementation(async () => {
+				events.push("rollback");
+			});
+
+			return { dataSource, events };
+		}
+
+		it.each([["better-sqlite3"], ["capacitor"], ["cordova"], ["expo"], ["nativescript"], ["react-native"], ["sqljs"]])("runs the transactions of %s one after another, whatever each one's outcome", async (type: string) => {
+			const { dataSource, events } = createTrackedDataSource(type);
+			const results: Array<PromiseSettledResult<string>> = await Promise.allSettled(
+				["first", "second", "third"].map(
+					async (name: string) =>
+						await ApiFunctionTransactionRuntime.execute({
+							callback: async () => {
+								await setTimeout(1);
+
+								if (name === "second") {
+									throw new Error("second failed");
+								}
+
+								return name;
+							},
+							dataSource,
+							owner: OWNER,
+						}),
+				),
+			);
+
+			expect(events).toEqual(["begin", "commit", "begin", "rollback", "begin", "commit"]);
+			expect(results.map((result: PromiseSettledResult<string>) => result.status)).toEqual(["fulfilled", "rejected", "fulfilled"]);
+		});
+
+		it("keeps the turn of each DataSource apart", async () => {
+			const first = createTrackedDataSource("better-sqlite3");
+			const second = createTrackedDataSource("better-sqlite3");
+			let release: () => void = () => undefined;
+			const held: Promise<void> = new Promise<void>((resolve: () => void) => {
+				release = resolve;
+			});
+			const holding: Promise<void> = ApiFunctionTransactionRuntime.execute({ callback: async () => await held, dataSource: first.dataSource, owner: OWNER });
+
+			await ApiFunctionTransactionRuntime.execute({ callback: async () => undefined, dataSource: second.dataSource, owner: OWNER });
+
+			expect(second.events).toEqual(["begin", "commit"]);
+			release();
+			await holding;
+		});
+
+		it("lets transactions overlap on a driver with a connection pool", async () => {
+			const { dataSource, events } = createTrackedDataSource("postgres");
+
+			await Promise.all(["first", "second"].map(async () => await ApiFunctionTransactionRuntime.execute({ callback: async () => await setTimeout(1), dataSource, owner: OWNER })));
+
+			expect(events).toEqual(["begin", "begin", "commit", "commit"]);
+		});
+
+		it("ends the turn before the post-transaction hooks, so a hook can open the next transaction", async () => {
+			const { dataSource, events } = createTrackedDataSource("better-sqlite3");
+
+			vi.spyOn(ApiFunctionTransactionLifecycle, "executeAfterCommit").mockImplementationOnce(async () => {
+				await ApiFunctionTransactionRuntime.execute({ callback: async () => undefined, dataSource, owner: OWNER });
+			});
+
+			await ApiFunctionTransactionRuntime.execute({ callback: async () => undefined, dataSource, owner: OWNER });
+
+			expect(events).toEqual(["begin", "commit", "begin", "commit"]);
+		});
+
+		it("still refuses to open a transaction inside an active one instead of waiting for its own turn", async () => {
+			const { dataSource } = createTrackedDataSource("better-sqlite3");
+
+			await expect(
+				ApiFunctionTransactionRuntime.execute({
+					callback: async () => await ApiFunctionTransactionRuntime.execute({ callback: async () => undefined, dataSource, owner: OWNER }),
+					dataSource,
+					owner: OWNER,
+				}),
+			).rejects.toThrow("Cannot open an owning transaction inside an active Automator transaction");
+		});
+
+		it("gives the next transaction its turn after one fails to begin", async () => {
+			const { dataSource, events } = createTrackedDataSource("better-sqlite3");
+			const queryRunner = dataSource.createQueryRunner();
+
+			vi.mocked(queryRunner.startTransaction).mockRejectedValueOnce(new Error("busy"));
+
+			await expect(ApiFunctionTransactionRuntime.execute({ callback: async () => undefined, dataSource, owner: OWNER })).rejects.toThrow("busy");
+			await ApiFunctionTransactionRuntime.execute({ callback: async () => undefined, dataSource, owner: OWNER });
+
+			expect(events).toEqual(["begin", "commit"]);
+		});
 	});
 
 	it("binds a route-shaped owner and manager through the owning transaction", async () => {
