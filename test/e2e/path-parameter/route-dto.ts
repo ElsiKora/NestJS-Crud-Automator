@@ -210,6 +210,17 @@ class RenamedTrimDto {
 	public inner!: string;
 }
 
+class RenamedBesideDefaultDto {
+	@Expose({ name: "id" })
+	@IsString()
+	public inner!: string;
+
+	@Expose()
+	@IsOptional()
+	@Transform(({ value }: { value: unknown }): unknown => value ?? "fallback")
+	public other?: string;
+}
+
 class RenamedPlainDateDto {
 	@Expose({ name: "id" })
 	@IsDate()
@@ -364,6 +375,7 @@ export const E2E_PATH_PARAMETER_ROUTE_DTO_CASES: Array<IE2ePathParameterRouteDto
 	{ allowed: { piped: { id: "abc" }, raw: { id: "abc" }, sent: "abc" }, denied: ["denied"], dto: GrowsOnSomeValuesDto, invalid: ["xyz"], name: "grows-on-some-values", value: "denied" },
 	{ allowed: { piped: undefined, pipes: { consumer: { status: 400 }, groups: { status: 400 }, implicit: { status: 400 }, none: { status: 400 }, oldVersion: { status: 400 }, transform: { status: 400 }, validate: { status: 400 }, version: { status: 400 } }, raw: undefined, sent: "abc" }, denied: [], dto: ThrowsOnSamplePrefixDto, invalid: ["abc", "p-abc"], name: "throws-on-sample-prefix", value: "abc" },
 	{ allowed: { piped: { inner: "xyz" }, raw: { id: "xyz" }, sent: "xyz" }, denied: ["abc", "%20abc", "abc%20"], dto: RenamedTrimDto, invalid: [], name: "renamed-trim", value: "abc" },
+	{ allowed: { piped: { inner: "xyz", other: "fallback" }, raw: { id: "xyz" }, sent: "xyz" }, denied: ["abc"], dto: RenamedBesideDefaultDto, invalid: [], name: "renamed-beside-default", value: "abc" },
 	{ allowed: { piped: { inner: "2024-03-11T12:00:00.000Z" }, raw: { id: "2024-03-11T12:00:00.000Z" }, sent: "2024-03-11T12:00:00Z" }, denied: [DENIED_AT, "2024-03-10T12:00:00Z", "2024-03-10T13:00:00%2B01:00"], dto: RenamedPlainDateDto, invalid: ["garbage"], name: "renamed-plain-date", value: DENIED_AT },
 	{ allowed: { piped: { id: "2024-03-11T12:00:00.000Z" }, raw: { id: "2024-03-11T12:00:00.000Z" }, sent: "2024-03-11T12:00:00Z" }, denied: [DENIED_AT, "2024-03-10T12:00:00Z", "2024-03-10T13:00:00%2B01:00"], dto: PlainDateDto, invalid: ["garbage"], name: "plain-date", value: DENIED_AT },
 	{ allowed: { piped: { id: "xyz" }, raw: { id: "xyz" }, sent: "xyz" }, denied: ["abc"], dto: ToPlainGroupDto, invalid: [], name: "to-plain-group", value: "abc" },
