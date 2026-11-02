@@ -20,7 +20,7 @@ import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoGenerateCacheKey } from "@utility/dto/generate/cache-key.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
 import { DtoGenerateFilterDecorator } from "@utility/dto/generate/filter-decorator.utility";
-import { DtoGenerateGetListDateFormatDecorators, DtoGenerateGetListItemsResponse, DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list";
+import { DtoGenerateGetListDateFormatDecorators, DtoGenerateGetListItemsResponse, DtoGenerateGetListNumericEnumValueDecorator, DtoGenerateGetListQueryProperties } from "@utility/dto/generate/get-list";
 import { DtoGetGetListQueryBaseClass } from "@utility/dto/get/get-list-query-base-class.utility";
 import { DtoGetRelationResponseMetadata } from "@utility/dto/get/relation-response-metadata.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
@@ -220,6 +220,10 @@ export function DtoGenerate<E>(
 					}
 				}
 
+				if (property.metadata.type === EApiPropertyDescribeType.ENUM) {
+					DtoGenerateGetListNumericEnumValueDecorator(property.metadata.enum)(GeneratedDTO.prototype, `${property.name}[value]`);
+				}
+
 				DtoGenerateFilterDecorator(property.metadata, property.entityMetadata, property.allowedOperations, `${queryPlan?.schemaName ?? namePrefix}${CamelCaseString(property.name)}FilterOperation`)(GeneratedDTO.prototype, `${property.name}[operator]`);
 
 				const metadataArray: TApiPropertyDescribeProperties = {
@@ -242,6 +246,10 @@ export function DtoGenerate<E>(
 					for (const decorator of DtoGenerateGetListDateFormatDecorators(dateFormat, true)) {
 						decorator(GeneratedDTO.prototype, `${property.name}[values]`);
 					}
+				}
+
+				if (property.metadata.type === EApiPropertyDescribeType.ENUM) {
+					DtoGenerateGetListNumericEnumValueDecorator(property.metadata.enum)(GeneratedDTO.prototype, `${property.name}[values]`);
 				}
 
 				// A query string sends one membership value as a scalar. class-transformer runs the last registered transform first, so the scalar is wrapped before the element transforms read it as an array.
