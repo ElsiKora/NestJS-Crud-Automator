@@ -549,7 +549,7 @@ The body parser statuses `400`, `413`, and `415` are declared on every method, b
 
 Custom routes (`@ApiRouteCustom` and `@ApiMethod`) follow the same rules for the statuses Crud Automator can see in their config:
 
-- `security.authentication`, `execution.guards`, and `@UseGuards` on the controller class or the route declare `401` and `403`, in any decorator order; a sibling controller that inherits the same route without the guard does not, and a guard registered with `APP_GUARD` is out of reach, so document its statuses with `documentation.response.statuses`;
+- `security.authentication`, `execution.guards`, and `@UseGuards` on the controller class or the route declare `401` and `403`, in any decorator order, also on a subclass without its own `@ApiController`, singleton or REQUEST-scoped; a sibling controller that inherits the same route without the guard does not, and a guard registered with `APP_GUARD` is out of reach, so document its statuses with `documentation.response.statuses`;
 - every route of an `@ApiControllerSecurable()` controller with `authorization` declares `403`, also a route the controller inherits from a base class; a sibling controller that inherits the same route without being securable does not;
 - `throttling.default` declares `429`;
 - every route declares `400`, `413`, and `415` of the body parser and `500`, since a handler or a guard that throws can fail any route;

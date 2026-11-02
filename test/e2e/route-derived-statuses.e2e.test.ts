@@ -7,6 +7,7 @@ import type { Repository } from "typeorm";
 import { Body, ConflictException, Controller, HttpException, HttpStatus, Inject, Injectable, NotFoundException, RequestMethod, UnauthorizedException, UnprocessableEntityException, UseGuards, ValidationPipe } from "@nestjs/common";
 import { ExpressAdapter } from "@nestjs/platform-express";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
+import { REQUEST } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
 import { InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
@@ -272,6 +273,19 @@ class DerivedGuardBelowController {
 	public readonly service!: DerivedSubscribedService;
 }
 
+@ApiController<DerivedSubscribedEntity>({ entity: DerivedSubscribedEntity, name: "DerivedRequestScopedBase", path: "derived-request-scoped", routes: ONLY_GET_LIST })
+class DerivedRequestScopedBaseController {
+	@Inject(DerivedSubscribedService)
+	public readonly service!: DerivedSubscribedService;
+}
+
+// Injecting the request makes the subclass REQUEST-scoped, so Nest constructs it only on a request, after Swagger read its routes
+@UseGuards(DerivedRejectingGuard)
+class DerivedRequestScopedGuardedController extends DerivedRequestScopedBaseController {
+	@Inject(REQUEST)
+	public readonly request!: unknown;
+}
+
 @ApiController<DerivedSubscribedEntity>({ entity: DerivedSubscribedEntity, name: "DerivedUnguarded", path: "derived-unguarded", routes: ONLY_GET_LIST })
 class DerivedUnguardedController {
 	@Inject(DerivedSubscribedService)
@@ -331,6 +345,7 @@ const WIRE_CASES: Array<IWireCase> = [
 	{ method: "GET", name: "a class guard above the controller decorator", path: "/derived-guard-above", status: HttpStatus.UNAUTHORIZED },
 	{ method: "GET", name: "a class guard below the controller decorator", path: "/derived-guard-below", status: HttpStatus.UNAUTHORIZED },
 	{ method: "GET", name: "a class guard on a subclass with an inherited route", path: "/derived-guarded-sibling/custom/shared", status: HttpStatus.UNAUTHORIZED },
+	{ method: "GET", name: "a class guard on a REQUEST-scoped subclass without its own controller decorator", path: "/derived-request-scoped", status: HttpStatus.UNAUTHORIZED },
 	{ body: {}, method: "POST", name: "a handler guard above the route decorator", path: "/derived-children/custom/handler-guard", status: HttpStatus.UNAUTHORIZED },
 ];
 
@@ -390,7 +405,7 @@ describe.each(ADAPTERS)("statuses derived from the route config on %s (E2E)", (a
 		const entities: Array<new () => object> = [DerivedChildEntity, DerivedParentEntity, DerivedScopedEntity, DerivedSubscribedEntity];
 
 		const moduleReference = await Test.createTestingModule({
-			controllers: [DerivedBareController, DerivedChildController, DerivedGuardAboveController, DerivedGuardBelowController, DerivedGuardedSiblingController, DerivedOpenController, DerivedParentController, DerivedPlainSiblingController, DerivedRouteGuardController, DerivedScopedController, DerivedSecurableSiblingController, DerivedSubscribedController, DerivedUnguardedController],
+			controllers: [DerivedBareController, DerivedChildController, DerivedGuardAboveController, DerivedGuardBelowController, DerivedGuardedSiblingController, DerivedOpenController, DerivedParentController, DerivedPlainSiblingController, DerivedRequestScopedGuardedController, DerivedRouteGuardController, DerivedScopedController, DerivedSecurableSiblingController, DerivedSubscribedController, DerivedUnguardedController],
 			imports: [TypeOrmModule.forRoot({ database: ":memory:", dropSchema: true, entities, synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 			providers: [DerivedChildService, DerivedParentService, DerivedScopedPolicy, DerivedScopedService, DerivedSubscribedRouteSubscriber, DerivedSubscribedService],
 		}).compile();
@@ -432,7 +447,7 @@ describe.each(ADAPTERS)("statuses derived from the route config on %s (E2E)", (a
 	});
 
 	it("declares 401 and 403 from any configured guard, and neither without one", () => {
-		for (const path of ["/derived-route-guard", "/derived-guard-above", "/derived-guard-below"]) {
+		for (const path of ["/derived-route-guard", "/derived-guard-above", "/derived-guard-below", "/derived-request-scoped"]) {
 			expect(declaredStatuses(path, "get"), path).toEqual([400, 401, 403, 413, 415, 500]);
 		}
 

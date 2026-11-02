@@ -1,6 +1,7 @@
 import type { IApiControllerSchemaNameController } from "@interface/utility/schema-name";
 import type { ExceptionFilter, OnApplicationBootstrap } from "@nestjs/common";
 import type { InstanceWrapper, Module } from "@nestjs/core/internal";
+import type { TApiControllerConstructor } from "@type/decorator/api/controller";
 
 import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/controller-startup-check.constant";
 import { Catch, Injectable } from "@nestjs/common";
@@ -50,7 +51,7 @@ export class ApiControllerSchemaNameCheck implements ExceptionFilter<ApiControll
 		for (const module of this.modulesContainer.values()) {
 			for (const wrapper of module.controllers.values()) {
 				if (wrapper.metatype) {
-					(Reflect.getMetadata(CONTROLLER_STARTUP_CHECK_METADATA_KEY, wrapper.metatype) as ((isConstructedPerRequest: boolean) => void) | undefined)?.(!wrapper.isDependencyTreeStatic());
+					(Reflect.getMetadata(CONTROLLER_STARTUP_CHECK_METADATA_KEY, wrapper.metatype) as ((controller: TApiControllerConstructor, isConstructedPerRequest: boolean) => void) | undefined)?.(wrapper.metatype as TApiControllerConstructor, !wrapper.isDependencyTreeStatic());
 				}
 			}
 		}

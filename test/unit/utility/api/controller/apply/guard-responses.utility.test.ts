@@ -89,7 +89,7 @@ describe("ApiControllerApplyGuardResponses", () => {
 			public export(): void {}
 		}
 
-		(Reflect.getMetadata(CONTROLLER_STARTUP_CHECK_METADATA_KEY, RequestScopedController) as (isConstructedPerRequest: boolean) => void)(true);
+		(Reflect.getMetadata(CONTROLLER_STARTUP_CHECK_METADATA_KEY, RequestScopedController) as (controller: unknown, isConstructedPerRequest: boolean) => void)(RequestScopedController, true);
 
 		expect(getResponses(RequestScopedController, "export")[HttpStatus.UNAUTHORIZED]?.description).toBe("Unauthorized");
 		expect(getResponses(RequestScopedController, "export")[HttpStatus.FORBIDDEN]?.description).toBe("Forbidden");
@@ -165,7 +165,7 @@ describe("ApiControllerApplyGuardResponses", () => {
 
 		for (const controller of [SecurableAboveController, SecurableBelowController]) {
 			new controller();
-			(Reflect.getMetadata(CONTROLLER_STARTUP_CHECK_METADATA_KEY, controller) as (isConstructedPerRequest: boolean) => void)(false);
+			(Reflect.getMetadata(CONTROLLER_STARTUP_CHECK_METADATA_KEY, controller) as (controller: unknown, isConstructedPerRequest: boolean) => void)(controller, false);
 
 			for (const methodName of ["export", EApiRouteType.GET, EApiRouteType.CREATE]) {
 				expect(getResponses(controller, methodName)[HttpStatus.UNAUTHORIZED], `${controller.name} ${methodName}`).toBeUndefined();

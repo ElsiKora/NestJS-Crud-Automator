@@ -66,12 +66,13 @@ export const ApiController =
 			}
 		};
 		Object.defineProperty(ValidatedController, "name", { value: target.name });
-		// On the decorated class, which the returned class inherits, so that discarding the return value keeps the check.
+		// On the decorated class, which the returned class and its subclasses inherit, so that discarding the return value keeps the check.
+		// The guard step runs on the registered class, which can be a subclass with a guard of its own that Nest constructs only on a request.
 		Reflect.defineMetadata(
 			CONTROLLER_STARTUP_CHECK_METADATA_KEY,
-			(isConstructedPerRequest: boolean): void => {
+			(controller: TApiControllerConstructor, isConstructedPerRequest: boolean): void => {
 				runStartupCheck();
-				ApiControllerApplyGuardResponses(ValidatedController);
+				ApiControllerApplyGuardResponses(controller);
 				isStartupChecked = isConstructedPerRequest;
 			},
 			target,
