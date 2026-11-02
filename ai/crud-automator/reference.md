@@ -116,17 +116,17 @@ Generated route transaction rules:
 
 ## Generated Error Responses
 
-| Status | Declared when                                                                                                                  |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `400`  | always: DTO validation, typed GET_LIST/CURSOR codes, FK violation, relation reference, malformed JSON                          |
-| `401`  | a guard: `security.authentication`, `execution.guards`, `@UseGuards` on the class or the route                                 |
-| `403`  | `security.authentication`, `execution.guards`, or securable controller + `authorization`                                       |
-| `404`  | GET, UPDATE, PARTIAL_UPDATE, DELETE; CREATE with an enabled `relations.request.load.include` or on securable + `authorization` |
-| `409`  | CREATE, UPDATE, PARTIAL_UPDATE                                                                                                 |
-| `413`  | always: a body over the parser limit, 1 MiB in Fastify, 100 kB in Express                                                      |
-| `415`  | always: a content type Fastify refuses, a charset or content encoding Express refuses                                          |
-| `500`  | always                                                                                                                         |
-| other  | the `exception` status of each `request.<target>.validators` entry the route runs                                              |
+| Status | Declared when                                                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `400`  | always: DTO validation, typed GET_LIST/CURSOR codes, FK violation, relation reference, malformed JSON                                      |
+| `401`  | a guard: `security.authentication`, `execution.guards`, `@UseGuards` on the class or the route                                             |
+| `403`  | `security.authentication`, `execution.guards`, or securable controller + `authorization`                                                   |
+| `404`  | GET, UPDATE, PARTIAL_UPDATE, DELETE; CREATE with an enabled `relations.request.load.include` (securable CREATE outside the scope is `403`) |
+| `409`  | CREATE, UPDATE, PARTIAL_UPDATE                                                                                                             |
+| `413`  | always: a body over the parser limit, 1 MiB in Fastify, 100 kB in Express                                                                  |
+| `415`  | always: a content type Fastify refuses, a charset or content encoding Express refuses                                                      |
+| `500`  | always                                                                                                                                     |
+| other  | the `exception` status of each `request.<target>.validators` entry the route runs                                                          |
 
 Each status uses `DtoGenerateException(status)` (`Exception<Status>DTO`): every status requires only `statusCode` and `message`; `error` is on the wire when the exception sets it, or when the interceptor or the filter answers a string or array response, an http-errors value, or an unknown failure, and `correlationID` and `timestamp` when the optional `CorrelationIDResponseBodyInterceptor` or that filter handles the error; a status `HttpStatus` does not list, such as `499`, is named by its status text or number (`ExceptionStatus499DTO`) and pins `statusCode` to its value; `message` is `string | string[]` and `error` a string, with no pattern or length limits; `details` only on `400` (`FOREIGN_KEY_VIOLATION`, `REFERENCE_NOT_VALID`, `TO_MANY_UPDATE_KEY`) and `409` (`UNIQUE_VIOLATION`). Guard rejections, guard failures, and body parser refusals skip the interceptor and carry only `statusCode` and `message` (plus `error` when a guard returns `false`) unless the exception filter is registered, which adds `correlationID` and `timestamp`. Every route, GET and DELETE included, also declares `413` and `415`: Express parses a body on GET and Fastify on DELETE.
 
