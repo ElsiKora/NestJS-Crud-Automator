@@ -4,7 +4,8 @@ import type { INestApplication, Type } from "@nestjs/common";
 import type { OpenAPIObject } from "@nestjs/swagger";
 import type { Observable } from "rxjs";
 
-import { All, Controller, Get, Head, HttpStatus, Inject, Injectable, Options, Post, Redirect, RequestMethod, Search, Sse, UseGuards } from "@nestjs/common";
+import { All, Controller, Get, Head, HttpStatus, Inject, Injectable, Options, Post, Redirect, RequestMethod, Scope, Search, Sse, UseGuards } from "@nestjs/common";
+import { REQUEST } from "@nestjs/core";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
@@ -78,7 +79,16 @@ function securedRoute(action: string, path: string): never {
  * @returns {Error} The expected error.
  */
 function plainRouteError(controller: string, method: string, route: string): Error {
-	return new Error(`[NestJS-Crud-Automator] Controller "${controller}" method "${method}" serves ${route} without authorization: declare it with @ApiRouteCustom or @ApiMethod, or move it to a controller that is not securable`);
+	return new Error(`[NestJS-Crud-Automator] Controller "${controller}" method "${method}" serves ${route} without authorization: declare it with @ApiRouteCustom or @ApiMethod, or move it to a controller that is not securable. Route metadata written by hand also needs ApiAuthorizationGuard or a subclass of it in @UseGuards on the method or the controller; a guard instance and APP_GUARD do not count`);
+}
+
+/**
+ * Builds the startup error of a securable controller in an application without the authorization module.
+ * @param {string} controller - Controller name.
+ * @returns {Error} The expected error.
+ */
+function missingModuleError(controller: string): Error {
+	return new Error(`[NestJS-Crud-Automator] Controller "${controller}" is marked with @ApiControllerSecurable() but the application does not import ApiAuthorizationModule, so nothing would validate or authorize its routes: import ApiAuthorizationModule, or remove @ApiControllerSecurable()`);
 }
 
 class SecurablePlainRouteItemController {
@@ -323,6 +333,60 @@ class ChildOfCustomGetListController extends CustomGetListBaseController {}
 
 class PlainSubclassOfGeneratedController extends GeneratedParentController {}
 
+@ApiControllerSecurable()
+@Controller("bare-securable")
+class BareSecurableController {
+	@Get("report")
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "securable-below", routes: NO_GENERATED_ROUTES })
+@ApiControllerSecurable()
+class SecurableBelowApiController extends SecurablePlainRouteItemController {
+	@Get("report")
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "securable-inherited", routes: NO_GENERATED_ROUTES })
+class SecurableInheritedController extends PlainGetController {}
+
+@ApiControllerSecurable()
+@Controller({ path: "request-scoped-bare", scope: Scope.REQUEST })
+class RequestScopedBareController {
+	@Get("report")
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "request-scoped-plain", routes: NO_GENERATED_ROUTES })
+class RequestScopedPlainController extends SecurablePlainRouteItemController {
+	@Inject(REQUEST)
+	public readonly request!: unknown;
+
+	@Get("report")
+	public report(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "request-scoped-declared", routes: NO_GENERATED_ROUTES })
+class RequestScopedDeclaredController extends SecurablePlainRouteItemController {
+	@Inject(REQUEST)
+	public readonly request!: unknown;
+
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.deny", "denied"))
+	public denied(): { isReached: boolean } {
+		return { isReached: true };
+	}
+}
+
 describe("Served routes of securable controllers (E2E)", () => {
 	const applications: Array<INestApplication> = [];
 
@@ -341,6 +405,25 @@ describe("Served routes of securable controllers (E2E)", () => {
 
 		applications.push(application);
 		await application.listen(0, "127.0.0.1");
+
+		return application;
+	}
+
+	/**
+	 * Initializes the controllers in an application without `ApiAuthorizationModule`.
+	 * @param {Array<Type<unknown>>} controllers - Controllers to serve.
+	 * @returns {Promise<INestApplication>} The initialized application.
+	 */
+	async function initWithoutAuthorizationModule(controllers: Array<Type<unknown>>): Promise<INestApplication> {
+		const moduleReference = await Test.createTestingModule({
+			controllers,
+			imports: [TypeOrmModule.forRoot({ database: ":memory:", dropSchema: true, entities: [SecurablePlainRouteItemEntity], logging: false, synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature([SecurablePlainRouteItemEntity]), ApiSubscriberModule],
+			providers: [SecurablePlainRouteItemService],
+		}).compile();
+		const application: INestApplication = moduleReference.createNestApplication(new FastifyAdapter(), { logger: false });
+
+		applications.push(application);
+		await application.init();
 
 		return application;
 	}
@@ -440,6 +523,49 @@ describe("Served routes of securable controllers (E2E)", () => {
 		});
 	});
 
+	describe("a securable controller needs ApiAuthorizationModule", () => {
+		it.each<[string, Type<unknown>, string]>([
+			["a controller with only a plain @Get", PlainGetController, "PlainGetController"],
+			["a bare @Controller", BareSecurableController, "BareSecurableController"],
+			["@ApiControllerSecurable below @ApiController", SecurableBelowApiController, "SecurableBelowApiController"],
+			["a child of a securable controller", SecurableInheritedController, "SecurableInheritedController"],
+			["a request-scoped bare @Controller", RequestScopedBareController, "RequestScopedBareController"],
+			["a request-scoped @ApiController", RequestScopedPlainController, "RequestScopedPlainController"],
+		])("fails app.init() for %s without the module", async (_case: string, controller: Type<unknown>, name: string) => {
+			await expect(initWithoutAuthorizationModule([controller])).rejects.toThrow(missingModuleError(name));
+		});
+
+		it("fails on the plain route when the module is there", async () => {
+			await expect(boot([PlainGetController])).rejects.toThrow(plainRouteError("PlainGetController", "report", "GET /plain-get/report"));
+		});
+
+		it("validates a request-scoped controller when the module is there", async () => {
+			await expect(boot([RequestScopedPlainController])).rejects.toThrow(plainRouteError("RequestScopedPlainController", "report", "GET /request-scoped-plain/report"));
+		});
+
+		it("authorizes a declared route of a request-scoped controller", async () => {
+			const application: INestApplication = await boot([RequestScopedDeclaredController]);
+
+			expect((await request(application, "POST", "/request-scoped-declared/denied")).status).toBe(HttpStatus.FORBIDDEN);
+		});
+
+		it("does not run the check on compile without init", async () => {
+			const moduleReference = await Test.createTestingModule({ controllers: [BareSecurableController] }).compile();
+
+			expect(moduleReference.get(BareSecurableController).report()).toEqual({ isReached: true });
+			await moduleReference.close();
+		});
+
+		it("starts a non-securable controller without the module", async () => {
+			const application: INestApplication = await initWithoutAuthorizationModule([NonSecurableGeneratedController, NonSecurableNestController]);
+
+			await application.listen(0, "127.0.0.1");
+
+			expect((await request(application, "GET", "/non-securable-generated/report")).status).toBe(HttpStatus.OK);
+			expect((await request(application, "GET", "/non-securable-nest/report")).status).toBe(HttpStatus.OK);
+		});
+	});
+
 	describe("non-securable controllers are unaffected", () => {
 		it("keeps plain routes on an @ApiController without @ApiControllerSecurable", async () => {
 			const application: INestApplication = await boot([NonSecurableGeneratedController]);
@@ -467,11 +593,22 @@ describe("Served routes of securable controllers (E2E)", () => {
 			expect((await request(application, "GET", "/secured-child?limit=10&page=1")).status).toBe(HttpStatus.NOT_FOUND);
 		});
 
-		it("leaves the disabled route out of the OpenAPI document", async () => {
-			const application: INestApplication = await boot([SecuredChildWithDisabledRouteController]);
+		it.each<[string, Type<unknown>, string]>([
+			["a securable child", SecuredChildWithDisabledRouteController, "/secured-child"],
+			["a non-securable child", OpenChildWithDisabledRouteController, "/open-child"],
+		])("answers 404 and leaves the route out of the OpenAPI document on %s", async (_case: string, controller: Type<unknown>, path: string) => {
+			const application: INestApplication = await boot([controller]);
 			const document: OpenAPIObject = SwaggerModule.createDocument(application, new DocumentBuilder().build());
 
-			expect(document.paths["/secured-child"]).toBeUndefined();
+			expect((await request(application, "GET", `${path}?limit=10&page=1`)).status).toBe(HttpStatus.NOT_FOUND);
+			expect(document.paths[path]).toBeUndefined();
+		});
+
+		it("keeps the route in the OpenAPI document of the parent", async () => {
+			const application: INestApplication = await boot([OpenGeneratedParentController]);
+			const document: OpenAPIObject = SwaggerModule.createDocument(application, new DocumentBuilder().build());
+
+			expect(document.paths["/open-parent"]?.get).toBeDefined();
 		});
 
 		it("keeps the generated handler callable from the child", async () => {
