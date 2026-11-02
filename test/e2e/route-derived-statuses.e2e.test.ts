@@ -294,6 +294,13 @@ describe.each(ADAPTERS)("statuses derived from the route config on %s (E2E)", (a
 		expect((await fetch(`${baseUrl}/derived-plain-sibling/custom/shared`)).status).toBe(HttpStatus.OK);
 	});
 
+	it("resolves every component reference", () => {
+		const references: Array<string> = [...JSON.stringify(document).matchAll(/"#\/components\/schemas\/([^"]+)"/g)].map((match: RegExpExecArray): string => match[1] ?? "");
+
+		expect(references.length).toBeGreaterThan(0);
+		expect(references.filter((name: string): boolean => !document.components?.schemas?.[name])).toEqual([]);
+	});
+
 	it("creates a row inside the policy scope", async () => {
 		const response: Response = await fetch(`${baseUrl}/derived-scoped`, { body: JSON.stringify({ id: "scoped-in", name: "visible" }), headers: { "content-type": "application/json" }, method: "POST" });
 

@@ -27,35 +27,55 @@
 							}
 						}
 					},
-					"401": {
-						"description": "Unauthorized",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ExceptionUnauthorizedDTO"
-								}
-							}
-						}
-					},
 					"409": {
-						"description": "Conflict",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionConflictDTO"
 								}
 							}
-						}
+						},
+						"description": "Conflict"
 					},
 					"500": {
-						"description": "Internal Server Error",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
 								}
 							}
-						}
+						},
+						"description": "Internal Server Error"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionBadRequestDTO"
+								}
+							}
+						},
+						"description": "Bad Request"
+					},
+					"413": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionPayloadTooLargeDTO"
+								}
+							}
+						},
+						"description": "Payload Too Large"
+					},
+					"415": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnsupportedMediaTypeDTO"
+								}
+							}
+						},
+						"description": "Unsupported Media Type"
 					}
 				},
 				"summary": "Create `E2eDtoNameRecord`",
@@ -269,35 +289,45 @@
 							}
 						}
 					},
-					"401": {
-						"description": "Unauthorized",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ExceptionUnauthorizedDTO"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "Not Found",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ExceptionNotFoundDTO"
-								}
-							}
-						}
-					},
 					"500": {
-						"description": "Internal Server Error",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
 								}
 							}
-						}
+						},
+						"description": "Internal Server Error"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionBadRequestDTO"
+								}
+							}
+						},
+						"description": "Bad Request"
+					},
+					"413": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionPayloadTooLargeDTO"
+								}
+							}
+						},
+						"description": "Payload Too Large"
+					},
+					"415": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnsupportedMediaTypeDTO"
+								}
+							}
+						},
+						"description": "Unsupported Media Type"
 					}
 				},
 				"summary": "List `E2eDtoNameRecords`",
@@ -329,35 +359,55 @@
 					"204": {
 						"description": "Success"
 					},
-					"401": {
-						"description": "Unauthorized",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ExceptionUnauthorizedDTO"
-								}
-							}
-						}
-					},
 					"404": {
-						"description": "Not Found",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionNotFoundDTO"
 								}
 							}
-						}
+						},
+						"description": "Not Found"
 					},
 					"500": {
-						"description": "Internal Server Error",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
 								}
 							}
-						}
+						},
+						"description": "Internal Server Error"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionBadRequestDTO"
+								}
+							}
+						},
+						"description": "Bad Request"
+					},
+					"413": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionPayloadTooLargeDTO"
+								}
+							}
+						},
+						"description": "Payload Too Large"
+					},
+					"415": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnsupportedMediaTypeDTO"
+								}
+							}
+						},
+						"description": "Unsupported Media Type"
 					}
 				},
 				"summary": "Delete `E2eDtoNameRecord`",
@@ -394,35 +444,55 @@
 							}
 						}
 					},
-					"401": {
-						"description": "Unauthorized",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ExceptionUnauthorizedDTO"
-								}
-							}
-						}
-					},
 					"404": {
-						"description": "Not Found",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionNotFoundDTO"
 								}
 							}
-						}
+						},
+						"description": "Not Found"
 					},
 					"500": {
-						"description": "Internal Server Error",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
 								}
 							}
-						}
+						},
+						"description": "Internal Server Error"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionBadRequestDTO"
+								}
+							}
+						},
+						"description": "Bad Request"
+					},
+					"413": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionPayloadTooLargeDTO"
+								}
+							}
+						},
+						"description": "Payload Too Large"
+					},
+					"415": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnsupportedMediaTypeDTO"
+								}
+							}
+						},
+						"description": "Unsupported Media Type"
 					}
 				},
 				"summary": "Get `E2eDtoNameRecord`",
@@ -470,54 +540,64 @@
 						}
 					},
 					"400": {
-						"description": "Bad Request",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionBadRequestDTO"
 								}
 							}
-						}
-					},
-					"401": {
-						"description": "Unauthorized",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ExceptionUnauthorizedDTO"
-								}
-							}
-						}
+						},
+						"description": "Bad Request"
 					},
 					"404": {
-						"description": "Not Found",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionNotFoundDTO"
 								}
 							}
-						}
+						},
+						"description": "Not Found"
 					},
 					"409": {
-						"description": "Conflict",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionConflictDTO"
 								}
 							}
-						}
+						},
+						"description": "Conflict"
 					},
 					"500": {
-						"description": "Internal Server Error",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
 								}
 							}
-						}
+						},
+						"description": "Internal Server Error"
+					},
+					"413": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionPayloadTooLargeDTO"
+								}
+							}
+						},
+						"description": "Payload Too Large"
+					},
+					"415": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnsupportedMediaTypeDTO"
+								}
+							}
+						},
+						"description": "Unsupported Media Type"
 					}
 				},
 				"summary": "Partially update `E2eDtoNameRecord`",
@@ -565,54 +645,64 @@
 						}
 					},
 					"400": {
-						"description": "Bad Request",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionBadRequestDTO"
 								}
 							}
-						}
-					},
-					"401": {
-						"description": "Unauthorized",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ExceptionUnauthorizedDTO"
-								}
-							}
-						}
+						},
+						"description": "Bad Request"
 					},
 					"404": {
-						"description": "Not Found",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionNotFoundDTO"
 								}
 							}
-						}
+						},
+						"description": "Not Found"
 					},
 					"409": {
-						"description": "Conflict",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionConflictDTO"
 								}
 							}
-						}
+						},
+						"description": "Conflict"
 					},
 					"500": {
-						"description": "Internal Server Error",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExceptionInternalServerErrorDTO"
 								}
 							}
-						}
+						},
+						"description": "Internal Server Error"
+					},
+					"413": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionPayloadTooLargeDTO"
+								}
+							}
+						},
+						"description": "Payload Too Large"
+					},
+					"415": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExceptionUnsupportedMediaTypeDTO"
+								}
+							}
+						},
+						"description": "Unsupported Media Type"
 					}
 				},
 				"summary": "Update `E2eDtoNameRecord`",
@@ -1879,282 +1969,199 @@
 				"required": ["id", "title", "ownerId", "document", "details", "owner"]
 			},
 			"ExceptionDetailsForeignKeyViolationDTO": {
-				"type": "object",
 				"properties": {
 					"constraint": {
-						"type": "string",
 						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 128,
-						"minLength": 0,
 						"example": "FK_5bc39ec0540f37ff97f5aba36e1",
 						"format": "string",
+						"maxLength": 128,
+						"minLength": 0,
+						"nullable": false,
 						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"detail": {
-						"type": "string",
 						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 1024,
-						"minLength": 0,
 						"example": "Key (user_id)=(123) is not present in table \"user\".",
 						"format": "string",
+						"maxLength": 1024,
+						"minLength": 0,
+						"nullable": false,
 						"pattern": "^[\\s\\S]{0,1024}$",
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"field": {
-						"type": "string",
 						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 128,
-						"minLength": 0,
 						"example": "user_id",
 						"format": "string",
+						"maxLength": 128,
+						"minLength": 0,
+						"nullable": false,
 						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"referencedField": {
-						"type": "string",
 						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 128,
-						"minLength": 0,
 						"example": "id",
 						"format": "string",
+						"maxLength": 128,
+						"minLength": 0,
+						"nullable": false,
 						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"referencedTable": {
-						"type": "string",
 						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 128,
-						"minLength": 0,
 						"example": "user",
 						"format": "string",
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
-					},
-					"table": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
 						"maxLength": 128,
 						"minLength": 0,
+						"nullable": false,
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true,
+						"type": "string"
+					},
+					"table": {
+						"description": "ErrorDetails ",
 						"example": "user_balance",
 						"format": "string",
+						"maxLength": 128,
+						"minLength": 0,
+						"nullable": false,
 						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"type": {
-						"type": "string",
 						"description": "ErrorDetails ",
-						"nullable": false,
+						"enum": ["FOREIGN_KEY_VIOLATION"],
 						"example": "FOREIGN_KEY_VIOLATION",
-						"enum": ["FOREIGN_KEY_VIOLATION", "UNIQUE_VIOLATION"],
-						"readOnly": true
+						"nullable": false,
+						"readOnly": true,
+						"type": "string"
 					},
 					"value": {
-						"type": "string",
 						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 1024,
-						"minLength": 0,
 						"example": "123",
 						"format": "string",
+						"maxLength": 1024,
+						"minLength": 0,
+						"nullable": false,
 						"pattern": "^[\\s\\S]{0,1024}$",
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					}
 				},
-				"required": ["type"]
+				"required": ["type"],
+				"type": "object"
 			},
 			"ExceptionDetailsUniqueViolationDTO": {
-				"type": "object",
 				"properties": {
 					"constraint": {
-						"type": "string",
 						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 128,
-						"minLength": 0,
 						"example": "UQ_user_login",
 						"format": "string",
+						"maxLength": 128,
+						"minLength": 0,
+						"nullable": false,
 						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"detail": {
-						"type": "string",
 						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 1024,
-						"minLength": 0,
 						"example": "Key (login)=(jack) already exists.",
 						"format": "string",
-						"pattern": "^[\\s\\S]{0,1024}$",
-						"readOnly": true
-					},
-					"field": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 128,
-						"minLength": 0,
-						"example": "login",
-						"format": "string",
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
-					},
-					"table": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
-						"maxLength": 128,
-						"minLength": 0,
-						"example": "user",
-						"format": "string",
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true
-					},
-					"type": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
-						"example": "UNIQUE_VIOLATION",
-						"enum": ["FOREIGN_KEY_VIOLATION", "UNIQUE_VIOLATION"],
-						"readOnly": true
-					},
-					"value": {
-						"type": "string",
-						"description": "ErrorDetails ",
-						"nullable": false,
 						"maxLength": 1024,
 						"minLength": 0,
+						"nullable": false,
+						"pattern": "^[\\s\\S]{0,1024}$",
+						"readOnly": true,
+						"type": "string"
+					},
+					"field": {
+						"description": "ErrorDetails ",
+						"example": "login",
+						"format": "string",
+						"maxLength": 128,
+						"minLength": 0,
+						"nullable": false,
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true,
+						"type": "string"
+					},
+					"table": {
+						"description": "ErrorDetails ",
+						"example": "user",
+						"format": "string",
+						"maxLength": 128,
+						"minLength": 0,
+						"nullable": false,
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true,
+						"type": "string"
+					},
+					"type": {
+						"description": "ErrorDetails ",
+						"enum": ["UNIQUE_VIOLATION"],
+						"example": "UNIQUE_VIOLATION",
+						"nullable": false,
+						"readOnly": true,
+						"type": "string"
+					},
+					"value": {
+						"description": "ErrorDetails ",
 						"example": "jack",
 						"format": "string",
+						"maxLength": 1024,
+						"minLength": 0,
+						"nullable": false,
 						"pattern": "^[\\s\\S]{0,1024}$",
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					}
 				},
-				"required": ["type"]
-			},
-			"ExceptionUnauthorizedDTO": {
-				"type": "object",
-				"properties": {
-					"correlationID": {
-						"type": "string",
-						"description": "Correlation identifier",
-						"example": "<uuid>",
-						"maxLength": 128,
-						"minLength": 1,
-						"nullable": false,
-						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
-						"readOnly": true
-					},
-					"details": {
-						"description": "Error details",
-						"nullable": false,
-						"oneOf": [
-							{
-								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
-							},
-							{
-								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
-							}
-						],
-						"discriminator": {
-							"mapping": {
-								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
-								"UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
-							},
-							"propertyName": "type"
-						},
-						"readOnly": true
-					},
-					"error": {
-						"type": "string",
-						"description": "Error name",
-						"example": "Unauthorized",
-						"nullable": false,
-						"readOnly": true
-					},
-					"message": {
-						"description": "Error message",
-						"example": "Error message",
-						"nullable": false,
-						"oneOf": [
-							{
-								"type": "string"
-							},
-							{
-								"items": {
-									"type": "string"
-								},
-								"type": "array"
-							}
-						],
-						"readOnly": true
-					},
-					"statusCode": {
-						"type": "number",
-						"description": "Error status code",
-						"nullable": false,
-						"example": 401,
-						"enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508],
-						"readOnly": true
-					},
-					"timestamp": {
-						"type": "integer",
-						"description": "Error timestamp",
-						"format": "int64",
-						"nullable": false,
-						"example": 0,
-						"minimum": 0,
-						"maximum": 2147483647000,
-						"readOnly": true
-					}
-				},
-				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+				"required": ["type"],
+				"type": "object"
 			},
 			"ExceptionConflictDTO": {
-				"type": "object",
 				"properties": {
 					"correlationID": {
-						"type": "string",
-						"description": "Correlation identifier",
+						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
 						"example": "<uuid>",
 						"maxLength": 128,
 						"minLength": 1,
 						"nullable": false,
 						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"details": {
 						"description": "Error details",
-						"nullable": false,
-						"oneOf": [
-							{
-								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
-							},
-							{
-								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
-							}
-						],
 						"discriminator": {
 							"mapping": {
-								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
 								"UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
 							},
 							"propertyName": "type"
 						},
+						"nullable": false,
+						"oneOf": [
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
+							}
+						],
 						"readOnly": true
 					},
 					"error": {
-						"type": "string",
 						"description": "Error name",
 						"example": "Conflict",
 						"nullable": false,
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"message": {
 						"description": "Error message",
@@ -2174,65 +2181,45 @@
 						"readOnly": true
 					},
 					"statusCode": {
-						"type": "number",
 						"description": "Error status code",
-						"nullable": false,
-						"example": 409,
 						"enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508],
-						"readOnly": true
+						"example": 409,
+						"nullable": false,
+						"readOnly": true,
+						"type": "number"
 					},
 					"timestamp": {
-						"type": "integer",
-						"description": "Error timestamp",
-						"format": "int64",
-						"nullable": false,
+						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
 						"example": 0,
-						"minimum": 0,
+						"format": "int64",
 						"maximum": 2147483647000,
-						"readOnly": true
+						"minimum": 0,
+						"nullable": false,
+						"readOnly": true,
+						"type": "integer"
 					}
 				},
-				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+				"required": ["error", "message", "statusCode"],
+				"type": "object"
 			},
 			"ExceptionInternalServerErrorDTO": {
-				"type": "object",
 				"properties": {
 					"correlationID": {
-						"type": "string",
-						"description": "Correlation identifier",
+						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
 						"example": "<uuid>",
 						"maxLength": 128,
 						"minLength": 1,
 						"nullable": false,
 						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
-						"readOnly": true
-					},
-					"details": {
-						"description": "Error details",
-						"nullable": false,
-						"oneOf": [
-							{
-								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
-							},
-							{
-								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
-							}
-						],
-						"discriminator": {
-							"mapping": {
-								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
-								"UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
-							},
-							"propertyName": "type"
-						},
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"error": {
-						"type": "string",
-						"description": "Error name",
+						"description": "Error name, sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered",
 						"example": "Internal Server Error",
 						"nullable": false,
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"message": {
 						"description": "Error message",
@@ -2252,65 +2239,45 @@
 						"readOnly": true
 					},
 					"statusCode": {
-						"type": "number",
 						"description": "Error status code",
-						"nullable": false,
-						"example": 500,
 						"enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508],
-						"readOnly": true
+						"example": 500,
+						"nullable": false,
+						"readOnly": true,
+						"type": "number"
 					},
 					"timestamp": {
-						"type": "integer",
-						"description": "Error timestamp",
-						"format": "int64",
-						"nullable": false,
+						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
 						"example": 0,
-						"minimum": 0,
+						"format": "int64",
 						"maximum": 2147483647000,
-						"readOnly": true
+						"minimum": 0,
+						"nullable": false,
+						"readOnly": true,
+						"type": "integer"
 					}
 				},
-				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+				"required": ["message", "statusCode"],
+				"type": "object"
 			},
 			"ExceptionNotFoundDTO": {
-				"type": "object",
 				"properties": {
 					"correlationID": {
-						"type": "string",
-						"description": "Correlation identifier",
+						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
 						"example": "<uuid>",
 						"maxLength": 128,
 						"minLength": 1,
 						"nullable": false,
 						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
-						"readOnly": true
-					},
-					"details": {
-						"description": "Error details",
-						"nullable": false,
-						"oneOf": [
-							{
-								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
-							},
-							{
-								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
-							}
-						],
-						"discriminator": {
-							"mapping": {
-								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
-								"UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
-							},
-							"propertyName": "type"
-						},
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"error": {
-						"type": "string",
 						"description": "Error name",
 						"example": "Not Found",
 						"nullable": false,
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"message": {
 						"description": "Error message",
@@ -2330,65 +2297,69 @@
 						"readOnly": true
 					},
 					"statusCode": {
-						"type": "number",
 						"description": "Error status code",
-						"nullable": false,
-						"example": 404,
 						"enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508],
-						"readOnly": true
+						"example": 404,
+						"nullable": false,
+						"readOnly": true,
+						"type": "number"
 					},
 					"timestamp": {
-						"type": "integer",
-						"description": "Error timestamp",
-						"format": "int64",
-						"nullable": false,
+						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
 						"example": 0,
-						"minimum": 0,
+						"format": "int64",
 						"maximum": 2147483647000,
-						"readOnly": true
+						"minimum": 0,
+						"nullable": false,
+						"readOnly": true,
+						"type": "integer"
 					}
 				},
-				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+				"required": ["error", "message", "statusCode"],
+				"type": "object"
 			},
 			"ExceptionBadRequestDTO": {
-				"type": "object",
 				"properties": {
 					"correlationID": {
-						"type": "string",
-						"description": "Correlation identifier",
+						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
 						"example": "<uuid>",
 						"maxLength": 128,
 						"minLength": 1,
 						"nullable": false,
 						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"details": {
 						"description": "Error details",
+						"discriminator": {
+							"mapping": {
+								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
+								"INVALID_REFERENCE": "#/components/schemas/ExceptionDetailsInvalidReferenceDTO",
+								"TO_MANY_UPDATE_KEY": "#/components/schemas/ExceptionDetailsToManyUpdateKeyDTO"
+							},
+							"propertyName": "type"
+						},
 						"nullable": false,
 						"oneOf": [
 							{
 								"$ref": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO"
 							},
 							{
-								"$ref": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
+								"$ref": "#/components/schemas/ExceptionDetailsInvalidReferenceDTO"
+							},
+							{
+								"$ref": "#/components/schemas/ExceptionDetailsToManyUpdateKeyDTO"
 							}
 						],
-						"discriminator": {
-							"mapping": {
-								"FOREIGN_KEY_VIOLATION": "#/components/schemas/ExceptionDetailsForeignKeyViolationDTO",
-								"UNIQUE_VIOLATION": "#/components/schemas/ExceptionDetailsUniqueViolationDTO"
-							},
-							"propertyName": "type"
-						},
 						"readOnly": true
 					},
 					"error": {
-						"type": "string",
-						"description": "Error name",
+						"description": "Error name, sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered",
 						"example": "Bad Request",
 						"nullable": false,
-						"readOnly": true
+						"readOnly": true,
+						"type": "string"
 					},
 					"message": {
 						"description": "Error message",
@@ -2408,25 +2379,222 @@
 						"readOnly": true
 					},
 					"statusCode": {
-						"type": "number",
 						"description": "Error status code",
-						"nullable": false,
-						"example": 400,
 						"enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508],
-						"readOnly": true
+						"example": 400,
+						"nullable": false,
+						"readOnly": true,
+						"type": "number"
 					},
 					"timestamp": {
-						"type": "integer",
-						"description": "Error timestamp",
-						"format": "int64",
-						"nullable": false,
+						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
 						"example": 0,
-						"minimum": 0,
+						"format": "int64",
 						"maximum": 2147483647000,
-						"readOnly": true
+						"minimum": 0,
+						"nullable": false,
+						"readOnly": true,
+						"type": "integer"
 					}
 				},
-				"required": ["correlationID", "error", "message", "statusCode", "timestamp"]
+				"required": ["message", "statusCode"],
+				"type": "object"
+			},
+			"ExceptionDetailsInvalidReferenceDTO": {
+				"properties": {
+					"expectedShape": {
+						"description": "ErrorDetails ",
+						"enum": ["OBJECT", "SCALAR"],
+						"example": "SCALAR",
+						"nullable": false,
+						"readOnly": true,
+						"type": "string"
+					},
+					"propertyName": {
+						"description": "ErrorDetails ",
+						"example": "owner",
+						"format": "string",
+						"maxLength": 128,
+						"minLength": 0,
+						"nullable": false,
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true,
+						"type": "string"
+					},
+					"referenceKey": {
+						"description": "ErrorDetails ",
+						"example": "id",
+						"format": "string",
+						"maxLength": 128,
+						"minLength": 0,
+						"nullable": false,
+						"pattern": "^[\\s\\S]{0,128}$",
+						"readOnly": true,
+						"type": "string"
+					},
+					"type": {
+						"description": "ErrorDetails ",
+						"enum": ["INVALID_REFERENCE"],
+						"example": "INVALID_REFERENCE",
+						"nullable": false,
+						"readOnly": true,
+						"type": "string"
+					}
+				},
+				"required": ["expectedShape", "propertyName", "referenceKey", "type"],
+				"type": "object"
+			},
+			"ExceptionDetailsToManyUpdateKeyDTO": {
+				"properties": {
+					"propertyName": {
+						"description": "ErrorDetails ",
+						"example": "owner.tags",
+						"format": "string",
+						"maxLength": 1024,
+						"minLength": 0,
+						"nullable": false,
+						"pattern": "^[\\s\\S]{0,1024}$",
+						"readOnly": true,
+						"type": "string"
+					},
+					"reason": {
+						"description": "ErrorDetails ",
+						"example": "to-many reference is not allowed on update",
+						"format": "string",
+						"maxLength": 1024,
+						"minLength": 0,
+						"nullable": false,
+						"pattern": "^[\\s\\S]{0,1024}$",
+						"readOnly": true,
+						"type": "string"
+					},
+					"type": {
+						"description": "ErrorDetails ",
+						"enum": ["TO_MANY_UPDATE_KEY"],
+						"example": "TO_MANY_UPDATE_KEY",
+						"nullable": false,
+						"readOnly": true,
+						"type": "string"
+					}
+				},
+				"required": ["propertyName", "reason", "type"],
+				"type": "object"
+			},
+			"ExceptionPayloadTooLargeDTO": {
+				"properties": {
+					"correlationID": {
+						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
+						"example": "<uuid>",
+						"maxLength": 128,
+						"minLength": 1,
+						"nullable": false,
+						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+						"readOnly": true,
+						"type": "string"
+					},
+					"error": {
+						"description": "Error name, sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered",
+						"example": "Payload Too Large",
+						"nullable": false,
+						"readOnly": true,
+						"type": "string"
+					},
+					"message": {
+						"description": "Error message",
+						"example": "Error message",
+						"nullable": false,
+						"oneOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						],
+						"readOnly": true
+					},
+					"statusCode": {
+						"description": "Error status code",
+						"enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508],
+						"example": 413,
+						"nullable": false,
+						"readOnly": true,
+						"type": "number"
+					},
+					"timestamp": {
+						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
+						"example": 0,
+						"format": "int64",
+						"maximum": 2147483647000,
+						"minimum": 0,
+						"nullable": false,
+						"readOnly": true,
+						"type": "integer"
+					}
+				},
+				"required": ["message", "statusCode"],
+				"type": "object"
+			},
+			"ExceptionUnsupportedMediaTypeDTO": {
+				"properties": {
+					"correlationID": {
+						"description": "Correlation identifier, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
+						"example": "<uuid>",
+						"maxLength": 128,
+						"minLength": 1,
+						"nullable": false,
+						"pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+						"readOnly": true,
+						"type": "string"
+					},
+					"error": {
+						"description": "Error name, sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered",
+						"example": "Unsupported Media Type",
+						"nullable": false,
+						"readOnly": true,
+						"type": "string"
+					},
+					"message": {
+						"description": "Error message",
+						"example": "Error message",
+						"nullable": false,
+						"oneOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						],
+						"readOnly": true
+					},
+					"statusCode": {
+						"description": "Error status code",
+						"enum": [100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 210, 300, 301, 302, 303, 304, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 428, 429, 456, 500, 501, 502, 503, 504, 505, 507, 508],
+						"example": 415,
+						"nullable": false,
+						"readOnly": true,
+						"type": "number"
+					},
+					"timestamp": {
+						"description": "Error timestamp, sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error",
+						"example": 0,
+						"format": "int64",
+						"maximum": 2147483647000,
+						"minimum": 0,
+						"nullable": false,
+						"readOnly": true,
+						"type": "integer"
+					}
+				},
+				"required": ["message", "statusCode"],
+				"type": "object"
 			}
 		}
 	}

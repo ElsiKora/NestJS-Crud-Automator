@@ -258,6 +258,13 @@ describe.each(ADAPTERS)("body parser statuses on %s (E2E)", (adapterName: TAdapt
 			await app?.close();
 		});
 
+		it("resolves every component reference", () => {
+			const references: Array<string> = [...JSON.stringify(document).matchAll(/"#\/components\/schemas\/([^"]+)"/g)].map((match: RegExpExecArray): string => match[1] ?? "");
+
+			expect(references.length).toBeGreaterThan(0);
+			expect(references.filter((name: string): boolean => !document.components?.schemas?.[name])).toEqual([]);
+		});
+
 		const expectTableStatus = async (bodyCaseName: TBodyCaseName, operationName: TOperationName): Promise<void> => {
 			const operation: IOperation = OPERATIONS[operationName];
 			const answer: IWireAnswer = await send(operation, BODY_CASES[bodyCaseName]);

@@ -261,6 +261,13 @@ describe.each(ADAPTERS)("exception schemas on %s (E2E)", (adapterName: string, c
 			expect(schemas[reference.split("/").at(-1) ?? ""]?.required?.toSorted()).toEqual(["error", "message", "statusCode"]);
 		});
 
+		it("resolves every component reference", () => {
+			const references: Array<string> = [...JSON.stringify(document).matchAll(/"#\/components\/schemas\/([^"]+)"/g)].map((match: RegExpExecArray): string => match[1] ?? "");
+
+			expect(references.length).toBeGreaterThan(0);
+			expect(references.filter((name: string): boolean => !document.components?.schemas?.[name])).toEqual([]);
+		});
+
 		it("answers a missing row with the declared 404 schema", async () => {
 			const response: Response = await fetch(`${baseUrl}/details-items/item-missing`);
 			const body: IWireAnswer["body"] = (await response.json()) as IWireAnswer["body"];

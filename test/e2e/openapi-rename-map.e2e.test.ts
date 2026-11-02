@@ -61,6 +61,7 @@ describe("openapi-rename-map script (E2E)", () => {
 			"  E2eRenameMapItemEntityGetParametersDTO",
 			"  E2eRenameMapPublicItemControllerE2eRenameMapItemEntityGetListQuery<signature>DTO",
 			"  E2eRenameMapRecordEntityGetParametersDTO",
+			"  ExceptionDetailsForeignKeyViolationDTO",
 		]);
 	});
 
