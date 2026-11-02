@@ -1,5 +1,5 @@
 import { Inject } from "@nestjs/common";
-import { Expose, Type } from "class-transformer";
+import { Expose, Transform, Type } from "class-transformer";
 import { IsIn, IsInt, IsOptional } from "class-validator";
 
 import { ApiController, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType } from "../../../src/index";
@@ -79,6 +79,24 @@ export class E2eListOrderRuleAliasDefaultQueryDto {
 	public orderBy?: string = "secret";
 
 	@Expose({ name: "dir" })
+	@IsOptional()
+	public orderDirection?: string = "asc";
+
+	@IsInt()
+	@Type(() => Number)
+	public page!: number;
+}
+
+export class E2eListOrderRuleTransformFallbackQueryDto {
+	@IsInt()
+	@Type(() => Number)
+	public limit!: number;
+
+	@Expose({ name: "sort" })
+	@IsOptional()
+	@Transform(({ value }: { value: unknown }): unknown => value ?? "secret")
+	public orderBy?: string;
+
 	@IsOptional()
 	public orderDirection?: string = "asc";
 
@@ -171,6 +189,17 @@ export class E2eListOrderRuleAliasItemController {
 	routes: { ...disabledRoutes, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.QUERY]: E2eListOrderRuleAliasDefaultQueryDto } } },
 })
 export class E2eListOrderRuleAliasDefaultItemController {
+	@Inject(E2eListOrderRuleItemService)
+	public readonly service!: E2eListOrderRuleItemService;
+}
+
+@ApiController<E2eListOrderRuleItemEntity>({
+	entity: E2eListOrderRuleItemEntity,
+	name: "E2eListOrderRuleTransformFallbackItems",
+	path: "list-order-rule/transform-fallback-items",
+	routes: { ...disabledRoutes, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.QUERY]: E2eListOrderRuleTransformFallbackQueryDto } } },
+})
+export class E2eListOrderRuleTransformFallbackItemController {
 	@Inject(E2eListOrderRuleItemService)
 	public readonly service!: E2eListOrderRuleItemService;
 }

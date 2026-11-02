@@ -27,6 +27,7 @@ import {
 	E2eListOrderRuleManualItemController,
 	E2eListOrderRuleOwnerEntity,
 	E2eListOrderRulePlainCustomController,
+	E2eListOrderRuleTransformFallbackItemController,
 	E2eListOrderRuleTypedItemController,
 	E2eListOrderRuleVariantController,
 } from "./list-order-rule";
@@ -65,6 +66,7 @@ const MANUAL_ITEMS: string = "/list-order-rule/manual-items";
 const DEFAULT_DIRECTION_ITEMS: string = "/list-order-rule/default-direction-items";
 const ALIAS_ITEMS: string = "/list-order-rule/alias-items";
 const ALIAS_DEFAULT_ITEMS: string = "/list-order-rule/alias-default-items";
+const TRANSFORM_FALLBACK_ITEMS: string = "/list-order-rule/transform-fallback-items";
 
 describe.each([
 	{ databaseName: "SQLite", isPostgres: false },
@@ -92,7 +94,7 @@ describe.each([
 			const entities: Array<new () => unknown> = [E2eListOrderRuleItemEntity, E2eListOrderRuleOwnerEntity];
 			const connection = { dropSchema: true, entities, logger: queryLogger, logging: true, synchronize: true } as const;
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eListOrderRuleAliasDefaultItemController, E2eListOrderRuleAliasItemController, E2eListOrderRuleAllowHiddenItemController, E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleDefaultOrderItemController, E2eListOrderRuleItemController, E2eListOrderRuleManualItemController, E2eListOrderRulePlainCustomController, E2eListOrderRuleTypedItemController, E2eListOrderRuleVariantController],
+				controllers: [E2eListOrderRuleAliasDefaultItemController, E2eListOrderRuleAliasItemController, E2eListOrderRuleAllowHiddenItemController, E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleDefaultOrderItemController, E2eListOrderRuleItemController, E2eListOrderRuleManualItemController, E2eListOrderRulePlainCustomController, E2eListOrderRuleTransformFallbackItemController, E2eListOrderRuleTypedItemController, E2eListOrderRuleVariantController],
 				imports: [TypeOrmModule.forRoot(container ? { ...connection, type: "postgres", url: container.getConnectionUri() } : { ...connection, database: ":memory:", type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eListOrderRuleItemService],
 			}).compile();
@@ -193,6 +195,11 @@ describe.each([
 			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=secret`)).toContain("INVALID_ORDER");
 			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&orderBy=secret&orderDirection=asc`)).toContain("INVALID_ORDER");
 			expect(await listLabels(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=rank&dir=desc`)).toEqual(["Delta", "Gamma", "Alpha", "Beta"]);
+		});
+
+		it("rejects a hidden field a transform fallback produces, which is not a class default, even when the client sent no order", async () => {
+			expect(await expectRejected(`${TRANSFORM_FALLBACK_ITEMS}?${PAGE}`)).toContain("INVALID_ORDER");
+			expect(await listLabels(`${TRANSFORM_FALLBACK_ITEMS}?${PAGE}&sort=rank&orderDirection=desc`)).toEqual(["Delta", "Gamma", "Alpha", "Beta"]);
 		});
 
 		it("keeps a manual QUERY DTO class default as the route's own order, which a client cannot name", async () => {
