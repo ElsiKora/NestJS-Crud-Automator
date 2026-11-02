@@ -38,17 +38,15 @@ export async function ApiFunctionExecuteWithTransaction<E extends IApiBaseEntity
 	repository?: Repository<E>;
 	serviceConstructor?: new (...arguments_: Array<unknown>) => unknown;
 }): Promise<R> {
+	// The manager of a transaction only reaches its own data source, and a call back into a data source joins the transaction an earlier call left there.
+	const { repository }: { repository?: Repository<E> } = options;
+
+	if (repository && ApiFunctionContextStorage.isOnOtherDataSource((): DataSource => repository.manager.dataSource)) {
+		return await ApiFunctionContextStorage.runOnDataSource(repository.manager.dataSource, async (): Promise<R> => await ApiFunctionExecuteWithTransaction(options));
+	}
+
 	const activeRegistry: ApiFunctionTransactionRegistry | undefined = ApiFunctionContextStorage.getTransactionRegistry();
 	const activeEventManager: EntityManager | undefined = activeRegistry ? ApiFunctionContextStorage.getEventManager() : undefined;
-
-	if (activeEventManager && options.repository) {
-		const dataSource: DataSource = options.repository.manager.dataSource;
-
-		// The manager of a transaction only reaches its own data source.
-		if (activeEventManager.dataSource !== dataSource) {
-			return await ApiFunctionContextStorage.runOnDataSource(dataSource, async (): Promise<R> => await ApiFunctionExecuteWithTransaction(options));
-		}
-	}
 
 	const label: string = options.label ?? "ApiFunction";
 	const isSubscriberObservable: boolean = Boolean(options.serviceConstructor && Reflect.hasMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, options.serviceConstructor));

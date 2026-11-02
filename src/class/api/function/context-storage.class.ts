@@ -48,6 +48,25 @@ export class ApiFunctionContextStorage {
 		return ApiFunctionContextStorage.TRANSACTION_REGISTRIES.get(entityManager);
 	}
 
+	/**
+	 * Tells whether work on a data source has to leave the current transaction context.
+	 * It has to when the active transaction belongs to another data source, or when no transaction is active and an earlier call left a transaction of this data source, which the work joins again.
+	 * Outside both, the data source of the work is never read.
+	 * @param {() => DataSource} readDataSource - Reads the data source the work runs on.
+	 * @returns {boolean} Whether the work runs through {@link ApiFunctionContextStorage.runOnDataSource}.
+	 */
+	public static isOnOtherDataSource(readDataSource: () => DataSource): boolean {
+		const entry: TApiFunctionContextStorageEntry<IApiBaseEntity> | undefined = ApiFunctionContextStorage.STORAGE.getStore();
+
+		if (entry?.transaction) {
+			return entry.transaction.entityManager.dataSource !== readDataSource();
+		}
+
+		const suspended: ReadonlyMap<DataSource, TApiFunctionContextStorageEntry<IApiBaseEntity>> | undefined = ApiFunctionContextStorage.SUSPENDED.getStore();
+
+		return suspended !== undefined && suspended.size > 0 && suspended.has(readDataSource());
+	}
+
 	public static run<E extends IApiBaseEntity, R>(context: IApiFunctionContext<E>, callback: () => Promise<R>): Promise<R> {
 		return ApiFunctionContextStorage.STORAGE.run(
 			{
@@ -62,6 +81,7 @@ export class ApiFunctionContextStorage {
 	/**
 	 * Runs a callback for a data source other than the one the active transaction belongs to.
 	 * The manager of a transaction only works for its own data source, so the callback runs outside it, or back inside a transaction of its data source that an earlier call left.
+	 * The left transactions stay in the async context of the callback, also where it runs without a transaction, so any later call back into their data source joins them again.
 	 * @template R - Callback result type.
 	 * @param {DataSource} dataSource - Data source the callback works on.
 	 * @param {() => Promise<R>} callback - Work to run.

@@ -16,11 +16,11 @@ export class ApiFunctionTransactionScope {
 			throw ErrorException("ApiFunctionTransactionScope name must be a non-empty string");
 		}
 
-		const activeEventManager: EntityManager | undefined = ApiFunctionContextStorage.getTransactionRegistry() ? ApiFunctionContextStorage.getEventManager() : undefined;
-
-		if (activeEventManager && activeEventManager.dataSource !== dataSource) {
+		if (ApiFunctionContextStorage.isOnOtherDataSource((): DataSource => dataSource)) {
 			return await ApiFunctionContextStorage.runOnDataSource(dataSource, async (): Promise<R> => await ApiFunctionTransactionScope.runWithDataSource(dataSource, properties, callback));
 		}
+
+		const activeEventManager: EntityManager | undefined = ApiFunctionContextStorage.getTransactionRegistry() ? ApiFunctionContextStorage.getEventManager() : undefined;
 
 		if (activeEventManager) {
 			if (properties.observation !== undefined) {
