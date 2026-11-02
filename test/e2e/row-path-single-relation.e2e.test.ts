@@ -310,12 +310,16 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one colum
 				expect(await dateRows("row_path_single_date_bookings", "at")).toEqual([]);
 			});
 
-			// Only the parsed value of the own column reaches the insert, never the relation string, so the database never sees text it cannot read; that instant names no slot.
-			it.runIf(pipe === "none")("POST /single-date-booking with a relation object naming an impossible date is refused without a server error and adds no row", async () => {
-				const response: TResponse = await send("POST", "/single-date-booking", { id: "B1", name: "made", slot: { at: "2026-02-30T00:00:00.000Z" } });
+			// The relation's instant is lifted into the key column first, so the create key check refuses a day the calendar does not hold there, before any SQL.
+			it.each([["2026-02-30T00:00:00.000Z"], [{ at: "2026-02-30T00:00:00.000Z" }]])("POST /single-date-booking with the impossible relation instant %j answers 400 and adds no row", async (slot: object | string) => {
+				const response: TResponse = await send("POST", "/single-date-booking", { id: "B1", name: "made", slot });
 
-				expect(response.statusCode).toBeGreaterThanOrEqual(400);
-				expect(response.statusCode).toBeLessThan(500);
+				expect(response.statusCode).toBe(400);
+
+				if (pipe === "none") {
+					expect(response.json()).toEqual({ error: "Bad Request", message: ["at must be a valid ISO 8601 date-time"], statusCode: 400 });
+				}
+
 				expect(await dateRows("row_path_single_date_bookings", "at")).toEqual([]);
 			});
 
