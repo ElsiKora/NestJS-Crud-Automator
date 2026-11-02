@@ -23,7 +23,13 @@ describe("Testing guide samples (E2E)", () => {
 	it.each([
 		["user.controller.spec.ts", "test/e2e/testing-guide/in-memory-repository.e2e.test.ts"],
 		["user.cursor-controller.spec.ts", "test/e2e/testing-guide/cursor-controller.e2e.test.ts"],
+		["user.metadata-only.spec.ts", "test/e2e/testing-guide/metadata-only-data-source.e2e.test.ts"],
 	])("%s is the code of %s", (filename: string, specFile: string) => {
 		expect(readSample(filename)).toBe(readFileSync(specFile, "utf8").replace('from "../../../src/index"', 'from "@elsikora/nestjs-crud-automator"'));
+	});
+
+	it("gives the plain double in the shape repository-doubles.e2e.test.ts starts", () => {
+		expect(GUIDE).toContain("useValue: { find: vi.fn(), manager: dataSource.manager, metadata: dataSource.getMetadata(UserEntity) }");
+		expect(readFileSync("test/e2e/testing-guide/repository-doubles.e2e.test.ts", "utf8")).toContain("({ manager: dataSource.manager, metadata: dataSource.getMetadata(DoubleInvoiceEntity) })");
 	});
 });
