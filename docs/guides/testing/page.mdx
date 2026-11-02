@@ -1,25 +1,52 @@
 # Testing
 
-Generated controllers check their service repository at application bootstrap, so a controller test needs a real TypeORM repository. Build it from an in-memory DataSource and stub the repository methods the test controls.
+Generated controllers check their service repository at application bootstrap, so a controller test needs a real TypeORM repository. Build it from a DataSource and stub the repository methods the test controls.
 
 ## Repository Of An In-Memory DataSource
 
-Create a `better-sqlite3` DataSource in memory, take the entity repository from it, and stub single methods with `vi.spyOn` (or `jest.spyOn`). Provide that repository under the token `@InjectRepository` reads:
+Create a `better-sqlite3` DataSource in memory, take the entity repository from it, and stub single methods with `vi.spyOn` (or `jest.spyOn`). Provide that repository under the token `@InjectRepository` reads. The sample keeps the entity, the service, and the controller in one file so that it runs as it is; import yours instead:
 
 ```typescript filename="user.controller.spec.ts" copy
+import "reflect-metadata";
+
 import type { INestApplication } from "@nestjs/common";
 import type { Repository } from "typeorm";
 
-import { ApiAuthorizationModule } from "@elsikora/nestjs-crud-automator";
+import { Injectable } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
-import { getRepositoryToken } from "@nestjs/typeorm";
-import { DataSource } from "typeorm";
+import { getRepositoryToken, InjectRepository } from "@nestjs/typeorm";
+import { Column, DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
-import { UserController } from "./user.controller";
-import { UserEntity } from "./user.entity";
-import { UserService } from "./user.service";
+import { ApiAuthorizationModule, ApiController, ApiPropertyDescribe, ApiService, ApiServiceBase, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@elsikora/nestjs-crud-automator";
+
+@Entity("users")
+class UserEntity {
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@ApiPropertyDescribe({ description: "username", exampleValue: "john_doe", format: EApiPropertyStringType.STRING, maxLength: 50, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING })
+	@Column({ type: "varchar" })
+	public username!: string;
+}
+
+@Injectable()
+@ApiService<UserEntity>({ entity: UserEntity })
+class UserService extends ApiServiceBase<UserEntity> {
+	public constructor(
+		@InjectRepository(UserEntity)
+		public repository: Repository<UserEntity>,
+	) {
+		super();
+	}
+}
+
+@ApiController<UserEntity>({ entity: UserEntity, path: "users", routes: { [EApiRouteType.GET]: {} } })
+class UserController {
+	public constructor(public service: UserService) {}
+}
 
 const USER_ID: string = "aaaaaaaa-0000-4000-8000-000000000001";
 
@@ -30,7 +57,7 @@ let repository: Repository<UserEntity>;
 beforeAll(async () => {
 	dataSource = await new DataSource({ database: ":memory:", entities: [UserEntity], synchronize: true, type: "better-sqlite3" }).initialize();
 	repository = dataSource.getRepository(UserEntity);
-	vi.spyOn(repository, "findOne").mockResolvedValue({ id: USER_ID, username: "john_doe" } as UserEntity);
+	vi.spyOn(repository, "findOne").mockResolvedValue({ id: USER_ID, username: "john_doe" });
 
 	const moduleReference = await Test.createTestingModule({
 		controllers: [UserController],
@@ -43,8 +70,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	await app.close();
-	await dataSource.destroy();
+	await app?.close();
+	await dataSource?.destroy();
 });
 
 it("serves a generated route from the stubbed repository", async () => {
@@ -61,27 +88,139 @@ it("serves a generated route from the stubbed repository", async () => {
 
 - `synchronize: true` creates the tables, so a method the test does not stub still runs a real query.
 - `ApiAuthorizationModule.forRoot()` provides the guard every generated route uses.
-- Install `better-sqlite3` as a development dependency. An entity whose column types SQLite does not support needs a DataSource of its own database type instead, such as a PostgreSQL test container.
+- The sample needs `better-sqlite3`, `@nestjs/testing`, `@nestjs/platform-fastify`, and `vitest` as development dependencies, next to the packages the application already uses. Nest resolves the constructor parameters from decorator metadata, so run Vitest with a transform that emits it, such as `unplugin-swc`.
+
+### Column Types SQLite Rejects
+
+`better-sqlite3` accepts only the column types of SQLite. An entity that declares any other type, such as `type: "timestamp"` or `type: "timestamptz"`, fails `dataSource.initialize()` with `DataTypeNotSupportedError` before the test starts. Test such an entity on a DataSource of its own database type, the way [CURSOR Controllers](#cursor-controllers) does, or declare a type both databases accept, such as `varchar`. Keep `app?.close()` and `dataSource?.destroy()` optional in `afterAll`, so that a failed `initialize()` reports its own error instead of a second one about `close`.
+
+## CURSOR Controllers
+
+A CURSOR GET_LIST route runs only on PostgreSQL, and the bootstrap check reads the driver of the active DataSource, so SQLite does not start such a controller. Test it on a real PostgreSQL DataSource and stub `find`, which the route reads its window through. Production code stays as it is; do not switch the route to PAGE for a test:
+
+```typescript filename="user.cursor-controller.spec.ts" copy
+import "reflect-metadata";
+
+import type { INestApplication } from "@nestjs/common";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import type { Repository } from "typeorm";
+
+import { Injectable } from "@nestjs/common";
+import { FastifyAdapter } from "@nestjs/platform-fastify";
+import { Test } from "@nestjs/testing";
+import { getRepositoryToken, InjectRepository } from "@nestjs/typeorm";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import { Column, DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { afterAll, beforeAll, expect, it, vi } from "vitest";
+
+import { ApiAuthorizationModule, ApiController, ApiPropertyDescribe, ApiService, ApiServiceBase, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType, EFilterOrderDirection } from "@elsikora/nestjs-crud-automator";
+
+@Entity("users")
+class UserEntity {
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@ApiPropertyDescribe({ description: "username", exampleValue: "john_doe", format: EApiPropertyStringType.STRING, maxLength: 50, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING })
+	@Column({ type: "varchar" })
+	public username!: string;
+}
+
+@Injectable()
+@ApiService<UserEntity>({ entity: UserEntity })
+class UserService extends ApiServiceBase<UserEntity> {
+	public constructor(
+		@InjectRepository(UserEntity)
+		public repository: Repository<UserEntity>,
+	) {
+		super();
+	}
+}
+
+@ApiController<UserEntity>({
+	entity: UserEntity,
+	path: "users",
+	routes: {
+		[EApiRouteType.GET_LIST]: {
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					order: { fields: {}, tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }], unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT },
+					pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR },
+				},
+			},
+		},
+	},
+})
+class UserController {
+	public constructor(public service: UserService) {}
+}
+
+const USER_ID: string = "aaaaaaaa-0000-4000-8000-000000000001";
+
+let app: INestApplication;
+let container: StartedPostgreSqlContainer;
+let dataSource: DataSource;
+let repository: Repository<UserEntity>;
+
+beforeAll(async () => {
+	container = await new PostgreSqlContainer("postgres:17-alpine").start();
+	dataSource = await new DataSource({ entities: [UserEntity], synchronize: true, type: "postgres", url: container.getConnectionUri() }).initialize();
+	repository = dataSource.getRepository(UserEntity);
+	vi.spyOn(repository, "find").mockResolvedValue([{ id: USER_ID, username: "john_doe" }]);
+
+	const moduleReference = await Test.createTestingModule({
+		controllers: [UserController],
+		imports: [ApiAuthorizationModule.forRoot()],
+		providers: [UserService, { provide: getRepositoryToken(UserEntity), useValue: repository }],
+	}).compile();
+
+	app = moduleReference.createNestApplication(new FastifyAdapter());
+	await app.init();
+}, 120_000);
+
+afterAll(async () => {
+	await app?.close();
+	await dataSource?.destroy();
+	await container?.stop();
+}, 120_000);
+
+it("serves a CURSOR route from the stubbed repository", async () => {
+	const response = await app.getHttpAdapter().getInstance().inject({ method: "GET", url: "/users?limit=10" });
+
+	expect(response.statusCode).toBe(200);
+	expect(response.json()).toEqual({ items: [{ id: USER_ID, username: "john_doe" }], nextCursor: null, previousCursor: null });
+	expect(repository.find).toHaveBeenCalledOnce();
+});
+```
+
+- The sample also needs `pg` and `@testcontainers/postgresql` as development dependencies, and Docker. A PostgreSQL you already run for tests works too: pass its connection string as `url` and drop the container.
+- The route validates the driver and the storage of its order fields, so the DataSource must use the entity's real column types.
 
 ## What Does Not Work
 
 - A plain object as the repository, such as `{ provide: getRepositoryToken(UserEntity), useValue: { findOne: vi.fn() } }`, fails at bootstrap: it has no TypeORM entity metadata, so the date and time filter checks and the relation load checks could not run.
 - A mocked service, such as `{ provide: UserService, useValue: { get: vi.fn() } }`, fails at bootstrap too, because it has no repository. Generated routes also accept only the methods `@ApiService` installs.
+- A repository of a DataSource that is not initialized yet fails at bootstrap with the cause. With `manualInitialization`, call `dataSource.initialize()` before `app.init()`.
 
 The bootstrap error names the controller, the entity, and the missing part:
 
 ```text
-[NestJS-Crud-Automator] Controller "UserController" of entity "UserEntity": service.repository is not a TypeORM repository because its metadata is not TypeORM entity metadata. In tests, use a repository of an in-memory DataSource and stub its methods: https://elsikora.com/docs/nestjs-crud-automator/guides/testing
+[NestJS-Crud-Automator] Controller "UserController" of entity "UserEntity": service.repository is not a usable TypeORM repository because its metadata is not TypeORM entity metadata. In tests, use a repository of an in-memory DataSource and stub its methods: https://elsikora.com/docs/nestjs-crud-automator/guides/testing
 ```
 
-The check reads TypeORM's own type markers instead of `instanceof`, so a repository built by a second installed copy of TypeORM, as a pnpm workspace or monorepo can resolve, passes.
+The check reads TypeORM's own type markers instead of `instanceof`, so a repository built by a second installed copy of TypeORM, as a pnpm workspace or monorepo can resolve, passes, and it reads the properties instead of testing for them, so a Proxy-wrapped repository passes too.
+
+## Request-Scoped Controllers
+
+Nest does not run `onApplicationBootstrap` on a request-scoped controller, which includes a controller that depends on a request-scoped service, so none of the bootstrap checks run for it and the application starts. A GET_LIST route of such a controller makes the repository and CURSOR database checks when a request arrives: the request answers `500`, and the application log holds the same error that names the controller, the route, and the cause. Its other generated routes are not checked.
 
 ## Migration Notes
 
-Before 5.0.0, a controller started with any `service.repository`, so a plain-object repository mock was enough for a controller test. From 5.0.0 every `@ApiController` fails at application bootstrap unless `service.repository` is a TypeORM repository, also when every generated route is disabled. Replace a repository or service mock with the [repository of an in-memory DataSource](#repository-of-an-in-memory-datasource).
+Before 5.0.0, a controller started with any `service.repository`, so a plain-object repository mock was enough for a controller test. From 5.0.0 every singleton `@ApiController` fails at application bootstrap unless `service.repository` is a TypeORM repository, also when every generated route is disabled, whichever of the decorated class and the class the decorator returns is registered. Replace a repository or service mock with the [repository of an in-memory DataSource](#repository-of-an-in-memory-datasource), or of a [PostgreSQL DataSource for a CURSOR controller](#cursor-controllers).
 
 ## Next Steps
 
 - [Services](/docs/nestjs-crud-automator/core-concepts/services) - Inject the entity repository
 - [Controllers](/docs/nestjs-crud-automator/core-concepts/controllers) - Configure generated routes
+- [Pagination](/docs/nestjs-crud-automator/guides/pagination) - CURSOR and PAGE routes
 - [Migrating to 5.0](/docs/nestjs-crud-automator/guides/migrating-to-5-0) - Every breaking change of 5.0.0

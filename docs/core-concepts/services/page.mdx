@@ -27,7 +27,7 @@ export class UserService extends ApiServiceBase<UserEntity> {
 }
 ```
 
-Each `@ApiController` checks at application bootstrap that its `service.repository` is a TypeORM repository and fails with an error that names the controller, the entity, and the missing part otherwise. The check reads TypeORM's own type markers instead of `instanceof`, so a repository built by a second installed copy of TypeORM, as a pnpm workspace or monorepo can resolve, still counts. For tests, see [Testing](/docs/nestjs-crud-automator/guides/testing).
+Each singleton `@ApiController` checks at application bootstrap that its `service.repository` is a TypeORM repository and fails with an error that names the controller, the entity, and the missing part otherwise. The check reads TypeORM's own type markers instead of `instanceof`, so a repository built by a second installed copy of TypeORM, as a pnpm workspace or monorepo can resolve, still counts, as does a Proxy-wrapped repository. Nest runs no bootstrap hook on a request-scoped controller, whose GET_LIST route makes the check when a request arrives. For tests, see [Testing](/docs/nestjs-crud-automator/guides/testing).
 
 ## Auto-Generated CRUD Methods
 

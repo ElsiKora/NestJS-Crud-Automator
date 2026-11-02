@@ -307,13 +307,13 @@ A fractional `multipleOf` on a request number is now an exact decimal check, in 
 
 ## Service Repositories Checked At Bootstrap
 
-Every `@ApiController` fails at application bootstrap unless `service.repository` is a TypeORM repository, also when every generated route is disabled. Before 5.0.0, the service repository was not checked. The error names the controller, the entity, and the missing part. A repository from a second installed copy of TypeORM passes.
+Every singleton `@ApiController` fails at application bootstrap unless `service.repository` is a TypeORM repository, also when every generated route is disabled. Before 5.0.0, the service repository was not checked. The error names the controller, the entity, and the missing part. A repository from a second installed copy of TypeORM and a Proxy-wrapped repository pass. Nest runs no bootstrap hook on a request-scoped controller; see [Testing: Request-Scoped Controllers](/docs/nestjs-crud-automator/guides/testing#request-scoped-controllers).
 
 A plain-object repository mock or a mocked service in a test now fails at bootstrap. Provide a real repository of an in-memory DataSource and stub its methods instead. See [Testing: Migration Notes](/docs/nestjs-crud-automator/guides/testing#migration-notes).
 
 ## CURSOR Routes Checked At Bootstrap
 
-A CURSOR GET_LIST route on a database other than PostgreSQL, or with an order field whose storage CURSOR cannot prove, fails at application bootstrap with an error that names the route and the active driver. Before 5.0.0, the application started and every request to the route answered `500`. Switch such a route to PAGE. See [Pagination: Migration Notes](/docs/nestjs-crud-automator/guides/pagination#migration-notes).
+A CURSOR GET_LIST route on a database other than PostgreSQL, or with an order field whose storage CURSOR cannot prove, fails at application bootstrap with an error that names the route and the active driver. Before 5.0.0, the application started and every request to the route answered `500`. On a production database CURSOR cannot serve, switch such a route to PAGE. In a test, keep the route and run it on a PostgreSQL DataSource: see [Testing: CURSOR Controllers](/docs/nestjs-crud-automator/guides/testing#cursor-controllers). See also [Pagination: Migration Notes](/docs/nestjs-crud-automator/guides/pagination#migration-notes).
 
 ## Checking The Upgrade
 
