@@ -66,6 +66,20 @@ class VariantListDto {
 	public items!: Array<LabelItemDto | SecretItemDto>;
 }
 
+/**
+ * Declares a list response class named SharedNameListDto, as two modules may.
+ * @param {new () => unknown} itemType - Item class of the list.
+ * @returns {new () => unknown} The list response class.
+ */
+function createSharedNameList(itemType: new () => unknown): new () => unknown {
+	class SharedNameListDto {
+		@ApiProperty({ type: [itemType] })
+		public items!: Array<unknown>;
+	}
+
+	return SharedNameListDto;
+}
+
 describe("ApiControllerGetListResponsePublishedFields", () => {
 	it("lists the item properties of a list wrapper", () => {
 		expect([...ApiControllerGetListResponsePublishedFields(LabelListDto)]).toEqual(["id", "label"]);
@@ -93,5 +107,17 @@ describe("ApiControllerGetListResponsePublishedFields", () => {
 		const errors = await validate(plainToInstance(dto, { limit: 1, orderBy: "label", orderDirection: "asc", page: 1 }), { forbidUnknownValues: false });
 
 		expect(errors.map((error) => error.property)).toEqual(["orderBy", "orderDirection"]);
+	});
+
+	it("keeps the query DTOs of two list response classes that share a name apart", async () => {
+		const metadata = GenerateEntityInformation<PublishedFieldEntity>(PublishedFieldEntity as unknown as IApiBaseEntity);
+		const generate = (listResponseDto: new () => unknown): new () => object => DtoGenerate(PublishedFieldEntity, metadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "PublishedFieldDto", undefined, undefined, undefined, undefined, undefined, listResponseDto) as new () => object;
+		const labelDto = generate(createSharedNameList(LabelItemDto));
+		const secretDto = generate(createSharedNameList(SecretItemDto));
+		const readOrderErrors = async (dto: new () => object, orderBy: string): Promise<Array<string>> => (await validate(plainToInstance(dto, { limit: 1, orderBy, orderDirection: "asc", page: 1 }), { forbidUnknownValues: false })).map((error) => error.property);
+
+		expect(labelDto).not.toBe(secretDto);
+		expect(await readOrderErrors(labelDto, "secret")).toEqual(["orderBy"]);
+		expect(await readOrderErrors(secretDto, "secret")).toEqual([]);
 	});
 });
