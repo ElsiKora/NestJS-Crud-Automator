@@ -47,9 +47,7 @@ const TAG_SECOND: string = "33333333-3333-4333-8333-333333333332";
 type TReference = (id: string, code: string) => unknown;
 
 interface IShapeCase {
-	/** Expected Swagger schema of one to-many item, after $ref and allOf are resolved. */
-	itemSchema: Record<string, unknown>;
-	/** Expected Swagger schema of one reference, after $ref and allOf are resolved. */
+	/** Expected Swagger schema of one reference and of one to-many item, after $ref and allOf are resolved. */
 	referenceSchema: Record<string, unknown>;
 	path: string;
 	reference: TReference;
@@ -68,22 +66,18 @@ interface IPostWire {
 const SHAPE_CASES: ReadonlyArray<IShapeCase> = [
 	{
 		path: "relation-reference-scalar-id-posts",
-		// Array decorators of the library replace the items schema without a type, for request DTOs as well.
-		itemSchema: { format: "uuid" },
 		reference: (id: string): unknown => id,
 		referenceSchema: { format: "uuid", type: "string" },
 		title: "SCALAR with key id",
 	},
 	{
 		path: "relation-reference-scalar-code-posts",
-		itemSchema: { pattern: "^[a-z-]+$" },
 		reference: (_id: string, code: string): unknown => code,
 		referenceSchema: { pattern: "^[a-z-]+$", type: "string" },
 		title: "SCALAR with key code",
 	},
 	{
 		path: "relation-reference-object-code-posts",
-		itemSchema: { properties: { code: { type: "string" } }, required: ["code"] },
 		reference: (_id: string, code: string): unknown => ({ code }),
 		referenceSchema: { properties: { code: { type: "string" } }, required: ["code"] },
 		title: "OBJECT with key code",
@@ -214,7 +208,7 @@ describe("Response relation reference DTOs (E2E)", () => {
 		});
 	});
 
-	describe.each(SHAPE_CASES)("$title", ({ itemSchema, path, reference, referenceSchema }: IShapeCase) => {
+	describe.each(SHAPE_CASES)("$title", ({ path, reference, referenceSchema }: IShapeCase) => {
 		describe.each([
 			["GET", false],
 			["GET_LIST", true],
@@ -245,7 +239,7 @@ describe("Response relation reference DTOs (E2E)", () => {
 				expect(editor).toMatchObject(referenceSchema);
 				expect(editor.nullable).toBe(false);
 				expect(tags.type).toBe("array");
-				expect(schemas.resolveSchema(tags.items as TSwaggerComponentSchema)).toMatchObject(itemSchema);
+				expect(schemas.resolveSchema(tags.items as TSwaggerComponentSchema)).toMatchObject(referenceSchema);
 			});
 
 			it("describes the eager reviewer outside the include as a nullable id object", async () => {

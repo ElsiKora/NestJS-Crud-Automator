@@ -101,8 +101,7 @@ export function createRelationReferenceSchemaChecker(document: OpenAPIObject): I
 			return;
 		}
 
-		// Array decorators of the library describe string items by format and pattern without a type.
-		if (schema.type === "string" || (schema.type === undefined && (schema.format !== undefined || schema.pattern !== undefined))) {
+		if (schema.type === "string") {
 			expect(typeof value, `${location} must be a string`).toBe("string");
 
 			if (schema.format === "uuid") {
