@@ -16,22 +16,12 @@ const authentication = {
 	entity: E2eEntity,
 	name: "E2eNestedOwnerReadEntities",
 	path: "nested-owner/:ownerId/items",
+	pathScope: { parameters: [{ field: "ownerId", parameter: "ownerId" }] },
 	routes: {
 		[EApiRouteType.CREATE]: disabledRoute,
 		[EApiRouteType.DELETE]: disabledRoute,
-		[EApiRouteType.GET]: {
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
-		},
+		[EApiRouteType.GET]: {},
 		[EApiRouteType.GET_LIST]: {
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
 					order: {
@@ -88,16 +78,12 @@ export class E2eIdentityAliasReadController {
 	entity: E2eEntity,
 	name: "E2eSecurableIdentityAliasReadEntities",
 	path: "secure-identity-alias/:ownerId/items",
+	pathScope: { parameters: [{ field: "ownerId", parameter: "ownerId" }] },
 	routes: {
 		[EApiRouteType.CREATE]: disabledRoute,
 		[EApiRouteType.DELETE]: disabledRoute,
 		[EApiRouteType.GET]: {
 			identity: { parameter: "gameId" },
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
 			security: { authentication },
 		},
 		[EApiRouteType.GET_LIST]: disabledRoute,

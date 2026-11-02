@@ -42,23 +42,12 @@ export class E2ePathParameterIntItemController {
 	entity: E2ePathParameterUuidItemEntity,
 	name: "E2ePathParameterOwnerUuidItems",
 	path: "path-parameter/owners/:ownerId/uuid-items",
+	pathScope: { parameters: [{ field: "ownerId", parameter: "ownerId" }] },
 	routes: {
 		[EApiRouteType.CREATE]: disabledRoute,
 		[EApiRouteType.DELETE]: disabledRoute,
-		[EApiRouteType.GET]: {
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
-		},
-		[EApiRouteType.GET_LIST]: {
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
-		},
+		[EApiRouteType.GET]: {},
+		[EApiRouteType.GET_LIST]: {},
 		[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 		[EApiRouteType.UPDATE]: disabledRoute,
 	},
@@ -72,23 +61,12 @@ export class E2ePathParameterOwnerUuidItemController {
 	entity: E2ePathParameterIntItemEntity,
 	name: "E2ePathParameterGroupIntItems",
 	path: "path-parameter/groups/:group/int-items",
+	pathScope: { parameters: [{ field: "groupNumber", parameter: "group" }] },
 	routes: {
 		[EApiRouteType.CREATE]: disabledRoute,
 		[EApiRouteType.DELETE]: disabledRoute,
-		[EApiRouteType.GET]: {
-			read: {
-				scope: {
-					parameters: [{ field: "groupNumber", parameter: "group" }],
-				},
-			},
-		},
-		[EApiRouteType.GET_LIST]: {
-			read: {
-				scope: {
-					parameters: [{ field: "groupNumber", parameter: "group" }],
-				},
-			},
-		},
+		[EApiRouteType.GET]: {},
+		[EApiRouteType.GET_LIST]: {},
 		[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 		[EApiRouteType.UPDATE]: disabledRoute,
 	},
@@ -102,23 +80,12 @@ export class E2ePathParameterGroupIntItemController {
 	entity: E2ePathParameterDayItemEntity,
 	name: "E2ePathParameterDayItems",
 	path: "path-parameter/days/:day/day-items",
+	pathScope: { parameters: [{ field: "day", parameter: "day" }] },
 	routes: {
 		[EApiRouteType.CREATE]: disabledRoute,
 		[EApiRouteType.DELETE]: disabledRoute,
-		[EApiRouteType.GET]: {
-			read: {
-				scope: {
-					parameters: [{ field: "day", parameter: "day" }],
-				},
-			},
-		},
-		[EApiRouteType.GET_LIST]: {
-			read: {
-				scope: {
-					parameters: [{ field: "day", parameter: "day" }],
-				},
-			},
-		},
+		[EApiRouteType.GET]: {},
+		[EApiRouteType.GET_LIST]: {},
 		[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 		[EApiRouteType.UPDATE]: disabledRoute,
 	},

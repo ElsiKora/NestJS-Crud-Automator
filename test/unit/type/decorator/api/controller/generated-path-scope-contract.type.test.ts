@@ -1,4 +1,19 @@
-import type { IApiBaseEntity, IApiControllerProperties, IApiControllerPropertiesRouteGetListQueryOrderEntry, IApiControllerPropertiesRouteIdentity, IApiControllerPropertiesRouteReadScope, IApiControllerPropertiesRouteWithAutoDto, IApiEntity, TApiControllerMethodMap, TApiControllerPropertiesRoute, TApiControllerTransformDataData, TApiControllerTransformDataObjectToTransform, TApiPropertyDescribeProperties, TApiRequestTransformer } from "../../../../../../src";
+import type {
+	IApiBaseEntity,
+	IApiControllerProperties,
+	IApiControllerPropertiesRouteGetListQueryOrderEntry,
+	IApiControllerPropertiesPathScope,
+	IApiControllerPropertiesRouteIdentity,
+	IApiControllerPropertiesRouteWithAutoDto,
+	IApiControllerPropertiesRowPath,
+	IApiEntity,
+	TApiControllerMethodMap,
+	TApiControllerPropertiesRoute,
+	TApiControllerTransformDataData,
+	TApiControllerTransformDataObjectToTransform,
+	TApiPropertyDescribeProperties,
+	TApiRequestTransformer,
+} from "../../../../../../src";
 
 import {
 	ApiControllerApplyDecorators,
@@ -40,24 +55,25 @@ class PublicGeneratedReadParametersDto {}
 class PublicGeneratedReadQueryDto {}
 class PublicGeneratedReadResponseDto {}
 
-describe("public generated read type contract", () => {
-	it("accepts read scope on GET and compound server order on GET_LIST", () => {
-		const readScope: IApiControllerPropertiesRouteReadScope<IPublicGeneratedReadEntity> = {
+describe("public generated path scope type contract", () => {
+	it("accepts pathScope and rowPath on the controller and compound server order on GET_LIST", () => {
+		const pathScope: IApiControllerPropertiesPathScope<IPublicGeneratedReadEntity> = {
 			parameters: [{ field: "ownerId", parameter: "ownerId" }],
+		};
+		const rowPath: IApiControllerPropertiesRowPath<IPublicGeneratedReadEntity> = {
+			fields: ["id"],
+		};
+		const controllerProperties: IApiControllerProperties<IPublicGeneratedReadEntity> = {
+			entity: {} as IApiControllerProperties<IPublicGeneratedReadEntity>["entity"],
+			pathScope,
+			routes: {},
+			rowPath,
 		};
 		const uuidTieBreaker: IApiControllerPropertiesRouteGetListQueryOrderEntry<IPublicGeneratedReadEntity> = {
 			direction: EFilterOrderDirection.ASC,
 			field: "id",
 		};
-		const getRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
-			read: {
-				scope: readScope,
-			},
-		};
 		const getListRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = {
-			read: {
-				scope: readScope,
-			},
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
 					order: {
@@ -76,22 +92,18 @@ describe("public generated read type contract", () => {
 			},
 		};
 
-		expect(getRoute.read?.scope?.parameters).toEqual([{ field: "ownerId", parameter: "ownerId" }]);
+		expect(controllerProperties.pathScope?.parameters).toEqual([{ field: "ownerId", parameter: "ownerId" }]);
+		expect(controllerProperties.rowPath?.fields).toEqual(["id"]);
 		expect(getListRoute.request?.[EApiControllerRequestTarget.QUERY]?.order?.defaultOrder).toHaveLength(2);
 	});
 
-	it("accepts a GET primary identity alias with or without inherited scope", () => {
+	it("accepts a GET primary identity alias with or without a PARAMETERS transformer", () => {
 		const identity: IApiControllerPropertiesRouteIdentity = { parameter: "gameId" };
 		const identityOnlyRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
 			identity,
 		};
 		const identityAndScopeRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
 			identity,
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
 			request: {
 				[EApiControllerRequestTarget.PARAMETERS]: {
 					transformers: [
@@ -106,26 +118,16 @@ describe("public generated read type contract", () => {
 		};
 
 		expect(identityOnlyRoute.identity?.parameter).toBe("gameId");
-		expect(identityAndScopeRoute.read?.scope?.parameters).toEqual([{ field: "ownerId", parameter: "ownerId" }]);
+		expect(identityAndScopeRoute.request?.[EApiControllerRequestTarget.PARAMETERS]?.transformers?.[0]?.key).toBe("gameId");
 	});
 
 	it("rejects GET identity grammar on GET_LIST for fresh and non-fresh values", () => {
 		const freshRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = {
 			// @ts-expect-error -- GET_LIST has no primary identity path segment to alias.
 			identity: { parameter: "gameId" },
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
 		};
 		const nonFreshRouteValue = {
 			identity: { parameter: "gameId" },
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
 		} as const;
 		// @ts-expect-error -- Non-fresh values cannot add identity grammar to GET_LIST.
 		const nonFreshRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = nonFreshRouteValue;
@@ -135,7 +137,7 @@ describe("public generated read type contract", () => {
 	});
 
 	it("rejects manual PARAMETERS DTO ownership on an identity-aliased GET", () => {
-		// @ts-expect-error -- Generated read identity owns the route PARAMETERS DTO.
+		// @ts-expect-error -- Generated identity owns the route PARAMETERS DTO.
 		const route: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
 			dto: {
 				[EApiDtoType.PARAMETERS]: PublicGeneratedReadParametersDto,
@@ -174,11 +176,6 @@ describe("public generated read type contract", () => {
 			type: EApiPropertyDescribeType.UUID,
 		};
 		const route: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = {
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerAlias" }],
-				},
-			},
 			request: {
 				[EApiControllerRequestTarget.PARAMETERS]: {
 					transformers: [
@@ -212,31 +209,12 @@ describe("public generated read type contract", () => {
 		expect(queryTransformerRoute).toBeDefined();
 	});
 
-	it("accepts aliased PARAMETERS transformers only on configured-read GET routes", () => {
-		const configuredReadRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "externalOwner" }],
-				},
-			},
+	it("accepts aliased PARAMETERS transformers on generated row routes", () => {
+		const getRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
 			request: {
 				[EApiControllerRequestTarget.PARAMETERS]: {
 					transformers: [
 						{
-							key: "externalOwner",
-							type: EApiControllerRequestTransformerType.STATIC,
-							value: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-						},
-					],
-				},
-			},
-		};
-		const legacyGetRoute: IApiControllerPropertiesRouteWithAutoDto<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
-			request: {
-				[EApiControllerRequestTarget.PARAMETERS]: {
-					transformers: [
-						{
-							// @ts-expect-error -- Legacy GET transformer keys remain entity keys.
 							key: "externalOwner",
 							type: EApiControllerRequestTransformerType.STATIC,
 							value: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -246,30 +224,19 @@ describe("public generated read type contract", () => {
 			},
 		};
 
-		expect(configuredReadRoute.request?.[EApiControllerRequestTarget.PARAMETERS]?.transformers?.[0]?.key).toBe("externalOwner");
-		expect(legacyGetRoute).toBeDefined();
+		expect(getRoute.request?.[EApiControllerRequestTarget.PARAMETERS]?.transformers?.[0]?.key).toBe("externalOwner");
 	});
 
-	it("preserves manual response/query DTOs and auto PARAMETERS validators on configured reads", () => {
+	it("preserves manual response/query DTOs and auto PARAMETERS validators", () => {
 		const getWithManualResponse: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
 			dto: {
 				[EApiDtoType.RESPONSE]: PublicGeneratedReadResponseDto,
-			},
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
 			},
 		};
 		const getListWithManualQuery: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = {
 			dto: {
 				[EApiDtoType.QUERY]: PublicGeneratedReadQueryDto,
 				[EApiDtoType.RESPONSE]: PublicGeneratedReadResponseDto,
-			},
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
 			},
 		};
 		const getListWithAutoParametersValidators: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = {
@@ -278,74 +245,11 @@ describe("public generated read type contract", () => {
 					validators: [],
 				},
 			},
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
 		};
 
 		expect(getWithManualResponse.dto?.[EApiDtoType.RESPONSE]).toBe(PublicGeneratedReadResponseDto);
 		expect(getListWithManualQuery.dto?.[EApiDtoType.QUERY]).toBe(PublicGeneratedReadQueryDto);
 		expect(getListWithAutoParametersValidators.autoDto?.[EApiDtoType.PARAMETERS]?.validators).toEqual([]);
-	});
-
-	it("rejects manual PARAMETERS DTOs on configured reads", () => {
-		// @ts-expect-error -- Configured read owns the generated PARAMETERS DTO.
-		const getRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
-			dto: {
-				[EApiDtoType.PARAMETERS]: PublicGeneratedReadParametersDto,
-			},
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
-		};
-		// @ts-expect-error -- Configured read owns the generated PARAMETERS DTO.
-		const getListRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = {
-			dto: {
-				[EApiDtoType.PARAMETERS]: PublicGeneratedReadParametersDto,
-			},
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
-		};
-
-		expect(getRoute).toBeDefined();
-		expect(getListRoute).toBeDefined();
-	});
-
-	it("rejects manual PARAMETERS DTOs on non-fresh configured-read values", () => {
-		const nonFreshGetRoute = {
-			dto: {
-				[EApiDtoType.PARAMETERS]: PublicGeneratedReadParametersDto,
-			},
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
-		} as const;
-		const nonFreshGetListRoute = {
-			dto: {
-				[EApiDtoType.PARAMETERS]: PublicGeneratedReadParametersDto,
-			},
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
-		} as const;
-		// @ts-expect-error -- A non-fresh value cannot bypass generated PARAMETERS DTO ownership.
-		const getRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = nonFreshGetRoute;
-		// @ts-expect-error -- A non-fresh value cannot bypass generated PARAMETERS DTO ownership.
-		const getListRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = nonFreshGetListRoute;
-
-		expect(getRoute).toBeDefined();
-		expect(getListRoute).toBeDefined();
 	});
 
 	it("preserves explicit 3.0.2 root-export generic calls", () => {
@@ -417,26 +321,28 @@ describe("public generated read type contract", () => {
 		expect(preserveRouteWrapper).toBeTypeOf("function");
 	});
 
-	it("rejects generated read scope on write and delete routes", () => {
+	it("rejects the removed read key on generated routes", () => {
 		const createRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.CREATE> = {
-			// @ts-expect-error -- Generated read scope is available only to GET and GET_LIST.
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
+			// @ts-expect-error -- Controller path parameters are bound by pathScope.
+			read: {},
 		};
 		const deleteRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.DELETE> = {
-			// @ts-expect-error -- Generated read scope is available only to GET and GET_LIST.
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
+			// @ts-expect-error -- Controller path parameters are bound by pathScope.
+			read: {},
+		};
+		const getRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
+			// @ts-expect-error -- Controller path parameters are bound by pathScope.
+			read: {},
+		};
+		const getListRoute: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET_LIST> = {
+			// @ts-expect-error -- Controller path parameters are bound by pathScope.
+			read: {},
 		};
 
 		expect(createRoute).toBeDefined();
 		expect(deleteRoute).toBeDefined();
+		expect(getRoute).toBeDefined();
+		expect(getListRoute).toBeDefined();
 	});
 
 	it("rejects generated identity aliases on every non-GET route", () => {
@@ -462,22 +368,23 @@ describe("public generated read type contract", () => {
 		expect(updateRoute).toBeDefined();
 	});
 
-	it("rejects relation-valued read scope fields", () => {
-		const route: TApiControllerPropertiesRoute<IPublicGeneratedReadEntity, EApiRouteType.GET> = {
-			read: {
-				scope: {
-					parameters: [
-						{
-							// @ts-expect-error -- Read scope fields must be direct scalar entity properties.
-							field: "owner",
-							parameter: "ownerId",
-						},
-					],
+	it("rejects relation-valued path fields", () => {
+		const pathScope: IApiControllerPropertiesPathScope<IPublicGeneratedReadEntity> = {
+			parameters: [
+				{
+					// @ts-expect-error -- Bound fields must be direct scalar entity properties.
+					field: "owner",
+					parameter: "ownerId",
 				},
-			},
+			],
+		};
+		const rowPath: IApiControllerPropertiesRowPath<IPublicGeneratedReadEntity> = {
+			// @ts-expect-error -- Row path fields must be direct scalar entity properties.
+			fields: ["owner"],
 		};
 
-		expect(route).toBeDefined();
+		expect(pathScope).toBeDefined();
+		expect(rowPath).toBeDefined();
 	});
 
 	it("rejects relation and nested paths in compound server order", () => {

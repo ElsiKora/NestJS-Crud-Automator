@@ -20,7 +20,6 @@ import { ApiControllerGetListQueryOpenApiDecorators } from "@utility/api/control
 import { ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetErrorStatuses } from "@utility/api/controller/get/error-statuses.utility";
 import { ApiControllerPathPlanAssert } from "@utility/api/controller/path";
-import { ApiControllerReadPlanAssert, ApiControllerReadPlanGet } from "@utility/api/controller/read";
 import { ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { ErrorException } from "@utility/error/exception.utility";
 
@@ -51,7 +50,6 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity, M extends
 	schemaPrefix: string,
 	queryPlan?: IApiControllerGetListQueryPlan,
 ): void {
-	ApiControllerReadPlanAssert(routeConfig);
 	ApiControllerPathPlanAssert(properties);
 
 	ApiControllerApplyDecoratorsWithIdentityPlan(targetMethod, entity, properties, method, methodName, routeConfig, decorators, schemaPrefix, queryPlan);
@@ -89,7 +87,7 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 	const rowPath: string = pathPlan ? pathPlan.rowParameters.map(({ parameter }: IApiControllerPathPlanParameter): string => `:${parameter}`).join("/") : `:${String(entity.primaryKey?.name)}`;
 	const responseDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(properties, entity, method, routeConfig, schemaPrefix, queryPlan, identityPlan);
 	const customDecorators: Array<MethodDecorator> = [...decorators];
-	const errorStatuses: Array<number> = ApiControllerGetErrorStatuses(method, routeConfig, ApiControllerReadPlanGet(targetMethod, methodName) !== undefined);
+	const errorStatuses: Array<number> = ApiControllerGetErrorStatuses(method, routeConfig, (pathPlan?.scopeParameters.length ?? 0) > 0);
 
 	const errors: NonNullable<IApiRouteMetadata<E>["response"]>["errors"] = ApiControllerGetErrorFlags(errorStatuses);
 

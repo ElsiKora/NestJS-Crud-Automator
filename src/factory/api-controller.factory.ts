@@ -4,7 +4,6 @@ import type { IApiAuthenticationRequest } from "@interface/api/authentication-re
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerPathPlan } from "@interface/class/api/controller/path";
-import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiControllerPropertiesRouteGetListResponseDtoConfig } from "@interface/decorator/api/controller/properties/route";
 import type { IApiEntity } from "@interface/entity";
@@ -18,7 +17,6 @@ import { ApiControllerGeneratedCreateTemporalKeyContract } from "@class/api/cont
 import { ApiControllerGetListQueryPlanCompiler } from "@class/api/controller/get-list/query";
 import { ApiControllerIdentityPlanCompiler } from "@class/api/controller/identity-plan-compiler.class";
 import { ApiControllerPathPlanCompiler } from "@class/api/controller/path-plan-compiler.class";
-import { ApiControllerReadPlanCompiler } from "@class/api/controller/read-plan-compiler.class";
 import { ApiControllerRequestRelationsValidator } from "@class/api/controller/request-relations-validator.class";
 import { ApiControllerSchemaNameCheck } from "@class/api/controller/schema-name-check.class";
 import { ApiControllerTableInheritancePlanCompiler } from "@class/api/controller/table-inheritance-plan-compiler.class";
@@ -31,7 +29,7 @@ import { Controller, UseFilters } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/api";
 import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/controller/apply/decorators.utility";
-import { ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/apply/metadata.utility";
+import { ApiControllerApplyMetadataWithPathPlan } from "@utility/api/controller/apply/metadata.utility";
 import { ApiControllerGetInheritedRouteMethod } from "@utility/api/controller/apply/route-methods.utility";
 import { ApiControllerAssertRouteCursorDataSource, ApiControllerAssertRouteFunctions, ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
@@ -41,9 +39,8 @@ import { ApiControllerGetListTransformAssertPublishedFilters } from "@utility/ap
 import { ApiControllerGetListTransformAssertRelationTargets } from "@utility/api/controller/get-list/transform/assert-relation-targets.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
-import { ApiControllerPathPlanSet } from "@utility/api/controller/path";
-import { ApiControllerReadPlanGet, ApiControllerReadPlanSet } from "@utility/api/controller/read";
-import { ApiControllerWriteDtoSwaggerWithReadPlan } from "@utility/api/controller/write/dto-swagger.utility";
+import { ApiControllerPathPlanGet, ApiControllerPathPlanSet } from "@utility/api/controller/path";
+import { ApiControllerWriteDtoSwaggerWithPathPlan } from "@utility/api/controller/write/dto-swagger.utility";
 import { ApiRouteRebindInheritedCustom } from "@utility/api/route/rebind-inherited-custom.utility";
 import { DatabaseTypeOrmAssertServiceRepository } from "@utility/database/typeorm/assert/service-repository.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -169,16 +166,13 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			let queryPlan: IApiControllerGetListQueryPlan | undefined;
 
 			ApiControllerRequestRelationsValidator.register<E>(this.targetPrototype, this.properties.entity, `Controller ${this.target.name} route ${method}`, routeConfig.relations?.request, routeConfig.transaction?.mode);
-			const pathPlan: IApiControllerPathPlan = this.compilePathPlan();
+
+			this.pathPlan ??= ApiControllerPathPlanCompiler.compile(this.target, this.properties.path, this.ENTITY, this.properties, method);
+			const pathPlan: IApiControllerPathPlan = this.pathPlan;
 
 			ApiControllerPathPlanCompiler.assertRoute(pathPlan, this.ENTITY, method, routeConfig);
 			ApiControllerPathPlanSet(this.targetPrototype, methodName, pathPlan);
-			const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanCompiler.compile(this.target, this.properties.path, this.ENTITY, method, routeConfig);
-			const identityPlan: IApiControllerIdentityPlan | undefined = ApiControllerIdentityPlanCompiler.compile(this.target, this.properties.path, this.ENTITY, method, routeConfig, pathPlan, readPlan);
-
-			if (readPlan) {
-				ApiControllerReadPlanSet(this.targetPrototype, methodName, readPlan);
-			}
+			const identityPlan: IApiControllerIdentityPlan | undefined = ApiControllerIdentityPlanCompiler.compile(this.target, this.ENTITY, method, routeConfig, pathPlan);
 
 			ApiControllerWriteMethod<E>(this as never, this.targetPrototype, method, this.properties, this.ENTITY);
 
@@ -197,13 +191,13 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 				ApiControllerIdentityPlanSet(targetMethod, identityPlan);
 			}
 
-			ApiControllerApplyMetadataWithReadPlan(this.target, this.targetPrototype, this.ENTITY, this.properties, method, methodName, routeConfig, queryPlan, readPlan, identityPlan, pathPlan);
+			ApiControllerApplyMetadataWithPathPlan(this.target, this.targetPrototype, this.ENTITY, this.properties, method, methodName, routeConfig, queryPlan, pathPlan, identityPlan);
 
 			if (this.properties.routes[method]?.generation?.shouldWriteToController !== false) {
 				ApiControllerApplyDecoratorsWithIdentityPlan(targetMethod, this.ENTITY, this.properties, method, methodName, routeConfig, routeDecorators, this.schemaPrefix, queryPlan, identityPlan, pathPlan);
 			}
 
-			ApiControllerWriteDtoSwaggerWithReadPlan(this.target, this.ENTITY, this.properties, method, routeConfig, queryPlan, readPlan, identityPlan, pathPlan);
+			ApiControllerWriteDtoSwaggerWithPathPlan(this.target, this.ENTITY, this.properties, method, routeConfig, queryPlan, pathPlan, identityPlan);
 			ApiControllerFactory.GENERATED_METHODS.add(targetMethod);
 		} else {
 			this.hideInheritedGeneratedRoute(method);
@@ -214,8 +208,9 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		this.schemaPrefix = this.claimSchemaPrefix();
 		ApiRouteRebindInheritedCustom(this.target);
 
-		if (this.properties.rowPath !== undefined) {
-			this.compilePathPlan();
+		// No enabled route compiles the plan of a controller of custom routes, so its declared settings have their shape checked here.
+		if ((this.properties.pathScope !== undefined || this.properties.rowPath !== undefined) && !Object.values(EApiRouteType).some((method: EApiRouteType): boolean => this.isMethodGenerated(method))) {
+			ApiControllerPathPlanCompiler.compile(this.target, this.properties.path, this.ENTITY, this.properties);
 		}
 
 		for (const method of Object.values(EApiRouteType)) {
@@ -245,6 +240,18 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 
 	protected [EApiRouteType.CREATE](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.CREATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		const schemaPrefix: string = this.schemaPrefix;
+
+		if (ApiControllerPathPlanGet(this.targetPrototype, methodName)?.scopeParameters.length) {
+			this.targetPrototype[methodName] = Object.defineProperty(
+				async function (this: TApiControllerMethod<E>, parameters: Partial<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
+					return (await ApiRouteRuntime.executeGenerated({ controller: this, entityMetadata, method, methodName, properties, schemaPrefix, targets: { authenticationRequest, body, headers, ip, parameters } })) as E;
+				},
+				"name",
+				{ value: methodName },
+			) as unknown as TApiControllerMethodMap<E, M>[EApiRouteType.CREATE];
+
+			return;
+		}
 
 		this.targetPrototype[methodName] = Object.defineProperty(
 			async function (this: TApiControllerMethod<E>, body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<E> {
@@ -282,9 +289,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	protected [EApiRouteType.GET_LIST](method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.GET_LIST>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {
 		const schemaPrefix: string = this.schemaPrefix;
 
-		const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanGet(this.targetPrototype, methodName);
-
-		if (readPlan) {
+		if (ApiControllerPathPlanGet(this.targetPrototype, methodName)?.scopeParameters.length) {
 			this.targetPrototype[methodName] = Object.defineProperty(
 				async function (this: TApiControllerMethod<E>, parameters: Partial<E>, query: TApiControllerGetListQuery<E, M>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest): Promise<TApiControllerGetListResponse<E, M>> {
 					const requestQueryValue: unknown = authenticationRequest && "query" in authenticationRequest ? authenticationRequest.query : undefined;
@@ -375,16 +380,6 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		UseFilters(ApiControllerSchemaNameCheck)(this.target);
 
 		return ApiControllerGetSchemaPrefix(this.target);
-	}
-
-	/**
-	 * Compiles the controller's path plan once. Enabled routes reach it, and a declared setting reaches it from `init`, so a controller without generated routes and path settings starts without one.
-	 * @returns {IApiControllerPathPlan} The compiled path plan.
-	 */
-	private compilePathPlan(): IApiControllerPathPlan {
-		this.pathPlan ??= ApiControllerPathPlanCompiler.compile(this.target, this.ENTITY, this.properties);
-
-		return this.pathPlan;
 	}
 
 	private defineUpdateRouteMethod(method: EApiRouteType, methodName: TApiControllerMethodName<typeof EApiRouteType.PARTIAL_UPDATE> | TApiControllerMethodName<typeof EApiRouteType.UPDATE>, properties: IApiControllerProperties<E>, entityMetadata: IApiEntity<E>): void {

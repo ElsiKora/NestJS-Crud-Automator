@@ -10,5 +10,7 @@ export interface IApiControllerPathPlan {
 	isRowPathDeclared: boolean;
 	primaryFields: ReadonlyArray<string>;
 	rowParameters: ReadonlyArray<IApiControllerPathPlanParameter>;
+	/** The controller path parameters and the entity fields they bind, in path order. */
+	scopeParameters: ReadonlyArray<IApiControllerPathPlanParameter>;
 	signature: string;
 }

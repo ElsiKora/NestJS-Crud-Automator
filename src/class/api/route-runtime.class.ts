@@ -6,7 +6,6 @@ import type { IApiControllerGetListQueryAstNode, IApiControllerGetListQueryPlan,
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { IApiControllerPathPlan, IApiControllerPathPlanParameter } from "@interface/class/api/controller/path";
-import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiRouteRuntimeContextData, IApiRouteRuntimeCustomExecutionOptions, IApiRouteRuntimeGeneratedExecutionOptions, IApiRouteRuntimeGeneratedTargets, IApiRouteRuntimeHttpRequest } from "@interface/class/api/route";
 import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route/error-execution-context.interface";
 import type { IApiSubscriberRouteExecutionContextData } from "@interface/class/api/subscriber/route/execution/context";
@@ -56,13 +55,12 @@ import { ApiControllerGetListQueryValidate } from "@utility/api/controller/get-l
 import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response-published-fields.utility";
 import { ApiControllerGetListTransformAssertRequestRelationTargets } from "@utility/api/controller/get-list/transform/assert-request-relation-targets.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
-import { ApiControllerGetDtoWithReadPlan, ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetDtoWithPathPlan, ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerHandleRequestRelations } from "@utility/api/controller/handle-request-relations.utility";
 import { ApiControllerHasResponseRelationInclude } from "@utility/api/controller/has-response-relation-include.utility";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ApiControllerParametersDtoGet, ApiControllerParametersResolveRequest, ApiControllerParametersValidate } from "@utility/api/controller/parameters";
-import { ApiControllerPathPlanGet, ApiControllerPathRowParameters, ApiControllerPathWhere } from "@utility/api/controller/path";
-import { ApiControllerReadPlanGet, ApiControllerReadScopeWhere } from "@utility/api/controller/read";
+import { ApiControllerPathPlanGet, ApiControllerPathRouteParameters, ApiControllerPathWhere } from "@utility/api/controller/path";
 import { ApiControllerRejectToManyUpdateKeys } from "@utility/api/controller/reject-to-many-update-keys.utility";
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
 import { ApiControllerTransformData, ApiControllerTransformRouteData } from "@utility/api/controller/transform-data.utility";
@@ -244,6 +242,47 @@ export class ApiRouteRuntime {
 		}
 	}
 
+	/**
+	 * Refuses a body that names another value for a field the path binds, directly or through the relation that field joins. The value is not echoed, because it is the client's and the path already names the right one.
+	 * @template E - Entity type owned by the route.
+	 * @template R - Generated route type.
+	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
+	 * @param {IApiRouteRuntimeGeneratedTargets<E>} targets - Request targets.
+	 * @param {IApiControllerPathPlan} pathPlan - Path plan of the route.
+	 * @returns {void}
+	 * @throws {BadRequestException} When the body differs from the path.
+	 */
+	private static assertBodyMatchesPath<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, pathPlan: IApiControllerPathPlan): void {
+		if (pathPlan.scopeParameters.length === 0 || !targets.body) {
+			return;
+		}
+
+		const body: Record<string, unknown> = targets.body as Record<string, unknown>;
+		const scope: Record<string, unknown> = this.resolveRouteWhere(options, targets, pathPlan, pathPlan.scopeParameters);
+		const repository: unknown = (options.controller.service as { repository?: unknown }).repository;
+		const relations: ReadonlyArray<RelationMetadata> = repository instanceof Repository ? repository.metadata.relations : [];
+
+		for (const [field, pathValue] of Object.entries(scope)) {
+			if (body[field] !== undefined && (body[field] === null || !this.isSamePathValue(body[field], pathValue))) {
+				throw new BadRequestException("PARAMETERS_NOT_VALID");
+			}
+
+			for (const relation of relations) {
+				const joinColumn: TTypeOrmColumnMetadata | undefined = relation.joinColumns.find((column: TTypeOrmColumnMetadata): boolean => column.propertyName === field);
+				const relationValue: unknown = body[relation.propertyName];
+
+				if (joinColumn && relationValue !== undefined) {
+					const referencedName: string | undefined = joinColumn.referencedColumn?.propertyName;
+					const relationKey: unknown = typeof relationValue === "object" && relationValue !== null && referencedName ? (relationValue as Record<string, unknown>)[referencedName] : relationValue;
+
+					if (relationKey === undefined || relationKey === null || !this.isSamePathValue(relationKey, pathValue)) {
+						throw new BadRequestException("PARAMETERS_NOT_VALID");
+					}
+				}
+			}
+		}
+	}
+
 	private static async executeCustomErrorSubscribers<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>, entityInstance: E, contextData: IApiRouteRuntimeContextData<E>, onType: EApiSubscriberOnType, error: unknown): Promise<void> {
 		const action: string = options.metadata.resource.action;
 
@@ -340,6 +379,7 @@ export class ApiRouteRuntime {
 		if (method === EApiRouteType.PARTIAL_UPDATE || method === EApiRouteType.UPDATE) {
 			ApiControllerRejectToManyUpdateKeys(options.properties.entity, targets.body);
 			await this.executeGeneratedRequestPipeline(options, targets, [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.BODY]);
+			this.assertBodyMatchesPath(options, targets, this.resolvePathPlan(options));
 			const service: ApiServiceBase<E> = options.controller.service;
 			const updateFunction: (this: ApiServiceBase<E>, criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: never) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.UPDATE, EApiFunctionType.UPDATE, options.properties.entity);
 			const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
@@ -349,7 +389,12 @@ export class ApiRouteRuntime {
 
 		switch (method) {
 			case EApiRouteType.CREATE: {
-				await this.executeGeneratedRequestPipeline(options, targets, [EApiControllerRequestTarget.BODY]);
+				const pathPlan: IApiControllerPathPlan = this.resolvePathPlan(options);
+
+				await this.executeGeneratedRequestPipeline(options, targets, pathPlan.scopeParameters.length > 0 ? [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.BODY] : [EApiControllerRequestTarget.BODY]);
+				this.assertBodyMatchesPath(options, targets, pathPlan);
+				targets.body ??= {} as never;
+				Object.assign(targets.body as object, this.resolveRouteWhere(options, targets, pathPlan, pathPlan.scopeParameters));
 				const service: ApiServiceBase<E> = options.controller.service;
 				const createFunction: (this: ApiServiceBase<E>, properties: never) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.CREATE, EApiFunctionType.CREATE, options.properties.entity);
 				const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
@@ -366,8 +411,6 @@ export class ApiRouteRuntime {
 					async (eventManager: EntityManager | undefined): Promise<E> => {
 						const createInput: DeepPartial<E> = targets.body ?? ({} as DeepPartial<E>);
 						await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, createInput);
-						// An entity without primary key metadata fails here, before the route writes, as GET, PUT, PATCH and DELETE fail.
-						this.resolvePathPlan(options);
 						markAfterBoundary();
 
 						// The reload checks the row the protected function stored, by the key it reported before its subscribers could replace the result.
@@ -425,16 +468,14 @@ export class ApiRouteRuntime {
 				const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
 
 				return await this.executeGeneratedTransaction(options, routeConfig, async (eventManager: EntityManager | undefined): Promise<E> => {
-					const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName);
 					const identityPlan: IApiControllerIdentityPlan | undefined = this.resolveIdentityPlan(options.controller, options.methodName);
 					const pathPlan: IApiControllerPathPlan = this.resolvePathPlan(options);
-					const identityWhere: FindOptionsWhere<E> = this.resolveRouteWhere(options, targets, pathPlan, ApiControllerPathRowParameters(pathPlan, identityPlan));
-					const routeScopedWhere: TApiAuthorizationScopeWhere<E> = readPlan ? AuthorizationScopeMergeWhere(identityWhere, ApiControllerReadScopeWhere(targets.parameters, readPlan)) : identityWhere;
+					const routeWhere: FindOptionsWhere<E> = this.resolveRouteWhere(options, targets, pathPlan, ApiControllerPathRouteParameters(pathPlan, method, identityPlan));
 
 					const requestProperties: TApiFunctionGetProperties<E> = {
 						relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
 						relations: routeConfig.relations?.response?.load?.include,
-						where: AuthorizationScopeMergeWhere(routeScopedWhere, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
+						where: AuthorizationScopeMergeWhere(routeWhere, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
 					};
 
 					// A row a finer stored value keeps out of the full key stays readable, so the read keeps the where its path names.
@@ -449,8 +490,10 @@ export class ApiRouteRuntime {
 			}
 
 			case EApiRouteType.GET_LIST: {
-				const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName);
-				await this.executeGeneratedRequestPipeline(options, targets, readPlan ? [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.QUERY] : [EApiControllerRequestTarget.QUERY]);
+				const pathPlan: IApiControllerPathPlan | undefined = ApiControllerPathPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName);
+				const scopedPathPlan: IApiControllerPathPlan | undefined = pathPlan && pathPlan.scopeParameters.length > 0 ? pathPlan : undefined;
+
+				await this.executeGeneratedRequestPipeline(options, targets, scopedPathPlan ? [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.QUERY] : [EApiControllerRequestTarget.QUERY]);
 
 				const requestQuery: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> | undefined = targets.query;
 
@@ -479,7 +522,7 @@ export class ApiRouteRuntime {
 				const cursorRuntimeQuery: TApiControllerGetListCursorQueryRuntimeResult | undefined = cursorPlan ? (ApiControllerGetListQueryRuntime.parse(requestQuery, cursorPlan) as unknown as TApiControllerGetListCursorQueryRuntimeResult) : undefined;
 				const pageRuntimeQuery: IApiControllerGetListQueryRuntimeResult | undefined = !cursorPlan && queryPlan ? ApiControllerGetListQueryRuntime.parse(requestQuery, queryPlan) : undefined;
 				const runtimeQuery: IApiControllerGetListQueryRuntimeResult | TApiControllerGetListCursorQueryRuntimeResult | undefined = cursorRuntimeQuery ?? pageRuntimeQuery;
-				const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(options.properties, options.entityMetadata, options.method, EApiDtoType.QUERY, routeConfig, options.schemaPrefix, queryPlan, readPlan);
+				const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithPathPlan(options.properties, options.entityMetadata, options.method, EApiDtoType.QUERY, routeConfig, options.schemaPrefix, queryPlan, pathPlan);
 				const validatedQuery: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> = queryDto ? await ApiControllerGetListQueryValidate(queryDto, requestQuery) : requestQuery;
 				// Only the database query uses the validated copy; subscribers keep the query that route-before subscribers produced.
 				const query: TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> = !queryPlan || queryPlan.filter.isLegacy ? validatedQuery : requestQuery;
@@ -519,7 +562,7 @@ export class ApiRouteRuntime {
 				const getListFunction: ((this: ApiServiceBase<E>, properties: TApiFunctionGetListProperties<E>) => Promise<unknown>) | undefined = cursorRuntimeQuery ? undefined : ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET_LIST, EApiFunctionType.GET_LIST, options.properties.entity);
 
 				return await this.executeGeneratedTransaction(options, routeConfig, async (eventManager: EntityManager | undefined): Promise<unknown> => {
-					const routeScopedFilter: TApiAuthorizationScopeWhere<E> = readPlan ? AuthorizationScopeMergeWhere(filter, ApiControllerReadScopeWhere(targets.parameters, readPlan)) : filter;
+					const routeScopedFilter: TApiAuthorizationScopeWhere<E> = scopedPathPlan ? AuthorizationScopeMergeWhere(filter, this.resolveRouteWhere(options, targets, scopedPathPlan, scopedPathPlan.scopeParameters)) : filter;
 					const scopedFilter: Array<TApiFunctionGetListPropertiesWhere<E>> | TApiFunctionGetListPropertiesWhere<E> | undefined = AuthorizationScopeMergeWhere(routeScopedFilter, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
 					const effectiveLimit: number = runtimeQuery?.limit ?? limit;
 					const effectiveOrderBy: keyof E | string | undefined = runtimeQuery?.orderBy ?? orderBy;
@@ -537,7 +580,7 @@ export class ApiRouteRuntime {
 							where: scopedFilter ?? filter,
 						};
 						const routePath: string = options.properties.path ?? (options.properties.entity.name ? options.properties.entity.name.toLowerCase() : "UnknownResource");
-						const contextHash: string = ApiControllerGetListCursorRuntime.createContextHash(routePath, targets.parameters, cursorPlan, cursorRuntimeQuery.ast, cursorRuntimeQuery.order, readPlan?.signature);
+						const contextHash: string = ApiControllerGetListCursorRuntime.createContextHash(routePath, targets.parameters, cursorPlan, cursorRuntimeQuery.ast, cursorRuntimeQuery.order, scopedPathPlan?.signature);
 						let direction: "after" | "before" | undefined;
 
 						if (cursorRuntimeQuery.after) {
@@ -763,11 +806,11 @@ export class ApiRouteRuntime {
 		};
 		const requestTargets: Partial<Record<EApiControllerRequestTarget, unknown>> | undefined = runtimeProperties.request;
 
-		ApiControllerTransformData<E>(runtimeProperties.request, controllerProperties, { parameters: request.params }, contextData);
+		ApiControllerTransformRouteData<E>(runtimeProperties.request, controllerProperties, { parameters: request.params }, contextData);
 		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.PARAMETERS] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, controllerProperties, request.params ?? {});
-		ApiControllerTransformData<E>(runtimeProperties.request, controllerProperties, { query: request.query as TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> | undefined }, contextData);
+		ApiControllerTransformRouteData<E>(runtimeProperties.request, controllerProperties, { query: request.query as TApiControllerGetListQuery<E, EApiControllerGetListQueryPaginationMode> | undefined }, contextData);
 		await ApiControllerValidateRequest<E, EApiControllerGetListQueryPaginationMode>(requestTargets?.[EApiControllerRequestTarget.QUERY] as IApiControllerPropertiesRouteBaseRequestTarget<E, EApiControllerGetListQueryPaginationMode> | undefined, controllerProperties, request.query ?? {});
-		ApiControllerTransformData<E>(runtimeProperties.request, controllerProperties, { body: request.body as E | undefined }, contextData);
+		ApiControllerTransformRouteData<E>(runtimeProperties.request, controllerProperties, { body: request.body as E | undefined }, contextData);
 		await ApiControllerValidateRequest<E>(requestTargets?.[EApiControllerRequestTarget.BODY] as IApiControllerPropertiesRouteBaseRequestTarget<E> | undefined, controllerProperties, request.body ?? {});
 		await this.executeDiscriminatedRequestBodyDto(runtimeProperties, request);
 	}
@@ -797,6 +840,16 @@ export class ApiRouteRuntime {
 		}
 
 		return matches;
+	}
+
+	/**
+	 * Compares a body value with the value its path parameter binds.
+	 * @param {unknown} value - Value the request body carries.
+	 * @param {unknown} pathValue - Value the request path binds.
+	 * @returns {boolean} Whether both name the same value.
+	 */
+	private static isSamePathValue(value: unknown, pathValue: unknown): boolean {
+		return pathValue instanceof Date ? new Date(String(value)).getTime() === pathValue.getTime() : String(value) === String(pathValue);
 	}
 
 	private static async loadCustomResponseRelations<E extends IApiBaseEntity>(service: ApiServiceBase<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: unknown): Promise<unknown> {
@@ -933,11 +986,11 @@ export class ApiRouteRuntime {
 
 		const field: string = String(primaryColumn.name);
 
-		return { controllerName: options.controller.constructor.name, isDefaultRowPath: true, isKeyCovered: true, isRowPathDeclared: false, primaryFields: [field], rowParameters: [{ field, parameter: field }], signature: "" };
+		return { controllerName: options.controller.constructor.name, isDefaultRowPath: true, isKeyCovered: true, isRowPathDeclared: false, primaryFields: [field], rowParameters: [{ field, parameter: field }], scopeParameters: [], signature: "" };
 	}
 
 	/**
-	 * Builds the where clause a route path addresses. Date and time values of a composite route must name one exact instant, which a single-column key route leaves to the database as before.
+	 * Builds the where clause a route path addresses. Date and time values of a composite or bound route must name one exact instant, which a plain single-column key route leaves to the database as before.
 	 * @template E - Entity type owned by the route.
 	 * @template R - Generated route type.
 	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
@@ -947,7 +1000,7 @@ export class ApiRouteRuntime {
 	 * @returns {FindOptionsWhere<E>} The where clause.
 	 */
 	private static resolveRouteWhere<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, pathPlan: IApiControllerPathPlan, mappings: ReadonlyArray<IApiControllerPathPlanParameter>): FindOptionsWhere<E> {
-		if (pathPlan.primaryFields.length === 1) {
+		if (pathPlan.primaryFields.length === 1 && pathPlan.scopeParameters.length === 0) {
 			return ApiControllerPathWhere<E>(targets.parameters, mappings);
 		}
 
@@ -981,7 +1034,7 @@ export class ApiRouteRuntime {
 	 */
 	private static async resolveWriteCriteria<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined, eventManager: EntityManager | undefined): Promise<NonNullable<TApiAuthorizationScopeWhere<E>>> {
 		const pathPlan: IApiControllerPathPlan = this.resolvePathPlan(options);
-		const requestCriteria: FindOptionsWhere<E> = this.resolveRouteWhere(options, targets, pathPlan, pathPlan.rowParameters);
+		const requestCriteria: FindOptionsWhere<E> = this.resolveRouteWhere(options, targets, pathPlan, ApiControllerPathRouteParameters(pathPlan, options.method));
 		const criteria: NonNullable<TApiAuthorizationScopeWhere<E>> = AuthorizationScopeMergeWhere(requestCriteria, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)) ?? requestCriteria;
 
 		if (pathPlan.isKeyCovered) {
@@ -1002,6 +1055,9 @@ export class ApiRouteRuntime {
 			throw new InternalServerErrorException("Generated route cannot address a row whose key column holds a finer value than a millisecond");
 		}
 
-		return AuthorizationScopeMergeWhere(key, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)) ?? key;
+		// The key stands in for the row parameters, whose text may differ from the stored value's type, and the bound fields stay.
+		const keyWhere: FindOptionsWhere<E> = { ...this.resolveRouteWhere(options, targets, pathPlan, pathPlan.scopeParameters), ...key };
+
+		return AuthorizationScopeMergeWhere(keyWhere, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)) ?? keyWhere;
 	}
 }

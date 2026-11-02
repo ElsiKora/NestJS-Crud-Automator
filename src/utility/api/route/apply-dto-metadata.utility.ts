@@ -10,9 +10,8 @@ import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
 import { ApiBody, ApiExtraModels } from "@nestjs/swagger";
-import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetDtoWithPathPlan } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
-import { ApiControllerReadPlanAssert } from "@utility/api/controller/read";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema, ApiRouteIsDiscriminatedDtoProperties, ApiRouteValidateDiscriminatedBodyProperties } from "@utility/api/route/discriminator";
 import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
@@ -141,14 +140,10 @@ function resolveRequestDto<E extends IApiBaseEntity>(metadata: IApiRouteMetadata
 
 	// A response type limits the GET_LIST order fields to the item properties it publishes, as a generated route's manual response DTO does; response variants limit them to the properties all of them publish.
 	if (metadata.route.type === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY && !runtimeProperties.dto?.[EApiDtoType.RESPONSE] && responseType && (!Array.isArray(responseType) || responseType.length > 0)) {
-		ApiControllerReadPlanAssert(routeConfig);
-
 		return DtoGenerate(metadata.resource.entity, entity, metadata.route.type, dtoType, ApiControllerGetSchemaPrefix(controller), runtimeProperties.autoDto[dtoType], metadata.security?.authentication?.guard, undefined, undefined, routeName, responseType);
 	}
 
-	ApiControllerReadPlanAssert(routeConfig);
-
-	return ApiControllerGetDtoWithReadPlan(controllerProperties, entity, metadata.route.type, dtoType, routeConfig, ApiControllerGetSchemaPrefix(controller), undefined, undefined, undefined, routeName);
+	return ApiControllerGetDtoWithPathPlan(controllerProperties, entity, metadata.route.type, dtoType, routeConfig, ApiControllerGetSchemaPrefix(controller), undefined, undefined, undefined, routeName);
 }
 
 /**

@@ -3,7 +3,6 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerPathPlan } from "@interface/class/api/controller/path";
-import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { Type } from "@nestjs/common";
@@ -12,8 +11,9 @@ import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/ro
 
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { EApiDtoType } from "@enum/decorator/api";
-import { ApiControllerGetDtoWithReadPlan, ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
+import { ApiControllerGetDtoWithPathPlan, ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
+import { ApiControllerPathPlanAssert } from "@utility/api/controller/path";
 import { ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
 
@@ -32,11 +32,12 @@ import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dt
  * @template E - The entity type
  */
 export function ApiControllerWriteDtoSwagger<E extends IApiBaseEntity>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, _entityMetadata: IApiEntity<E>, queryPlan?: IApiControllerGetListQueryPlan): void {
-	ApiControllerWriteDtoSwaggerWithReadPlan(target, entity, properties, method, routeConfig, queryPlan);
+	ApiControllerPathPlanAssert(properties);
+	ApiControllerWriteDtoSwaggerWithPathPlan(target, entity, properties, method, routeConfig, queryPlan);
 }
 
 /**
- * Registers generated DTOs and Swagger parameters with an internal compiled read plan.
+ * Registers generated DTOs and Swagger parameters with an internal compiled path plan.
  * @template E - Entity type
  * @param {object} target - Controller class.
  * @param {IApiEntity<E>} entity - Entity metadata.
@@ -44,17 +45,16 @@ export function ApiControllerWriteDtoSwagger<E extends IApiBaseEntity>(target: o
  * @param {EApiRouteType} method - Generated route type.
  * @param {TApiControllerPropertiesRoute<E, typeof method>} routeConfig - Route configuration.
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Internal compiled QUERY plan.
- * @param {IApiControllerReadPlan} [readPlan] - Internal compiled PARAMETERS plan.
- * @param {IApiControllerIdentityPlan} [identityPlan] - Internal GET identity alias plan.
  * @param {IApiControllerPathPlan} [pathPlan] - Internal compiled controller path plan.
+ * @param {IApiControllerIdentityPlan} [identityPlan] - Internal GET identity alias plan.
  * @returns {void}
  */
-export function ApiControllerWriteDtoSwaggerWithReadPlan<E extends IApiBaseEntity>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan, pathPlan?: IApiControllerPathPlan): void {
+export function ApiControllerWriteDtoSwaggerWithPathPlan<E extends IApiBaseEntity>(target: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, queryPlan?: IApiControllerGetListQueryPlan, pathPlan?: IApiControllerPathPlan, identityPlan?: IApiControllerIdentityPlan): void {
 	const schemaPrefix: string = ApiControllerGetSchemaPrefix(target);
 	const swaggerModels: Array<unknown> = (Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.EXTRA_MODELS, target) ?? []) as Array<unknown>;
-	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan, undefined, pathPlan);
-	const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.QUERY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan, undefined, pathPlan);
-	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan, undefined, pathPlan);
+	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithPathPlan(properties, entity, method, EApiDtoType.PARAMETERS, routeConfig, schemaPrefix, queryPlan, pathPlan, identityPlan);
+	const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithPathPlan(properties, entity, method, EApiDtoType.QUERY, routeConfig, schemaPrefix, queryPlan, pathPlan, identityPlan);
+	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithPathPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, schemaPrefix, queryPlan, pathPlan, identityPlan);
 	const responseDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(properties, entity, method, routeConfig, schemaPrefix, queryPlan, identityPlan);
 
 	const dtoList: Array<Type<unknown> | undefined> = [requestDto, queryDto, bodyDto, ...(ApiRouteIsDiscriminatedDtoProperties(responseDto) ? [] : [responseDto])];

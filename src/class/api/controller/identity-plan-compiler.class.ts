@@ -1,12 +1,10 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerPathPlan, IApiControllerPathPlanParameter } from "@interface/class/api/controller/path";
-import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { CanActivate, Type } from "@nestjs/common";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
-import type { Token as PathPart } from "path-to-regexp";
 
 import { createHash } from "node:crypto";
 
@@ -16,13 +14,11 @@ import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/deco
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { ErrorException } from "@utility/error/exception.utility";
-// path-to-regexp stays on 8.x, the release @nestjs/core 12 pins, so route paths are parsed the way Nest matches them
-import { parse } from "path-to-regexp";
 
 const IDENTITY_PARAMETER_PATTERN: RegExp = /^[A-Za-z_$][\w$]*$/u;
 
 export class ApiControllerIdentityPlanCompiler {
-	public static compile<E extends IApiBaseEntity, R extends EApiRouteType>(controller: Type<unknown>, controllerPath: string | undefined, entityMetadata: IApiEntity<E>, method: R, routeConfig: TApiControllerPropertiesRoute<E, R>, pathPlan: IApiControllerPathPlan, readPlan?: IApiControllerReadPlan): IApiControllerIdentityPlan | undefined {
+	public static compile<E extends IApiBaseEntity, R extends EApiRouteType>(controller: Type<unknown>, entityMetadata: IApiEntity<E>, method: R, routeConfig: TApiControllerPropertiesRoute<E, R>, pathPlan: IApiControllerPathPlan): IApiControllerIdentityPlan | undefined {
 		const identityDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(routeConfig, "identity");
 
 		if (!identityDescriptor) {
@@ -58,18 +54,14 @@ export class ApiControllerIdentityPlanCompiler {
 		}
 
 		const field: string = String(primaryColumn.name);
-		const inheritedParameters: ReadonlySet<string> = this.extractPathParameters(controllerPath ?? "");
+		const boundParameters: ReadonlySet<string> = new Set<string>(pathPlan.scopeParameters.map((mapping: IApiControllerPathPlanParameter): string => mapping.parameter));
 
-		if (inheritedParameters.size > 0 && !readPlan) {
-			throw ErrorException("Generated identity on a controller path with inherited parameters requires generated read scope mappings");
+		if (boundParameters.has(parameter)) {
+			throw ErrorException(`Generated identity parameter "${parameter}" conflicts with a controller path parameter`);
 		}
 
-		if (inheritedParameters.has(parameter)) {
-			throw ErrorException(`Generated identity parameter "${parameter}" conflicts with an inherited controller path parameter`);
-		}
-
-		if (parameter !== field && inheritedParameters.has(field)) {
-			throw ErrorException(`Inherited controller path parameter "${field}" is ambiguous with generated identity parameter "${parameter}"`);
+		if (parameter !== field && boundParameters.has(field)) {
+			throw ErrorException(`Controller path parameter "${field}" is ambiguous with generated identity parameter "${parameter}"`);
 		}
 
 		const currentGuard: Type<CanActivate> | undefined = routeConfig.security?.authentication?.guard;
@@ -89,36 +81,6 @@ export class ApiControllerIdentityPlanCompiler {
 			schemaName: `${schemaPrefix}GetIdentity${signature}DTO`,
 			signature,
 		});
-	}
-
-	private static collectPathParameters(pathParts: ReadonlyArray<PathPart>, parameters: Set<string>): void {
-		for (const pathPart of pathParts) {
-			if (pathPart.type === "text") {
-				continue;
-			}
-
-			if (pathPart.type === "group") {
-				this.collectPathParameters(pathPart.tokens, parameters);
-				continue;
-			}
-
-			parameters.add(pathPart.name);
-		}
-	}
-
-	private static extractPathParameters(path: string): ReadonlySet<string> {
-		const parameters: Set<string> = new Set<string>();
-		let pathParts: Array<PathPart>;
-
-		try {
-			pathParts = parse(path).tokens;
-		} catch {
-			throw ErrorException(`Controller path "${path}" is not valid route syntax`);
-		}
-
-		this.collectPathParameters(pathParts, parameters);
-
-		return parameters;
 	}
 
 	private static readParameter(value: unknown): string {

@@ -5,7 +5,7 @@ import type { DeepPartial } from "typeorm";
 
 /**
  * The arguments of the generated controller methods.
- * On a route with `read.scope.parameters`, the generated `getList` takes `(parameters, query, headers, ip)` instead, which a type cannot see, so a direct call with these arguments answers `400` with `<parameter> should not be null or undefined`.
+ * On a controller with `pathScope`, the generated `getList` takes `(parameters, query, headers, ip)` and `create` takes `(parameters, body, headers, ip)` instead, which a type cannot see, so a direct call with these arguments answers `400` with `<parameter> should not be null or undefined`.
  * @template E - Entity type.
  * @template M - List pagination mode.
  */

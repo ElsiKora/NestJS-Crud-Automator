@@ -42,7 +42,7 @@ export class ApiControllerGetListCursorRuntime {
 		}
 	}
 
-	public static createContextHash(route: string, parameters: Partial<IApiBaseEntity> | undefined, plan: TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR>, ast: IApiControllerGetListQueryAst, order: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry>, readPlanSignature?: string): string {
+	public static createContextHash(route: string, parameters: Partial<IApiBaseEntity> | undefined, plan: TApiControllerGetListQueryCompiledPlan<EApiControllerGetListQueryPaginationMode.CURSOR>, ast: IApiControllerGetListQueryAst, order: ReadonlyArray<IApiControllerGetListQueryPlanOrderEntry>, pathPlanSignature?: string): string {
 		const normalizedParameters: Record<string, unknown> = {};
 
 		for (const [key, value] of Object.entries(parameters ?? {}).toSorted(([left]: [string, unknown], [right]: [string, unknown]): number => this.compareStrings(left, right))) {
@@ -65,7 +65,7 @@ export class ApiControllerGetListCursorRuntime {
 				schema: plan.schemaName,
 				signature: plan.signature,
 			},
-			...(readPlanSignature === undefined ? {} : { readPlan: readPlanSignature }),
+			...(pathPlanSignature === undefined ? {} : { pathPlan: pathPlanSignature }),
 			route,
 		};
 

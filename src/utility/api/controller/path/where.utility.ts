@@ -55,13 +55,13 @@ function readInstant(value: unknown, rawValue: unknown): Date {
 	const text: unknown = value instanceof Date ? rawValue : value;
 
 	if (typeof text !== "string" || !API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN.test(text)) {
-		throw new BadRequestException("INVALID_PARAMETERS");
+		throw new BadRequestException("PARAMETERS_NOT_VALID");
 	}
 
 	const instant: Date = new Date(text);
 
 	if (Number.isNaN(instant.getTime()) || instant.toISOString() !== text) {
-		throw new BadRequestException("INVALID_PARAMETERS");
+		throw new BadRequestException("PARAMETERS_NOT_VALID");
 	}
 
 	return instant;

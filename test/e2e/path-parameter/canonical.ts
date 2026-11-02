@@ -160,38 +160,39 @@ const buildAuthorization = (namespace: string, entity: new () => unknown, resour
 		resourceDefinition: { entity, fields: fields.map((field: string) => ({ isFilterable: true, path: `resource.${field}`, queryPath: field })), namespace, resourcePath, resourceType: namespace },
 	}) as never;
 
-const scopedRead = (field: string): Record<string, unknown> => ({ [EApiRouteType.GET]: { read: { scope: { parameters: [{ field, parameter: field }] } }, security } });
+const scopedRead = (): Record<string, unknown> => ({ [EApiRouteType.GET]: { security } });
+const pathScopeOf = (field: string): never => ({ parameters: [{ field, parameter: field }] }) as never;
 
 @ApiControllerSecurable()
-@ApiController<E2ePathParameterCanonicalMomentItemEntity>({ authorization: buildAuthorization("ppc-dt-deny", E2ePathParameterCanonicalMomentItemEntity, "ppc-dt-deny/{at}/{id}", ["id", "at"]), entity: E2ePathParameterCanonicalMomentItemEntity, name: "E2ePathParameterCanonicalDtDeny", path: "path-parameter/canonical/dt-deny/:at/items", routes: { ...readOnlyRoutes, ...scopedRead("at") } as never })
+@ApiController<E2ePathParameterCanonicalMomentItemEntity>({ authorization: buildAuthorization("ppc-dt-deny", E2ePathParameterCanonicalMomentItemEntity, "ppc-dt-deny/{at}/{id}", ["id", "at"]), entity: E2ePathParameterCanonicalMomentItemEntity, name: "E2ePathParameterCanonicalDtDeny", path: "path-parameter/canonical/dt-deny/:at/items", pathScope: pathScopeOf("at"), routes: { ...readOnlyRoutes, ...scopedRead() } as never })
 export class E2ePathParameterCanonicalDtDenyController {
 	@Inject(E2ePathParameterCanonicalMomentItemService)
 	public readonly service!: E2ePathParameterCanonicalMomentItemService;
 }
 
 @ApiControllerSecurable()
-@ApiController<E2ePathParameterCanonicalMomentItemEntity>({ authorization: buildAuthorization("ppc-dt-recipe", E2ePathParameterCanonicalMomentItemEntity, "ppc-dt-recipe/{at}/{id}", ["id", "at"]), entity: E2ePathParameterCanonicalMomentItemEntity, name: "E2ePathParameterCanonicalDtRecipe", path: "path-parameter/canonical/dt-recipe/:at/items", routes: { ...readOnlyRoutes, ...scopedRead("at") } as never })
+@ApiController<E2ePathParameterCanonicalMomentItemEntity>({ authorization: buildAuthorization("ppc-dt-recipe", E2ePathParameterCanonicalMomentItemEntity, "ppc-dt-recipe/{at}/{id}", ["id", "at"]), entity: E2ePathParameterCanonicalMomentItemEntity, name: "E2ePathParameterCanonicalDtRecipe", path: "path-parameter/canonical/dt-recipe/:at/items", pathScope: pathScopeOf("at"), routes: { ...readOnlyRoutes, ...scopedRead() } as never })
 export class E2ePathParameterCanonicalDtRecipeController {
 	@Inject(E2ePathParameterCanonicalMomentItemService)
 	public readonly service!: E2ePathParameterCanonicalMomentItemService;
 }
 
 @ApiControllerSecurable()
-@ApiController<E2ePathParameterCanonicalMomentItemEntity>({ authorization: buildAuthorization("ppc-dt-res", E2ePathParameterCanonicalMomentItemEntity, "ppc-dt-res/{at}/{id}", ["id", "at"]), entity: E2ePathParameterCanonicalMomentItemEntity, name: "E2ePathParameterCanonicalDtRes", path: "path-parameter/canonical/dt-res/:at/items", routes: { ...readOnlyRoutes, ...scopedRead("at") } as never })
+@ApiController<E2ePathParameterCanonicalMomentItemEntity>({ authorization: buildAuthorization("ppc-dt-res", E2ePathParameterCanonicalMomentItemEntity, "ppc-dt-res/{at}/{id}", ["id", "at"]), entity: E2ePathParameterCanonicalMomentItemEntity, name: "E2ePathParameterCanonicalDtRes", path: "path-parameter/canonical/dt-res/:at/items", pathScope: pathScopeOf("at"), routes: { ...readOnlyRoutes, ...scopedRead() } as never })
 export class E2ePathParameterCanonicalDtResourceController {
 	@Inject(E2ePathParameterCanonicalMomentItemService)
 	public readonly service!: E2ePathParameterCanonicalMomentItemService;
 }
 
 @ApiControllerSecurable()
-@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-bool-deny", E2ePathParameterCanonicalIntItemEntity, "ppc-bool-deny/{active}/{id}", ["id", "active"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalBoolDeny", path: "path-parameter/canonical/bool-deny/:active/items", routes: { ...readOnlyRoutes, ...scopedRead("active") } as never })
+@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-bool-deny", E2ePathParameterCanonicalIntItemEntity, "ppc-bool-deny/{active}/{id}", ["id", "active"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalBoolDeny", path: "path-parameter/canonical/bool-deny/:active/items", pathScope: pathScopeOf("active"), routes: { ...readOnlyRoutes, ...scopedRead() } as never })
 export class E2ePathParameterCanonicalBoolDenyController {
 	@Inject(E2ePathParameterCanonicalIntItemService)
 	public readonly service!: E2ePathParameterCanonicalIntItemService;
 }
 
 @ApiControllerSecurable()
-@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-bool-cond", E2ePathParameterCanonicalIntItemEntity, "ppc-bool-cond/{active}/{id}", ["id", "active"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalBoolCond", path: "path-parameter/canonical/bool-cond/:active/items", routes: { ...readOnlyRoutes, ...scopedRead("active") } as never })
+@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-bool-cond", E2ePathParameterCanonicalIntItemEntity, "ppc-bool-cond/{active}/{id}", ["id", "active"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalBoolCond", path: "path-parameter/canonical/bool-cond/:active/items", pathScope: pathScopeOf("active"), routes: { ...readOnlyRoutes, ...scopedRead() } as never })
 export class E2ePathParameterCanonicalBoolConditionController {
 	@Inject(E2ePathParameterCanonicalIntItemService)
 	public readonly service!: E2ePathParameterCanonicalIntItemService;

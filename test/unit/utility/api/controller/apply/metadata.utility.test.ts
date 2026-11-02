@@ -6,7 +6,7 @@ import type { IApiControllerProperties } from "@interface/decorator/api";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/internal";
-import { ApiControllerApplyMetadata, ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/apply/metadata.utility";
+import { ApiControllerApplyMetadata, ApiControllerApplyMetadataWithPathPlan } from "@utility/api/controller/apply/metadata.utility";
 import { ApiControllerParametersDtoGet } from "@utility/api/controller/parameters";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { Column, Entity, PrimaryColumn } from "typeorm";
@@ -84,7 +84,7 @@ describe("ApiControllerApplyMetadata", () => {
 
 		const targetPrototype = { get: (): void => undefined };
 
-		ApiControllerApplyMetadataWithReadPlan(
+		ApiControllerApplyMetadataWithPathPlan(
 			MetadataAliasController,
 			targetPrototype,
 			GenerateEntityInformation(MetadataAliasEntity),
@@ -93,7 +93,7 @@ describe("ApiControllerApplyMetadata", () => {
 			"get",
 			{} as never,
 			undefined,
-			{ controllerName: "MetadataAlias", parameters: [{ field: "tenantCode", parameter: "tenant" }], schemaName: "MetadataAliasGetParametersDTO", signature: "read" },
+			{ controllerName: "MetadataAlias", isDefaultRowPath: true, isKeyCovered: true, isRowPathDeclared: false, primaryFields: ["id"], rowParameters: [{ field: "id", parameter: "id" }], scopeParameters: [{ field: "tenantCode", parameter: "tenant" }], signature: "path" },
 			{ controllerName: "MetadataAlias", field: "code", parameter: "id", schemaName: "MetadataAliasIdentityParametersDTO", signature: "identity" },
 		);
 

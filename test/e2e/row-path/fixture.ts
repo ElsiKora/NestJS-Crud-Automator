@@ -108,7 +108,7 @@ class RowPathProbeController {
 	constructor(public readonly service: RowPathProbeService) {}
 }
 
-@ApiController<RowPathItemEntity>({ entity: RowPathItemEntity, path: "parent/:parentId/item", pathScope: { parameters: [{ field: "parentId", parameter: "parentId" }] }, routes: {} } as never)
+@ApiController<RowPathItemEntity>({ entity: RowPathItemEntity, path: "parent/:parentId/item", pathScope: { parameters: [{ field: "parentId", parameter: "parentId" }] }, routes: {} })
 class RowPathItemController {
 	constructor(public readonly service: RowPathItemService) {}
 }

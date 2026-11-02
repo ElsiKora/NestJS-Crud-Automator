@@ -1,5 +1,5 @@
 import type { IApiAuthenticationRequest } from "@interface/api";
-import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
+import type { IApiControllerPathPlan } from "@interface/class/api/controller/path";
 import type { IApiGetListCursorResponseResult, IApiGetListResponseResult } from "@interface/decorator/api";
 import type { Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
@@ -25,9 +25,9 @@ import { ApiControllerApplyMetadata } from "@utility/api/controller/apply/metada
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
-import { ApiControllerReadPlanGet, ApiControllerReadScopeWhere } from "@utility/api/controller/read";
+import { ApiControllerPathPlanGet, ApiControllerPathWhere } from "@utility/api/controller/path";
 import { ApiControllerWriteDtoSwagger } from "@utility/api/controller/write/dto-swagger.utility";
-import { DtoGenerateReadParameters } from "@utility/dto/generate/read-parameters.utility";
+import { DtoGeneratePathParameters } from "@utility/dto/generate/path-parameters.utility";
 import { createTypeOrmRepositoryStub } from "@test/unit/fixture";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { plainToInstance } from "class-transformer";
@@ -311,14 +311,14 @@ const disabledRoute = { generation: { isEnabled: false } } as const;
 /**
  *
  */
-function compileGetListParametersWithoutRead(): void {
-	class ParametersWithoutReadControllerBase {
+function compileGetListParametersWithoutPathScope(): void {
+	class ParametersWithoutPathScopeControllerBase {
 		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
 	}
 
 	ApiController<GeneratedReadContractEntity>({
 		entity: GeneratedReadContractEntity,
-		path: "parameters-without-read",
+		path: "parameters-without-path-scope",
 		routes: {
 			[EApiRouteType.CREATE]: disabledRoute,
 			[EApiRouteType.DELETE]: disabledRoute,
@@ -333,7 +333,7 @@ function compileGetListParametersWithoutRead(): void {
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
-	})(withUniqueControllerName(ParametersWithoutReadControllerBase));
+	})(withUniqueControllerName(ParametersWithoutPathScopeControllerBase));
 }
 
 /**
@@ -414,9 +414,9 @@ function compileInvalidGetListIdentityConfiguration(identity: unknown): void {
  * @param path
  * @param identity
  * @param hasManualParametersDto
- * @param read
+ * @param pathScope
  */
-function compileInvalidIdentityConfiguration(path: string, identity: unknown, hasManualParametersDto: boolean = false, read?: unknown): void {
+function compileInvalidIdentityConfiguration(path: string, identity: unknown, hasManualParametersDto: boolean = false, pathScope?: unknown): void {
 	class InvalidGeneratedIdentityControllerBase {
 		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
 	}
@@ -424,13 +424,13 @@ function compileInvalidIdentityConfiguration(path: string, identity: unknown, ha
 	ApiController<GeneratedReadContractEntity>({
 		entity: GeneratedReadContractEntity,
 		path,
+		...(pathScope === undefined ? {} : { pathScope: pathScope as never }),
 		routes: {
 			[EApiRouteType.CREATE]: disabledRoute,
 			[EApiRouteType.DELETE]: disabledRoute,
 			[EApiRouteType.GET]: {
 				...(hasManualParametersDto ? { dto: { [EApiDtoType.PARAMETERS]: ManualGeneratedReadParametersDto } } : {}),
 				identity,
-				...(read === undefined ? {} : { read }),
 			} as never,
 			[EApiRouteType.GET_LIST]: disabledRoute,
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
@@ -479,11 +479,11 @@ function compileInvalidOrder(defaultOrder: unknown, tieBreakers: unknown): void 
 /**
  *
  * @param path
- * @param read
+ * @param pathScope
  * @param hasManualParametersDto
  * @param currentGuard
  */
-function compileInvalidReadConfiguration(path: string, read: unknown, hasManualParametersDto: boolean = false, currentGuard?: Type<IAuthGuard>): void {
+function compileInvalidPathScopeConfiguration(path: string, pathScope: unknown, hasManualParametersDto: boolean = false, currentGuard?: Type<IAuthGuard>): void {
 	class InvalidGeneratedReadControllerBase {
 		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
 	}
@@ -491,12 +491,12 @@ function compileInvalidReadConfiguration(path: string, read: unknown, hasManualP
 	ApiController<GeneratedReadContractEntity>({
 		entity: GeneratedReadContractEntity,
 		path,
+		pathScope: pathScope as never,
 		routes: {
 			[EApiRouteType.CREATE]: disabledRoute,
 			[EApiRouteType.DELETE]: disabledRoute,
 			[EApiRouteType.GET]: {
 				...(hasManualParametersDto ? { dto: { [EApiDtoType.PARAMETERS]: ManualGeneratedReadParametersDto } } : {}),
-				read,
 				...(currentGuard
 					? {
 							security: {
@@ -520,12 +520,8 @@ function compileInvalidReadConfiguration(path: string, read: unknown, hasManualP
  * @param path
  * @param parameters
  */
-function compileInvalidReadScope(path: string, parameters: unknown): void {
-	compileInvalidReadConfiguration(path, {
-		scope: {
-			parameters,
-		},
-	});
+function compileInvalidScopeParameters(path: string, parameters: unknown): void {
+	compileInvalidPathScopeConfiguration(path, { parameters });
 }
 
 /**
@@ -540,18 +536,16 @@ function createAliasedReadController(parameterValidator: (parameters: Partial<Ge
 	const Controller = ApiController<GeneratedReadContractEntity>({
 		entity: GeneratedReadContractEntity,
 		path: "tenant/:tenantAlias/sequence/:sequenceAlias/aliased-read",
+		pathScope: {
+			parameters: [
+				{ field: "tenantId", parameter: "tenantAlias" },
+				{ field: "sequence", parameter: "sequenceAlias" },
+			],
+		},
 		routes: {
 			[EApiRouteType.CREATE]: disabledRoute,
 			[EApiRouteType.DELETE]: disabledRoute,
 			[EApiRouteType.GET]: {
-				read: {
-					scope: {
-						parameters: [
-							{ field: "tenantId", parameter: "tenantAlias" },
-							{ field: "sequence", parameter: "sequenceAlias" },
-						],
-					},
-				},
 				request: {
 					[EApiControllerRequestTarget.PARAMETERS]: {
 						transformers: [
@@ -565,14 +559,6 @@ function createAliasedReadController(parameterValidator: (parameters: Partial<Ge
 				},
 			},
 			[EApiRouteType.GET_LIST]: {
-				read: {
-					scope: {
-						parameters: [
-							{ field: "tenantId", parameter: "tenantAlias" },
-							{ field: "sequence", parameter: "sequenceAlias" },
-						],
-					},
-				},
 				request: {
 					[EApiControllerRequestTarget.PARAMETERS]: {
 						transformers: [
@@ -631,17 +617,12 @@ function createCacheIsolationController(controllerName: string): object {
 	return ApiController<GeneratedReadContractEntity>({
 		entity: GeneratedReadContractEntity,
 		path: "tenant/:tenantId/cache-isolation",
+		pathScope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] },
 		routes: {
 			[EApiRouteType.CREATE]: disabledRoute,
 			[EApiRouteType.DELETE]: disabledRoute,
 			[EApiRouteType.GET]: disabledRoute,
-			[EApiRouteType.GET_LIST]: {
-				read: {
-					scope: {
-						parameters: [{ field: "tenantId", parameter: "tenantId" }],
-					},
-				},
-			},
+			[EApiRouteType.GET_LIST]: {},
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
 		},
@@ -659,16 +640,11 @@ function createDateScopedReadController(): { controller: IGeneratedReadContractC
 	const Controller = ApiController<GeneratedReadContractEntity>({
 		entity: GeneratedReadContractEntity,
 		path: "effective/:effectiveAt/date-scoped-read",
+		pathScope: { parameters: [{ field: "effectiveAt", parameter: "effectiveAt" }] },
 		routes: {
 			[EApiRouteType.CREATE]: disabledRoute,
 			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: {
-				read: {
-					scope: {
-						parameters: [{ field: "effectiveAt", parameter: "effectiveAt" }],
-					},
-				},
-			},
+			[EApiRouteType.GET]: {},
 			[EApiRouteType.GET_LIST]: disabledRoute,
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
 			[EApiRouteType.UPDATE]: disabledRoute,
@@ -692,16 +668,12 @@ function createFilterOnlyQueryController(): { controller: IGeneratedReadContract
 	const Controller = ApiController<GeneratedReadContractEntity>({
 		entity: GeneratedReadContractEntity,
 		path: "tenant/:tenantId/filter-only-query",
+		pathScope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] },
 		routes: {
 			[EApiRouteType.CREATE]: disabledRoute,
 			[EApiRouteType.DELETE]: disabledRoute,
 			[EApiRouteType.GET]: disabledRoute,
 			[EApiRouteType.GET_LIST]: {
-				read: {
-					scope: {
-						parameters: [{ field: "tenantId", parameter: "tenantId" }],
-					},
-				},
 				request: {
 					[EApiControllerRequestTarget.QUERY]: {
 						filter: {
@@ -744,17 +716,13 @@ function createGeneratedCursorReadController(options?: { responseDto?: { itemTyp
 		entity: GeneratedReadContractEntity,
 		name: "GeneratedCursorReadContract",
 		path: "tenant/:tenantId/generated-cursor-read-contract",
+		pathScope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] },
 		routes: {
 			[EApiRouteType.CREATE]: disabledRoute,
 			[EApiRouteType.DELETE]: disabledRoute,
 			[EApiRouteType.GET]: disabledRoute,
 			[EApiRouteType.GET_LIST]: {
 				dto: options?.responseDto === undefined ? undefined : { [EApiDtoType.RESPONSE]: options.responseDto },
-				read: {
-					scope: {
-						parameters: [{ field: "tenantId", parameter: "tenantId" }],
-					},
-				},
 				request: {
 					[EApiControllerRequestTarget.QUERY]: {
 						filter: {
@@ -805,22 +773,12 @@ function createGeneratedReadController(): { controller: IGeneratedReadContractCo
 		entity: GeneratedReadContractEntity,
 		name: "GeneratedReadContract",
 		path: "tenant/:tenantId/generated-read-contract",
+		pathScope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] },
 		routes: {
 			[EApiRouteType.CREATE]: disabledRoute,
 			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: {
-				read: {
-					scope: {
-						parameters: [{ field: "tenantId", parameter: "tenantId" }],
-					},
-				},
-			},
+			[EApiRouteType.GET]: {},
 			[EApiRouteType.GET_LIST]: {
-				read: {
-					scope: {
-						parameters: [{ field: "tenantId", parameter: "tenantId" }],
-					},
-				},
 				request: {
 					[EApiControllerRequestTarget.QUERY]: {
 						order: {
@@ -864,20 +822,12 @@ function createIdentityAliasController(hasOwnerScope: boolean = false, identityP
 		entity: GeneratedReadContractEntity,
 		name: "IdentityAliasGeneratedReadContract",
 		path: hasOwnerScope ? "tenant/:tenantId/identity-alias" : "identity-alias",
+		...(hasOwnerScope ? { pathScope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } } : {}),
 		routes: {
 			[EApiRouteType.CREATE]: disabledRoute,
 			[EApiRouteType.DELETE]: disabledRoute,
 			[EApiRouteType.GET]: {
 				identity: { parameter: identityParameter },
-				...(hasOwnerScope
-					? {
-							read: {
-								scope: {
-									parameters: [{ field: "tenantId", parameter: "tenantId" }],
-								},
-							},
-						}
-					: {}),
 			},
 			[EApiRouteType.GET_LIST]: disabledRoute,
 			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
@@ -1035,37 +985,7 @@ function createRawIdentityRouteController(path: string, routeConfig: unknown): {
 	};
 }
 
-/**
- *
- * @param path
- * @param routeConfig
- */
-function createRawReadRouteController(path: string, routeConfig: unknown): { controller: IGeneratedReadContractController; type: object } {
-	class RawReadRouteControllerBase {
-		public readonly service: GeneratedReadContractService = new GeneratedReadContractService();
-	}
-
-	const Controller = ApiController<GeneratedReadContractEntity>({
-		entity: GeneratedReadContractEntity,
-		name: "RawReadRouteGeneratedReadContract",
-		path,
-		routes: {
-			[EApiRouteType.CREATE]: disabledRoute,
-			[EApiRouteType.DELETE]: disabledRoute,
-			[EApiRouteType.GET]: routeConfig as never,
-			[EApiRouteType.GET_LIST]: disabledRoute,
-			[EApiRouteType.PARTIAL_UPDATE]: disabledRoute,
-			[EApiRouteType.UPDATE]: disabledRoute,
-		},
-	})(withUniqueControllerName(RawReadRouteControllerBase));
-
-	return {
-		controller: new Controller() as unknown as IGeneratedReadContractController,
-		type: Controller,
-	};
-}
-
-describe("generated read contract", () => {
+describe("generated path scope contract", () => {
 	it.each([
 		[
 			"a configured parameter missing from the controller path",
@@ -1076,8 +996,9 @@ describe("generated read contract", () => {
 			],
 			"not declared by the controller path",
 		],
-		["an inherited owner parameter omitted from the mapping", "tenant/:tenantId/brand/:brandAccountId/generated-read-contract", [{ field: "tenantId", parameter: "tenantId" }], "is not mapped by the generated read scope"],
-		["an inherited primary identity parameter", "tenant/:tenantId/generated-read-contract/:id", [{ field: "tenantId", parameter: "tenantId" }], "conflicts with the generated GET primary identity parameter"],
+		["an inherited owner parameter omitted from the mapping", "tenant/:tenantId/brand/:brandAccountId/generated-read-contract", [{ field: "tenantId", parameter: "tenantId" }], "is not bound to an entity field for the generated get route"],
+		["a controller path parameter left unbound", "tenant/:tenantId/generated-read-contract/:id", [{ field: "tenantId", parameter: "tenantId" }], 'path parameter "id" is not bound to an entity field for the generated get route'],
+		["a scope parameter named like the row path", "tenant/:id/generated-read-contract", [{ field: "tenantId", parameter: "id" }], 'path parameter "id" conflicts with the row path of the generated get route'],
 		["a non-direct entity path", "tenant/:tenantId/generated-read-contract", [{ field: "owner.id", parameter: "tenantId" }], "described direct scalar entity field"],
 		["a non-scalar entity field", "tenant/:tenantId/generated-read-contract", [{ field: "owner", parameter: "tenantId" }], "described direct scalar entity field"],
 		[
@@ -1087,7 +1008,7 @@ describe("generated read contract", () => {
 				{ field: "tenantId", parameter: "tenantId" },
 				{ field: "label", parameter: "tenantId" },
 			],
-			"mapped more than once",
+			"bound more than once",
 		],
 		[
 			"duplicate entity-field mappings",
@@ -1096,21 +1017,21 @@ describe("generated read contract", () => {
 				{ field: "tenantId", parameter: "tenantId" },
 				{ field: "tenantId", parameter: "brandAccountId" },
 			],
-			"mapped more than once",
+			"bound more than once",
 		],
-		["a wildcard inherited path parameter", "tenant/:tenantId/files/*splat", [{ field: "tenantId", parameter: "tenantId" }], 'Controller path wildcard parameter "splat" cannot be used by generated read scope'],
-		["an optional inherited path parameter", "tenant/:tenantId/items{/:optionalId}", [{ field: "tenantId", parameter: "tenantId" }], 'Controller path optional parameter "optionalId" cannot be used by generated read scope'],
-		["an unsafe inherited path parameter", "tenant/:constructor/generated-read-contract", [{ field: "tenantId", parameter: "constructor" }], 'controller path parameter "constructor" is not a safe property name'],
-		["an unsafe mapped entity field", "tenant/:tenantId/generated-read-contract", [{ field: "__proto__", parameter: "tenantId" }], 'entity field "__proto__" is not a safe property name'],
+		["a wildcard inherited path parameter", "tenant/:tenantId/files/*splat", [{ field: "tenantId", parameter: "tenantId" }], 'path parameter "splat" is a wildcard, which the generated get route cannot bind'],
+		["an optional inherited path parameter", "tenant/:tenantId/items{/:optionalId}", [{ field: "tenantId", parameter: "tenantId" }], 'path parameter "optionalId" is optional, which the generated get route cannot bind'],
+		["an unsafe inherited path parameter", "tenant/:constructor/generated-read-contract", [{ field: "tenantId", parameter: "constructor" }], "must declare a safe path parameter"],
+		["an unsafe mapped entity field", "tenant/:tenantId/generated-read-contract", [{ field: "__proto__", parameter: "tenantId" }], 'parameter "tenantId" must bind a safe entity field'],
 	])("rejects %s at controller bootstrap", (_label, path, parameters, expectedMessage) => {
 		expect(() => {
-			compileInvalidReadScope(path, parameters);
+			compileInvalidScopeParameters(path, parameters);
 		}).toThrow(expectedMessage);
 	});
 
 	it("accepts a quoted required scalar inherited path parameter", () => {
 		expect(() => {
-			compileInvalidReadScope('tenant/:"tenant-id"/generated-read-contract', [{ field: "tenantId", parameter: "tenant-id" }]);
+			compileInvalidScopeParameters('tenant/:"tenant-id"/generated-read-contract', [{ field: "tenantId", parameter: "tenant-id" }]);
 		}).not.toThrow();
 	});
 
@@ -1134,11 +1055,9 @@ describe("generated read contract", () => {
 	it("rejects a generated GET identity that collides with an inherited path parameter", () => {
 		expect(() => {
 			compileInvalidIdentityConfiguration("tenant/:gameId/identity-alias", { parameter: "gameId" }, false, {
-				scope: {
-					parameters: [{ field: "tenantId", parameter: "gameId" }],
-				},
+				parameters: [{ field: "tenantId", parameter: "gameId" }],
 			});
-		}).toThrow('Generated identity parameter "gameId" conflicts with an inherited controller path parameter');
+		}).toThrow('Generated identity parameter "gameId" conflicts with a controller path parameter');
 	});
 
 	it("rejects generated identity when the primary entity field is globally hidden from auto DTOs", () => {
@@ -1148,22 +1067,18 @@ describe("generated read contract", () => {
 	it("rejects an inherited primary field when GET uses a different identity alias", () => {
 		expect(() => {
 			compileInvalidIdentityConfiguration("tenant/:id/identity-alias", { parameter: "gameId" }, false, {
-				scope: {
-					parameters: [{ field: "tenantId", parameter: "id" }],
-				},
+				parameters: [{ field: "tenantId", parameter: "id" }],
 			});
-		}).toThrow('Inherited controller path parameter "id" conflicts with the generated GET primary identity parameter');
+		}).toThrow('path parameter "id" conflicts with the row path of the generated get route');
 	});
 
-	it("requires read scope mappings whenever an identity route inherits controller path parameters", () => {
+	it("requires pathScope whenever an identity route sits under controller path parameters", () => {
 		expect(() => {
 			compileInvalidIdentityConfiguration("tenant/:tenantId/identity-alias", { parameter: "gameId" });
-		}).toThrow("Generated identity on a controller path with inherited parameters requires generated read scope mappings");
+		}).toThrow('path parameter "tenantId" is not bound to an entity field for the generated get route');
 		expect(() => {
 			compileInvalidIdentityConfiguration("tenant/:tenantId/identity-alias", { parameter: "gameId" }, false, {
-				scope: {
-					parameters: [{ field: "tenantId", parameter: "tenantId" }],
-				},
+				parameters: [{ field: "tenantId", parameter: "tenantId" }],
 			});
 		}).not.toThrow();
 	});
@@ -1274,24 +1189,21 @@ describe("generated read contract", () => {
 	});
 
 	it.each([
-		["a null configuration", null, "Generated read configuration must be an object"],
-		["a false configuration", false, "Generated read configuration must be an object"],
-		["a zero configuration", 0, "Generated read configuration must be an object"],
-		["an empty-string configuration", "", "Generated read configuration must be an object"],
-		["an empty GET read configuration", {}, "Generated read configuration must contain exactly scope"],
-		["an empty mapping array", { scope: { parameters: [] } }, "Generated read scope parameters must be a non-empty array"],
-		["a non-array mapping", { scope: { parameters: {} } }, "Generated read scope parameters must be a non-empty array"],
-		["an unsupported read key", { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] }, unsupported: true }, "Generated read configuration must contain exactly scope"],
-		["an unsupported scope key", { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }], unsupported: true } }, "Generated read scope must contain exactly parameters"],
-	])("rejects %s in generated read grammar", (_label, read, expectedMessage) => {
+		["a null configuration", null, "pathScope must be a plain object"],
+		["a false configuration", false, "pathScope must be a plain object"],
+		["a zero configuration", 0, "pathScope must be a plain object"],
+		["an empty-string configuration", "", "pathScope must be a plain object"],
+		["an empty configuration", {}, "pathScope must contain exactly parameters"],
+		["an empty mapping array", { parameters: [] }, "pathScope parameters must be a non-empty array"],
+		["a non-array mapping", { parameters: {} }, "pathScope parameters must be a non-empty array"],
+		["an unsupported key", { parameters: [{ field: "tenantId", parameter: "tenantId" }], unsupported: true }, "pathScope must contain exactly parameters"],
+	])("rejects %s in pathScope grammar", (_label, pathScope, expectedMessage) => {
 		expect(() => {
-			compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", read);
+			compileInvalidPathScopeConfiguration("tenant/:tenantId/generated-read-contract", pathScope);
 		}).toThrow(expectedMessage);
 	});
 
-	it("rejects hostile nested read records and arrays without invoking accessors", () => {
-		const scopeGetter = vi.fn(() => ({ parameters: [{ field: "tenantId", parameter: "tenantId" }] }));
-		const scopeAccessor: Record<string, unknown> = {};
+	it("rejects hostile nested pathScope records and arrays without invoking accessors", () => {
 		const parametersGetter = vi.fn(() => [{ field: "tenantId", parameter: "tenantId" }]);
 		const parametersAccessor: Record<string, unknown> = {};
 		const mappingGetter = vi.fn(() => "tenantId");
@@ -1300,79 +1212,52 @@ describe("generated read contract", () => {
 		const arrayGetter = vi.fn(() => ({ field: "tenantId", parameter: "tenantId" }));
 		const sparseArray: Array<unknown> = new Array<unknown>(1);
 		const extendedArray = [{ field: "tenantId", parameter: "tenantId" }] as { extra?: boolean } & Array<unknown>;
-		const customPrototypeRead = Object.create({ inherited: true }) as Record<string, unknown>;
+		const customPrototype = Object.create({ inherited: true }) as Record<string, unknown>;
 
-		Object.defineProperty(scopeAccessor, "scope", { enumerable: true, get: scopeGetter });
 		Object.defineProperty(parametersAccessor, "parameters", { enumerable: true, get: parametersGetter });
 		Object.defineProperty(accessorMapping, "parameter", { enumerable: true, get: mappingGetter });
 		Object.defineProperty(accessorArray, "0", { enumerable: true, get: arrayGetter });
 		extendedArray.extra = true;
-		customPrototypeRead.scope = { parameters: [{ field: "tenantId", parameter: "tenantId" }] };
+		customPrototype.parameters = [{ field: "tenantId", parameter: "tenantId" }];
 
 		expect(() => {
-			compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", scopeAccessor);
-		}).toThrow("Generated read configuration must contain enumerable data properties only");
+			compileInvalidPathScopeConfiguration("tenant/:tenantId/generated-read-contract", parametersAccessor);
+		}).toThrow('pathScope property "parameters" must be an enumerable data property');
 		expect(() => {
-			compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", { scope: parametersAccessor });
-		}).toThrow("Generated read scope must contain enumerable data properties only");
+			compileInvalidScopeParameters("tenant/:tenantId/generated-read-contract", [accessorMapping]);
+		}).toThrow('pathScope parameters[0] property "parameter" must be an enumerable data property');
 		expect(() => {
-			compileInvalidReadScope("tenant/:tenantId/generated-read-contract", [accessorMapping]);
-		}).toThrow("Generated read scope parameters[0] must contain enumerable data properties only");
+			compileInvalidScopeParameters("tenant/:tenantId/generated-read-contract", accessorArray);
+		}).toThrow('pathScope parameters property "0" must be an enumerable data property');
 		expect(() => {
-			compileInvalidReadScope("tenant/:tenantId/generated-read-contract", accessorArray);
-		}).toThrow("Generated read scope parameters must be a non-empty dense array of data properties");
+			compileInvalidScopeParameters("tenant/:tenantId/generated-read-contract", sparseArray);
+		}).toThrow("pathScope parameters must be a dense array of data properties");
 		expect(() => {
-			compileInvalidReadScope("tenant/:tenantId/generated-read-contract", sparseArray);
-		}).toThrow("Generated read scope parameters must be a non-empty dense array of data properties");
+			compileInvalidScopeParameters("tenant/:tenantId/generated-read-contract", extendedArray);
+		}).toThrow("pathScope parameters must be a dense array of data properties");
 		expect(() => {
-			compileInvalidReadScope("tenant/:tenantId/generated-read-contract", extendedArray);
-		}).toThrow("Generated read scope parameters must be a non-empty dense array of data properties");
-		expect(() => {
-			compileInvalidReadConfiguration("tenant/:tenantId/generated-read-contract", customPrototypeRead);
-		}).toThrow("Generated read configuration must be a plain object");
-		expect(scopeGetter).not.toHaveBeenCalled();
+			compileInvalidPathScopeConfiguration("tenant/:tenantId/generated-read-contract", customPrototype);
+		}).toThrow("pathScope must be a plain object");
 		expect(parametersGetter).not.toHaveBeenCalled();
 		expect(mappingGetter).not.toHaveBeenCalled();
 		expect(arrayGetter).not.toHaveBeenCalled();
 	});
 
-	it("reads top-level read only from an own enumerable data descriptor without invoking accessors", () => {
-		const inheritedGetter = vi.fn(() => ({ scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } }));
-		const inheritedPrototype: Record<string, unknown> = {};
-		const inheritedRoute = Object.create(inheritedPrototype) as Record<PropertyKey, unknown>;
-		const nonEnumerableRoute: Record<string, unknown> = {};
-		const accessorGetter = vi.fn(() => ({ scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } }));
-		const accessorRoute: Record<string, unknown> = {};
-		const symbolRoute: Record<PropertyKey, unknown> = { read: { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } } };
-		const customPrototypeRoute = Object.create({ custom: true }) as Record<string, unknown>;
-		const nullPrototypeRoute = Object.assign(Object.create(null) as Record<string, unknown>, { read: { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } } });
+	it("accepts a null-prototype pathScope record", () => {
+		const pathScope = Object.assign(Object.create(null) as Record<string, unknown>, { parameters: [{ field: "tenantId", parameter: "tenantId" }] });
 
-		Object.defineProperty(inheritedPrototype, "read", { enumerable: true, get: inheritedGetter });
-		Object.defineProperty(nonEnumerableRoute, "read", { enumerable: false, value: { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } } });
-		Object.defineProperty(accessorRoute, "read", { enumerable: true, get: accessorGetter });
-		symbolRoute[Symbol("extra")] = true;
-		customPrototypeRoute.read = { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } };
-
-		expect(() => createRawReadRouteController("tenant/:tenantId/null-prototype-read-route", nullPrototypeRoute)).not.toThrow();
-		expect(() => createRawReadRouteController("tenant/:tenantId/inherited-read-route", inheritedRoute)).toThrow("Generated read must be an own property on the route configuration");
-		expect(() => createRawReadRouteController("tenant/:tenantId/non-enumerable-read-route", nonEnumerableRoute)).toThrow("Generated read must be an enumerable data property on the route configuration");
-		expect(() => createRawReadRouteController("tenant/:tenantId/accessor-read-route", accessorRoute)).toThrow("Generated read must be an enumerable data property on the route configuration");
-		expect(() => createRawReadRouteController("tenant/:tenantId/symbol-read-route", symbolRoute)).toThrow("Generated read route configuration must not contain symbol keys");
-		expect(() => createRawReadRouteController("tenant/:tenantId/custom-prototype-read-route", customPrototypeRoute)).toThrow("Generated read route configuration must be a plain object");
-		expect(inheritedGetter).not.toHaveBeenCalled();
-		expect(accessorGetter).not.toHaveBeenCalled();
+		expect(() => {
+			compileInvalidPathScopeConfiguration("tenant/:tenantId/generated-read-contract", pathScope);
+		}).not.toThrow();
 	});
 
-	it("does not treat an own undefined top-level read descriptor as absent", () => {
-		expect(() => createRawReadRouteController("undefined-read-route", { read: undefined })).toThrow("Generated read configuration must be an object");
-	});
-
-	it("fails closed when legacy low-level controller facades receive an uncompiled read scope", () => {
+	it("fails closed when legacy low-level controller facades receive an uncompiled pathScope", () => {
 		const entityMetadata = GenerateEntityInformation(GeneratedReadContractEntity);
-		const routeConfig = { read: { scope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] } } } as never;
+		const routeConfig = {} as never;
 
 		const properties = {
 			entity: GeneratedReadContractEntity,
+			pathScope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] },
 			routes: { [EApiRouteType.GET]: routeConfig },
 		} as never;
 
@@ -1394,22 +1279,14 @@ describe("generated read contract", () => {
 		];
 
 		for (const invoke of invocations) {
-			expect(invoke).toThrow("Generated read configuration requires compilation by the @ApiController factory");
+			expect(invoke).toThrow("Controller pathScope and rowPath require compilation by the @ApiController factory");
 		}
 	});
 
-	it("rejects generated read scope combined with a manual PARAMETERS DTO", () => {
+	it("rejects pathScope combined with a manual PARAMETERS DTO", () => {
 		expect(() => {
-			compileInvalidReadConfiguration(
-				"tenant/:tenantId/generated-read-contract",
-				{
-					scope: {
-						parameters: [{ field: "tenantId", parameter: "tenantId" }],
-					},
-				},
-				true,
-			);
-		}).toThrow("Generated read scope parameters cannot be combined with a manual PARAMETERS DTO");
+			compileInvalidPathScopeConfiguration("tenant/:tenantId/generated-read-contract", { parameters: [{ field: "tenantId", parameter: "tenantId" }] }, true);
+		}).toThrow("pathScope and rowPath cannot be combined with a manual PARAMETERS DTO on the generated get route");
 	});
 
 	it("rejects generated identity combined with a manual PARAMETERS DTO", () => {
@@ -1423,24 +1300,22 @@ describe("generated read contract", () => {
 		["explicitly disabled", "label/:label/generated-read-contract", [{ field: "label", parameter: "label" }], undefined],
 	])("rejects a mapped PARAMETERS field that is %s", (_label, path, parameters, currentGuard) => {
 		expect(() => {
-			compileInvalidReadConfiguration(path, { scope: { parameters } }, false, currentGuard);
-		}).toThrow("maps to an entity field unavailable for the route PARAMETERS DTO");
+			compileInvalidPathScopeConfiguration(path, { parameters }, false, currentGuard);
+		}).toThrow("is unavailable for the PARAMETERS DTO of the generated get route");
 	});
 
-	it("rejects a read scope field globally hidden from auto DTOs despite a local PARAMETERS enable", () => {
+	it("rejects a bound field globally hidden from auto DTOs despite a local PARAMETERS enable", () => {
 		expect(() => {
-			compileInvalidReadConfiguration("internal/:internalSequence/generated-read-contract", {
-				scope: {
-					parameters: [{ field: "internalSequence", parameter: "internalSequence" }],
-				},
+			compileInvalidPathScopeConfiguration("internal/:internalSequence/generated-read-contract", {
+				parameters: [{ field: "internalSequence", parameter: "internalSequence" }],
 			});
-		}).toThrow('Generated read scope parameter "internalSequence" must map to a described direct scalar entity field');
+		}).toThrow('path field "internalSequence" must be a described direct scalar entity field');
 	});
 
-	it("rejects GET_LIST PARAMETERS request configuration without generated read scope", () => {
+	it("rejects GET_LIST PARAMETERS request configuration without pathScope", () => {
 		expect(() => {
-			compileGetListParametersWithoutRead();
-		}).toThrow("GET_LIST PARAMETERS request configuration requires generated read scope");
+			compileGetListParametersWithoutPathScope();
+		}).toThrow("generated getList route configures request PARAMETERS, which requires pathScope");
 	});
 
 	it.each([
@@ -1555,7 +1430,7 @@ describe("generated read contract", () => {
 		const parametersDto = getTypes[0];
 
 		expect(Reflect.getMetadata(PATH_METADATA, controllerType.prototype.get)).toBe(":gameId");
-		expect(ApiControllerReadPlanGet(controllerType.prototype, "get")).toBeUndefined();
+		expect(ApiControllerPathPlanGet(controllerType.prototype, "get")?.scopeParameters).toEqual([]);
 		expect(ApiControllerIdentityPlanGet(controllerType.prototype.get)).toMatchObject({ field: "id", parameter: "gameId" });
 		expect(parametersDto).toBeDefined();
 		expect(Object.keys(new (parametersDto as new () => Record<string, unknown>)())).toEqual(["gameId"]);
@@ -1620,7 +1495,7 @@ describe("generated read contract", () => {
 			tenantId: PATH_TENANT_ID,
 		});
 
-		expect(Object.keys(parameters)).toEqual(["gameId", "tenantId"]);
+		expect(Object.keys(parameters)).toEqual(["tenantId", "gameId"]);
 		expect(await validate(parameters)).toHaveLength(0);
 
 		await controller.get(parameters, {}, "127.0.0.1", createAuthenticationRequest({ id: Equal(ENTITY_ID), tenantId: Equal(SCOPE_TENANT_ID) }));
@@ -1652,16 +1527,14 @@ describe("generated read contract", () => {
 		expect(controller.service.get).not.toHaveBeenCalled();
 	});
 
-	it("preserves existing scope-only read-plan signatures", () => {
+	it("shares one path plan between the generated routes of a controller", () => {
 		const { type } = createGeneratedReadController();
 		const controllerType = type as { prototype: object };
-		const getPlan = ApiControllerReadPlanGet(controllerType.prototype, "get");
-		const listPlan = ApiControllerReadPlanGet(controllerType.prototype, "getList");
+		const getPlan = ApiControllerPathPlanGet(controllerType.prototype, "get");
 
-		expect(getPlan?.signature).toBe("e31e589d778ba173858dd23247d250aec4e2a9efe42300268a6d1f107becb144");
-		expect(listPlan?.signature).toBe("0e5e2d061c2c719eb813268a3e7fcff81cdf63f531ab92a980f207dc3ed8aee4");
-		expect(Object.hasOwn(getPlan ?? {}, "identity")).toBe(false);
-		expect(Object.hasOwn(listPlan ?? {}, "identity")).toBe(false);
+		expect(getPlan).toBe(ApiControllerPathPlanGet(controllerType.prototype, "getList"));
+		expect(getPlan?.scopeParameters).toEqual([{ field: "tenantId", parameter: "tenantId" }]);
+		expect(getPlan?.rowParameters).toEqual([{ field: "id", parameter: "id" }]);
 	});
 
 	it("writes GET_LIST ROUTE_ARGS in PARAM, QUERY, HEADERS, IP, REQUEST order", () => {
@@ -1729,9 +1602,7 @@ describe("generated read contract", () => {
 		expect(parameters.tenantAlias).toBe(QUERY_TENANT_ID);
 		const where = controller.service.get.mock.calls[0]?.[0].where as Record<string, unknown>;
 
-		expect(where.id).toMatchObject({ _type: "equal", _value: ENTITY_ID });
-		expect(where.sequence).toMatchObject({ _type: "equal", _value: 7 });
-		expect(where.tenantId).toMatchObject({ _type: "equal", _value: PATH_TENANT_ID });
+		expect(where).toEqual({ id: ENTITY_ID, sequence: 7, tenantId: PATH_TENANT_ID });
 	});
 
 	it("ANDs generated Date scope with IAM Equal(Date) without allowing conflicts", async () => {
@@ -1777,25 +1648,11 @@ describe("generated read contract", () => {
 	});
 
 	it("requires hostile inherited parameter names to be own properties at runtime", () => {
-		const readPlan: IApiControllerReadPlan = Object.freeze({
-			controllerName: "HostileReadScopeController",
-			parameters: Object.freeze([Object.freeze({ field: "tenantId", parameter: "constructor" })]),
-			schemaName: "HostileReadScopeControllerParametersDTO",
-			signature: "hostile-read-scope-plan",
-		});
-
-		expect(() => ApiControllerReadScopeWhere({}, readPlan)).toThrow(expect.objectContaining({ response: { error: "Bad Request", message: ["constructor should not be null or undefined"], statusCode: 400 } }));
+		expect(() => ApiControllerPathWhere({}, [{ field: "tenantId", parameter: "constructor" }])).toThrow(expect.objectContaining({ response: { error: "Bad Request", message: ["constructor should not be null or undefined"], statusCode: 400 } }));
 	});
 
 	it("rejects a null inherited parameter as class-validator's isDefined does", () => {
-		const readPlan: IApiControllerReadPlan = Object.freeze({
-			controllerName: "NullReadScopeController",
-			parameters: Object.freeze([Object.freeze({ field: "tenantId", parameter: "tenantId" })]),
-			schemaName: "NullReadScopeControllerParametersDTO",
-			signature: "null-read-scope-plan",
-		});
-
-		expect(() => ApiControllerReadScopeWhere({ tenantId: null } as never, readPlan)).toThrow(expect.objectContaining({ response: { error: "Bad Request", message: ["tenantId should not be null or undefined"], statusCode: 400 } }));
+		expect(() => ApiControllerPathWhere({ tenantId: null } as never, [{ field: "tenantId", parameter: "tenantId" }])).toThrow(expect.objectContaining({ response: { error: "Bad Request", message: ["tenantId should not be null or undefined"], statusCode: 400 } }));
 	});
 
 	it("isolates generated PARAMETERS DTO cache entries by controller name", () => {
@@ -1816,16 +1673,21 @@ describe("generated read contract", () => {
 	it("isolates generated PARAMETERS DTO decorators by route guard", () => {
 		const entityMetadata = GenerateEntityInformation<GeneratedReadContractEntity>(GeneratedReadContractEntity);
 
-		const readPlan: IApiControllerReadPlan = Object.freeze({
+		const scopeParameters = Object.freeze([Object.freeze({ field: "tenantId", parameter: "tenantAlias" })]);
+		const pathPlan: IApiControllerPathPlan = Object.freeze({
 			controllerName: "GuardSensitiveReadController",
-			parameters: Object.freeze([Object.freeze({ field: "tenantId", parameter: "tenantAlias" })]),
-			schemaName: "GuardSensitiveReadControllerParametersDTO",
-			signature: "guard-sensitive-read-plan",
+			isDefaultRowPath: false,
+			isKeyCovered: true,
+			isRowPathDeclared: false,
+			primaryFields: Object.freeze(["id"]),
+			rowParameters: Object.freeze([]),
+			scopeParameters,
+			signature: "guard-sensitive-path-plan",
 		});
 		const dtoConfig = {};
-		const allowedDto = DtoGenerateReadParameters(entityMetadata, EApiRouteType.GET_LIST, readPlan, dtoConfig, ReadScopeGuardA as Type<IAuthGuard>);
-		const cachedAllowedDto = DtoGenerateReadParameters(entityMetadata, EApiRouteType.GET_LIST, readPlan, dtoConfig, ReadScopeGuardA as Type<IAuthGuard>);
-		const deniedDto = DtoGenerateReadParameters(entityMetadata, EApiRouteType.GET_LIST, Object.freeze({ ...readPlan, schemaName: "GuardSensitiveDeniedReadControllerParametersDTO" }), dtoConfig, ReadScopeGuardB as Type<IAuthGuard>);
+		const allowedDto = DtoGeneratePathParameters(entityMetadata, EApiRouteType.GET_LIST, pathPlan, scopeParameters, "GuardSensitiveRead", dtoConfig, ReadScopeGuardA as Type<IAuthGuard>);
+		const cachedAllowedDto = DtoGeneratePathParameters(entityMetadata, EApiRouteType.GET_LIST, pathPlan, scopeParameters, "GuardSensitiveRead", dtoConfig, ReadScopeGuardA as Type<IAuthGuard>);
+		const deniedDto = DtoGeneratePathParameters(entityMetadata, EApiRouteType.GET_LIST, pathPlan, scopeParameters, "GuardSensitiveDeniedRead", dtoConfig, ReadScopeGuardB as Type<IAuthGuard>);
 
 		expect(cachedAllowedDto).toBe(allowedDto);
 		expect(deniedDto).not.toBe(allowedDto);
@@ -1867,13 +1729,11 @@ describe("generated read contract", () => {
 		const where = request?.where as Record<string, unknown>;
 
 		expect(where.id).toMatchObject({ _type: "equal", _value: ENTITY_ID });
-		expect(where.tenantId).toMatchObject({
-			_type: "and",
-			_value: [
-				{ _type: "equal", _value: PATH_TENANT_ID },
-				{ _type: "equal", _value: SCOPE_TENANT_ID },
-			],
-		});
+		expect(where.tenantId).toMatchObject({ _type: "in", _value: [] });
+
+		await controller.get({ id: ENTITY_ID, tenantId: PATH_TENANT_ID }, {}, "127.0.0.1", createAuthenticationRequest({ tenantId: PATH_TENANT_ID }));
+
+		expect(controller.service.get.mock.calls[1]?.[0].where).toMatchObject({ id: { _type: "equal", _value: ENTITY_ID }, tenantId: { _type: "equal", _value: PATH_TENANT_ID } });
 	});
 
 	it("AND-merges owner, query, and IAM scope for GET_LIST and fails closed on collisions", async () => {
@@ -2160,7 +2020,7 @@ describe("generated read contract", () => {
 		]);
 	});
 
-	it("preserves exact generated GET and GET_LIST behavior without read config", async () => {
+	it("preserves exact generated GET and GET_LIST behavior without pathScope", async () => {
 		const { controller, type } = createLegacyGeneratedReadController();
 
 		await controller.get({ id: ENTITY_ID }, {}, "127.0.0.1");

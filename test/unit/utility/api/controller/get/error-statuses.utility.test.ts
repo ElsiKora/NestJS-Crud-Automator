@@ -58,13 +58,15 @@ describe("ApiControllerGetErrorStatuses", () => {
 		expect(ApiControllerGetErrorStatuses(EApiRouteType.UPDATE, routeConfig, false)).toEqual([HttpStatus.BAD_REQUEST, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.CONFLICT, HttpStatus.UNPROCESSABLE_ENTITY, HttpStatus.INTERNAL_SERVER_ERROR]);
 	});
 
-	it("adds GET_LIST path validators only with a read plan", () => {
+	it("adds GET_LIST and CREATE path validators only under a path scope", () => {
 		const routeConfig: TApiControllerPropertiesRoute<ErrorStatusesEntity, EApiRouteType> = {
 			request: { [EApiControllerRequestTarget.PARAMETERS]: { validators: [{ errorType: EErrorStringAction.VALIDATION_ERROR, exception: ForbiddenException, validationFunction: (): boolean => true }] } },
 		} as never;
 
 		expect(ApiControllerGetErrorStatuses(EApiRouteType.GET_LIST, routeConfig, false)).not.toContain(HttpStatus.FORBIDDEN);
 		expect(ApiControllerGetErrorStatuses(EApiRouteType.GET_LIST, routeConfig, true)).toContain(HttpStatus.FORBIDDEN);
+		expect(ApiControllerGetErrorStatuses(EApiRouteType.CREATE, routeConfig, false)).not.toContain(HttpStatus.FORBIDDEN);
+		expect(ApiControllerGetErrorStatuses(EApiRouteType.CREATE, routeConfig, true)).toContain(HttpStatus.FORBIDDEN);
 	});
 });
 

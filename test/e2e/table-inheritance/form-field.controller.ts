@@ -11,12 +11,12 @@ const disabledRoute = { generation: { isEnabled: false } } as const;
 	entity: PaymentDetailFormFieldEntity,
 	name: "PaymentDetailFormFields",
 	path: "payment-details/:detailId/form-fields",
+	pathScope: { parameters: [{ field: "detailId", parameter: "detailId" }] },
 	routes: {
 		[EApiRouteType.CREATE]: disabledRoute,
 		[EApiRouteType.DELETE]: disabledRoute,
 		[EApiRouteType.GET]: disabledRoute,
 		[EApiRouteType.GET_LIST]: {
-			read: { scope: { parameters: [{ field: "detailId", parameter: "detailId" }] } },
 			request: {
 				[EApiControllerRequestTarget.QUERY]: {
 					order: {

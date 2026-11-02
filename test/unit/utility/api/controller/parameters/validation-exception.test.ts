@@ -1,5 +1,4 @@
 import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
-import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiEntityColumn } from "@interface/entity";
 
 import "reflect-metadata";
@@ -7,7 +6,7 @@ import "reflect-metadata";
 import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
 import { ApiControllerParametersValidate } from "@utility/api/controller/parameters/validate.utility";
-import { ApiControllerReadScopeWhere } from "@utility/api/controller/read/scope.utility";
+import { ApiControllerPathWhere } from "@utility/api/controller/path/where.utility";
 import { ApiRequestValidationGetErrors } from "@utility/api/request-validation-get-errors.utility";
 import { Transform } from "class-transformer";
 import { IsDefined, IsInt, IsString, IsUUID, Max, ValidationError } from "class-validator";
@@ -118,9 +117,8 @@ describe("the 400 of a path value", () => {
 		expect(exception.getResponse()).toEqual({ error: "Bad Request", message: [message], statusCode: 400 });
 	});
 
-	it("names a missing read scope parameter as class-validator's isDefined does", async () => {
-		const readPlan: IApiControllerReadPlan = { controllerName: "ValidationExceptionScope", parameters: [{ field: "tenantId", parameter: "tenant" }], schemaName: "ValidationExceptionScopeParametersDTO", signature: "validation-exception-scope" };
-		const exception: ApiRequestValidationException = await catchRefusal(() => ApiControllerReadScopeWhere({}, readPlan));
+	it("names a missing controller path parameter as class-validator's isDefined does", async () => {
+		const exception: ApiRequestValidationException = await catchRefusal(() => ApiControllerPathWhere({}, [{ field: "tenantId", parameter: "tenant" }]));
 
 		expect(exception.validationErrors).toEqual([Object.assign(new ValidationError(), { children: [], constraints: { isDefined: "tenant should not be null or undefined" }, property: "tenant" })]);
 		expect(exception.getResponse()).toEqual({ error: "Bad Request", message: ["tenant should not be null or undefined"], statusCode: 400 });

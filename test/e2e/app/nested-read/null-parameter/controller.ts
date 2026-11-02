@@ -11,16 +11,12 @@ const disabledRoute = { generation: { isEnabled: false } } as const;
 	entity: E2eEntity,
 	name: "E2eNullParameterReadEntities",
 	path: "null-parameter-owner/:ownerId/items",
+	pathScope: { parameters: [{ field: "ownerId", parameter: "ownerId" }] },
 	routes: {
 		[EApiRouteType.CREATE]: disabledRoute,
 		[EApiRouteType.DELETE]: disabledRoute,
 		[EApiRouteType.GET]: disabledRoute,
 		[EApiRouteType.GET_LIST]: {
-			read: {
-				scope: {
-					parameters: [{ field: "ownerId", parameter: "ownerId" }],
-				},
-			},
 			request: {
 				[EApiControllerRequestTarget.PARAMETERS]: {
 					transformers: [

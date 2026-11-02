@@ -31,11 +31,11 @@ export function ApiControllerGetCustomErrorStatuses<E extends IApiBaseEntity>(pr
  * Each request validator the route runs adds the status of its exception.
  * @param {EApiRouteType} routeType - Generated route type.
  * @param {TApiControllerPropertiesRoute<E, EApiRouteType>} routeConfig - Route configuration.
- * @param {boolean} hasReadPlan - Whether the GET_LIST route runs its path PARAMETERS target.
+ * @param {boolean} hasPathScope - Whether the controller binds path parameters, so CREATE and GET_LIST run their PARAMETERS target too.
  * @returns {Array<number>} Error statuses in ascending order, without duplicates.
  * @template E - The entity type
  */
-export function ApiControllerGetErrorStatuses<E>(routeType: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType>, hasReadPlan: boolean): Array<number> {
+export function ApiControllerGetErrorStatuses<E>(routeType: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType>, hasPathScope: boolean): Array<number> {
 	const statuses: Set<number> = new Set<number>([HttpStatus.BAD_REQUEST, HttpStatus.INTERNAL_SERVER_ERROR]);
 
 	if (routeType === EApiRouteType.CREATE ? hasEnabledRequestInclude(routeConfig.relations?.request?.load?.include) : routeType !== EApiRouteType.GET_LIST) {
@@ -46,7 +46,7 @@ export function ApiControllerGetErrorStatuses<E>(routeType: EApiRouteType, route
 		statuses.add(HttpStatus.CONFLICT);
 	}
 
-	for (const status of getValidatorStatuses(routeConfig.request, getExecutedRequestTargets(routeType, hasReadPlan))) {
+	for (const status of getValidatorStatuses(routeConfig.request, getExecutedRequestTargets(routeType, hasPathScope))) {
 		statuses.add(status);
 	}
 
@@ -56,13 +56,13 @@ export function ApiControllerGetErrorStatuses<E>(routeType: EApiRouteType, route
 /**
  * Returns the request targets a generated route validates, in the order the route runtime runs them.
  * @param {EApiRouteType} routeType - Generated route type.
- * @param {boolean} hasReadPlan - Whether the GET_LIST route runs its path PARAMETERS target.
+ * @param {boolean} hasPathScope - Whether the controller binds path parameters, so CREATE and GET_LIST run their PARAMETERS target too.
  * @returns {Array<EApiControllerRequestTarget>} Executed request targets.
  */
-function getExecutedRequestTargets(routeType: EApiRouteType, hasReadPlan: boolean): Array<EApiControllerRequestTarget> {
+function getExecutedRequestTargets(routeType: EApiRouteType, hasPathScope: boolean): Array<EApiControllerRequestTarget> {
 	switch (routeType) {
 		case EApiRouteType.CREATE: {
-			return [EApiControllerRequestTarget.BODY];
+			return hasPathScope ? [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.BODY] : [EApiControllerRequestTarget.BODY];
 		}
 
 		case EApiRouteType.DELETE: {
@@ -74,7 +74,7 @@ function getExecutedRequestTargets(routeType: EApiRouteType, hasReadPlan: boolea
 		}
 
 		case EApiRouteType.GET_LIST: {
-			return hasReadPlan ? [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.QUERY] : [EApiControllerRequestTarget.QUERY];
+			return hasPathScope ? [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.QUERY] : [EApiControllerRequestTarget.QUERY];
 		}
 
 		case EApiRouteType.PARTIAL_UPDATE: {
