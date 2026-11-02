@@ -59,7 +59,7 @@ describe("ApiControllerGetListTransformAssertRelationTargets", () => {
 			expect(filter).toThrowError("matches 2 entity classes");
 		} else {
 			expect(assertTargets).not.toThrow();
-			expect(filter).not.toThrow();
+			expect(filter).not.toThrowError("matches 2 entity classes");
 		}
 	});
 
