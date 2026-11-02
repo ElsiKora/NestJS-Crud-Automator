@@ -297,6 +297,10 @@ export class ApiFunctionKeyPageLoader {
 
 		// A bound operator keeps TypeORM from running the column transformer on it, so each operand TypeORM would transform runs through the helper instead.
 		const bindOperand = (operand: unknown, isParameter: boolean): unknown => {
+			if (operand instanceof ApiFunctionBoundOperator) {
+				return operand;
+			}
+
 			if (InstanceChecker.isFindOperator(operand)) {
 				const operator: FindOperator<unknown> = operand as FindOperator<unknown>;
 				// The value getter unwraps a nested operator, while child keeps it.

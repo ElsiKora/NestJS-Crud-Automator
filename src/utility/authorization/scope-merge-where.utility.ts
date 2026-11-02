@@ -122,6 +122,73 @@ function defineWhereProperty(target: Record<string, unknown>, key: string, value
 }
 
 /**
+ * Finds the first declared WHERE property whose condition TypeORM would discard.
+ * @param {Record<string, unknown>} branch - Plain WHERE branch.
+ * @param {string} path - Path of the branch, named in the result.
+ * @returns {string | undefined} Path of that property or of an empty branch, undefined when every condition is effective.
+ */
+function findIneffectivePredicate(branch: Record<string, unknown>, path: string): string | undefined {
+	const entries: Array<[string, unknown]> | undefined = getWhereRecordDataEntries(branch);
+
+	if (!entries?.length) {
+		return path;
+	}
+
+	for (const [key, value] of entries) {
+		const propertyPath: string = path ? `${path}.${key}` : key;
+		const ineffective: string | undefined = findIneffectiveValue(value, propertyPath);
+
+		if (ineffective !== undefined) {
+			return ineffective;
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * Finds the first condition of one WHERE property that TypeORM would discard.
+ * @param {unknown} value - Condition of the property.
+ * @param {string} path - Path of the property, named in the result.
+ * @returns {string | undefined} Path of that condition, undefined when it is effective.
+ */
+function findIneffectiveValue(value: unknown, path: string): string | undefined {
+	if (value === undefined || value === null) {
+		return path;
+	}
+
+	if (Array.isArray(value)) {
+		const arrayValues: Array<unknown> | undefined = getDenseArrayDataValues(value);
+
+		if (!arrayValues) {
+			return path;
+		}
+
+		const objectBranches: Array<boolean> = arrayValues.map((branchValue: unknown): boolean => isWhereBranchObject(branchValue));
+
+		if (arrayValues.length > 0 && objectBranches.every(Boolean)) {
+			for (const [index, branchValue] of arrayValues.entries()) {
+				const ineffective: string | undefined = isWhereBranchObject(branchValue) ? findIneffectivePredicate(branchValue, `${path}[${String(index)}]`) : undefined;
+
+				if (ineffective !== undefined) {
+					return ineffective;
+				}
+			}
+
+			return undefined;
+		}
+
+		return objectBranches.some(Boolean) || !arrayValues.every((scalarValue: unknown): boolean => scalarValue !== undefined && scalarValue !== null && !Array.isArray(scalarValue) && (isAtomicWhereValue(scalarValue) || ["bigint", "boolean", "number", "string"].includes(typeof scalarValue))) ? path : undefined;
+	}
+
+	if (isWhereBranchObject(value)) {
+		return findIneffectivePredicate(value, path);
+	}
+
+	return isAtomicWhereValue(value) || ["bigint", "boolean", "number", "string"].includes(typeof value) ? undefined : path;
+}
+
+/**
  * Reads a dense array through own data descriptors without invoking accessors.
  * @param {Array<unknown>} value - Candidate array.
  * @returns {Array<unknown> | undefined} Stable item values, or undefined for sparse/extended/accessor arrays.
@@ -172,55 +239,6 @@ function getWhereRecordDataEntries(value: Record<string, unknown>): Array<[strin
 	}
 
 	return entries;
-}
-
-/**
- * Detects whether every declared WHERE property contains a condition TypeORM will not discard.
- * @param {Record<string, unknown>} branch - Plain WHERE branch.
- * @returns {boolean} True when the branch is non-empty and every condition is effective.
- */
-function hasOnlyEffectiveWherePredicates(branch: Record<string, unknown>): boolean {
-	const entries: Array<[string, unknown]> | undefined = getWhereRecordDataEntries(branch);
-
-	if (!entries?.length) {
-		return false;
-	}
-
-	return entries.every(([, value]: [string, unknown]): boolean => {
-		if (value === undefined || value === null) {
-			return false;
-		}
-
-		if (Array.isArray(value)) {
-			const arrayValues: Array<unknown> | undefined = getDenseArrayDataValues(value);
-
-			if (!arrayValues) {
-				return false;
-			}
-
-			if (arrayValues.length === 0) {
-				return true;
-			}
-
-			const objectBranches: Array<boolean> = arrayValues.map((branchValue: unknown): boolean => isWhereBranchObject(branchValue));
-
-			if (objectBranches.every(Boolean)) {
-				return arrayValues.every((branchValue: unknown): boolean => hasOnlyEffectiveWherePredicates(branchValue as Record<string, unknown>));
-			}
-
-			if (objectBranches.some(Boolean)) {
-				return false;
-			}
-
-			return arrayValues.every((scalarValue: unknown): boolean => scalarValue !== undefined && scalarValue !== null && !Array.isArray(scalarValue) && (isAtomicWhereValue(scalarValue) || ["bigint", "boolean", "number", "string"].includes(typeof scalarValue)));
-		}
-
-		if (isWhereBranchObject(value)) {
-			return hasOnlyEffectiveWherePredicates(value);
-		}
-
-		return isAtomicWhereValue(value) || ["bigint", "boolean", "number", "string"].includes(typeof value);
-	});
 }
 
 /**
@@ -400,8 +418,13 @@ function validateWhereArray(value: unknown): void {
 		throw ErrorException("Authorization scope WHERE cannot be an empty array");
 	}
 
-	if (branches.some((branch: unknown): boolean => !isRecord(branch) || !hasOnlyEffectiveWherePredicates(branch))) {
-		throw ErrorException("Authorization scope WHERE array branches must be non-empty plain objects");
+	for (const [index, branch] of branches.entries()) {
+		const branchPath: string = `[${String(index)}]`;
+		const ineffective: string | undefined = isRecord(branch) ? findIneffectivePredicate(branch, branchPath) : branchPath;
+
+		if (ineffective !== undefined) {
+			throw ErrorException(`Authorization scope WHERE array branches must be non-empty plain objects: the scope a policy returned has no effective predicate at ${ineffective}; use IsNull() to match null`);
+		}
 	}
 
 	for (const branch of branches as Array<Record<string, unknown>>) {
@@ -431,8 +454,14 @@ function validateWhereOperand(value: unknown): void {
 
 	const entries: Array<[string, unknown]> | undefined = getWhereRecordDataEntries(value);
 
-	if (!entries || (entries.length > 0 && !hasOnlyEffectiveWherePredicates(value))) {
+	if (!entries) {
 		throw ErrorException("Authorization scope WHERE object must contain an effective predicate");
+	}
+
+	const ineffective: string | undefined = entries.length > 0 ? findIneffectivePredicate(value, "") : undefined;
+
+	if (ineffective !== undefined) {
+		throw ErrorException(`Authorization scope WHERE object must contain an effective predicate: the scope a policy returned has none at ${ineffective}; use IsNull() to match null`);
 	}
 
 	validateWhereRecordKeys(value);
