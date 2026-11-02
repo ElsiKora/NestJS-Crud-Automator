@@ -1,6 +1,7 @@
 export { AUTHORIZATION_AUDIT_SINK_TOKEN } from "./audit-sink-token.constant";
 export { AUTHORIZATION_HOOK_PERMISSION_SOURCES_TOKEN } from "./hook-permission-sources-token.constant";
 export { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "./metadata-decision.constant";
+export { AUTHORIZATION_GATEWAY_METADATA_CONSTANT } from "./metadata-gateway.constant";
 export { AUTHORIZATION_MICROSERVICE_METADATA_CONSTANT } from "./metadata-microservice.constant";
 export { AUTHORIZATION_MODULE_OPTIONS_TOKEN } from "./module-options-token.constant";
 export * from "./policy";

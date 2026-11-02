@@ -4,7 +4,7 @@ import type { InstanceWrapper } from "@nestjs/core/internal";
 import { ApiAuthorizationHookPermissionCache } from "@class/api/authorization/hook";
 import { ApiAuthorizationIamAttachmentCache, ApiAuthorizationIamDocumentCache } from "@class/api/authorization/iam";
 import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
-import { AUTHORIZATION_MICROSERVICE_METADATA_CONSTANT, AUTHORIZATION_MODULE_OPTIONS_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
+import { AUTHORIZATION_GATEWAY_METADATA_CONSTANT, AUTHORIZATION_MICROSERVICE_METADATA_CONSTANT, AUTHORIZATION_MODULE_OPTIONS_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { EApiAuthorizationMode } from "@enum/class/authorization";
@@ -55,6 +55,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 
 	/**
 	 * Fails startup when a securable controller serves a handler that skips authorization.
+	 * A microservice or WebSocket transport has no identity that authorization can trust, because the caller writes the payload that the guard would read as the request, so a handler on such a transport is refused whatever its decorators.
 	 * Nest takes the route and the pattern from the prototype and the guards from the function on the instance, so both are checked. An instance of a request-scoped controller does not exist yet, so its replaced handler is left to `ApiAuthorizationHandlerGuard`.
 	 * @param {InstanceWrapper} controllerWrapper - Wrapper of the controller.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class that Nest registered.
@@ -63,18 +64,24 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	 * @returns {void}
 	 */
 	private assertServedHandlerAuthorized(controllerWrapper: InstanceWrapper, metatype: new (...arguments_: Array<unknown>) => unknown, methodName: string, handler: object): void {
-		const route: string | undefined = this.formatServedRoute(controllerWrapper, metatype, handler);
 		const pattern: string | undefined = this.formatHandledPattern(handler);
 
-		if (route === undefined && pattern === undefined) {
+		if (pattern !== undefined) {
+			const message: string = `Controller "${metatype.name}" method "${methodName}" handles pattern ${pattern}, and that transport has no identity that authorization can trust: move it to a controller that is not securable`;
+
+			authorizationBootstrapValidationLogger.error(message);
+
+			throw ErrorException(message);
+		}
+
+		const route: string | undefined = this.formatServedRoute(controllerWrapper, metatype, handler);
+
+		if (route === undefined) {
 			return;
 		}
 
 		if (!AuthorizationIsHandlerAuthorized(metatype, handler)) {
-			const message: string =
-				route === undefined
-					? `Controller "${metatype.name}" method "${methodName}" handles pattern ${String(pattern)} without authorization: move it to a controller that is not securable`
-					: `Controller "${metatype.name}" method "${methodName}" serves ${route} without authorization: declare it with @ApiRouteCustom or @ApiMethod, or move it to a controller that is not securable. Route metadata written by hand also needs ApiAuthorizationGuard or a subclass of it in @UseGuards on the method or the controller; a guard instance and APP_GUARD do not count`;
+			const message: string = `Controller "${metatype.name}" method "${methodName}" serves ${route} without authorization: declare it with @ApiRouteCustom or @ApiMethod, or move it to a controller that is not securable. Route metadata written by hand also needs ApiAuthorizationGuard or a subclass of it in @UseGuards on the method or the controller; a guard instance and APP_GUARD do not count`;
 
 			authorizationBootstrapValidationLogger.error(message);
 
@@ -85,8 +92,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		const servedHandler: unknown = instance ? instance[methodName] : handler;
 
 		if (servedHandler !== handler && !AuthorizationIsHandlerAuthorized(metatype, servedHandler)) {
-			const served: string = route ?? `pattern ${String(pattern)}`;
-			const message: string = `Controller "${metatype.name}" method "${methodName}" serves ${served} through a function set on the controller instance, and Nest takes guards from that function, so the handler skips authorization: remove the assignment, for example this.${methodName} = this.${methodName}.bind(this) in the constructor. Nest already calls a handler with this set to the controller`;
+			const message: string = `Controller "${metatype.name}" method "${methodName}" serves ${route} through a function set on the controller instance, and Nest takes guards from that function, so the handler skips authorization: remove the assignment, for example this.${methodName} = this.${methodName}.bind(this) in the constructor. Nest already calls a handler with this set to the controller`;
 
 			authorizationBootstrapValidationLogger.error(message);
 
@@ -111,11 +117,15 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
-	 * Formats the patterns of a `@MessagePattern` or `@EventPattern` handler for an error message.
+	 * Formats the patterns of a `@MessagePattern`, `@EventPattern` or `@SubscribeMessage` handler for an error message.
 	 * @param {object} handler - The function on the prototype.
 	 * @returns {string | undefined} The patterns as JSON, or undefined when the handler has none.
 	 */
 	private formatHandledPattern(handler: object): string | undefined {
+		if (Reflect.getMetadata(AUTHORIZATION_GATEWAY_METADATA_CONSTANT.MESSAGE_HANDLER_KEY, handler) !== undefined) {
+			return JSON.stringify(Reflect.getMetadata(AUTHORIZATION_GATEWAY_METADATA_CONSTANT.MESSAGE_KEY, handler));
+		}
+
 		if (Reflect.getMetadata(AUTHORIZATION_MICROSERVICE_METADATA_CONSTANT.PATTERN_HANDLER_KEY, handler) === undefined) {
 			return undefined;
 		}
