@@ -418,11 +418,15 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one colum
 			const cascaded = async (): Promise<Array<unknown>> => await dataSource.query(`SELECT "name", "tenantId" FROM row_path_single_cascaded`);
 			const tenants = async (): Promise<Array<unknown>> => await dataSource.query(`SELECT "id", "name" FROM row_path_single_tenants ORDER BY "id"`);
 
-			it.runIf(pipe === "none")("POST /single-cascaded with an existing tenant and a new name renames the tenant", async () => {
-				expect((await send("POST", "/single-cascaded", { name: "made", tenant: { id: SINGLE_TENANT_PINNED, name: "renamed" } })).statusCode).toBe(201);
-				expect(await cascaded()).toEqual([{ name: "made", tenantId: SINGLE_TENANT_PINNED }]);
+			// A create only inserts, so the cascade may not rename a stored tenant.
+			it.runIf(pipe === "none")("POST /single-cascaded with an existing tenant and a new name answers 409 and leaves the tenant", async () => {
+				const response = await send("POST", "/single-cascaded", { name: "made", tenant: { id: SINGLE_TENANT_PINNED, name: "renamed" } });
+
+				expect(response.statusCode).toBe(409);
+				expect(response.json()).toEqual({ details: { type: "UNIQUE_VIOLATION" }, error: "Conflict", message: "ROWPATHSINGLECASCADEDENTITY_DUPLICATE_KEY", statusCode: 409 });
+				expect(await cascaded()).toEqual([]);
 				expect(await tenants()).toEqual([
-					{ id: SINGLE_TENANT_PINNED, name: "renamed" },
+					{ id: SINGLE_TENANT_PINNED, name: "pinned" },
 					{ id: SINGLE_TENANT_OTHER, name: "other" },
 				]);
 			});
