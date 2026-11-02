@@ -30,7 +30,12 @@ export class ApiAuthorizationGuard implements CanActivate {
 	public constructor(
 		private readonly runtime: ApiAuthorizationRuntime,
 		private readonly parametersRuleRegistry: ApiAuthorizationParametersRuleRegistry,
-	) {}
+	) {
+		// A manual `new`, such as one passed to `useGlobalGuards`, without the registry fails here instead of on every request.
+		if (!(parametersRuleRegistry instanceof ApiAuthorizationParametersRuleRegistry)) {
+			throw ErrorException("ApiAuthorizationGuard needs ApiAuthorizationParametersRuleRegistry: resolve the guard from ApiAuthorizationModule or pass app.get(ApiAuthorizationParametersRuleRegistry) to its constructor");
+		}
+	}
 
 	public async canActivate(context: ExecutionContext): Promise<boolean> {
 		if (!this.isControllerSecurable(context)) {

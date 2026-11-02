@@ -622,6 +622,23 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(() => ApiControllerGetListQueryRuntime.parse({ "enabled[operator]": EFilterOperation.EQ, "enabled[value]": value, limit: 10, page: 1 }, plan)).toThrow("FILTER_NOT_VALID");
 	});
 
+	it.each([
+		["1.5", 1.5],
+		["-0.25", -0.25],
+		["16.0", 16],
+		["1e2", 100],
+	])("reads the DOUBLE filter text %s", (value: string, parsed: number) => {
+		const plan = compilePlan({ ratio: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } });
+
+		expect(ApiControllerGetListQueryRuntime.parse({ "ratio[operator]": EFilterOperation.EQ, "ratio[value]": value, limit: 10, page: 1 }, plan).ast?.nodes).toEqual([expect.objectContaining({ path: "ratio", value: parsed })]);
+	});
+
+	it.each(["", " 16 ", "0x10", "+1", ".5", "1.", "01.5", "Infinity"])("rejects the DOUBLE filter text %j", (value: string) => {
+		const plan = compilePlan({ ratio: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } });
+
+		expect(() => ApiControllerGetListQueryRuntime.parse({ "ratio[operator]": EFilterOperation.EQ, "ratio[value]": value, limit: 10, page: 1 }, plan)).toThrow("FILTER_NOT_VALID");
+	});
+
 	it("returns stable pagination error codes", () => {
 		const plan = compilePlan({
 			name: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },

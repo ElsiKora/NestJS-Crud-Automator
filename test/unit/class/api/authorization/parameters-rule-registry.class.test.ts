@@ -1,4 +1,4 @@
-import type { IApiControllerParametersRule } from "@interface/class/api/controller";
+import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 
 import { ApiAuthorizationParametersRuleRegistry } from "@class/api/authorization/parameters-rule-registry.class";
 import { describe, expect, it } from "vitest";

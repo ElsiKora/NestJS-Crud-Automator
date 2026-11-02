@@ -1,5 +1,5 @@
 import type { IApiAuthorizationModuleOptions } from "@interface/class/api/authorization";
-import type { IApiControllerParametersRule } from "@interface/class/api/controller";
+import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { IApiRouteRuntimeProperties } from "@interface/decorator/api";
 import type { Type } from "@nestjs/common";
 import type { InstanceWrapper } from "@nestjs/core/internal";
@@ -44,7 +44,12 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		@Optional()
 		private readonly moduleOptions: IApiAuthorizationModuleOptions = {},
 		private readonly parametersRuleRegistry: ApiAuthorizationParametersRuleRegistry,
-	) {}
+	) {
+		// A manual `new` without the registry, from JavaScript or through a cast, fails here instead of on the first start.
+		if (!(parametersRuleRegistry instanceof ApiAuthorizationParametersRuleRegistry)) {
+			throw ErrorException("ApiAuthorizationBootstrapValidationService needs ApiAuthorizationParametersRuleRegistry: resolve it from ApiAuthorizationModule or pass the registry to the constructor");
+		}
+	}
 
 	public onApplicationBootstrap(): void {
 		this.hookPermissionCache.configure(this.moduleOptions.cache);
@@ -231,10 +236,10 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	 * Lists the methods of a controller class, own and inherited, so a route declared on a base class is checked for each controller that serves it.
 	 * Each name is read from its property descriptor, nearest class first, so an override hides the base method and an accessor is skipped without running it.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
-	 * @returns {Map<string, (...arguments_: Array<unknown>) => unknown>} Handlers by method name, without `constructor`.
+	 * @returns {Map<string, object>} Handler functions by method name, without `constructor`.
 	 */
-	private collectMethods(metatype: new (...arguments_: Array<unknown>) => unknown): Map<string, (...arguments_: Array<unknown>) => unknown> {
-		const methods: Map<string, (...arguments_: Array<unknown>) => unknown> = new Map<string, (...arguments_: Array<unknown>) => unknown>();
+	private collectMethods(metatype: new (...arguments_: Array<unknown>) => unknown): Map<string, object> {
+		const methods: Map<string, object> = new Map<string, object>();
 		const seenNames: Set<string> = new Set<string>();
 
 		for (let prototype: null | object = metatype.prototype as object; prototype && prototype !== Object.prototype; prototype = Object.getPrototypeOf(prototype) as null | object) {
@@ -247,7 +252,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 				const value: unknown = Object.getOwnPropertyDescriptor(prototype, name)?.value;
 
 				if (typeof value === "function") {
-					methods.set(name, value as (...arguments_: Array<unknown>) => unknown);
+					methods.set(name, value);
 				}
 			}
 		}

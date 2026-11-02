@@ -245,6 +245,22 @@ function buildTransformDecorators(properties: TApiPropertyUuidProperties): Array
 		return [];
 	}
 
+	if (properties.isArray) {
+		// A lone value, such as `?ids=<uuid>`, is a one-item list, as for every list type; a comma list is one item, which is rejected.
+		return [
+			Transform(
+				({ value }: { value: unknown }): unknown => {
+					if (value === undefined || value === null) {
+						return value;
+					}
+
+					return (Array.isArray(value) ? value : [value]).map((item: unknown): unknown => lowerCaseUuid(item));
+				},
+				{ toClassOnly: true },
+			),
+		];
+	}
+
 	return [Transform(({ value }: { value: unknown }): unknown => (Array.isArray(value) ? value.map((item: unknown): unknown => lowerCaseUuid(item)) : lowerCaseUuid(value)), { toClassOnly: true })];
 }
 

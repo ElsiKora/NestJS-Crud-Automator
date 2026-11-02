@@ -1,5 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiControllerParametersColumnValue } from "@interface/class/api/controller";
+import type { IApiControllerParametersColumnValue } from "@interface/class/api/controller/parameters-column-value.interface";
 import type { IApiEntity } from "@interface/entity";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { FindOptionsWhere } from "typeorm";

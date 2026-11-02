@@ -12,7 +12,7 @@ import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
-import { Exclude } from "class-transformer";
+import { Exclude, Transform } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsEnum, Validate, ValidateIf } from "class-validator";
 
 /**
@@ -213,7 +213,13 @@ function buildRequestDecorators(properties: TApiPropertyEnumProperties): Array<P
 		decorators.push(buildPresenceDecorator(properties));
 
 		if (properties.isArray === true) {
-			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
+			// A lone value, such as `?names=abc`, is a one-item list, as for every list type; a comma list is one item, which the item rules check.
+			decorators.push(
+				Transform(({ value }: { value: unknown }): unknown => (value === undefined || value === null || Array.isArray(value) ? value : [value]), { toClassOnly: true }),
+				IsArray(),
+				ArrayMinSize(properties.minItems),
+				ArrayMaxSize(properties.maxItems),
+			);
 
 			if (properties.isUniqueItems) {
 				decorators.push(Validate(ArrayUniqueItemsValidator));

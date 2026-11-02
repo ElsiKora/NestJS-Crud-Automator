@@ -14,7 +14,7 @@ import { ClassTransformerAutomatorTransform } from "@utility/class-transformer/a
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { IsDecimalDivisibleBy } from "@utility/is/decimal-divisible-by.utility";
-import { NumberDescribeUnsafeIntegerRange, NumberParseCanonicalInteger } from "@utility/number";
+import { NumberDescribeUnsafeIntegerRange, NumberParseCanonicalDecimal, NumberParseCanonicalInteger } from "@utility/number";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
 import { Exclude, Type } from "class-transformer";
@@ -332,12 +332,12 @@ function buildTransformDecorators(properties: TApiPropertyNumberProperties): Arr
 			decorators.push(
 				ClassTransformerAutomatorTransform(
 					({ value }: { value: unknown }): unknown => {
-						// A value that is not a list is kept for `IsArray` to reject.
-						if (!Array.isArray(value)) {
+						if (value === undefined || value === null) {
 							return value;
 						}
 
-						return value.map((item: unknown): unknown => parseNumberValue(properties.format, item));
+						// A lone value, such as `?counts=7`, is a one-item list, as for every list type; `?counts=1,2` is the single item `1,2`, which is rejected.
+						return (Array.isArray(value) ? value : [value]).map((item: unknown): unknown => parseNumberValue(properties.format, item));
 					},
 					{ toClassOnly: true },
 				),
@@ -386,7 +386,7 @@ function getFormat(properties: TApiPropertyNumberProperties): string {
 }
 
 /**
- * Converts one request value to a number. Integer text is accepted only in canonical decimal form, so `016`, `0x10`, `16.0` and `1e3` become `NaN` and fail `IsInt`.
+ * Converts one request value to a number. Integer text is accepted only in canonical decimal form, so `016`, `0x10`, `16.0` and `1e3` become `NaN` and fail `IsInt`; DOUBLE text only as decimal text with an optional fraction and exponent, so ``, ` 16 `, `0x10` and `.5` fail `IsNumber`.
  * @param {EApiPropertyNumberType} format - Described number format.
  * @param {unknown} value - Raw request value.
  * @returns {unknown} The converted number, or the value itself when it is not a string, so a boolean or an object fails the number validators.
@@ -397,7 +397,7 @@ function parseNumberValue(format: EApiPropertyNumberType, value: unknown): unkno
 		return value;
 	}
 
-	return format === EApiPropertyNumberType.INTEGER ? NumberParseCanonicalInteger(value) : Number(value);
+	return format === EApiPropertyNumberType.INTEGER ? NumberParseCanonicalInteger(value) : NumberParseCanonicalDecimal(value);
 }
 
 /**

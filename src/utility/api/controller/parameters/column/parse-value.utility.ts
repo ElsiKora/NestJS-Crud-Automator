@@ -1,4 +1,4 @@
-import type { IApiControllerParametersColumnValue } from "@interface/class/api/controller";
+import type { IApiControllerParametersColumnValue } from "@interface/class/api/controller/parameters-column-value.interface";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";

@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import type { IApiControllerParametersRule } from "@interface/class/api/controller";
+import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";

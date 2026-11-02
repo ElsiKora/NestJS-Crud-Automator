@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import type { IApiControllerParametersRule } from "@interface/class/api/controller";
+import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
 import { EApiPropertyNumberType } from "@enum/decorator/api";

@@ -1,5 +1,5 @@
 import type { IApiAuthorizationModuleOptions, IApiPolicyDocumentRecord } from "@interface/class/api/authorization";
-import type { IApiControllerParametersRule } from "@interface/class/api/controller";
+import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 
 import { ApiAuthorizationBootstrapValidationService } from "@class/api/authorization/bootstrap-validation.service.class";
 import { ApiAuthorizationHookPermissionCache } from "@class/api/authorization/hook";

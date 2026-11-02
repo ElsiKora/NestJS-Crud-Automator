@@ -1,5 +1,5 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiControllerParametersRule } from "@interface/class/api/controller";
+import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { Type } from "@nestjs/common";
 import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";

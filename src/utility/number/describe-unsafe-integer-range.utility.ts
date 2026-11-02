@@ -1,4 +1,4 @@
-import type { INumberIntegerRange } from "@interface/utility";
+import type { INumberIntegerRange } from "@interface/utility/number-integer-range.interface";
 
 import { EApiPropertyNumberType } from "@enum/decorator/api";
 
