@@ -70,6 +70,18 @@ export class ApiFunctionTransactionRuntime {
 			});
 		});
 
+		for (const work of registry.takeWorkAfterSettlement()) {
+			try {
+				await work();
+			} catch (error) {
+				if (hasOperationError) {
+					operationError = error;
+				} else {
+					transactionLogger.error(`Work after a settled transaction failed: ${FormatErrorEvidenceForLog(error)}`);
+				}
+			}
+		}
+
 		let outcome: EApiFunctionTransactionOutcome = EApiFunctionTransactionOutcome.COMMITTED;
 
 		if (hasCommitError || rollbackFailure) outcome = EApiFunctionTransactionOutcome.UNKNOWN;

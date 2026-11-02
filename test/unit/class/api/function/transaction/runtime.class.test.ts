@@ -124,6 +124,76 @@ describe("ApiFunctionTransactionRuntime", () => {
 		});
 	});
 
+	describe("work kept until the transaction settles", () => {
+		const OWNER = { kind: EApiFunctionTransactionOwnerKind.FUNCTION, name: "create" } as never;
+
+		it("runs after the rollback and outside the transaction", async () => {
+			const { dataSource, queryRunner } = createTransactionFixture();
+			const failure: Error = new Error("insert failed");
+			let wasRolledBack: boolean | undefined;
+			let registryInWork: unknown = "unset";
+
+			await expect(
+				ApiFunctionTransactionRuntime.execute({
+					callback: async (): Promise<void> => {
+						ApiFunctionContextStorage.getTransactionRegistry()?.deferUntilSettled(async (): Promise<void> => {
+							wasRolledBack = vi.mocked(queryRunner.rollbackTransaction).mock.calls.length === 1;
+							registryInWork = ApiFunctionContextStorage.getTransactionRegistry();
+						});
+
+						throw failure;
+					},
+					dataSource,
+					owner: OWNER,
+				}),
+			).rejects.toBe(failure);
+
+			expect(wasRolledBack).toBe(true);
+			expect(registryInWork).toBeUndefined();
+		});
+
+		it("answers with the error of work that failed after a rollback", async () => {
+			const { dataSource } = createTransactionFixture();
+			const replacement: Error = new Error("from the hook");
+
+			await expect(
+				ApiFunctionTransactionRuntime.execute({
+					callback: async (): Promise<void> => {
+						ApiFunctionContextStorage.getTransactionRegistry()?.deferUntilSettled(async (): Promise<void> => {
+							throw replacement;
+						});
+
+						throw new Error("insert failed");
+					},
+					dataSource,
+					owner: OWNER,
+				}),
+			).rejects.toBe(replacement);
+		});
+
+		it("keeps the committed result when work fails after a commit", async () => {
+			const { dataSource, queryRunner } = createTransactionFixture();
+			const errorLog = vi.spyOn(LoggerUtility.prototype, "error").mockImplementation((): void => undefined);
+
+			await expect(
+				ApiFunctionTransactionRuntime.execute({
+					callback: async (): Promise<string> => {
+						ApiFunctionContextStorage.getTransactionRegistry()?.deferUntilSettled(async (): Promise<void> => {
+							throw new Error("from the hook");
+						});
+
+						return "committed";
+					},
+					dataSource,
+					owner: OWNER,
+				}),
+			).resolves.toBe("committed");
+
+			expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+			expect(errorLog).toHaveBeenCalledWith(expect.stringContaining("Work after a settled transaction failed"));
+		});
+	});
+
 	it("binds a route-shaped owner and manager through the owning transaction", async () => {
 		const { dataSource, entityManager, queryRunner } = createTransactionFixture();
 		let transaction: Readonly<IApiFunctionTransaction> | undefined;

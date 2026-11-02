@@ -8,4 +8,5 @@ export interface IApiFunctionCreateExecutorProperties<E extends IApiBaseEntity> 
 	properties: TApiFunctionCreateProperties<E>;
 	reportInsertedKey?: (key: ObjectLiteral | undefined) => void;
 	repository: Repository<E>;
+	serviceRepository: Repository<E>;
 }

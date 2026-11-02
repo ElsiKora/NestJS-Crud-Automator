@@ -33,6 +33,8 @@ export class ApiFunctionTransactionRegistry {
 
 	private readonly TRANSACTION: IApiFunctionTransaction;
 
+	private readonly WORK_AFTER_SETTLEMENT: Array<() => Promise<void>> = [];
+
 	constructor(id: string, owner: TApiFunctionTransactionOwner, observation?: Readonly<IApiFunctionTransactionObservationOptions>) {
 		if (observation !== undefined) {
 			const onSettled: IApiFunctionTransactionObservationOptions["onSettled"] | undefined = observation?.onSettled;
@@ -172,6 +174,15 @@ export class ApiFunctionTransactionRegistry {
 		});
 	}
 
+	/**
+	 * Keeps work for the moment the transaction has ended, when a statement that failed inside it can no longer stop a read.
+	 * @param {() => Promise<void>} work - Work the owner of the transaction runs after it committed or rolled back.
+	 * @returns {void}
+	 */
+	public deferUntilSettled(work: () => Promise<void>): void {
+		this.WORK_AFTER_SETTLEMENT.push(work);
+	}
+
 	public failEvent(sequence: number, error: unknown): void {
 		const event: (typeof this.EVENTS)[number] = this.getPendingEvent(sequence);
 
@@ -274,6 +285,10 @@ export class ApiFunctionTransactionRegistry {
 		const event: (typeof this.EVENTS)[number] = this.getPendingEvent(sequence);
 
 		event.status = EApiFunctionTransactionEventStatus.SUCCEEDED;
+	}
+
+	public takeWorkAfterSettlement(): ReadonlyArray<() => Promise<void>> {
+		return this.WORK_AFTER_SETTLEMENT.splice(0);
 	}
 
 	private getPendingEvent(sequence: number): (typeof this.EVENTS)[number] {

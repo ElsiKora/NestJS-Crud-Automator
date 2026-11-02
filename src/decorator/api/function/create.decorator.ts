@@ -1,3 +1,4 @@
+import type { ApiFunctionTransactionRegistry } from "@class/api/function/transaction/registry.class";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiSubscriberFunctionErrorExecutionContext } from "@interface/class/api/subscriber/function/error-execution-context.interface";
 import type { IApiSubscriberFunctionExecutionContext } from "@interface/class/api/subscriber/function/execution/context";
@@ -11,7 +12,7 @@ import { ApiControllerGeneratedInsertedKeyStorage } from "@class/api/controller/
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
-import { EApiFunctionTransactionMode } from "@enum/decorator/api";
+import { EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind } from "@enum/decorator/api";
 import { EApiFunctionType } from "@enum/decorator/api/function";
 import { EApiSubscriberOnType } from "@enum/decorator/api/on-type.enum";
 import { EErrorStringAction } from "@enum/utility";
@@ -77,7 +78,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 						throw ErrorException("Repository is not available in this context");
 					}
 
-					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? ({} as unknown as TApiFunctionCreateProperties<E>), reportInsertedKey, repository }, createProperties);
+					return executor<E>({ constructor: this.constructor as new (...arguments_: Array<unknown>) => unknown, entity, properties: executionContext.result ?? ({} as unknown as TApiFunctionCreateProperties<E>), reportInsertedKey, repository, serviceRepository: this.repository }, createProperties);
 				},
 				entity,
 				functionType: EApiFunctionType.CREATE,
@@ -104,6 +105,31 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 
 		return descriptor;
 	};
+}
+
+/**
+ * Runs the after-error subscribers of a failed create at the moment they can still read.
+ * @template E The entity type
+ * @param {IApiFunctionCreateExecutorProperties<E>} options - Properties of the failed create
+ * @param {E} entityInstance - Entity instance the subscribers match on
+ * @param {IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>} context - Context of the failed create
+ * @param {Error} failure - Error the create answers with
+ * @returns {Promise<void>} Resolves when the subscribers ran, or were kept for the end of the transaction
+ */
+async function executeAfterErrorSubscribers<E extends IApiBaseEntity>(options: IApiFunctionCreateExecutorProperties<E>, entityInstance: E, context: IApiSubscriberFunctionErrorExecutionContext<E, IApiSubscriberFunctionExecutionContextData<E>>, failure: Error): Promise<void> {
+	const { constructor, properties, serviceRepository }: IApiFunctionCreateExecutorProperties<E> = options;
+	const registry: ApiFunctionTransactionRegistry | undefined = ApiFunctionContextStorage.getTransactionRegistry();
+
+	if (registry && registry.getTransaction().owner.kind !== EApiFunctionTransactionOwnerKind.SCOPE) {
+		// A failed statement aborts a PostgreSQL transaction, so the hook runs after the rollback and reads through the service repository.
+		registry.deferUntilSettled(async (): Promise<void> => {
+			await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR, { ...context, DATA: { eventManager: undefined, properties, repository: serviceRepository } }, failure);
+		});
+
+		return;
+	}
+
+	await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR, context, failure);
 }
 
 /**
@@ -177,13 +203,13 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 		}
 
 		if (error instanceof HttpException) {
-			await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error);
+			await executeAfterErrorSubscribers(options, entityInstance, errorExecutionContext, error);
 
 			throw error;
 		}
 
 		LoggerUtility.getLogger("ApiFunctionCreate").verbose(`Error creating entity ${entity.name}: ${FormatErrorEvidenceForLog(error)}`);
-		await ApiSubscriberExecutor.executeFunctionErrorSubscribers(constructor, entityInstance, EApiFunctionType.CREATE, EApiSubscriberOnType.AFTER_ERROR, errorExecutionContext, error as Error);
+		await executeAfterErrorSubscribers(options, entityInstance, errorExecutionContext, error as Error);
 
 		throw new InternalServerErrorException(
 			ErrorString({
