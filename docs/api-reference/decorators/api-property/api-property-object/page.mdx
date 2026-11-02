@@ -24,7 +24,7 @@ Describes nested object fields in DTOs. Works with single DTO types, arrays, pol
 - Emits `@ApiProperty` with `type`, `oneOf`, or `discriminator` metadata. Allows arrays and `additionalProperties`.
 - On typed nested request DTOs, literal `additionalProperties: true` accepts and strips undeclared keys before validation. `SchemaObject` and `ReferenceObject` values remain OpenAPI-only.
 - Adds `Type`, `ValidateNested`, presence guards, `IsObject`, `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, and `ArrayNotEmpty` as needed.
-- A request array that leaves out `minItems`, `maxItems` or `isUniqueItems`, which the types forbid but JavaScript or `any` allows, fails at decoration with `ApiPropertyObject error: Request array property '<Dto>.<name>' must declare ...`, naming each missing bound. On any array, a `minItems` or `maxItems` that is not a non-negative integer, such as `NaN` from `Number(process.env.X)`, or an `isUniqueItems` that is not a boolean fails at decoration too.
+- A request array that leaves out `minItems`, `maxItems` or `isUniqueItems`, which the types forbid but JavaScript or `any` allows, fails at decoration with `ApiPropertyObject error: Request array property '<Dto>.<name>' must declare ...`, naming each missing bound. On any array, a `minItems` or `maxItems` that is not a non-negative integer, such as `NaN` from `Number(process.env.X)`, an `isUniqueItems` that is not a boolean, or an `isArray` that is not a boolean fails at decoration too.
 - Supports polymorphic validation via `MustMatchOneOfSchemasValidator`.
 - Adds `ApiResponseProperty`, `Expose`, or `Exclude` for response DTOs.
 - When a manual DTO is nested inside an auto-generated DTO, creates context-specific wrapper schemas so request and response metadata do not collide.
@@ -80,7 +80,7 @@ Neutral manual DTO fields do not need to be marked with `isResponse: true` just 
 ### 5.0.0
 
 - A request array without `minItems`, `maxItems` or `isUniqueItems` fails at decoration. Before, it decorated and its validators then rejected every value. Declare all three bounds, or mark a response-only property `isResponse: true`.
-- A `minItems` or `maxItems` that is not a non-negative integer, or an `isUniqueItems` that is not a boolean, fails at decoration on request and response arrays. Before, such a value decorated and could reject every request value. Pass valid values; a number read from the environment needs a default.
+- A `minItems` or `maxItems` that is not a non-negative integer, or an `isUniqueItems` that is not a boolean, fails at decoration on request and response arrays, and so does an `isArray` that is not a boolean. Before, such a bound decorated and could reject every request value, such an `isUniqueItems` only reached the OpenAPI schema, and such an `isArray` skipped the bound checks. Pass valid values; a number read from the environment needs a default.
 - `TApiPropertyObjectProperties` includes `TApiPropertyBaseResponseArrayProperties`, a response array whose bounds are optional. Code that reads the options and narrows on `isArray === true` gets `minItems`, `maxItems` and `isUniqueItems` as possibly `undefined`; also check `isResponse !== true` to read the required bounds of a request array.
 
 ## Related resources
