@@ -257,7 +257,7 @@ An explicit `@Expose` now keeps its name, groups and versions whatever the decor
 
 A response property is read from its property key and sent under its exposed name on every path, with or without `ClassSerializerInterceptor`, and the schema publishes the exposed name. Before 5.0.0 a generated route and `@ApiRouteCustom` without the interceptor read the exposed name and sent the property key. Swap the key and the name: `@Expose({ name: "id" }) gameId` becomes `@Expose({ name: "gameId" }) id`. A property under `@Exclude({ toPlainOnly: true })` is now left out of a response without the interceptor too.
 
-A nested manual DTO on a generated route now keeps its `@Expose` and `@Exclude`: a request uses the exposed name, and an excluded property is neither stored nor returned.
+A nested manual DTO on a generated route now keeps its `@Expose`, `@Exclude`, `@Transform` and `@Type`: a request uses the exposed name, an excluded property is neither stored nor returned, and a `@Transform` mask runs. A property of an `@ApiProperty*` decorator is read only from its exposed name, also under `exposeUnsetFields: false`, which used to bind a body key equal to the property key.
 
 A named `@Expose`, own or inherited, next to `isExpose: false` or an `@Exclude` that applies to plain objects now fails at startup. `@Exclude({ toPlainOnly: true })` stays legal.
 
