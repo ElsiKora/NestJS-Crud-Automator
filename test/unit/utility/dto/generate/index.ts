@@ -5,4 +5,5 @@ export * from "./dynamic.utility.test";
 export * from "./exception.utility.test";
 export * from "./filter-decorator.utility.test";
 export * from "./get-list-response.utility.test";
+export * from "./manual-child-transform.utility.test";
 export * from "./relation-response.utility.test";
