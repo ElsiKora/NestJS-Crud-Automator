@@ -2157,7 +2157,7 @@
 						"readOnly": true
 					},
 					"error": {
-						"description": "Error name",
+						"description": "Error name, sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered",
 						"example": "Conflict",
 						"nullable": false,
 						"readOnly": true,
@@ -2199,7 +2199,7 @@
 						"type": "integer"
 					}
 				},
-				"required": ["error", "message", "statusCode"],
+				"required": ["message", "statusCode"],
 				"type": "object"
 			},
 			"ExceptionInternalServerErrorDTO": {
@@ -2273,7 +2273,7 @@
 						"type": "string"
 					},
 					"error": {
-						"description": "Error name",
+						"description": "Error name, sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered",
 						"example": "Not Found",
 						"nullable": false,
 						"readOnly": true,
@@ -2315,7 +2315,7 @@
 						"type": "integer"
 					}
 				},
-				"required": ["error", "message", "statusCode"],
+				"required": ["message", "statusCode"],
 				"type": "object"
 			},
 			"ExceptionBadRequestDTO": {

@@ -618,8 +618,6 @@ describe("Swagger request DTO documentation (E2E)", () => {
 	});
 
 	it("declares the correlation contract fields on every documented error response of generated routes", () => {
-		// The body parser and guards answer these before the interceptor, so the fields the optional filter adds are not required
-		const preInterceptorSchemaNames: ReadonlySet<string> = new Set<string>(["ExceptionBadRequestDTO", "ExceptionForbiddenDTO", "ExceptionInternalServerErrorDTO", "ExceptionPayloadTooLargeDTO", "ExceptionTooManyRequestsDTO", "ExceptionUnauthorizedDTO", "ExceptionUnsupportedMediaTypeDTO"]);
 		const detailsSchemaNames: ReadonlySet<string> = new Set<string>(["ExceptionBadRequestDTO", "ExceptionConflictDTO"]);
 		const errorSchemaNames: Set<string> = new Set<string>();
 
@@ -641,7 +639,7 @@ describe("Swagger request DTO documentation (E2E)", () => {
 			const schema: { properties?: Record<string, unknown>; required?: Array<string> } = document.components?.schemas?.[name] as { properties?: Record<string, unknown>; required?: Array<string> };
 
 			expect(Object.keys(schema.properties ?? {}).toSorted(), name).toEqual(detailsSchemaNames.has(name) ? ["correlationID", "details", "error", "message", "statusCode", "timestamp"] : ["correlationID", "error", "message", "statusCode", "timestamp"]);
-			expect(schema.required?.toSorted(), name).toEqual(preInterceptorSchemaNames.has(name) ? ["message", "statusCode"] : ["error", "message", "statusCode"]);
+			expect(schema.required?.toSorted(), name).toEqual(["message", "statusCode"]);
 		}
 	});
 

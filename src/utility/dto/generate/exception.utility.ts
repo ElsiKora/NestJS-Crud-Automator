@@ -46,21 +46,16 @@ const ERROR_MESSAGE_PROPERTY_OPTIONS: ApiPropertyOptions = {
 	required: true,
 };
 
-const exceptionDtoCache: Map<HttpStatus, Type<unknown>> = new Map<HttpStatus, Type<unknown>>();
+const exceptionDtoCache: Map<number, Type<unknown>> = new Map<number, Type<unknown>>();
 
-/**
- * Statuses that can arise before CorrelationIDResponseBodyInterceptor runs: the body parser (`400`, `413`, `415`), guards (`401`, `403`, `429`), and a failing guard (`500`).
- * Their body carries `error` only when the exception that raised it does or CorrelationIDResponseBodyExceptionFilter is registered.
- */
-const PRE_INTERCEPTOR_EXCEPTION_STATUSES: ReadonlySet<HttpStatus> = new Set<HttpStatus>([HttpStatus.BAD_REQUEST, HttpStatus.FORBIDDEN, HttpStatus.INTERNAL_SERVER_ERROR, HttpStatus.PAYLOAD_TOO_LARGE, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.UNAUTHORIZED, HttpStatus.UNSUPPORTED_MEDIA_TYPE]);
-
-const EXCEPTION_FILTER_FIELD_NOTE: string = "sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered";
+// A NotFoundException without arguments, an HttpException with a string, and the body parser all answer without it
+const ERROR_NAME_NOTE: string = "sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered";
 
 /**
  * Details variants each status can carry on the wire, keyed by the details `type` discriminator.
  * Only the package's own database and relation reference failures attach details.
  */
-const EXCEPTION_DETAILS_BY_STATUS: ReadonlyMap<HttpStatus, Readonly<Record<string, Type<unknown>>>> = new Map<HttpStatus, Readonly<Record<string, Type<unknown>>>>([
+const EXCEPTION_DETAILS_BY_STATUS: ReadonlyMap<number, Readonly<Record<string, Type<unknown>>>> = new Map<number, Readonly<Record<string, Type<unknown>>>>([
 	[
 		HttpStatus.BAD_REQUEST,
 		{
@@ -79,36 +74,37 @@ const EXCEPTION_DETAILS_BY_STATUS: ReadonlyMap<HttpStatus, Readonly<Record<strin
 
 /**
  * Creates the exception DTO that describes the error body of one HTTP status.
- * The body carries error, message, and statusCode, and correlationID and timestamp when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error, so no status requires those two.
+ * Every status requires only message and statusCode, the two fields every exception puts on the wire. The body carries error when the exception sets it, and correlationID and timestamp when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error.
  * Statuses with package details (`400`, `409`) also describe the discriminated `details` object with the variants of that status.
- * Statuses that can arise before the interceptor (`400`, `401`, `403`, `413`, `415`, `429`, `500`) require only message and statusCode; the others also require error.
- * @param {HttpStatus} httpStatus - The HTTP status code for the exception
+ * A status `HttpStatus` does not list, such as the `499` of a custom exception, takes its name from the status text or its number, and pins statusCode to its value.
+ * @param {number} httpStatus - The HTTP status code for the exception
  * @returns {Type<unknown>} A generated DTO class for the exception
  */
-export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
+export function DtoGenerateException(httpStatus: number): Type<unknown> {
 	const cached: Type<unknown> | undefined = exceptionDtoCache.get(httpStatus);
 
 	if (cached) {
 		return cached;
 	}
 
-	const errorName: string = HttpStatus[httpStatus];
-	const errorText: string = STATUS_CODES[httpStatus] ?? "Error";
-	const isPreInterceptorStatus: boolean = PRE_INTERCEPTOR_EXCEPTION_STATUSES.has(httpStatus);
+	const listedName: string | undefined = HttpStatus[httpStatus];
+	const statusText: string | undefined = STATUS_CODES[httpStatus];
+	const errorName: string = listedName ?? statusText ?? `Status ${String(httpStatus)}`;
+	const errorText: string = statusText ?? "Error";
 
 	const detailsMapping: Readonly<Record<string, Type<unknown>>> | undefined = EXCEPTION_DETAILS_BY_STATUS.get(httpStatus);
 	const detailsTypes: Array<Type<unknown>> = detailsMapping ? Object.values(detailsMapping) : [];
 
 	// Free text: the status text, or a string the thrown exception sets
 	const errorNameOptions: ApiPropertyOptions = {
-		description: isPreInterceptorStatus ? `Error name, ${EXCEPTION_FILTER_FIELD_NOTE}` : "Error name",
+		description: `Error name, ${ERROR_NAME_NOTE}`,
 		example: errorText,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		nullable: false,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		readOnly: true,
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
-		required: !isPreInterceptorStatus,
+		required: false,
 		type: EApiPropertyDataType.STRING,
 	};
 
@@ -125,16 +121,8 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 		@ApiProperty(ERROR_MESSAGE_PROPERTY_OPTIONS)
 		message: Array<string> | string = "Error message";
 
-		@ApiPropertyEnum({
-			description: "status code",
-			entity: { name: "Error" },
-			enum: HttpStatus,
-			enumName: "EHttpStatus",
-			exampleValue: httpStatus,
-			isRequired: true,
-			isResponse: true,
-		})
-		statusCode: HttpStatus = httpStatus;
+		@buildStatusCodeDecorator(httpStatus, listedName !== undefined)
+		statusCode: number = httpStatus;
 
 		@ApiPropertyNumber({
 			description: `timestamp, ${CORRELATION_FIELD_NOTE}`,
@@ -186,5 +174,38 @@ function buildDetailsDecorator(detailsMapping: Readonly<Record<string, Type<unkn
 		isRequired: false,
 		isResponse: true,
 		type: Object.values(detailsMapping),
+	});
+}
+
+/**
+ * Builds the decorator of the statusCode property of one status.
+ * The `EHttpStatus` enum cannot describe a status `HttpStatus` does not list, so that status pins the number to its own value.
+ * @param {number} httpStatus - The HTTP status code for the exception.
+ * @param {boolean} isListed - Whether `HttpStatus` lists the status.
+ * @returns {PropertyDecorator} The statusCode property decorator.
+ */
+function buildStatusCodeDecorator(httpStatus: number, isListed: boolean): PropertyDecorator {
+	if (isListed) {
+		return ApiPropertyEnum({
+			description: "status code",
+			entity: { name: "Error" },
+			enum: HttpStatus,
+			enumName: "EHttpStatus",
+			exampleValue: httpStatus,
+			isRequired: true,
+			isResponse: true,
+		});
+	}
+
+	return ApiPropertyNumber({
+		description: "status code",
+		entity: { name: "Error" },
+		exampleValue: httpStatus,
+		format: EApiPropertyNumberType.INTEGER,
+		isRequired: true,
+		isResponse: true,
+		maximum: httpStatus,
+		minimum: httpStatus,
+		multipleOf: NUMBER_CONSTANT.ONE,
 	});
 }

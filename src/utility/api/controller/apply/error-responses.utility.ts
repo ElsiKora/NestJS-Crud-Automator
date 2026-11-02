@@ -6,7 +6,6 @@ import { STATUS_CODES } from "node:http";
 import { HttpStatus } from "@nestjs/common";
 import { ApiResponse } from "@nestjs/swagger";
 import { DtoGenerateException } from "@utility/dto/generate/exception.utility";
-import { EnumIsValue } from "@utility/enum/is-value.utility";
 
 // Statuses ApiMethod declares itself, on every route or from a response.errors flag
 const API_METHOD_ERROR_STATUSES: ReadonlySet<number> = new Set<number>([HttpStatus.BAD_REQUEST, HttpStatus.CONFLICT, HttpStatus.FORBIDDEN, HttpStatus.INTERNAL_SERVER_ERROR, HttpStatus.NOT_FOUND, HttpStatus.PAYLOAD_TOO_LARGE, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.UNAUTHORIZED, HttpStatus.UNSUPPORTED_MEDIA_TYPE]);
@@ -35,5 +34,5 @@ export function ApiControllerGetErrorFlags(statuses: ReadonlyArray<number>): Non
 export function ApiControllerGetErrorResponseDecorators(statuses: ReadonlyArray<number>, documented: ReadonlyArray<{ status: unknown }> = []): Array<MethodDecorator> {
 	const documentedStatuses: ReadonlySet<unknown> = new Set<unknown>(documented.map((response: { status: unknown }): unknown => response.status));
 
-	return statuses.filter((status: number): status is HttpStatus => EnumIsValue(HttpStatus, status) && !API_METHOD_ERROR_STATUSES.has(status) && !documentedStatuses.has(status)).map((status: HttpStatus): MethodDecorator => ApiResponse({ description: STATUS_CODES[status] ?? HttpStatus[status], status, type: DtoGenerateException(status) }));
+	return statuses.filter((status: number): boolean => !API_METHOD_ERROR_STATUSES.has(status) && !documentedStatuses.has(status)).map((status: number): MethodDecorator => ApiResponse({ description: STATUS_CODES[status] ?? "Error", status, type: DtoGenerateException(status) }));
 }

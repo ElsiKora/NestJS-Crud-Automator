@@ -26,27 +26,25 @@ describe("DtoGenerateException", () => {
 		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES_ARRAY, DtoGenerateException(HttpStatus.NOT_FOUND).prototype as object)).toEqual([":correlationID", ":error", ":message", ":statusCode", ":timestamp"]);
 	});
 
-	it("requires only message and statusCode on statuses that can arise before the interceptor", () => {
-		for (const status of [HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.PAYLOAD_TOO_LARGE, HttpStatus.UNSUPPORTED_MEDIA_TYPE, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.INTERNAL_SERVER_ERROR]) {
-			for (const key of ["correlationID", "error", "timestamp"]) {
-				expect(getProperty(status, key), `${String(status)} ${key}`).toMatchObject({ description: expect.stringContaining("CorrelationIDResponseBodyExceptionFilter") as string, required: false });
-			}
+	it.each([HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.CONFLICT, HttpStatus.PAYLOAD_TOO_LARGE, HttpStatus.UNSUPPORTED_MEDIA_TYPE, HttpStatus.UNPROCESSABLE_ENTITY, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.INTERNAL_SERVER_ERROR, 425, 499])("requires only message and statusCode on %i", (status: number) => {
+		expect(getProperty(status, "error"), "error").toMatchObject({ description: expect.stringContaining("CorrelationIDResponseBodyExceptionFilter") as string, required: false });
 
-			expect(getProperty(status, "message"), String(status)).toMatchObject({ required: true });
-			expect(getProperty(status, "statusCode"), String(status)).toMatchObject({ required: true });
+		for (const key of ["correlationID", "timestamp"]) {
+			expect(getProperty(status, key), key).toMatchObject({ description: expect.stringContaining("CorrelationIDResponseBodyExceptionFilter") as string, required: false });
 		}
+
+		expect(getProperty(status, "message"), "message").toMatchObject({ required: true });
+		expect(getProperty(status, "statusCode"), "statusCode").toMatchObject({ required: true });
 	});
 
-	it("requires error, message, and statusCode on statuses that only the handler chain returns, and no correlation field", () => {
-		for (const status of [HttpStatus.NOT_FOUND, HttpStatus.CONFLICT, HttpStatus.UNPROCESSABLE_ENTITY]) {
-			for (const key of ["error", "message", "statusCode"]) {
-				expect(getProperty(status, key), `${String(status)} ${key}`).toMatchObject({ required: true });
-			}
-
-			for (const key of ["correlationID", "timestamp"]) {
-				expect(getProperty(status, key), `${String(status)} ${key}`).toMatchObject({ description: expect.stringContaining("CorrelationIDResponseBodyInterceptor") as string, required: false });
-			}
-		}
+	it.each([
+		[425, "ExceptionTooEarlyDTO"],
+		[431, "ExceptionRequestHeaderFieldsTooLargeDTO"],
+		[451, "ExceptionUnavailableForLegalReasonsDTO"],
+		[499, "ExceptionStatus499DTO"],
+	])("names %i, which HttpStatus does not list, and pins its statusCode to the wire value", (status: number, name: string) => {
+		expect(DtoGenerateException(status).name).toBe(name);
+		expect(getProperty(status, "statusCode")).toMatchObject({ maximum: status, minimum: status, required: true });
 	});
 
 	it("describes the message as free text or a string array on every status", () => {

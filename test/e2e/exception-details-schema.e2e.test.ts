@@ -18,6 +18,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiController, ApiPropertyDescribe, ApiRouteCustom, ApiService, ApiServiceBase, ApiSubscriberModule, CorrelationIDResponseBodyExceptionFilter, CorrelationIDResponseBodyInterceptor, EApiControllerRelationReferenceShape, EApiExceptionDetailsType, EApiPropertyDescribeType, EApiPropertyStringType } from "../../src/index";
 
+import { expectEveryReferenceToResolve } from "./expect-every-reference-to-resolve";
+
 interface IWireAnswer {
 	body: { details?: Record<string, unknown>; statusCode?: number };
 	status: number;
@@ -258,14 +260,11 @@ describe.each(ADAPTERS)("exception schemas on %s (E2E)", (adapterName: string, c
 			const schemas = document.components?.schemas as Record<string, { required?: Array<string> }>;
 			const reference: string = (document.paths[path] as Record<string, { responses: Record<string, { content: Record<string, { schema: { $ref: string } }> }> }>)[method]?.responses[String(status)]?.content["application/json"]?.schema.$ref ?? "";
 
-			expect(schemas[reference.split("/").at(-1) ?? ""]?.required?.toSorted()).toEqual(["error", "message", "statusCode"]);
+			expect(schemas[reference.split("/").at(-1) ?? ""]?.required?.toSorted()).toEqual(["message", "statusCode"]);
 		});
 
 		it("resolves every component reference", () => {
-			const references: Array<string> = [...JSON.stringify(document).matchAll(/"#\/components\/schemas\/([^"]+)"/g)].map((match: RegExpExecArray): string => match[1] ?? "");
-
-			expect(references.length).toBeGreaterThan(0);
-			expect(references.filter((name: string): boolean => !document.components?.schemas?.[name])).toEqual([]);
+			expectEveryReferenceToResolve(document);
 		});
 
 		it("answers a missing row with the declared 404 schema", async () => {
