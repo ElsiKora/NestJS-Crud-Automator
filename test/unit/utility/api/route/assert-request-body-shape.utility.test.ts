@@ -1,5 +1,6 @@
 import { Readable } from "node:stream";
 
+import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { REQUEST_BODY_SHAPE_CONSTANT } from "@constant/request-body-shape.constant";
 import { ARRAY_UNIQUE_ITEMS_CONSTANT } from "@constant/validator/array-unique-items.constant";
 import { BadRequestException } from "@nestjs/common";
@@ -280,6 +281,38 @@ describe("ApiRouteAssertRequestBodyShape", () => {
 
 		expect((refusal(wide) as BadRequestException).getResponse()).toMatchObject({ message: [KEYS_MESSAGE] });
 		expect((refusal({ nested: wide }) as BadRequestException).getResponse()).toMatchObject({ message: [KEYS_MESSAGE] });
+	});
+
+	it("refuses with stable constraint names and no value or target", () => {
+		const wide: ApiRequestValidationException = refusal({ payload: wideObject(1001) }) as ApiRequestValidationException;
+		const deep: ApiRequestValidationException = refusal(nestedObjects(65)) as ApiRequestValidationException;
+
+		expect(wide).toBeInstanceOf(ApiRequestValidationException);
+		expect(wide.validationErrors).toEqual([{ children: [], constraints: { requestBodyMaximumKeys: KEYS_MESSAGE }, property: "payload" }]);
+		expect(wide.validationErrors[0]).not.toHaveProperty("value");
+		expect(wide.validationErrors[0]).not.toHaveProperty("target");
+		expect(Object.keys(deep.validationErrors[0]?.constraints ?? {})).toEqual(["requestBodyMaximumDepth"]);
+	});
+
+	it.each([
+		{ body: wideObject(1001), expected: "", name: "the body itself" },
+		{ body: { first: { second: wideObject(1001) } }, expected: "first.second", name: "a nested object" },
+		{ body: { items: [{ ok: 1 }, { wide: wideObject(1001) }] }, expected: "items.1.wide", name: "an array item" },
+		{ body: JSON.parse(`{"__proto__":${JSON.stringify(wideObject(1001))}}`) as object, expected: "__proto__", name: "an own __proto__ key" },
+	])("gives the path of $name", ({ body, expected }: { body: object; expected: string }) => {
+		expect((refusal(body) as ApiRequestValidationException).validationErrors[0]?.property).toBe(expected);
+	});
+
+	it("gives the path of the container past the depth limit", () => {
+		const property: string | undefined = (refusal(nestedArrays(65)) as ApiRequestValidationException).validationErrors[0]?.property;
+
+		expect(property).toBe(Array.from({ length: 64 }, (): string => "0").join("."));
+	});
+
+	it("gives a path through a shared object by the way it was first reached", () => {
+		const wide: Record<string, number> = wideObject(1001);
+
+		expect((refusal({ first: wide, second: { wide } }) as ApiRequestValidationException).validationErrors[0]?.property).toBe("first");
 	});
 
 	it("does not change the body it checks", () => {

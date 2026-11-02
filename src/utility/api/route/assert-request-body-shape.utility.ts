@@ -1,5 +1,6 @@
+import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { REQUEST_BODY_SHAPE_CONSTANT } from "@constant/request-body-shape.constant";
-import { BadRequestException } from "@nestjs/common";
+import { ValidationError } from "class-validator";
 
 /**
  * Refuses a parsed request body too deep or too wide for the transformers behind it: `plainToInstance` overflows the stack on deep nesting and is quadratic in the keys of one object.
@@ -9,14 +10,15 @@ import { BadRequestException } from "@nestjs/common";
  * Each object is walked once, at its shallowest level: a multipart parser points every field back at the body, and a walk by path would double on each level.
  * @param {unknown} body - Request body.
  * @returns {void}
- * @throws {BadRequestException} If the body nests too deeply or holds an object with too many keys.
+ * @throws {ApiRequestValidationException} If the body nests too deeply or holds an object with too many keys. The failure's `property` is the path of the object in the body, empty for the body itself.
  */
 export function ApiRouteAssertRequestBodyShape(body: unknown): void {
 	if (!isNestingValue(body)) {
 		return;
 	}
 
-	const visited: Set<object> = new Set<object>([body]);
+	// Each object links to the one it was reached from, so only a refusal pays for its path.
+	const parents: Map<object, null | object> = new Map<object, null | object>([[body, null]]);
 	let values: Array<object> = [body];
 	let level: number = 1;
 
@@ -28,16 +30,17 @@ export function ApiRouteAssertRequestBodyShape(body: unknown): void {
 			const children: Array<unknown> = Object.values(value);
 
 			if (!Array.isArray(value) && children.length > REQUEST_BODY_SHAPE_CONSTANT.MAXIMUM_OBJECT_KEYS) {
-				throw new BadRequestException([`request body must not hold an object with more than ${String(REQUEST_BODY_SHAPE_CONSTANT.MAXIMUM_OBJECT_KEYS)} keys`]);
+				throw createRefusal(REQUEST_BODY_SHAPE_CONSTANT.MAXIMUM_KEYS_CONSTRAINT, `request body must not hold an object with more than ${String(REQUEST_BODY_SHAPE_CONSTANT.MAXIMUM_OBJECT_KEYS)} keys`, value, parents);
 			}
 
 			for (const child of children) {
-				if (isNestingValue(child) && !visited.has(child)) {
+				if (isNestingValue(child) && !parents.has(child)) {
+					parents.set(child, value);
+
 					if (level === REQUEST_BODY_SHAPE_CONSTANT.MAXIMUM_DEPTH) {
-						throw new BadRequestException([`request body must not nest more than ${String(REQUEST_BODY_SHAPE_CONSTANT.MAXIMUM_DEPTH)} levels deep`]);
+						throw createRefusal(REQUEST_BODY_SHAPE_CONSTANT.MAXIMUM_DEPTH_CONSTRAINT, `request body must not nest more than ${String(REQUEST_BODY_SHAPE_CONSTANT.MAXIMUM_DEPTH)} levels deep`, child, parents);
 					}
 
-					visited.add(child);
 					nextValues.push(child);
 				}
 			}
@@ -46,6 +49,48 @@ export function ApiRouteAssertRequestBodyShape(body: unknown): void {
 		values = nextValues;
 		level += 1;
 	}
+}
+
+/**
+ * Builds the refusal of an object in the body. The failure holds no `value` or `target`, so it carries nothing of the body but the path.
+ * @param {string} constraint - Stable constraint name.
+ * @param {string} message - Message of the failure.
+ * @param {object} value - The object refused.
+ * @param {Map<object, null | object>} parents - The object each walked object was reached from.
+ * @returns {ApiRequestValidationException} The exception to throw.
+ */
+function createRefusal(constraint: string, message: string, value: object, parents: Map<object, null | object>): ApiRequestValidationException {
+	return new ApiRequestValidationException([Object.assign(new ValidationError(), { children: [], constraints: { [constraint]: message }, property: getBodyPath(value, parents) })]);
+}
+
+/**
+ * Builds the dotted path of an object in the body by following its parent links.
+ * @param {object} value - The object.
+ * @param {Map<object, null | object>} parents - The object each walked object was reached from.
+ * @returns {string} The path, empty for the body itself.
+ */
+function getBodyPath(value: object, parents: Map<object, null | object>): string {
+	const segments: Array<string> = [];
+	let current: object = value;
+	let parent: null | object | undefined = parents.get(current);
+
+	while (parent) {
+		segments.push(getKeyOfChild(parent, current));
+		current = parent;
+		parent = parents.get(current);
+	}
+
+	return segments.toReversed().join(".");
+}
+
+/**
+ * Finds the key an object holds a child under.
+ * @param {object} parent - The holding object.
+ * @param {object} child - The held object.
+ * @returns {string} The first key that holds the child, or an empty string if a getter no longer gives it.
+ */
+function getKeyOfChild(parent: object, child: object): string {
+	return Object.keys(parent).find((key: string): boolean => Reflect.get(parent, key) === child) ?? "";
 }
 
 /**
