@@ -1,5 +1,6 @@
 import "reflect-metadata";
 
+import { EXPOSED_SOURCE_DTO_CONSTANT } from "@constant/dto/exposed-source.constant";
 import { ClassTransformerSourceToExposed } from "@utility/class-transformer/source-to-exposed.utility";
 import { Expose, plainToInstance, Transform, Type } from "class-transformer";
 import { describe, expect, it } from "vitest";
@@ -102,6 +103,7 @@ describe("ClassTransformerSourceToExposed", () => {
 
 		expect(exposed).not.toBe(source);
 		expect(Object.getPrototypeOf(exposed)).toBe(source);
+		expect(Object.hasOwn(exposed as object, EXPOSED_SOURCE_DTO_CONSTANT.MARKER)).toBe(true);
 		expect(plainToInstance(ParentDto, exposed, { excludeExtraneousValues: true }).title).toBeUndefined();
 	});
 

@@ -1,11 +1,13 @@
 import type { ClassConstructor } from "class-transformer";
 
+import { EXPOSED_SOURCE_DTO_CONSTANT } from "@constant/dto/exposed-source.constant";
 import { ClassTransformerGetStorage } from "@utility/class-transformer/get-storage.utility";
 
 /**
  * Prepares a handler result for plain-to-class, which reads a renamed property from its exposed name: the value of each property key is made readable under that name.
  * The handler's property key stays the only source, so a key of the result that merely equals an exposed name is not read. Nested DTOs follow their `@Type`.
  * The object handed over owns a copy of each own enumerable key of the result, so a transform enumerates the full row in `obj`, and it inherits from the result, so a getter still reads.
+ * It carries `EXPOSED_SOURCE_DTO_CONSTANT.MARKER`, so it is never refused as a request that sends a property key.
  * @param {ClassConstructor<unknown>} dto - DTO class describing the value.
  * @param {unknown} value - Handler result, or an array of them.
  * @returns {unknown} The value itself when the DTO renames nothing and no nested value changes, otherwise an object that inherits from it with the exposed names added.
@@ -52,7 +54,8 @@ export function ClassTransformerSourceToExposed(dto: ClassConstructor<unknown>, 
 		rowProperties[key] = { enumerable: true, value: Reflect.get(value, key) as unknown };
 	}
 
-	return Object.create(value, { ...rowProperties, ...exposedProperties }) as unknown;
+	// eslint-disable-next-line @elsikora/typescript/naming-convention
+	return Object.create(value, { ...rowProperties, ...exposedProperties, [EXPOSED_SOURCE_DTO_CONSTANT.MARKER]: { value: true } }) as unknown;
 }
 
 /**
