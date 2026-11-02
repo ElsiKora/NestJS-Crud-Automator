@@ -1,10 +1,12 @@
 import "reflect-metadata";
 
+import type { ValidatorOptions } from "class-validator";
+
 import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
 import { instanceToInstance, plainToInstance } from "class-transformer";
-import { validateSync } from "class-validator";
+import { getMetadataStorage, validateSync, ValidationTypes } from "class-validator";
 import { describe, expect, it } from "vitest";
 
 import { CatDto, ChildDto, DiscriminatorDto, DogDto, DynamicDto, FreeformResponseDto, ObjectArrayDto, ObjectEntity, ParentDto } from "./object/fixture";
@@ -113,7 +115,148 @@ class UnboundedResponseArrayDto {
 	public rows!: Array<ChildDto>;
 }
 
+class FreeFormRequestDto {
+	@ApiPropertyObject({
+		description: "payloads",
+		entity: ObjectEntity,
+		isArray: true,
+		isRequired: false,
+		isUniqueItems: false,
+		maxItems: 3,
+		minItems: 0,
+		shouldValidateNested: true,
+		type: Object,
+	})
+	public payloads?: Array<Record<string, unknown>>;
+
+	@ApiPropertyObject({
+		description: "single",
+		entity: ObjectEntity,
+		isRequired: false,
+		shouldValidateNested: true,
+		type: Object,
+	})
+	public single?: Record<string, unknown>;
+
+	@ApiPropertyObject({
+		description: "undeclared",
+		entity: ObjectEntity,
+		isRequired: false,
+		shouldValidateNested: true,
+		type: undefined,
+	})
+	public undeclared?: Record<string, unknown>;
+}
+
 describe("ApiPropertyObject", () => {
+	describe("free-form request values", () => {
+		const VALUE: Record<string, unknown> = { deep: { junk: true }, id: 1 };
+
+		it.each<{ options: ValidatorOptions }>([{ options: {} }, { options: { whitelist: true } }, { options: { forbidNonWhitelisted: true, whitelist: true } }])("keeps array items, a single object and a class-less object as sent with $options", ({ options }: { options: ValidatorOptions }) => {
+			const instance = plainToInstance(FreeFormRequestDto, { payloads: [{ ...VALUE }, { id: 2 }], single: { ...VALUE }, undeclared: { ...VALUE } });
+
+			expect(validateSync(instance, options)).toHaveLength(0);
+			expect(instance.payloads).toEqual([VALUE, { id: 2 }]);
+			expect(instance.single).toEqual(VALUE);
+			expect(instance.undeclared).toEqual(VALUE);
+		});
+
+		it("attaches no nested validation to a free-form property or a class-less one", () => {
+			const nestedProperties: Array<string> = getMetadataStorage()
+				.getTargetValidationMetadatas(FreeFormRequestDto, "", false, false)
+				.filter((metadata) => metadata.type === ValidationTypes.NESTED_VALIDATION)
+				.map((metadata) => metadata.propertyName);
+
+			expect(nestedProperties).toEqual([]);
+		});
+
+		it.each([{ item: 1 }, { item: "x" }, { item: null }, { item: [{ id: 1 }] }])("rejects the array item $item", ({ item }: { item: unknown }) => {
+			const errors = validateSync(plainToInstance(FreeFormRequestDto, { payloads: [{ id: 1 }, item] }));
+
+			expect(errors.map((error) => error.constraints)).toEqual([{ isObject: "each value in payloads must be an object" }]);
+		});
+
+		it.each([{ property: "single" }, { property: "undeclared" }])("rejects a non-object value of $property", ({ property }: { property: string }) => {
+			const errors = validateSync(plainToInstance(FreeFormRequestDto, { [property]: 1 }));
+
+			expect(errors.map((error) => error.constraints)).toEqual([{ isObject: `${property} must be an object` }]);
+		});
+
+		it("rejects a non-object item of a class-less array", () => {
+			class UndeclaredArrayDto {
+				@ApiPropertyObject({
+					description: "undeclared",
+					entity: ObjectEntity,
+					isArray: true,
+					isRequired: true,
+					isUniqueItems: false,
+					maxItems: 3,
+					minItems: 0,
+					shouldValidateNested: true,
+					type: undefined,
+				})
+				public undeclared!: Array<Record<string, unknown>>;
+			}
+
+			expect(validateSync(plainToInstance(UndeclaredArrayDto, { undeclared: [{ id: 1 }] }))).toHaveLength(0);
+			expect(validateSync(plainToInstance(UndeclaredArrayDto, { undeclared: [1] })).map((error) => error.constraints)).toEqual([{ isObject: "each value in undeclared must be an object" }]);
+		});
+
+		it.each([
+			{ name: "type Object", type: Object },
+			{ name: "no type", type: undefined },
+		])("keeps the unique check on an array declared unique with $name, and compares by value", ({ type }: { type: ObjectConstructor | undefined }) => {
+			class UniqueFreeFormDto {
+				@ApiPropertyObject({
+					description: "items",
+					entity: ObjectEntity,
+					isArray: true,
+					isRequired: true,
+					isUniqueItems: true,
+					maxItems: 3,
+					minItems: 0,
+					shouldValidateNested: true,
+					type,
+				})
+				public items!: Array<Record<string, unknown>>;
+			}
+
+			const constraints = (items: Array<unknown>) => validateSync(plainToInstance(UniqueFreeFormDto, { items })).map((error) => error.constraints);
+
+			expect(constraints([{ a: 1 }, { a: 1 }])).toEqual([{ arrayUniqueItems: "items must not contain duplicate items" }]);
+			expect(
+				constraints([
+					{ a: 1, b: 2 },
+					{ b: 2, a: 1 },
+				]),
+			).toEqual([{ arrayUniqueItems: "items must not contain duplicate items" }]);
+			expect(constraints([{ a: 1 }, { a: 2 }])).toEqual([]);
+		});
+
+		it.each([
+			{ name: "type Object", type: Object },
+			{ name: "no type", type: undefined },
+		])("applies the array option checks at decoration with $name", ({ type }: { type: ObjectConstructor | undefined }) => {
+			const decorate = (options: Record<string, unknown>) => (): void => {
+				ApiPropertyObject({ description: "items", entity: ObjectEntity, isArray: true, isRequired: true, shouldValidateNested: true, type, ...options } as never)(class FreeFormBoundsDto {}.prototype, "items");
+			};
+
+			expect(decorate({ isUniqueItems: false, maxItems: 3 })).toThrow("Request array property 'FreeFormBoundsDto.items' must declare 'minItems'");
+			expect(decorate({ isUniqueItems: false, maxItems: Number.NaN, minItems: 0 })).toThrow("'maxItems' must be a non-negative integer");
+			expect(decorate({ isUniqueItems: true, maxItems: 1, minItems: 0 })).toThrow("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
+			expect(decorate({ isUniqueItems: false, maxItems: 3, minItems: 0, shouldValidateNested: false })).toThrow("Array property must be 'shouldValidateNested'");
+		});
+
+		it("still attaches nested validation to a declared class", () => {
+			const nestedProperties: Array<string> = getMetadataStorage()
+				.getTargetValidationMetadatas(ObjectArrayDto, "", false, false)
+				.filter((metadata) => metadata.type === ValidationTypes.NESTED_VALIDATION)
+				.map((metadata) => metadata.propertyName);
+
+			expect(nestedProperties).toEqual(["payloads"]);
+		});
+	});
+
 	it("documents a response array without bounds when it declares none", () => {
 		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, UnboundedResponseArrayDto.prototype, "rows") as Record<string, unknown>;
 
