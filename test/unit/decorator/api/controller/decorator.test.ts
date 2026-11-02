@@ -79,7 +79,7 @@ class FactoryService extends ApiServiceBase<FactoryEntity> {
 	public override create = vi.fn(async (properties: Partial<FactoryEntity>) => {
 		const created: FactoryEntity = { id: properties.id ?? "id-1", name: properties.name ?? "created", count: 1 } as FactoryEntity;
 
-		ApiControllerGeneratedInsertedKeyStorage.claim(properties)?.({ id: created.id });
+		ApiControllerGeneratedInsertedKeyStorage.claim(properties, "FactoryEntity")?.({ id: created.id });
 
 		return created;
 	});

@@ -41,7 +41,7 @@ export function ApiFunctionCreate<E extends IApiBaseEntity>(properties: IApiFunc
 
 	return function (_target: unknown, propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
 		descriptor.value = async function (this: { repository: Repository<E> }, createProperties: TApiFunctionCreateProperties<E>): Promise<IApiBaseEntity> {
-			const reportInsertedKey: ((key: ObjectLiteral | undefined) => void) | undefined = ApiControllerGeneratedInsertedKeyStorage.claim(createProperties);
+			const reportInsertedKey: ((key: ObjectLiteral | undefined) => void) | undefined = ApiControllerGeneratedInsertedKeyStorage.claim(createProperties, entity.name);
 
 			return await ApiFunctionExecuteWithTransaction({
 				callback: async (eventManager: EntityManager | undefined): Promise<IApiBaseEntity> => {

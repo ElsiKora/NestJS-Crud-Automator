@@ -9,7 +9,7 @@ describe("ApiControllerGeneratedInsertedKeyStorage", () => {
 
 		await expect(
 			ApiControllerGeneratedInsertedKeyStorage.run(input, async (): Promise<void> => {
-				ApiControllerGeneratedInsertedKeyStorage.claim(input)?.({ id: "inserted" });
+				ApiControllerGeneratedInsertedKeyStorage.claim(input, "Ticket")?.({ id: "inserted" });
 			}),
 		).resolves.toEqual({ id: "inserted" });
 	});
@@ -18,9 +18,9 @@ describe("ApiControllerGeneratedInsertedKeyStorage", () => {
 		const input: object = { title: "Created" };
 
 		const key: ObjectLiteral = await ApiControllerGeneratedInsertedKeyStorage.run(input, async (): Promise<void> => {
-			const report: ((key: ObjectLiteral | undefined) => void) | undefined = ApiControllerGeneratedInsertedKeyStorage.claim(input);
+			const report: ((key: ObjectLiteral | undefined) => void) | undefined = ApiControllerGeneratedInsertedKeyStorage.claim(input, "Ticket");
 
-			expect(ApiControllerGeneratedInsertedKeyStorage.claim(input)).toBeUndefined();
+			expect(ApiControllerGeneratedInsertedKeyStorage.claim(input, "Ticket")).toBeUndefined();
 			report?.({ id: "inserted" });
 		});
 
@@ -32,21 +32,31 @@ describe("ApiControllerGeneratedInsertedKeyStorage", () => {
 
 		await expect(
 			ApiControllerGeneratedInsertedKeyStorage.run(input, async (): Promise<void> => {
-				expect(ApiControllerGeneratedInsertedKeyStorage.claim({ title: "Nested" })).toBeUndefined();
+				expect(ApiControllerGeneratedInsertedKeyStorage.claim({ title: "Nested" }, "Ticket")).toBeUndefined();
 			}),
 		).rejects.toThrow("Generated CREATE function did not report the key of the row it inserted");
 	});
 
 	it("gives no reporter outside a generated route", () => {
-		expect(ApiControllerGeneratedInsertedKeyStorage.claim({ title: "Direct" })).toBeUndefined();
+		expect(ApiControllerGeneratedInsertedKeyStorage.claim({ title: "Direct" }, "Ticket")).toBeUndefined();
 	});
 
-	it("refuses a create call that reports no key", async () => {
+	it("names the cause when the saved row has no primary key value TypeORM knows", async () => {
 		const input: object = { title: "Created" };
 
 		await expect(
 			ApiControllerGeneratedInsertedKeyStorage.run(input, async (): Promise<void> => {
-				ApiControllerGeneratedInsertedKeyStorage.claim(input)?.(undefined);
+				ApiControllerGeneratedInsertedKeyStorage.claim(input, "Ticket")?.(undefined);
+			}),
+		).rejects.toThrow("Generated CREATE route cannot read the Ticket row it inserted: the saved entity has no primary key value TypeORM knows. A primary key the database fills, such as a SQLite rowid or a sequence default added outside TypeORM, must be declared as generated, with @PrimaryGeneratedColumn or @PrimaryColumn({ generated: ... })");
+	});
+
+	it("gives no reporter to a direct create call without a body, inside or outside a generated route", async () => {
+		expect(ApiControllerGeneratedInsertedKeyStorage.claim(undefined, "Ticket")).toBeUndefined();
+
+		await expect(
+			ApiControllerGeneratedInsertedKeyStorage.run({ title: "Created" }, async (): Promise<void> => {
+				expect(ApiControllerGeneratedInsertedKeyStorage.claim(undefined, "Ticket")).toBeUndefined();
 			}),
 		).rejects.toThrow("Generated CREATE function did not report the key of the row it inserted");
 	});
@@ -56,7 +66,7 @@ describe("ApiControllerGeneratedInsertedKeyStorage", () => {
 		const reported: { id: string } = { id: "inserted" };
 
 		const key: ObjectLiteral = await ApiControllerGeneratedInsertedKeyStorage.run(input, async (): Promise<void> => {
-			ApiControllerGeneratedInsertedKeyStorage.claim(input)?.(reported);
+			ApiControllerGeneratedInsertedKeyStorage.claim(input, "Ticket")?.(reported);
 			reported.id = "other";
 		});
 
