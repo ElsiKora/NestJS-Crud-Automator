@@ -60,7 +60,7 @@ export function ApiPropertyObject(options: TApiPropertyObjectProperties): Proper
 				RegisterAutoDtoChild(target, Object.values(normalizedOptions.generatedDTOs));
 			}
 
-			validateOptions(normalizedOptions, propertyKey);
+			validateOptions(normalizedOptions, target, propertyKey);
 			RegisterManualDtoPropertyMetadata(target, propertyKey, {
 				apply: ApiPropertyObject(normalizedOptions),
 				decorator: EManualDtoPropertyMetadataDecorator.OBJECT,
@@ -411,12 +411,13 @@ function resolveContextualObjectType(type: NestType<unknown>, method: EApiRouteT
  * Validates the configuration options for the API property object.
  * Throws an error if the configuration is invalid.
  * @param {TApiPropertyObjectProperties} properties - The property configuration to validate
+ * @param {object} target - Decorated DTO prototype, whose class the error names.
  * @param {string | symbol} propertyKey - Decorated property key, named in the error.
  * @returns {void}
  * @throws {Error} If the configuration is invalid
  * @private
  */
-function validateOptions(properties: TApiPropertyObjectProperties, propertyKey: string | symbol): void {
+function validateOptions(properties: TApiPropertyObjectProperties, target: object, propertyKey: string | symbol): void {
 	const errors: Array<string> = [];
 
 	if (properties.isArray && !properties.shouldValidateNested && !properties.isResponse) {
@@ -434,8 +435,19 @@ function validateOptions(properties: TApiPropertyObjectProperties, propertyKey: 
 				.map(([name]: [string, boolean | number | undefined]): string => `'${name}'`);
 
 			if (missingBounds.length > 0) {
-				errors.push(`Request array property '${String(propertyKey)}' must declare ${missingBounds.join(", ")}`);
+				errors.push(`Request array property '${target.constructor.name}.${String(propertyKey)}' must declare ${missingBounds.join(", ")}, or be marked 'isResponse: true' if it is response-only`);
 			}
+		}
+
+		// JavaScript or `any` can pass any value, and `Number(process.env.X)` with X unset is NaN; such a bound would reject every value too.
+		for (const [name, bound] of Object.entries({ maxItems, minItems })) {
+			if (bound !== undefined && !Number.isInteger(bound)) {
+				errors.push(`'${name}' must be a non-negative integer`);
+			}
+		}
+
+		if (isUniqueItems !== undefined && typeof isUniqueItems !== "boolean") {
+			errors.push("'isUniqueItems' must be a boolean");
 		}
 
 		if (minItems !== undefined && maxItems !== undefined && minItems > maxItems) {
