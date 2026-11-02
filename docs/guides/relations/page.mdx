@@ -537,8 +537,15 @@ A to-one reference with the wrong shape or a missing row keeps its own `400` `RE
 On CREATE, a `ManyToMany` reference only adds a join row, so the referenced row keeps its other links. A `OneToMany` relation, and the inverse side of a `OneToOne` (the side without `@JoinColumn`), cannot be bound by a create. Binding an existing row writes its foreign key: that updates a row outside its own UPDATE route and scope, and moves a row that belongs to another parent, while a create only inserts (see [Creating with Relations](#creating-with-relations)). So:
 
 - a CREATE route, generated or an `@ApiRouteCustom` route with `route.type` CREATE, whose `relations.request.load.include` enables such a relation fails at startup, and the message names the controller, the route and the relation;
-- the generated CREATE body does not declare these relations, and a CREATE body that references existing rows through one, as a key value, or an object with only the related primary key, alone or in an array, answers `400` with `property notes should not exist`, as an undeclared property does behind `forbidNonWhitelisted`, with or without such a pipe, and writes nothing;
-- a new related row with its own values, such as `"notes": [{ "text": "first" }]` on an entity with a cascade, is not a reference: the create inserts it, and answers `409` when its key already exists.
+- the generated CREATE body does not declare these relations, so the host `ValidationPipe` decides first what happens to such a key in the body. A reference is a key value, or an object with only the related primary key, alone or in an array; a new related row with its own values, such as `"notes": [{ "text": "first" }]` on an entity with a cascade, is not a reference.
+
+| `notes` in a generated CREATE body                         | Without a pipe                                                   | `whitelist: true`                       | `whitelist: true`, `forbidNonWhitelisted: true` |
+| ---------------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------- | ----------------------------------------------- |
+| Reference to an existing row: `["n3"]`, `[{ "id": "n3" }]` | `400` `property notes should not exist`, nothing written         | `201`, `notes` dropped without a word   | `400` `property notes should not exist`         |
+| Existing row with values: `[{ "id": "n3", "text": "x" }]`  | `409` `{ENTITY}_DUPLICATE_KEY`, nothing written                  | `201`, `notes` dropped without a word   | `400` `property notes should not exist`         |
+| New row with values: `[{ "id": "n9", "text": "first" }]`   | `201`, the cascade inserts the row, or `409` when its key exists | `201`, `notes` dropped, no row inserted | `400` `property notes should not exist`         |
+
+In every case the existing row stays as it was. Without a pipe, the route itself answers the reference with the `400` body that `forbidNonWhitelisted` gives (constraint `whitelistValidation`). Behind a whitelisting pipe a client that sends `notes` gets `201` without them, so it cannot tell that nothing was bound: register the pipe with `forbidNonWhitelisted: true`, or bind rows only through the UPDATE below.
 
 To bind existing rows, create the parent, then send the UPDATE or PARTIAL_UPDATE of each related row with its to-one reference to the parent, such as `PATCH /notes/n3` with `{ "post": "p1" }`. Its own route checks it, scope included. A custom route of another type still gets the reference as `[note]`.
 

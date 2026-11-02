@@ -11,7 +11,7 @@ import { getMetadataArgsStorage } from "typeorm";
  * The generated CREATE body does not declare such a relation, because a create only inserts and binding an existing row writes that row.
  * A reference is a key value, or an object that holds only primary key properties of the related entity, alone or in an array.
  * A new related row with its own values is left to the create, which inserts it, or answers 409 when its key already exists.
- * The key answers the `400` a `ValidationPipe` with `forbidNonWhitelisted` gives an undeclared property, with or without such a pipe.
+ * The key answers the `400` a `ValidationPipe` with `forbidNonWhitelisted` gives an undeclared property. Behind such a pipe the pipe answers first, and behind a pipe that only whitelists the key never reaches this check.
  * @param {unknown} entity - Entity class of the route.
  * @param {unknown} body - Request body after route BEFORE subscribers.
  * @throws {ApiRequestValidationException} With one `whitelistValidation` failure per relation key that holds a reference
