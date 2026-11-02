@@ -81,7 +81,7 @@ Crud Automator 5.x runs on Node.js `^22.13.0 || >=24.11.0` and ships as ES modul
 - `@nestjs/throttler` `>=6.7.1 <7`
 - TypeORM `>=1.1.2 <2`
 - `class-validator` `>=0.15.1 <0.16`
-- `class-transformer` `>=0.5.1 <0.6`
+- `class-transformer` `>=0.5.1 <0.5.2`
 - `lodash` `>=4.18.1 <5`
 
 You might need to install these peer dependencies if they're not already in your project:
