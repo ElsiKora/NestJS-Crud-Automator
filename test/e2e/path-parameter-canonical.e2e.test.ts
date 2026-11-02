@@ -461,7 +461,7 @@ describe("inherited custom routes (E2E)", () => {
 	] as Array<[string, Array<new () => unknown>]>)("fails at startup on the undescribed placeholder of an inherited custom route, %s", async (_order: string, controllers: Array<new () => unknown>) => {
 		const app: INestApplication = await createCanonicalApplication(undefined, controllers);
 
-		await expect(app.init()).rejects.toThrow(/"E2ePathParameterCanonicalInheritedBController" method "read" names the path parameter "tenant"/);
+		await expect(app.init()).rejects.toThrow(/"E2ePathParameterCanonicalInheritedBController" method "read" has the path parameter "tenant", which its PARAMETERS DTO "E2ePathParameterCanonicalCopyIntParametersDto" does not describe/);
 		await app.close().catch((): undefined => undefined);
 	});
 

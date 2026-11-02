@@ -450,20 +450,20 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 		}
 	});
 
-	it("builds no rule for a route with no path parameter or no PARAMETERS DTO, so it costs nothing per request", () => {
+	it("builds no rule for a route with no path parameter, so it costs nothing per request", () => {
 		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleParametersDto, methodName: "noParameter", pathParameters: [], resourcePath: "custom-rule/item" })).toBeUndefined();
-		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, methodName: "noDto", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toBeUndefined();
 		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, methodName: "noDtoNamed", pathParameters: [], resourcePath: "custom-rule/{id}" })).toBeUndefined();
 	});
 
-	it("keeps a path parameter the DTO does not describe as sent", async () => {
-		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleUndescribedParametersDto, methodName: "undescribed", pathParameters: ["id"], resourcePath: "custom-rule/item" });
-
-		await expect(ApiControllerParametersValidate(rule!, { id: "016" } as never)).resolves.toEqual({ id: "016" });
+	it.each([["an IAM", "custom-rule/item"]])("fails at startup on %s route with a path parameter and no PARAMETERS DTO, whose value a policy would read as sent", (_mode: string, resourcePath: string) => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, methodName: "noDto", pathParameters: ["id"], resourcePath })).toThrow('Controller "CustomRuleController" method "noDto" has the path parameter "id" but declares no PARAMETERS DTO');
 	});
 
-	it("rejects a resource path placeholder that names an undescribed path parameter", () => {
-		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleUndescribedParametersDto, methodName: "named", pathParameters: ["id"], resourcePath: "custom-rule/{id}" })).toThrow('Controller "CustomRuleController" method "named" names the path parameter "id"');
+	it.each([
+		["an IAM", "custom-rule/item"],
+		["an IAM resourcePath placeholder on", "custom-rule/{id}"],
+	])("fails at startup on %s path parameter the DTO does not describe, whose value a policy would read as sent", (_case: string, resourcePath: string) => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleUndescribedParametersDto, methodName: "undescribed", pathParameters: ["id"], resourcePath })).toThrow('Controller "CustomRuleController" method "undescribed" has the path parameter "id", which its PARAMETERS DTO "CustomRuleUndescribedParametersDto" does not describe');
 	});
 
 	it("names the rule a scalar described placeholder misses, since the DTO does describe it", () => {

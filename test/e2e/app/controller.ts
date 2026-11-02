@@ -1,6 +1,6 @@
 import { BadRequestException, Body, HttpStatus, Inject, Param, RequestMethod } from "@nestjs/common";
 
-import { ApiMethod, EApiAuthenticationType, EApiAuthorizationMode, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiRouteType, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../src/index";
+import { ApiMethod, ApiPropertyCopy, ApiRouteCustom, EApiAuthenticationType, EApiAuthorizationMode, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiControllerRequestTransformerType, EApiControllerResponseTarget, EApiDtoType, EApiRouteType, EErrorStringAction, TRANSFORMER_VALUE_DTO_CONSTANT } from "../../../src/index";
 import { ApiController, ApiControllerObservable, ApiControllerSecurable } from "../../../src/index";
 
 import { TestAuthGuard } from "./auth-guard";
@@ -13,6 +13,14 @@ const authentication = {
 	guard: TestAuthGuard,
 	type: EApiAuthenticationType.USER,
 };
+
+/**
+ * Path parameters of the promote route, copied from the entity column so a policy reads the canonical text.
+ */
+class E2ePromoteParametersDto {
+	@ApiPropertyCopy({ dtoType: EApiDtoType.PARAMETERS, entity: (): typeof E2eEntity => E2eEntity, method: EApiRouteType.GET, propertyName: "id" })
+	public id!: string;
+}
 
 @ApiControllerObservable()
 @ApiControllerSecurable()
@@ -214,31 +222,32 @@ export class E2eController {
 	@Inject(E2eOwnerService)
 	public readonly ownerService!: E2eOwnerService;
 
-	@ApiMethod<E2eEntity>({
-		metadata: {
-			resource: {
-				action: "update.promote",
-				entity: E2eEntity,
+	@ApiRouteCustom<E2eEntity>({
+		documentation: { description: "Promotes an item", summary: "Promotes an item" },
+		dto: { [EApiDtoType.PARAMETERS]: E2ePromoteParametersDto },
+		resource: {
+			action: "update.promote",
+			entity: E2eEntity,
+		},
+		response: {
+			errors: {},
+			serialization: {
+				isEnabled: true,
 			},
-			response: {
-				serialization: {
-					isEnabled: true,
-				},
-				status: HttpStatus.OK,
-				type: E2eEntity,
-			},
-			route: {
-				method: RequestMethod.POST,
-				path: "promote/:id",
-			},
-			security: {
-				authentication,
-				authorization: {
-					mode: EApiAuthorizationMode.HOOKS,
-				},
+			status: HttpStatus.OK,
+			type: E2eEntity,
+		},
+		route: {
+			method: RequestMethod.POST,
+			path: "promote/:id",
+		},
+		security: {
+			authentication,
+			authorization: {
+				mode: EApiAuthorizationMode.HOOKS,
 			},
 		},
-	})
+	} as never)
 	public async promote(@Param("id") id: string): Promise<E2eEntity> {
 		return this.service.get({ relations: { owner: true }, where: { id } });
 	}

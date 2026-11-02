@@ -117,8 +117,8 @@ describe("the route PARAMETERS DTO rule", () => {
 		await expect(ApiControllerParametersValidate(buildRule(RenamedWithInitializerDto, "initializer"), { id: "0x10" } as never)).resolves.toEqual({ id: 16 });
 	});
 
-	it("keeps a path parameter the DTO does not describe as sent", async () => {
-		await expect(ApiControllerParametersValidate(buildRule(RenamedWithInitializerDto, "undescribed", ["id", "tenant"]), { id: "16", tenant: "016" } as never)).resolves.toEqual({ id: 16, tenant: "016" });
+	it("fails at startup on a path parameter the DTO does not describe, whose value a policy would read as sent", () => {
+		expect(() => buildRule(RenamedWithInitializerDto, "undescribed", ["id", "tenant"])).toThrow('has the path parameter "tenant", which its PARAMETERS DTO "RenamedWithInitializerDto" does not describe');
 	});
 
 	it("refuses a number property without a type when the two conversions give different text", async () => {
