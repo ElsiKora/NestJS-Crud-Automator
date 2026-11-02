@@ -393,4 +393,43 @@ describe("ApiPropertyObject", () => {
 
 		expect(applyDecorator).toThrow("ApiPropertyObject error: Array property must be 'shouldValidateNested'");
 	});
+
+	it("throws at decoration when a request array leaves out its bounds", () => {
+		const unboundedOptions: Record<string, unknown> = {
+			description: "children",
+			entity: ObjectEntity,
+			isArray: true,
+			isRequired: true,
+			maxItems: 2,
+			shouldValidateNested: true,
+			type: ChildDto,
+		};
+
+		const applyDecorator = () => {
+			const decorator = ApiPropertyObject(unboundedOptions as unknown as Parameters<typeof ApiPropertyObject>[0]);
+
+			decorator({}, "children");
+		};
+
+		expect(applyDecorator).toThrow("ApiPropertyObject error: Request array property 'children' must declare 'isUniqueItems', 'minItems'");
+	});
+
+	it("throws at decoration when an array marked isResponse false leaves out its bounds", () => {
+		const unboundedOptions: Record<string, unknown> = {
+			description: "children",
+			entity: ObjectEntity,
+			isArray: true,
+			isResponse: false,
+			shouldValidateNested: true,
+			type: ChildDto,
+		};
+
+		const applyDecorator = () => {
+			const decorator = ApiPropertyObject(unboundedOptions as unknown as Parameters<typeof ApiPropertyObject>[0]);
+
+			decorator({}, "children");
+		};
+
+		expect(applyDecorator).toThrow("ApiPropertyObject error: Request array property 'children' must declare 'isUniqueItems', 'maxItems', 'minItems'");
+	});
 });
