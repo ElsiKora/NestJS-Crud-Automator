@@ -470,7 +470,18 @@ export class ApiAuthorizationIamEngine {
 					return { isMatched: false };
 				}
 
-				if (!this.evaluateOperator(operator, this.resolvePathValue(evaluationContext, path), expectedValue)) {
+				const actualValue: { isDeclared: boolean; value?: unknown } = path.startsWith("resource.") ? this.readResourceValue(options.resourceDefinition, options.resource, path) : { isDeclared: true, value: this.resolvePathValue(evaluationContext, path) };
+
+				// A `resource.*` key with no field mapping has no query path, so it fails closed as the SQL scope does: it holds for a Deny and fails an Allow.
+				if (!actualValue.isDeclared) {
+					if (isDeny) {
+						continue;
+					}
+
+					return { isMatched: false };
+				}
+
+				if (!this.evaluateOperator(operator, actualValue.value, expectedValue)) {
 					return { isMatched: false };
 				}
 			}
@@ -525,6 +536,21 @@ export class ApiAuthorizationIamEngine {
 	 */
 	private normalizeComparable(value: unknown): string {
 		return AuthorizationSerializeValue(value) ?? "";
+	}
+
+	/**
+	 * Reads a `resource.*` path from a loaded resource through the query path its field mapping declares, the same
+	 * column the SQL scope compares. A path through a relation the resource does not carry reads as missing.
+	 * @template E - Entity type.
+	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition with the field mappings.
+	 * @param {E | undefined} resource - Loaded resource.
+	 * @param {string} path - `resource.*` condition path or placeholder path.
+	 * @returns {{ isDeclared: boolean; value?: unknown }} The value at the field's query path, or `isDeclared: false` when no field maps the path.
+	 */
+	private readResourceValue<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, resource: E | undefined, path: string): { isDeclared: boolean; value?: unknown } {
+		const field: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = resourceDefinition.fields.find((candidate: IApiAuthorizationResourceDefinition<E>["fields"][number]): boolean => candidate.path === path);
+
+		return field ? { isDeclared: true, value: this.resolvePathValue(resource, field.queryPath) } : { isDeclared: false };
 	}
 
 	/**
@@ -688,7 +714,9 @@ export class ApiAuthorizationIamEngine {
 
 	/**
 	 * Splits the resource path into literal segments and placeholders; placeholders resolved from the resource or
-	 * request parameters become literals, unresolved ones keep their name and render as `*`.
+	 * request parameters become literals, unresolved ones keep their name and render as `*`. A request parameter of the
+	 * placeholder's name wins; otherwise a placeholder that names a field reads the resource through its query path, as
+	 * the SQL scope does, and any other placeholder reads the resource property of its name.
 	 * @template E - Entity type.
 	 * @template M - List pagination mode.
 	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition.
@@ -697,10 +725,7 @@ export class ApiAuthorizationIamEngine {
 	 * @returns {Array<IApiAuthorizationIamResourceSegment>} Resource segments with adjacent literals merged.
 	 */
 	private resolveResourceSegments<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, requestMetadata: IApiAuthorizationRequestMetadata<E, M>, resource: E | undefined): Array<IApiAuthorizationIamResourceSegment> {
-		const resourceSource: Record<string, unknown> = {
-			...(this.isRecord(resource) ? resource : {}),
-			...(this.isRecord(requestMetadata.parameters) ? requestMetadata.parameters : {}),
-		};
+		const parameters: Record<string, unknown> = this.isRecord(requestMetadata.parameters) ? requestMetadata.parameters : {};
 
 		const segments: Array<IApiAuthorizationIamResourceSegment> = [];
 
@@ -722,7 +747,16 @@ export class ApiAuthorizationIamEngine {
 
 		for (const match of resourceDefinition.resourcePath.matchAll(/\{([\w.-]+)\}/g)) {
 			const placeholder: string = match[1] ?? "";
-			const resolvedValue: unknown = resourceSource[placeholder];
+			const resourceValue: { isDeclared: boolean; value?: unknown } = this.readResourceValue(resourceDefinition, resource, `resource.${placeholder}`);
+			let resolvedValue: unknown;
+
+			if (Object.prototype.hasOwnProperty.call(parameters, placeholder)) {
+				resolvedValue = parameters[placeholder];
+			} else if (resourceValue.isDeclared) {
+				resolvedValue = resourceValue.value;
+			} else {
+				resolvedValue = this.isRecord(resource) ? (resource as Record<string, unknown>)[placeholder] : undefined;
+			}
 
 			appendLiteral(resourceDefinition.resourcePath.slice(literalStart, match.index));
 

@@ -1,0 +1,13 @@
+/**
+ * A query path resolved through the TypeORM metadata of an IAM resource entity.
+ */
+export interface IApiAuthorizationIamQueryField {
+	// Whether the column the path ends on holds a boolean.
+	isBoolean: boolean;
+	// Whether the path crosses a relation, so a row can lack it the way a loaded resource lacks the key.
+	isOptional: boolean;
+	// Whether the path ends on a column TypeORM maps.
+	isResolvable: boolean;
+	// Query path of the primary column of the last relation the path crosses: NULL exactly when that relation is missing.
+	presencePath?: string;
+}

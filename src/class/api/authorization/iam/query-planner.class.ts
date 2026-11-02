@@ -1,10 +1,10 @@
 import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
-import type { IApiAuthorizationIamDenyExclusion, IApiAuthorizationIamResourceConstraint, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiAuthorizationScope, IApiPolicyStatement } from "@interface/class/api/authorization";
+import type { IApiAuthorizationIamDenyExclusion, IApiAuthorizationIamQueryField, IApiAuthorizationIamResourceConstraint, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiAuthorizationScope, IApiPolicyStatement } from "@interface/class/api/authorization";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 import type { TTypeOrmColumnMetadataArguments, TTypeOrmEmbeddedMetadataArguments, TTypeOrmMetadataArgumentsStorage, TTypeOrmRelationMetadataArguments } from "@type/utility/typeorm";
-import type { FindOperator, FindOptionsWhere } from "typeorm";
+import type { FindOptionsWhere } from "typeorm";
 
 import { Buffer } from "node:buffer";
 
@@ -21,7 +21,7 @@ import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
 import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { ResolveRelationTarget } from "@utility/resolve/relation-target.utility";
-import { Equal, getMetadataArgsStorage, IsNull, Not, Raw } from "typeorm";
+import { And, Equal, FindOperator, getMetadataArgsStorage, IsNull, Not, Raw } from "typeorm";
 
 const iamQueryPlannerLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationIamQueryPlanner");
 
@@ -29,7 +29,7 @@ const iamQueryPlannerLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthori
 const iamQueryPlannerBooleanColumnTypes: ReadonlySet<unknown> = new Set<unknown>(["bit", "bool", Boolean, "boolean"]);
 
 // Resolved query paths, per resource entity class, so TypeORM metadata is walked once per path.
-const iamQueryPlannerFieldCache: WeakMap<object, Map<string, { isBoolean: boolean; isResolvable: boolean }>> = new WeakMap<object, Map<string, { isBoolean: boolean; isResolvable: boolean }>>();
+const iamQueryPlannerFieldCache: WeakMap<object, Map<string, IApiAuthorizationIamQueryField>> = new WeakMap<object, Map<string, IApiAuthorizationIamQueryField>>();
 
 @Injectable()
 export class ApiAuthorizationIamQueryPlanner {
@@ -39,7 +39,7 @@ export class ApiAuthorizationIamQueryPlanner {
 		const branches: Array<FindOptionsWhere<E>> = [];
 
 		for (const statement of options.statements) {
-			const compiledStatement: { isCompilable: boolean; where?: FindOptionsWhere<E> } = this.compileStatementWhere({
+			const compiledStatement: { branches?: Array<FindOptionsWhere<E>>; isCompilable: boolean } = this.compileStatementWhere({
 				condition: statement.Condition,
 				principal: options.principal,
 				requestMetadata: options.requestMetadata,
@@ -53,15 +53,15 @@ export class ApiAuthorizationIamQueryPlanner {
 				return { isFullyCompilable: false };
 			}
 
-			if (!compiledStatement.where) {
+			if (!compiledStatement.branches) {
 				continue;
 			}
 
-			if (Object.keys(compiledStatement.where).length === 0) {
+			if (compiledStatement.branches.some((branch: FindOptionsWhere<E>): boolean => Object.keys(branch).length === 0)) {
 				return { isFullyCompilable: true, scope: undefined };
 			}
 
-			branches.push(compiledStatement.where);
+			branches.push(...compiledStatement.branches);
 		}
 
 		if (branches.length === 0) {
@@ -212,14 +212,14 @@ export class ApiAuthorizationIamQueryPlanner {
 				});
 
 				const columnValue: { isComparable: boolean; value?: unknown } = fieldDefinition && this.isCompilableValue(resolvedValue) ? this.resolveColumnValue(options.resourceDefinition, fieldDefinition.queryPath, resolvedValue) : { isComparable: false };
-				const negatedOperators: Array<FindOperator<unknown>> | undefined = columnValue.isComparable ? this.negateConditionOperator(operator, columnValue.value) : undefined;
+				const negatedBranches: Array<Array<[string, unknown]>> | undefined = fieldDefinition && columnValue.isComparable ? this.negateConditionOperator(operator, fieldDefinition.queryPath, this.resolveField(options.resourceDefinition.entity, fieldDefinition.queryPath), columnValue.value) : undefined;
 
-				if (!fieldDefinition || !negatedOperators) {
+				if (!negatedBranches) {
 					return { isCompilable: false };
 				}
 
-				for (const negatedOperator of negatedOperators) {
-					branches.push(this.createWhere(fieldDefinition.queryPath, negatedOperator));
+				for (const negatedBranch of negatedBranches) {
+					branches.push(this.createBranchWhere(negatedBranch));
 				}
 			}
 		}
@@ -227,14 +227,28 @@ export class ApiAuthorizationIamQueryPlanner {
 		return branches.length === 0 ? { isCompilable: false } : { branches, isCompilable: true };
 	}
 
-	private compileStatementWhere<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: { condition?: Record<string, Record<string, unknown>>; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E> }): { isCompilable: boolean; where?: FindOptionsWhere<E> } {
+	/**
+	 * Compiles one matched Allow statement into the OR branches of rows it allows. Keys of one statement are ANDed, so
+	 * the branches are the cross product of each key's alternatives; keys on one query path combine with `And`, so two
+	 * different values on one column allow no row, as they do in memory.
+	 * @template E - Entity type.
+	 * @template M - List pagination mode.
+	 * @param {object} options - Compilation options.
+	 * @param {Record<string, Record<string, unknown>>} [options.condition] - Statement condition.
+	 * @param {IApiAuthorizationPrincipal} options.principal - Principal used to resolve `${...}` condition values.
+	 * @param {IApiAuthorizationRequestMetadata<E, M>} options.requestMetadata - Request metadata used to resolve `${...}` condition values.
+	 * @param {E} [options.resource] - Loaded resource, when available.
+	 * @param {IApiAuthorizationResourceDefinition<E>} options.resourceDefinition - IAM resource definition with the filterable field mappings.
+	 * @returns {{ branches?: Array<FindOptionsWhere<E>>; isCompilable: boolean }} Allow branches, none when the statement has no `resource.*` key, or a non-compilable result.
+	 */
+	private compileStatementWhere<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode>(options: { condition?: Record<string, Record<string, unknown>>; principal: IApiAuthorizationPrincipal; requestMetadata: IApiAuthorizationRequestMetadata<E, M>; resource?: E; resourceDefinition: IApiAuthorizationResourceDefinition<E> }): { branches?: Array<FindOptionsWhere<E>>; isCompilable: boolean } {
 		if (!options.condition) {
 			return {
 				isCompilable: true,
 			};
 		}
 
-		const where: FindOptionsWhere<E> = {};
+		let branches: Array<Array<[string, unknown]>> = [[]];
 		let hasResourceCondition: boolean = false;
 
 		for (const [operator, operands] of Object.entries(options.condition)) {
@@ -244,10 +258,6 @@ export class ApiAuthorizationIamQueryPlanner {
 				}
 
 				hasResourceCondition = true;
-
-				if (operator !== (EApiPolicyConditionOperator.STRING_EQUALS as string) && operator !== (EApiPolicyConditionOperator.STRING_EQUALS_IF_EXISTS as string)) {
-					return { isCompilable: false };
-				}
 
 				const fieldDefinition: IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined = this.resolveFilterableField(options.resourceDefinition, path);
 
@@ -262,19 +272,65 @@ export class ApiAuthorizationIamQueryPlanner {
 				});
 
 				const columnValue: { isComparable: boolean; value?: unknown } = this.isCompilableValue(resolvedValue) ? this.resolveColumnValue(options.resourceDefinition, fieldDefinition.queryPath, resolvedValue) : { isComparable: false };
+				const keyBranches: Array<Array<[string, unknown]>> | undefined = columnValue.isComparable ? this.resolveConditionBranches(operator, fieldDefinition.queryPath, this.resolveField(options.resourceDefinition.entity, fieldDefinition.queryPath), columnValue.value) : undefined;
 
-				if (!columnValue.isComparable) {
+				if (!keyBranches) {
 					return { isCompilable: false };
 				}
 
-				this.assignWhereValue(where, fieldDefinition.queryPath, columnValue.value);
+				branches = branches.flatMap((branch: Array<[string, unknown]>): Array<Array<[string, unknown]>> => keyBranches.map((keyBranch: Array<[string, unknown]>): Array<[string, unknown]> => [...branch, ...keyBranch]));
+
+				if (branches.length > AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES) {
+					iamQueryPlannerLogger.warn(`IAM query scope for resource type "${options.resourceDefinition.resourceType}" exceeds ${AUTHORIZATION_IAM_SCOPE_CONSTANT.MAX_WHERE_BRANCHES} where branches.`);
+
+					return { isCompilable: false };
+				}
 			}
 		}
 
 		return {
+			branches: hasResourceCondition ? branches.map((branch: Array<[string, unknown]>): FindOptionsWhere<E> => this.createBranchWhere(branch)) : undefined,
 			isCompilable: true,
-			where: hasResourceCondition ? where : undefined,
 		};
+	}
+
+	/**
+	 * Builds one WHERE branch from the column conditions it ANDs. Conditions on one query path combine with `And`; a
+	 * condition repeated on one path is kept once, and a plain value becomes `Equal` only when it meets another condition.
+	 * @template E - Entity type.
+	 * @param {Array<[string, unknown]>} conditions - Query paths with their values or find operators.
+	 * @returns {FindOptionsWhere<E>} WHERE branch.
+	 */
+	private createBranchWhere<E extends IApiBaseEntity>(conditions: Array<[string, unknown]>): FindOptionsWhere<E> {
+		const pathConditions: Map<string, Array<unknown>> = new Map<string, Array<unknown>>();
+
+		for (const [queryPath, value] of conditions) {
+			pathConditions.set(queryPath, [...(pathConditions.get(queryPath) ?? []), value]);
+		}
+
+		const where: FindOptionsWhere<E> = {};
+
+		for (const [queryPath, values] of pathConditions) {
+			if (values.length === 1) {
+				this.assignWhereValue(where, queryPath, values[0]);
+
+				continue;
+			}
+
+			const operators: Array<FindOperator<unknown>> = [];
+
+			for (const value of values) {
+				const operator: FindOperator<unknown> = value instanceof FindOperator ? (value as FindOperator<unknown>) : Equal(value);
+
+				if (!operators.some((existing: FindOperator<unknown>): boolean => this.isSameCondition(existing, operator))) {
+					operators.push(operator);
+				}
+			}
+
+			this.assignWhereValue(where, queryPath, operators.length === 1 ? operators[0] : And(...operators));
+		}
+
+		return where;
 	}
 
 	/**
@@ -318,6 +374,20 @@ export class ApiAuthorizationIamQueryPlanner {
 	}
 
 	/**
+	 * Compares two column conditions by operator type and operand, so a condition repeated on one path is kept once.
+	 * @param {unknown} left - Value or find operator.
+	 * @param {unknown} right - Value or find operator.
+	 * @returns {boolean} True when both conditions compare the same way with the same operand.
+	 */
+	private isSameCondition(left: unknown, right: unknown): boolean {
+		if (left instanceof FindOperator && right instanceof FindOperator) {
+			return left.type === right.type && this.isSameCondition(left.value, right.value);
+		}
+
+		return left === right;
+	}
+
+	/**
 	 * Checks the package's own rule for LIKE-based criteria: only properties described as `EApiPropertyDescribeType.STRING`.
 	 * String formats backed by `bigint` or `uuid` columns are excluded, because databases such as PostgreSQL reject LIKE on them.
 	 * @template E - Entity type.
@@ -336,32 +406,53 @@ export class ApiAuthorizationIamQueryPlanner {
 	}
 
 	/**
-	 * Negates one resource condition key with the in-memory evaluator's semantics for stored rows: a NULL column is a
-	 * present value that normalizes to an empty string, so the IfExists operators compile like their plain forms.
+	 * Negates one resource condition key into the OR branches of rows that fail it, with the in-memory evaluator's
+	 * semantics: a NULL column is a present value that compares as an empty string, while a path through a missing
+	 * relation is a missing key at any depth. The IfExists operators hold for a missing key, so a Deny on one keeps
+	 * a NULL column only while the relation it sits on is present.
 	 * @param {string} operator - Condition operator.
+	 * @param {string} queryPath - Entity query path of the key.
+	 * @param {IApiAuthorizationIamQueryField} field - Resolved query path.
 	 * @param {unknown} value - Resolved scalar condition value.
-	 * @returns {Array<FindOperator<unknown>> | undefined} OR alternatives keeping rows that fail the key, or undefined for unsupported operators.
+	 * @returns {Array<Array<[string, unknown]>> | undefined} OR branches of ANDed column conditions, or undefined when the key cannot compile.
 	 */
-	private negateConditionOperator(operator: string, value: unknown): Array<FindOperator<unknown>> | undefined {
+	private negateConditionOperator(operator: string, queryPath: string, field: IApiAuthorizationIamQueryField, value: unknown): Array<Array<[string, unknown]>> | undefined {
 		if (!EnumIsValue(EApiPolicyConditionOperator, operator)) {
 			return undefined;
 		}
 
 		switch (operator) {
 			case EApiPolicyConditionOperator.STRING_EQUALS: {
-				return [Not(Equal(value)), IsNull()];
+				return [[[queryPath, Not(Equal(value))]], [[queryPath, IsNull()]]];
 			}
 
 			case EApiPolicyConditionOperator.STRING_EQUALS_IF_EXISTS: {
-				return [Not(Equal(value)), IsNull()];
+				if (!field.isOptional) {
+					return [[[queryPath, Not(Equal(value))]], [[queryPath, IsNull()]]];
+				}
+
+				if (!field.presencePath) {
+					return undefined;
+				}
+
+				// A NULL primary key is the missing relation itself, which the key holds for.
+				return field.presencePath === queryPath
+					? [[[queryPath, Not(Equal(value))]]]
+					: [
+							[[queryPath, Not(Equal(value))]],
+							[
+								[queryPath, IsNull()],
+								[field.presencePath, Not(IsNull())],
+							],
+						];
 			}
 
 			case EApiPolicyConditionOperator.STRING_NOT_EQUALS: {
-				return [Equal(value)];
+				return [[[queryPath, Equal(value)]]];
 			}
 
 			case EApiPolicyConditionOperator.STRING_NOT_EQUALS_IF_EXISTS: {
-				return [Equal(value)];
+				return [[[queryPath, Equal(value)]]];
 			}
 		}
 	}
@@ -370,21 +461,25 @@ export class ApiAuthorizationIamQueryPlanner {
 	 * Walks a query path through the TypeORM metadata of the resource entity: relations of any depth, embedded properties,
 	 * and columns declared on parent classes. The column the path ends on is a boolean when its TypeORM type holds one or
 	 * its `@ApiPropertyDescribe` type is `BOOLEAN`, so a boolean column without describe metadata counts too, and so does `bit`, the SQL Server boolean.
+	 * A path that crosses a relation is optional, and its presence path names the primary column of the last relation
+	 * it crosses: the scope joins relations with LEFT JOIN, so that column is NULL exactly when the path is missing.
 	 * A path that ends before a column, or names a property TypeORM does not map, is not resolvable. So is every path of a
 	 * resource entity that no TypeORM decorator maps, such as one registered only through an `EntitySchema`: its column types
 	 * cannot be read, so its scope fails closed instead of binding values as text.
 	 * @param {object} entity - Resource entity class.
 	 * @param {string} queryPath - Entity query path such as `isActive`, `owner.company.isVerified` or `meta.isLocked`.
-	 * @returns {{ isBoolean: boolean; isResolvable: boolean }} Whether the path names a column, and whether that column holds a boolean.
+	 * @returns {IApiAuthorizationIamQueryField} The resolved query path.
 	 */
-	private readField(entity: object, queryPath: string): { isBoolean: boolean; isResolvable: boolean } {
+	private readField(entity: object, queryPath: string): IApiAuthorizationIamQueryField {
 		const storage: TTypeOrmMetadataArgumentsStorage = getMetadataArgsStorage();
 		const segments: Array<string> = queryPath.split(".");
 
 		if (!GetClassHierarchy(entity).some((entityClass: object): boolean => storage.tables.some(({ target }: { target: unknown }): boolean => target === entityClass))) {
-			return { isBoolean: false, isResolvable: false };
+			return { isBoolean: false, isOptional: false, isResolvable: false };
 		}
 
+		let isOptional: boolean = false;
+		let presencePath: string | undefined;
 		let target: object | undefined = entity;
 
 		for (const [index, segment] of segments.entries()) {
@@ -398,17 +493,26 @@ export class ApiAuthorizationIamQueryPlanner {
 
 				const metadata: Partial<TApiPropertyDescribeProperties> | undefined = MetadataStorage.getInstance().getMetadata(hierarchy[0], segment, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY);
 
-				return { isBoolean: iamQueryPlannerBooleanColumnTypes.has(column.options.type) || metadata?.type === EApiPropertyDescribeType.BOOLEAN, isResolvable: true };
+				return { isBoolean: iamQueryPlannerBooleanColumnTypes.has(column.options.type) || metadata?.type === EApiPropertyDescribeType.BOOLEAN, isOptional, isResolvable: true, ...(presencePath === undefined ? {} : { presencePath }) };
 			}
 
+			const isRelation: boolean = storage.filterRelations(hierarchy).some((candidate: TTypeOrmRelationMetadataArguments): boolean => candidate.propertyName === segment);
 			target = this.resolveNestedTarget(storage, hierarchy, segment);
 
 			if (!target) {
 				break;
 			}
+
+			if (isRelation) {
+				const primaryColumn: TTypeOrmColumnMetadataArguments | undefined = storage.filterColumns(GetClassHierarchy(target)).find((candidate: TTypeOrmColumnMetadataArguments): boolean => candidate.options.primary === true);
+
+				isOptional = true;
+				// Without a primary column a missing relation cannot be told apart from a NULL column, so IfExists keys on the path fail closed.
+				presencePath = primaryColumn ? [...segments.slice(0, index + 1), primaryColumn.propertyName].join(".") : undefined;
+			}
 		}
 
-		return { isBoolean: false, isResolvable: false };
+		return { isBoolean: false, isOptional: false, isResolvable: false };
 	}
 
 	/**
@@ -424,7 +528,7 @@ export class ApiAuthorizationIamQueryPlanner {
 	 * @returns {{ isComparable: boolean; value?: unknown }} The value to bind, or a non-comparable result.
 	 */
 	private resolveColumnValue<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, queryPath: string, value: unknown): { isComparable: boolean; value?: unknown } {
-		const field: { isBoolean: boolean; isResolvable: boolean } = this.resolveField(resourceDefinition.entity, queryPath);
+		const field: IApiAuthorizationIamQueryField = this.resolveField(resourceDefinition.entity, queryPath);
 
 		if (!field.isResolvable) {
 			return { isComparable: false };
@@ -440,6 +544,28 @@ export class ApiAuthorizationIamQueryPlanner {
 		} catch {
 			return { isComparable: false };
 		}
+	}
+
+	/**
+	 * Resolves one Allow resource condition key into the OR branches of rows that pass it. A plain StringEquals needs the
+	 * column to equal the value; StringEqualsIfExists also holds for a row whose path crosses a missing relation, which
+	 * the in-memory evaluator reads as a missing key.
+	 * @param {string} operator - Condition operator.
+	 * @param {string} queryPath - Entity query path of the key.
+	 * @param {IApiAuthorizationIamQueryField} field - Resolved query path.
+	 * @param {unknown} value - Resolved scalar condition value.
+	 * @returns {Array<Array<[string, unknown]>> | undefined} OR branches of ANDed column conditions, or undefined when the key cannot compile.
+	 */
+	private resolveConditionBranches(operator: string, queryPath: string, field: IApiAuthorizationIamQueryField, value: unknown): Array<Array<[string, unknown]>> | undefined {
+		if (operator === (EApiPolicyConditionOperator.STRING_EQUALS as string) || (operator === (EApiPolicyConditionOperator.STRING_EQUALS_IF_EXISTS as string) && !field.isOptional)) {
+			return [[[queryPath, value]]];
+		}
+
+		if (operator !== (EApiPolicyConditionOperator.STRING_EQUALS_IF_EXISTS as string) || !field.presencePath) {
+			return undefined;
+		}
+
+		return [[[queryPath, value]], [[field.presencePath, IsNull()]]];
 	}
 
 	private resolveConditionValue(
@@ -492,17 +618,17 @@ export class ApiAuthorizationIamQueryPlanner {
 	 * Returns the resolved column of a query path, read once per resource entity and path.
 	 * @param {object} entity - Resource entity class.
 	 * @param {string} queryPath - Entity query path.
-	 * @returns {{ isBoolean: boolean; isResolvable: boolean }} Whether the path names a column, and whether that column holds a boolean.
+	 * @returns {IApiAuthorizationIamQueryField} The resolved query path.
 	 */
-	private resolveField(entity: object, queryPath: string): { isBoolean: boolean; isResolvable: boolean } {
-		let entityCache: Map<string, { isBoolean: boolean; isResolvable: boolean }> | undefined = iamQueryPlannerFieldCache.get(entity);
+	private resolveField(entity: object, queryPath: string): IApiAuthorizationIamQueryField {
+		let entityCache: Map<string, IApiAuthorizationIamQueryField> | undefined = iamQueryPlannerFieldCache.get(entity);
 
 		if (!entityCache) {
-			entityCache = new Map<string, { isBoolean: boolean; isResolvable: boolean }>();
+			entityCache = new Map<string, IApiAuthorizationIamQueryField>();
 			iamQueryPlannerFieldCache.set(entity, entityCache);
 		}
 
-		let field: { isBoolean: boolean; isResolvable: boolean } | undefined = entityCache.get(queryPath);
+		let field: IApiAuthorizationIamQueryField | undefined = entityCache.get(queryPath);
 
 		if (!field) {
 			field = this.readField(entity, queryPath);
