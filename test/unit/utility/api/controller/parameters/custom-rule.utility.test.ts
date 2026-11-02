@@ -9,6 +9,8 @@ import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
 import { ApiControllerParametersValidate } from "@utility/api/controller/parameters/validate.utility";
+import { Exclude, Expose, Transform, Type } from "class-transformer";
+import { IsDefined, IsString, IsUUID, ValidateNested } from "class-validator";
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
@@ -56,9 +58,57 @@ class CustomRuleUndescribedParametersDto {
 	public id!: number;
 }
 
-class CustomRuleController {}
+class CustomRuleRenamedCopyParametersDto {
+	@Expose({ name: "id" })
+	@ApiPropertyCopy({ dtoType: EApiDtoType.PARAMETERS, entity: () => CustomRuleItemEntity, method: EApiRouteType.GET, propertyName: "id" })
+	public internalId!: number;
+}
 
-class CustomRuleOtherController {}
+class CustomRuleObjectResultParametersDto {
+	@IsDefined()
+	@Transform(({ value }: { value: unknown }): unknown => ({ value }), { toClassOnly: true })
+	public id!: unknown;
+}
+
+class CustomRuleListParametersDto {
+	@ApiPropertyNumber({ description: "id", entity: CustomRuleItemEntity, exampleValue: [1], format: EApiPropertyNumberType.INTEGER, isArray: true, isRequired: true, isUniqueItems: false, maxItems: 3, maximum: 1_000_000, minimum: 0, minItems: 1, multipleOf: 1 })
+	public id!: Array<number>;
+}
+
+class CustomRuleNestedValueDto {
+	@IsString()
+	public value!: string;
+}
+
+class CustomRuleNestedParametersDto {
+	@Type(() => CustomRuleNestedValueDto)
+	@ValidateNested()
+	public id!: CustomRuleNestedValueDto;
+}
+
+class CustomRuleExcludedParametersDto {
+	@Exclude()
+	public id!: string;
+}
+
+class CustomRuleThrowingParametersDto {
+	@IsUUID()
+	@Transform(({ value }: { value: string }): string => {
+		if (value === "1") {
+			throw new Error("Not a value this route takes");
+		}
+
+		return value;
+	})
+	public id!: string;
+}
+
+class CustomRuleResponseParametersDto {
+	@ApiPropertyNumber({ description: "id", entity: CustomRuleItemEntity, exampleValue: 1, format: EApiPropertyNumberType.INTEGER, isRequired: true, isResponse: true, maximum: 1_000_000, minimum: 0, multipleOf: 1 } as never)
+	public id!: number;
+}
+
+class CustomRuleController {}
 
 describe("ApiControllerParametersBuildCustomRule", () => {
 	it("checks a described path value that the resource path does not name, so a policy condition on it sees canonical text", async () => {
@@ -81,21 +131,49 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 		}
 	});
 
-	it("builds no rule when no path parameter is described or named", () => {
-		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleUndescribedParametersDto, methodName: "undescribed", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toBeUndefined();
-		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, methodName: "noDto", pathParameters: [], resourcePath: "custom-rule/{id}" })).toBeUndefined();
+	it("builds no rule for a route with no path parameter or no PARAMETERS DTO, so it costs nothing per request", () => {
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleParametersDto, methodName: "noParameter", pathParameters: [], resourcePath: "custom-rule/item" })).toBeUndefined();
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, methodName: "noDto", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toBeUndefined();
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: undefined, methodName: "noDtoNamed", pathParameters: [], resourcePath: "custom-rule/{id}" })).toBeUndefined();
+	});
+
+	it("keeps a path parameter the DTO does not describe as sent", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleUndescribedParametersDto, methodName: "undescribed", pathParameters: ["id"], resourcePath: "custom-rule/item" });
+
+		await expect(ApiControllerParametersValidate(rule!, { id: "016" } as never)).resolves.toEqual({ id: "016" });
 	});
 
 	it("rejects a resource path placeholder that names an undescribed path parameter", () => {
 		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleUndescribedParametersDto, methodName: "named", pathParameters: ["id"], resourcePath: "custom-rule/{id}" })).toThrow('Controller "CustomRuleController" method "named" names the path parameter "id"');
 	});
 
-	it("builds the rule once for each controller class and method", () => {
-		const first: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleParametersDto, methodName: "cached", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
-		const second: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleParametersDto, methodName: "cached", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
-		const other: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleOtherController, dto: CustomRuleParametersDto, methodName: "cached", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
+	it("names the rule a scalar described placeholder misses, since the DTO does describe it", () => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleDescribedParametersDto, methodName: "scalarNamed", pathParameters: ["id"], resourcePath: "custom-rule/{id}" })).toThrow("must copy that value from an entity column with ApiPropertyCopy");
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleDescribedParametersDto, methodName: "scalarNamed", pathParameters: ["id"], resourcePath: "custom-rule/{id}" })).not.toThrow("does not describe");
+	});
 
-		expect(second).toBe(first);
-		expect(other).not.toBe(first);
+	it("accepts a placeholder whose copied property is renamed to the path parameter", () => {
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleRenamedCopyParametersDto, methodName: "renamedNamed", pathParameters: ["id"], resourcePath: "custom-rule/{id}" })).toBeDefined();
+	});
+
+	it.each([
+		["an object result", CustomRuleObjectResultParametersDto, "id"],
+		["a list result", CustomRuleListParametersDto, "id"],
+		["a nested object", CustomRuleNestedParametersDto, "id"],
+	])("fails at startup on %s, which has no text form", (_name: string, dto: new () => unknown, property: string) => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "noText", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow(`Controller "CustomRuleController" method "noText" property "${property}"`);
+	});
+
+	it("fails at startup when the DTO drops a path parameter, which IAM could not read", () => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleExcludedParametersDto, methodName: "dropped", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow('Controller "CustomRuleController" method "dropped" reads the path parameter "id"');
+	});
+
+	it("does not fail at startup when a Transform rejects the startup sample", () => {
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleThrowingParametersDto, methodName: "throwing", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toBeDefined();
+	});
+
+	it("fails at startup on a response property in a PARAMETERS DTO, even with no path parameter", () => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleResponseParametersDto, methodName: "response", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow('Controller "CustomRuleController" method "response" property "id"');
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleResponseParametersDto, methodName: "response", pathParameters: [], resourcePath: "custom-rule/item" })).toThrow("isResponse");
 	});
 });

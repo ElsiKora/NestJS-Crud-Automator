@@ -13,7 +13,9 @@ import {
 	ApiControllerSecurable,
 	ApiPropertyBoolean,
 	ApiPropertyCopy,
+	ApiPropertyDate,
 	ApiPropertyDescribe,
+	ApiPropertyEnum,
 	ApiPropertyNumber,
 	ApiPropertyString,
 	ApiPropertyUUID,
@@ -548,6 +550,8 @@ export class E2ePathParameterCanonicalDescribedUuidController {
 /**
  * List properties of every scalar type and a single DOUBLE, for one value and comma lists in a query.
  */
+const E2E_PATH_PARAMETER_CANONICAL_SENT_STATUS = { ACTIVE: "active", INACTIVE: "inactive" } as const;
+
 export class E2ePathParameterCanonicalSentListDto {
 	@ApiPropertyNumber({ description: "amount", entity: E2ePathParameterCanonicalIntItemEntity, exampleValue: 1.5, format: EApiPropertyNumberType.DOUBLE, isRequired: false, maximum: 1_000_000, minimum: -1_000_000 } as never)
 	public amount?: number;
@@ -566,6 +570,15 @@ export class E2ePathParameterCanonicalSentListDto {
 
 	@ApiPropertyString({ description: "names", entity: E2ePathParameterCanonicalIntItemEntity, exampleValue: ["abc"], format: EApiPropertyStringType.STRING, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, maxLength: 16, minItems: 1, minLength: 1, pattern: "/^[a-z]+$/" } as never)
 	public names?: Array<string>;
+
+	@ApiPropertyDate({ description: "days", entity: E2ePathParameterCanonicalIntItemEntity, format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, minItems: 1 } as never)
+	public days?: Array<string>;
+
+	@ApiPropertyString({ description: "labels", entity: E2ePathParameterCanonicalIntItemEntity, exampleValue: ["abc"], format: EApiPropertyStringType.STRING, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, maxLength: 16, minItems: 1, minLength: 0, pattern: "/^[a-z]*$/" } as never)
+	public labels?: Array<string>;
+
+	@ApiPropertyEnum({ description: "statuses", entity: E2ePathParameterCanonicalIntItemEntity, enum: E2E_PATH_PARAMETER_CANONICAL_SENT_STATUS, enumName: "E2ePathParameterCanonicalSentStatus", isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, minItems: 1 } as never)
+	public statuses?: Array<string>;
 }
 
 const SENT_BOOLEAN = { description: "flag", entity: E2ePathParameterCanonicalIntItemEntity, isRequired: false } as never;

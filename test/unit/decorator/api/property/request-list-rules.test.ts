@@ -27,11 +27,23 @@ class RequestListDto {
 	@ApiPropertyNumber({ description: "counts", entity: RequestListEntity, exampleValue: [1], format: EApiPropertyNumberType.INTEGER, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, maximum: 100, minimum: 0, minItems: 1, multipleOf: 1 })
 	public counts?: Array<number>;
 
+	@ApiPropertyDate({ description: "day", entity: RequestListEntity, format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE, isRequired: false })
+	public day?: string;
+
 	@ApiPropertyDate({ description: "days", entity: RequestListEntity, format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, minItems: 1 })
 	public days?: Array<string>;
 
 	@ApiPropertyBoolean({ description: "flags", entity: RequestListEntity, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, minItems: 1 } as never)
 	public flags?: Array<boolean>;
+
+	@ApiPropertyString({ description: "labels", entity: RequestListEntity, exampleValue: ["abc"], format: EApiPropertyStringType.STRING, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, maxLength: 16, minItems: 1, minLength: 0, pattern: "/^[a-z]*$/" } as never)
+	public labels?: Array<string>;
+
+	@ApiPropertyDate({ description: "moment", entity: RequestListEntity, format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.CREATED_AT, isRequired: false })
+	public moment?: Date;
+
+	@ApiPropertyDate({ description: "moments", entity: RequestListEntity, format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.CREATED_AT, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, minItems: 1 })
+	public moments?: Array<Date>;
 
 	@ApiPropertyUUID({ description: "ids", entity: RequestListEntity, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, minItems: 1 } as never)
 	public ids?: Array<string>;
@@ -81,6 +93,22 @@ describe.each([false, true])("request list and number rules, implicit conversion
 		["statuses", "active,inactive"],
 	])("rejects the comma list %s=%j, since a comma is not a separator", (key: string, sent: string) => {
 		expect(read({ [key]: sent }, isImplicit).errors).toEqual([key]);
+	});
+
+	it.each(["amounts", "counts", "days", "flags", "ids", "moments", "names", "statuses"])("rejects an empty %s value, one empty item its item rule refuses", (key: string) => {
+		expect(read({ [key]: "" }, isImplicit).errors).toEqual([key]);
+		expect(read({ [key]: [""] }, isImplicit).errors).toEqual([key]);
+	});
+
+	it.each(["day", "moment"])("rejects an empty value of the single date %s", (key: string) => {
+		expect(read({ [key]: "" }, isImplicit).errors).toEqual([key]);
+	});
+
+	it("keeps an empty string item when the item rules allow it", () => {
+		const { errors, instance } = read({ labels: "" }, isImplicit);
+
+		expect(errors).toEqual([]);
+		expect(instance.labels).toEqual([""]);
 	});
 
 	it.each([
