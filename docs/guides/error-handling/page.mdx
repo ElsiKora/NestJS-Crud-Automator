@@ -86,7 +86,7 @@ Automatic validation error handling:
 }
 ```
 
-A body over the [request body limits](/docs/nestjs-crud-automator/guides/validation#request-body-limits) answers in the same shape, before any pipe runs.
+A body over the [request body limits](/docs/nestjs-crud-automator/guides/validation#request-body-limits) answers in the same shape, before any pipe runs. To answer it in a shape of your own, see [Translating Request Validation Failures](#translating-request-validation-failures).
 
 ## Typed GET_LIST Errors
 
@@ -292,6 +292,65 @@ app.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(httpAdapterHos
 
 The rules for `cause` in [Reading the Original Failure](#reading-the-original-failure) apply to the exception it returns. A `@Catch()` filter of yours also runs for RPC failures, where there is no request to correlate, which is why the example returns early outside HTTP.
 
+## Translating Request Validation Failures
+
+A check that runs ahead of the pipe, such as the [request body limits](/docs/nestjs-crud-automator/guides/validation#request-body-limits), never reaches your `ValidationPipe` `exceptionFactory`. It throws `ApiRequestValidationException` instead, a `BadRequestException` whose response is the usual message list and whose `validationErrors` holds the failures, so a host with its own error contract can translate it.
+
+`ApiRequestValidationGetErrors(exception)` returns those failures from the exception or from its `cause` chain, so it also finds one that `CorrelationIDResponseBodyInterceptor` wrapped. For any other thrown value it returns `undefined`. Build your own exception from them and pass it through `CorrelationIDNormalizeException`:
+
+```typescript filename="filters/api-validation.filter.ts" copy
+import { ArgumentsHost, BadRequestException, Catch } from "@nestjs/common";
+import { BaseExceptionFilter, HttpAdapterHost } from "@nestjs/core";
+import { ApiRequestValidationGetErrors, CorrelationIDNormalizeException } from "@elsikora/nestjs-crud-automator";
+
+@Catch()
+export class ApiValidationFilter extends BaseExceptionFilter {
+	constructor(private readonly adapterHost: HttpAdapterHost) {
+		super(adapterHost.httpAdapter);
+	}
+
+	catch(exception: unknown, host: ArgumentsHost) {
+		// Leave RPC failures to the default handling
+		if (host.getType() !== "http") {
+			return;
+		}
+
+		const errors = ApiRequestValidationGetErrors(exception);
+		// Use the same factory as your ValidationPipe's exceptionFactory
+		const translated = errors ? new BadRequestException({ code: "VALIDATION_FAILED", errors: errors.flatMap((error) => Object.keys(error.constraints ?? {})) }) : exception;
+
+		super.catch(CorrelationIDNormalizeException(translated, host, this.adapterHost), host);
+	}
+}
+```
+
+```typescript filename="main.ts" copy
+app.useGlobalFilters(new ApiValidationFilter(app.get(HttpAdapterHost)));
+```
+
+This works with or without `CorrelationIDResponseBodyExceptionFilter`. A failure raised by a guard and one raised in the interceptor chain then answer the same keys, and `correlationID` equals the `x-correlation-id` response header, whether the client sent one or it was generated:
+
+```json
+{
+	"code": "VALIDATION_FAILED",
+	"errors": ["requestBodyMaximumKeys"],
+	"statusCode": 400,
+	"correlationID": "550e8400-e29b-41d4-a716-446655440000",
+	"timestamp": 1704067200000
+}
+```
+
+`statusCode`, `correlationID` and `timestamp` come from the correlation contract, and the rest is your body. Without a translating filter, the default body stays the message list.
+
+Each failure is a class-validator `ValidationError` with `constraints` and `property`. It never has `value` or `target`.
+
+| Constraint                | Failure                                    |
+| ------------------------- | ------------------------------------------ |
+| `requestBodyMaximumKeys`  | An object in the body holds over 1000 keys |
+| `requestBodyMaximumDepth` | The body nests deeper than 64 levels       |
+
+`property` is the dotted path in the body, such as `payload.items.1`, and is empty for the body itself. The path holds keys the client sent, so do not put it in a response. The constraint names are stable, so translate those.
+
 ## Logging Errors
 
 Integrate with logging service:
@@ -496,6 +555,8 @@ Check your exception filters and application loggers:
 2. Remove `JSON.stringify(exception)`, which can now also throw on a cyclic object or a `BigInt`.
 
 See [Reading the Original Failure](#reading-the-original-failure) for the safe pattern.
+
+From 5.0.0, a request body over the limits answers `400` ahead of any pipe, so an `exceptionFactory` does not translate it. A host with its own error contract needs the filter in [Translating Request Validation Failures](#translating-request-validation-failures).
 
 From 5.0.0, every error body from `CorrelationIDResponseBodyInterceptor` has `correlationID`, `statusCode`, and `timestamp`, with or without the filter. A `statusCode` that differs from the response status is corrected. An object response is the application's body: when it has no `error` or `message`, they stay absent, so `new BadRequestException({ code: "X" })` answers `{ code, statusCode, correlationID, timestamp }`. A present `message` that is not a string or an array of strings, or a present `error` that is not a string, `null` included, is replaced by the status text from Node.js `STATUS_CODES`, or `"Error"` for a status Node.js does not name, such as `599`. A string or an array response becomes `message`, next to `error` with the status text. An `exceptionFactory` body that omits `message` differs from the generated DTO of that route, and the application owns that difference. These responses change:
 

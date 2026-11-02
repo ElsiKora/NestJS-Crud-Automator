@@ -206,6 +206,20 @@ if (!(response.headersSent ?? httpAdapter.isHeadersSent(response))) {
 
 See [Custom Exception Filters](/docs/nestjs-crud-automator/guides/error-handling#custom-exception-filters).
 
+### ApiRequestValidationGetErrors
+
+Reads the validation failures of an `ApiRequestValidationException`, thrown as is or kept in the `cause` chain, as `CorrelationIDResponseBodyInterceptor` keeps what it caught. Any value can be thrown, so the walk stops after 16 steps, which also ends a cycle, and a value that throws on being read counts as holding no failures.
+
+**Location:** `src/utility/api/request-validation-get-errors.utility.ts`
+
+**Type Signature:**
+
+```typescript
+function ApiRequestValidationGetErrors(exception: unknown): Array<ValidationError> | undefined;
+```
+
+See [Translating Request Validation Failures](/docs/nestjs-crud-automator/guides/error-handling#translating-request-validation-failures).
+
 ### FormatErrorEvidenceForLog
 
 Formats an unknown error as bounded evidence suitable for a log message.

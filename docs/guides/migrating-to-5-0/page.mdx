@@ -236,6 +236,36 @@ An application bundled with two copies of `class-transformer` now fails at decor
 
 A request body deeper than 64 levels, or with an object holding more than 1000 keys, now answers `400` on every generated route, `@ApiRouteCustom` and `@ApiMethod` route, after the guards and before any pipe. The limits are fixed. Send a free-form object of more than 1000 keys as an array of entries. A plain Nest route is not covered, so bound it with the adapter's `bodyLimit`. See [Validation: Request Body Limits](/docs/nestjs-crud-automator/guides/validation#request-body-limits).
 
+The refusal runs ahead of your pipe, so an `exceptionFactory` does not translate it. If your `400` bodies follow a contract of your own, such as codes only, add a filter that translates `ApiRequestValidationException`, from the exception itself or from its `cause` chain:
+
+```typescript filename="filters/api-validation.filter.ts" copy
+import { ArgumentsHost, BadRequestException, Catch } from "@nestjs/common";
+import { BaseExceptionFilter, HttpAdapterHost } from "@nestjs/core";
+import { ApiRequestValidationGetErrors, CorrelationIDNormalizeException } from "@elsikora/nestjs-crud-automator";
+
+@Catch()
+export class ApiValidationFilter extends BaseExceptionFilter {
+	constructor(private readonly adapterHost: HttpAdapterHost) {
+		super(adapterHost.httpAdapter);
+	}
+
+	catch(exception: unknown, host: ArgumentsHost) {
+		// Leave RPC failures to the default handling
+		if (host.getType() !== "http") {
+			return;
+		}
+
+		const errors = ApiRequestValidationGetErrors(exception);
+		// Use the same factory as your ValidationPipe's exceptionFactory
+		const translated = errors ? new BadRequestException({ code: "VALIDATION_FAILED", errors: errors.flatMap((error) => Object.keys(error.constraints ?? {})) }) : exception;
+
+		super.catch(CorrelationIDNormalizeException(translated, host, this.adapterHost), host);
+	}
+}
+```
+
+Register it with `app.useGlobalFilters(new ApiValidationFilter(app.get(HttpAdapterHost)))`. See [Error Handling: Translating Request Validation Failures](/docs/nestjs-crud-automator/guides/error-handling#translating-request-validation-failures).
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.
