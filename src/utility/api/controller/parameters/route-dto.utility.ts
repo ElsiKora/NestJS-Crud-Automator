@@ -25,7 +25,8 @@ const UNSTABLE_REASON: string = "its PARAMETERS DTO changes its own output, so a
 export function ApiControllerParametersRouteDtoCheckSample(dto: Type<unknown>, properties: ReadonlyMap<string, string>, sample: Record<string, string>): IApiControllerParametersRouteDtoProblem | undefined {
 	const attempts: Array<IApiControllerParametersRouteDtoAttempt> = [runSync(dto, properties, sample, true), runSync(dto, properties, sample, false)];
 
-	for (const attempt of attempts) {
+	// A rejected sample says nothing about real values, and a date property turns one into a marker object that only its validator reads.
+	for (const attempt of attempts.filter((candidate: IApiControllerParametersRouteDtoAttempt): boolean => candidate.isAccepted)) {
 		for (const [parameter, value] of Object.entries(attempt.values)) {
 			if (typeof value === "object" && value !== null && !(value instanceof Date)) {
 				return { parameter, reason: "its PARAMETERS DTO makes it an object or a list, which IAM cannot compare as text: describe a scalar value" };
