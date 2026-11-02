@@ -124,8 +124,12 @@ describe.each<"postgres" | "sqlite">(["postgres", "sqlite"])("row path matrix on
 	});
 
 	describe("a manual PARAMETERS DTO on a default composite key", () => {
-		it("answers 400 when the DTO leaves a key column out, and reaches no row", async () => {
-			expect((await send("GET", `/matrix/manual-order/${TENANT}/${ORDER_A}`)).statusCode).toBe(400);
+		it("addresses the row by every key column when the DTO leaves one out, because the DTO only validates", async () => {
+			const response: TResponse = await send("GET", `/matrix/manual-order/${TENANT}/${ORDER_A}`);
+
+			expect(response.statusCode).toBe(200);
+			expect((response.json() as { name: string; tenantId: string }).name).toBe("a");
+			expect((await send("GET", `/matrix/manual-order/${TENANT_FOREIGN}/${ORDER_A}`)).statusCode).toBe(404);
 		});
 	});
 

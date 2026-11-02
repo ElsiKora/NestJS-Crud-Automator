@@ -226,7 +226,7 @@ Every path parameter must be bound as soon as one generated route is enabled, an
 
 The framework generates a route-local PARAMETERS DTO, named `<Prefix><Route>ParametersDTO`, from the metadata of the bound and row fields under their external parameter names, and emits matching Swagger metadata. Do not combine `pathScope`, `rowPath` or `identity` with a manual `dto[EApiDtoType.PARAMETERS]`; use `autoDto[PARAMETERS]` only for validators on the generated DTO. `request[PARAMETERS]` on CREATE and GET_LIST requires `pathScope`, because those routes otherwise take no path parameters.
 
-A manual PARAMETERS DTO on a default composite key is yours to keep complete: a value it does not deliver answers `400` with `<parameter> should not be null or undefined`.
+A manual PARAMETERS DTO on a default composite key only validates. Every key column in the path is still converted by its column rule, so a key the DTO leaves out still addresses the row.
 
 Row parameters, the path binding, and HOOKS/IAM scope combine as a logical AND, and so do GET_LIST query predicates. A later layer cannot overwrite an earlier condition: a conflict matches nothing.
 

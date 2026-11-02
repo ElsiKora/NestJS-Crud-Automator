@@ -395,7 +395,7 @@ class RowPathManualOrderParametersDto {
 	public id!: string;
 }
 
-// A manual DTO the framework leaves alone: it speaks for itself, and has left the tenant out.
+// A manual DTO that leaves the tenant out: it only validates, and every key column is still converted by its column rule.
 @ApiController<RowPathOrderEntity>({ entity: RowPathOrderEntity, path: "matrix/manual-order", routes: { [EApiRouteType.CREATE]: DISABLED_ROUTE, [EApiRouteType.DELETE]: DISABLED_ROUTE, [EApiRouteType.GET]: { dto: { [EApiDtoType.PARAMETERS]: RowPathManualOrderParametersDto } }, [EApiRouteType.GET_LIST]: DISABLED_ROUTE, [EApiRouteType.PARTIAL_UPDATE]: DISABLED_ROUTE, [EApiRouteType.UPDATE]: DISABLED_ROUTE } })
 export class RowPathManualOrderController {
 	@Inject(RowPathOrderService)
