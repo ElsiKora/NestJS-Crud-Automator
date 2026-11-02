@@ -355,7 +355,7 @@ These cases fail at startup:
 - The discriminator column is hidden from the generated GET or GET_LIST response, for example with `isEnabled: false` on the RESPONSE DTO of a route.
 - No child entity is loaded when the controller is decorated.
 - A leaf value is outside the column enum, or a discriminator value is not a non-empty string.
-- A discriminator value contains a character other than letters, digits, `_` and `-`, such as `"my type"` or `"card.transfer"`, because the value becomes part of generated DTO names.
+- A discriminator value contains a character other than letters, digits, `_` and `-`, such as `"my type"` or `"card.transfer"`, because the value becomes part of generated DTO names. A trailing `DTO` in any case is not repeated in the name, so `VIP_DTO` gives the suffix `Vip`, which fails next to a value `VIP`. The value `DTO` is only the suffix and keeps it: `Dto`.
 - Two values produce the same DTO name suffix, or a value produces the name of another DTO generated for the entity, a relation DTO of another variant (`CARD_TRANSFER_ISSUER` next to a `CARD_TRANSFER` variant with an `issuer` relation). Values are never normalized, so change the value or the property name that produces the clash.
 
 A manual RESPONSE DTO on both read routes takes the entity out of this contract.
