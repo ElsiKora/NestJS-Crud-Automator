@@ -8,7 +8,7 @@ import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 
 import type { TRowPathDriver, TRowPathFixture } from "./fixture";
 
-import { ApiController, ApiPropertyDescribe, ApiRouteCustom, ApiService, ApiServiceBase, EApiControllerRelationReferenceShape, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
+import { ApiController, ApiControllerObservable, ApiPropertyDescribe, ApiRouteCustom, ApiRouteSubscriber, ApiRouteSubscriberBase, ApiService, ApiServiceBase, EApiControllerRelationReferenceShape, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
 
 const TEXT_PROPERTY: Parameters<typeof ApiPropertyDescribe>[0] = { description: "text", exampleValue: "value", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING };
 const UUID_PROPERTY: Parameters<typeof ApiPropertyDescribe>[0] = { description: "id", type: EApiPropertyDescribeType.UUID };
@@ -60,6 +60,49 @@ export class RowPathKeyPairEntity {
 	@Column({ type: "varchar" })
 	@ApiPropertyDescribe(TEXT_PROPERTY)
 	public name!: string;
+}
+
+@Entity("row_path_key_tenant_parents")
+export class RowPathKeyTenantParentEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
+
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public tenantId!: string;
+}
+
+// The relation joins the bound tenant column and its own parent column, so only part of it is the path's.
+@Entity("row_path_key_tenant_children")
+export class RowPathKeyTenantChildEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
+
+	@ApiPropertyDescribe(RELATION_PROPERTY)
+	@JoinColumn([
+		{ name: "tenantId", referencedColumnName: "tenantId" },
+		{ name: "parentId", referencedColumnName: "id" },
+	])
+	@ManyToOne(() => RowPathKeyTenantParentEntity, { nullable: true })
+	public parent?: null | Relation<RowPathKeyTenantParentEntity>;
+
+	@Column({ nullable: true, type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public parentId?: null | string;
+
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public tenantId!: string;
 }
 
 // The database sets the key instant, so only the row the insert returns names it.
@@ -138,6 +181,45 @@ class RowPathSqliteKeyReadingService extends ApiServiceBase<RowPathSqliteKeyRead
 	public readonly repository!: Repository<RowPathSqliteKeyReadingEntity>;
 }
 
+@Injectable()
+@ApiService({ entity: RowPathKeyTenantParentEntity })
+class RowPathKeyTenantParentService extends ApiServiceBase<RowPathKeyTenantParentEntity> {
+	@InjectRepository(RowPathKeyTenantParentEntity)
+	public readonly repository!: Repository<RowPathKeyTenantParentEntity>;
+}
+
+@Injectable()
+@ApiService({ entity: RowPathKeyTenantChildEntity })
+class RowPathKeyTenantChildService extends ApiServiceBase<RowPathKeyTenantChildEntity> {
+	@InjectRepository(RowPathKeyTenantChildEntity)
+	public readonly repository!: Repository<RowPathKeyTenantChildEntity>;
+}
+
+// Keeps the body each route subscriber sees after a write, as the request and the subscriber data carry it.
+@Injectable()
+@ApiRouteSubscriber({ entity: RowPathKeyItemEntity, priority: 1 })
+export class RowPathKeyItemRouteSubscriber extends ApiRouteSubscriberBase<RowPathKeyItemEntity> {
+	public static readonly bodies: Array<{ data: unknown; request: unknown }> = [];
+
+	public async onAfterCreate(context: { DATA: { authenticationRequest?: { body?: unknown }; body?: unknown }; result: RowPathKeyItemEntity }): Promise<RowPathKeyItemEntity> {
+		RowPathKeyItemRouteSubscriber.bodies.push({ data: structuredClone(context.DATA.body), request: structuredClone(context.DATA.authenticationRequest?.body) });
+
+		return context.result;
+	}
+
+	public async onAfterPartialUpdate(context: { DATA: { authenticationRequest?: { body?: unknown }; body?: unknown }; result: RowPathKeyItemEntity }): Promise<RowPathKeyItemEntity> {
+		RowPathKeyItemRouteSubscriber.bodies.push({ data: structuredClone(context.DATA.body), request: structuredClone(context.DATA.authenticationRequest?.body) });
+
+		return context.result;
+	}
+}
+
+@ApiController<RowPathKeyTenantChildEntity>({ entity: RowPathKeyTenantChildEntity, path: "tenant/:tenantId/child", pathScope: { parameters: [{ field: "tenantId", parameter: "tenantId" }] }, routes: {} })
+class RowPathKeyTenantChildController {
+	constructor(public readonly service: RowPathKeyTenantChildService) {}
+}
+
+@ApiControllerObservable()
 @ApiController<RowPathKeyItemEntity>({ entity: RowPathKeyItemEntity, path: "parent/:parentId/item", pathScope: { parameters: [{ field: "parentId", parameter: "parentId" }] }, routes: {} })
 class RowPathKeyItemController {
 	constructor(public readonly service: RowPathKeyItemService) {}
@@ -183,13 +265,13 @@ class RowPathSqliteKeyReadingController {
 	}
 }
 
-const POSTGRES_ENTITIES: Array<new () => object> = [RowPathKeyItemEntity, RowPathKeyPairEntity, RowPathKeyParentEntity, RowPathPostgresKeyReadingEntity];
-const SQLITE_ENTITIES: Array<new () => object> = [RowPathKeyItemEntity, RowPathKeyPairEntity, RowPathKeyParentEntity, RowPathSqliteKeyReadingEntity];
+const POSTGRES_ENTITIES: Array<new () => object> = [RowPathKeyItemEntity, RowPathKeyPairEntity, RowPathKeyParentEntity, RowPathKeyTenantChildEntity, RowPathKeyTenantParentEntity, RowPathPostgresKeyReadingEntity];
+const SQLITE_ENTITIES: Array<new () => object> = [RowPathKeyItemEntity, RowPathKeyPairEntity, RowPathKeyParentEntity, RowPathKeyTenantChildEntity, RowPathKeyTenantParentEntity, RowPathSqliteKeyReadingEntity];
 
-@Module({ controllers: [RowPathKeyItemController, RowPathKeyPairByFirstController, RowPathKeyPairController, RowPathPostgresKeyReadingController], imports: [TypeOrmModule.forFeature(POSTGRES_ENTITIES)], providers: [RowPathKeyItemService, RowPathKeyPairService, RowPathKeyParentService, RowPathPostgresKeyReadingService] })
+@Module({ controllers: [RowPathKeyItemController, RowPathKeyPairByFirstController, RowPathKeyPairController, RowPathKeyTenantChildController, RowPathPostgresKeyReadingController], imports: [TypeOrmModule.forFeature(POSTGRES_ENTITIES)], providers: [RowPathKeyItemRouteSubscriber, RowPathKeyItemService, RowPathKeyPairService, RowPathKeyParentService, RowPathKeyTenantChildService, RowPathKeyTenantParentService, RowPathPostgresKeyReadingService] })
 class RowPathKeyPostgresModule {}
 
-@Module({ controllers: [RowPathKeyItemController, RowPathKeyPairByFirstController, RowPathKeyPairController, RowPathSqliteKeyReadingController], imports: [TypeOrmModule.forFeature(SQLITE_ENTITIES)], providers: [RowPathKeyItemService, RowPathKeyPairService, RowPathKeyParentService, RowPathSqliteKeyReadingService] })
+@Module({ controllers: [RowPathKeyItemController, RowPathKeyPairByFirstController, RowPathKeyPairController, RowPathKeyTenantChildController, RowPathSqliteKeyReadingController], imports: [TypeOrmModule.forFeature(SQLITE_ENTITIES)], providers: [RowPathKeyItemRouteSubscriber, RowPathKeyItemService, RowPathKeyPairService, RowPathKeyParentService, RowPathKeyTenantChildService, RowPathKeyTenantParentService, RowPathSqliteKeyReadingService] })
 class RowPathKeySqliteModule {}
 
 export const ROW_PATH_KEY_FIXTURES: Record<TRowPathDriver, TRowPathFixture> = {

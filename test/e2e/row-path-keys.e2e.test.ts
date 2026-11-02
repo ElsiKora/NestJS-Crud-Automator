@@ -15,7 +15,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { TRowPathDriver, TRowPathFixture } from "./row-path/fixture";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { ROW_PATH_KEY_FIXTURES } from "./row-path/keys.fixture";
+import { ROW_PATH_KEY_FIXTURES, RowPathKeyItemRouteSubscriber } from "./row-path/keys.fixture";
 
 type TPipe = "forbid" | "none" | "transform" | "whitelist";
 type TResponse = { body: string; json: () => unknown; statusCode: number };
@@ -115,6 +115,19 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 				await untouched();
 			});
 
+			it.runIf(pipe === "none")("leaves the request body and the subscriber body as the client sent them", async () => {
+				RowPathKeyItemRouteSubscriber.bodies.splice(0);
+				const patchBody: object = { id: ITEM_OWN, name: "seen", parentId: PARENT_OWN };
+				const createBody: object = { id: "bbbbbbbb-0000-4000-8000-000000000003", name: "made", parent: { id: PARENT_OWN }, parentId: PARENT_OWN };
+
+				expect((await send("PATCH", `/parent/${PARENT_OWN}/item/${ITEM_OWN}`, patchBody)).statusCode).toBe(200);
+				expect((await send("POST", `/parent/${PARENT_OWN}/item`, createBody)).statusCode).toBe(201);
+				expect(RowPathKeyItemRouteSubscriber.bodies).toEqual([
+					{ data: patchBody, request: patchBody },
+					{ data: createBody, request: createBody },
+				]);
+			});
+
 			it("PATCH with the key and bound field the path names changes only the addressed row", async () => {
 				const response: TResponse = await send("PATCH", `/parent/${PARENT_OWN}/item/${ITEM_OWN}`, { id: ITEM_OWN, name: "same", parentId: PARENT_OWN });
 
@@ -152,6 +165,53 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 			});
 		});
 
+		describe("a relation over the bound column and its own column", () => {
+			beforeEach(async () => {
+				await dataSource.query("DELETE FROM row_path_key_tenant_children");
+				await dataSource.query("DELETE FROM row_path_key_tenant_parents");
+				await dataSource.query(`INSERT INTO row_path_key_tenant_parents ("tenantId", "id", "name") VALUES ('T1', 'P1', 'one'), ('T1', 'P2', 'two'), ('T2', 'P2', 'other')`);
+				await dataSource.query(`INSERT INTO row_path_key_tenant_children ("tenantId", "id", "name", "parentId") VALUES ('T1', 'C1', 'child', 'P1')`);
+			});
+
+			const children = async (): Promise<Array<Record<string, unknown>>> => await rows("row_path_key_tenant_children", `"id"`);
+
+			// A host pipe checks the relation against its generated reference form first, which these keys do not take.
+			it.runIf(pipe === "none").each([[{ id: "P2", tenantId: "T1" }], [{ id: "P2" }]])("CREATE with the relation %j keeps its own column", async (parent: object) => {
+				const response: TResponse = await send("POST", "/tenant/T1/child", { id: "C2", name: "made", parent });
+
+				expect(response.statusCode).toBe(201);
+				expect(await children()).toEqual([
+					{ id: "C1", name: "child", parentId: "P1", tenantId: "T1" },
+					{ id: "C2", name: "made", parentId: "P2", tenantId: "T1" },
+				]);
+			});
+
+			it.runIf(pipe === "none").each([["PATCH"], ["PUT"]])("%s with the relation keeps its own column and moves it", async (method: string) => {
+				const response: TResponse = await send(method, "/tenant/T1/child/C1", { name: "moved", parent: { id: "P2", tenantId: "T1" } });
+
+				expect(response.statusCode).toBe(200);
+				expect(await children()).toEqual([{ id: "C1", name: "moved", parentId: "P2", tenantId: "T1" }]);
+			});
+
+			it.runIf(pipe === "none")("CREATE with a relation that names another own column than the body answers 400 and adds no row", async () => {
+				expect((await send("POST", "/tenant/T1/child", { id: "C2", name: "made", parent: { id: "P2" }, parentId: "P1" })).statusCode).toBe(400);
+				expect(await children()).toHaveLength(1);
+			});
+
+			it.each([
+				["POST", "/tenant/T1/child", { id: "C2", name: "made", parent: { id: "P2", tenantId: "T2" } }],
+				["POST", "/tenant/T1/child", { id: "C2", name: "made", parent: "P2" }],
+				["PATCH", "/tenant/T1/child/C1", { parent: { id: "P2", tenantId: "T2" } }],
+				["PUT", "/tenant/T1/child/C1", { name: "moved", parent: "P2" }],
+			])("%s %s with %j answers 400 and changes no row", async (method: string, url: string, payload: object) => {
+				const response: TResponse = await send(method, url, payload);
+
+				expect(response.statusCode).toBe(400);
+				expect(response.body).not.toContain("T2");
+				expect(await children()).toEqual([{ id: "C1", name: "child", parentId: "P1", tenantId: "T1" }]);
+			});
+		});
+
 		describe("a date and time key column in the body on a full composite path", () => {
 			const STORED: string = "2026-01-01T00:00:00.002Z";
 			const PATH: string = `/reading/s1/${STORED}`;
@@ -183,6 +243,13 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 
 				expect(response.statusCode).toBe(equalKeyStatus);
 				expect(await names()).toEqual(pipe === "forbid" ? ["own", "next"] : ["same", "next"]);
+			});
+
+			it.each([[Date.parse("2026-03-01T00:00:00.123Z")], ["2026-03-01T00:00:00Z"], ["2026-03-01T03:00:00.123+03:00"], [["2026-03-01T00:00:00.123Z"]]])("CREATE with the key instant %j answers 400 and adds no row", async (recordedAt: unknown) => {
+				const response: TResponse = await send("POST", "/reading", { name: "created", recordedAt, sensorId: "s2" });
+
+				expect(response.statusCode).toBe(400);
+				expect(await names()).toEqual(["own", "next"]);
 			});
 
 			// The generated create body leaves the key columns out, so a whitelisting pipe drops or refuses them before the route.

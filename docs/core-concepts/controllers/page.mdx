@@ -198,10 +198,15 @@ The route compares the body with the path itself, whatever pipe runs. It reads t
 - A bound field in the body, directly or through the relation it joins, must equal the path value on CREATE, PATCH and PUT.
 - A key column in a PATCH or PUT body must equal its row parameter. A key column the path leaves out, through `rowPath`, cannot appear in the body at all.
 - Only the string the path would carry names a value: a date and time in its canonical UTC millisecond form, such as `2026-01-01T00:00:00.002Z`, and anything else as the path spells it. A number, an epoch, another offset or extra fraction digits, an array, an object or `null` answers `400`.
+- A date and time key column in a CREATE body takes the same canonical UTC millisecond string, with or without a host pipe. A number or any other form answers `400` before the insert.
 
-A differing value answers `400 INVALID_PARAMETERS` before any change and is not echoed. A matching value leaves the written body, with the relation that joins it, because the path already names it: a key the save read from the body would insert another row.
+A refusal answers `400` with message `PARAMETERS_NOT_VALID` and `details: { propertyName, reason }` before any change. It names the property and the rule, not the value.
 
-The response of CREATE reloads the row by every key column, and a date and time key the body spelled as a string is read as an instant first, so the reload finds the stored value on every driver.
+The route writes a copy of the body. A field the path addresses leaves the copy, because the path already names it and a key the save read from the body would insert another row. The request body, and the `body` route subscribers see, stay as the client sent them.
+
+A relation that joins a bound field leaves the copy too. When it joins other columns as well, such as a `parent` over `(tenantId, parentId)` with `tenantId` bound, the route checks the bound column inside the relation object and writes the relation's other columns, here `parentId`, as the entity's own. `{ "parent": { "id": "P2", "tenantId": "T1" } }` under `/tenant/T1/child` stores `parentId` `P2`. The other columns must be declared on the entity and named in the relation object, and a body that also names one of them must name the same value; otherwise the route answers `400`, because the bound column cannot be told apart from the rest.
+
+The response of CREATE reloads the row by every key column. A date and time key that the inserted row carries as a string, as the body spelled it, is converted to a `Date` first, so the reload compares an instant with the stored value.
 
 A `request[PARAMETERS]` transformer runs before the binding is read, so a transformer on a bound field overrides the value of the path for every query and write of that request.
 

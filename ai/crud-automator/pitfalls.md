@@ -368,7 +368,7 @@ Do not put a `timestamptz(6)`, an unset precision, a `timestamp`, or a MySQL or 
 
 A reduced `rowPath` is a promise that the remaining columns name one row. More than one match answers `500`. Between the check and the write there is no lock outside a transaction, a function subscriber's `withDeleted` does not reach the check, an IAM placeholder for a left-out column renders `*`, and on a partitioned table the check visits every partition unless an index serves it.
 
-Do not rely on a pipe to keep keys out of a write body: the route itself refuses a PATCH or PUT body whose key column differs from the path or that names a key column the path leaves out, and a bound field that differs on any write. Do not send a key as a number or an epoch: only the string the path carries matches, a date and time in canonical UTC millisecond form. Do not use a `request[PARAMETERS]` transformer on a bound field unless it should override the path value.
+Do not rely on a pipe to keep keys out of a write body: the route itself refuses a PATCH or PUT body whose key column differs from the path or that names a key column the path leaves out, and a bound field that differs on any write. Do not send a key as a number or an epoch: only the string the path carries matches, a date and time in canonical UTC millisecond form. The same holds for a date and time key in a CREATE body. Declare every join column of a relation over a bound column as an entity property, or a body naming that relation answers `400`. Do not use a `request[PARAMETERS]` transformer on a bound field unless it should override the path value.
 
 Do not rely on a two-segment custom route on a controller whose default row path has two columns: `orders/export/daily` can be captured by `orders/:tenantId/:id`.
 

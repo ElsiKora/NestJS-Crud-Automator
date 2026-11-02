@@ -40,11 +40,12 @@ import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/r
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ClassTransformerFreeFormValue } from "@class/class-transformer-free-form-value.class";
+import { API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN } from "@constant/api-controller-cursor.constant";
 import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
 import { CONTROLLER_API_DECORATOR_CONSTANT, FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiDtoType } from "@enum/decorator/api";
-import { BadRequestException, ForbiddenException, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, HttpStatus, InternalServerErrorException } from "@nestjs/common";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerGetListIsHiddenColumn } from "@utility/api/controller/get-list/is-hidden-column.utility";
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
@@ -82,6 +83,10 @@ import { Repository } from "typeorm";
 const FILTER_VALUE_KEY_PATTERN: RegExp = /^(.+)\[values?\]$/u;
 // Two rows are enough to tell that a path does not name one row.
 const PATH_MATCH_LIMIT: number = 2;
+const BODY_INSTANT_REJECTION_REASON: string = "date and time key must be a UTC instant YYYY-MM-DDTHH:mm:ss.sssZ";
+const BODY_PATH_MISMATCH_REJECTION_REASON: string = "value must be the one the path names";
+const BODY_RELATION_SPLIT_REJECTION_REASON: string = "relation must name each of its own columns, which the entity must declare";
+const BODY_UNADDRESSED_KEY_REJECTION_REASON: string = "key column is not in the path";
 
 export class ApiRouteRuntime {
 	public static async executeCustom<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>): Promise<R> {
@@ -243,69 +248,13 @@ export class ApiRouteRuntime {
 	}
 
 	/**
-	 * Refuses a body that names another value for a field the path addresses, directly or through the relation that field joins: a bound field on every write, and a key column on a write to one row.
-	 * A key column the path leaves out has no value to compare with, so a write to one row cannot name it at all.
-	 * The body is read as the client sent it and as the route will write it, so a pipe that strips or transforms it changes nothing. The value is not echoed, because it is the client's and the path already names the right one.
-	 * Once the body matches, every field the path addresses leaves the written body, with the relation that joins it: the path names them, and a key the save reads from the body would make it insert another row.
-	 * @template E - Entity type owned by the route.
-	 * @template R - Generated route type.
-	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
-	 * @param {IApiRouteRuntimeGeneratedTargets<E>} targets - Request targets.
-	 * @param {IApiControllerPathPlan} pathPlan - Path plan of the route.
-	 * @returns {void}
-	 * @throws {BadRequestException} When the body differs from the path.
+	 * Builds the refusal of a body field that the path decides. It names the field and the rule, not the value, because the value is the client's.
+	 * @param {string} propertyName - Body property the refusal names.
+	 * @param {string} reason - Rule the property breaks.
+	 * @returns {BadRequestException} The refusal.
 	 */
-	private static assertBodyMatchesPath<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, pathPlan: IApiControllerPathPlan): void {
-		const bodies: Array<Record<string, unknown>> = [targets.body, (targets.authenticationRequest as { body?: unknown } | undefined)?.body].filter((body: unknown): body is Record<string, unknown> => typeof body === "object" && body !== null && !Array.isArray(body));
-
-		if (bodies.length === 0) {
-			return;
-		}
-
-		const pathValues: Record<string, unknown> = this.resolveRouteWhere(options, targets, pathPlan, ApiControllerPathRouteParameters(pathPlan, options.method));
-		const unaddressedFields: ReadonlyArray<string> = options.method === EApiRouteType.CREATE ? [] : pathPlan.primaryFields.filter((field: string): boolean => !Object.hasOwn(pathValues, field));
-		const repository: unknown = (options.controller.service as { repository?: unknown }).repository;
-		const relations: ReadonlyArray<RelationMetadata> = repository instanceof Repository ? repository.metadata.relations : [];
-
-		for (const body of bodies) {
-			for (const field of [...Object.keys(pathValues), ...unaddressedFields]) {
-				const isAddressed: boolean = Object.hasOwn(pathValues, field);
-
-				if (body[field] !== undefined && (!isAddressed || !this.isSamePathValue(body[field], pathValues[field]))) {
-					throw new BadRequestException("PARAMETERS_NOT_VALID");
-				}
-
-				for (const relation of relations) {
-					const joinColumn: TTypeOrmColumnMetadata | undefined = relation.joinColumns.find((column: TTypeOrmColumnMetadata): boolean => column.propertyName === field);
-					const relationValue: unknown = body[relation.propertyName];
-
-					if (joinColumn && relationValue !== undefined) {
-						const referencedName: string | undefined = joinColumn.referencedColumn?.propertyName;
-						const relationKey: unknown = typeof relationValue === "object" && relationValue !== null && referencedName ? (relationValue as Record<string, unknown>)[referencedName] : relationValue;
-
-						if (!isAddressed || !this.isSamePathValue(relationKey, pathValues[field])) {
-							throw new BadRequestException("PARAMETERS_NOT_VALID");
-						}
-					}
-				}
-			}
-		}
-
-		if (!targets.body) {
-			return;
-		}
-
-		const writtenBody: Record<string, unknown> = targets.body as Record<string, unknown>;
-
-		for (const field of Object.keys(pathValues)) {
-			Reflect.deleteProperty(writtenBody, field);
-
-			for (const relation of relations) {
-				if (relation.joinColumns.some((column: TTypeOrmColumnMetadata): boolean => column.propertyName === field)) {
-					Reflect.deleteProperty(writtenBody, relation.propertyName);
-				}
-			}
-		}
+	private static createBodyParameterException(propertyName: string, reason: string): BadRequestException {
+		return new BadRequestException({ details: { propertyName, reason }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: HttpStatus.BAD_REQUEST });
 	}
 
 	private static async executeCustomErrorSubscribers<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>, entityInstance: E, contextData: IApiRouteRuntimeContextData<E>, onType: EApiSubscriberOnType, error: unknown): Promise<void> {
@@ -404,12 +353,12 @@ export class ApiRouteRuntime {
 		if (method === EApiRouteType.PARTIAL_UPDATE || method === EApiRouteType.UPDATE) {
 			ApiControllerRejectToManyUpdateKeys(options.properties.entity, targets.body);
 			await this.executeGeneratedRequestPipeline(options, targets, [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.BODY]);
-			this.assertBodyMatchesPath(options, targets, this.resolvePathPlan(options));
+			const writeTargets: IApiRouteRuntimeGeneratedTargets<E> = { ...targets, body: this.resolveWriteBody(options, targets, this.resolvePathPlan(options)) as never };
 			const service: ApiServiceBase<E> = options.controller.service;
 			const updateFunction: (this: ApiServiceBase<E>, criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: never) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.UPDATE, EApiFunctionType.UPDATE, options.properties.entity);
 			const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
 
-			return await this.executeGeneratedTransaction(options, routeConfig, async (eventManager: EntityManager | undefined): Promise<E> => await this.executeGeneratedUpdateOperation(options, targets, authorizationDecision, routeConfig, markAfterBoundary, service, updateFunction, getFunction, eventManager));
+			return await this.executeGeneratedTransaction(options, routeConfig, async (eventManager: EntityManager | undefined): Promise<E> => await this.executeGeneratedUpdateOperation(options, writeTargets, authorizationDecision, routeConfig, markAfterBoundary, service, updateFunction, getFunction, eventManager));
 		}
 
 		switch (method) {
@@ -417,9 +366,7 @@ export class ApiRouteRuntime {
 				const pathPlan: IApiControllerPathPlan = this.resolvePathPlan(options);
 
 				await this.executeGeneratedRequestPipeline(options, targets, pathPlan.scopeParameters.length > 0 ? [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.BODY] : [EApiControllerRequestTarget.BODY]);
-				this.assertBodyMatchesPath(options, targets, pathPlan);
-				targets.body ??= {} as never;
-				Object.assign(targets.body as object, this.resolveRouteWhere(options, targets, pathPlan, pathPlan.scopeParameters));
+				const writeBody: Record<string, unknown> = Object.assign(this.resolveWriteBody(options, targets, pathPlan), this.resolveRouteWhere(options, targets, pathPlan, pathPlan.scopeParameters));
 				const service: ApiServiceBase<E> = options.controller.service;
 				const createFunction: (this: ApiServiceBase<E>, properties: never) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.CREATE, EApiFunctionType.CREATE, options.properties.entity);
 				const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
@@ -428,13 +375,13 @@ export class ApiRouteRuntime {
 				const repository: Repository<E> | undefined = options.controller.service.repository;
 				// Request-scoped controllers never reach the startup hook that refuses this.
 				ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(repository, `Controller "${options.controller.constructor.name}" route "${options.method}"`, Boolean(Reflect.getMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, options.controller.constructor)));
-				ApiControllerGeneratedCreateTemporalKeyContract.parse(repository, targets.body);
+				ApiControllerGeneratedCreateTemporalKeyContract.parse(repository, writeBody);
 
 				return await this.executeGeneratedTransaction(
 					options,
 					routeConfig,
 					async (eventManager: EntityManager | undefined): Promise<E> => {
-						const createInput: DeepPartial<E> = targets.body ?? ({} as DeepPartial<E>);
+						const createInput: DeepPartial<E> = writeBody as DeepPartial<E>;
 						await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, createInput);
 						markAfterBoundary();
 
@@ -1100,6 +1047,116 @@ export class ApiRouteRuntime {
 		}
 
 		return ApiControllerPathWhere<E>(targets.parameters, mappings, instantFields, (targets.authenticationRequest as { params?: Record<string, unknown> } | undefined)?.params);
+	}
+
+	/**
+	 * Refuses a body that names another value for a field the path addresses, directly or through the relation that field joins: a bound field on every write, and a key column on a write to one row.
+	 * A key column the path leaves out has no value to compare with, so a write to one row cannot name it at all. A date and time key column in a CREATE body must be the canonical UTC millisecond string, which is the only form the route can read back.
+	 * The body is read as the client sent it and as the route will write it, so a pipe that strips or transforms it changes nothing. The value is not echoed, because it is the client's and the path already names the right one.
+	 * The returned copy is the body the route writes: a field the path addresses leaves it, because a key the save reads from the body would make it insert another row. A relation that joins such a field leaves with it, and the relation's other join columns are written as the entity's own columns; one the entity does not declare, or the relation does not name, cannot be told apart and answers `400`. The request body stays as the client sent it.
+	 * @template E - Entity type owned by the route.
+	 * @template R - Generated route type.
+	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
+	 * @param {IApiRouteRuntimeGeneratedTargets<E>} targets - Request targets.
+	 * @param {IApiControllerPathPlan} pathPlan - Path plan of the route.
+	 * @returns {Record<string, unknown>} The body the route writes.
+	 * @throws {BadRequestException} When the body differs from the path.
+	 */
+	private static resolveWriteBody<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, pathPlan: IApiControllerPathPlan): Record<string, unknown> {
+		const isPlainRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+		const rawBody: unknown = (targets.authenticationRequest as { body?: unknown } | undefined)?.body;
+		const bodies: Array<Record<string, unknown>> = [targets.body, rawBody].filter(isPlainRecord);
+		const pathValues: Record<string, unknown> = this.resolveRouteWhere(options, targets, pathPlan, ApiControllerPathRouteParameters(pathPlan, options.method));
+		const unaddressedFields: ReadonlyArray<string> = options.method === EApiRouteType.CREATE ? [] : pathPlan.primaryFields.filter((field: string): boolean => !Object.hasOwn(pathValues, field));
+		const repository: unknown = (options.controller.service as { repository?: unknown }).repository;
+		const relations: ReadonlyArray<RelationMetadata> = repository instanceof Repository ? repository.metadata.relations : [];
+
+		if (options.method === EApiRouteType.CREATE && repository instanceof Repository) {
+			const sentBody: unknown = isPlainRecord(rawBody) ? rawBody : targets.body;
+
+			for (const field of pathPlan.primaryFields) {
+				const value: unknown = isPlainRecord(sentBody) ? sentBody[field] : undefined;
+
+				if (value !== undefined && this.isDateTimeColumn(repository as Repository<IApiBaseEntity>, field) && (typeof value !== "string" || !API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN.test(value) || new Date(value).toISOString() !== value)) {
+					throw this.createBodyParameterException(field, BODY_INSTANT_REJECTION_REASON);
+				}
+			}
+		}
+
+		for (const body of bodies) {
+			for (const field of [...Object.keys(pathValues), ...unaddressedFields]) {
+				const isAddressed: boolean = Object.hasOwn(pathValues, field);
+
+				if (body[field] !== undefined && (!isAddressed || !this.isSamePathValue(body[field], pathValues[field]))) {
+					throw this.createBodyParameterException(field, isAddressed ? BODY_PATH_MISMATCH_REJECTION_REASON : BODY_UNADDRESSED_KEY_REJECTION_REASON);
+				}
+
+				for (const relation of relations) {
+					const joinColumn: TTypeOrmColumnMetadata | undefined = relation.joinColumns.find((column: TTypeOrmColumnMetadata): boolean => column.propertyName === field);
+					const relationValue: unknown = body[relation.propertyName];
+
+					if (!joinColumn || relationValue === undefined) {
+						continue;
+					}
+
+					const referencedName: string | undefined = joinColumn.referencedColumn?.propertyName;
+
+					// A relation over several columns names the addressed one only inside its object, so anything else cannot be told apart from the other columns.
+					if (relation.joinColumns.length > 1 && !isPlainRecord(relationValue)) {
+						throw this.createBodyParameterException(relation.propertyName, BODY_PATH_MISMATCH_REJECTION_REASON);
+					}
+
+					const relationKey: unknown = isPlainRecord(relationValue) && referencedName ? relationValue[referencedName] : relationValue;
+
+					if (relation.joinColumns.length > 1 && relationKey === undefined) {
+						continue;
+					}
+
+					if (!isAddressed || !this.isSamePathValue(relationKey, pathValues[field])) {
+						throw this.createBodyParameterException(relation.propertyName, isAddressed ? BODY_PATH_MISMATCH_REJECTION_REASON : BODY_UNADDRESSED_KEY_REJECTION_REASON);
+					}
+				}
+			}
+		}
+
+		const writeBody: Record<string, unknown> = isPlainRecord(targets.body) ? Object.assign(Object.create(Object.getPrototypeOf(targets.body) as null | object) as Record<string, unknown>, targets.body) : {};
+
+		for (const field of Object.keys(pathValues)) {
+			Reflect.deleteProperty(writeBody, field);
+
+			for (const relation of relations) {
+				const joinColumn: TTypeOrmColumnMetadata | undefined = relation.joinColumns.find((column: TTypeOrmColumnMetadata): boolean => column.propertyName === field);
+				const relationValue: unknown = writeBody[relation.propertyName];
+
+				if (!joinColumn || relationValue === undefined) {
+					continue;
+				}
+
+				Reflect.deleteProperty(writeBody, relation.propertyName);
+
+				if (relation.joinColumns.length === 1 || !isPlainRecord(relationValue)) {
+					continue;
+				}
+
+				// The save reads every join column from a relation it is given, the bound one included, so the other columns are written as the entity's own.
+				for (const otherColumn of relation.joinColumns) {
+					const otherReferencedName: string | undefined = otherColumn.referencedColumn?.propertyName;
+					const otherValue: unknown = otherReferencedName ? relationValue[otherReferencedName] : undefined;
+
+					if (Object.hasOwn(pathValues, otherColumn.propertyName)) {
+						continue;
+					}
+
+					if (otherColumn.isVirtual || otherValue === undefined || (writeBody[otherColumn.propertyName] !== undefined && writeBody[otherColumn.propertyName] !== otherValue)) {
+						throw this.createBodyParameterException(relation.propertyName, BODY_RELATION_SPLIT_REJECTION_REASON);
+					}
+
+					writeBody[otherColumn.propertyName] = otherValue;
+				}
+			}
+		}
+
+		return writeBody;
 	}
 
 	/**
