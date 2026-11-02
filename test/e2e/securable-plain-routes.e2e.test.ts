@@ -6,6 +6,9 @@ import type { OpenAPIObject } from "@nestjs/swagger";
 import type { TestingModule } from "@nestjs/testing";
 import type { AddressInfo } from "node:net";
 import type { Observable } from "rxjs";
+import type { Socket } from "socket.io-client";
+
+import type { IApiAuthorizationPolicySubscriberContext } from "../../src/index";
 
 import { All, Controller, Get, Head, HttpStatus, Inject, Injectable, Module, Options, Post, Redirect, RequestMethod, Scope, Search, Sse, UseGuards, Version } from "@nestjs/common";
 import { PATH_METADATA, VERSION_METADATA } from "@nestjs/common/internal";
@@ -15,8 +18,10 @@ import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
 import { getRepositoryToken, InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
+import { SubscribeMessage, WebSocketGateway } from "@nestjs/websockets";
 import { createServer } from "node:net";
 import { EMPTY, firstValueFrom, timeout } from "rxjs";
+import { io } from "socket.io-client";
 import { Column, Entity, PrimaryColumn, Repository } from "typeorm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -43,7 +48,11 @@ class SecurablePlainRouteItemService extends ApiServiceBase<SecurablePlainRouteI
 @Injectable()
 @ApiAuthorizationPolicy({ entity: SecurablePlainRouteItemEntity })
 class SecurablePlainRouteItemPolicy extends ApiAuthorizationPolicyBase<SecurablePlainRouteItemEntity> {
-	public getCustomActionRule(action: string) {
+	public getCustomActionRule(action: string, context: IApiAuthorizationPolicySubscriberContext<SecurablePlainRouteItemEntity>) {
+		if (action === "custom.admin") {
+			return context.principal.roles.includes("admin") ? this.allow() : [];
+		}
+
 		return action === "custom.allow" ? this.allow() : [];
 	}
 
@@ -65,7 +74,11 @@ const NO_GENERATED_ROUTES = {
 
 const ONLY_GET_LIST = { ...NO_GENERATED_ROUTES, [EApiRouteType.GET_LIST]: {} } as const;
 
+const ONLY_GET = { ...NO_GENERATED_ROUTES, [EApiRouteType.GET]: {} } as const;
+
 const AUTHORIZATION = { defaultMode: EApiAuthorizationMode.HOOKS } as const;
+
+const ATTACKER_PAYLOAD = { user: { id: "attacker", roles: ["admin"] } } as const;
 
 /**
  * Builds a secured custom route on the item entity.
@@ -109,14 +122,14 @@ function replacedHandlerError(controller: string, method: string, route: string)
 }
 
 /**
- * Builds the startup error of a pattern handler without authorization.
+ * Builds the startup error of a handler that a microservice or WebSocket transport calls.
  * @param {string} controller - Controller name.
  * @param {string} method - Method name.
  * @param {string} pattern - The pattern as JSON.
  * @returns {Error} The expected error.
  */
 function patternHandlerError(controller: string, method: string, pattern: string): Error {
-	return new Error(`[NestJS-Crud-Automator] Controller "${controller}" method "${method}" handles pattern ${pattern} without authorization: move it to a controller that is not securable`);
+	return new Error(`[NestJS-Crud-Automator] Controller "${controller}" method "${method}" handles pattern ${pattern}, and that transport has no identity that authorization can trust: move it to a controller that is not securable`);
 }
 
 /**
@@ -364,6 +377,19 @@ class SecuredChildReusingDisabledRouteController extends GeneratedParentControll
 	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.allow", "summary"))
 	public summary(): { isHandlerKept: boolean } {
 		return { isHandlerKept: typeof (this as unknown as { getList?: unknown }).getList === "function" };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "generated-get-parent", routes: ONLY_GET })
+class GeneratedGetParentController extends SecurablePlainRouteItemController {}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "secured-child-get", routes: NO_GENERATED_ROUTES })
+class SecuredChildCallingDisabledRouteController extends GeneratedGetParentController {
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.allow", "lookup"))
+	public async lookup(): Promise<unknown> {
+		return await (this as unknown as { get: (...arguments_: Array<unknown>) => Promise<unknown> }).get({ id: "row-1" }, {}, {}, {});
 	}
 }
 
@@ -730,6 +756,14 @@ class EventPatternController extends SecurablePlainRouteItemController {
 @ApiControllerSecurable()
 @ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "both-transports", routes: NO_GENERATED_ROUTES })
 class ApiMethodWithPatternController extends SecurablePlainRouteItemController {
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.admin", "admin"))
+	@MessagePattern("securable.admin")
+	public admin(): { isReached: boolean } {
+		patternHandlerCalls.push("securable.admin");
+
+		return { isReached: true };
+	}
+
 	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.allow", "allowed"))
 	@MessagePattern("securable.allowed")
 	public allowed(): { isReached: boolean } {
@@ -737,13 +771,77 @@ class ApiMethodWithPatternController extends SecurablePlainRouteItemController {
 
 		return { isReached: true };
 	}
+}
 
-	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.deny", "denied"))
-	@MessagePattern("securable.denied")
-	public denied(): { isReached: boolean } {
-		patternHandlerCalls.push("securable.denied");
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "both-transports-event", routes: NO_GENERATED_ROUTES })
+class ApiMethodWithEventPatternController extends SecurablePlainRouteItemController {
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.admin", "admin"))
+	@EventPattern("securable.admin-event")
+	public admin(_data: unknown): void {
+		patternHandlerCalls.push("securable.admin-event");
+	}
+}
 
+@WebSocketGateway()
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "subscribe-message", routes: NO_GENERATED_ROUTES })
+class SubscribeMessageController extends SecurablePlainRouteItemController {
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.allow", "allowed"))
+	public allowed(): { isReached: boolean } {
 		return { isReached: true };
+	}
+
+	@SubscribeMessage("securable.controller-subscribe")
+	public subscribe(): { data: boolean; event: string } {
+		patternHandlerCalls.push("securable.controller-subscribe");
+
+		return { data: true, event: "reply" };
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<SecurablePlainRouteItemEntity>({ authorization: AUTHORIZATION, entity: SecurablePlainRouteItemEntity, path: "api-method-subscribe", routes: NO_GENERATED_ROUTES })
+class ApiMethodWithSubscribeMessageController extends SecurablePlainRouteItemController {
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.admin", "admin"))
+	@SubscribeMessage("securable.api-method-subscribe")
+	public admin(): { data: boolean; event: string } {
+		patternHandlerCalls.push("securable.api-method-subscribe");
+
+		return { data: true, event: "reply" };
+	}
+}
+
+@WebSocketGateway()
+@ApiControllerSecurable()
+class SecurableGateway {
+	@SubscribeMessage("securable.gateway-subscribe")
+	public subscribe(): { data: boolean; event: string } {
+		patternHandlerCalls.push("securable.gateway-subscribe");
+
+		return { data: true, event: "reply" };
+	}
+}
+
+@WebSocketGateway()
+@ApiControllerSecurable()
+class SecurableApiMethodGateway {
+	@ApiMethod<SecurablePlainRouteItemEntity>(securedRoute("custom.admin", "gateway-admin"))
+	@SubscribeMessage("securable.gateway-admin")
+	public admin(): { data: boolean; event: string } {
+		patternHandlerCalls.push("securable.gateway-admin");
+
+		return { data: true, event: "reply" };
+	}
+}
+
+@WebSocketGateway()
+class OpenGateway {
+	@SubscribeMessage("open.gateway-subscribe")
+	public subscribe(): { data: boolean; event: string } {
+		patternHandlerCalls.push("open.gateway-subscribe");
+
+		return { data: true, event: "reply" };
 	}
 }
 
@@ -809,10 +907,11 @@ describe("Served routes of securable controllers (E2E)", () => {
 	 * Boots the controllers with the startup validation replaced, which leaves only what runs per request.
 	 * @param {Array<Type<unknown>>} controllers - Controllers to serve.
 	 * @param {ReadonlyArray<[unknown, unknown]>} [overrides] - More providers to replace with values.
+	 * @param {ReadonlyArray<Provider>} [providers] - Additional providers.
 	 * @returns {Promise<INestApplication>} The listening application.
 	 */
-	async function bootWithoutStartupValidation(controllers: Array<Type<unknown>>, overrides: ReadonlyArray<[unknown, unknown]> = []): Promise<INestApplication> {
-		const moduleReference: TestingModule = await compile(controllers, [], [], [[ApiAuthorizationBootstrapValidationService, {}], ...overrides]);
+	async function bootWithoutStartupValidation(controllers: Array<Type<unknown>>, overrides: ReadonlyArray<[unknown, unknown]> = [], providers: ReadonlyArray<Provider> = []): Promise<INestApplication> {
+		const moduleReference: TestingModule = await compile(controllers, providers, [], [[ApiAuthorizationBootstrapValidationService, {}], ...overrides]);
 		const application: INestApplication = moduleReference.createNestApplication(new FastifyAdapter(), { logger: false });
 
 		applications.push(application);
@@ -868,23 +967,52 @@ describe("Served routes of securable controllers (E2E)", () => {
 	 * Sends a message and returns the reply or the error the transport carries back.
 	 * @param {ClientProxy} client - Connected client.
 	 * @param {string} pattern - Message pattern.
+	 * @param {unknown} [payload] - Message payload.
 	 * @returns {Promise<unknown>} The reply, or the error.
 	 */
-	async function sendMessage(client: ClientProxy, pattern: string): Promise<unknown> {
-		return await firstValueFrom(client.send(pattern, {}).pipe(timeout(10_000))).catch((error: unknown): unknown => error);
+	async function sendMessage(client: ClientProxy, pattern: string, payload: unknown = {}): Promise<unknown> {
+		return await firstValueFrom(client.send(pattern, payload).pipe(timeout(10_000))).catch((error: unknown): unknown => error);
 	}
 
 	/**
 	 * Emits an event and gives the server time to run its handler.
 	 * @param {ClientProxy} client - Connected client.
 	 * @param {unknown} pattern - Event pattern.
+	 * @param {unknown} [payload] - Event payload.
 	 * @returns {Promise<void>} Resolves once the handler had its time.
 	 */
-	async function emitEvent(client: ClientProxy, pattern: unknown): Promise<void> {
-		await firstValueFrom(client.emit(pattern, {}));
+	async function emitEvent(client: ClientProxy, pattern: unknown, payload: unknown = {}): Promise<void> {
+		await firstValueFrom(client.emit(pattern, payload));
 		await new Promise<void>((resolve: () => void): void => {
 			setTimeout(resolve, 300);
 		});
+	}
+
+	/**
+	 * Sends one message over a real WebSocket connection and returns what the gateway answers.
+	 * @param {INestApplication} application - Listening application.
+	 * @param {string} message - Message name.
+	 * @returns {Promise<{ exception?: unknown; reply?: unknown }>} The reply, or the exception.
+	 */
+	async function sendSocketMessage(application: INestApplication, message: string): Promise<{ exception?: unknown; reply?: unknown }> {
+		const socket: Socket = io(await application.getUrl(), { transports: ["websocket"] });
+
+		try {
+			return await new Promise<{ exception?: unknown; reply?: unknown }>((resolve: (answer: { exception?: unknown; reply?: unknown }) => void, reject: (error: Error) => void): void => {
+				socket.on("connect", (): void => {
+					socket.emit(message, ATTACKER_PAYLOAD);
+				});
+				socket.on("connect_error", reject);
+				socket.on("exception", (exception: unknown): void => {
+					resolve({ exception });
+				});
+				socket.on("reply", (reply: unknown): void => {
+					resolve({ reply });
+				});
+			});
+		} finally {
+			socket.close();
+		}
 	}
 
 	/**
@@ -1123,14 +1251,40 @@ describe("Served routes of securable controllers (E2E)", () => {
 			expect(patternHandlerCalls).toEqual([]);
 		});
 
-		it("asks the policy for @ApiMethod with @MessagePattern over TCP and over HTTP", async () => {
-			const { application, client } = await bootHybrid([ApiMethodWithPatternController]);
+		it("refuses @ApiMethod with @MessagePattern, because a message carries no identity to trust", async () => {
+			await expect(bootHybrid([ApiMethodWithPatternController])).rejects.toThrow(patternHandlerError("ApiMethodWithPatternController", "admin", `"securable.admin"`));
+		});
 
-			await expect(sendMessage(client, "securable.denied")).resolves.toMatchObject({ message: "Internal server error" });
-			expect((await request(application, "POST", "/both-transports/denied")).status).toBe(HttpStatus.FORBIDDEN);
+		it("refuses @ApiMethod with @EventPattern, because an event carries no identity to trust", async () => {
+			await expect(bootHybrid([ApiMethodWithEventPatternController])).rejects.toThrow(patternHandlerError("ApiMethodWithEventPatternController", "admin", `"securable.admin-event"`));
+		});
+
+		it("does not take an identity from a message over TCP, with startup validation replaced", async () => {
+			const evaluate = vi.spyOn(ApiAuthorizationRuntime.prototype, "evaluate");
+			const { client } = await bootHybrid([ApiMethodWithPatternController], [[ApiAuthorizationBootstrapValidationService, {}]]);
+
+			await expect(sendMessage(client, "securable.admin", ATTACKER_PAYLOAD)).resolves.toMatchObject({ message: "Forbidden resource" });
+			await expect(sendMessage(client, "securable.allowed", ATTACKER_PAYLOAD)).resolves.toMatchObject({ message: "Forbidden resource" });
+
+			expect(patternHandlerCalls).toEqual([]);
+			expect(evaluate).not.toHaveBeenCalled();
+		});
+
+		it("does not take an identity from an event over TCP, with startup validation replaced", async () => {
+			const { client } = await bootHybrid([ApiMethodWithEventPatternController], [[ApiAuthorizationBootstrapValidationService, {}]]);
+
+			await emitEvent(client, "securable.admin-event", ATTACKER_PAYLOAD);
+
+			expect(patternHandlerCalls).toEqual([]);
+		});
+
+		it("keeps the policy decision over HTTP for a handler that also has a pattern, with startup validation replaced", async () => {
+			const { application } = await bootHybrid([ApiMethodWithPatternController], [[ApiAuthorizationBootstrapValidationService, {}]]);
+
+			expect((await request(application, "POST", "/both-transports/admin")).status).toBe(HttpStatus.FORBIDDEN);
 			expect(patternHandlerCalls).toEqual([]);
 
-			await expect(sendMessage(client, "securable.allowed")).resolves.toEqual({ isReached: true });
+			expect((await request(application, "POST", "/both-transports/allowed")).status).toBe(HttpStatus.OK);
 			expect(patternHandlerCalls).toEqual(["securable.allowed"]);
 		});
 
@@ -1141,6 +1295,47 @@ describe("Served routes of securable controllers (E2E)", () => {
 			await emitEvent(client, "open.event");
 
 			expect(patternHandlerCalls).toEqual(["open.message", "open.event"]);
+		});
+	});
+
+	describe("a WebSocket message follows the same rule", () => {
+		it("refuses @SubscribeMessage on a securable controller", async () => {
+			await expect(boot([SubscribeMessageController], [SubscribeMessageController])).rejects.toThrow(patternHandlerError("SubscribeMessageController", "subscribe", `"securable.controller-subscribe"`));
+		});
+
+		it("refuses @ApiMethod with @SubscribeMessage on a securable controller", async () => {
+			await expect(boot([ApiMethodWithSubscribeMessageController])).rejects.toThrow(patternHandlerError("ApiMethodWithSubscribeMessageController", "admin", `"securable.api-method-subscribe"`));
+		});
+
+		it("denies a message of a securable controller, with startup validation replaced, and keeps its HTTP route", async () => {
+			const application: INestApplication = await bootWithoutStartupValidation([SubscribeMessageController], [], [SubscribeMessageController]);
+
+			await expect(sendSocketMessage(application, "securable.controller-subscribe")).resolves.toMatchObject({ exception: { message: "Forbidden resource" } });
+			expect(patternHandlerCalls).toEqual([]);
+			expect((await request(application, "POST", "/subscribe-message/allowed")).status).toBe(HttpStatus.OK);
+		});
+
+		it("denies a message of a securable gateway, which startup does not inspect", async () => {
+			const application: INestApplication = await boot([], [SecurableGateway]);
+
+			await expect(sendSocketMessage(application, "securable.gateway-subscribe")).resolves.toMatchObject({ exception: { message: "Forbidden resource" } });
+			expect(patternHandlerCalls).toEqual([]);
+		});
+
+		it("does not take an identity from a message of a securable gateway with @ApiMethod", async () => {
+			const evaluate = vi.spyOn(ApiAuthorizationRuntime.prototype, "evaluate");
+			const application: INestApplication = await boot([], [SecurableApiMethodGateway]);
+
+			await expect(sendSocketMessage(application, "securable.gateway-admin")).resolves.toMatchObject({ exception: { message: "Forbidden resource" } });
+			expect(patternHandlerCalls).toEqual([]);
+			expect(evaluate).not.toHaveBeenCalled();
+		});
+
+		it("keeps a gateway that is not securable", async () => {
+			const application: INestApplication = await boot([], [OpenGateway]);
+
+			await expect(sendSocketMessage(application, "open.gateway-subscribe")).resolves.toEqual({ reply: true });
+			expect(patternHandlerCalls).toEqual(["open.gateway-subscribe"]);
 		});
 	});
 
@@ -1286,6 +1481,18 @@ describe("Served routes of securable controllers (E2E)", () => {
 			expect(response.status).toBe(HttpStatus.OK);
 			await expect(response.json()).resolves.toEqual({ isHandlerKept: true });
 			expect((await request(application, "GET", "/secured-child-reuse?limit=10&page=1")).status).toBe(HttpStatus.NOT_FOUND);
+		});
+
+		it("calls the generated handler from the child with its arguments and the controller as this", async () => {
+			const application: INestApplication = await boot([SecuredChildCallingDisabledRouteController]);
+
+			await application.get<Repository<SecurablePlainRouteItemEntity>>(getRepositoryToken(SecurablePlainRouteItemEntity)).save({ id: "row-1", name: "Name" });
+
+			const response: Response = await request(application, "POST", "/secured-child-get/lookup");
+
+			expect(response.status).toBe(HttpStatus.OK);
+			await expect(response.json()).resolves.toMatchObject({ id: "row-1" });
+			expect((await request(application, "GET", "/secured-child-get/row-1")).status).toBe(HttpStatus.NOT_FOUND);
 		});
 
 		it("keeps a custom route of the base class under the same method name", async () => {
