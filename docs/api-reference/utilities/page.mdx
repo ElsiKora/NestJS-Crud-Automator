@@ -450,7 +450,7 @@ TypeORM helpers detect and explain common database errors:
 - `DatabaseTypeOrmAssertRequiredWhere` applies the same rules and also refuses a missing or empty `where`. `get`, `update`, `delete` and generated PATCH run it before every single-row query, so a lost criterion fails instead of matching the first row.
 - `DatabaseTypeOrmIsUniqueViolation`
 - `DatabaseTypeOrmIsForeignKeyViolation`
-- `DatabaseTypeOrmGetUniqueViolationDetails`
+- `DatabaseTypeOrmGetUniqueViolationDetails` reads the constraint, table, column and value from a driver error, for logs and your own code. The built-in create and update functions do not put them in a response: their `409` holds only `details: { type: "UNIQUE_VIOLATION" }`.
 - `DatabaseTypeOrmGetForeignKeyViolationDetails`
 - `DatabaseTypeOrmIsEntityNotFound`
 - `DatabaseTypeOrmIsEntityMetadataNotFound`

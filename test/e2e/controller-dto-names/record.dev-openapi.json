@@ -2061,66 +2061,11 @@
 			},
 			"ExceptionDetailsUniqueViolationDTO": {
 				"properties": {
-					"constraint": {
-						"description": "ErrorDetails ",
-						"example": "UQ_user_login",
-						"format": "string",
-						"maxLength": 128,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true,
-						"type": "string"
-					},
-					"detail": {
-						"description": "ErrorDetails ",
-						"example": "Key (login)=(jack) already exists.",
-						"format": "string",
-						"maxLength": 1024,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,1024}$",
-						"readOnly": true,
-						"type": "string"
-					},
-					"field": {
-						"description": "ErrorDetails ",
-						"example": "login",
-						"format": "string",
-						"maxLength": 128,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true,
-						"type": "string"
-					},
-					"table": {
-						"description": "ErrorDetails ",
-						"example": "user",
-						"format": "string",
-						"maxLength": 128,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,128}$",
-						"readOnly": true,
-						"type": "string"
-					},
 					"type": {
 						"description": "ErrorDetails ",
 						"enum": ["UNIQUE_VIOLATION"],
 						"example": "UNIQUE_VIOLATION",
 						"nullable": false,
-						"readOnly": true,
-						"type": "string"
-					},
-					"value": {
-						"description": "ErrorDetails ",
-						"example": "jack",
-						"format": "string",
-						"maxLength": 1024,
-						"minLength": 0,
-						"nullable": false,
-						"pattern": "^[\\s\\S]{0,1024}$",
 						"readOnly": true,
 						"type": "string"
 					}

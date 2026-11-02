@@ -600,7 +600,7 @@ routes: {
 
 ## Database Errors
 
-Unique constraint violations (for example, when `login` is `UNIQUE`) are automatically returned as `409 Conflict` when using the built-in CRUD decorators.
+Unique constraint violations (for example, when `login` is `UNIQUE`) are automatically returned as `409 Conflict` by the built-in create and update functions. Every duplicate key answers one body, on every driver: `message` is `{ENTITY}_DUPLICATE_KEY` and `details` is `{ "type": "UNIQUE_VIOLATION" }`. The body holds no driver text, so it names no constraint, table, column or value.
 
 Example response:
 
@@ -609,10 +609,13 @@ Example response:
 	"statusCode": 409,
 	"message": "USER_DUPLICATE_KEY",
 	"error": "Conflict",
+	"details": { "type": "UNIQUE_VIOLATION" },
 	"timestamp": 1704067200000,
 	"correlationID": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
+
+A create that loses a race for a new key, and an update that hits a unique column, answer the same body, so a client handles all of them in one place. The original driver error stays in `cause` for your logs: read it with `FormatErrorEvidenceForLog(exception.cause)`.
 
 For other database constraint violations (for example, foreign keys), you can still map `QueryFailedError` to a cleaner HTTP exception in your service:
 
@@ -716,6 +719,12 @@ The enum keys change too, so code that uses a removed key no longer compiles:
 7. `TIMESTAMP_IN_FUTURE` keeps its key but now renders as its key, `{ENTITY}_TIMESTAMP_IN_FUTURE`, instead of `{ENTITY}_IN_FUTURE`.
 
 Update clients and error mappings that match these strings.
+
+### Duplicate key body in 5.0.0
+
+Before 5.0.0, a `409` `UNIQUE_VIOLATION` from create or update copied driver text into `details`: `constraint`, `detail`, `field`, `table` and `value`, and which of them were present depended on the driver. From 5.0.0 those fields are removed, and every duplicate key answers `{ "details": { "type": "UNIQUE_VIOLATION" }, "error": "Conflict", "message": "{ENTITY}_DUPLICATE_KEY", "statusCode": 409 }`. `ExceptionDetailsUniqueViolationDTO` declares only `type`.
+
+Clients that read the column or the value from `details` must read `message` and `details.type` instead, and tell the user which field clashed from what they sent. Server code that needs the constraint name reads it from `exception.cause` in a filter or a log, never from the response.
 
 ### Exception cause
 
