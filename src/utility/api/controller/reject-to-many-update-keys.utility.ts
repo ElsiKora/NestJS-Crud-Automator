@@ -4,6 +4,7 @@ import type { TTypeOrmMetadataArgumentsStorage, TTypeOrmRelationMetadataArgument
 import type { DeepPartial } from "typeorm";
 
 import { EErrorStringAction } from "@enum/utility";
+import { EApiExceptionDetailsType } from "@enum/utility/exception-details-type.enum";
 import { BadRequestException, HttpStatus } from "@nestjs/common";
 import { DatabaseTypeOrmGetChildEntities } from "@utility/database/typeorm/get/child-entities.utility";
 import { ErrorString } from "@utility/error/string.utility";
@@ -38,6 +39,7 @@ export function ApiControllerRejectToManyUpdateKeys<E extends IApiBaseEntity>(en
 			details: {
 				propertyName: path.join("."),
 				reason: TO_MANY_UPDATE_REJECTION_REASON,
+				type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY,
 			},
 			error: "Bad Request",
 			message: ErrorString({ entity, type: EErrorStringAction.REFERENCE_NOT_VALID }),

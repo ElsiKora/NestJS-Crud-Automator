@@ -527,7 +527,7 @@ Updates reject the reference because TypeORM saves the value as the full new set
 
 ```json
 {
-	"details": { "propertyName": "tags", "reason": "to-many reference is not allowed on update" },
+	"details": { "propertyName": "tags", "reason": "to-many reference is not allowed on update", "type": "TO_MANY_UPDATE_KEY" },
 	"error": "Bad Request",
 	"message": "POSTENTITY_REFERENCE_NOT_VALID",
 	"statusCode": 400
@@ -706,7 +706,7 @@ From 5.0.0, request hydration of to-many references changes too. In the CREATE b
 
 A custom route handler that read a to-many request relation as one entity must read the first element of the array. A client that sent a to-many reference or `null` on an update and relied on the `200` must drop the key or move the change to a custom route of another type. A custom UPDATE or PARTIAL_UPDATE route whose handler reads a to-many key from the body must take it under another property name or change its `route.type`. The `400` applies to every to-many relation of the entity, including one left out of `relations.request`, excluded with `include: false`, on a route without `relations.request`, inside an embedded column, or declared only on a child of a table inheritance root.
 
-This `400` is new: before 5.0.0 a to-many key on an update never returned it. Its body is `{ "details": { "propertyName": "tags", "reason": "to-many reference is not allowed on update" }, "error": "Bad Request", "message": "POSTENTITY_REFERENCE_NOT_VALID", "statusCode": 400 }`, with `propertyName` the dotted path for an embedded relation. The `400` `REFERENCE_NOT_VALID` body for a to-one reference is unchanged: `details` still carry `expectedShape`, `propertyName` and `referenceKey`.
+This `400` is new: before 5.0.0 a to-many key on an update never returned it. Its body is `{ "details": { "propertyName": "tags", "reason": "to-many reference is not allowed on update", "type": "TO_MANY_UPDATE_KEY" }, "error": "Bad Request", "message": "POSTENTITY_REFERENCE_NOT_VALID", "statusCode": 400 }`, with `propertyName` the dotted path for an embedded relation. The `400` `REFERENCE_NOT_VALID` body for a to-one reference is unchanged: `details` still carry `expectedShape`, `propertyName` and `referenceKey`.
 
 From 5.0.0, the response DTO and Swagger of a route follow its `relations.response` config, and an `OBJECT` reference on a key other than `id` sends that key:
 

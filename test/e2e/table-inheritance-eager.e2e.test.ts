@@ -10,7 +10,7 @@ import { getDataSourceToken, TypeOrmModule } from "@nestjs/typeorm";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
+import { ApiAuthorizationModule, ApiSubscriberModule, EApiExceptionDetailsType } from "../../src/index";
 
 import { TestAuthGuard } from "./app/auth-guard";
 import { e2eAuthorizationPrincipalResolver } from "./app/principal-resolver";
@@ -217,7 +217,7 @@ describe("eager relations on a table inheritance root (E2E)", () => {
 				const response: TInjectResponse = await send(method, `${base}/${FORM_ID}`, payload);
 
 				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-				expect((response.json() as { details?: unknown }).details).toEqual({ propertyName: "notes", reason: "to-many reference is not allowed on update" });
+				expect((response.json() as { details?: unknown }).details).toEqual({ propertyName: "notes", reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY });
 				expect(await readStoredDetail(FORM_ID)).toEqual({ issuer: null, label: "Form", network: null, notes: [NOTE_ID], tags: [], vendor: null });
 			});
 

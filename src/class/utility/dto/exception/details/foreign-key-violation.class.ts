@@ -89,13 +89,13 @@ export class ExceptionDetailsForeignKeyViolationDTO {
 
 	@ApiPropertyEnum({
 		entity: DETAILS_ENTITY,
-		enum: EApiExceptionDetailsType,
-		enumName: "EApiExceptionDetailsType",
+		enum: { FOREIGN_KEY_VIOLATION: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION },
+		enumName: "ExceptionDetailsForeignKeyViolationType",
 		exampleValue: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION,
 		isRequired: true,
 		isResponse: true,
 	})
-	type: EApiExceptionDetailsType = EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION;
+	type: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION = EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION;
 
 	@ApiPropertyString({
 		entity: DETAILS_ENTITY,

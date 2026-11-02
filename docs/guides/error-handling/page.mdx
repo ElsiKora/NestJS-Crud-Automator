@@ -556,12 +556,13 @@ Custom routes (`@ApiRouteCustom` and `@ApiMethod`) follow the same rules for the
 
 Their other error statuses, `404`, `409`, and statuses of your own, come from `response.errors` and `documentation.response.statuses`, because Crud Automator cannot see what the handler throws.
 
-Every declared status uses the `Exception<Status>DTO` schema of that status, for example `ExceptionBadRequestDTO`. A field is required only when the body has it on every source of that status, with or without `CorrelationIDResponseBodyExceptionFilter`:
+Every declared status uses the `Exception<Status>DTO` schema of that status, for example `ExceptionBadRequestDTO`. A field is required only when it is on the wire in every case, with or without `CorrelationIDResponseBodyInterceptor` and `CorrelationIDResponseBodyExceptionFilter`:
 
-- `statusCode`, `message`, `error`, `correlationID`, and `timestamp` are required on `404`, `409`, and validator statuses, which only the handler chain returns;
-- on `400`, `401`, `403`, `413`, `415`, `429`, and `500` only `statusCode` and `message` are required; `correlationID`, `error`, and `timestamp` are described as optional, because these statuses can arise before the interceptor runs;
+- `correlationID` and `timestamp` are never required: they appear when the interceptor or the filter handles the error, and both are optional components;
+- `statusCode`, `message`, and `error` are required on `404`, `409`, and validator statuses, which only the handler chain returns;
+- on `400`, `401`, `403`, `413`, `415`, `429`, and `500` only `statusCode` and `message` are required, because these statuses can arise before the interceptor runs, where `error` depends on what raised them;
 - `message` is a string or an array of strings and `error` is a string, with no pattern or length limit;
-- `details` exists only on `400` (`FOREIGN_KEY_VIOLATION`, `INVALID_REFERENCE`) and `409` (`UNIQUE_VIOLATION`) and is discriminated by `details.type`.
+- `details` exists only on `400` (`FOREIGN_KEY_VIOLATION`, `INVALID_REFERENCE`, `TO_MANY_UPDATE_KEY`) and `409` (`UNIQUE_VIOLATION`) and is discriminated by `details.type`: each variant has its own single `type` value, so a body matches exactly one.
 
 ### Fields Without the Exception Filter
 
@@ -740,7 +741,7 @@ From 5.0.0, every error body from `CorrelationIDResponseBodyInterceptor` has `co
 
 Outside an HTTP context, such as an RPC handler or a gateway with `@UseInterceptors`, the interceptor passes the call through unchanged and logs one warning per interceptor instance, not per call. Before 5.0.0 it failed there, because it read HTTP headers from the call arguments.
 
-The exception DTOs of generated routes now declare `error` as required, next to `correlationID`, `message`, `statusCode`, and `timestamp`, on the statuses that only the handler chain returns; see [Error Responses in OpenAPI](#error-responses-in-openapi) for the statuses that can arise before the interceptor. `message` and `error` are free text: `message` is a string or an array of strings, and neither has a pattern or a length limit. Clients generated from the OpenAPI document get the new field and the wider `message` type.
+The exception DTOs of generated routes now declare `error` as required, next to `message` and `statusCode`, on the statuses that only the handler chain returns, and no status requires `correlationID` or `timestamp`; see [Error Responses in OpenAPI](#error-responses-in-openapi) for the statuses that can arise before the interceptor. `message` and `error` are free text: `message` is a string or an array of strings, and neither has a pattern or a length limit. Clients generated from the OpenAPI document get the new field and the wider `message` type.
 
 From 5.0.0, `CorrelationIDResponseBodyExceptionFilter` gives failures outside the handler chain the same contract. Nothing changes until you add `app.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(app.get(HttpAdapterHost)))`. After that, these responses change:
 
@@ -777,8 +778,10 @@ From 5.0.0, generated routes declare the error statuses they can return instead 
 - a status in `documentation.response.statuses` replaces the response Crud Automator declares for it instead of joining both descriptions;
 - `ExceptionBadRequestDTO`, `ExceptionUnauthorizedDTO`, `ExceptionForbiddenDTO`, `ExceptionPayloadTooLargeDTO`, `ExceptionUnsupportedMediaTypeDTO`, `ExceptionTooManyRequestsDTO`, and `ExceptionInternalServerErrorDTO` require only `statusCode` and `message`, and `correlationID`, `error`, and `timestamp` become optional, also on routes that declared these statuses before;
 - GET_LIST no longer declares `404`; CREATE declares it with `relations.request`;
-- `details` is declared only on `400` and `409`, with the variants of that status;
-- an invalid request relation reference answers `details.type: "INVALID_REFERENCE"`, described by `ExceptionDetailsInvalidReferenceDTO`.
+- `correlationID` and `timestamp` are no longer required on any status, since they appear only with the optional interceptor or filter;
+- `details` is declared only on `400` and `409`, with the variants of that status, and each variant now declares its own single `type` value instead of the whole `EApiExceptionDetailsType` enum;
+- an invalid request relation reference answers `details.type: "INVALID_REFERENCE"`, described by `ExceptionDetailsInvalidReferenceDTO`;
+- a to-many relation key on an update answers `details.type: "TO_MANY_UPDATE_KEY"`, described by `ExceptionDetailsToManyUpdateKeyDTO`; before 5.0.0 this body had no `type`.
 
 Regenerate API clients from the new document. A client that read `details` on other statuses must be updated.
 

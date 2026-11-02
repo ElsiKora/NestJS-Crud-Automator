@@ -11,7 +11,7 @@ import { Test } from "@nestjs/testing";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../src/index";
+import { ApiAuthorizationModule, ApiSubscriberModule, EApiExceptionDetailsType } from "../../../src/index";
 import { E2eValidationPipe } from "../app/validation-pipe";
 
 import { E2eHydrationDetailController, E2eHydrationObservedPostController, E2eHydrationOrderedPostController, E2eHydrationPostController, E2eHydrationUnhydratedPostController, HYDRATION_CUSTOM_REFUSED_TITLE, HYDRATION_CUSTOM_VALIDATOR_CALLS, HYDRATION_ORDERED_VALIDATOR_CALLS } from "./controller";
@@ -175,7 +175,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 
 				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
 				expect(body.message).toContain("REFERENCE_NOT_VALID");
-				expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update" });
+				expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY });
 				expect(await readStoredPost(POST)).toEqual(STORED_POST);
 			});
 
@@ -201,7 +201,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 				const body = response.json() as { details?: unknown };
 
 				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-				expect(body.details).toEqual({ propertyName: "meta.extras", reason: "to-many reference is not allowed on update" });
+				expect(body.details).toEqual({ propertyName: "meta.extras", reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY });
 				expect(await readStoredPost(POST)).toEqual(STORED_POST);
 			});
 
@@ -216,7 +216,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 				const response = await fastify.inject({ method, payload: { ...base, tags: TAG_C }, url: `/hydration-ordered-posts/${POST}` });
 
 				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-				expect((response.json() as { details?: unknown }).details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update" });
+				expect((response.json() as { details?: unknown }).details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY });
 				expect(HYDRATION_ORDERED_VALIDATOR_CALLS).toEqual([]);
 				expect(await readStoredPost(POST)).toEqual(STORED_POST);
 			});
@@ -252,7 +252,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 
 			expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
 			expect(body.message).toContain("REFERENCE_NOT_VALID");
-			expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update" });
+			expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY });
 			expect(await readStoredPost(POST)).toEqual(STORED_POST);
 		});
 
@@ -267,7 +267,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 			const response = await fastify.inject({ method: "PATCH", payload: { title: `subscriber adds tags ${TAG_C}` }, url: `/hydration-unhydrated-posts/${POST}` });
 
 			expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-			expect((response.json() as { details?: unknown }).details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update" });
+			expect((response.json() as { details?: unknown }).details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY });
 			expect(await readStoredPost(POST)).toEqual(STORED_POST);
 		});
 
@@ -293,7 +293,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 
 				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
 				expect(body.message).toContain("REFERENCE_NOT_VALID");
-				expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update" });
+				expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY });
 				expect(await readStoredDetails()).toEqual(STORED_DETAILS);
 			});
 
@@ -317,7 +317,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 
 				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
 				expect(body.message).toContain("REFERENCE_NOT_VALID");
-				expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update" });
+				expect(body.details).toEqual({ propertyName, reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY });
 				expect(await readStoredPost(POST)).toEqual(STORED_POST);
 			});
 
@@ -334,7 +334,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 				const response = await fastify.inject({ method, payload: { title: `subscriber adds tags ${TAG_C}` }, url: `/hydration-observed-posts/${POST}` });
 
 				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-				expect((response.json() as { details?: unknown }).details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update" });
+				expect((response.json() as { details?: unknown }).details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY });
 				expect(HYDRATION_CUSTOM_VALIDATOR_CALLS).toEqual([]);
 				expect(await readStoredPost(POST)).toEqual(STORED_POST);
 			});
@@ -359,7 +359,7 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 
 				expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
 				expect(body.message).toContain("REFERENCE_NOT_VALID");
-				expect(body.details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update" });
+				expect(body.details).toEqual({ propertyName: "tags", reason: "to-many reference is not allowed on update", type: EApiExceptionDetailsType.TO_MANY_UPDATE_KEY });
 				expect(HYDRATION_CUSTOM_VALIDATOR_CALLS).toEqual([]);
 				expect(await readStoredPost(POST)).toEqual(STORED_POST);
 			});

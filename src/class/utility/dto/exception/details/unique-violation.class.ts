@@ -65,13 +65,13 @@ export class ExceptionDetailsUniqueViolationDTO {
 
 	@ApiPropertyEnum({
 		entity: DETAILS_ENTITY,
-		enum: EApiExceptionDetailsType,
-		enumName: "EApiExceptionDetailsType",
+		enum: { UNIQUE_VIOLATION: EApiExceptionDetailsType.UNIQUE_VIOLATION },
+		enumName: "ExceptionDetailsUniqueViolationType",
 		exampleValue: EApiExceptionDetailsType.UNIQUE_VIOLATION,
 		isRequired: true,
 		isResponse: true,
 	})
-	type: EApiExceptionDetailsType = EApiExceptionDetailsType.UNIQUE_VIOLATION;
+	type: EApiExceptionDetailsType.UNIQUE_VIOLATION = EApiExceptionDetailsType.UNIQUE_VIOLATION;
 
 	@ApiPropertyString({
 		entity: DETAILS_ENTITY,

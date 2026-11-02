@@ -50,11 +50,11 @@ export class ExceptionDetailsInvalidReferenceDTO {
 
 	@ApiPropertyEnum({
 		entity: DETAILS_ENTITY,
-		enum: EApiExceptionDetailsType,
-		enumName: "EApiExceptionDetailsType",
+		enum: { INVALID_REFERENCE: EApiExceptionDetailsType.INVALID_REFERENCE },
+		enumName: "ExceptionDetailsInvalidReferenceType",
 		exampleValue: EApiExceptionDetailsType.INVALID_REFERENCE,
 		isRequired: true,
 		isResponse: true,
 	})
-	type: EApiExceptionDetailsType = EApiExceptionDetailsType.INVALID_REFERENCE;
+	type: EApiExceptionDetailsType.INVALID_REFERENCE = EApiExceptionDetailsType.INVALID_REFERENCE;
 }

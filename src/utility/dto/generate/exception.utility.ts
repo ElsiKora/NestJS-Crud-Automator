@@ -1,6 +1,6 @@
 import { STATUS_CODES } from "node:http";
 
-import { ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsInvalidReferenceDTO, ExceptionDetailsUniqueViolationDTO } from "@class/utility/dto/exception/details";
+import { ExceptionDetailsForeignKeyViolationDTO, ExceptionDetailsInvalidReferenceDTO, ExceptionDetailsToManyUpdateKeyDTO, ExceptionDetailsUniqueViolationDTO } from "@class/utility/dto/exception/details";
 import { CORRELATION_ID_CONSTANT } from "@constant/correlation-id.constant";
 import { DATE_CONSTANT } from "@constant/date.constant";
 import { NUMBER_CONSTANT } from "@constant/number.constant";
@@ -14,9 +14,12 @@ import { ApiExtraModels, ApiProperty, type ApiPropertyOptions } from "@nestjs/sw
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoSetGeneratedName } from "@utility/dto/set-generated-name.utility";
 
+// The correlation fields come from these two optional components, so no status requires them
+const CORRELATION_FIELD_NOTE: string = "sent when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error";
+
 // A generated UUID or the client ID, which CorrelationIDReadHeader accepts by the same pattern
 const CORRELATION_ID_PROPERTY_OPTIONS: ApiPropertyOptions = {
-	description: "Correlation identifier",
+	description: `Correlation identifier, ${CORRELATION_FIELD_NOTE}`,
 	example: "550e8400-e29b-41d4-a716-446655440000",
 	maxLength: CORRELATION_ID_CONSTANT.MAXIMUM_LENGTH,
 	minLength: CORRELATION_ID_CONSTANT.MINIMUM_LENGTH,
@@ -26,7 +29,7 @@ const CORRELATION_ID_PROPERTY_OPTIONS: ApiPropertyOptions = {
 	// eslint-disable-next-line @elsikora/typescript/naming-convention
 	readOnly: true,
 	// eslint-disable-next-line @elsikora/typescript/naming-convention
-	required: true,
+	required: false,
 	type: EApiPropertyDataType.STRING,
 };
 
@@ -47,11 +50,11 @@ const exceptionDtoCache: Map<HttpStatus, Type<unknown>> = new Map<HttpStatus, Ty
 
 /**
  * Statuses that can arise before CorrelationIDResponseBodyInterceptor runs: the body parser (`400`, `413`, `415`), guards (`401`, `403`, `429`), and a failing guard (`500`).
- * Their body carries the correlation fields only when CorrelationIDResponseBodyExceptionFilter is registered.
+ * Their body carries `error` only when the exception that raised it does or CorrelationIDResponseBodyExceptionFilter is registered.
  */
 const PRE_INTERCEPTOR_EXCEPTION_STATUSES: ReadonlySet<HttpStatus> = new Set<HttpStatus>([HttpStatus.BAD_REQUEST, HttpStatus.FORBIDDEN, HttpStatus.INTERNAL_SERVER_ERROR, HttpStatus.PAYLOAD_TOO_LARGE, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.UNAUTHORIZED, HttpStatus.UNSUPPORTED_MEDIA_TYPE]);
 
-const EXCEPTION_FILTER_FIELD_NOTE: string = "sent when CorrelationIDResponseBodyExceptionFilter is registered";
+const EXCEPTION_FILTER_FIELD_NOTE: string = "sent when the exception sets it or CorrelationIDResponseBodyExceptionFilter is registered";
 
 /**
  * Details variants each status can carry on the wire, keyed by the details `type` discriminator.
@@ -63,6 +66,7 @@ const EXCEPTION_DETAILS_BY_STATUS: ReadonlyMap<HttpStatus, Readonly<Partial<Reco
 		{
 			[EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION]: ExceptionDetailsForeignKeyViolationDTO,
 			[EApiExceptionDetailsType.INVALID_REFERENCE]: ExceptionDetailsInvalidReferenceDTO,
+			[EApiExceptionDetailsType.TO_MANY_UPDATE_KEY]: ExceptionDetailsToManyUpdateKeyDTO,
 		},
 	],
 	[
@@ -75,9 +79,9 @@ const EXCEPTION_DETAILS_BY_STATUS: ReadonlyMap<HttpStatus, Readonly<Partial<Reco
 
 /**
  * Creates the exception DTO that describes the error body of one HTTP status.
- * The body carries correlationID, error, message, statusCode, and timestamp.
+ * The body carries error, message, and statusCode, and correlationID and timestamp when CorrelationIDResponseBodyInterceptor or CorrelationIDResponseBodyExceptionFilter handles the error, so no status requires those two.
  * Statuses with package details (`400`, `409`) also describe the discriminated `details` object with the variants of that status.
- * Statuses that can arise before the interceptor (`400`, `401`, `403`, `413`, `415`, `429`, `500`) require only message and statusCode, because there correlationID, error, and timestamp come from the exception filter.
+ * Statuses that can arise before the interceptor (`400`, `401`, `403`, `413`, `415`, `429`, `500`) require only message and statusCode; the others also require error.
  * @param {HttpStatus} httpStatus - The HTTP status code for the exception
  * @returns {Type<unknown>} A generated DTO class for the exception
  */
@@ -92,14 +96,6 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 	const errorText: string = STATUS_CODES[httpStatus] ?? "Error";
 	const isPreInterceptorStatus: boolean = PRE_INTERCEPTOR_EXCEPTION_STATUSES.has(httpStatus);
 
-	const correlationIDOptions: ApiPropertyOptions = isPreInterceptorStatus
-		? ({
-				...CORRELATION_ID_PROPERTY_OPTIONS,
-				description: `Correlation identifier, ${EXCEPTION_FILTER_FIELD_NOTE}`,
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
-				required: false,
-			} as ApiPropertyOptions)
-		: CORRELATION_ID_PROPERTY_OPTIONS;
 	const detailsMapping: Readonly<Partial<Record<EApiExceptionDetailsType, Type<unknown>>>> | undefined = EXCEPTION_DETAILS_BY_STATUS.get(httpStatus);
 	const detailsTypes: Array<Type<unknown>> = detailsMapping ? Object.values(detailsMapping) : [];
 
@@ -117,7 +113,7 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 	};
 
 	class GeneratedErrorDTO {
-		@ApiProperty(correlationIDOptions)
+		@ApiProperty(CORRELATION_ID_PROPERTY_OPTIONS)
 		correlationID!: string;
 
 		@buildDetailsDecorator(detailsMapping)
@@ -141,11 +137,11 @@ export function DtoGenerateException(httpStatus: HttpStatus): Type<unknown> {
 		statusCode: HttpStatus = httpStatus;
 
 		@ApiPropertyNumber({
-			description: isPreInterceptorStatus ? `timestamp, ${EXCEPTION_FILTER_FIELD_NOTE}` : "timestamp",
+			description: `timestamp, ${CORRELATION_FIELD_NOTE}`,
 			entity: { name: "Error" },
 			exampleValue: Date.now(),
 			format: EApiPropertyNumberType.INTEGER,
-			isRequired: !isPreInterceptorStatus,
+			isRequired: false,
 			isResponse: true,
 			maximum: DATE_CONSTANT.MAXIMUM_UNIX_TIME,
 			minimum: DATE_CONSTANT.MINIMUM_UNIX_TIME,

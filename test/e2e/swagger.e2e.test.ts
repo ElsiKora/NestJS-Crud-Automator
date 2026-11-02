@@ -641,7 +641,7 @@ describe("Swagger request DTO documentation (E2E)", () => {
 			const schema: { properties?: Record<string, unknown>; required?: Array<string> } = document.components?.schemas?.[name] as { properties?: Record<string, unknown>; required?: Array<string> };
 
 			expect(Object.keys(schema.properties ?? {}).toSorted(), name).toEqual(detailsSchemaNames.has(name) ? ["correlationID", "details", "error", "message", "statusCode", "timestamp"] : ["correlationID", "error", "message", "statusCode", "timestamp"]);
-			expect(schema.required?.toSorted(), name).toEqual(preInterceptorSchemaNames.has(name) ? ["message", "statusCode"] : ["correlationID", "error", "message", "statusCode", "timestamp"]);
+			expect(schema.required?.toSorted(), name).toEqual(preInterceptorSchemaNames.has(name) ? ["message", "statusCode"] : ["error", "message", "statusCode"]);
 		}
 	});
 
