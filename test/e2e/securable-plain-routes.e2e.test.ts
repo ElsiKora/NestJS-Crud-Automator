@@ -406,6 +406,9 @@ class ChildOfCustomGetListController extends CustomGetListBaseController {}
 
 class PlainSubclassOfGeneratedController extends GeneratedParentController {}
 
+@Controller("own-path")
+class OwnPathSubclassOfGeneratedController extends GeneratedParentController {}
+
 @ApiControllerSecurable()
 @Controller("bare-securable")
 class BareSecurableController {
@@ -1507,6 +1510,13 @@ describe("Served routes of securable controllers (E2E)", () => {
 			const application: INestApplication = await boot([PlainSubclassOfGeneratedController]);
 
 			expect((await request(application, "GET", "/generated-parent?limit=10&page=1")).status).toBe(HttpStatus.OK);
+		});
+
+		it("serves the parent routes under the own path of a subclass with @Controller", async () => {
+			const application: INestApplication = await boot([OwnPathSubclassOfGeneratedController]);
+
+			expect((await request(application, "GET", "/own-path?limit=10&page=1")).status).toBe(HttpStatus.OK);
+			expect((await request(application, "GET", "/generated-parent?limit=10&page=1")).status).toBe(HttpStatus.NOT_FOUND);
 		});
 
 		it("keeps serving the route on the parent itself", async () => {
