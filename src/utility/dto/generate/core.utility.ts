@@ -49,12 +49,12 @@ const dtoGenerateCache: WeakMap<ObjectLiteral, Map<string, Type<unknown>>> = new
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Normalized route plan that narrows generated GET_LIST query fields.
  * @param {string} [responseVariantName] - Class name of a polymorphic response variant, which is always an item DTO without a list wrapper.
  * @param {string} [routeName] - PascalCase handler method name of a custom route; it replaces the route type in the generated names.
- * @param {Type<unknown>} [listResponseDto] - Manual or item-config list response DTO of a GET_LIST route, which limits the generated QUERY DTO's orderBy enum.
+ * @param {ReadonlyArray<Type<unknown>> | Type<unknown>} [listResponseDto] - Manual or item-config list response DTO of a GET_LIST route, or the response variants of a custom one, which limit the generated QUERY DTO's orderBy enum.
  * @returns {Type<unknown> | undefined} The generated DTO class or undefined if no DTO should be generated
  * @throws {Error} When primary key metadata is missing
  * @template E - The entity type
  */
-export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan, responseVariantName?: string, routeName?: string, listResponseDto?: Type<unknown>): Type<unknown> | undefined {
+export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, dtoConfig?: IApiControllerPropertiesRouteAutoDtoConfig, currentGuard?: Type<CanActivate>, queryPlan?: IApiControllerGetListQueryPlan, responseVariantName?: string, routeName?: string, listResponseDto?: ReadonlyArray<Type<unknown>> | Type<unknown>): Type<unknown> | undefined {
 	if (!DtoIsShouldBeGenerated(method, dtoType)) {
 		return undefined;
 	}

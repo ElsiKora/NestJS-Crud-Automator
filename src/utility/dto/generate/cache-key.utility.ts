@@ -12,7 +12,12 @@ let nextListResponseIdentifier: number = 0;
 export function DtoGenerateCacheKey(key: IDtoGenerateCacheKey): string {
 	const baseKey: string = `${key.controllerName ?? "no-controller"}_${key.entityName}_${key.method}_${key.dtoType}_${key.guardName ?? "no-guard"}_${key.queryPlanSignature ?? "no-query-plan"}_${JSON.stringify(key.dtoConfig ?? {})}`;
 
-	const listResponseKey: string = key.listResponseDto ? `${baseKey}_list-response-${getListResponseIdentifier(key.listResponseDto)}` : baseKey;
+	const listResponseKey: string = key.listResponseDto
+		? `${baseKey}_list-response-${[key.listResponseDto]
+				.flat()
+				.map((dto: Type<unknown>): number => getListResponseIdentifier(dto))
+				.join("-")}`
+		: baseKey;
 	const variantKey: string = key.responseVariantName ? `${listResponseKey}_${key.responseVariantName}` : listResponseKey;
 
 	return key.routeName ? `${variantKey}_route_${key.routeName}` : variantKey;

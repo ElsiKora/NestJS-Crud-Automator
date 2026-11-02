@@ -16,6 +16,7 @@ import { ApiControllerReadPlanAssert } from "@utility/api/controller/read";
 import { ApiRouteBuildDiscriminatedDtoOpenApiSchema, ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto-collect-with-registered-children.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
+import { DtoGenerate } from "@utility/dto";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
@@ -131,15 +132,18 @@ function resolveRequestDto<E extends IApiBaseEntity>(metadata: IApiRouteMetadata
 		routes: {},
 	};
 
-	const responseType: Array<Type<unknown>> | Type<unknown> | undefined = metadata.response?.type;
-	// A single response type limits the GET_LIST order fields to the item properties it publishes, as a generated route's manual response DTO does.
-	const listResponseDto: Type<unknown> | undefined = metadata.route.type === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY && !runtimeProperties.dto?.[EApiDtoType.RESPONSE] && !Array.isArray(responseType) ? responseType : undefined;
-
 	const routeConfig: TApiControllerPropertiesRoute<E, typeof metadata.route.type> = {
 		...runtimeProperties,
-		...(listResponseDto ? { dto: { ...runtimeProperties.dto, [EApiDtoType.RESPONSE]: listResponseDto } } : {}),
 		security: metadata.security,
 	} as TApiControllerPropertiesRoute<E, typeof metadata.route.type>;
+	const responseType: Array<Type<unknown>> | Type<unknown> | undefined = metadata.response?.type;
+
+	// A response type limits the GET_LIST order fields to the item properties it publishes, as a generated route's manual response DTO does; response variants limit them to the properties all of them publish.
+	if (metadata.route.type === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY && !runtimeProperties.dto?.[EApiDtoType.RESPONSE] && responseType && (!Array.isArray(responseType) || responseType.length > 0)) {
+		ApiControllerReadPlanAssert(routeConfig);
+
+		return DtoGenerate(metadata.resource.entity, entity, metadata.route.type, dtoType, ApiControllerGetSchemaPrefix(controller), runtimeProperties.autoDto[dtoType], metadata.security?.authentication?.guard, undefined, undefined, routeName, responseType);
+	}
 
 	ApiControllerReadPlanAssert(routeConfig);
 

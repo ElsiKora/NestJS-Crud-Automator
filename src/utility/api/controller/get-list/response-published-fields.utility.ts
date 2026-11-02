@@ -6,12 +6,18 @@ import { generateSchema } from "@nestjs/swagger";
 
 /**
  * Lists the item properties a manual GET_LIST response DTO publishes in its OpenAPI schema.
- * A list wrapper class publishes the properties of its `items` element; an `itemType` config publishes the properties of that class.
+ * A list wrapper class publishes the properties of its `items` element; an `itemType` config publishes the properties of that class; response variants publish the properties all of them publish.
  * Ordering is limited to these names, so a list is never ordered by a value its response leaves out. A wrapper without a resolvable `items` element publishes none.
- * @param {IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown>} responseDto - The configured GET_LIST RESPONSE DTO or item DTO config.
+ * @param {IApiControllerPropertiesRouteGetListResponseDtoConfig | ReadonlyArray<Type<unknown>> | Type<unknown>} responseDto - The configured GET_LIST RESPONSE DTO, item DTO config, or response variants.
  * @returns {ReadonlySet<string>} Item property names in the published schema.
  */
-export function ApiControllerGetListResponsePublishedFields(responseDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown>): ReadonlySet<string> {
+export function ApiControllerGetListResponsePublishedFields(responseDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | ReadonlyArray<Type<unknown>> | Type<unknown>): ReadonlySet<string> {
+	if (isResponseVariants(responseDto)) {
+		const variantFields: Array<ReadonlySet<string>> = responseDto.map((variant: Type<unknown>): ReadonlySet<string> => ApiControllerGetListResponsePublishedFields(variant));
+
+		return new Set<string>([...(variantFields[0] ?? [])].filter((name: string): boolean => variantFields.every((fields: ReadonlySet<string>): boolean => fields.has(name))));
+	}
+
 	if (typeof responseDto === "object") {
 		const { schema, schemas }: { schema: TSwaggerSchemaObject; schemas: Record<string, TSwaggerSchemaObject> } = generateSchema(responseDto.itemType);
 
@@ -55,6 +61,15 @@ function collectPropertyNames(schema: TSwaggerComponentSchema, schemas: Record<s
 	}
 
 	return names;
+}
+
+/**
+ * Tells response variants from a single response DTO.
+ * @param {IApiControllerPropertiesRouteGetListResponseDtoConfig | ReadonlyArray<Type<unknown>> | Type<unknown>} responseDto - The response configuration.
+ * @returns {boolean} True for response variants.
+ */
+function isResponseVariants(responseDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | ReadonlyArray<Type<unknown>> | Type<unknown>): responseDto is ReadonlyArray<Type<unknown>> {
+	return Array.isArray(responseDto);
 }
 
 /**

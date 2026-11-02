@@ -8,7 +8,7 @@ export interface IDtoGenerateCacheKey {
 	dtoType: EApiDtoType;
 	entityName: string;
 	guardName?: string;
-	listResponseDto?: Type<unknown>;
+	listResponseDto?: ReadonlyArray<Type<unknown>> | Type<unknown>;
 	method: EApiRouteType;
 	queryPlanSignature?: string;
 	responseVariantName?: string;
