@@ -18,7 +18,7 @@ import "reflect-metadata";
 
 /**
  * Extracts the client-orderable fields of an entity, including columns its parent classes declare, the single source of the orderBy enum and its validation.
- * A column is orderable only when the generated list response exposes its value (`DtoIsPropertyExposedInListResponse`), it is enabled as a query field, and it is not opted out with `useAsOrderByFilter: false`, all for the route guard;
+ * A column is orderable only when the generated list response exposes its value (its GET_LIST RESPONSE side is enabled, a response field, not `isExpose: false`, and visible for the route guard), it is enabled as a query field, and it is not opted out with `useAsOrderByFilter: false`, all for the route guard;
  * a route with a manual response DTO also limits it to the item properties that DTO publishes. Ordering by any other column would reveal its values through row order.
  * Property names become snake_case enum keys.
  * @param {ObjectLiteral} entity - The entity class
