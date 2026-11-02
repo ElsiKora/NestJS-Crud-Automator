@@ -459,6 +459,13 @@ describe("ApiFunctionKeyPageLoader", () => {
 			expect(KEY_PAGE_INSTANT_INPUTS).toEqual([]);
 		});
 
+		it("keeps a bound operand of a composed condition and hands the transformer only the other one", async () => {
+			const bound: ApiFunctionBoundOperator<unknown> = new ApiFunctionBoundOperator<unknown>("1800-06-01T12:00:00.000Z", instants.metadata.findColumnWithPropertyPath("transformedAt")?.transformer);
+
+			expect(await bindParameters({ transformedAt: And(bound, Equal(LATER)) })).toEqual(["1800-06-01T12:00:00.000Z", "1800-06-01T12:00:06.000Z"]);
+			expect(KEY_PAGE_INSTANT_INPUTS).toEqual([LATER]);
+		});
+
 		it("keeps a nested operator inside Not and binds its Date", async () => {
 			expect(await bindParameters({ transformedAt: Not(MoreThan(INSTANT)) })).toEqual(["1800-06-01T12:00:01.000Z"]);
 			expect(entityQueries[0]?.sql).toContain('NOT("KeyPageInstantEntity"."transformedAt" > $1)');

@@ -99,6 +99,17 @@ describe("AuthorizationScopeMergeWhere", () => {
 		});
 	});
 
+	it.each([
+		["a null value", { tenantId: null }, "object must contain an effective predicate: the scope a policy returned has none at tenantId; use IsNull() to match null"],
+		["a nested undefined value", { operator: { id: undefined } }, "has none at operator.id"],
+		["an empty nested object", { status: "active", operator: {} }, "has none at operator"],
+		["an empty branch", [{}], "array branches must be non-empty plain objects: the scope a policy returned has no effective predicate at [0]; use IsNull() to match null"],
+		["a null value of a later branch", [{ status: "active" }, { tenantId: null }], "has no effective predicate at [1].tenantId"],
+		["a branch that is no object", [null], "has no effective predicate at [0]"],
+	])("names where a scope with %s holds no predicate", (_name: string, scope: unknown, message: string) => {
+		expect(() => AuthorizationScopeMergeWhere(undefined, scope as TApiAuthorizationScopeWhere<ScopeEntity>)).toThrow(message);
+	});
+
 	it("rejects ineffective nested scalar and malformed non-array operands", () => {
 		const ownerWhere = { tenantId: "t1" } as TApiAuthorizationScopeWhere<ScopeEntity>;
 
