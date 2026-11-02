@@ -927,7 +927,7 @@ describe("CRUD routes (E2E)", () => {
 		const listResponse = await fastify.inject({
 			headers: adminHeaders,
 			method: "GET",
-			url: "/typed-items?limit=10&page=1&name[operator]=eq&name[value]=fn-Shared&count[operator]=gt&count[value]=0&owner.name[operator]=eq&owner.name[value]=Owner&orderBy=count&orderDirection=DESC",
+			url: "/typed-items?limit=10&page=1&name[operator]=eq&name[value]=fn-Shared&count[operator]=gt&count[value]=0&owner.name[operator]=eq&owner.name[value]=Owner&orderBy=count&orderDirection=desc",
 		});
 
 		expect(listResponse.statusCode).toBe(200);
@@ -1059,7 +1059,7 @@ describe("CRUD routes (E2E)", () => {
 		["name[operator]=gt&name[value]=fn-Alpha", "INVALID_FILTER"],
 		["count[operator]=between&count[values]=1&count[values]=2&count[values]=3&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
 		["count[operator]=eq&count[value]=1.5&name[operator]=eq&name[value]=fn-Alpha", "INVALID_FILTER"],
-		["name[operator]=eq&name[value]=fn-Alpha&orderBy=owner.name&orderDirection=ASC", "INVALID_ORDER"],
+		["name[operator]=eq&name[value]=fn-Alpha&orderBy=owner.name&orderDirection=asc", "INVALID_ORDER"],
 	])("rejects invalid typed query contract input: %s", async (query, errorCode) => {
 		const response = await fastify.inject({
 			headers: adminHeaders,

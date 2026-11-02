@@ -903,10 +903,11 @@ describe("typed GET_LIST query plan and runtime", () => {
 		const plan = compilePlan({
 			name: { allowedOperations: [EFilterOperation.EQ], isEnabled: true },
 		});
-		const result = ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection: "DESC", page: 1 }, plan);
+		const result = ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection: "desc", page: 1 }, plan);
 
 		expect(result.orderBy).toBe("count");
 		expect(result.orderDirection).toBe(EFilterOrderDirection.DESC);
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection: "DESC", page: 1 }, plan)).toThrow("INVALID_ORDER");
 		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "missing", orderDirection: "asc", page: 1 }, plan)).toThrow("INVALID_ORDER");
 		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", page: 1 }, plan)).toThrow("INVALID_ORDER");
 	});
@@ -923,10 +924,11 @@ describe("typed GET_LIST query plan and runtime", () => {
 				},
 			},
 		);
-		const result = ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection: "DESC", page: 1 }, plan);
+		const result = ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection: "desc", page: 1 }, plan);
 
 		expect(result.orderBy).toBe("count");
 		expect(result.orderDirection).toBe(EFilterOrderDirection.DESC);
+		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "count", orderDirection: "DESC", page: 1 }, plan)).toThrow("INVALID_ORDER");
 		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "code", orderDirection: "asc", page: 1 }, plan)).toThrow("INVALID_ORDER");
 		expect(() => ApiControllerGetListQueryRuntime.parse({ limit: 10, orderBy: "owner.name", orderDirection: "asc", page: 1 }, plan)).toThrow("INVALID_ORDER");
 	});

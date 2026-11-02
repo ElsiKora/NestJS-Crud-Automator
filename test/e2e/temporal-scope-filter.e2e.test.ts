@@ -69,7 +69,7 @@ describe("a client filter and an authorization scope on the same transformed tim
 		process.env.TZ = timezone;
 
 		try {
-			const response = await get(`/temporal-stamps?limit=10&page=1&orderBy=sequence&orderDirection=ASC&stampedAt[operator]=gte&stampedAt[value]=${ROWS[2]?.stampedAt as string}`);
+			const response = await get(`/temporal-stamps?limit=10&page=1&orderBy=sequence&orderDirection=asc&stampedAt[operator]=gte&stampedAt[value]=${ROWS[2]?.stampedAt as string}`);
 			const body: TStampPage = response.json() as TStampPage;
 			const expected: Array<TStampRow> = ROWS.filter(({ stampedAt }: TStampRow): boolean => stampedAt >= (ROWS[2]?.stampedAt as string) && stampedAt < E2E_TEMPORAL_STAMP_SCOPE_LIMIT);
 
@@ -85,7 +85,7 @@ describe("a client filter and an authorization scope on the same transformed tim
 		process.env.TZ = timezone;
 
 		try {
-			const response = await get(`/temporal-stamps?limit=10&page=1&orderBy=sequence&orderDirection=ASC&localStampedAt[operator]=gte&localStampedAt[value]=${ROWS[1]?.localStampedAt as string}`);
+			const response = await get(`/temporal-stamps?limit=10&page=1&orderBy=sequence&orderDirection=asc&localStampedAt[operator]=gte&localStampedAt[value]=${ROWS[1]?.localStampedAt as string}`);
 			const body: TStampPage = response.json() as TStampPage;
 			const expected: Array<string> = ROWS.filter(({ localStampedAt, stampedAt }: TStampRow): boolean => localStampedAt >= (ROWS[1]?.localStampedAt as string) && localStampedAt < E2E_TEMPORAL_STAMP_LOCAL_SCOPE_LIMIT && stampedAt < E2E_TEMPORAL_STAMP_SCOPE_LIMIT).map(({ id }: TStampRow): string => id);
 

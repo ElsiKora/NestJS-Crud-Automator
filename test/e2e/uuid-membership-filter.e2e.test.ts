@@ -30,7 +30,7 @@ describe("UUID membership GET_LIST filters (E2E)", () => {
 	};
 
 	const listIds = async (query: string): Promise<{ ids: Array<string>; statusCode: number }> => {
-		const response = await fastify.inject({ method: "GET", url: `/uuid-membership-transactions?limit=10&page=1&orderBy=label&orderDirection=ASC&${query}` });
+		const response = await fastify.inject({ method: "GET", url: `/uuid-membership-transactions?limit=10&page=1&orderBy=label&orderDirection=asc&${query}` });
 		const body = response.json() as { items?: Array<{ id: string }> };
 
 		return { ids: (body.items ?? []).map((item: { id: string }): string => item.id), statusCode: response.statusCode };
