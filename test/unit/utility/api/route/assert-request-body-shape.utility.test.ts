@@ -324,3 +324,77 @@ describe("ApiRouteAssertRequestBodyShape", () => {
 		expect(JSON.stringify(body)).toBe(copy);
 	});
 });
+
+describe("ApiRouteAssertRequestBodyShape on reserved keys and NUL", () => {
+	const RESERVED_KEYS: Array<string> = ["__proto__", "constructor", "hasOwnProperty", "prototype"];
+	const NUL_MESSAGE: string = "request body must not hold a NUL character";
+
+	/**
+	 * Builds the message for a reserved key.
+	 * @param {string} key - Reserved key.
+	 * @returns {string} The message.
+	 */
+	function reservedKeyMessage(key: string): string {
+		return `request body must not use the reserved key ${key}`;
+	}
+
+	it.each(RESERVED_KEYS)("refuses the key %s at any depth with its path", (key: string) => {
+		const top: ApiRequestValidationException = refusal(JSON.parse(`{"${key}":1}`)) as ApiRequestValidationException;
+		const nested: ApiRequestValidationException = refusal(JSON.parse(`{"first":{"items":[{"ok":1},{"${key}":"value"}]}}`)) as ApiRequestValidationException;
+
+		expect(top).toBeInstanceOf(ApiRequestValidationException);
+		expect(top.getResponse()).toEqual({ error: "Bad Request", message: [reservedKeyMessage(key)], statusCode: 400 });
+		expect(top.validationErrors).toEqual([{ children: [], constraints: { requestBodyReservedKey: reservedKeyMessage(key) }, property: key }]);
+		expect(nested.validationErrors[0]?.property).toBe(`first.items.1.${key}`);
+	});
+
+	it.each(RESERVED_KEYS)("refuses the key %s in an object whose prototype has no prototype, as fast-querystring builds them", (key: string) => {
+		const body: Record<string, unknown> = Object.create(Object.create(null) as object) as Record<string, unknown>;
+
+		Object.defineProperty(body, key, { configurable: true, enumerable: true, value: "value", writable: true });
+
+		expect((refusal(body) as ApiRequestValidationException).validationErrors[0]?.constraints).toEqual({ requestBodyReservedKey: reservedKeyMessage(key) });
+	});
+
+	it("passes reserved names as values and keys that only look like them", () => {
+		expect(() => {
+			ApiRouteAssertRequestBodyShape(JSON.parse('{"name":"constructor","list":["__proto__","prototype"],"toString":1,"valueOf":2,"isPrototypeOf":3,"Constructor":4,"__proto":5,"proto":6,"hasOwn":7}'));
+		}).not.toThrow();
+	});
+
+	it.each([
+		{ body: { name: "a\u0000b" }, expected: "name", name: "a string" },
+		{ body: { first: { tags: ["ok", "\u0000"] } }, expected: "first.tags.1", name: "an array item" },
+		{ body: ["\u0000"], expected: "0", name: "an item of an array body" },
+		{ body: "text\u0000", expected: "", name: "a string body" },
+	])("refuses a NUL in $name with its path", ({ body, expected }: { body: unknown; expected: string }) => {
+		const error: ApiRequestValidationException = refusal(body) as ApiRequestValidationException;
+
+		expect(error).toBeInstanceOf(ApiRequestValidationException);
+		expect(error.getResponse()).toEqual({ error: "Bad Request", message: [NUL_MESSAGE], statusCode: 400 });
+		expect(error.validationErrors).toEqual([{ children: [], constraints: { requestBodyNulCharacter: NUL_MESSAGE }, property: expected }]);
+	});
+
+	it("refuses a NUL in a key with the path of the object that holds it, so the key is not echoed", () => {
+		const error: ApiRequestValidationException = refusal({ first: { "key\u0000": 1 } }) as ApiRequestValidationException;
+
+		expect(error.validationErrors).toEqual([{ children: [], constraints: { requestBodyNulCharacter: NUL_MESSAGE }, property: "first" }]);
+		expect(JSON.stringify(error.getResponse())).not.toContain("\\u0000");
+	});
+
+	it("passes other control characters and a NUL escape written as text", () => {
+		expect(() => {
+			ApiRouteAssertRequestBodyShape({ name: "a\u0001b\tc\n", text: "\\u0000" });
+		}).not.toThrow();
+	});
+
+	it("does not read a NUL or a reserved key inside a Buffer or a class instance", () => {
+		class TransformedBody {
+			public label: string = "\u0000";
+		}
+
+		expect(() => {
+			ApiRouteAssertRequestBodyShape({ data: Buffer.from("\u0000"), instance: new TransformedBody() });
+		}).not.toThrow();
+	});
+});
