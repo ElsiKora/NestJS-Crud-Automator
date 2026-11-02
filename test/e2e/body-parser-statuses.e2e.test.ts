@@ -23,12 +23,15 @@ import { ApiAuthorizationModule, ApiController, ApiPropertyDescribe, ApiRouteCus
 
 type TAdapterName = "express" | "fastify";
 
+type TBodyCaseName = "malformedJson" | "noBody" | "oversizedBody" | "unsupportedCharset" | "unsupportedContentEncoding" | "unsupportedContentType";
+
+type TOperationName = "customGet" | "delete" | "get" | "getList" | "patch" | "post" | "put";
+
 type TSwaggerMethod = "delete" | "get" | "patch" | "post" | "put";
 
 interface IBodyCase {
-	body: string;
+	body?: string;
 	headers: Record<string, string>;
-	name: string;
 }
 
 interface IOperation {
@@ -80,26 +83,61 @@ class BodyParserItemController {
 const ITEMS: string = "/body-parser-items";
 const ITEM: string = "/body-parser-items/{id}";
 
-const OPERATIONS: Array<IOperation> = [
-	{ method: "get", path: ITEMS, url: `${ITEMS}?limit=10&page=1` },
-	{ method: "get", path: ITEM, url: `${ITEMS}/item-1` },
-	{ method: "get", path: "/body-parser-items/custom/summary", url: `${ITEMS}/custom/summary` },
-	{ method: "delete", path: ITEM, url: `${ITEMS}/item-missing` },
-	{ method: "post", path: ITEMS, url: ITEMS },
-	{ method: "put", path: ITEM, url: `${ITEMS}/item-1` },
-	{ method: "patch", path: ITEM, url: `${ITEMS}/item-1` },
-];
+const OPERATIONS: Record<TOperationName, IOperation> = {
+	customGet: { method: "get", path: "/body-parser-items/custom/summary", url: `${ITEMS}/custom/summary` },
+	delete: { method: "delete", path: ITEM, url: `${ITEMS}/item-missing` },
+	get: { method: "get", path: ITEM, url: `${ITEMS}/item-1` },
+	getList: { method: "get", path: ITEMS, url: `${ITEMS}?limit=10&page=1` },
+	patch: { method: "patch", path: ITEM, url: `${ITEMS}/item-1` },
+	post: { method: "post", path: ITEMS, url: ITEMS },
+	put: { method: "put", path: ITEM, url: `${ITEMS}/item-1` },
+};
 
 // Over both default body limits: 1 MiB in Fastify, 100 kB in Express
 const OVERSIZED_BODY: string = JSON.stringify({ name: "x".repeat(1_100_000) });
 
-// Fastify refuses an unknown content type, Express an unsupported charset or content encoding
-const BODY_CASES: Array<IBodyCase> = [
-	{ body: "{bad", headers: { "content-type": "application/json" }, name: "malformed JSON" },
-	{ body: OVERSIZED_BODY, headers: { "content-type": "application/json" }, name: "oversized body" },
-	{ body: "<item/>", headers: { "content-type": "text/xml" }, name: "unsupported content type" },
-	{ body: "{}", headers: { "content-type": "application/json; charset=latin1" }, name: "unsupported charset" },
-	{ body: "{}", headers: { "content-encoding": "x-unknown", "content-type": "application/json" }, name: "unsupported content encoding" },
+const BODY_CASES: Record<TBodyCaseName, IBodyCase> = {
+	malformedJson: { body: "{bad", headers: { "content-type": "application/json" } },
+	noBody: { headers: {} },
+	oversizedBody: { body: OVERSIZED_BODY, headers: { "content-type": "application/json" } },
+	unsupportedCharset: { body: "{}", headers: { "content-type": "application/json; charset=latin1" } },
+	unsupportedContentEncoding: { body: "{}", headers: { "content-encoding": "x-unknown", "content-type": "application/json" } },
+	unsupportedContentType: { body: "<item/>", headers: { "content-type": "text/xml" } },
+};
+
+// A DELETE targets a missing row, so reaching the handler answers 404. POST and PUT send no valid body, so reaching their DTO validation answers 400
+const REACHES_ROUTE: Record<TOperationName, number> = { customGet: HttpStatus.OK, delete: HttpStatus.NOT_FOUND, get: HttpStatus.OK, getList: HttpStatus.OK, patch: HttpStatus.OK, post: HttpStatus.BAD_REQUEST, put: HttpStatus.BAD_REQUEST };
+
+const refusedBy = (status: number): Record<TOperationName, number> => ({ customGet: status, delete: status, get: status, getList: status, patch: status, post: status, put: status });
+
+// Fastify never parses the body of a GET, Express parses a body on any method
+const fastifyRefusedBy = (status: number): Record<TOperationName, number> => ({ ...REACHES_ROUTE, delete: status, patch: status, post: status, put: status });
+
+const EXPECTED_STATUSES: Record<TAdapterName, Record<TBodyCaseName, Record<TOperationName, number>>> = {
+	express: {
+		malformedJson: refusedBy(HttpStatus.BAD_REQUEST),
+		noBody: REACHES_ROUTE,
+		oversizedBody: refusedBy(HttpStatus.PAYLOAD_TOO_LARGE),
+		unsupportedCharset: refusedBy(HttpStatus.UNSUPPORTED_MEDIA_TYPE),
+		unsupportedContentEncoding: refusedBy(HttpStatus.UNSUPPORTED_MEDIA_TYPE),
+		// Express ignores a body of a type it has no parser for
+		unsupportedContentType: REACHES_ROUTE,
+	},
+	fastify: {
+		malformedJson: fastifyRefusedBy(HttpStatus.BAD_REQUEST),
+		noBody: REACHES_ROUTE,
+		oversizedBody: fastifyRefusedBy(HttpStatus.PAYLOAD_TOO_LARGE),
+		// Fastify reads neither the charset nor the content encoding of a JSON body
+		unsupportedCharset: REACHES_ROUTE,
+		unsupportedContentEncoding: REACHES_ROUTE,
+		unsupportedContentType: fastifyRefusedBy(HttpStatus.UNSUPPORTED_MEDIA_TYPE),
+	},
+};
+
+// Express answers 500 on a custom route the body parser lets through until bugfix/custom-route-express-query merges. The table holds the correct status, so these cases fail once the fix lands and the marker goes
+const EXPRESS_KNOWN_BUG_CASES: ReadonlyArray<[TBodyCaseName, TOperationName]> = [
+	["noBody", "customGet"],
+	["unsupportedContentType", "customGet"],
 ];
 
 const ADAPTERS: Array<[TAdapterName, () => ExpressAdapter | FastifyAdapter]> = [
@@ -112,13 +150,18 @@ const EXCEPTION_FILTER_MODES: Array<[string, (application: INestApplication) => 
 	["with CorrelationIDResponseBodyExceptionFilter", (application: INestApplication): Array<ExceptionFilter> => [new CorrelationIDResponseBodyExceptionFilter(application.get(HttpAdapterHost))]],
 ];
 
-const BODY_PARSER_STATUSES: ReadonlySet<number> = new Set<number>([HttpStatus.BAD_REQUEST, HttpStatus.PAYLOAD_TOO_LARGE, HttpStatus.UNSUPPORTED_MEDIA_TYPE]);
+const TABLE_CASES: Array<[TBodyCaseName, TOperationName]> = (Object.keys(BODY_CASES) as Array<TBodyCaseName>).flatMap((bodyCaseName: TBodyCaseName): Array<[TBodyCaseName, TOperationName]> => (Object.keys(OPERATIONS) as Array<TOperationName>).map((operationName: TOperationName): [TBodyCaseName, TOperationName] => [bodyCaseName, operationName]));
 
-// Body parser statuses each adapter answers per method, which the declared statuses must cover together
-const measured: Record<TAdapterName, Record<TSwaggerMethod, Set<number>>> = {
-	express: { delete: new Set<number>(), get: new Set<number>(), patch: new Set<number>(), post: new Set<number>(), put: new Set<number>() },
-	fastify: { delete: new Set<number>(), get: new Set<number>(), patch: new Set<number>(), post: new Set<number>(), put: new Set<number>() },
-};
+/**
+ * Checks whether a table case is the known Express custom route failure.
+ * @param {TAdapterName} adapterName - Adapter under test.
+ * @param {TBodyCaseName} bodyCaseName - Body case.
+ * @param {TOperationName} operationName - Operation.
+ * @returns {boolean} Whether the case is expected to fail until the fix merges.
+ */
+function isKnownBug(adapterName: TAdapterName, bodyCaseName: TBodyCaseName, operationName: TOperationName): boolean {
+	return adapterName === "express" && EXPRESS_KNOWN_BUG_CASES.some(([knownBodyCase, knownOperation]: [TBodyCaseName, TOperationName]): boolean => knownBodyCase === bodyCaseName && knownOperation === operationName);
+}
 
 /**
  * Drops OpenAPI `nullable: false`, its default, which Ajv rejects next to a schema combinator.
@@ -153,7 +196,7 @@ function sendOverSocket(baseUrl: string, method: TSwaggerMethod, url: string, bo
 	const target: URL = new URL(url, baseUrl);
 
 	return new Promise<IWireAnswer>((resolve: (answer: IWireAnswer) => void, reject: (error: Error) => void) => {
-		const outgoing = request({ headers: { ...bodyCase.headers, "content-length": String(Buffer.byteLength(bodyCase.body)) }, hostname: target.hostname, method: method.toUpperCase(), path: `${target.pathname}${target.search}`, port: target.port }, (incoming: IncomingMessage) => {
+		const outgoing = request({ headers: bodyCase.body === undefined ? bodyCase.headers : { ...bodyCase.headers, "content-length": String(Buffer.byteLength(bodyCase.body)) }, hostname: target.hostname, method: method.toUpperCase(), path: `${target.pathname}${target.search}`, port: target.port }, (incoming: IncomingMessage) => {
 			let text: string = "";
 
 			incoming.on("data", (chunk: Buffer) => {
@@ -182,7 +225,7 @@ describe.each(ADAPTERS)("body parser statuses on %s (E2E)", (adapterName: TAdapt
 				return await sendOverSocket(baseUrl, operation.method, operation.url, bodyCase);
 			}
 
-			const fastify: { inject: (options: { headers: Record<string, string>; method: string; payload: string; url: string }) => Promise<{ body: string; statusCode: number }> } = app.getHttpAdapter().getInstance();
+			const fastify: { inject: (options: { headers: Record<string, string>; method: string; payload?: string; url: string }) => Promise<{ body: string; statusCode: number }> } = app.getHttpAdapter().getInstance();
 			const response = await fastify.inject({ headers: bodyCase.headers, method: operation.method.toUpperCase(), payload: bodyCase.body, url: operation.url });
 
 			return { body: response.body ? (JSON.parse(response.body) as unknown) : undefined, status: response.statusCode };
@@ -215,15 +258,14 @@ describe.each(ADAPTERS)("body parser statuses on %s (E2E)", (adapterName: TAdapt
 			await app?.close();
 		});
 
-		it.each(OPERATIONS.flatMap((operation: IOperation): Array<[string, IOperation, IBodyCase]> => BODY_CASES.map((bodyCase: IBodyCase): [string, IOperation, IBodyCase] => [`${operation.method} ${operation.url} ${bodyCase.name}`, operation, bodyCase])))("declares and describes the body parser answer: %s", async (_name: string, operation: IOperation, bodyCase: IBodyCase) => {
-			const answer: IWireAnswer = await send(operation, bodyCase);
+		const expectTableStatus = async (bodyCaseName: TBodyCaseName, operationName: TOperationName): Promise<void> => {
+			const operation: IOperation = OPERATIONS[operationName];
+			const answer: IWireAnswer = await send(operation, BODY_CASES[bodyCaseName]);
+
+			expect(answer.status, JSON.stringify(answer.body)).toBe(EXPECTED_STATUSES[adapterName][bodyCaseName][operationName]);
 
 			if (answer.status < HttpStatus.BAD_REQUEST) {
 				return;
-			}
-
-			if (BODY_PARSER_STATUSES.has(answer.status)) {
-				measured[adapterName][operation.method].add(answer.status);
 			}
 
 			const response: { content?: Record<string, { schema?: { $ref?: string } }> } | undefined = document.paths[operation.path]?.[operation.method]?.responses[String(answer.status)] as { content?: Record<string, { schema?: { $ref?: string } }> } | undefined;
@@ -235,15 +277,14 @@ describe.each(ADAPTERS)("body parser statuses on %s (E2E)", (adapterName: TAdapt
 			validate?.(answer.body);
 
 			expect(validate?.errors ?? null, JSON.stringify(answer.body)).toBeNull();
+		};
+
+		it.each(TABLE_CASES.filter(([bodyCaseName, operationName]: [TBodyCaseName, TOperationName]): boolean => !isKnownBug(adapterName, bodyCaseName, operationName)))("answers %s on %s with the exact status of the table", async (bodyCaseName: TBodyCaseName, operationName: TOperationName) => {
+			await expectTableStatus(bodyCaseName, operationName);
 		});
 
-		it("answers 400, 413, and 415 from the body parser exactly where the adapter parses a body", () => {
-			for (const method of ["delete", "patch", "post", "put"] as const) {
-				expect([...measured[adapterName][method]].toSorted(), method).toEqual([HttpStatus.BAD_REQUEST, HttpStatus.PAYLOAD_TOO_LARGE, HttpStatus.UNSUPPORTED_MEDIA_TYPE]);
-			}
-
-			// Fastify skips the body of GET, Express parses it like any other
-			expect([...measured[adapterName].get].toSorted()).toEqual(adapterName === "express" ? [HttpStatus.BAD_REQUEST, HttpStatus.PAYLOAD_TOO_LARGE, HttpStatus.UNSUPPORTED_MEDIA_TYPE] : []);
+		it.fails.each(TABLE_CASES.filter(([bodyCaseName, operationName]: [TBodyCaseName, TOperationName]): boolean => isKnownBug(adapterName, bodyCaseName, operationName)))("answers %s on %s with the exact status of the table", async (bodyCaseName: TBodyCaseName, operationName: TOperationName) => {
+			await expectTableStatus(bodyCaseName, operationName);
 		});
 	});
 });
