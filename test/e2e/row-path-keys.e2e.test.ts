@@ -255,15 +255,36 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 
 			const bookings = async (): Promise<Array<unknown>> => (await rows("row_path_key_bookings", `"id"`)).map((row: Record<string, unknown>) => row.id);
 
-			it.each([[Date.parse(SLOT)], ["2026-01-01T03:00:00.002+03:00"], ["2026-01-01T00:00:00Z"], ["2026-01-01 00:00:00.002"], ["2026-01-01T00:00:00.0020Z"], [[SLOT]]])("CREATE with the relation instant %j answers 400 and adds no row", async (at: unknown) => {
+			it.each([[Date.parse(SLOT)], [[SLOT]]])("CREATE with the relation instant %j answers 400 and adds no row", async (at: unknown) => {
 				const response: TResponse = await send("POST", "/tenant/T1/booking", { id: "B1", slot: { at } });
 
 				expect(response.statusCode).toBe(400);
 
+				// The instant reaches the key column, and the create checks it there as it checks the column itself.
 				if (pipe === "none") {
-					expect(response.json()).toEqual({ details: { propertyName: "slot", reason: "date and time key must be a UTC instant YYYY-MM-DDTHH:mm:ss.sssZ" }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: 400 });
+					expect(response.json()).toEqual({ error: "Bad Request", message: ["at must be a valid ISO 8601 date-time"], statusCode: 400 });
 				}
 
+				expect(await bookings()).toEqual([]);
+			});
+
+			// The published relation takes only the canonical string, so a validating pipe refuses another spelling of the same instant.
+			it.each([["2026-01-01T03:00:00.002+03:00"], ["2026-01-01T00:00:00.0020Z"]])("CREATE with the relation instant %j writes the instant it names into the key", async (at: string) => {
+				const response: TResponse = await send("POST", "/tenant/T1/booking", { id: "B1", slot: { at } });
+
+				expect(response.statusCode).toBe(pipe === "none" ? 201 : 400);
+				expect(await bookings()).toEqual(pipe === "none" ? ["B1"] : []);
+
+				if (pipe === "none") {
+					expect(response.json()).toMatchObject({ at: SLOT, id: "B1", tenantId: "T1" });
+				}
+			});
+
+			it("CREATE with a relation instant no slot holds adds no row", async () => {
+				const response: TResponse = await send("POST", "/tenant/T1/booking", { id: "B1", slot: { at: "2026-01-01T00:00:00Z" } });
+
+				expect(response.statusCode).toBeGreaterThanOrEqual(400);
+				expect(response.statusCode).toBeLessThan(500);
 				expect(await bookings()).toEqual([]);
 			});
 
@@ -377,11 +398,11 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 			});
 
 			it.each([
-				[{ id: "B1", slot: { at: null, tenantId: "T1" }, tenantId: "T1" }, "date and time key must be a UTC instant YYYY-MM-DDTHH:mm:ss.sssZ"],
-				[{ at: SLOT, id: "B1", slot: { at: null }, tenantId: "T1" }, "date and time key must be a UTC instant YYYY-MM-DDTHH:mm:ss.sssZ"],
+				[{ id: "B1", slot: { at: null, tenantId: "T1" }, tenantId: "T1" }, "it cannot be cleared, because its columns are in the primary key"],
+				[{ at: SLOT, id: "B1", slot: { at: null }, tenantId: "T1" }, "relation must name the same value as the entity's own column"],
 				[{ id: "B1", slot: { at: SLOT, tenantId: "T2" }, tenantId: "T1" }, "relation must name the same value as the entity's own column"],
 				[{ at: "2026-01-01T00:00:00.003Z", id: "B1", slot: { at: SLOT, tenantId: "T1" }, tenantId: "T1" }, "relation must name the same value as the entity's own column"],
-				[{ id: "B1", slot: null, tenantId: "T1" }, "date and time key must be a UTC instant YYYY-MM-DDTHH:mm:ss.sssZ"],
+				[{ id: "B1", slot: null, tenantId: "T1" }, "a relation over several columns must be sent as an object naming its join columns; it cannot be cleared, because its columns are in the primary key"],
 			])("CREATE with %j answers 400 and adds no row", async (payload: object, reason: string) => {
 				const response: TResponse = await send("POST", "/plain-booking", payload);
 
@@ -464,11 +485,32 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("row keys in the body and 
 				expect(await names()).toEqual(pipe === "forbid" ? ["own", "next"] : ["same", "next"]);
 			});
 
-			it.each([[Date.parse("2026-03-01T00:00:00.123Z")], ["2026-03-01T00:00:00Z"], ["2026-03-01T03:00:00.123+03:00"], [["2026-03-01T00:00:00.123Z"]]])("CREATE with the key instant %j answers 400 and adds no row", async (recordedAt: unknown) => {
+			it.each([[Date.parse("2026-03-01T00:00:00.123Z")], [["2026-03-01T00:00:00.123Z"]]])("CREATE with the key instant %j is refused and adds no row", async (recordedAt: unknown) => {
 				const response: TResponse = await send("POST", "/reading", { name: "created", recordedAt, sensorId: "s2" });
 
-				expect(response.statusCode).toBe(400);
+				// A whitelisting pipe strips the key columns the generated create body leaves out, so the insert fails without them.
+				if (pipe === "whitelist") {
+					expect(response.statusCode).toBeGreaterThanOrEqual(400);
+				} else {
+					expect(response.statusCode).toBe(400);
+				}
+
+				if (pipe === "none") {
+					expect(response.json()).toEqual({ error: "Bad Request", message: ["recordedAt must be a valid ISO 8601 date-time"], statusCode: 400 });
+				}
+
 				expect(await names()).toEqual(["own", "next"]);
+			});
+
+			it.runIf(pipe === "none" || pipe === "transform").each([
+				["2026-03-01T03:00:00.123+03:00", "2026-03-01T00:00:00.123Z"],
+				["2026-03-01T00:00:00Z", "2026-03-01T00:00:00.000Z"],
+			])("CREATE with the key instant %j stores the instant %s", async (recordedAt: string, stored: string) => {
+				const response: TResponse = await send("POST", "/reading", { name: "created", recordedAt, sensorId: "s2" });
+
+				expect(response.statusCode).toBe(201);
+				expect(response.json()).toMatchObject({ name: "created", recordedAt: stored, sensorId: "s2" });
+				expect(await names()).toEqual(["own", "next", "created"]);
 			});
 
 			// The generated create body leaves the key columns out, so a whitelisting pipe drops or refuses them before the route.

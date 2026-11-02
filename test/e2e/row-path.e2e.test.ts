@@ -196,11 +196,12 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("generated row routes on %
 			await dataSource.query(`INSERT INTO row_path_transactions ("id", "createdAt", "name") VALUES ('a', '2026-01-01 00:00:00.000', 'old')`);
 		});
 
-		// Postgres sets a microsecond instant the inserted row returns only to the millisecond, so the reload leaves it out and the other key columns must name one row.
-		it.runIf(driver === "postgres")("answers 500 when the other key columns also name a sibling row", async () => {
+		// Postgres sets a microsecond instant the inserted row returns only to the millisecond, so the reload matches that whole millisecond with the other key columns and never reads the sibling.
+		it.runIf(driver === "postgres")("answers the created row when the other key columns also name a sibling row", async () => {
 			const response: TResponse = await send("POST", "/transaction", { id: "a", name: "new" });
 
-			expect(response.statusCode).toBe(500);
+			expect(response.statusCode).toBe(201);
+			expect((response.json() as { name: string }).name).toBe("new");
 			expect(response.body).not.toContain("old");
 			expect(await rows("row_path_transactions", `"createdAt"`)).toHaveLength(2);
 		});

@@ -498,9 +498,11 @@ function createTransactionController(mode: EApiFunctionTransactionMode): Type<un
 	const name: string = `RowPath${mode.charAt(0)}${mode.slice(1).toLowerCase()}TransactionOrderController`;
 	const controller: Type<{ service: RowPathOrderService }> = { [name]: class {} }[name] as Type<{ service: RowPathOrderService }>;
 	const route = { transaction: { mode } };
+	// A generated create always runs in a transaction, so a controller without one keeps SUPPORTS on CREATE.
+	const createRoute = { transaction: { mode: mode === EApiFunctionTransactionMode.NONE ? EApiFunctionTransactionMode.SUPPORTS : mode } };
 
 	Inject(RowPathOrderService)(controller.prototype as object, "service");
-	ApiController<RowPathOrderEntity>({ entity: RowPathOrderEntity, path: `matrix/transaction/${mode.toLowerCase()}/:tenantId/order`, pathScope: TENANT_SCOPE, routes: { [EApiRouteType.CREATE]: route, [EApiRouteType.DELETE]: route, [EApiRouteType.GET]: route, [EApiRouteType.GET_LIST]: DISABLED_ROUTE, [EApiRouteType.PARTIAL_UPDATE]: route, [EApiRouteType.UPDATE]: route } })(controller);
+	ApiController<RowPathOrderEntity>({ entity: RowPathOrderEntity, path: `matrix/transaction/${mode.toLowerCase()}/:tenantId/order`, pathScope: TENANT_SCOPE, routes: { [EApiRouteType.CREATE]: createRoute, [EApiRouteType.DELETE]: route, [EApiRouteType.GET]: route, [EApiRouteType.GET_LIST]: DISABLED_ROUTE, [EApiRouteType.PARTIAL_UPDATE]: route, [EApiRouteType.UPDATE]: route } })(controller);
 
 	return controller;
 }

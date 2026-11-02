@@ -40,7 +40,6 @@ import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/r
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ClassTransformerFreeFormValue } from "@class/class-transformer-free-form-value.class";
-import { API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN } from "@constant/api-controller-cursor.constant";
 import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
 import { CONTROLLER_API_DECORATOR_CONSTANT, FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
@@ -83,7 +82,6 @@ import { Repository } from "typeorm";
 const FILTER_VALUE_KEY_PATTERN: RegExp = /^(.+)\[values?\]$/u;
 // Two rows are enough to tell that a path does not name one row.
 const PATH_MATCH_LIMIT: number = 2;
-const BODY_INSTANT_REJECTION_REASON: string = "date and time key must be a UTC instant YYYY-MM-DDTHH:mm:ss.sssZ";
 const BODY_PATH_MISMATCH_REJECTION_REASON: string = "value must be the one the path names";
 const BODY_RELATION_CONFLICT_REJECTION_REASON: string = "relation must name the same value as the entity's own column";
 const BODY_RELATION_KEY_CLEAR_REJECTION_REASON: string = "it cannot be cleared, because its columns are in the primary key";
@@ -249,49 +247,6 @@ export class ApiRouteRuntime {
 			await this.executeGeneratedErrorSubscribers(options, targets, entityInstance, beforeContext.DATA, authorizationDecision, errorBoundary, error);
 
 			throw error;
-		}
-	}
-
-	/**
-	 * Refuses a CREATE body whose date and time key column is not the canonical UTC millisecond string, which is the only form the route can read the row back by.
-	 * The key is checked wherever the body sets it: as the column itself, and inside a relation that joins it, whose value the save writes into the key. A null relation would set the key to null, so it is refused as well. A key the path binds is compared with the path instead.
-	 * The body is read as the client sent it, because a pipe may already have turned the string into a `Date`.
-	 * @param {Repository<IApiBaseEntity>} repository - Repository of the entity.
-	 * @param {unknown} sentBody - The body as the client sent it.
-	 * @param {ReadonlyArray<string>} primaryFields - Key columns of the entity.
-	 * @param {Record<string, unknown>} pathValues - Values the path binds, by entity property.
-	 * @throws {BadRequestException} When a date and time key in the body is not canonical.
-	 */
-	private static assertBodyKeyInstants(repository: Repository<IApiBaseEntity>, sentBody: unknown, primaryFields: ReadonlyArray<string>, pathValues: Record<string, unknown>): void {
-		if (!this.isPlainRecord(sentBody)) {
-			return;
-		}
-
-		const keyFields: ReadonlyArray<string> = primaryFields.filter((field: string): boolean => !Object.hasOwn(pathValues, field) && this.isDateTimeColumn(repository, field));
-
-		for (const field of keyFields) {
-			if (sentBody[field] !== undefined && !this.isCanonicalInstant(sentBody[field])) {
-				throw this.createBodyParameterException(field, BODY_INSTANT_REJECTION_REASON);
-			}
-		}
-
-		for (const relation of repository.metadata.relations) {
-			const relationValue: unknown = sentBody[relation.propertyName];
-
-			for (const joinColumn of relation.joinColumns.filter((column: TTypeOrmColumnMetadata): boolean => keyFields.includes(column.propertyName))) {
-				const referencedName: string | undefined = joinColumn.referencedColumn?.propertyName;
-				let value: unknown;
-
-				if (this.isPlainRecord(relationValue)) {
-					value = referencedName ? relationValue[referencedName] : undefined;
-				} else if (relationValue === null || relation.joinColumns.length === 1) {
-					value = relationValue;
-				}
-
-				if (value !== undefined && !this.isCanonicalInstant(value)) {
-					throw this.createBodyParameterException(relation.propertyName, BODY_INSTANT_REJECTION_REASON);
-				}
-			}
 		}
 	}
 
@@ -935,15 +890,6 @@ export class ApiRouteRuntime {
 	}
 
 	/**
-	 * Tells whether a value is the canonical UTC millisecond string of a date and time.
-	 * @param {unknown} value - Value the body carries.
-	 * @returns {boolean} Whether the value is `YYYY-MM-DDTHH:mm:ss.sssZ` and names a real instant.
-	 */
-	private static isCanonicalInstant(value: unknown): boolean {
-		return typeof value === "string" && API_CONTROLLER_CURSOR_TIMESTAMP_PATTERN.test(value) && new Date(value).toISOString() === value;
-	}
-
-	/**
 	 * Tells whether a column stores a date and time.
 	 * @param {Repository<IApiBaseEntity>} repository - Repository of the entity.
 	 * @param {string} field - Property name of the column.
@@ -1253,7 +1199,7 @@ export class ApiRouteRuntime {
 
 	/**
 	 * Checks a generated write body against its path and returns the body the route writes.
-	 * The checks run in order: on CREATE every date and time key the body sets must be canonical, then every value the body names for a field the path addresses must be the path's, then the copy is split, so every relation over several columns agrees with the entity's own columns.
+	 * The checks run in order: every value the body names for a field the path addresses must be the path's, then the copy is split, so every relation agrees with the entity's own columns. A CREATE parses its date and time keys afterwards, in the copy, wherever the body set them.
 	 * The request body stays as the client sent it.
 	 * @template E - Entity type owned by the route.
 	 * @template R - Generated route type.
@@ -1261,7 +1207,7 @@ export class ApiRouteRuntime {
 	 * @param {IApiRouteRuntimeGeneratedTargets<E>} targets - Request targets.
 	 * @param {IApiControllerPathPlan} pathPlan - Path plan of the route.
 	 * @returns {Record<string, unknown>} The body the route writes.
-	 * @throws {BadRequestException} When the body differs from the path, sets a non-canonical date and time key, or names a relation the route cannot split.
+	 * @throws {BadRequestException} When the body differs from the path or names a relation the route cannot split.
 	 */
 	private static resolveWriteBody<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, pathPlan: IApiControllerPathPlan): Record<string, unknown> {
 		const rawBody: unknown = (targets.authenticationRequest as { body?: unknown } | undefined)?.body;
@@ -1269,10 +1215,6 @@ export class ApiRouteRuntime {
 		const unaddressedFields: ReadonlyArray<string> = options.method === EApiRouteType.CREATE ? [] : pathPlan.primaryFields.filter((field: string): boolean => !Object.hasOwn(pathValues, field));
 		const repository: unknown = (options.controller.service as { repository?: unknown }).repository;
 		const relations: ReadonlyArray<RelationMetadata> = repository instanceof Repository ? repository.metadata.relations : [];
-
-		if (options.method === EApiRouteType.CREATE && repository instanceof Repository) {
-			this.assertBodyKeyInstants(repository as Repository<IApiBaseEntity>, this.isPlainRecord(rawBody) ? rawBody : targets.body, pathPlan.primaryFields, pathValues);
-		}
 
 		this.assertBodyPathValues(
 			[targets.body, rawBody].filter((body: unknown): body is Record<string, unknown> => this.isPlainRecord(body)),
@@ -1404,6 +1346,11 @@ export class ApiRouteRuntime {
 
 				if (component === undefined) {
 					throw this.createBodyParameterException(relation.propertyName, BODY_RELATION_SPLIT_REJECTION_REASON);
+				}
+
+				// A null would reach the insert as a key value, which no row can hold.
+				if (component === null && column.isPrimary) {
+					throw this.createBodyParameterException(relation.propertyName, BODY_RELATION_KEY_CLEAR_REJECTION_REASON);
 				}
 
 				writeBody[column.propertyName] = component;
