@@ -1923,7 +1923,7 @@ describe("ApiControllerGetListQueryRuntime rejected value codes", () => {
 			throw new Error("Expected a name filter field");
 		}
 
-		expect(() => (ApiControllerGetListQueryRuntime as unknown as TQueryRuntimePrivate).parseValue("x", { ...field, type: EApiPropertyDescribeType.RELATION })).toThrow("FILTER_NOT_VALID");
+		expect(() => (ApiControllerGetListQueryRuntime as unknown as TQueryRuntimePrivate).parseValue("x", { ...field, metadata: { description: "relation", type: EApiPropertyDescribeType.RELATION } })).toThrow("FILTER_NOT_VALID");
 	});
 
 	it("rejects a nested filter path with an empty segment with FILTER_NOT_VALID", () => {

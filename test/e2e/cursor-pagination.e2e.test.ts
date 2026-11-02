@@ -260,10 +260,14 @@ describe("generated CURSOR pagination (E2E)", () => {
 		const garbage = await fastify.inject({ method: "GET", url: "/cursor-items?limit=2&after=AAAA" });
 		const badLimit = await fastify.inject({ method: "GET", url: "/cursor-items?limit=0" });
 
-		for (const response of [withPage, twoDirections, nonCanonical, garbage]) {
+		for (const response of [withPage, twoDirections, garbage]) {
 			expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
 			expect((response.json() as { message: unknown }).message).toBe("CURSOR_NOT_VALID");
 		}
+
+		// A token outside the published pattern fails the generated query DTO before the cursor runtime reads it.
+		expect(nonCanonical.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect((nonCanonical.json() as { message: unknown }).message).toEqual(["after must match /^[A-Za-z0-9_-]+$/ regular expression"]);
 
 		expect(badLimit.statusCode).toBe(HttpStatus.BAD_REQUEST);
 		expect((badLimit.json() as { message: unknown }).message).toBe("LIMIT_NOT_VALID");
