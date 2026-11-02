@@ -41,7 +41,7 @@ export async function ApiFunctionExecuteWithTransaction<E extends IApiBaseEntity
 	// The manager of a transaction only reaches its own data source, and a call back into a data source joins the transaction an earlier call left there.
 	const { repository }: { repository?: Repository<E> } = options;
 
-	if (repository && ApiFunctionContextStorage.isOnOtherDataSource((): DataSource => repository.manager.dataSource)) {
+	if (repository && ApiFunctionContextStorage.shouldRunOnDataSource((): DataSource => repository.manager.dataSource)) {
 		return await ApiFunctionContextStorage.runOnDataSource(repository.manager.dataSource, async (): Promise<R> => await ApiFunctionExecuteWithTransaction(options));
 	}
 

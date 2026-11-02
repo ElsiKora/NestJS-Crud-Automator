@@ -16,7 +16,7 @@ export class ApiFunctionTransactionScope {
 			throw ErrorException("ApiFunctionTransactionScope name must be a non-empty string");
 		}
 
-		if (ApiFunctionContextStorage.isOnOtherDataSource((): DataSource => dataSource)) {
+		if (ApiFunctionContextStorage.shouldRunOnDataSource((): DataSource => dataSource)) {
 			return await ApiFunctionContextStorage.runOnDataSource(dataSource, async (): Promise<R> => await ApiFunctionTransactionScope.runWithDataSource(dataSource, properties, callback));
 		}
 

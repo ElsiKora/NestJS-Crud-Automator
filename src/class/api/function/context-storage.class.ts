@@ -48,25 +48,6 @@ export class ApiFunctionContextStorage {
 		return ApiFunctionContextStorage.TRANSACTION_REGISTRIES.get(entityManager);
 	}
 
-	/**
-	 * Tells whether work on a data source has to leave the current transaction context.
-	 * It has to when the active transaction belongs to another data source, or when no transaction is active and an earlier call left a transaction of this data source, which the work joins again.
-	 * Outside both, the data source of the work is never read.
-	 * @param {() => DataSource} readDataSource - Reads the data source the work runs on.
-	 * @returns {boolean} Whether the work runs through {@link ApiFunctionContextStorage.runOnDataSource}.
-	 */
-	public static isOnOtherDataSource(readDataSource: () => DataSource): boolean {
-		const entry: TApiFunctionContextStorageEntry<IApiBaseEntity> | undefined = ApiFunctionContextStorage.STORAGE.getStore();
-
-		if (entry?.transaction) {
-			return entry.transaction.entityManager.dataSource !== readDataSource();
-		}
-
-		const suspended: ReadonlyMap<DataSource, TApiFunctionContextStorageEntry<IApiBaseEntity>> | undefined = ApiFunctionContextStorage.SUSPENDED.getStore();
-
-		return suspended !== undefined && suspended.size > 0 && suspended.has(readDataSource());
-	}
-
 	public static run<E extends IApiBaseEntity, R>(context: IApiFunctionContext<E>, callback: () => Promise<R>): Promise<R> {
 		return ApiFunctionContextStorage.STORAGE.run(
 			{
@@ -146,5 +127,24 @@ export class ApiFunctionContextStorage {
 			},
 			callback,
 		);
+	}
+
+	/**
+	 * Tells whether work on a data source has to run through {@link ApiFunctionContextStorage.runOnDataSource} instead of the current transaction context.
+	 * It has to when the active transaction belongs to another data source, or when no transaction is active and an earlier call left a transaction of this same data source, which the work joins again.
+	 * Outside both, the data source of the work is never read.
+	 * @param {() => DataSource} readDataSource - Reads the data source the work runs on.
+	 * @returns {boolean} Whether the work runs through {@link ApiFunctionContextStorage.runOnDataSource}.
+	 */
+	public static shouldRunOnDataSource(readDataSource: () => DataSource): boolean {
+		const entry: TApiFunctionContextStorageEntry<IApiBaseEntity> | undefined = ApiFunctionContextStorage.STORAGE.getStore();
+
+		if (entry?.transaction) {
+			return entry.transaction.entityManager.dataSource !== readDataSource();
+		}
+
+		const suspended: ReadonlyMap<DataSource, TApiFunctionContextStorageEntry<IApiBaseEntity>> | undefined = ApiFunctionContextStorage.SUSPENDED.getStore();
+
+		return suspended !== undefined && suspended.size > 0 && suspended.has(readDataSource());
 	}
 }
