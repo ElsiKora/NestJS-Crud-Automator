@@ -28,7 +28,7 @@ export class ApiControllerGeneratedCreateIdentityContract {
 		const values: Partial<Record<keyof E, unknown>> = {};
 
 		for (const column of primaryColumns) {
-			const value: unknown = (result as Partial<Record<keyof E, unknown>>)[column.name];
+			const value: unknown = Reflect.get(result, column.name);
 
 			if (value !== undefined && value !== null) {
 				values[column.name] = ApiControllerGeneratedSecuritySnapshot.detach(value);
@@ -56,25 +56,27 @@ export class ApiControllerGeneratedCreateIdentityContract {
 			throw ErrorException("Repository is not available in this context");
 		}
 
-		const identity: Partial<Record<keyof E, unknown>> = {};
+		const identity: Record<string, unknown> = {};
 
-		for (const key of Object.keys(values) as Array<keyof E>) {
+		for (const [key, value] of Object.entries(values)) {
 			const column: TTypeOrmColumnMetadata | undefined = repository.metadata.primaryColumns.find((primaryColumn: TTypeOrmColumnMetadata): boolean => primaryColumn.propertyName === key);
-			identity[key] = column ? this.createCondition(column, values[key], repository.manager.dataSource.driver.normalizeType(column), repository.manager.dataSource.options.type) : values[key];
+			identity[key] = column ? this.createCondition(column, value, repository.manager.dataSource.driver.normalizeType(column), repository.manager.dataSource.options.type) : value;
 		}
+
+		const where: FindOptionsWhere<E> = identity as FindOptionsWhere<E>;
 
 		const rows: Array<E> = await repository.find({
 			// eslint-disable-next-line @elsikora/typescript/naming-convention -- TypeORM owns this fixed FindManyOptions field.
 			loadEagerRelations: false,
 			take: IDENTITY_PROBE_SIZE,
-			where: identity as FindOptionsWhere<E>,
+			where,
 		});
 
 		if (rows.length !== 1) {
 			throw ErrorException("Generated create result must identify exactly one stored row");
 		}
 
-		return identity as FindOptionsWhere<E>;
+		return where;
 	}
 
 	private static createCondition(column: TTypeOrmColumnMetadata, value: unknown, columnType: string, driverType: string): unknown {
@@ -88,9 +90,9 @@ export class ApiControllerGeneratedCreateIdentityContract {
 		}
 
 		// A create function may report its key as text, while the column stores a parsed date.
-		const date: Date = value instanceof Date ? value : new Date(value as number | string);
+		const date: Date | undefined = this.readDate(value);
 
-		if (Number.isNaN(date.getTime())) {
+		if (!date || Number.isNaN(date.getTime())) {
 			throw ErrorException(`Generated create result holds an invalid date in primary column ${column.propertyName}`);
 		}
 
@@ -99,5 +101,13 @@ export class ApiControllerGeneratedCreateIdentityContract {
 		const range: Array<ApiFunctionBoundOperator<unknown>> = [new ApiFunctionBoundOperator<unknown>(lower, undefined, MoreThanOrEqual(lower)), new ApiFunctionBoundOperator<unknown>(upper, undefined, LessThan(upper))];
 
 		return new ApiFunctionBoundOperator<unknown>(range, undefined, And(...range));
+	}
+
+	private static readDate(value: unknown): Date | undefined {
+		if (value instanceof Date) {
+			return value;
+		}
+
+		return typeof value === "number" || typeof value === "string" ? new Date(value) : undefined;
 	}
 }

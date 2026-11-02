@@ -26,8 +26,8 @@ const MILLISECONDS_PER_SECOND: number = 1000;
 
 const DECIMAL_BASE: number = 10;
 
-// Drivers that pass the temporal primary key matrix end to end.
-const SUPPORTED_DRIVER_TYPES: ReadonlySet<string> = new Set<string>(["cockroachdb", "mariadb", "postgres"]);
+// Drivers that read back a date and time primary key the database fills, proven by the temporal primary key matrix.
+const FILLED_KEY_DRIVER_TYPES: ReadonlySet<string> = new Set<string>(["cockroachdb", "mariadb", "postgres"]);
 
 /**
  * Parses the date and time primary key values of a create body once, so the row the create writes and the key that identifies it hold the same value.
@@ -35,16 +35,18 @@ const SUPPORTED_DRIVER_TYPES: ReadonlySet<string> = new Set<string>(["cockroachd
  */
 export class ApiControllerGeneratedCreateTemporalKeyContract {
 	/**
-	 * Fails when the entity has a date and time primary column and its driver is not one the create identity supports.
+	 * Fails when the database fills a date and time primary column on a driver that cannot read that value back, because the create could not tell which row it stored.
+	 * A key the body supplies is known without reading it back, so it works on every driver.
 	 * @template E The entity type
 	 * @param {Repository<E> | undefined} repository - Repository of the created entity; nothing is checked without one.
-	 * @throws {Error} When a date and time primary key meets an unsupported driver.
+	 * @param {string} source - Controller route named in the error.
+	 * @throws {Error} When the database fills a date and time primary column of an unsupported driver.
 	 */
-	public static assertDriver<E extends IApiBaseEntity>(repository: Repository<E> | undefined): void {
-		const column: TTypeOrmColumnMetadata | undefined = repository?.metadata.primaryColumns.find((primaryColumn: TTypeOrmColumnMetadata): boolean => this.isDateTime(repository.manager.dataSource.driver.normalizeType(primaryColumn)));
+	public static assertIdentifiable<E extends IApiBaseEntity>(repository: Repository<E> | undefined, source: string): void {
+		const column: TTypeOrmColumnMetadata | undefined = repository?.metadata.primaryColumns.find((primaryColumn: TTypeOrmColumnMetadata): boolean => this.isDateTime(repository.manager.dataSource.driver.normalizeType(primaryColumn)) && this.isFilledByDatabase(primaryColumn));
 
-		if (repository && column && !SUPPORTED_DRIVER_TYPES.has(repository.manager.dataSource.options.type)) {
-			throw ErrorException(`Generated create of ${repository.metadata.name} cannot identify its date and time primary column ${column.propertyName} on the ${repository.manager.dataSource.options.type} driver; supported drivers are ${[...SUPPORTED_DRIVER_TYPES].join(", ")}`);
+		if (repository && column && !FILLED_KEY_DRIVER_TYPES.has(repository.manager.dataSource.options.type)) {
+			throw ErrorException(`${source} cannot identify the row it creates: the database fills date and time primary column ${column.propertyName} of ${repository.metadata.name}, and the ${repository.manager.dataSource.options.type} driver cannot read that value back; send the key in the body or use one of ${[...FILLED_KEY_DRIVER_TYPES].join(", ")}`);
 		}
 	}
 
@@ -62,7 +64,7 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 	 * @template E The entity type
 	 * @param {Repository<E> | undefined} repository - Repository of the created entity.
 	 * @param {object | undefined} body - Create body, changed in place.
-	 * @throws {BadRequestException} When a value is not a date and time, an instant has no zone, or a value is more precise than its column.
+	 * @throws {BadRequestException} When a value is not a date and time, an instant has no zone, a value is more precise than its column, or a wall clock column cannot store the value apart from another one.
 	 */
 	public static parse<E extends IApiBaseEntity>(repository: Repository<E> | undefined, body: object | undefined): void {
 		if (!repository) {
@@ -74,12 +76,11 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 		}
 
 		const driver: Driver = repository.manager.dataSource.driver;
-		const values: Record<string, unknown> = body as Record<string, unknown>;
 		const messages: Array<string> = [];
 
 		for (const column of repository.metadata.primaryColumns) {
 			const columnType: string = driver.normalizeType(column);
-			const value: unknown = values[column.propertyName];
+			const value: unknown = Reflect.get(body, column.propertyName);
 
 			if (!this.isDateTime(columnType) || value === undefined || value === null) {
 				continue;
@@ -89,13 +90,15 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 			// A body DTO has already parsed its value, and that Date stays the one the row and the key hold.
 			const date: Date | undefined = value instanceof Date ? value : this.parseText(text);
 			const isInstant: boolean = DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType);
-			const message: string | undefined = this.check(column.propertyName, date, text, isInstant, Math.min(this.getPrecision(driver, column, columnType), DATE_FRACTION_DIGITS));
+			// Every other column stores the local wall clock of the Date, which the second occurrence of a repeated hour shares with the first, so one key would name the row of the other.
+			const isWallClock: boolean = !isInstant && !DATABASE_DRIVER_TYPE_CONSTANT.SQLITE_FAMILY.has(repository.manager.dataSource.options.type);
+			const message: string | undefined = this.check(column.propertyName, date, text, isInstant, Math.min(this.getPrecision(driver, column, columnType), DATE_FRACTION_DIGITS)) ?? (isWallClock && date && this.isRepeatedHour(date) ? `${column.propertyName} falls in the second occurrence of an hour that a daylight saving change repeats in the process time zone, which this column cannot store apart from the first` : undefined);
 
 			if (message) {
 				messages.push(message);
 			} else if (date) {
 				// The column transformer receives this Date once on the write; node-postgres would move an instant in a zone whose offset holds seconds.
-				values[column.propertyName] = isInstant && DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(repository.manager.dataSource.options.type) ? new ApiControllerGeneratedUtcDate(date.getTime()) : date;
+				Reflect.set(body, column.propertyName, isInstant && DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(repository.manager.dataSource.options.type) ? new ApiControllerGeneratedUtcDate(date.getTime()) : date);
 			}
 		}
 
@@ -122,6 +125,19 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 	private static getPrecision(driver: Driver, column: TTypeOrmColumnMetadata, columnType: string): number {
 		// A column without a declared or default precision stores what the driver writes from a Date.
 		return column.precision ?? driver.dataTypeDefaults?.[columnType]?.precision ?? DATE_FRACTION_DIGITS;
+	}
+
+	private static isFilledByDatabase(column: TTypeOrmColumnMetadata): boolean {
+		return column.isCreateDate || column.isUpdateDate || column.isGenerated || column.asExpression !== undefined || (column.default !== undefined && column.default !== null);
+	}
+
+	private static isRepeatedHour(date: Date): boolean {
+		// Local fields resolve to the first occurrence of a repeated hour.
+		const wallClock: Date = new Date(0);
+		wallClock.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+		wallClock.setHours(date.getHours(), date.getMinutes(), date.getSeconds(), date.getMilliseconds());
+
+		return wallClock.getTime() !== date.getTime();
 	}
 
 	private static parseText(text: string | undefined): Date | undefined {

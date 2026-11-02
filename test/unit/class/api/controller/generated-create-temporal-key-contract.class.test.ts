@@ -3,9 +3,14 @@ import type { Repository } from "typeorm";
 import { ApiControllerGeneratedCreateTemporalKeyContract } from "@class/api/controller/generated/create-temporal-key-contract.class";
 import { ApiControllerGeneratedTemporalBodySource } from "@class/api/controller/generated/temporal-body-source.class";
 import { BadRequestException } from "@nestjs/common";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 interface ITemporalKeyColumn {
+	asExpression?: string;
+	default?: unknown;
+	isCreateDate?: boolean;
+	isGenerated?: boolean;
+	isUpdateDate?: boolean;
 	precision?: null | number;
 	propertyName: string;
 	type: string;
@@ -158,38 +163,92 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 		});
 	});
 
-	describe("assertDriver", () => {
-		it.each([["cockroachdb"], ["mariadb"], ["postgres"]])("accepts a date and time primary key on %s", (driverType: string) => {
-			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertDriver(createRepository([INSTANT], driverType))).not.toThrow();
+	describe("in a repeated hour of a daylight saving change", () => {
+		let timeZone: string | undefined;
+
+		beforeAll(() => {
+			timeZone = process.env.TZ;
+			process.env.TZ = "America/New_York";
 		});
 
-		it("names the driver and the column of an unsupported date and time primary key", () => {
-			expect(() =>
-				ApiControllerGeneratedCreateTemporalKeyContract.assertDriver(
-					createRepository(
-						[
-							{ propertyName: "id", type: "varchar" },
-							{ propertyName: "at", type: "datetime2" },
-						],
-						"mssql",
-					),
-				),
-			).toThrow("Generated create of TemporalKeyEntity cannot identify its date and time primary column at on the mssql driver; supported drivers are cockroachdb, mariadb, postgres");
+		afterAll(() => {
+			if (timeZone === undefined) {
+				delete process.env.TZ;
+			} else {
+				process.env.TZ = timeZone;
+			}
 		});
 
-		it.each([["better-sqlite3"], ["mysql"], ["sqlite"]])("refuses a date and time primary key on %s", (driverType: string) => {
-			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertDriver(createRepository([INSTANT], driverType))).toThrow(`on the ${driverType} driver`);
+		it.each([["postgres"], ["cockroachdb"], ["mariadb"], ["mysql"]])("refuses the second occurrence on a wall clock column of %s", (driverType: string) => {
+			expect(readMessages(() => ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([WALL_CLOCK], driverType), { at: "2024-11-03T06:30:00.000Z" }))).toEqual(["at falls in the second occurrence of an hour that a daylight saving change repeats in the process time zone, which this column cannot store apart from the first"]);
 		});
 
 		it.each([
-			["a text primary key", { propertyName: "id", type: "varchar" }],
-			["a date primary key", { propertyName: "day", type: "date" }],
-		])("accepts %s on an unsupported driver", (_name: string, column: ITemporalKeyColumn) => {
-			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertDriver(createRepository([column], "mssql"))).not.toThrow();
+			["the first occurrence", WALL_CLOCK, "mysql", "2024-11-03T05:30:00.000Z"],
+			["the same value without a zone, which names the first occurrence", WALL_CLOCK, "mysql", "2024-11-03T01:30:00"],
+			["the hour after the change", WALL_CLOCK, "mysql", "2024-11-03T07:00:00.000Z"],
+			["a skipped hour", WALL_CLOCK, "mysql", "2024-03-10T02:30:00"],
+			["a historical value", WALL_CLOCK, "mysql", "1800-06-01T12:00:02.000Z"],
+			["a year before 100", WALL_CLOCK, "mysql", "0050-06-01T12:00:02.000Z"],
+			["the second occurrence on a driver that stores UTC", WALL_CLOCK, "better-sqlite3", "2024-11-03T06:30:00.000Z"],
+			["the second occurrence on an instant column", INSTANT, "postgres", "2024-11-03T06:30:00.000Z"],
+		])("accepts %s", (_name: string, column: ITemporalKeyColumn, driverType: string, value: string) => {
+			const body: Record<string, unknown> = { at: value };
+
+			ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([column], driverType), body);
+
+			expect(body.at).toBeInstanceOf(Date);
+		});
+	});
+
+	describe("assertIdentifiable", () => {
+		const SOURCE: string = 'Controller "TemporalKeyController" route "create"';
+		const FILLED_COLUMNS: Array<[string, ITemporalKeyColumn]> = [
+			["a column default", { ...INSTANT, default: (): string => "now()" }],
+			["a create date", { ...INSTANT, isCreateDate: true }],
+			["an update date", { ...INSTANT, isUpdateDate: true }],
+			["a generated value", { ...INSTANT, isGenerated: true }],
+			["a generated expression", { ...INSTANT, asExpression: "now()" }],
+		];
+
+		it.each(FILLED_COLUMNS)("refuses a key filled by %s on a driver that cannot read it back", (_name: string, column: ITemporalKeyColumn) => {
+			for (const driverType of ["better-sqlite3", "mysql", "mssql"]) {
+				expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([column], driverType), SOURCE)).toThrow(`${SOURCE} cannot identify the row it creates: the database fills date and time primary column at of TemporalKeyEntity, and the ${driverType} driver cannot read that value back; send the key in the body or use one of cockroachdb, mariadb, postgres`);
+			}
+		});
+
+		it.each([["cockroachdb"], ["mariadb"], ["postgres"]])("accepts a key the database fills on %s", (driverType: string) => {
+			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([{ ...INSTANT, isCreateDate: true }], driverType), SOURCE)).not.toThrow();
+		});
+
+		it.each([
+			["a key from the body", INSTANT],
+			["a null column default", { ...INSTANT, default: null }],
+			["a text primary key with a default", { default: "value", propertyName: "id", type: "varchar" }],
+			["a date primary key with a default", { default: "2024-01-02", propertyName: "day", type: "date" }],
+		])("accepts %s on every driver", (_name: string, column: ITemporalKeyColumn) => {
+			for (const driverType of ["better-sqlite3", "mysql", "mssql"]) {
+				expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([column], driverType), SOURCE)).not.toThrow();
+			}
+		});
+
+		it("finds the filled column of a composite key", () => {
+			expect(() =>
+				ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(
+					createRepository(
+						[
+							{ propertyName: "id", type: "varchar" },
+							{ ...INSTANT, isCreateDate: true },
+						],
+						"mysql",
+					),
+					SOURCE,
+				),
+			).toThrow("primary column at of");
 		});
 
 		it("checks nothing without a repository", () => {
-			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertDriver(undefined)).not.toThrow();
+			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(undefined, SOURCE)).not.toThrow();
 		});
 	});
 });

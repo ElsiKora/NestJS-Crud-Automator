@@ -29,7 +29,7 @@ import type { TApiControllerTransformDataTargets } from "@type/utility/api/contr
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
-import type { DeepPartial, EntityManager, EntityMetadata, EntityTarget, FindOptionsOrder, FindOptionsWhere, ObjectLiteral, RelationMetadata, Repository } from "typeorm";
+import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsOrder, FindOptionsWhere, ObjectLiteral, RelationMetadata, Repository } from "typeorm";
 
 import { ApiControllerGeneratedCreateIdentityContract, ApiControllerGeneratedCreateTemporalKeyContract, ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
@@ -346,7 +346,10 @@ export class ApiRouteRuntime {
 				const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
 				const scopeWhere: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(undefined, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
 				const isScopedWrite: boolean = scopeWhere !== undefined && Object.keys(scopeWhere).length > 0;
-				ApiControllerGeneratedCreateTemporalKeyContract.parse((service as { repository?: Repository<E> } & ApiServiceBase<E>).repository, targets.body);
+				const repository: Repository<E> | undefined = options.controller.service.repository;
+				// Request-scoped controllers never reach the startup hook that refuses this.
+				ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(repository, `Controller "${options.controller.constructor.name}" route "${options.method}"`);
+				ApiControllerGeneratedCreateTemporalKeyContract.parse(repository, targets.body);
 
 				return await this.executeGeneratedTransaction(
 					options,
@@ -355,7 +358,7 @@ export class ApiRouteRuntime {
 						await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {});
 						const primaryColumns: Array<IApiEntityColumn<E>> = this.resolvePrimaryColumns(options.entityMetadata);
 						markAfterBoundary();
-						const createProperties: never = (targets.body ?? {}) as never;
+						const createProperties: object = targets.body ?? {};
 
 						// The reload checks the row the protected function stored, not a result its subscribers may replace.
 						const createdKey: Partial<Record<keyof E, unknown>> = await ApiControllerGeneratedReadScopeStorage.runCreate(
@@ -364,7 +367,7 @@ export class ApiRouteRuntime {
 							async (): Promise<E> => await Reflect.apply(createFunction, service, [createProperties]),
 							(entity: object): Partial<Record<keyof E, unknown>> => ApiControllerGeneratedCreateIdentityContract.capture(entity, primaryColumns),
 						);
-						const identity: FindOptionsWhere<E> = await ApiControllerGeneratedCreateIdentityContract.identify(eventManager?.getRepository<E>(options.properties.entity as EntityTarget<E>), createdKey);
+						const identity: FindOptionsWhere<E> = await ApiControllerGeneratedCreateIdentityContract.identify(repository && eventManager?.getRepository<E>(repository.target), createdKey);
 
 						const requestProperties: TApiFunctionGetProperties<E> = {
 							relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
@@ -692,7 +695,7 @@ export class ApiRouteRuntime {
 
 		// A create stays uncommitted until its reload confirms the stored row, so SUPPORTS has to own a transaction here.
 		if ((mode === EApiFunctionTransactionMode.REQUIRED || (mode === EApiFunctionTransactionMode.SUPPORTS && isTransactionRequired)) && !activeEventManager) {
-			const repository: Repository<E> | undefined = (options.controller.service as { repository?: Repository<E> } & ApiServiceBase<E>).repository;
+			const repository: Repository<E> | undefined = options.controller.service.repository;
 
 			if (!repository) {
 				throw ErrorException("Repository is not available in this context");

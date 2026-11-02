@@ -1,4 +1,3 @@
-import type { ApiServiceBase } from "@class/api/service-base.class";
 import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthenticationRequest } from "@interface/api/authentication-request.interface";
@@ -25,7 +24,7 @@ import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { API_CONTROLLER_TESTING_GUIDE_URL } from "@constant/api-controller-testing-guide.constant";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { DTO_SCHEMA_NAME_CONSTANT } from "@constant/utility/dto/schema-name.constant";
-import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
+import { EApiDtoType, EApiFunctionTransactionMode, EApiRouteType } from "@enum/decorator/api";
 import { Controller, UseFilters } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/api";
@@ -82,14 +81,23 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	/**
-	 * Fails startup when a generated CREATE would have to identify a date and time primary key on a driver it does not support.
-	 * @param {ApiServiceBase<E>} service - Service the controller instance received.
+	 * Fails startup when a generated CREATE could never succeed, instead of failing every request.
+	 * @param {Repository<E>} repository - Repository of the controller's service.
 	 * @returns {void}
+	 * @throws {Error} When the route cannot own a transaction or cannot identify the row it creates.
 	 */
-	assertCreateTemporalKeyDriver(service: ApiServiceBase<E>): void {
-		if (this.isMethodGenerated(EApiRouteType.CREATE)) {
-			ApiControllerGeneratedCreateTemporalKeyContract.assertDriver((service as { repository?: Repository<E> } & ApiServiceBase<E>).repository);
+	assertCreateRoute(repository: Repository<E>): void {
+		if (!this.isMethodGenerated(EApiRouteType.CREATE)) {
+			return;
 		}
+
+		const source: string = `Controller "${this.target.name}" route "${EApiRouteType.CREATE}"`;
+
+		if (this.properties.routes[EApiRouteType.CREATE]?.transaction?.mode === EApiFunctionTransactionMode.NONE) {
+			throw ErrorException(`${source} cannot use transaction mode NONE, because a generated create checks the stored row before it commits`);
+		}
+
+		ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(repository, source);
 	}
 
 	/**
@@ -306,7 +314,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	/**
-	 * Validates the table inheritance children and, when a generated route is enabled, the service repository, the route relation loads, a CURSOR route's database contract against the initialized data source, and the service functions each route calls.
+	 * Validates the table inheritance children and, when a generated route is enabled, the service repository, the route relation loads, the generated CREATE, a CURSOR route's database contract against the initialized data source, and the service functions each route calls.
 	 * @param {object} controller - The controller instance Nest bootstraps
 	 * @throws {Error} When the controller cannot serve its routes on the active data source
 	 */
@@ -326,6 +334,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			ApiControllerAssertRouteRelationLoads(repository, this.properties.routes[routeType], `Controller "${this.target.name}" route "${routeType}"`);
 		}
 
+		this.assertCreateRoute(repository);
 		ApiControllerAssertRouteCursorDataSource(this.targetPrototype, repository, this.properties.routes[EApiRouteType.GET_LIST], `Controller "${this.target.name}" route "${EApiRouteType.GET_LIST}"`);
 		ApiControllerAssertRouteFunctions(this.properties, Reflect.get(controller, "service") as object, this.target.name);
 	}
