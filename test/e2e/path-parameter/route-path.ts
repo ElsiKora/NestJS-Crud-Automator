@@ -315,20 +315,46 @@ export function E2eRoutePathBuildTenantPipeController(mode: EApiAuthorizationMod
 }
 
 /**
- * Builds a controller that serves the generated GET route.
+ * Builds a controller that serves generated routes, the GET route unless others are named.
  * @param {EApiAuthorizationMode} mode - Authorization mode.
  * @param {string} name - Unique controller name.
+ * @param {Array<EApiRouteType>} [routeTypes] - Generated routes to serve.
+ * @param {string} [resourcePath] - IAM resource path.
  * @returns {new () => unknown} The securable controller.
  */
-export function E2eRoutePathBuildGeneratedController(mode: EApiAuthorizationMode, name: string): new () => unknown {
+export function E2eRoutePathBuildGeneratedController(mode: EApiAuthorizationMode, name: string, routeTypes: Array<EApiRouteType> = [EApiRouteType.GET], resourcePath?: string): new () => unknown {
 	class GeneratedController {
 		@Inject(E2eRoutePathItemService)
 		public readonly service!: E2eRoutePathItemService;
 	}
 
-	const routes: Record<string, unknown> = { ...(NO_GENERATED_ROUTES as Record<string, unknown>), [EApiRouteType.GET]: { security: { authentication: { guard: E2eRoutePathGuard, type: EApiAuthenticationType.USER } } } };
+	const routes: Record<string, unknown> = { ...(NO_GENERATED_ROUTES as Record<string, unknown>), ...Object.fromEntries(routeTypes.map((routeType: EApiRouteType): [EApiRouteType, unknown] => [routeType, { security: { authentication: { guard: E2eRoutePathGuard, type: EApiAuthenticationType.USER } } }])) };
 
-	return E2eRoutePathSecure({ controller: GeneratedController, mode, name, path: "items", routes: routes as never });
+	return E2eRoutePathSecure({ controller: GeneratedController, mode, name, path: resourcePath === undefined ? "items" : `route-path/${name}`, resourcePath, routes: routes as never });
+}
+
+/**
+ * Builds an IAM controller whose custom POST route creates an item under a resource path whose placeholder its path does not carry, because a create names no row yet.
+ * @param {string} name - Unique controller name.
+ * @param {"action" | "type"} declaredBy - Whether the route declares `route.type` CREATE under another action, or only the action `create`.
+ * @returns {new () => unknown} The securable controller.
+ */
+export function E2eRoutePathBuildCreateController(name: string, declaredBy: "action" | "type"): new () => unknown {
+	class CreateController {
+		@ApiRouteCustom({
+			documentation: { description: "Creates an item", summary: "Creates an item" },
+			dto: {},
+			resource: { action: declaredBy === "type" ? "provision" : "create", entity: E2eRoutePathItemEntity },
+			response: { errors: {}, serialization: { isEnabled: false }, status: HttpStatus.OK, type: E2eRoutePathResponseDto },
+			route: { method: RequestMethod.POST, path: "", ...(declaredBy === "type" ? { type: EApiRouteType.CREATE } : {}) },
+			security: { authentication: { guard: E2eRoutePathGuard, type: EApiAuthenticationType.USER }, authorization: { mode: EApiAuthorizationMode.IAM } },
+		} as never)
+		public create(): E2eRoutePathResponseDto {
+			return { value: "created" };
+		}
+	}
+
+	return E2eRoutePathSecure({ controller: CreateController, mode: EApiAuthorizationMode.IAM, name, path: `route-path/${name}`, resourcePath: "route-path/{id}" });
 }
 
 /**

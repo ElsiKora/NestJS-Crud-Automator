@@ -17,7 +17,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Type } from "class-transformer";
 import { IsInt } from "class-validator";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiAuthorizationModule, ApiPropertyCopy, AuthorizationResolveDefaultPrincipal, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiDtoType, EApiRouteType } from "../../src/index";
 import {
@@ -29,6 +29,7 @@ import {
 	E2E_ROUTE_PATH_POLICY_TRACE,
 	E2E_ROUTE_PATH_UNIT,
 	E2eRoutePathBuildController,
+	E2eRoutePathBuildCreateController,
 	E2eRoutePathBuildGeneratedController,
 	E2eRoutePathBuildListController,
 	E2eRoutePathBuildModule,
@@ -372,6 +373,13 @@ const REFUSED: Array<IRefusedCase> = [
 		name: "a wildcard in the RouterModule path",
 	},
 	{
+		// find-my-way reads no escape, so "\:x" serves the parameter "x", which Express reads as literal text.
+		adapters: ["Fastify"],
+		build: (mode: EApiAuthorizationMode, _adapterName: TAdapterName, name: string) => ({ controllers: [E2eRoutePathBuildController({ dto: E2eRoutePathIdDto, mode, name, path: `route-path/${name}`, routePath: "items/\\:x/:id" })] }),
+		message: (name: string): string => `Controller "${name}" method "read" has the path parameter "x", which its PARAMETERS DTO "E2eRoutePathIdDto" does not describe`,
+		name: "a backslash before a colon, which Fastify reads as a parameter",
+	},
+	{
 		build: (mode: EApiAuthorizationMode, _adapterName: TAdapterName, name: string) => ({ controllers: [E2eRoutePathBuildPipesController(mode, name, "method", E2E_ROUTE_PATH_PIPES["a ParseIntPipe class"] ?? [])] }),
 		message: (name: string): string => `Controller "${name}" method "read" runs ParseIntPipe from @UsePipes on the method`,
 		name: "a ParseIntPipe in @UsePipes on the method",
@@ -405,15 +413,15 @@ const REFUSED: Array<IRefusedCase> = [
 	},
 	{
 		build: (mode: EApiAuthorizationMode, _adapterName: TAdapterName, name: string) => ({ controllers: [E2eRoutePathBuildController({ dto: E2eRoutePathItemIdDto, mode, name, path: `route-path/${name}`, resourcePath: "route-path/{id}", routePath: "items/:itemId" })] }),
-		message: (name: string): string => `Controller "${name}" method "read" names "{id}" in its IAM resourcePath, which is not a path parameter of the route, and a route that does not list renders it as "*"`,
+		message: (name: string): string => `Controller "${name}" method "read" names "{id}" in its IAM resourcePath, which is not a path parameter of the route, and a route that neither lists nor creates renders it as "*"`,
 		modes: [EApiAuthorizationMode.IAM],
-		name: "an IAM route that does not list and reads the row under another parameter than its resourcePath placeholder",
+		name: "an IAM route that neither lists nor creates and reads the row under another parameter than its resourcePath placeholder",
 	},
 	{
 		build: (mode: EApiAuthorizationMode, _adapterName: TAdapterName, name: string) => ({ controllers: [E2eRoutePathBuildController({ dto: E2eRoutePathIdDto, mode, name, path: `route-path/${name}`, resourcePath: "route-path/t{tenant}/{id}" })] }),
 		message: (name: string): string => `Controller "${name}" method "read" names "{tenant}" in its IAM resourcePath, which is not a path parameter of the route`,
 		modes: [EApiAuthorizationMode.IAM],
-		name: "an IAM route that does not list and lacks a resourcePath placeholder in its path",
+		name: "an IAM route that neither lists nor creates and lacks a resourcePath placeholder in its path",
 	},
 	{
 		build: (mode: EApiAuthorizationMode, _adapterName: TAdapterName, name: string) => ({ controllers: [E2eRoutePathBuildPipesController(mode, name, "method", [new ValidationPipe({ expectedType: E2eRoutePathValidatorDto, transform: true })])] }),
@@ -449,11 +457,82 @@ describe.each<TAdapterName>(["Fastify", "Express"])("a securable route that coul
 			expect(new ValidationPipe()).toBeInstanceOf(ValidationPipe);
 		});
 
+		it("starts without calling the exceptionFactory of a ValidationPipe in @UsePipes, which is code of the application", async () => {
+			const name: string = `E2eRoutePathFactory${adapterName}${segment}`;
+			const exceptionFactory: ReturnType<typeof vi.fn<(errors: Array<unknown>) => Error>> = vi.fn<(errors: Array<unknown>) => Error>((): Error => new Error("user code"));
+			const app: INestApplication = await buildApplication({ adapterName, controllers: [E2eRoutePathBuildPipesController(mode, name, "method", [new ValidationPipe({ exceptionFactory, transform: true })])], hostPipe: "none" });
+
+			await expect(app.init()).resolves.toBe(app);
+			expect(exceptionFactory).not.toHaveBeenCalled();
+			await app.close();
+		});
+
 		it.each(["a ValidationPipe class", "a ValidationPipe instance"])("starts with %s in @UsePipes", async (pipeName: string) => {
 			const name: string = `E2eRoutePathAllowed${adapterName}${segment}${pipeName.replaceAll(" ", "")}`;
 			const app: INestApplication = await buildApplication({ adapterName, controllers: [E2eRoutePathBuildPipesController(mode, name, "method", E2E_ROUTE_PATH_PIPES[pipeName] ?? [])], hostPipe: "none" });
 
 			await expect(app.init()).resolves.toBe(app);
+			await app.close();
+		});
+	});
+});
+
+// The generated routes that name one row, whose resourcePath placeholder the guard fills only from the path.
+const GENERATED_ROW_ROUTES: Array<EApiRouteType> = [EApiRouteType.GET, EApiRouteType.UPDATE, EApiRouteType.PARTIAL_UPDATE, EApiRouteType.DELETE];
+
+describe.each([
+	{ databaseName: "SQLite", isPostgres: false },
+	{ databaseName: "PostgreSQL", isPostgres: true },
+])("an IAM resourcePath placeholder that a route path does not carry, on $databaseName (E2E)", ({ databaseName, isPostgres }: { databaseName: string; isPostgres: boolean }) => {
+	let container: StartedPostgreSqlContainer | undefined;
+
+	beforeAll(async () => {
+		if (isPostgres) {
+			container = await new PostgreSqlContainer("postgres:17-alpine").start();
+		}
+	}, 120_000);
+
+	afterAll(async () => {
+		await container?.stop();
+	});
+
+	describe.each<TAdapterName>(["Fastify", "Express"])("through %s", (adapterName: TAdapterName) => {
+		it.each(GENERATED_ROW_ROUTES)("does not start with the generated %s route, whose Deny on the placeholder would match no request", async (routeType: EApiRouteType) => {
+			const name: string = `E2eRoutePathGeneratedPlaceholder${databaseName}${adapterName}${routeType}`;
+			const app: INestApplication = await buildApplication({ adapterName, container, controllers: [E2eRoutePathBuildGeneratedController(EApiAuthorizationMode.IAM, name, [routeType], "route-path/t{tenant}/{id}")], hostPipe: "none" });
+
+			await expect(app.init()).rejects.toThrow(`Controller "${name}" method "${routeType}" names "{tenant}" in its IAM resourcePath, which is not a path parameter of the route, and a route that neither lists nor creates renders it as "*"`);
+			// The HTTP server never listened, so closing it can only fail; the module is closed by the failed start.
+			await app.close().catch((): undefined => undefined);
+		});
+
+		it("starts with every generated route under a resourcePath whose placeholder each row route carries", async () => {
+			const name: string = `E2eRoutePathGeneratedCarried${databaseName}${adapterName}`;
+			const app: INestApplication = await buildApplication({ adapterName, container, controllers: [E2eRoutePathBuildGeneratedController(EApiAuthorizationMode.IAM, name, [...GENERATED_ROW_ROUTES, EApiRouteType.CREATE, EApiRouteType.GET_LIST], "route-path/{id}")], hostPipe: "none" });
+
+			await expect(app.init()).resolves.toBe(app);
+			await app.close();
+		});
+
+		it("starts with the generated CREATE and GET_LIST routes, which IAM evaluates as a create and a list", async () => {
+			const name: string = `E2eRoutePathGeneratedCreateList${databaseName}${adapterName}`;
+			const app: INestApplication = await buildApplication({ adapterName, container, controllers: [E2eRoutePathBuildGeneratedController(EApiAuthorizationMode.IAM, name, [EApiRouteType.CREATE, EApiRouteType.GET_LIST], "route-path/t{tenant}/{id}")], hostPipe: "none" });
+
+			await expect(app.init()).resolves.toBe(app);
+			await app.close();
+		});
+
+		it.each(["type", "action"] as const)("starts a custom create route declared by its %s under a resourcePath placeholder it does not carry, and answers it", async (declaredBy: "action" | "type") => {
+			const name: string = `E2eRoutePathCustomCreate${databaseName}${adapterName}${declaredBy}`;
+			const app: INestApplication = await buildApplication({ adapterName, container, controllers: [E2eRoutePathBuildCreateController(name, declaredBy)], hostPipe: "none" });
+
+			await app.listen(0, "127.0.0.1");
+
+			const base: string = (await app.getUrl()).replace("[::1]", "127.0.0.1");
+			const response: Response = await fetch(`${base}/route-path/${name}`, { body: "{}", headers: { "content-type": "application/json" }, method: "POST" });
+
+			expect(response.status).toBe(HttpStatus.OK);
+			expect(await response.json()).toEqual({ value: "created" });
 			await app.close();
 		});
 	});

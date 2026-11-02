@@ -52,7 +52,7 @@ export class E2ePathParameterHandlerPolicy extends ApiAuthorizationPolicyBase<E2
 }
 
 /**
- * Authenticates every request as one principal, whose IAM document denies the row 16.
+ * Authenticates every request as one principal, whose IAM document denies the row 16 and the denied code.
  */
 @Injectable()
 export class E2ePathParameterHandlerGuard {
@@ -68,7 +68,7 @@ export const E2E_PATH_PARAMETER_HANDLER_DOCUMENTS: Array<Record<string, unknown>
 		document: {
 			Statement: [
 				{ Action: ["path-parameter-handler:*"], Effect: EApiPolicyEffect.ALLOW, Resource: ["*"] },
-				{ Action: ["path-parameter-handler:*"], Effect: EApiPolicyEffect.DENY, Resource: [`path-parameter-handler/${String(E2E_PATH_PARAMETER_HANDLER_DENIED_ID)}`] },
+				{ Action: ["path-parameter-handler:*"], Effect: EApiPolicyEffect.DENY, Resource: [`path-parameter-handler/${String(E2E_PATH_PARAMETER_HANDLER_DENIED_ID)}`, `path-parameter-handler/code/${E2E_PATH_PARAMETER_HANDLER_DENIED_CODE}`] },
 			],
 			Version: "2012-10-17",
 		},
@@ -107,6 +107,12 @@ const IAM_AUTHORIZATION: never = {
 	resourceDefinition: { entity: E2ePathParameterHandlerItemEntity, fields: [{ isFilterable: true, path: "resource.id", queryPath: "id" }], namespace: "path-parameter-handler", resourcePath: "path-parameter-handler/{id}", resourceType: "path-parameter-handler" },
 } as never;
 
+const IAM_CODE_AUTHORIZATION: never = {
+	defaultMode: EApiAuthorizationMode.IAM,
+	policyNamespace: "path-parameter-handler",
+	resourceDefinition: { entity: E2ePathParameterHandlerItemEntity, fields: [{ isFilterable: true, path: "resource.code", queryPath: "code" }], namespace: "path-parameter-handler", resourcePath: "path-parameter-handler/code/{code}", resourceType: "path-parameter-handler" },
+} as never;
+
 const HOOKS_AUTHORIZATION: never = { defaultMode: EApiAuthorizationMode.HOOKS } as never;
 
 /**
@@ -139,14 +145,6 @@ function buildServedController(mode: EApiAuthorizationMode): new () => unknown {
 		@Inject(E2ePathParameterHandlerItemService)
 		public readonly service!: E2ePathParameterHandlerItemService;
 
-		// The IAM resource path names {id}, which this route does not carry, so the route is authorized by the HOOKS policy in both controllers.
-		@ApiRouteCustom(customRoute("code/:code", EApiAuthorizationMode.HOOKS, E2ePathParameterHandlerCodeDto))
-		public async readCode(@Param("code") code: string): Promise<Record<string, unknown>> {
-			const row: E2ePathParameterHandlerItemEntity | null = await this.service.repository.findOneBy({ code });
-
-			return { code, label: row?.label };
-		}
-
 		@ApiRouteCustom(customRoute(":id", mode, E2ePathParameterHandlerIdDto))
 		public async readId(@Param("id") id: string): Promise<Record<string, unknown>> {
 			const row: E2ePathParameterHandlerItemEntity | null = await this.service.repository.findOneBy({ id: Number(id) });
@@ -164,16 +162,40 @@ function buildServedController(mode: EApiAuthorizationMode): new () => unknown {
 }
 
 /**
+ * Builds the controller that serves the UUID route in one authorization mode, under the path of the other handler routes. Its IAM resource path names the code, so a Deny on a code matches the route that carries it.
+ * @param {EApiAuthorizationMode} mode - Authorization mode of the controller and its route.
+ * @returns {new () => unknown} Controller class.
+ */
+function buildCodeController(mode: EApiAuthorizationMode): new () => unknown {
+	const segment: string = mode === EApiAuthorizationMode.IAM ? "iam" : "hooks";
+
+	class CodeController {
+		@Inject(E2ePathParameterHandlerItemService)
+		public readonly service!: E2ePathParameterHandlerItemService;
+
+		@ApiRouteCustom(customRoute("code/:code", mode, E2ePathParameterHandlerCodeDto))
+		public async readCode(@Param("code") code: string): Promise<Record<string, unknown>> {
+			const row: E2ePathParameterHandlerItemEntity | null = await this.service.repository.findOneBy({ code });
+
+			return { code, label: row?.label };
+		}
+	}
+
+	return secure(`E2ePathParameterHandlerCode${segment}`, mode, CodeController, `path-parameter/handler/${segment}`, IAM_CODE_AUTHORIZATION);
+}
+
+/**
  * Wraps one refused route in a securable controller of its own.
  * @param {string} name - Unique controller name.
  * @param {EApiAuthorizationMode} mode - Authorization mode of the controller.
  * @param {new () => unknown} controller - Controller class with the route.
  * @param {string} [path] - Controller path.
+ * @param {never} [iamAuthorization] - Authorization block of an IAM controller.
  * @returns {new () => unknown} The securable controller.
  */
-function secure(name: string, mode: EApiAuthorizationMode, controller: new () => unknown, path: string = `path-parameter/handler/refused/${name}`): new () => unknown {
+function secure(name: string, mode: EApiAuthorizationMode, controller: new () => unknown, path: string = `path-parameter/handler/refused/${name}`, iamAuthorization: never = IAM_AUTHORIZATION): new () => unknown {
 	Object.defineProperty(controller, "name", { value: name });
-	ApiController<E2ePathParameterHandlerItemEntity>({ authorization: mode === EApiAuthorizationMode.IAM ? IAM_AUTHORIZATION : HOOKS_AUTHORIZATION, entity: E2ePathParameterHandlerItemEntity, name, path, routes: NO_GENERATED_ROUTES })(controller as never);
+	ApiController<E2ePathParameterHandlerItemEntity>({ authorization: mode === EApiAuthorizationMode.IAM ? iamAuthorization : HOOKS_AUTHORIZATION, entity: E2ePathParameterHandlerItemEntity, name, path, routes: NO_GENERATED_ROUTES })(controller as never);
 	ApiControllerSecurable()(controller);
 
 	return controller;
@@ -181,6 +203,8 @@ function secure(name: string, mode: EApiAuthorizationMode, controller: new () =>
 
 export const E2ePathParameterHandlerIamController: new () => unknown = buildServedController(EApiAuthorizationMode.IAM);
 export const E2ePathParameterHandlerHooksController: new () => unknown = buildServedController(EApiAuthorizationMode.HOOKS);
+export const E2ePathParameterHandlerIamCodeController: new () => unknown = buildCodeController(EApiAuthorizationMode.IAM);
+export const E2ePathParameterHandlerHooksCodeController: new () => unknown = buildCodeController(EApiAuthorizationMode.HOOKS);
 
 export interface IE2ePathParameterHandlerRefusedCase {
 	build: (mode: EApiAuthorizationMode) => new () => unknown;

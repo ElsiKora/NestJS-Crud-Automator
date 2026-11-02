@@ -386,14 +386,6 @@ class IamConsumerItemController {
 	@Inject(IamConsumerItemService)
 	public readonly service!: IamConsumerItemService;
 
-	@Get("reports/visible")
-	@UseGuards(IamConsumerAuthGuard, ApiAuthorizationGuard)
-	public async listVisible(@Req() request: { authorizationDecision?: IApiAuthorizationDecision<IamConsumerItemEntity, unknown> }): Promise<Array<string>> {
-		const items: Array<IamConsumerItemEntity> = await this.service.repository.find({ where: request.authorizationDecision?.scope?.where });
-
-		return items.map((item: IamConsumerItemEntity): string => item.id).sort();
-	}
-
 	@Get("reports/listed")
 	@UseGuards(IamConsumerAuthGuard, ApiAuthorizationGuard)
 	public async listListed(@Req() request: { authorizationDecision?: IApiAuthorizationDecision<IamConsumerItemEntity, unknown> }): Promise<Array<string>> {
@@ -402,27 +394,6 @@ class IamConsumerItemController {
 		return items.map((item: IamConsumerItemEntity): string => item.id).sort();
 	}
 }
-
-Reflect.defineMetadata(
-	METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
-	{
-		// The resource path names {id}, which this route does not carry, so it must be a list: IAM maps such a placeholder to rows only on a list.
-		resource: {
-			action: "list",
-			entity: IamConsumerItemEntity,
-		},
-		route: {
-			method: RequestMethod.GET,
-			path: "reports/visible",
-		},
-		security: {
-			authorization: {
-				mode: EApiAuthorizationMode.IAM,
-			},
-		},
-	},
-	IamConsumerItemController.prototype.listVisible,
-);
 
 Reflect.defineMetadata(
 	METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
@@ -444,8 +415,50 @@ Reflect.defineMetadata(
 	IamConsumerItemController.prototype.listListed,
 );
 
+// A report over items under a resource path with no placeholder, so a custom route that does not list serves it and still gets Deny exclusions on resource fields.
+@ApiControllerSecurable()
+@ApiController<IamConsumerItemEntity>({
+	authorization: { ...iamConsumerAuthorization, resourceDefinition: { ...iamConsumerAuthorization.resourceDefinition, resourcePath: "gameport:admin:item/reports" } },
+	entity: IamConsumerItemEntity,
+	name: "IamConsumerReports",
+	path: "iam-consumer-reports",
+	routes: Object.fromEntries(Object.values(EApiRouteType).map((routeType: EApiRouteType) => [routeType, { generation: { isEnabled: false } }])) as never,
+})
+class IamConsumerReportController {
+	@Inject(IamConsumerItemService)
+	public readonly service!: IamConsumerItemService;
+
+	@Get("visible")
+	@UseGuards(IamConsumerAuthGuard, ApiAuthorizationGuard)
+	public async listVisible(@Req() request: { authorizationDecision?: IApiAuthorizationDecision<IamConsumerItemEntity, unknown> }): Promise<Array<string>> {
+		const items: Array<IamConsumerItemEntity> = await this.service.repository.find({ where: request.authorizationDecision?.scope?.where });
+
+		return items.map((item: IamConsumerItemEntity): string => item.id).sort();
+	}
+}
+
+Reflect.defineMetadata(
+	METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
+	{
+		resource: {
+			action: "export",
+			entity: IamConsumerItemEntity,
+		},
+		route: {
+			method: RequestMethod.GET,
+			path: "visible",
+		},
+		security: {
+			authorization: {
+				mode: EApiAuthorizationMode.IAM,
+			},
+		},
+	},
+	IamConsumerReportController.prototype.listVisible,
+);
+
 @Module({
-	controllers: [IamConsumerItemController],
+	controllers: [IamConsumerItemController, IamConsumerReportController],
 	imports: [
 		TypeOrmModule.forRoot({
 			database: ":memory:",
@@ -1016,7 +1029,7 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 		expect(await listItemIds()).toEqual({ ids: ["iam-item-own"], statusCode: 200 });
 	});
 
-	it("passes Deny exclusions to custom list routes through decision.scope", async () => {
+	it("passes Deny exclusions on resource fields to a custom route that does not list through decision.scope", async () => {
 		await itemService.repository.save([
 			{ id: "iam-item-own", name: "Own Item", operatorId: "operator-1" },
 			{ id: "iam-item-hidden", name: "Hidden Item", operatorId: "operator-1" },
@@ -1024,7 +1037,7 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 		]);
 		await appendPolicyStatements([
 			{
-				Action: ["admin:item:list"],
+				Action: ["admin:item:export"],
 				Condition: {
 					StringEquals: {
 						"resource.operatorId": "${principal.attributes.operatorId}",
@@ -1034,7 +1047,7 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 				Resource: ["gameport:admin:item/*"],
 			},
 			{
-				Action: ["admin:item:list"],
+				Action: ["admin:item:export"],
 				Condition: {
 					StringEqualsIfExists: {
 						"resource.id": "iam-item-hidden",
@@ -1048,7 +1061,7 @@ describe("DB-backed IAM consumer flow (E2E)", () => {
 		const response = await fastify.inject({
 			headers: principalHeaders(),
 			method: "GET",
-			url: "/iam-consumer-items/reports/visible",
+			url: "/iam-consumer-reports/visible",
 		});
 
 		expect(response.statusCode).toBe(200);

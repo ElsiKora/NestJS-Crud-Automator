@@ -25,7 +25,9 @@ import {
 	E2E_PATH_PARAMETER_HANDLER_POLICY_TRACE,
 	E2E_PATH_PARAMETER_HANDLER_REFUSED,
 	E2ePathParameterHandlerGuard,
+	E2ePathParameterHandlerHooksCodeController,
 	E2ePathParameterHandlerHooksController,
+	E2ePathParameterHandlerIamCodeController,
 	E2ePathParameterHandlerIamController,
 	E2ePathParameterHandlerItemEntity,
 	E2ePathParameterHandlerItemService,
@@ -141,7 +143,7 @@ describe.each([
 		};
 
 		beforeAll(async () => {
-			app = await buildApplication({ adapterName, container, controllers: [E2ePathParameterHandlerIamController, E2ePathParameterHandlerHooksController], hostPipe, logger });
+			app = await buildApplication({ adapterName, container, controllers: [E2ePathParameterHandlerIamController, E2ePathParameterHandlerHooksController, E2ePathParameterHandlerIamCodeController, E2ePathParameterHandlerHooksCodeController], hostPipe, logger });
 			await app.listen(0, "127.0.0.1");
 			base = (await app.getUrl()).replace("[::1]", "127.0.0.1");
 		}, 120_000);
