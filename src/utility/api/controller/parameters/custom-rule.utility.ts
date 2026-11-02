@@ -3,17 +3,20 @@ import type { IApiControllerParametersRouteDtoExposure } from "@interface/class/
 import type { IApiControllerParametersRouteDtoProblem } from "@interface/class/api/controller/parameters-route-dto-problem.interface";
 import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { IApiControllerParametersSource } from "@interface/class/api/controller/parameters-source.interface";
+import type { IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 
 import { EApiPropertyDescribeType } from "@enum/decorator/api";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
+import { ClassTransformerReadLimits } from "@utility/class-transformer/read-limits.utility";
 import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/get.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { getMetadataStorage, ValidationTypes } from "class-validator";
 
+import { ApiControllerParametersIsDecimalColumn } from "./column/numeric-type.utility";
 import { ApiControllerParametersConvert } from "./convert.utility";
 import { API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY } from "./dto/metadata-key.constant";
-import { ApiControllerParametersRouteDtoFindDropped, ApiControllerParametersRouteDtoFindGroupLimited, ApiControllerParametersRouteDtoReadExposure } from "./route-dto-startup.utility";
+import { ApiControllerParametersRouteDtoFindDropped, ApiControllerParametersRouteDtoReadExposure } from "./route-dto-startup.utility";
 import { ApiControllerParametersRouteDtoCheckSample } from "./route-dto.utility";
 
 type TValidationMetadata = ReturnType<ReturnType<typeof getMetadataStorage>["getTargetValidationMetadatas"]>[number];
@@ -23,8 +26,23 @@ const STARTUP_SAMPLES: Array<string> = ["1", "Aa"];
 const BOOLEAN_SAMPLES: Array<string> = ["true", "false"];
 
 /**
+ * Rejects a path value held in a decimal column on a route whose authorization compares text: a database reads `1.5`, `1.50` and `01.5` as one key, so no Deny value can name it.
+ * @param {IApiControllerParametersRule} rule - Path value rule of the route.
+ * @param {string} route - Controller and method, for the error message.
+ * @returns {void}
+ * @throws {Error} When a path parameter holds a decimal column.
+ */
+export function ApiControllerParametersAssertComparableColumns(rule: IApiControllerParametersRule, route: string): void {
+	for (const [parameter, column] of rule.columns ?? []) {
+		if (ApiControllerParametersIsDecimalColumn(column.type)) {
+			throw ErrorException(`${route} holds the path parameter "${parameter}" in the ${String(column.type)} column "${String(column.name)}", and a database reads many spellings of such a value as one key, so an IAM Deny cannot name it: use an integer, UUID or text key on this route`);
+		}
+	}
+}
+
+/**
  * Builds the path value rule of a securable custom route: the guard runs the route's own PARAMETERS DTO on the path values, so IAM sees the values the DTO produces and a handler reads the same values.
- * Each check on a request also runs here on sample values, so a DTO that could only refuse requests fails at startup. A sample cannot catch everything, so the check on each request stays the guarantee.
+ * Each check on a request also runs here on sample values, so a DTO that could only refuse requests fails at startup. A check on samples cannot see everything, so the limits a sample cannot show are read from the metadata, and the check on each request runs on every real value.
  * @param {IApiControllerParametersCustomRuleOptions} options - Route description: the controller class and the handler name for the error message, the PARAMETERS DTO, the path parameter names of the controller and route paths, and the IAM resource path of the controller.
  * @returns {IApiControllerParametersRule | undefined} The rule, or undefined when the route has no path parameter or no PARAMETERS DTO, so such a route costs nothing per request.
  * @throws {Error} When the DTO cannot give a handler the value IAM saw, or when a resource path placeholder is not copied from an entity column.
@@ -51,7 +69,14 @@ export function ApiControllerParametersBuildCustomRule(options: IApiControllerPa
 		}
 	}
 
-	return options.dto && routeDtoProperties ? { dto: options.dto, routeDtoProperties } : undefined;
+	if (!options.dto || !routeDtoProperties) {
+		return undefined;
+	}
+
+	const rule: IApiControllerParametersRule = { columns: readCopiedColumns(options.dto, routeDtoProperties), dto: options.dto, routeDtoProperties };
+	ApiControllerParametersAssertComparableColumns(rule, route);
+
+	return rule;
 }
 
 /**
@@ -110,6 +135,8 @@ function assertRouteDto(dto: Type<unknown>, properties: ReadonlyMap<string, stri
 	const validationMetadata: Array<TValidationMetadata> = getMetadataStorage().getTargetValidationMetadatas(dto, "", false, false);
 	const fail = (parameter: string, reason: string): Error => ErrorException(`${route} property "${properties.get(parameter) ?? parameter}" of PARAMETERS DTO "${dto.name}" holds the path parameter "${parameter}", but ${reason}`);
 
+	assertRouteDtoLimits(dto, properties, validationMetadata, fail);
+
 	for (const [parameter, property] of properties) {
 		if (validationMetadata.some((metadata: TValidationMetadata): boolean => metadata.propertyName === property && (metadata.type === ValidationTypes.NESTED_VALIDATION || metadata.name === "isObject" || metadata.name === "isArray"))) {
 			throw fail(parameter, "its PARAMETERS DTO makes it an object or a list, which IAM cannot compare as text: describe a scalar value");
@@ -129,11 +156,32 @@ function assertRouteDto(dto: Type<unknown>, properties: ReadonlyMap<string, stri
 			assertBooleanKeepsItsText(dto, properties, parameter, fail);
 		}
 	}
+}
 
-	const [groupLimited]: Array<string> = ApiControllerParametersRouteDtoFindGroupLimited(dto, properties);
+/**
+ * Rejects a property whose conversion depends on groups or versions: the guard runs with neither, so a host pipe with one would read the text IAM saw differently, and a sample cannot show that.
+ * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
+ * @param {ReadonlyMap<string, string>} properties - The DTO property that holds each path parameter.
+ * @param {Array<TValidationMetadata>} validationMetadata - Validators of the DTO.
+ * @param {(parameter: string, reason: string) => Error} fail - Builds the startup error.
+ * @returns {void}
+ * @throws {Error} When a `@Transform`, an `@Expose` or a validator of a path value is limited.
+ */
+function assertRouteDtoLimits(dto: Type<unknown>, properties: ReadonlyMap<string, string>, validationMetadata: Array<TValidationMetadata>, fail: (parameter: string, reason: string) => Error): void {
+	for (const [parameter, property] of properties) {
+		const { isExposeLimited, isTransformLimited }: { isExposeLimited: boolean; isTransformLimited: boolean } = ClassTransformerReadLimits(dto, property);
 
-	if (groupLimited !== undefined) {
-		throw fail(groupLimited, "a @Transform of it is limited to class-transformer groups, which the guard cannot know, so a host pipe with that group would change the text IAM saw: remove the groups");
+		if (isTransformLimited) {
+			throw fail(parameter, "a @Transform of it is limited to class-transformer groups or versions, which the guard cannot know, so a host pipe with one of them would change the text IAM saw: remove the limit");
+		}
+
+		if (isExposeLimited) {
+			throw fail(parameter, "its @Expose is limited to class-transformer versions, which the guard cannot know, so a host pipe of another version would drop the value IAM saw: remove the limit");
+		}
+
+		if (validationMetadata.some((metadata: TValidationMetadata): boolean => metadata.propertyName === property && (metadata.groups?.length ?? 0) > 0)) {
+			throw fail(parameter, "a validator of it is limited to class-validator groups, which the guard does not run, so the value could never be checked the same way: remove the groups");
+		}
 	}
 }
 
@@ -161,6 +209,27 @@ function isColumnCopy(dto: { prototype: object } | undefined, property: string):
 	const source: IApiControllerParametersSource | undefined = dto ? (Reflect.getMetadata(API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY, dto.prototype, property) as IApiControllerParametersSource | undefined) : undefined;
 
 	return source !== undefined && source.metadata.type !== EApiPropertyDescribeType.OBJECT && source.metadata.type !== EApiPropertyDescribeType.RELATION && !("isArray" in source.metadata && source.metadata.isArray === true);
+}
+
+/**
+ * Lists the entity column that each path parameter copies.
+ * @param {{ prototype: object }} dto - PARAMETERS DTO of the route.
+ * @param {object} dto.prototype - Prototype of the DTO class.
+ * @param {ReadonlyMap<string, string>} properties - The DTO property that holds each path parameter.
+ * @returns {Map<string, IApiEntityColumn<unknown>>} The column of each path parameter copied with `ApiPropertyCopy`.
+ */
+function readCopiedColumns(dto: { prototype: object }, properties: ReadonlyMap<string, string>): Map<string, IApiEntityColumn<unknown>> {
+	const columns: Map<string, IApiEntityColumn<unknown>> = new Map<string, IApiEntityColumn<unknown>>();
+
+	for (const [parameter, property] of properties) {
+		const source: IApiControllerParametersSource | undefined = Reflect.getMetadata(API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY, dto.prototype, property) as IApiControllerParametersSource | undefined;
+
+		if (source) {
+			columns.set(parameter, source.column);
+		}
+	}
+
+	return columns;
 }
 
 /**
@@ -217,7 +286,7 @@ function resolveProperties(dto: Type<unknown>, parameters: ReadonlySet<string>, 
 		}
 
 		if (holder === undefined && !exposure.properties.has(parameter) && exposure.failedProperties.size > 0) {
-			throw ErrorException(`${route} reads the path parameter "${parameter}" through PARAMETERS DTO "${dto.name}", but a @Transform of the DTO throws when the property "${[...exposure.failedProperties].join('", "')}" is written back, so the guard cannot tell which property holds it: add { toClassOnly: true } to that @Transform`);
+			throw ErrorException(`${route} reads the path parameter "${parameter}" through PARAMETERS DTO "${dto.name}", but a @Transform of the DTO throws when the property "${[...exposure.failedProperties].join('", "')}" is written back, whatever the sample, so the guard cannot tell which property holds it: let it accept any value, or add { toClassOnly: true } to that @Transform`);
 		}
 
 		properties.set(parameter, holder ?? parameter);

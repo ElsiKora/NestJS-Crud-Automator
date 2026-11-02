@@ -78,7 +78,7 @@ class AccountDto {
 
 Supported `sign` members:
 
-- `EApiGetDefaultStringFormatPropertiesBigIntStringSign.SIGNED` accepts zero, positive, and negative values. This is the default.
+- `EApiGetDefaultStringFormatPropertiesBigIntStringSign.SIGNED` accepts zero, positive, and negative values, and refuses `-0`. This is the default.
 - `EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED` accepts zero and positive values.
 - `EApiGetDefaultStringFormatPropertiesBigIntStringSign.NEGATIVE` accepts only negative values.
 

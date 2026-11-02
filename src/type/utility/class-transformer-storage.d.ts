@@ -1,6 +1,6 @@
 declare module "class-transformer/cjs/storage.js" {
 	export type TClassTransformerTransformMetadata = {
-		options: { toClassOnly?: boolean; toPlainOnly?: boolean };
+		options: { groups?: Array<string>; since?: number; toClassOnly?: boolean; toPlainOnly?: boolean; until?: number };
 		propertyName: string;
 		target: object;
 		transformFn: (parameters: unknown) => unknown;
@@ -24,6 +24,7 @@ declare module "class-transformer/cjs/storage.js" {
 		addTypeMetadata: (metadata: TTypeMetadata) => void;
 		findExcludeMetadata: (target: object, propertyName: string | symbol) => TMetadata<TExcludeOptions> | undefined;
 		findExposeMetadata: (target: object, propertyName: string | symbol) => TMetadata<TExposeOptions> | undefined;
+		findTransformMetadatas: (target: object, propertyName: string, transformationType: number) => Array<TClassTransformerTransformMetadata>;
 		findTypeMetadata: (target: object, propertyName: string) => TTypeMetadata | undefined;
 		getAncestors: (target: object) => Array<object>;
 		getExcludedMetadatas: (target: object) => Array<TMetadata<TExcludeOptions>>;

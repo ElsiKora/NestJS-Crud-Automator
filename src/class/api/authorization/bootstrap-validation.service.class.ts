@@ -19,7 +19,7 @@ import { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorato
 import { Inject, Injectable, OnApplicationBootstrap, Optional, RequestMethod } from "@nestjs/common";
 import { METHOD_METADATA, MODULE_PATH, PATH_METADATA, VERSION_METADATA } from "@nestjs/common/internal";
 import { DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
-import { ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
+import { ApiControllerParametersAssertComparableColumns, ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
 import { ApiControllerParametersDtoGet } from "@utility/api/controller/parameters/dto";
 import { AuthorizationIsHandlerAuthorized } from "@utility/authorization/is-handler-authorized.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -68,26 +68,30 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
-	 * Registers the path value rule of each IAM custom route with a path parameter and a PARAMETERS DTO, so the guard runs that DTO and authorization sees the canonical text of the values it produces.
+	 * Registers the path value rule of each IAM custom route with a path parameter and a PARAMETERS DTO, so the guard runs that DTO and authorization sees the canonical text of the values it produces. A generated IAM route already has its rule, and only its columns are checked here.
 	 * The rule is built and kept for this controller class: a handler inherited from a base class is shared with its other subclasses, whose resource paths may differ.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
 	 * @param {EApiAuthorizationMode} defaultMode - Controller authorization mode.
 	 * @param {string} resourcePath - IAM resource path of the controller.
 	 * @returns {void}
-	 * @throws {Error} When the PARAMETERS DTO of a route cannot give authorization the text of a path value, or a placeholder that is a path parameter is not copied from an entity column.
+	 * @throws {Error} When the PARAMETERS DTO of a route cannot give authorization the text of a path value, a placeholder that is a path parameter is not copied from an entity column, or a path parameter holds a decimal column.
 	 */
-	private applyCustomRouteParameterRules(metatype: new (...arguments_: Array<unknown>) => unknown, defaultMode: EApiAuthorizationMode, resourcePath: string): void {
+	private applyRouteParameterRules(metatype: new (...arguments_: Array<unknown>) => unknown, defaultMode: EApiAuthorizationMode, resourcePath: string): void {
 		const controllerPathParameters: Array<string> = this.resolvePathParameters(Reflect.getMetadata(PATH_METADATA, metatype));
 
 		for (const [methodName, handler] of this.collectMethods(metatype)) {
-			// A generated route carries its own rule, built from the controller entity when the controller is declared.
-			if (ApiControllerParametersDtoGet(handler)) {
-				continue;
-			}
-
 			const metadata: IApiRouteMetadata<IApiBaseEntity> | undefined = (Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, handler) ?? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, metatype.prototype as object, methodName)) as IApiRouteMetadata<IApiBaseEntity> | undefined;
 
 			if (!metadata || (metadata.security?.authorization?.mode ?? defaultMode) !== EApiAuthorizationMode.IAM) {
+				continue;
+			}
+
+			// A generated route carries its own rule, built from the controller entity when the controller is declared.
+			const generatedRule: IApiControllerParametersRule | undefined = ApiControllerParametersDtoGet(handler);
+
+			if (generatedRule) {
+				ApiControllerParametersAssertComparableColumns(generatedRule, `Controller "${metatype.name}" method "${methodName}"`);
+
 				continue;
 			}
 
@@ -370,7 +374,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		}
 
 		if (authorization.resourceDefinition) {
-			this.applyCustomRouteParameterRules(metatype, authorization.defaultMode, authorization.resourceDefinition.resourcePath);
+			this.applyRouteParameterRules(metatype, authorization.defaultMode, authorization.resourceDefinition.resourcePath);
 		}
 	}
 

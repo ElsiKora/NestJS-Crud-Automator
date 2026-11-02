@@ -175,7 +175,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 			body: request.body as DeepPartial<E> | undefined,
 			headers: this.resolveHeaders(request.headers),
 			ip: typeof request.ip === "string" ? request.ip : undefined,
-			parameters: AuthorizationSerializeParameters(identityPlan ? this.resolveIdentityParameters<E>(parameters, identityPlan) : parameters) as Partial<E> | undefined,
+			parameters: AuthorizationSerializeParameters(identityPlan ? this.resolveIdentityParameters<E>(parameters, identityPlan) : parameters),
 			query: request.query as TApiControllerGetListQuery<E, M> | undefined,
 		};
 	}

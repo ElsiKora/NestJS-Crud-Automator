@@ -28,7 +28,7 @@ const BIGINT_STRING: TApiPropertyDefaultStringFormatProperties = {
 	format: EApiPropertyStringType.BIGINT_STRING,
 	maxLength: 20,
 	minLength: 1,
-	pattern: String.raw`/^-?(0|[1-9]\d{0,18})$/`,
+	pattern: String.raw`/^(0|-?[1-9]\d{0,18})$/`,
 };
 
 const COUNTRY_CODE_ALPHA2: TApiPropertyDefaultStringFormatProperties = {

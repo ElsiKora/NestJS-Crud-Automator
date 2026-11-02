@@ -8,6 +8,6 @@ export type TApiAuthorizationPolicyBeforePartialUpdateContext<E extends IApiBase
 		body: DeepPartial<E>;
 		headers: Record<string, string>;
 		ip: string;
-		parameters: Partial<E>;
+		parameters: Record<string, string>;
 	}
 >;

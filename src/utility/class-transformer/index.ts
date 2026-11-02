@@ -5,4 +5,5 @@ export { ClassTransformerAutomatorTransform } from "./automator-transform.utilit
 export { ClassTransformerCopyExposure } from "./copy-exposure.utility";
 export { ClassTransformerCopyTransforms } from "./copy-transforms.utility";
 export { ClassTransformerGetStorage } from "./get-storage.utility";
+export { ClassTransformerReadLimits } from "./read-limits.utility";
 export { ClassTransformerSourceToExposed } from "./source-to-exposed.utility";

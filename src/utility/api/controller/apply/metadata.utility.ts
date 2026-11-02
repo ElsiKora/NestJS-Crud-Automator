@@ -4,7 +4,7 @@ import type { IApiControllerGetListQueryPlan } from "@interface/class/api/contro
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiControllerProperties } from "@interface/decorator/api";
-import type { IApiEntity } from "@interface/entity";
+import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 
@@ -14,6 +14,7 @@ import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA, RouteParamtypes } from "@nest
 import { ApiControllerGetDtoWithReadPlan } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { ApiControllerParametersDtoSet } from "@utility/api/controller/parameters";
+import { getMetadataStorage } from "class-validator";
 
 /**
  * Applies metadata for NestJS controller methods to enable proper dependency injection.
@@ -64,7 +65,7 @@ export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>
 		const handler: unknown = Reflect.get(targetPrototype, methodName);
 
 		if (typeof handler === "function") {
-			ApiControllerParametersDtoSet(handler, { configuredDto: configuredRequestDto, dto: requestDto });
+			ApiControllerParametersDtoSet(handler, { columns: readParameterColumns(entity, requestDto, identityPlan, readPlan), configuredDto: configuredRequestDto, dto: requestDto });
 		}
 
 		routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.PARAM, parameterIndex);
@@ -97,4 +98,29 @@ export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>
 
 	Reflect.defineMetadata(ROUTE_ARGS_METADATA, routeArgumentsMetadata, target, methodName);
 	Reflect.defineMetadata(PARAMTYPES_METADATA, parameterTypes, targetPrototype, methodName);
+}
+
+/**
+ * Lists the entity column each path parameter of a generated route holds. A key holds the column of its name; an identity alias or a read scope parameter names its own field.
+ * @template E - Entity type
+ * @param {IApiEntity<E>} entity - Entity metadata.
+ * @param {Type<unknown>} dto - Generated PARAMETERS DTO.
+ * @param {IApiControllerIdentityPlan} [identityPlan] - Internal GET identity alias plan.
+ * @param {IApiControllerReadPlan} [readPlan] - Internal compiled PARAMETERS plan.
+ * @returns {Map<string, IApiEntityColumn<unknown>>} The column of each path parameter.
+ */
+function readParameterColumns<E>(entity: IApiEntity<E>, dto: Type<unknown>, identityPlan?: IApiControllerIdentityPlan, readPlan?: IApiControllerReadPlan): Map<string, IApiEntityColumn<unknown>> {
+	const fields: Map<string, string> = new Map<string, string>([...(identityPlan ? [identityPlan] : []), ...(readPlan?.parameters ?? [])].map(({ field, parameter }: { field: string; parameter: string }): [string, string] => [parameter, field]));
+	const columns: Map<string, IApiEntityColumn<unknown>> = new Map<string, IApiEntityColumn<unknown>>();
+
+	for (const { propertyName } of getMetadataStorage().getTargetValidationMetadatas(dto, "", false, false)) {
+		const field: string = fields.get(propertyName) ?? propertyName;
+		const column: IApiEntityColumn<E> | undefined = entity.columns.find((candidate: IApiEntityColumn<E>): boolean => String(candidate.name) === field);
+
+		if (column) {
+			columns.set(propertyName, column as IApiEntityColumn<unknown>);
+		}
+	}
+
+	return columns;
 }

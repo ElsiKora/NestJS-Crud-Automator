@@ -10,7 +10,7 @@ import { validate, validateSync } from "class-validator";
 
 import { ApiControllerParametersConvert } from "./convert.utility";
 
-const DISAGREEMENT_REASON: string = "its PARAMETERS DTO converts it differently with and without implicit conversion, so a handler could read another value than IAM saw: declare the conversion with @Type or @Transform";
+const DISAGREEMENT_REASON: string = "its PARAMETERS DTO converts it differently with and without implicit conversion, so a handler could read another value than IAM saw. Implicit conversion runs before a @Transform: pin the type with @Type, or read the sent text from obj[key] in the @Transform";
 const UNSTABLE_REASON: string = "its PARAMETERS DTO changes its own output, so a host pipe would convert the text IAM saw again: make its @Transform give the same result on its own output, or move the conversion into the handler";
 
 /**

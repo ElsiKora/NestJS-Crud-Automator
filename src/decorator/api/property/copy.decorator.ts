@@ -110,7 +110,7 @@ export function ApiPropertyCopy<E>(properties: TApiPropertyCopyProperties<E>): P
 			}
 
 			// The described source column lets a custom route check this property with the column rule of path values.
-			Reflect.defineMetadata(API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY, { entityMetadata, metadata: propertyMetadata }, target, key);
+			Reflect.defineMetadata(API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY, { column, entityMetadata, metadata: propertyMetadata }, target, key);
 
 			const host: Type<unknown> = (typeof decoratorTarget === "function" ? decoratorTarget : decoratorTarget.constructor) as Type<unknown>;
 			const hostPropertyName: string = String(key);

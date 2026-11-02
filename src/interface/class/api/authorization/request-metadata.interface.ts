@@ -7,6 +7,7 @@ export interface IApiAuthorizationRequestMetadata<E extends IApiBaseEntity, M ex
 	body?: DeepPartial<E>;
 	headers?: Record<string, string>;
 	ip?: string;
-	parameters?: Partial<E>;
+	/** Path values as the canonical text authorization compares. */
+	parameters?: Record<string, string>;
 	query?: TApiControllerGetListQuery<E, M>;
 }

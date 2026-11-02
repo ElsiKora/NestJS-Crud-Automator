@@ -6,6 +6,6 @@ export type TApiAuthorizationPolicyBeforeGetContext<E extends IApiBaseEntity> = 
 	{
 		headers: Record<string, string>;
 		ip: string;
-		parameters: Partial<E>;
+		parameters: Record<string, string>;
 	}
 >;

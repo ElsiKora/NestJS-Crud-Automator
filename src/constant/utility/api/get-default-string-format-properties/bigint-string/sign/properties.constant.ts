@@ -15,7 +15,7 @@ export const SIGN_PROPERTIES_BIGINT_STRING_GET_DEFAULT_STRING_FORMAT_PROPERTIES_
 		exampleValue: "1000",
 		maxLength: "-9223372036854775808".length,
 		minLength: "0".length,
-		pattern: String.raw`/^-?(0|[1-9]\d{0,18})$/`,
+		pattern: String.raw`/^(0|-?[1-9]\d{0,18})$/`,
 	},
 	[EApiGetDefaultStringFormatPropertiesBigIntStringSign.UNSIGNED]: {
 		description: "unsigned bigint decimal string",
