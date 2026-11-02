@@ -364,3 +364,82 @@ describe.each(DECORATORS)("%s with a named @Expose next to an exclude", (_name: 
 		}).toThrow(EXCLUDE_REFUSAL);
 	});
 });
+
+describe.each(DECORATORS)("%s renamed in a parent class whose property key a child class exposes", (_name: string, factory: TDecoratorFactory, specificOptions: TDecoratorOptions, value: unknown) => {
+	const apiProperty = (options: TDecoratorOptions): PropertyDecorator => Reflect.apply(factory, undefined, [{ ...SHARED_OPTIONS, ...specificOptions, ...options }]);
+	const KEY_REFUSAL: RegExp = /Cannot expose 'ChildDto\.other' under 'value', the property key of 'ParentDto\.value', which is exposed as 'wire': the check of a request reads that key on every class that inherits 'ParentDto\.value' and cannot tell which class is converted\. Rename one of them$/;
+
+	const buildParentDto = (): new () => TDtoInstance => {
+		class ParentDto {
+			public value?: unknown;
+		}
+
+		apiProperty({ isRequired: true })(ParentDto.prototype, "value");
+		Expose({ name: "wire" })(ParentDto.prototype, "value");
+
+		return ParentDto;
+	};
+
+	const buildChildDto = (ParentDto: new () => TDtoInstance): new () => TDtoInstance & { other?: unknown } => {
+		class ChildDto extends ParentDto {
+			public other?: unknown;
+		}
+
+		Expose({ name: "value" })(ChildDto.prototype, "other");
+
+		return ChildDto;
+	};
+
+	it("refuses at decoration a child class defined before the deferred check of the parent runs", () => {
+		expect(() => {
+			runWithDeferredDecorators(() => {
+				buildChildDto(buildParentDto());
+			});
+		}).toThrow(KEY_REFUSAL);
+	});
+
+	it("refuses at the first conversion a child class defined after the parent was decorated, for the child and the parent", () => {
+		let ParentDto: (new () => TDtoInstance) | undefined;
+
+		runWithDeferredDecorators(() => {
+			ParentDto = buildParentDto();
+		});
+
+		if (!ParentDto) {
+			throw new Error("The DTO was not built");
+		}
+
+		const BuiltParentDto: new () => TDtoInstance = ParentDto;
+		const ChildDto: new () => TDtoInstance = buildChildDto(BuiltParentDto);
+
+		expect(() => plainToInstance(ChildDto, { value })).toThrow(KEY_REFUSAL);
+		expect(() => plainToInstance(BuiltParentDto, { value, wire: value })).toThrow(KEY_REFUSAL);
+		expect(plainToInstance(BuiltParentDto, { wire: value }).value).toBeDefined();
+	});
+
+	it("keeps a property key the parent itself exposes another property under", () => {
+		let ParentDto: (new () => TDtoInstance & { other?: unknown }) | undefined;
+
+		runWithDeferredDecorators(() => {
+			class SwapDto {
+				public other?: unknown;
+
+				public value?: unknown;
+			}
+
+			apiProperty({ isRequired: true })(SwapDto.prototype, "value");
+			Expose({ name: "wire" })(SwapDto.prototype, "value");
+			Expose({ name: "value" })(SwapDto.prototype, "other");
+			ParentDto = SwapDto;
+		});
+
+		if (!ParentDto) {
+			throw new Error("The DTO was not built");
+		}
+
+		const instance: TDtoInstance & { other?: unknown } = plainToInstance(ParentDto, { value: "other", wire: value });
+
+		expect(instance.other).toBe("other");
+		expect(instance.value).toBeDefined();
+	});
+});
