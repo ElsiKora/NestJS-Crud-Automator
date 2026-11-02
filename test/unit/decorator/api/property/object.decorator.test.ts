@@ -150,7 +150,7 @@ class FreeFormRequestDto {
 
 describe("ApiPropertyObject", () => {
 	describe("free-form request values", () => {
-		const VALUE: Record<string, unknown> = { deep: { junk: true }, id: 1 };
+		const VALUE: Record<string, unknown> = { deep: { junk: true, toString: "kept" }, hasOwnProperty: true, id: 1, valueOf: 2 };
 
 		it.each<{ options: ValidatorOptions }>([{ options: {} }, { options: { whitelist: true } }, { options: { forbidNonWhitelisted: true, whitelist: true } }])("keeps array items, a single object and a class-less object as sent with $options", ({ options }: { options: ValidatorOptions }) => {
 			const instance = plainToInstance(FreeFormRequestDto, { payloads: [{ ...VALUE }, { id: 2 }], single: { ...VALUE }, undeclared: { ...VALUE } });
@@ -244,7 +244,78 @@ describe("ApiPropertyObject", () => {
 			expect(decorate({ isUniqueItems: false, maxItems: 3 })).toThrow("Request array property 'FreeFormBoundsDto.items' must declare 'minItems'");
 			expect(decorate({ isUniqueItems: false, maxItems: Number.NaN, minItems: 0 })).toThrow("'maxItems' must be a non-negative integer");
 			expect(decorate({ isUniqueItems: true, maxItems: 1, minItems: 0 })).toThrow("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
-			expect(decorate({ isUniqueItems: false, maxItems: 3, minItems: 0, shouldValidateNested: false })).toThrow("Array property must be 'shouldValidateNested'");
+			expect(decorate({ isUniqueItems: false, maxItems: 3, minItems: 0, shouldValidateNested: false })).not.toThrow();
+		});
+
+		it.each([
+			{ name: "type Object", type: Object },
+			{ name: "no type", type: undefined },
+		])("does not need shouldValidateNested on an array with $name", ({ type }: { type: ObjectConstructor | undefined }) => {
+			class NoNestedOptionDto {
+				@ApiPropertyObject({ description: "items", entity: ObjectEntity, isArray: true, isRequired: true, isUniqueItems: false, maxItems: 3, minItems: 0, type } as never)
+				public items!: Array<Record<string, unknown>>;
+			}
+
+			const instance = plainToInstance(NoNestedOptionDto, { items: [{ ...VALUE }] });
+
+			expect(validateSync(instance, { forbidNonWhitelisted: true, whitelist: true })).toEqual([]);
+			expect(instance.items).toEqual([VALUE]);
+		});
+
+		it.each([
+			{ isArray: false, isResponse: false, name: "type Object", type: Object },
+			{ isArray: true, isResponse: false, name: "type Object on an array", type: Object },
+			{ isArray: false, isResponse: true, name: "type Object on a response", type: Object },
+			{ isArray: false, isResponse: false, name: "no type", type: undefined },
+			{ isArray: true, isResponse: false, name: "no type on an array", type: undefined },
+		])("refuses shouldValidateNested: true with $name, naming the class and property", ({ isArray, isResponse, type }: { isArray: boolean; isResponse: boolean; type: ObjectConstructor | undefined }) => {
+			const decorate = (): void => {
+				ApiPropertyObject({ description: "value", entity: ObjectEntity, isArray, isRequired: true, isResponse, isUniqueItems: false, maxItems: 3, minItems: 0, shouldValidateNested: true, type } as never)(class FreeFormNestedDto {}.prototype, "value");
+			};
+
+			expect(decorate).toThrow("'FreeFormNestedDto.value' cannot set 'shouldValidateNested' to true");
+		});
+
+		it.each<{ discriminator?: object; name: string; options?: object; type: Array<unknown> }>([
+			{ name: "[Object]", type: [Object] },
+			{ name: "[Object] on an array", options: { isArray: true, isUniqueItems: false, maxItems: 3, minItems: 0 }, type: [Object] },
+			{ name: "Object among classes", type: [Object, ChildDto] },
+			{ discriminator: { mapping: { cat: CatDto }, propertyName: "kind" }, name: "Object among discriminated classes", type: [Object, CatDto] },
+		])("refuses $name as a type, naming the class and property", ({ discriminator, options, type }: { discriminator?: object; options?: object; type: Array<unknown> }) => {
+			const decorate = (): void => {
+				ApiPropertyObject({ description: "value", discriminator, entity: ObjectEntity, isRequired: true, shouldValidateNested: true, type, ...options } as never)(class ObjectTupleDto {}.prototype, "value");
+			};
+
+			expect(decorate).toThrow("'ObjectTupleDto.value' cannot list Object in 'type'");
+		});
+
+		it.each([
+			{ name: "type Object", type: Object },
+			{ name: "no type", type: undefined },
+		])("publishes an open object for a request and a response value with $name", ({ type }: { type: ObjectConstructor | undefined }) => {
+			class PublishedDto {
+				@ApiPropertyObject({ description: "request", entity: ObjectEntity, isRequired: true, type } as never)
+				public request!: Record<string, unknown>;
+
+				@ApiPropertyObject({ description: "response", entity: ObjectEntity, isRequired: true, isResponse: true, type } as never)
+				public response!: Record<string, unknown>;
+			}
+
+			for (const property of ["request", "response"]) {
+				expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, PublishedDto.prototype, property).type).toBe(Object);
+			}
+		});
+
+		it.each([
+			{ name: "type Object", type: Object },
+			{ name: "no type", type: undefined },
+		])("keeps prototype-named keys of a value with $name", ({ type }: { type: ObjectConstructor | undefined }) => {
+			class TransformedDto {
+				@ApiPropertyObject({ description: "value", entity: ObjectEntity, isRequired: true, type } as never)
+				public value!: Record<string, unknown>;
+			}
+
+			expect(plainToInstance(TransformedDto, { value: { ...VALUE } }).value).toEqual(VALUE);
 		});
 
 		it("still attaches nested validation to a declared class", () => {
@@ -528,7 +599,7 @@ describe("ApiPropertyObject", () => {
 				isUniqueItems: false,
 				maxItems: 2,
 				minItems: 1,
-				type: Object,
+				type: ChildDto,
 			});
 
 			decorator({}, "payloads");

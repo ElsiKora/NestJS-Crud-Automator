@@ -34,3 +34,32 @@ export class E2eFreeFormRecordEntity {
 	})
 	public item!: E2eFreeFormItemDto;
 }
+
+@Entity("e2e_free_form_undeclared_records")
+export class E2eFreeFormUndeclaredRecordEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@Column({ type: "simple-json" })
+	@ApiPropertyDescribe({
+		dataType: undefined,
+		description: "meta",
+		shouldValidateNested: true,
+		type: EApiPropertyDescribeType.OBJECT,
+	})
+	public meta!: Record<string, unknown>;
+
+	@Column({ type: "simple-json" })
+	@ApiPropertyDescribe({
+		dataType: undefined,
+		description: "metas",
+		isArray: true,
+		isUniqueItems: true,
+		maxItems: 5,
+		minItems: 0,
+		shouldValidateNested: true,
+		type: EApiPropertyDescribeType.OBJECT,
+	})
+	public metas!: Array<Record<string, unknown>>;
+}
