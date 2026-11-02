@@ -15,7 +15,7 @@ import { ApiControllerGetListResponsePublishedFields } from "@utility/api/contro
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
 import { CapitalizeString } from "@utility/capitalize-string.utility";
 import { AllOrNoneOfListedPropertiesValidator } from "@validator/all-or-none-of-listed-properties.validator";
-import { Validate } from "class-validator";
+import { Equals, Validate } from "class-validator";
 
 const noopPropertyDecorator: PropertyDecorator = (): void => undefined;
 const noopApiPropertyEnum: typeof ApiPropertyEnum = (): PropertyDecorator => noopPropertyDecorator;
@@ -23,8 +23,8 @@ const noopApiPropertyEnum: typeof ApiPropertyEnum = (): PropertyDecorator => noo
 /**
  * Creates a base class for list query DTOs with pagination and sorting properties.
  * Includes limit, mode-specific pagination fields, and applicable sorting properties with
- * appropriate validation rules. CURSOR omits orderBy and orderDirection when the plan enables
- * no client-order fields.
+ * appropriate validation rules. When no field is orderable, orderBy and orderDirection are left
+ * out of the documentation and any value sent for them fails validation.
  * @param {ObjectLiteral} entity - The entity class or prototype
  * @param {IApiEntity<E>} entityMetadata - The entity metadata containing column information
  * @param {EApiRouteType} method - The API route type (GET_LIST)
@@ -49,8 +49,7 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 				)
 			: FilterOrderByFromEntity(entity, entityMetadata, method, dtoType, undefined, currentGuard, publishedFields);
 	const hasClientOrderFields: boolean = Object.keys(orderBy).length > 0;
-	const shouldExposeClientOrder: boolean = !isCursor || hasClientOrderFields;
-	const clientOrderPropertyDecorator: typeof ApiPropertyEnum = shouldExposeClientOrder ? ApiPropertyEnum : noopApiPropertyEnum;
+	const clientOrderPropertyDecorator: typeof ApiPropertyEnum = hasClientOrderFields ? ApiPropertyEnum : noopApiPropertyEnum;
 
 	class BaseQueryDTO {
 		@ApiPropertyNumber({
@@ -88,11 +87,11 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 		public constructor() {
 			if (isCursor) {
 				Reflect.deleteProperty(this, "page");
+			}
 
-				if (!shouldExposeClientOrder) {
-					Reflect.deleteProperty(this, "orderBy");
-					Reflect.deleteProperty(this, "orderDirection");
-				}
+			if (!hasClientOrderFields) {
+				Reflect.deleteProperty(this, "orderBy");
+				Reflect.deleteProperty(this, "orderDirection");
 			}
 		}
 
@@ -130,8 +129,13 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 		})(BaseQueryDTO.prototype, "page");
 	}
 
-	if (shouldExposeClientOrder) {
+	if (hasClientOrderFields) {
 		Validate(AllOrNoneOfListedPropertiesValidator, ["orderBy", "orderDirection"])(BaseQueryDTO.prototype, "object");
+	} else {
+		// An empty orderBy enum is not valid OpenAPI, so the route documents no order and refuses any it receives.
+		for (const property of ["orderBy", "orderDirection"] as const) {
+			Equals(undefined, { message: `${property} is not accepted because no field of this route is orderable` })(BaseQueryDTO.prototype, property);
+		}
 	}
 
 	return BaseQueryDTO;
