@@ -38,11 +38,13 @@ import { ApiControllerGetListCursorRuntime } from "@class/api/controller/get-lis
 import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/runtime.class";
+import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ClassTransformerFreeFormValue } from "@class/class-transformer-free-form-value.class";
 import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
 import { FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
+import { PATH_PARAMETER_FAILURE_CONSTANT } from "@constant/path-parameter-failure.constant";
 import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiDtoType } from "@enum/decorator/api";
 import { BadRequestException } from "@nestjs/common";
@@ -61,6 +63,7 @@ import { ApiControllerGetPrimaryColumn } from "@utility/api/controller/get/prima
 import { ApiControllerHandleRequestRelations } from "@utility/api/controller/handle-request-relations.utility";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ApiControllerParametersDtoGet, ApiControllerParametersResolveRequest, ApiControllerParametersValidate } from "@utility/api/controller/parameters";
+import { ApiControllerParametersCreateFailure } from "@utility/api/controller/parameters/create-failure.utility";
 import { ApiControllerReadPlanGet, ApiControllerReadScopeWhere } from "@utility/api/controller/read";
 import { ApiControllerRejectToManyUpdateKeys } from "@utility/api/controller/reject-to-many-update-keys.utility";
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
@@ -853,7 +856,7 @@ export class ApiRouteRuntime {
 		const value: unknown = parameters && Object.hasOwn(parameters, identityPlan.parameter) ? parameters[identityPlan.parameter] : undefined;
 
 		if (value === undefined || value === null) {
-			throw new BadRequestException([`${identityPlan.parameter} should not be null or undefined`]);
+			throw new ApiRequestValidationException([ApiControllerParametersCreateFailure(identityPlan.parameter, PATH_PARAMETER_FAILURE_CONSTANT.MISSING_CONSTRAINT, `${identityPlan.parameter} should not be null or undefined`)]);
 		}
 
 		const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((entityColumn: IApiEntityColumn<E>): boolean => String(entityColumn.name) === identityPlan.field);

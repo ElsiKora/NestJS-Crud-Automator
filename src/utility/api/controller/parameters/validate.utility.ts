@@ -4,12 +4,13 @@ import type { IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { ValidationError } from "class-validator";
 
-import { BadRequestException } from "@nestjs/common";
-import { ApiRouteValidationFlattenErrors } from "@utility/api/route/validation-flatten-errors.utility";
+import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
+import { PATH_PARAMETER_FAILURE_CONSTANT } from "@constant/path-parameter-failure.constant";
 import { validate } from "class-validator";
 
 import { ApiControllerParametersIsIntegerColumn } from "./column/numeric-type.utility";
 import { ApiControllerParametersConvert } from "./convert.utility";
+import { ApiControllerParametersCreateFailure } from "./create-failure.utility";
 import { ApiControllerParametersRouteDtoValidate } from "./route-dto.utility";
 
 const CANONICAL_INTEGER_PATTERN: RegExp = /^(?:0|-?[1-9]\d*)$/;
@@ -23,7 +24,7 @@ const CANONICAL_INTEGER_PATTERN: RegExp = /^(?:0|-?[1-9]\d*)$/;
  * @param {IApiControllerParametersRule | Type<unknown>} rule - Path value rule of the route, or a single DTO built from the described column types.
  * @param {Partial<E> | undefined} parameters - Path values after route-before subscribers and PARAMETERS transformers.
  * @returns {Promise<Partial<E>>} Path values converted to the described column types, such as a number for a NUMBER column.
- * @throws {BadRequestException} With the flattened class-validator messages, the same body a Nest `ValidationPipe` returns, when any path value fails its described type or the configured DTO.
+ * @throws {ApiRequestValidationException} With the class-validator failures as they are, and the body a Nest `ValidationPipe` returns, when any path value fails its described type or the configured DTO.
  */
 export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(rule: IApiControllerParametersRule | Type<unknown>, parameters: Partial<E> | undefined): Promise<Partial<E>> {
 	const { columns, configuredDto, dto, routeDtoProperties }: IApiControllerParametersRule = typeof rule === "function" ? { dto: rule } : rule;
@@ -40,7 +41,7 @@ export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(
 	const errors: Array<ValidationError> = await validate(instance);
 
 	if (errors.length > 0) {
-		throw new BadRequestException(ApiRouteValidationFlattenErrors(errors));
+		throw new ApiRequestValidationException(errors);
 	}
 
 	const validated: Record<string, unknown> = {};
@@ -65,7 +66,7 @@ export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(
 		});
 
 		if (configuredErrors.length > 0) {
-			throw new BadRequestException(ApiRouteValidationFlattenErrors(configuredErrors));
+			throw new ApiRequestValidationException(configuredErrors);
 		}
 	}
 
@@ -80,20 +81,20 @@ export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(
  * @param {ReadonlyMap<string, IApiEntityColumn<unknown>> | undefined} columns - The entity column of each path parameter.
  * @param {Record<string, unknown>} values - Converted path values.
  * @returns {void}
- * @throws {BadRequestException} When the text of an integer column is not canonical.
+ * @throws {ApiRequestValidationException} When the text of an integer column is not canonical.
  */
 function assertCanonicalIntegers(columns: ReadonlyMap<string, IApiEntityColumn<unknown>> | undefined, values: Record<string, unknown>): void {
-	const messages: Array<string> = [];
+	const failures: Array<ValidationError> = [];
 
 	for (const [parameter, column] of columns ?? []) {
 		const value: unknown = values[parameter];
 
 		if (typeof value === "string" && ApiControllerParametersIsIntegerColumn(column.type) && !CANONICAL_INTEGER_PATTERN.test(value)) {
-			messages.push(`${parameter} must be a decimal integer without leading zeros`);
+			failures.push(ApiControllerParametersCreateFailure(parameter, PATH_PARAMETER_FAILURE_CONSTANT.NOT_CANONICAL_CONSTRAINT, `${parameter} must be a decimal integer without leading zeros`));
 		}
 	}
 
-	if (messages.length > 0) {
-		throw new BadRequestException(messages);
+	if (failures.length > 0) {
+		throw new ApiRequestValidationException(failures);
 	}
 }

@@ -2,6 +2,7 @@ import type { IApiControllerParametersRule } from "@interface/class/api/controll
 
 import "reflect-metadata";
 
+import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { ApiPropertyCopy } from "@decorator/api/property/copy.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
@@ -609,8 +610,8 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleIntegerTextCopyParametersDto, methodName: "integerText", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
 
 		await expect(ApiControllerParametersValidate(rule!, { id: "16" } as never)).resolves.toEqual({ id: "16" });
-		await expect(ApiControllerParametersValidate(rule!, { id: "016" } as never)).rejects.toThrow("Bad Request");
-		await expect(ApiControllerParametersValidate(rule!, { id: "-0" } as never)).rejects.toThrow("Bad Request");
+		await expect(ApiControllerParametersValidate(rule!, { id: "016" } as never)).rejects.toThrow(ApiRequestValidationException);
+		await expect(ApiControllerParametersValidate(rule!, { id: "-0" } as never)).rejects.toThrow(ApiRequestValidationException);
 	});
 
 	it("does not fail at startup when a Transform rejects the startup sample", () => {

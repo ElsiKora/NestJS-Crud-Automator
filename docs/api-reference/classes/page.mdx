@@ -277,7 +277,7 @@ The operation failed and rollback handling also produced a database, post-rollba
 
 ### ApiRequestValidationException
 
-A `BadRequestException` for a request refused before any pipe ran, which a host's `exceptionFactory` therefore never saw. Its response is the message list a `ValidationPipe` answers with, and `validationErrors` holds the same failures as class-validator `ValidationError` objects, for a host filter that translates them. A failure's `property` can hold client text and it has no `value` or `target`.
+A `BadRequestException` for a request refused before any pipe ran, which a host's `exceptionFactory` therefore never saw. Its response is the message list a `ValidationPipe` answers with, and `validationErrors` holds the same failures as class-validator `ValidationError` objects, for a host filter that translates them. A failure's `property` can hold client text. A failure of a path value that class-validator raised keeps its `value` and `target`, as a pipe's `exceptionFactory` would get it; every other failure has neither.
 
 **Location:** `src/class/api/request-validation-exception.class.ts`
 

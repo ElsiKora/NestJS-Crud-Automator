@@ -2,6 +2,7 @@ import type { IApiControllerParametersRule } from "@interface/class/api/controll
 
 import "reflect-metadata";
 
+import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
 import { ApiControllerParametersValidate } from "@utility/api/controller/parameters/validate.utility";
 import { Expose, Transform, Type } from "class-transformer";
@@ -102,7 +103,7 @@ describe("the route PARAMETERS DTO rule", () => {
 		const rule: IApiControllerParametersRule = buildRule(GrowsOnSomeValuesDto, "grows");
 
 		await expect(ApiControllerParametersValidate(rule, { id: "abc" } as never)).resolves.toEqual({ id: "abc" });
-		await expect(ApiControllerParametersValidate(rule, { id: "xyz" } as never)).rejects.toThrow("Bad Request");
+		await expect(ApiControllerParametersValidate(rule, { id: "xyz" } as never)).rejects.toThrow(ApiRequestValidationException);
 	});
 
 	it("leaves a required property the path does not carry to the host pipe", async () => {

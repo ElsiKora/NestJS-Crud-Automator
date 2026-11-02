@@ -3,12 +3,13 @@ import type { IApiControllerParametersRouteDtoProblem } from "@interface/class/a
 import type { Type } from "@nestjs/common";
 import type { ValidationError } from "class-validator";
 
-import { BadRequestException } from "@nestjs/common";
-import { ApiRouteValidationFlattenErrors } from "@utility/api/route/validation-flatten-errors.utility";
+import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
+import { PATH_PARAMETER_FAILURE_CONSTANT } from "@constant/path-parameter-failure.constant";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
 import { validate, validateSync } from "class-validator";
 
 import { ApiControllerParametersConvert } from "./convert.utility";
+import { ApiControllerParametersCreateFailure } from "./create-failure.utility";
 
 const DISAGREEMENT_REASON: string = "its PARAMETERS DTO converts it differently with and without implicit conversion, so a handler could read another value than IAM saw. Implicit conversion runs before a @Transform: pin the type with @Type, or read the sent text from obj[key] in the @Transform";
 const UNSTABLE_REASON: string = "its PARAMETERS DTO changes its own output, so a host pipe would convert the text IAM saw again: make its @Transform give the same result on its own output, or move the conversion into the handler";
@@ -62,7 +63,7 @@ export function ApiControllerParametersRouteDtoCheckSample(dto: Type<unknown>, p
  * @param {ReadonlyMap<string, string>} properties - The DTO property that holds each path parameter.
  * @param {Record<string, unknown>} parameters - Path values as Nest passed them to the handler.
  * @returns {Promise<Record<string, unknown>>} The value the DTO produced for each path parameter.
- * @throws {BadRequestException} With the flattened class-validator messages when a path value fails the DTO, has no text form, or does not keep one text.
+ * @throws {ApiRequestValidationException} With the class-validator failures as they are when a path value fails the DTO, or one failure with a stable constraint per path value that has no text form or does not keep one text.
  */
 export async function ApiControllerParametersRouteDtoValidate(dto: Type<unknown>, properties: ReadonlyMap<string, string>, parameters: Record<string, unknown>): Promise<Record<string, unknown>> {
 	const attempts: Array<IApiControllerParametersRouteDtoAttempt> = [await run(dto, properties, parameters, true), await run(dto, properties, parameters, false)];
@@ -70,10 +71,10 @@ export async function ApiControllerParametersRouteDtoValidate(dto: Type<unknown>
 	const [first]: Array<IApiControllerParametersRouteDtoAttempt> = accepted;
 
 	if (!first) {
-		const rejected: IApiControllerParametersRouteDtoAttempt | undefined = attempts.find((attempt: IApiControllerParametersRouteDtoAttempt): boolean => attempt.messages.length > 0);
+		const rejected: IApiControllerParametersRouteDtoAttempt | undefined = attempts.find((attempt: IApiControllerParametersRouteDtoAttempt): boolean => attempt.errors.length > 0);
 
 		if (rejected) {
-			throw new BadRequestException(rejected.messages);
+			throw new ApiRequestValidationException(rejected.errors);
 		}
 
 		throw attempts[0]?.failure?.error;
@@ -83,13 +84,13 @@ export async function ApiControllerParametersRouteDtoValidate(dto: Type<unknown>
 	const noText: Array<string> = Object.keys(texts).filter((key: string): boolean => texts[key] === undefined);
 
 	if (noText.length > 0) {
-		throw new BadRequestException(noText.map((key: string): string => `${key} has no text form`));
+		throw new ApiRequestValidationException(noText.map((key: string): ValidationError => ApiControllerParametersCreateFailure(key, PATH_PARAMETER_FAILURE_CONSTANT.NO_TEXT_CONSTRAINT, `${key} has no text form`)));
 	}
 
 	const different: string | undefined = findDifferentText(accepted, texts);
 
 	if (different !== undefined) {
-		throw new BadRequestException([`${different} converts differently with and without implicit conversion`]);
+		throw new ApiRequestValidationException([ApiControllerParametersCreateFailure(different, PATH_PARAMETER_FAILURE_CONSTANT.CONVERSION_MISMATCH_CONSTRAINT, `${different} converts differently with and without implicit conversion`)]);
 	}
 
 	// A pure DTO gives the same result on the same text, so only changed text needs another run.
@@ -100,7 +101,7 @@ export async function ApiControllerParametersRouteDtoValidate(dto: Type<unknown>
 	const unstable: string | undefined = findDifferentText([await run(dto, properties, texts, true), await run(dto, properties, texts, false)], texts);
 
 	if (unstable !== undefined) {
-		throw new BadRequestException([`${unstable} does not keep its value when its DTO runs on it again`]);
+		throw new ApiRequestValidationException([ApiControllerParametersCreateFailure(unstable, PATH_PARAMETER_FAILURE_CONSTANT.UNSTABLE_CONSTRAINT, `${unstable} does not keep its value when its DTO runs on it again`)]);
 	}
 
 	return first.values;
@@ -165,7 +166,7 @@ async function run(dto: Type<unknown>, properties: ReadonlyMap<string, string>, 
 
 		return settle(instance, errors, properties, parameters);
 	} catch (error) {
-		return { failure: { error }, isAccepted: false, messages: [], values: {} };
+		return { errors: [], failure: { error }, isAccepted: false, values: {} };
 	}
 }
 
@@ -191,7 +192,7 @@ function runSync(dto: Type<unknown>, properties: ReadonlyMap<string, string>, pa
 
 		return settle(instance, errors, properties, parameters);
 	} catch (error) {
-		return { failure: { error }, isAccepted: false, messages: [], values: {} };
+		return { errors: [], failure: { error }, isAccepted: false, values: {} };
 	}
 }
 
@@ -205,8 +206,8 @@ function runSync(dto: Type<unknown>, properties: ReadonlyMap<string, string>, pa
  */
 function settle(instance: object, errors: Array<ValidationError>, properties: ReadonlyMap<string, string>, parameters: Record<string, unknown>): IApiControllerParametersRouteDtoAttempt {
 	const pathProperties: Set<string> = new Set<string>(properties.values());
-	const messages: Array<string> = ApiRouteValidationFlattenErrors(errors.filter((error: ValidationError): boolean => pathProperties.has(error.property)));
+	const pathErrors: Array<ValidationError> = errors.filter((error: ValidationError): boolean => pathProperties.has(error.property));
 	const values: Record<string, unknown> = Object.fromEntries(Object.keys(parameters).map((parameter: string): [string, unknown] => [parameter, Reflect.get(instance, properties.get(parameter) ?? parameter)]));
 
-	return { isAccepted: messages.length === 0, messages, values };
+	return { errors: pathErrors, isAccepted: pathErrors.length === 0, values };
 }

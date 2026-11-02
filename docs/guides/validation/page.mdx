@@ -514,7 +514,7 @@ Generated `GET`, `UPDATE`, `PARTIAL_UPDATE`, and `DELETE` routes, and generated 
 - a `DATE` value must be a real `YYYY-MM-DD` day and stays that string;
 - `STRING` and `ENUM` values follow their own described rules.
 
-A value that fails returns `400` with the same body a Nest `ValidationPipe` returns, for example `message: ["id must be a UUID"]`, and no SQL is sent. The messages name the parameter but do not echo the value. The body is the same with or without a host pipe.
+A value that fails returns `400` with the same body a Nest `ValidationPipe` returns, for example `message: ["id must be a UUID"]`, and no SQL is sent. The messages name the parameter but do not echo the value. The body is the same with or without a host pipe. It is an `ApiRequestValidationException`, so a host filter can answer it with your pipe's `exceptionFactory`, as [Translating Request Validation Failures](/docs/nestjs-crud-automator/guides/error-handling#translating-request-validation-failures) shows.
 
 A configured PARAMETERS DTO (`dto[EApiDtoType.PARAMETERS]`) does not change how a path value is converted. The value is first converted by the rule of its described column, as above. The configured DTO then validates the converted value, with `forbidUnknownValues: false`. It can reject more values, never accept one the column rule rejects:
 

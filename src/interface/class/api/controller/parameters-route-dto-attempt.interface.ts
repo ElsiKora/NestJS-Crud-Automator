@@ -1,6 +1,8 @@
+import type { ValidationError } from "class-validator";
+
 export interface IApiControllerParametersRouteDtoAttempt {
+	errors: Array<ValidationError>;
 	failure?: { error: unknown };
 	isAccepted: boolean;
-	messages: Array<string>;
 	values: Record<string, unknown>;
 }
