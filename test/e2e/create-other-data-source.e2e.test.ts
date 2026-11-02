@@ -1,12 +1,14 @@
 import "reflect-metadata";
 
 import type { INestApplication } from "@nestjs/common";
+import type { StartedTestContainer } from "testcontainers";
 import type { EntityManager } from "typeorm";
 
 import { Inject, Injectable, Module } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { getDataSourceToken, InjectDataSource, InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Column, DataSource, Entity, PrimaryGeneratedColumn, Repository } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -43,6 +45,13 @@ const knob: { afterCreate?: (context: { DATA: { eventManager?: EntityManager } }
 @ApiServiceObservable()
 @ApiService({ entity: MainItemEntity })
 class MainItemService extends ApiServiceBase<MainItemEntity> {
+	@InjectRepository(MainItemEntity)
+	public readonly repository!: Repository<MainItemEntity>;
+}
+
+@Injectable()
+@ApiService({ entity: MainItemEntity, functions: { [EApiFunctionType.CREATE]: { transaction: { mode: EApiFunctionTransactionMode.REQUIRED } } } })
+class RequiredMainItemService extends ApiServiceBase<MainItemEntity> {
 	@InjectRepository(MainItemEntity)
 	public readonly repository!: Repository<MainItemEntity>;
 }
@@ -115,17 +124,29 @@ class SourceHolder {
 	) {}
 }
 
-const database = { database: ":memory:", dropSchema: true, logging: false, synchronize: true, type: "better-sqlite3" } as const;
+const SQLITE: object = { database: ":memory:", type: "better-sqlite3" };
 
-@Module({
-	controllers: [MainItemController],
-	imports: [TypeOrmModule.forRoot({ ...database, entities: [MainItemEntity] }), TypeOrmModule.forRoot({ ...database, entities: [SecondItemEntity], name: SECOND }), TypeOrmModule.forFeature([MainItemEntity]), TypeOrmModule.forFeature([SecondItemEntity], SECOND), ApiAuthorizationModule.forRoot({ principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user as never) } } as never), ApiSubscriberModule],
-	providers: [MainItemService, MainItemSubscriber, MandatorySecondItemService, RequiredSecondItemService, SecondItemService, SecondItemSubscriber, SourceHolder],
-})
-class OtherSourceModule {}
+interface IMainDriver {
+	name: string;
+	start: () => Promise<{ container?: StartedTestContainer; options: object }>;
+}
 
-describe("Generated CREATE with a subscriber on another DataSource (E2E)", () => {
+// The second DataSource is SQLite. On SQLite the main DataSource has one connection, so only the pooled main shows whether a nested call really joined the create.
+const MAIN_DRIVERS: Array<IMainDriver> = [
+	{ name: "better-sqlite3", start: async () => ({ options: SQLITE }) },
+	{
+		name: "postgres",
+		start: async () => {
+			const container = await new PostgreSqlContainer("postgres:17-alpine").start();
+
+			return { container, options: { database: container.getDatabase(), host: container.getHost(), password: container.getPassword(), port: container.getPort(), type: "postgres", username: container.getUsername() } };
+		},
+	},
+];
+
+describe.each(MAIN_DRIVERS)("Generated CREATE on $name with a subscriber on another DataSource (E2E)", (driver: IMainDriver) => {
 	let app: INestApplication;
+	let container: StartedTestContainer | undefined;
 	let main: DataSource;
 	let mainItems: Repository<MainItemEntity>;
 	let mainService: MainItemService;
@@ -136,6 +157,23 @@ describe("Generated CREATE with a subscriber on another DataSource (E2E)", () =>
 	const post = async (name: string = "main"): Promise<{ json: () => { message?: string }; statusCode: number }> => await app.getHttpAdapter().getInstance().inject({ method: "POST", payload: { name }, url: "/main" });
 
 	beforeAll(async () => {
+		const started = await driver.start();
+		container = started.container;
+
+		@Module({
+			controllers: [MainItemController],
+			imports: [
+				TypeOrmModule.forRoot({ ...started.options, dropSchema: true, entities: [MainItemEntity], logging: false, synchronize: true } as never),
+				TypeOrmModule.forRoot({ ...SQLITE, dropSchema: true, entities: [SecondItemEntity], logging: false, name: SECOND, synchronize: true } as never),
+				TypeOrmModule.forFeature([MainItemEntity]),
+				TypeOrmModule.forFeature([SecondItemEntity], SECOND),
+				ApiAuthorizationModule.forRoot({ principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user as never) } } as never),
+				ApiSubscriberModule,
+			],
+			providers: [MainItemService, MainItemSubscriber, MandatorySecondItemService, RequiredMainItemService, RequiredSecondItemService, SecondItemService, SecondItemSubscriber, SourceHolder],
+		})
+		class OtherSourceModule {}
+
 		const moduleRef = await Test.createTestingModule({ imports: [OtherSourceModule] }).compile();
 
 		app = moduleRef.createNestApplication(new FastifyAdapter());
@@ -147,11 +185,12 @@ describe("Generated CREATE with a subscriber on another DataSource (E2E)", () =>
 		secondItems = second.getRepository(SecondItemEntity);
 		mainService = moduleRef.get(MainItemService);
 		secondService = moduleRef.get(SecondItemService);
-	});
+	}, 180_000);
 
 	afterAll(async () => {
-		await app.close();
-	});
+		await app?.close();
+		await container?.stop();
+	}, 60_000);
 
 	beforeEach(async () => {
 		await mainItems.clear();
@@ -206,10 +245,33 @@ describe("Generated CREATE with a subscriber on another DataSource (E2E)", () =>
 			expect(await secondItems.count()).toBe(0);
 		});
 
-		it("joins the create again when it calls back into the first DataSource", async () => {
+		it("joins the create again when it calls back into the first DataSource", { timeout: 20_000 }, async () => {
+			let nested: EntityManager | undefined;
+			let outer: EntityManager | undefined;
+			knob.afterSecondCreate = async () => {
+				knob.afterCreate = async (context) => {
+					nested = context.DATA.eventManager;
+				};
+				await mainService.create({ name: "nested" });
+			};
+			knob.afterCreate = async (context) => {
+				outer = context.DATA.eventManager;
+				await secondService.create({ name: "kept" });
+
+				throw new Error("Failed after the nested writes");
+			};
+
+			expect((await post()).statusCode).toBe(500);
+			expect(nested).toBe(outer);
+			expect(await mainItems.count()).toBe(0);
+			expect(await secondItems.countBy({ name: "kept" })).toBe(1);
+		});
+
+		it("joins the create again from a REQUIRED call after a hop without a transaction", { timeout: 20_000 }, async () => {
+			const required: RequiredMainItemService = app.get(RequiredMainItemService);
 			knob.afterSecondCreate = async () => {
 				knob.afterCreate = undefined;
-				await mainService.create({ name: "nested" });
+				await required.create({ name: "nested" });
 			};
 			knob.afterCreate = async () => {
 				await secondService.create({ name: "kept" });
@@ -220,6 +282,28 @@ describe("Generated CREATE with a subscriber on another DataSource (E2E)", () =>
 			expect((await post()).statusCode).toBe(500);
 			expect(await mainItems.count()).toBe(0);
 			expect(await secondItems.countBy({ name: "kept" })).toBe(1);
+		});
+
+		it("joins the create again from a scope after a hop without a transaction", { timeout: 20_000 }, async () => {
+			let outer: EntityManager | undefined;
+			let scoped: EntityManager | undefined;
+			knob.afterSecondCreate = async () => {
+				await ApiFunctionTransactionScope.runWithDataSource(main, { name: "back" }, async (entityManager: EntityManager) => {
+					scoped = entityManager;
+					await entityManager.getRepository(MainItemEntity).save({ name: "scoped" });
+				});
+			};
+			knob.afterCreate = async (context) => {
+				knob.afterCreate = undefined;
+				outer = context.DATA.eventManager;
+				await secondService.create({ name: "kept" });
+
+				throw new Error("Failed after the nested writes");
+			};
+
+			expect((await post()).statusCode).toBe(500);
+			expect(scoped).toBe(outer);
+			expect(await mainItems.count()).toBe(0);
 		});
 
 		it("leaves the transaction of the create in place afterwards", async () => {

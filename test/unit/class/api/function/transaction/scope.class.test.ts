@@ -90,6 +90,35 @@ describe("ApiFunctionTransactionScope", () => {
 		expect(outer.dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
 	});
 
+	it.each([
+		["a scope", async (outer: ReturnType<typeof createTransactionFixture>): Promise<EntityManager | undefined> => await ApiFunctionTransactionScope.runWithDataSource(outer.dataSource, { name: "back" }, async (entityManager: EntityManager) => entityManager)],
+		["a REQUIRED function", async (outer: ReturnType<typeof createTransactionFixture>): Promise<EntityManager | undefined> => await ApiFunctionExecuteWithTransaction({ callback: async (entityManager: EntityManager | undefined) => entityManager, entity: class {}, functionType: EApiFunctionTransactionTraceType.STEP, methodName: "back", mode: EApiFunctionTransactionMode.REQUIRED, repository: { manager: outer.entityManager } as never })],
+	])("joins an active transaction again from %s after a call on another data source without a transaction", async (_name: string, callBack: (outer: ReturnType<typeof createTransactionFixture>) => Promise<EntityManager | undefined>) => {
+		const outer = createTransactionFixture();
+		const inner = createTransactionFixture();
+		let hop: EntityManager | undefined;
+		let joined: EntityManager | undefined;
+
+		await ApiFunctionTransactionScope.runWithDataSource(outer.dataSource, { name: "outer" }, async () => {
+			await ApiFunctionExecuteWithTransaction({
+				callback: async (entityManager: EntityManager | undefined) => {
+					hop = entityManager;
+					joined = await callBack(outer);
+				},
+				entity: class {},
+				functionType: EApiFunctionTransactionTraceType.STEP,
+				methodName: "hop",
+				mode: EApiFunctionTransactionMode.SUPPORTS,
+				repository: { manager: inner.entityManager } as never,
+			});
+		});
+
+		expect(hop).toBeUndefined();
+		expect(joined).toBe(outer.entityManager);
+		expect(outer.dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
+		expect(inner.dataSource.createQueryRunner).not.toHaveBeenCalled();
+	});
+
 	it("joins an active transaction on the same data source", async () => {
 		const { dataSource, entityManager, queryRunner } = createTransactionFixture();
 		let joined: EntityManager | undefined;
