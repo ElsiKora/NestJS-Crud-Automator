@@ -13,7 +13,7 @@ import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/author
 import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiPolicyEffect } from "@enum/class/authorization";
 import { IApiAuthorizationDecision } from "@interface/class/api/authorization";
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Optional } from "@nestjs/common";
 import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
 import { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
@@ -24,16 +24,17 @@ import { LoggerUtility } from "@utility/logger.utility";
 import { DeepPartial } from "typeorm";
 
 const authorizationGuardLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationGuard");
+const MISSING_REGISTRY_MESSAGE: string = "ApiAuthorizationGuard needs ApiAuthorizationParametersRuleRegistry: resolve the guard from ApiAuthorizationModule or pass app.get(ApiAuthorizationParametersRuleRegistry) to its constructor";
 
 @Injectable()
 export class ApiAuthorizationGuard implements CanActivate {
 	public constructor(
 		private readonly runtime: ApiAuthorizationRuntime,
-		private readonly parametersRuleRegistry: ApiAuthorizationParametersRuleRegistry,
+		// Without ApiAuthorizationModule nothing provides the registry; the guard still resolves, so the module check fails startup with its own message.
+		@Optional() private readonly parametersRuleRegistry?: ApiAuthorizationParametersRuleRegistry,
 	) {
-		// A manual `new`, such as one passed to `useGlobalGuards`, without the registry fails here instead of on every request.
-		if (!(parametersRuleRegistry instanceof ApiAuthorizationParametersRuleRegistry)) {
-			throw ErrorException("ApiAuthorizationGuard needs ApiAuthorizationParametersRuleRegistry: resolve the guard from ApiAuthorizationModule or pass app.get(ApiAuthorizationParametersRuleRegistry) to its constructor");
+		if (parametersRuleRegistry !== undefined && !(parametersRuleRegistry instanceof ApiAuthorizationParametersRuleRegistry)) {
+			throw ErrorException(MISSING_REGISTRY_MESSAGE);
 		}
 	}
 
@@ -42,6 +43,11 @@ export class ApiAuthorizationGuard implements CanActivate {
 			authorizationGuardLogger.debug("Controller is not marked as @ApiControllerSecurable, skipping authorization");
 
 			return true;
+		}
+
+		// A guard built without the registry cannot see the rule of a custom route, so it refuses instead of authorizing on the text as sent.
+		if (!this.parametersRuleRegistry) {
+			throw ErrorException(MISSING_REGISTRY_MESSAGE);
 		}
 
 		const properties: IApiControllerProperties<IApiBaseEntity> | undefined = this.resolveControllerProperties(context);
@@ -60,6 +66,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 		const request: TApiAuthorizationGuardRequest = context.switchToHttp().getRequest<TApiAuthorizationGuardRequest>();
 		const authenticationRequest: IApiAuthenticationRequest = request as unknown as IApiAuthenticationRequest;
 		const identityPlan: IApiControllerIdentityPlan | undefined = ApiControllerIdentityPlanGet(context.getHandler());
+
 		// Path values are validated before authorization; authorization sees their canonical text, and so does every later reader of request.params.
 		// A custom route rule belongs to the controller class, because a handler inherited by several controllers is one shared function.
 		const parametersRule: IApiControllerParametersRule | undefined = this.parametersRuleRegistry.get(context.getClass(), context.getHandler()) ?? ApiControllerParametersDtoGet(context.getHandler());
