@@ -11,7 +11,7 @@ import { AuthorizationSerializeValue } from "@utility/authorization/serialize-va
 import { ClassTransformerReadLimits } from "@utility/class-transformer/read-limits.utility";
 import { GetManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/get.utility";
 import { ErrorException } from "@utility/error/exception.utility";
-import { getMetadataStorage, ValidationTypes } from "class-validator";
+import { getMetadataStorage, IS_UUID, ValidationTypes } from "class-validator";
 
 import { ApiControllerParametersIsDecimalColumn } from "./column/numeric-type.utility";
 import { ApiControllerParametersConvert } from "./convert.utility";
@@ -89,7 +89,7 @@ export function ApiControllerParametersBuildCustomRule(options: IApiControllerPa
 		return undefined;
 	}
 
-	const rule: IApiControllerParametersRule = { columns: readCopiedColumns(options.dto, routeDtoProperties), dto: options.dto, routeDtoProperties };
+	const rule: IApiControllerParametersRule = { columns: readCopiedColumns(options.dto, routeDtoProperties), dto: options.dto, routeDtoProperties, uuidParameters: readUuidParameters(options.dto, routeDtoProperties) };
 	ApiControllerParametersAssertComparableColumns(rule, route);
 
 	return rule;
@@ -270,6 +270,23 @@ function readSampleText(dto: Type<unknown>, sample: Record<string, string>, prop
 	} catch {
 		return undefined;
 	}
+}
+
+/**
+ * Lists the path parameters whose DTO property is validated as a UUID, such as by `ApiPropertyUUID` or a bare `@IsUUID()`, inherited and mapped types included.
+ * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
+ * @param {ReadonlyMap<string, string>} properties - The DTO property that holds each path parameter.
+ * @returns {Set<string>} The path parameters held by a UUID property.
+ */
+function readUuidParameters(dto: Type<unknown>, properties: ReadonlyMap<string, string>): Set<string> {
+	const uuidProperties: Set<string> = new Set<string>(
+		getMetadataStorage()
+			.getTargetValidationMetadatas(dto, "", false, false)
+			.filter((metadata: TValidationMetadata): boolean => metadata.name === IS_UUID)
+			.map((metadata: TValidationMetadata): string => metadata.propertyName),
+	);
+
+	return new Set<string>([...properties].filter(([, property]: [string, string]): boolean => uuidProperties.has(property)).map(([parameter]: [string, string]): string => parameter));
 }
 
 /**

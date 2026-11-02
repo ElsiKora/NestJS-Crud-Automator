@@ -7,4 +7,6 @@ export interface IApiControllerParametersRule {
 	configuredDto?: Type<unknown>;
 	dto: Type<unknown>;
 	routeDtoProperties?: ReadonlyMap<string, string>;
+	/** The path parameters that the route DTO validates as a UUID, where the route knows no column: their text must be lower-case too. */
+	uuidParameters?: ReadonlySet<string>;
 }
