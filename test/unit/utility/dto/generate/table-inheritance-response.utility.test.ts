@@ -217,6 +217,38 @@ describe("DtoGenerateTableInheritanceResponse", () => {
 			expect(type).toHaveLength(2);
 		});
 
+		it("generates a separate response for each of two guard classes that share one name", () => {
+			const createGuard = (): Type<CanActivate> => {
+				class ResponseSameNameGuard implements CanActivate {
+					public canActivate(): boolean {
+						return true;
+					}
+				}
+
+				return ResponseSameNameGuard;
+			};
+			const FirstGuard = createGuard();
+			const SecondGuard = createGuard();
+			const generate = (guard: Type<CanActivate>): TApiRouteDiscriminatedDtoProperties => DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, plan, EApiRouteType.GET, "ResponseSameNameGuard", undefined, guard) as TApiRouteDiscriminatedDtoProperties;
+
+			expect(FirstGuard.name).toBe(SecondGuard.name);
+			expect(generate(FirstGuard)).not.toBe(generate(SecondGuard));
+			expect(generate(FirstGuard)).toBe(generate(FirstGuard));
+			expect(generate(FirstGuard).discriminator.mapping[EResponseKind.QR]).not.toBe(generate(SecondGuard).discriminator.mapping[EResponseKind.QR]);
+		});
+
+		it("generates a separate response for two hand-built plans whose variant classes share a name", () => {
+			const createVariant = (): new () => ResponseRootEntity => class ResponseSameNameVariantEntity extends ResponseRootEntity {};
+			const createPlan = (entity: new () => ResponseRootEntity): IApiControllerTableInheritancePlan => ({ ...plan, childEntities: [entity], variants: [{ discriminatorValue: "same", entity, entityMetadata: rootMetadata as never }] }) as IApiControllerTableInheritancePlan;
+			const generate = (entity: new () => ResponseRootEntity): unknown => DtoGenerateTableInheritanceResponse(ResponseRootEntity, rootMetadata, createPlan(entity), EApiRouteType.GET, "ResponseSameNameVariant");
+			const First = createVariant();
+			const Second = createVariant();
+
+			expect(First.name).toBe(Second.name);
+			expect(generate(First)).not.toBe(generate(Second));
+			expect(generate(First)).toBe(generate(First));
+		});
+
 		it("serializes only the fields of the row variant", () => {
 			expect(instanceToPlain(serializeGet(cardRow))).toEqual({ cardNumber: "4111", id: ROW_ID, kind: EResponseKind.CARD_TRANSFER });
 			expect(instanceToPlain(serializeGet(qrRow))).toEqual({ id: ROW_ID, kind: EResponseKind.QR, qrPayload: "qr" });

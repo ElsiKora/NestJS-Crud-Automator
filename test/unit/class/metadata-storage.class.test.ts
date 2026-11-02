@@ -91,4 +91,13 @@ describe("MetadataStorage", () => {
 		expect(storage.getMetadata(LineageBase, "own")).toBeUndefined();
 		expect(storage.getAllEntitiesMetadata().get(LineageLeaf)).toEqual({ own: { [KEY]: { description: "own", type: EApiPropertyDescribeType.STRING } } });
 	});
+
+	it("rejects a class name passed instead of the class", () => {
+		const storage = MetadataStorage.getInstance();
+
+		expect(() => storage.getMetadata("MetadataEntityByName" as never)).toThrowError(TypeError);
+		expect(() => storage.getMetadata("MetadataEntityByName" as never)).toThrowError('MetadataStorage.getMetadata expects the entity class, got the string "MetadataEntityByName". From 5.0.0, pass the class itself.');
+		expect(() => storage.setMetadata("MetadataEntityByName" as never, "name", KEY, { description: "name", type: EApiPropertyDescribeType.STRING })).toThrowError('MetadataStorage.setMetadata expects the entity class, got the string "MetadataEntityByName". From 5.0.0, pass the class itself.');
+		expect([...storage.getAllEntitiesMetadata().keys()]).not.toContain("MetadataEntityByName");
+	});
 });

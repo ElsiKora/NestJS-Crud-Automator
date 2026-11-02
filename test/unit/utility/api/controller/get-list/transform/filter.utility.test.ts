@@ -4,7 +4,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperation } from "@enum/filter";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
@@ -91,6 +91,39 @@ class ItemEntity {
 		description: "owner",
 	} as TApiPropertyDescribeProperties)
 	public owner!: OwnerEntity;
+}
+
+@Entity("filter_ambiguous_owner_first")
+class FilterAmbiguousOwner {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "owner id", type: EApiPropertyDescribeType.UUID } as TApiPropertyDescribeProperties)
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({ description: "owner label", exampleValue: "label", format: EApiPropertyStringType.STRING, maxLength: 32, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING } as TApiPropertyDescribeProperties)
+	public label!: string;
+}
+
+// A second entity class with the owner's name makes the string relation target ambiguous.
+((): unknown => {
+	@Entity("filter_ambiguous_owner_second")
+	class FilterAmbiguousOwner {
+		@PrimaryGeneratedColumn("uuid")
+		public id!: string;
+	}
+
+	return FilterAmbiguousOwner;
+})();
+
+@Entity("filter_ambiguous_holders")
+class FilterAmbiguousHolder {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "holder id", type: EApiPropertyDescribeType.UUID } as TApiPropertyDescribeProperties)
+	public id!: string;
+
+	@ManyToOne("FilterAmbiguousOwner")
+	@ApiPropertyDescribe({ description: "owner", type: EApiPropertyDescribeType.RELATION } as TApiPropertyDescribeProperties)
+	public owner!: FilterAmbiguousOwner;
 }
 
 describe("ApiControllerGetListTransformFilter", () => {
@@ -212,5 +245,15 @@ describe("ApiControllerGetListTransformFilter", () => {
 		const filter = ApiControllerGetListTransformFilter<ItemEntity>(query, metadata);
 
 		expect(filter).not.toHaveProperty("owner");
+	});
+
+	it("fails for a nested relation filter whose string relation target names several entity classes", () => {
+		const metadata = GenerateEntityInformation<FilterAmbiguousHolder>(FilterAmbiguousHolder as unknown as IApiBaseEntity);
+		const query = {
+			"owner.label[operator]": EFilterOperation.EQ,
+			"owner.label[value]": "label",
+		};
+
+		expect(() => ApiControllerGetListTransformFilter<FilterAmbiguousHolder>(query, metadata)).toThrowError('Metadata target "FilterAmbiguousOwner" matches 2 entity classes in TypeORM metadata');
 	});
 });

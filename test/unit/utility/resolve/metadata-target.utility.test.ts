@@ -1,7 +1,7 @@
 import "reflect-metadata";
 
 import { ResolveMetadataTarget } from "@utility/resolve/metadata-target.utility";
-import { Entity, EntitySchema, PrimaryGeneratedColumn } from "typeorm";
+import { Entity, EntitySchema, getMetadataArgsStorage, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 @Entity("metadata_target_entities")
@@ -51,6 +51,12 @@ describe("ResolveMetadataTarget", () => {
 		expect(() => ResolveMetadataTarget(schema)).toThrowError('Metadata target "metadata_target_targetless_schema" does not match an entity class in TypeORM metadata');
 	});
 
+	it("fails for an EntitySchema without a target class even when an unrelated entity class has its name", () => {
+		const schema = new EntitySchema<MetadataTargetEntity>({ columns: { id: { primary: true, type: "uuid" } }, name: MetadataTargetEntity.name });
+
+		expect(() => ResolveMetadataTarget(schema)).toThrowError(`Metadata target "${MetadataTargetEntity.name}" does not match an entity class in TypeORM metadata`);
+	});
+
 	it("fails for a name that matches no entity class, naming the target", () => {
 		expect(() => ResolveMetadataTarget({ name: "MetadataTargetMissingEntity" })).toThrowError('Metadata target "MetadataTargetMissingEntity" does not match an entity class in TypeORM metadata');
 	});
@@ -58,6 +64,17 @@ describe("ResolveMetadataTarget", () => {
 	it("fails for a name that matches several entity classes, naming the target", () => {
 		expect(MetadataTargetDuplicateEntity.name).toBe("MetadataTargetDuplicateEntity");
 		expect(() => ResolveMetadataTarget({ name: "MetadataTargetDuplicateEntity" })).toThrowError('Metadata target "MetadataTargetDuplicateEntity" matches 2 entity classes in TypeORM metadata');
+	});
+
+	it("names the table of each class when a name matches several", () => {
+		const generate = (): unknown => ResolveMetadataTarget({ name: "MetadataTargetDuplicateEntity" });
+		const tables: Array<string> = getMetadataArgsStorage()
+			.tables.filter((table) => typeof table.target === "function" && table.target.name === "MetadataTargetDuplicateEntity")
+			.map((table) => String(table.name));
+
+		expect(tables).toHaveLength(2);
+		expect(generate).toThrowError(`(tables ${tables[0]} and ${tables[1]})`);
+		expect(generate).toThrowError("Pass the entity class instead of its name");
 	});
 
 	it("fails for a reference without a class or a name", () => {

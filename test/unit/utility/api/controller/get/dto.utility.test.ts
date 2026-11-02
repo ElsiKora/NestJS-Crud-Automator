@@ -148,11 +148,85 @@ describe("ApiControllerGetDto", () => {
 		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, second?.prototype, "items")?.type).toBe(SecondSharedItemDto);
 	});
 
+	it("keys generated PAGE wrappers by item constructor identity rather than class name", () => {
+		class GetDtoPageSharedEntity {}
+
+		const pageEntityMetadata: IApiEntity<GetDtoPageSharedEntity> = { columns: [], name: "GetDtoPageSharedEntity", primaryKey: undefined, tableName: "get_dto_page_shared_entities" };
+		const pageProperties: IApiControllerProperties<GetDtoPageSharedEntity> = { entity: GetDtoPageSharedEntity, routes: {} };
+
+		expect(() => ApiControllerGetDto(pageProperties, pageEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: FirstSharedItemDto } } }, "TestController")).not.toThrow();
+		expect(() => ApiControllerGetDto(pageProperties, pageEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: SecondSharedItemDto } } }, "TestController")).toThrow("configure a unique response DTO name");
+
+		const first = ApiControllerGetDto(pageProperties, pageEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: FirstSharedItemDto, name: "FirstSharedPageResponse" } } }, "TestController");
+		const second = ApiControllerGetDto(pageProperties, pageEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: SecondSharedItemDto, name: "SecondSharedPageResponse" } } }, "TestController");
+
+		expect(first).not.toBe(second);
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, first?.prototype, "items")?.type).toBe(FirstSharedItemDto);
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, second?.prototype, "items")?.type).toBe(SecondSharedItemDto);
+	});
+
+	it("keys generated CURSOR wrappers by entity class rather than entity name", () => {
+		const createEntityClass = (): new () => object => class GetDtoCursorSameNameEntity {};
+		const FirstEntity = createEntityClass();
+		const SecondEntity = createEntityClass();
+		const sameNameEntityMetadata: IApiEntity<object> = { columns: [], name: "GetDtoCursorSameNameEntity", primaryKey: undefined, tableName: "get_dto_cursor_same_name_entities" };
+
+		const first = ApiControllerGetDto({ entity: FirstEntity, routes: {} }, sameNameEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: FirstSharedItemDto } } }, "TestController", cursorPlan);
+		const second = ApiControllerGetDto({ entity: SecondEntity, routes: {} }, sameNameEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: SecondSharedItemDto } } }, "TestController", cursorPlan);
+
+		expect(FirstEntity.name).toBe(SecondEntity.name);
+		expect(first).not.toBe(second);
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, first?.prototype, "items")?.type).toBe(FirstSharedItemDto);
+		expect(Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, second?.prototype, "items")?.type).toBe(SecondSharedItemDto);
+
+		const firstOfSharedItem = ApiControllerGetDto({ entity: FirstEntity, routes: {} }, sameNameEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: GetDtoItemDto } } }, "TestController", cursorPlan);
+		const secondOfSharedItem = ApiControllerGetDto({ entity: SecondEntity, routes: {} }, sameNameEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: GetDtoItemDto } } }, "TestController", cursorPlan);
+
+		expect(firstOfSharedItem).not.toBe(secondOfSharedItem);
+	});
+
+	it("keys generated PAGE wrappers by entity class rather than entity name", () => {
+		const createEntityClass = (): new () => object => class GetDtoPageSameNameEntity {};
+		const FirstEntity = createEntityClass();
+		const SecondEntity = createEntityClass();
+		const sameNameEntityMetadata: IApiEntity<object> = { columns: [], name: "GetDtoPageSameNameEntity", primaryKey: undefined, tableName: "get_dto_page_same_name_entities" };
+
+		const first = ApiControllerGetDto({ entity: FirstEntity, routes: {} }, sameNameEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: GetDtoItemDto } } }, "TestController");
+		const second = ApiControllerGetDto({ entity: SecondEntity, routes: {} }, sameNameEntityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response: { itemType: GetDtoItemDto } } }, "TestController");
+
+		expect(FirstEntity.name).toBe(SecondEntity.name);
+		expect(first).not.toBe(second);
+	});
+
 	it("rejects one explicit wrapper schema name shared by PAGE and CURSOR envelopes", () => {
 		const response = { itemType: GetDtoItemDto, name: "SharedPageAndCursorResponse" };
 
 		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response } }, "TestController")).not.toThrow();
 		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response } }, "TestController", cursorPlan)).toThrow("another item constructor or pagination mode");
+	});
+
+	it("rejects one explicit wrapper schema name shared by CURSOR and then PAGE envelopes", () => {
+		const response = { itemType: GetDtoItemDto, name: "SharedCursorAndPageResponse" };
+
+		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response } }, "TestController", cursorPlan)).not.toThrow();
+		expect(() => ApiControllerGetDto(properties, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response } }, "TestController")).toThrow("another item constructor or pagination mode");
+	});
+
+	it.each([
+		["PAGE then CURSOR", undefined, cursorPlan],
+		["CURSOR then PAGE", cursorPlan, undefined],
+	])("leaves one explicit wrapper name on two entity classes in the order %s to the schema name check of the application", (order, firstPlan, secondPlan) => {
+		const createEntityClass = (): new () => object => class GetDtoOrderSameEntity {};
+		const FirstEntity = createEntityClass();
+		const SecondEntity = createEntityClass();
+
+		const response = { itemType: GetDtoItemDto, name: `SharedAcrossEntities ${order}` };
+		const first = ApiControllerGetDto({ entity: FirstEntity, routes: {} }, { ...entityMetadata, name: "GetDtoOrderSameEntity" }, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response } }, "TestController", firstPlan);
+		const second = ApiControllerGetDto({ entity: SecondEntity, routes: {} }, { ...entityMetadata, name: "GetDtoOrderSameEntity" }, EApiRouteType.GET_LIST, EApiDtoType.RESPONSE, { dto: { response } }, "TestController", secondPlan);
+
+		expect(FirstEntity.name).toBe(SecondEntity.name);
+		expect(first?.name).toBe(second?.name);
+		expect(first).not.toBe(second);
 	});
 
 	it("rejects an item response DTO configuration outside the GET_LIST response", () => {

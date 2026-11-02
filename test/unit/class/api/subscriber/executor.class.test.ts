@@ -11,6 +11,7 @@ import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/contr
 import { SERVICE_API_DECORATOR_CONSTANT } from "@constant/decorator/api/service.constant";
 import { EApiFunctionSubscriberTransactionExpectation, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { resetApiSubscriberRegistry } from "@test/unit/fixture";
+import { Entity, PrimaryGeneratedColumn } from "typeorm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const routeHookSuffixes: Record<EApiRouteType, string> = {
@@ -173,7 +174,7 @@ describe("ApiSubscriberExecutor", () => {
 		expect(result).toEqual({ id: "original" });
 	});
 
-	it("uses entity metadata to resolve route subscribers", async () => {
+	it("uses the route entity class rather than the entity metadata name to resolve route subscribers", async () => {
 		class RouteEntity {
 			public id?: string;
 		}
@@ -191,7 +192,7 @@ describe("ApiSubscriberExecutor", () => {
 		const plainEntity = { id: "plain" } as unknown as RouteEntity;
 
 		const result = await ApiSubscriberExecutor.executeRouteSubscribers(TestController, plainEntity, EApiRouteType.GET, EApiSubscriberOnType.BEFORE, {
-			DATA: { entityMetadata: { name: RouteEntity.name } } as never,
+			DATA: { entityMetadata: { name: "OtherRouteEntity" }, properties: { entity: RouteEntity } } as never,
 			ENTITY: plainEntity,
 			result: { id: "original" },
 			ROUTE_TYPE: EApiRouteType.GET,
@@ -201,7 +202,7 @@ describe("ApiSubscriberExecutor", () => {
 		expect(result).toEqual({ id: "updated" });
 	});
 
-	it("uses entity properties to resolve route subscribers", async () => {
+	it("never resolves a route entity name per request", async () => {
 		class RouteEntity {
 			public id?: string;
 		}
@@ -225,8 +226,43 @@ describe("ApiSubscriberExecutor", () => {
 			ROUTE_TYPE: EApiRouteType.GET,
 		});
 
-		expect(routeSubscriber.onBeforeGet).toHaveBeenCalledTimes(1);
-		expect(result).toEqual({ id: "updated" });
+		expect(routeSubscriber.onBeforeGet).not.toHaveBeenCalled();
+		expect(result).toEqual({ id: "original" });
+	});
+
+	it("uses the repository metadata class rather than a string repository target that names several entity classes", async () => {
+		const createEntityClass = (tableName: string): new () => IApiBaseEntity => {
+			@Entity(tableName)
+			class ExecutorRepositoryNamedEntity {
+				@PrimaryGeneratedColumn("uuid")
+				public id?: string;
+			}
+
+			return ExecutorRepositoryNamedEntity;
+		};
+		const FirstEntity = createEntityClass("executor_repository_named_first_entities");
+		const SecondEntity = createEntityClass("executor_repository_named_second_entities");
+
+		class TestService {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+
+		const firstSubscriber = { onBeforeCreate: vi.fn() } as unknown as IApiSubscriberFunction<IApiBaseEntity>;
+		const secondSubscriber = { onBeforeCreate: vi.fn() } as unknown as IApiSubscriberFunction<IApiBaseEntity>;
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FirstEntity }, firstSubscriber);
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: SecondEntity }, secondSubscriber);
+
+		await ApiSubscriberExecutor.executeFunctionSubscribers(TestService, { id: "plain" }, EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE, {
+			DATA: { repository: { metadata: { target: SecondEntity }, target: "ExecutorRepositoryNamedEntity" } } as never,
+			ENTITY: { id: "plain" },
+			FUNCTION_TYPE: EApiFunctionType.CREATE,
+			result: {},
+		});
+
+		expect(FirstEntity.name).toBe(SecondEntity.name);
+		expect(firstSubscriber.onBeforeCreate).not.toHaveBeenCalled();
+		expect(secondSubscriber.onBeforeCreate).toHaveBeenCalledTimes(1);
 	});
 
 	it.each([
@@ -766,5 +802,48 @@ describe("ApiSubscriberExecutor", () => {
 		);
 
 		expect(functionSubscriber.onBeforeErrorGet).not.toHaveBeenCalled();
+	});
+
+	it("runs only the subscribers of the entity class when two entity classes share one name", async () => {
+		const createEntityClass = (): new () => IApiBaseEntity =>
+			class SameNameSubscriberEntity {
+				public id?: string;
+			};
+		const FirstEntity = createEntityClass();
+		const SecondEntity = createEntityClass();
+
+		class TestService {}
+		class TestController {}
+
+		Reflect.defineMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestService);
+		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, true, TestController);
+
+		const firstFunctionSubscriber = { onBeforeCreate: vi.fn() } as unknown as IApiSubscriberFunction<IApiBaseEntity>;
+		const secondFunctionSubscriber = { onBeforeCreate: vi.fn() } as unknown as IApiSubscriberFunction<IApiBaseEntity>;
+		const firstRouteSubscriber = { onBeforeCreate: vi.fn() } as unknown as IApiSubscriberRoute<IApiBaseEntity>;
+		const secondRouteSubscriber = { onBeforeCreate: vi.fn() } as unknown as IApiSubscriberRoute<IApiBaseEntity>;
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FirstEntity }, firstFunctionSubscriber);
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: SecondEntity }, secondFunctionSubscriber);
+		apiSubscriberRegistry.registerRouteSubscriber({ entity: FirstEntity }, firstRouteSubscriber);
+		apiSubscriberRegistry.registerRouteSubscriber({ entity: SecondEntity }, secondRouteSubscriber);
+
+		await ApiSubscriberExecutor.executeFunctionSubscribers(TestService, new SecondEntity(), EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE, {
+			DATA: { repository: { metadata: { name: "SameNameSubscriberEntity" }, target: SecondEntity } } as never,
+			ENTITY: new SecondEntity(),
+			FUNCTION_TYPE: EApiFunctionType.CREATE,
+			result: {},
+		});
+		await ApiSubscriberExecutor.executeRouteSubscribers(TestController, new SecondEntity(), EApiRouteType.CREATE, EApiSubscriberOnType.BEFORE, {
+			DATA: { entityMetadata: { name: "SameNameSubscriberEntity" }, properties: { entity: SecondEntity } } as never,
+			ENTITY: new SecondEntity(),
+			result: {},
+			ROUTE_TYPE: EApiRouteType.CREATE,
+		});
+
+		expect((secondFunctionSubscriber as unknown as { onBeforeCreate: ReturnType<typeof vi.fn> }).onBeforeCreate).toHaveBeenCalledTimes(1);
+		expect((firstFunctionSubscriber as unknown as { onBeforeCreate: ReturnType<typeof vi.fn> }).onBeforeCreate).not.toHaveBeenCalled();
+		expect((secondRouteSubscriber as unknown as { onBeforeCreate: ReturnType<typeof vi.fn> }).onBeforeCreate).toHaveBeenCalledTimes(1);
+		expect((firstRouteSubscriber as unknown as { onBeforeCreate: ReturnType<typeof vi.fn> }).onBeforeCreate).not.toHaveBeenCalled();
 	});
 });

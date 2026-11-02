@@ -1,6 +1,7 @@
 import "reflect-metadata";
 
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { CanActivate } from "@nestjs/common";
 
 import { ApiServiceBase } from "@class/api";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
@@ -10,7 +11,7 @@ import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiControllerObservable } from "@decorator/api/controller/observable.decorator";
 import { ApiControllerSecurable } from "@decorator/api/controller/securable.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiDtoType, EApiFunctionType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EApiAuthenticationType, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiFunctionType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { ApiProperty } from "@nestjs/swagger";
 import { KeyPageAccountEntity } from "@test/unit/class/api/function/fixture/key-page-account.entity";
 import { KeyPageAuditorEntity } from "@test/unit/class/api/function/fixture/key-page-auditor.entity";
@@ -21,8 +22,19 @@ import { KeyPageJournalEntity } from "@test/unit/class/api/function/fixture/key-
 import { KeyPageReceiptEntity } from "@test/unit/class/api/function/fixture/key-page-receipt.entity";
 import { ApiControllerAssertSchemaNames } from "@utility/api/controller/assert-schema-names.utility";
 import { LoggerUtility } from "@utility/logger.utility";
-import { Column, DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, DataSource, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
+
+// Two entity classes with one name make a string relation target ambiguous.
+["decorator_ambiguous_owners_first", "decorator_ambiguous_owners_second"].map((table: string): unknown => {
+	@Entity(table)
+	class DecoratorAmbiguousOwner {
+		@PrimaryGeneratedColumn("uuid")
+		public id!: string;
+	}
+
+	return DecoratorAmbiguousOwner;
+});
 
 @Entity("factory_entities")
 class FactoryEntity {
@@ -342,6 +354,118 @@ describe("ApiController", () => {
 			})(SchemaNameW2Controller);
 
 			expect(() => ApiControllerAssertSchemaNames([{ controller: W1Controller }, { controller: W2Controller }])).toThrow('OpenAPI component name "SchemaNameW1GetResponseDTO" belongs to two different classes: the get response DTO of controller prefix "SchemaNameW1", and the 200 response of route get in controller SchemaNameW2Controller');
+		});
+	});
+
+	describe("string relation targets of a GET_LIST route", () => {
+		class AmbiguousRelationGuard implements CanActivate {
+			public canActivate(): boolean {
+				return true;
+			}
+		}
+
+		class AmbiguousRelationOtherGuard implements CanActivate {
+			public canActivate(): boolean {
+				return true;
+			}
+		}
+
+		class AmbiguousRelationQueryDto {
+			public limit?: number;
+		}
+
+		const decorate = (entity: new () => object, getList: object): new () => object => {
+			class AmbiguousRelationController {
+				public service: ApiServiceBase<object> = new ApiServiceBase<object>();
+			}
+
+			return ApiController<object>({
+				entity,
+				routes: {
+					[EApiRouteType.CREATE]: { generation: { isEnabled: false } },
+					[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
+					[EApiRouteType.GET]: { generation: { isEnabled: false } },
+					[EApiRouteType.GET_LIST]: getList,
+					[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
+					[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
+				},
+			})(AmbiguousRelationController);
+		};
+
+		const ambiguousError = 'Metadata target "DecoratorAmbiguousOwner" matches 2 entity classes in TypeORM metadata';
+		const manualQuery = { dto: { [EApiDtoType.QUERY]: AmbiguousRelationQueryDto } };
+
+		@Entity("decorator_ambiguous_guarded_holders")
+		class DecoratorAmbiguousGuardedHolder {
+			@PrimaryGeneratedColumn("uuid")
+			@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+			public id!: string;
+
+			@ManyToOne("DecoratorAmbiguousOwner")
+			@ApiPropertyDescribe({ description: "owner", properties: { [EApiRouteType.GET_LIST]: { [EApiDtoType.QUERY]: { guard: { guards: AmbiguousRelationGuard } } } }, type: EApiPropertyDescribeType.RELATION })
+			public owner!: object;
+		}
+
+		@Entity("decorator_ambiguous_to_many_holders")
+		class DecoratorAmbiguousToManyHolder {
+			@PrimaryGeneratedColumn("uuid")
+			@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+			public id!: string;
+
+			@OneToMany("DecoratorAmbiguousOwner", "holder")
+			@ApiPropertyDescribe({ description: "owners", type: EApiPropertyDescribeType.RELATION })
+			public owners!: Array<object>;
+		}
+
+		it("passes the route guard to the check, so a relation hidden from that guard does not fail", () => {
+			const security = (guard: new () => CanActivate): object => ({ security: { authentication: { guard, type: EApiAuthenticationType.USER } } });
+			const Controller = decorate(DecoratorAmbiguousGuardedHolder, { ...manualQuery, ...security(AmbiguousRelationOtherGuard) });
+
+			expect(() => new Controller()).not.toThrow();
+			expect(() => decorate(DecoratorAmbiguousGuardedHolder, { ...manualQuery, ...security(AmbiguousRelationGuard) })).toThrowError(ambiguousError);
+		});
+
+		it("does not fail a typed filter route on a to-many relation that filter cannot reach", () => {
+			const Controller = decorate(DecoratorAmbiguousToManyHolder, { request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: {}, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } });
+
+			expect(() => new Controller()).not.toThrow();
+		});
+
+		it("fails a route that reaches the request filter on a to-many relation", () => {
+			expect(() => decorate(DecoratorAmbiguousToManyHolder, manualQuery)).toThrowError(ambiguousError);
+			expect(() => decorate(DecoratorAmbiguousToManyHolder, { request: { [EApiControllerRequestTarget.QUERY]: { pagination: { mode: EApiControllerGetListQueryPaginationMode.PAGE } } } })).toThrowError(ambiguousError);
+		});
+
+		it("fails a pagination-only route at instantiation on a to-many relation whose target became ambiguous after decoration", () => {
+			const declareOwner = (table: string): void => {
+				@Entity(table)
+				class DecoratorLateToManyOwner {
+					@PrimaryGeneratedColumn("uuid")
+					@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+					public id!: string;
+				}
+
+				void DecoratorLateToManyOwner;
+			};
+
+			@Entity("decorator_late_to_many_holders")
+			class DecoratorLateToManyHolder {
+				@PrimaryGeneratedColumn("uuid")
+				@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+				public id!: string;
+
+				@OneToMany("DecoratorLateToManyOwner", "holder")
+				@ApiPropertyDescribe({ description: "owners", type: EApiPropertyDescribeType.RELATION })
+				public owners!: Array<object>;
+			}
+
+			declareOwner("decorator_late_to_many_owners_first");
+
+			const Controller = decorate(DecoratorLateToManyHolder, { request: { [EApiControllerRequestTarget.QUERY]: { pagination: { mode: EApiControllerGetListQueryPaginationMode.PAGE } } } });
+
+			declareOwner("decorator_late_to_many_owners_second");
+
+			expect(() => new Controller()).toThrowError('Metadata target "DecoratorLateToManyOwner" matches 2 entity classes in TypeORM metadata');
 		});
 	});
 });

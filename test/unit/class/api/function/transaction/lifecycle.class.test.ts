@@ -85,6 +85,23 @@ describe("ApiFunctionTransactionLifecycle", () => {
 		expect(secondContext?.DATA.matchedEvents).toHaveLength(1);
 	});
 
+	it("runs only the subscribers of the event's entity class when two entity classes share one name", async () => {
+		const createEntityClass = (): new () => object => class LifecycleSameNameEntity {};
+		const FirstEntity = createEntityClass();
+		const SecondEntity = createEntityClass();
+		const firstSubscriber: IApiSubscriberFunction<object> = { onAfterCommit: vi.fn(async () => undefined) };
+		const secondSubscriber: IApiSubscriberFunction<object> = { onAfterCommit: vi.fn(async () => undefined) };
+
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: FirstEntity }, firstSubscriber);
+		apiSubscriberRegistry.registerFunctionSubscriber({ entity: SecondEntity }, secondSubscriber);
+
+		await ApiFunctionTransactionLifecycle.executeAfterCommit(createSucceededRegistry(SecondEntity.name, [EApiFunctionType.CREATE]));
+
+		expect(FirstEntity.name).toBe(SecondEntity.name);
+		expect(firstSubscriber.onAfterCommit).not.toHaveBeenCalled();
+		expect(secondSubscriber.onAfterCommit).toHaveBeenCalledTimes(1);
+	});
+
 	it("aggregates post-commit failures, continues hooks, and does not recurse on error-lifecycle failures", async () => {
 		class LifecycleCommitFailureEntity {}
 

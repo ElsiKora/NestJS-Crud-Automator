@@ -153,7 +153,42 @@ const InfoDuplicateNameSecondEntity: new () => unknown = ((): new () => unknown 
 	return InfoDuplicateNameEntity;
 })();
 
+@Entity("info_same_name_key_first_entities")
+class InfoSameNameKeyEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@ManyToOne(() => InfoRelationTargetEntity)
+	public target!: InfoRelationTargetEntity;
+}
+
+const InfoSameNameKeySecondEntity: new () => unknown = ((): new () => unknown => {
+	@Entity("info_same_name_key_second_entities")
+	class InfoSameNameKeyEntity {
+		@PrimaryGeneratedColumn("uuid")
+		public code!: string;
+
+		@Column({ type: "varchar" })
+		public id!: string;
+	}
+
+	return InfoSameNameKeyEntity;
+})();
+
 describe("GenerateEntityInformation", () => {
+	it("matches the table, columns, relations and primary key of a same-named class by class identity", () => {
+		const first = GenerateEntityInformation<InfoSameNameKeyEntity>(InfoSameNameKeyEntity as unknown as IApiBaseEntity);
+		const second = GenerateEntityInformation<{ code: string; id: string }>(InfoSameNameKeySecondEntity as unknown as IApiBaseEntity);
+
+		expect(first.tableName).toBe("info_same_name_key_first_entities");
+		expect(first.primaryKey?.name).toBe("id");
+		expect(first.columns.map(({ name }) => name).toSorted()).toEqual(["id", "target"]);
+		expect(second.tableName).toBe("info_same_name_key_second_entities");
+		expect(second.primaryKey?.name).toBe("code");
+		expect(second.columns.map(({ name }) => name).toSorted()).toEqual(["code", "id"]);
+		expect(second.columns.find(({ name }) => name === "id")?.isPrimary).toBe(false);
+	});
+
 	it("builds entity metadata with table name and primary key", () => {
 		const metadata = GenerateEntityInformation<InfoEntity>(InfoEntity as unknown as IApiBaseEntity);
 

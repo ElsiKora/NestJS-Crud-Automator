@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
+import type { CanActivate, Type } from "@nestjs/common";
 import type { ClassConstructor } from "class-transformer";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
 
@@ -481,6 +482,89 @@ class ManualNestedPolicyEntity {
 	public document?: ManualPolicyDocumentDto;
 }
 
+@Entity("core_ambiguous_owner_first")
+class CoreAmbiguousOwner {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "owner id", type: EApiPropertyDescribeType.UUID } as TApiPropertyDescribeProperties)
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({ description: "owner label", exampleValue: "label", format: EApiPropertyStringType.STRING, maxLength: 32, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING } as TApiPropertyDescribeProperties)
+	public label!: string;
+}
+
+// A second entity class with the owner's name makes the string relation target ambiguous.
+((): unknown => {
+	@Entity("core_ambiguous_owner_second")
+	class CoreAmbiguousOwner {
+		@PrimaryGeneratedColumn("uuid")
+		public id!: string;
+	}
+
+	return CoreAmbiguousOwner;
+})();
+
+@Entity("core_ambiguous_holders")
+class CoreAmbiguousHolder {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "holder id", type: EApiPropertyDescribeType.UUID } as TApiPropertyDescribeProperties)
+	public id!: string;
+
+	@ManyToOne("CoreAmbiguousOwner")
+	@ApiPropertyDescribe({ description: "owner", type: EApiPropertyDescribeType.RELATION } as TApiPropertyDescribeProperties)
+	public owner!: CoreAmbiguousOwner;
+}
+
+@Entity("core_same_name_first_entities")
+class CoreSameNameEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "first id", type: EApiPropertyDescribeType.UUID } as TApiPropertyDescribeProperties)
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({ description: "first alpha", exampleValue: "alpha", format: EApiPropertyStringType.STRING, maxLength: 6, minLength: 1, pattern: "/^[a-z]+$/", type: EApiPropertyDescribeType.STRING } as TApiPropertyDescribeProperties)
+	public alpha!: string;
+}
+
+const createCoreSameNameGuard = (): Type<CanActivate> => {
+	class CoreSameNameGuard implements CanActivate {
+		public canActivate(): boolean {
+			return true;
+		}
+	}
+
+	return CoreSameNameGuard;
+};
+
+const CoreSameNameFirstGuard: Type<CanActivate> = createCoreSameNameGuard();
+const CoreSameNameSecondGuard: Type<CanActivate> = createCoreSameNameGuard();
+
+@Entity("core_same_name_guarded_items")
+class CoreSameNameGuardedEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({ description: "secret", exampleValue: "secret", format: EApiPropertyStringType.STRING, maxLength: 6, minLength: 1, pattern: "/^[a-z]+$/", properties: { [EApiRouteType.GET]: { [EApiDtoType.RESPONSE]: { guard: { guards: CoreSameNameFirstGuard } } } }, type: EApiPropertyDescribeType.STRING })
+	public secret!: string;
+}
+
+const CoreSameNameSecondEntity: new () => unknown = ((): new () => unknown => {
+	@Entity("core_same_name_second_entities")
+	class CoreSameNameEntity {
+		@PrimaryGeneratedColumn("uuid")
+		@ApiPropertyDescribe({ description: "second id", type: EApiPropertyDescribeType.UUID } as TApiPropertyDescribeProperties)
+		public id!: string;
+
+		@Column({ type: "integer" })
+		@ApiPropertyDescribe({ description: "second beta", exampleValue: 3, format: EApiPropertyNumberType.INTEGER, maximum: 9, minimum: 1, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER } as TApiPropertyDescribeProperties)
+		public beta!: number;
+	}
+
+	return CoreSameNameEntity;
+})();
+
 describe("DtoGenerate", () => {
 	it("starts every generated DTO name with the schema prefix, so two controllers on one entity never share a component name", () => {
 		const entityMetadata = GenerateEntityInformation<DtoEntity>(DtoEntity as unknown as IApiBaseEntity);
@@ -917,5 +1001,97 @@ describe("DtoGenerate", () => {
 			),
 		).toHaveLength(0);
 		expect(versionMetadata?.readOnly).toBeUndefined();
+	});
+
+	it("generates a separate DTO for each of two entity classes that share one name", () => {
+		const firstBody = DtoGenerate(CoreSameNameEntity, GenerateEntityInformation(CoreSameNameEntity as unknown as IApiBaseEntity), EApiRouteType.CREATE, EApiDtoType.BODY, "CoreSameName") as ClassConstructor<object>;
+		const secondBody = DtoGenerate(CoreSameNameSecondEntity, GenerateEntityInformation(CoreSameNameSecondEntity as unknown as IApiBaseEntity), EApiRouteType.CREATE, EApiDtoType.BODY, "CoreSameName") as ClassConstructor<object>;
+
+		expect(firstBody).not.toBe(secondBody);
+		expect(validateSync(plainToInstance(firstBody, { alpha: "abc" }))).toHaveLength(0);
+		expect(validateSync(plainToInstance(secondBody, { beta: 3 }))).toHaveLength(0);
+		expect(validateSync(plainToInstance(secondBody, { beta: 30 })).map((error) => error.property)).toEqual(["beta"]);
+	});
+
+	it("generates a separate DTO for each of two guard classes that share one name", () => {
+		const entityMetadata = GenerateEntityInformation(CoreSameNameGuardedEntity as unknown as IApiBaseEntity);
+		const generate = (guard: Type<CanActivate>) => DtoGenerate(CoreSameNameGuardedEntity, entityMetadata, EApiRouteType.GET, EApiDtoType.RESPONSE, "CoreSameNameGuarded", undefined, guard) as ClassConstructor<object>;
+		const fields = (dto: ClassConstructor<object>): Array<string> => Object.keys(instanceToPlain(plainToInstance(dto, { id: "row", secret: "s" }, { excludeExtraneousValues: true }))).toSorted();
+
+		expect(CoreSameNameFirstGuard.name).toBe(CoreSameNameSecondGuard.name);
+
+		const allowed = generate(CoreSameNameFirstGuard);
+		const hidden = generate(CoreSameNameSecondGuard);
+
+		expect(allowed).not.toBe(hidden);
+		expect(fields(allowed)).toEqual(["id", "secret"]);
+		expect(fields(hidden)).toEqual(["id"]);
+		expect(generate(CoreSameNameFirstGuard)).toBe(allowed);
+	});
+
+	it("generates a separate DTO for each of two validator classes on one route", () => {
+		const entityMetadata = GenerateEntityInformation(CoreSameNameGuardedEntity as unknown as IApiBaseEntity);
+		const generate = (constraintClass: new () => object) => DtoGenerate(CoreSameNameGuardedEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY, "CoreValidated", { validators: [{ constraintClass }] });
+
+		class CoreFirstConstraint {
+			public validate(): boolean {
+				return true;
+			}
+		}
+
+		class CoreSecondConstraint {
+			public validate(): boolean {
+				return false;
+			}
+		}
+
+		expect(generate(CoreFirstConstraint)).not.toBe(generate(CoreSecondConstraint));
+		expect(generate(CoreFirstConstraint)).toBe(generate(CoreFirstConstraint));
+	});
+
+	it("generates a separate DTO for each of two validator options that JSON cannot tell apart", () => {
+		const entityMetadata = GenerateEntityInformation(CoreSameNameGuardedEntity as unknown as IApiBaseEntity);
+
+		class CoreOptionsConstraint {
+			public validate(): boolean {
+				return true;
+			}
+		}
+
+		const generate = (option: unknown) => DtoGenerate(CoreSameNameGuardedEntity, entityMetadata, EApiRouteType.CREATE, EApiDtoType.BODY, "CoreValidatedOptions", { validators: [{ constraintClass: CoreOptionsConstraint, options: [option] }] });
+
+		expect(generate(/a/)).not.toBe(generate(/b/));
+		expect(generate(/a/)).toBe(generate(/a/));
+	});
+
+	it("says what is wrong with a relation to a class without a name", () => {
+		const Owner: new () => object = ((): new () => object => class {})();
+
+		Entity("core_unnamed_owners")(Owner);
+		PrimaryGeneratedColumn("uuid")(Owner.prototype as object, "id");
+
+		@Entity("core_unnamed_owner_holders")
+		class CoreUnnamedOwnerHolder {
+			@PrimaryGeneratedColumn("uuid")
+			@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+			public id!: string;
+
+			@ManyToOne(() => Owner)
+			@ApiPropertyDescribe({ description: "owner", type: EApiPropertyDescribeType.RELATION })
+			public owner!: object;
+		}
+
+		expect(Owner.name).toBe("");
+
+		const generate = () => DtoGenerate(CoreUnnamedOwnerHolder, GenerateEntityInformation(CoreUnnamedOwnerHolder as unknown as IApiBaseEntity), EApiRouteType.GET, EApiDtoType.RESPONSE, "CoreUnnamedOwnerHolder");
+
+		expect(generate).toThrowError("Property CoreUnnamedOwnerHolder.owner has a TypeORM relation, but its target class has no name or is not loaded yet");
+		expect(generate).not.toThrowError("Add a TypeORM relation decorator");
+	});
+
+	it("fails to generate a legacy GET_LIST query DTO when a string relation target names several entity classes", () => {
+		const entityMetadata = GenerateEntityInformation(CoreAmbiguousHolder as unknown as IApiBaseEntity);
+
+		expect(() => DtoGenerate(CoreAmbiguousHolder, entityMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, "CoreAmbiguousHolder")).toThrowError('Metadata target "CoreAmbiguousOwner" matches 2 entity classes in TypeORM metadata');
 	});
 });

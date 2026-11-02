@@ -19,6 +19,19 @@ class PolicyEntity {
 	public name!: string;
 }
 
+const PolicySameNameSecondEntity: new () => { id: string; name: string } = ((): new () => { id: string; name: string } => {
+	@Entity("policy_same_name_second_entities")
+	class PolicyEntity {
+		@PrimaryGeneratedColumn("uuid")
+		public id!: string;
+
+		@Column({ type: "varchar" })
+		public name!: string;
+	}
+
+	return PolicyEntity;
+})();
+
 describe("ApiAuthorizationPolicyRegistry", () => {
 	it("returns undefined when no subscribers are registered", async () => {
 		const registry = new ApiAuthorizationPolicyRegistry();
@@ -371,5 +384,68 @@ describe("ApiAuthorizationPolicyRegistry", () => {
 
 		expect(onBeforeGetA).toHaveBeenCalledTimes(2);
 		expect(onBeforeGetB).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps the policies of two entity classes that share one name apart", async () => {
+		const registry = new ApiAuthorizationPolicyRegistry();
+		registry.configureCache({ isEnabled: true, ttlMs: 60_000 });
+
+		const onBeforeGetFirst = vi.fn().mockResolvedValue([{ effect: EApiPolicyEffect.ALLOW }]);
+		const onBeforeGetSecond = vi.fn().mockResolvedValue([{ effect: EApiPolicyEffect.DENY }]);
+
+		registry.registerSubscriber({ entity: PolicyEntity, policyId: "same-name-policy", priority: 0, subscriber: { onBeforeGet: onBeforeGetFirst } as IApiAuthorizationPolicySubscriber<PolicyEntity> });
+		registry.registerSubscriber({ entity: PolicySameNameSecondEntity, policyId: "same-name-policy", priority: 0, subscriber: { onBeforeGet: onBeforeGetSecond } as IApiAuthorizationPolicySubscriber<{ id: string; name: string }> });
+
+		const firstPolicy = await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
+		const secondPolicy = await registry.buildAggregatedPolicy(PolicySameNameSecondEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
+
+		expect(PolicySameNameSecondEntity.name).toBe(PolicyEntity.name);
+		expect(onBeforeGetFirst).toHaveBeenCalledTimes(1);
+		expect(onBeforeGetSecond).toHaveBeenCalledTimes(1);
+		expect(firstPolicy?.rules.map((rule) => rule.effect)).toEqual([EApiPolicyEffect.ALLOW]);
+		expect(secondPolicy?.rules.map((rule) => rule.effect)).toEqual([EApiPolicyEffect.DENY]);
+	});
+
+	it("keeps the cached rules of two same-named policy subscriber classes of one entity apart", async () => {
+		const registry = new ApiAuthorizationPolicyRegistry();
+		registry.configureCache({ isEnabled: true, ttlMs: 60_000 });
+
+		const createSubscriberClass = (onBeforeGet: IApiAuthorizationPolicySubscriber<PolicyEntity>["onBeforeGet"]): new () => IApiAuthorizationPolicySubscriber<PolicyEntity> =>
+			class PolicySameNameSubscriber implements IApiAuthorizationPolicySubscriber<PolicyEntity> {
+				public readonly onBeforeGet: IApiAuthorizationPolicySubscriber<PolicyEntity>["onBeforeGet"] = onBeforeGet;
+			};
+		const onBeforeGetAllow = vi.fn().mockResolvedValue([{ effect: EApiPolicyEffect.ALLOW }]);
+		const onBeforeGetDeny = vi.fn().mockResolvedValue([{ effect: EApiPolicyEffect.DENY }]);
+		const AllowSubscriber = createSubscriberClass(onBeforeGetAllow);
+		const DenySubscriber = createSubscriberClass(onBeforeGetDeny);
+
+		registry.registerSubscriber({ entity: PolicyEntity, policyId: "same-name-subscriber-policy", priority: 0, subscriber: new AllowSubscriber() });
+		registry.registerSubscriber({ entity: PolicyEntity, policyId: "same-name-subscriber-policy", priority: 0, subscriber: new DenySubscriber() });
+
+		const policy = await registry.buildAggregatedPolicy(PolicyEntity, EApiRouteType.GET, { routeType: EApiRouteType.GET });
+
+		expect(AllowSubscriber.name).toBe(DenySubscriber.name);
+		expect(onBeforeGetAllow).toHaveBeenCalledTimes(1);
+		expect(onBeforeGetDeny).toHaveBeenCalledTimes(1);
+		expect(policy?.rules.map((rule) => rule.effect).toSorted()).toEqual([EApiPolicyEffect.ALLOW, EApiPolicyEffect.DENY].toSorted());
+	});
+
+	it.each([
+		["a string", "PolicyEntity", 'the string "PolicyEntity"'],
+		["an object with a name", { name: "PolicyEntity" }, "object"],
+		["undefined", undefined, "undefined"],
+	])("refuses %s instead of answering as if nothing were registered", async (_label: string, argument: unknown, received: string) => {
+		const registry = new ApiAuthorizationPolicyRegistry();
+		const message = (method: string): TypeError => new TypeError(`ApiAuthorizationPolicyRegistry.${method} expects the entity class, got ${received}. From 5.0.0, pass the class itself.`);
+
+		await expect(registry.buildAggregatedPolicy(argument as never, "read" as never)).rejects.toThrowError(message("buildAggregatedPolicy"));
+		expect(() => registry.hasSubscriberForEntity(argument as never)).toThrowError(message("hasSubscriberForEntity"));
+	});
+
+	it("still drops every cached policy when invalidated with no entity", () => {
+		const registry = new ApiAuthorizationPolicyRegistry();
+
+		expect(() => registry.invalidateCache()).not.toThrowError();
+		expect(() => registry.invalidateCache("PolicyEntity" as never)).toThrowError(new TypeError('ApiAuthorizationPolicyRegistry.invalidateCache expects the entity class, got the string "PolicyEntity". From 5.0.0, pass the class itself.'));
 	});
 });
