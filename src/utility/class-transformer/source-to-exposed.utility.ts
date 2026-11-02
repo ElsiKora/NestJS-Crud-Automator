@@ -5,9 +5,10 @@ import { ClassTransformerGetStorage } from "@utility/class-transformer/get-stora
 /**
  * Prepares a handler result for plain-to-class, which reads a renamed property from its exposed name: the value of each property key is made readable under that name.
  * The handler's property key stays the only source, so a key of the result that merely equals an exposed name is not read. Nested DTOs follow their `@Type`.
+ * The object handed over owns a copy of each own enumerable key of the result, so a transform enumerates the full row in `obj`, and it inherits from the result, so a getter still reads.
  * @param {ClassConstructor<unknown>} dto - DTO class describing the value.
  * @param {unknown} value - Handler result, or an array of them.
- * @returns {unknown} The value itself when nothing is renamed, otherwise an object that inherits from it and adds the exposed names.
+ * @returns {unknown} The value itself when the DTO renames nothing and no nested value changes, otherwise an object that inherits from it with the exposed names added.
  */
 export function ClassTransformerSourceToExposed(dto: ClassConstructor<unknown>, value: unknown): unknown {
 	if (Array.isArray(value)) {
@@ -20,20 +21,38 @@ export function ClassTransformerSourceToExposed(dto: ClassConstructor<unknown>, 
 
 	const storage: ReturnType<typeof ClassTransformerGetStorage> = ClassTransformerGetStorage(dto.prototype as object, "*");
 	const exposedProperties: PropertyDescriptorMap = {};
+	let isChanged: boolean = false;
 
 	for (const { options, propertyName } of storage.getExposedMetadatas(dto)) {
 		const source: unknown = Reflect.get(value, propertyName);
 		const exposed: unknown = exposeNestedValue(storage, dto, propertyName, value, source);
 		const exposedName: string = options?.name ?? propertyName;
 
+		if (exposedName === propertyName && exposed === source) {
+			continue;
+		}
+
+		isChanged = true;
+
 		// A source key that merely equals the exposed name is masked; with neither key there is nothing to read.
-		if ((exposedName !== propertyName || exposed !== source) && (exposed !== undefined || exposedName in value)) {
+		if (exposed !== undefined || exposedName in value) {
 			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			exposedProperties[exposedName] = { enumerable: true, value: exposed };
 		}
 	}
 
-	return Object.keys(exposedProperties).length > 0 ? (Object.create(value, exposedProperties) as unknown) : value;
+	if (!isChanged) {
+		return value;
+	}
+
+	const rowProperties: PropertyDescriptorMap = {};
+
+	for (const key of Object.keys(value)) {
+		// eslint-disable-next-line @elsikora/typescript/naming-convention
+		rowProperties[key] = { enumerable: true, value: Reflect.get(value, key) as unknown };
+	}
+
+	return Object.create(value, { ...rowProperties, ...exposedProperties }) as unknown;
 }
 
 /**
