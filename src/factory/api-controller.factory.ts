@@ -67,6 +67,18 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	/**
+	 * Fails startup when the manual GET_LIST response of a PAGE route cannot be read or leaves out a typed order field. The read waits until here because the response's lazy types may name classes that did not exist while the controller was decorated.
+	 * @returns {void}
+	 */
+	assertListResponseOrder(): void {
+		const routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST> | undefined = this.properties.routes[EApiRouteType.GET_LIST];
+
+		if (routeConfig && routeConfig.generation?.isEnabled !== false) {
+			ApiControllerGetListQueryPlanCompiler.assertOrderFieldsPublished(this.target, this.properties.entity, this.ENTITY, routeConfig);
+		}
+	}
+
+	/**
 	 * Fails startup when a child entity of the table inheritance root was loaded after the controller was decorated, since that variant would be missing from Swagger and response serialization.
 	 * @returns {void}
 	 */

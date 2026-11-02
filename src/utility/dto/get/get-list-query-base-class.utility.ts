@@ -14,6 +14,7 @@ import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/control
 import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response-published-fields.utility";
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
 import { CapitalizeString } from "@utility/capitalize-string.utility";
+import { DtoGetListQueryDeferOrder } from "@utility/dto/get/list-query-defer-order.utility";
 import { AllOrNoneOfListedPropertiesValidator } from "@validator/all-or-none-of-listed-properties.validator";
 import { Equals, Validate } from "class-validator";
 
@@ -38,18 +39,33 @@ const noopApiPropertyEnum: typeof ApiPropertyEnum = (): PropertyDecorator => noo
  */
 export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, method: EApiRouteType, dtoType: EApiDtoType, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan, currentGuard?: Type<CanActivate>, listResponseDto?: ReadonlyArray<Type<unknown>> | Type<unknown>): Type<unknown> {
 	const isCursor: boolean = ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR;
-	const publishedFields: ReadonlySet<string> | undefined = listResponseDto ? ApiControllerGetListResponsePublishedFields(listResponseDto) : undefined;
+	let resolvedOrderBy: Record<string, string> | undefined;
 
-	const orderBy: Record<string, string> =
-		queryPlan && !queryPlan.order.isLegacy
-			? Object.fromEntries(
-					Object.values(queryPlan.order.fields)
-						.filter((field: IApiControllerGetListQueryPlanOrderField): boolean => field.isEnabled)
-						.map((field: IApiControllerGetListQueryPlanOrderField): [string, string] => [field.path, field.path]),
-				)
-			: FilterOrderByFromEntity(entity, entityMetadata, method, dtoType, undefined, currentGuard, publishedFields);
-	const hasClientOrderFields: boolean = Object.keys(orderBy).length > 0;
-	const clientOrderPropertyDecorator: typeof ApiPropertyEnum = hasClientOrderFields ? ApiPropertyEnum : noopApiPropertyEnum;
+	// A list response may name classes that do not exist yet while this runs, so its fields are read on first use and a failed read is retried.
+	const resolveOrderBy = (): Record<string, string> => {
+		resolvedOrderBy ??= readOrderBy();
+
+		return resolvedOrderBy;
+	};
+
+	const readOrderBy = (): Record<string, string> => {
+		const publishedFields: ReadonlySet<string> | undefined = listResponseDto ? ApiControllerGetListResponsePublishedFields(listResponseDto) : undefined;
+
+		if (!queryPlan || queryPlan.order.isLegacy) {
+			return FilterOrderByFromEntity(entity, entityMetadata, method, dtoType, undefined, currentGuard, publishedFields);
+		}
+
+		return Object.fromEntries(
+			Object.values(queryPlan.order.fields)
+				.filter((field: IApiControllerGetListQueryPlanOrderField): boolean => field.isEnabled && (!publishedFields || publishedFields.has(field.path)))
+				.map((field: IApiControllerGetListQueryPlanOrderField): [string, string] => [field.path, field.path]),
+		);
+	};
+
+	const isOrderDeferred: boolean = listResponseDto !== undefined;
+	const eagerOrderBy: Record<string, string> = isOrderDeferred ? {} : resolveOrderBy();
+	const hasClientOrderFields = (): boolean => Object.keys(resolveOrderBy()).length > 0;
+	const clientOrderPropertyDecorator: typeof ApiPropertyEnum = !isOrderDeferred && hasClientOrderFields() ? ApiPropertyEnum : noopApiPropertyEnum;
 
 	class BaseQueryDTO {
 		@ApiPropertyNumber({
@@ -67,7 +83,7 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 		@clientOrderPropertyDecorator({
 			description: "order by field",
 			entity: entityMetadata,
-			enum: orderBy,
+			enum: eagerOrderBy,
 			enumName: queryPlan ? `${queryPlan.schemaName}OrderBy` : `E${CapitalizeString(schemaPrefix)}FilterOrderBy`,
 			isRequired: false,
 		})
@@ -89,7 +105,7 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 				Reflect.deleteProperty(this, "page");
 			}
 
-			if (!hasClientOrderFields) {
+			if (!hasClientOrderFields()) {
 				Reflect.deleteProperty(this, "orderBy");
 				Reflect.deleteProperty(this, "orderDirection");
 			}
@@ -129,7 +145,9 @@ export function DtoGetGetListQueryBaseClass<E>(entity: ObjectLiteral, entityMeta
 		})(BaseQueryDTO.prototype, "page");
 	}
 
-	if (hasClientOrderFields) {
+	if (isOrderDeferred) {
+		DtoGetListQueryDeferOrder(BaseQueryDTO, entityMetadata, resolveOrderBy);
+	} else if (hasClientOrderFields()) {
 		// class-validator drops an inherited validator on a property the derived class also validates, and the generated DTO validates "object", so the pair check has a property of its own.
 		Validate(AllOrNoneOfListedPropertiesValidator, ["orderBy", "orderDirection"], { message: "INVALID_ORDER" })(BaseQueryDTO.prototype, "orderPair");
 	} else {

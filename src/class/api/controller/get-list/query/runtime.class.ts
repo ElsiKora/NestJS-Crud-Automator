@@ -337,7 +337,7 @@ export class ApiControllerGetListQueryRuntime {
 			throw new BadRequestException("INVALID_ORDER");
 		}
 
-		if (!plan.order.fields[orderByValue]?.isEnabled) {
+		if (!plan.order.fields[orderByValue]?.isEnabled || plan.order.resolvePublishedFields?.().has(orderByValue) === false) {
 			throw new BadRequestException("INVALID_ORDER");
 		}
 

@@ -48,6 +48,7 @@ export const ApiController =
 				// eslint-disable-next-line @elsikora/typescript/no-unsafe-argument
 				super(..._arguments);
 				factory.assertTableInheritanceChildren();
+				factory.assertListResponseOrder();
 			}
 
 			/**

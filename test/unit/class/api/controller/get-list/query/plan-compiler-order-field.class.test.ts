@@ -73,9 +73,8 @@ class OrderFieldReasonController {}
 
 const ROUTE: string = 'Controller "OrderFieldReasonController" route "getList": GET_LIST order field';
 
-const compileOrderField = (field: string, options: { isCursor?: boolean; isResponseDto?: boolean } = {}): void => {
-	const entityMetadata: IApiEntity<OrderFieldReasonEntity> = GenerateEntityInformation<OrderFieldReasonEntity>(OrderFieldReasonEntity as unknown as IApiBaseEntity);
-	const routeConfig = {
+const createRouteConfig = (field: string, options: { isCursor?: boolean; isResponseDto?: boolean }): TApiControllerPropertiesRoute<OrderFieldReasonEntity, EApiRouteType.GET_LIST> =>
+	({
 		...(options.isResponseDto ? { dto: { [EApiDtoType.RESPONSE]: { itemType: OrderFieldReasonItemDto } } } : {}),
 		request: {
 			[EApiControllerRequestTarget.QUERY]: {
@@ -88,9 +87,16 @@ const compileOrderField = (field: string, options: { isCursor?: boolean; isRespo
 			},
 		},
 		security: { authentication: { guard: OrderFieldUserGuard } },
-	} as unknown as TApiControllerPropertiesRoute<OrderFieldReasonEntity, EApiRouteType.GET_LIST>;
+	}) as unknown as TApiControllerPropertiesRoute<OrderFieldReasonEntity, EApiRouteType.GET_LIST>;
 
-	ApiControllerGetListQueryPlanCompiler.compile(OrderFieldReasonController, OrderFieldReasonEntity, entityMetadata, routeConfig);
+const getEntityMetadata = (): IApiEntity<OrderFieldReasonEntity> => GenerateEntityInformation<OrderFieldReasonEntity>(OrderFieldReasonEntity as unknown as IApiBaseEntity);
+
+const compileOrderField = (field: string, options: { isCursor?: boolean; isResponseDto?: boolean } = {}): void => {
+	ApiControllerGetListQueryPlanCompiler.compile(OrderFieldReasonController, OrderFieldReasonEntity, getEntityMetadata(), createRouteConfig(field, options));
+};
+
+const assertOrderField = (field: string): void => {
+	ApiControllerGetListQueryPlanCompiler.assertOrderFieldsPublished(OrderFieldReasonController, OrderFieldReasonEntity, getEntityMetadata(), createRouteConfig(field, { isResponseDto: true }));
 };
 
 describe("ApiControllerGetListQueryPlanCompiler order fields", () => {
@@ -106,10 +112,14 @@ describe("ApiControllerGetListQueryPlanCompiler order fields", () => {
 		expect(() => compileOrderField(field, { isCursor: true })).toThrow(`${ROUTE} "${field}" is not orderable: ${reason}`);
 	});
 
-	it("names a field the manual GET_LIST response DTO does not publish", () => {
-		expect(() => compileOrderField("rank", { isResponseDto: true })).toThrow(`${ROUTE} "rank" is not orderable: the manual GET_LIST response DTO does not publish it`);
+	it("names a field the manual GET_LIST response DTO does not publish once the classes are loaded on a PAGE route", () => {
+		expect(() => compileOrderField("rank", { isResponseDto: true })).not.toThrow();
+		expect(() => assertOrderField("rank")).toThrow(`${ROUTE} "rank" is not orderable: the manual GET_LIST response DTO does not publish it`);
+		expect(() => assertOrderField("id")).not.toThrow();
+	});
+
+	it("names a field the manual GET_LIST response DTO does not publish while a CURSOR plan compiles", () => {
 		expect(() => compileOrderField("rank", { isCursor: true, isResponseDto: true })).toThrow(`${ROUTE} "rank" is not orderable: the manual GET_LIST response DTO does not publish it`);
-		expect(() => compileOrderField("id", { isResponseDto: true })).not.toThrow();
 	});
 
 	it.each(["missing", "owner.name"])("keeps the scalar path message for %s, which names no direct scalar column", (field: string) => {

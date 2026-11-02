@@ -21,6 +21,7 @@ import { API_CONTROLLER_CURSOR_TOKEN_MAX_LENGTH } from "@constant/api-controller
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { UNSAFE_OBJECT_PROPERTY_NAMES_CONSTANT } from "@constant/safe-object-property-names.constant";
+import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
 import { EApiControllerGetListQueryFilterMissingBehavior, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { EFilterOperand, EFilterOperation, EFilterOrderDirection } from "@enum/filter";
@@ -52,6 +53,41 @@ const CURSOR_TIMESTAMP_MAXIMUM_PRECISION: number = 3;
 const CURSOR_UUID_COLUMN_TYPES: ReadonlySet<string> = new Set<string>(["uuid"]);
 
 export class ApiControllerGetListQueryPlanCompiler {
+	/**
+	 * Fails startup when a PAGE route's manual list response cannot be read, or when its typed order names a field the response does not publish. The controller calls this once every class is loaded.
+	 * @template E - Entity type
+	 * @param {Type<unknown>} controller - Controller class, which the error names.
+	 * @param {ObjectLiteral} entity - Entity class.
+	 * @param {IApiEntity<E>} entityMetadata - Entity metadata.
+	 * @param {TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>} routeConfig - GET_LIST route configuration.
+	 * @returns {void}
+	 * @throws {Error} Naming the controller, the route and the cause.
+	 */
+	public static assertOrderFieldsPublished<E>(controller: Type<unknown>, entity: ObjectLiteral, entityMetadata: IApiEntity<E>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>): void {
+		const responseDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown> | undefined = routeConfig.dto?.[EApiDtoType.RESPONSE];
+		const queryTarget: TApiControllerGetListQueryRequestTarget<E> | undefined = routeConfig.request?.[EApiControllerRequestTarget.QUERY];
+
+		if (!responseDto || queryTarget?.pagination?.mode === EApiControllerGetListQueryPaginationMode.CURSOR) {
+			return;
+		}
+
+		let publishedFields: ReadonlySet<string>;
+
+		try {
+			publishedFields = ApiControllerGetListResponsePublishedFields(responseDto);
+		} catch (error) {
+			throw ErrorException(`Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": the manual GET_LIST response DTO cannot be read: ${error instanceof Error ? error.message : String(error)}`);
+		}
+
+		const serverBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildServerOrderBaseline(entity, entityMetadata, false);
+
+		for (const path of Object.keys(queryTarget?.order?.fields ?? {})) {
+			if (!publishedFields.has(path)) {
+				throw ErrorException(this.describeUnorderableOrderField(controller, entityMetadata, serverBaseline, path, routeConfig.security?.authentication?.guard, publishedFields));
+			}
+		}
+	}
+
 	public static compile<E extends IApiBaseEntity>(controller: Type<unknown>, entity: ObjectLiteral, entityMetadata: IApiEntity<E>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>): IApiControllerGetListQueryPlan | undefined {
 		const queryTarget: TApiControllerGetListQueryRequestTarget<E> | undefined = routeConfig.request?.[EApiControllerRequestTarget.QUERY];
 
@@ -69,7 +105,8 @@ export class ApiControllerGetListQueryPlanCompiler {
 		const filterBaseline: Readonly<Record<string, IApiControllerGetListQueryPlanFilterField>> = this.buildFilterBaseline(entity, entityMetadata, currentGuard, isCursor);
 		const serverOrderBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildServerOrderBaseline(entity, entityMetadata, isCursor);
 		const responseDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown> | undefined = routeConfig.dto?.[EApiDtoType.RESPONSE];
-		const publishedFields: ReadonlySet<string> | undefined = responseDto ? ApiControllerGetListResponsePublishedFields(responseDto) : undefined;
+		// CURSOR proves its item class while the plan compiles, so only its names are read; a PAGE response is read once the classes exist, see assertOrderFieldsPublished.
+		const publishedFields: ReadonlySet<string> | undefined = isCursor && responseDto ? this.readCursorPublishedFields(responseDto) : undefined;
 		const orderBaseline: Readonly<Record<string, TApiControllerGetListQueryCompiledOrderField>> = this.buildOrderBaseline(entity, entityMetadata, serverOrderBaseline, isCursor, currentGuard, publishedFields);
 		const describeUnorderableField: (path: string) => string = (path: string): string => this.describeUnorderableOrderField(controller, entityMetadata, serverOrderBaseline, path, currentGuard, publishedFields);
 		const filter: IApiControllerGetListQueryPlanFilter = queryTarget.filter ? this.compileFilter(queryTarget.filter, filterBaseline, isCursor) : Object.freeze({ fields: filterBaseline, isLegacy: !isCursor, ...(isCursor ? { unlistedFields: EApiControllerGetListQueryUnlistedFields.INHERIT } : {}) });
@@ -157,6 +194,10 @@ export class ApiControllerGetListQueryPlanCompiler {
 				}
 
 				pageOrderProperties[key] = key === "fields" ? pageFields : value;
+			}
+
+			if (responseDto) {
+				pageOrderProperties.resolvePublishedFields = (): ReadonlySet<string> => ApiControllerGetListResponsePublishedFields(responseDto);
 			}
 
 			const pageOrder: IApiControllerGetListQueryPlanOrder = Object.freeze(pageOrderProperties) as unknown as IApiControllerGetListQueryPlanOrder;
@@ -731,6 +772,30 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 
 		return typeof columnType === "string" ? columnType.trim().toLowerCase() : "unknown";
+	}
+
+	// A wrapper with an unproven items property is left to the envelope proof of validateCursorCustomResponseDto, which reports it.
+	private static readCursorPublishedFields(responseDto: IApiControllerPropertiesRouteGetListResponseDtoConfig | Type<unknown>): ReadonlySet<string> | undefined {
+		if (typeof responseDto === "object") {
+			return this.readDeclaredFields(responseDto.itemType);
+		}
+
+		const prototype: object = Reflect.get(responseDto, "prototype") as object;
+		const itemsMetadata: TManualDtoPropertyMetadata | undefined = GetManualDtoPropertyMetadata(prototype).get("items");
+		const itemType: unknown = itemsMetadata?.decorator === EManualDtoPropertyMetadataDecorator.OBJECT ? itemsMetadata.properties.type : undefined;
+
+		if (typeof itemType === "function" && Reflect.get(itemType, "prototype") !== undefined && itemType !== Object) {
+			return this.readDeclaredFields(itemType as Type<unknown>);
+		}
+
+		return itemsMetadata || Reflect.hasMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, prototype, "items") ? undefined : new Set<string>();
+	}
+
+	// Reads the names a class documents without evaluating a lazy type one of them may declare.
+	private static readDeclaredFields(itemType: Type<unknown>): ReadonlySet<string> {
+		const properties: unknown = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES_ARRAY, Reflect.get(itemType, "prototype") as object);
+
+		return new Set<string>((Array.isArray(properties) ? properties : []).filter((property: unknown): property is string => typeof property === "string" && property.startsWith(":")).map((property: string): string => property.slice(1)));
 	}
 
 	private static requireAllowedKeys(value: Record<string, unknown>, allowedKeys: ReadonlyArray<string>, context: string): void {
