@@ -4,7 +4,7 @@ import type { ApiFunctionTransactionRegistry } from "@class/api/function/transac
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiFunctionContext, IApiFunctionStepContext } from "@interface/class/api/function";
 import type { TApiFunctionContextStorageEntry } from "@type/class/api/function/context-storage-entry.type";
-import type { EntityManager, QueryRunner } from "typeorm";
+import type { DataSource, EntityManager, QueryRunner } from "typeorm";
 
 import { AsyncLocalStorage as NodeAsyncLocalStorage } from "node:async_hooks";
 
@@ -12,6 +12,9 @@ import { EApiFunctionContextStorageKind } from "@enum/decorator/api";
 
 export class ApiFunctionContextStorage {
 	private static readonly STORAGE: AsyncLocalStorage<TApiFunctionContextStorageEntry<IApiBaseEntity>> = new NodeAsyncLocalStorage<TApiFunctionContextStorageEntry<IApiBaseEntity>>();
+
+	// Transactions of other data sources that a call left, which a call back into their data source joins again.
+	private static readonly SUSPENDED: AsyncLocalStorage<ReadonlyMap<DataSource, TApiFunctionContextStorageEntry<IApiBaseEntity>>> = new NodeAsyncLocalStorage<ReadonlyMap<DataSource, TApiFunctionContextStorageEntry<IApiBaseEntity>>>();
 
 	private static readonly TRANSACTION_REGISTRIES: WeakMap<EntityManager, ApiFunctionTransactionRegistry> = new WeakMap<EntityManager, ApiFunctionTransactionRegistry>();
 
@@ -54,6 +57,28 @@ export class ApiFunctionContextStorage {
 			},
 			callback,
 		);
+	}
+
+	/**
+	 * Runs a callback for a data source other than the one the active transaction belongs to.
+	 * The manager of a transaction only works for its own data source, so the callback runs outside it, or back inside a transaction of its data source that an earlier call left.
+	 * @template R - Callback result type.
+	 * @param {DataSource} dataSource - Data source the callback works on.
+	 * @param {() => Promise<R>} callback - Work to run.
+	 * @returns {Promise<R>} Callback result.
+	 */
+	public static runOnDataSource<R>(dataSource: DataSource, callback: () => Promise<R>): Promise<R> {
+		const entry: TApiFunctionContextStorageEntry<IApiBaseEntity> | undefined = ApiFunctionContextStorage.STORAGE.getStore();
+		const suspended: Map<DataSource, TApiFunctionContextStorageEntry<IApiBaseEntity>> = new Map<DataSource, TApiFunctionContextStorageEntry<IApiBaseEntity>>(ApiFunctionContextStorage.SUSPENDED.getStore());
+
+		if (entry?.transaction) {
+			suspended.set(entry.transaction.entityManager.dataSource, entry);
+		}
+
+		const resumed: TApiFunctionContextStorageEntry<IApiBaseEntity> | undefined = suspended.get(dataSource);
+		suspended.delete(dataSource);
+
+		return ApiFunctionContextStorage.SUSPENDED.run(suspended, (): Promise<R> => ApiFunctionContextStorage.STORAGE.run(resumed ?? { context: {}, kind: EApiFunctionContextStorageKind.TRANSACTION }, callback));
 	}
 
 	public static runStep<E extends IApiBaseEntity, R>(context: IApiFunctionStepContext<E>, callback: () => Promise<R>): Promise<R> {

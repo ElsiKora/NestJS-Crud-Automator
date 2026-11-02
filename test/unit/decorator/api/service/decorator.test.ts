@@ -413,13 +413,15 @@ describe("ApiService", () => {
 	});
 
 	it("fires before_error for generated none transaction preflight failures", async () => {
-		const repository = {
-			save: vi.fn(async (entity: Partial<ServiceEntity>) => ({ ...entity }) as ServiceEntity),
-		};
 		const errorSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
 		const eventManager = {
 			getRepository: vi.fn(),
 		} as unknown as EntityManager;
+		const { dataSource } = createTransactionFixture(eventManager);
+		const repository = {
+			manager: { dataSource },
+			save: vi.fn(async (entity: Partial<ServiceEntity>) => ({ ...entity }) as ServiceEntity),
+		};
 
 		@ApiService({
 			entity: ServiceEntity,
@@ -435,7 +437,7 @@ describe("ApiService", () => {
 
 		const service = new Service(repository) as Service & Record<string, any>;
 
-		await expect(ApiFunctionTransactionScope.runWithDataSource(createTransactionFixture(eventManager).dataSource, { name: "noneMode" }, async () => await service.create({ name: "created" }))).rejects.toThrow("ApiFunction transaction mode NONE cannot run inside an active transaction");
+		await expect(ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "noneMode" }, async () => await service.create({ name: "created" }))).rejects.toThrow("ApiFunction transaction mode NONE cannot run inside an active transaction");
 		expect(errorSpy).toHaveBeenCalledWith(expect.any(Function), expect.any(ServiceEntity), EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, expect.any(Object), expect.any(Error));
 		expect(repository.save).not.toHaveBeenCalled();
 	});

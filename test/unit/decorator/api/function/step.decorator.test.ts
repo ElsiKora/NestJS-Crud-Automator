@@ -74,13 +74,16 @@ const createRepository = () => {
 	const transactionManager = {
 		getRepository: vi.fn().mockReturnValue(transactionRepository),
 	} as unknown as EntityManager;
+	const { dataSource } = createTransactionFixture(transactionManager);
 	const repository = {
 		manager: {
+			dataSource,
 			getRepository: vi.fn().mockReturnValue({} as Repository<StepDecoratorEntity>),
 		},
 	} as unknown as Repository<StepDecoratorEntity>;
 
 	return {
+		dataSource,
 		repository,
 		transactionManager,
 		transactionRepository,
@@ -124,10 +127,10 @@ describe("ApiFunctionStep", () => {
 	});
 
 	it("supports decorated private methods invoked by public service methods", async () => {
-		const { repository, transactionManager, transactionRepository } = createRepository();
+		const { dataSource, repository, transactionManager, transactionRepository } = createRepository();
 		const service = new StepDecoratorService(repository);
 
-		const context = await ApiFunctionTransactionScope.runWithDataSource(createTransactionFixture(transactionManager).dataSource, { name: "privateStep" }, async () => await service.callPrivateStep("private"));
+		const context = await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "privateStep" }, async () => await service.callPrivateStep("private"));
 
 		expect(context.eventManager).toBe(transactionManager);
 		expect(context.repository).toBe(transactionRepository);
@@ -135,10 +138,10 @@ describe("ApiFunctionStep", () => {
 	});
 
 	it("supports decorated protected methods invoked by public service methods", async () => {
-		const { repository, transactionManager, transactionRepository } = createRepository();
+		const { dataSource, repository, transactionManager, transactionRepository } = createRepository();
 		const service = new StepDecoratorService(repository);
 
-		const context = await ApiFunctionTransactionScope.runWithDataSource(createTransactionFixture(transactionManager).dataSource, { name: "protectedStep" }, async () => await service.callProtectedStep("protected"));
+		const context = await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "protectedStep" }, async () => await service.callProtectedStep("protected"));
 
 		expect(context.eventManager).toBe(transactionManager);
 		expect(context.repository).toBe(transactionRepository);

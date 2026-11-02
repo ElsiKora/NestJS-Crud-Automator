@@ -16,6 +16,20 @@ export class ApiFunctionTransactionScope {
 			throw ErrorException("ApiFunctionTransactionScope name must be a non-empty string");
 		}
 
+		const activeEventManager: EntityManager | undefined = ApiFunctionContextStorage.getTransactionRegistry() ? ApiFunctionContextStorage.getEventManager() : undefined;
+
+		if (activeEventManager && activeEventManager.dataSource !== dataSource) {
+			return await ApiFunctionContextStorage.runOnDataSource(dataSource, async (): Promise<R> => await ApiFunctionTransactionScope.runWithDataSource(dataSource, properties, callback));
+		}
+
+		if (activeEventManager) {
+			if (properties.observation !== undefined) {
+				throw ErrorException("ApiFunctionTransactionScope cannot use an observation when it joins an active transaction on its data source, because the owner of that transaction settles it");
+			}
+
+			return await ApiFunctionTransactionScope.runWithEntityManager(activeEventManager, async (): Promise<R> => await callback(activeEventManager));
+		}
+
 		return await ApiFunctionTransactionRuntime.execute({
 			callback: async (entityManager: EntityManager): Promise<R> => await ApiFunctionTransactionScope.runWithEntityManager(entityManager, async (): Promise<R> => await callback(entityManager)),
 			dataSource,

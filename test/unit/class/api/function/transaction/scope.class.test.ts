@@ -1,4 +1,5 @@
 import type { IApiFunctionTransactionObservationOptions } from "@interface/class/api/function";
+import type { EntityManager } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionCommitUnknownOutcomeException, ApiFunctionTransactionRollbackException } from "@class/api/function/transaction/exception";
@@ -55,12 +56,59 @@ describe("ApiFunctionTransactionScope", () => {
 		await expect(ApiFunctionTransactionScope.runWithDataSource(owner.dataSource, { name: "owner" }, async () => await ApiFunctionTransactionScope.runWithEntityManager(other.entityManager, async () => undefined))).rejects.toThrow("runWithEntityManager requires an existing Automator transaction owner registry");
 	});
 
-	it("rejects a nested owning data-source transaction", async () => {
+	it("gives another data source its own transaction inside an active one", async () => {
 		const outer = createTransactionFixture();
 		const inner = createTransactionFixture();
+		const managers: Array<EntityManager> = [];
 
-		await expect(ApiFunctionTransactionScope.runWithDataSource(outer.dataSource, { name: "outer" }, async () => await ApiFunctionTransactionScope.runWithDataSource(inner.dataSource, { name: "inner" }, async () => undefined))).rejects.toThrow("Cannot open an owning transaction inside an active Automator transaction");
-		expect(inner.dataSource.createQueryRunner).not.toHaveBeenCalled();
+		await ApiFunctionTransactionScope.runWithDataSource(outer.dataSource, { name: "outer" }, async () => {
+			await ApiFunctionTransactionScope.runWithDataSource(inner.dataSource, { name: "inner" }, async (entityManager: EntityManager) => {
+				managers.push(entityManager);
+			});
+			managers.push(ApiFunctionContextStorage.getEventManager() as EntityManager);
+		});
+
+		expect(managers).toEqual([inner.entityManager, outer.entityManager]);
+		expect(inner.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+		expect(outer.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+	});
+
+	it("joins an active transaction again from another data source's scope", async () => {
+		const outer = createTransactionFixture();
+		const inner = createTransactionFixture();
+		let joined: EntityManager | undefined;
+
+		await ApiFunctionTransactionScope.runWithDataSource(outer.dataSource, { name: "outer" }, async () => {
+			await ApiFunctionTransactionScope.runWithDataSource(inner.dataSource, { name: "inner" }, async () => {
+				await ApiFunctionTransactionScope.runWithDataSource(outer.dataSource, { name: "back" }, async (entityManager: EntityManager) => {
+					joined = entityManager;
+				});
+			});
+		});
+
+		expect(joined).toBe(outer.entityManager);
+		expect(outer.dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
+	});
+
+	it("joins an active transaction on the same data source", async () => {
+		const { dataSource, entityManager, queryRunner } = createTransactionFixture();
+		let joined: EntityManager | undefined;
+
+		await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "outer" }, async () => {
+			await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "inner" }, async (manager: EntityManager) => {
+				joined = manager;
+			});
+		});
+
+		expect(joined).toBe(entityManager);
+		expect(dataSource.createQueryRunner).toHaveBeenCalledTimes(1);
+		expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+	});
+
+	it("refuses an observation when it joins an active transaction", async () => {
+		const { dataSource } = createTransactionFixture();
+
+		await expect(ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "outer" }, async () => await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "inner", observation: { onSettled: () => undefined, selectors: [] } }, async () => undefined))).rejects.toThrow("cannot use an observation");
 	});
 
 	it.each(["", " ", "\t\n"])("rejects the empty scope name %j", async (name: string) => {

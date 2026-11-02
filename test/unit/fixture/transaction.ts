@@ -20,6 +20,7 @@ export function createTransactionFixture(entityManager?: EntityManager): { dataS
 		createQueryRunner: vi.fn(() => queryRunner),
 		options: { type: "postgres" },
 	} as unknown as DataSource;
+	Object.assign(resolvedEntityManager, { dataSource });
 
 	return {
 		dataSource,

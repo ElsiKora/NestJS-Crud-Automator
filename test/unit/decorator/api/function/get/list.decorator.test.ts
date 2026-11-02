@@ -100,21 +100,23 @@ describe("ApiFunctionGetList", () => {
 	});
 
 	it("uses event manager repository when provided", async () => {
-		const repository = {
-			findAndCount: vi.fn(async () => [[{ id: "id-1" }], 1]),
-		} as unknown as Repository<GetListEntity>;
 		const eventRepository = {
 			findAndCount: vi.fn(async () => [[{ id: "id-2" }], 2]),
 		} as unknown as Repository<GetListEntity>;
 		const eventManager = {
 			getRepository: vi.fn(() => eventRepository),
 		} as unknown as EntityManager;
+		const { dataSource } = createTransactionFixture(eventManager);
+		const repository = {
+			findAndCount: vi.fn(async () => [[{ id: "id-1" }], 1]),
+			manager: { dataSource },
+		} as unknown as Repository<GetListEntity>;
 		const service = new GetListService(repository);
 
 		const before = vi.spyOn(ApiSubscriberExecutor, "executeFunctionBeforeSubscribers").mockResolvedValue(undefined);
 		const after = vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
 
-		const result = await ApiFunctionTransactionScope.runWithDataSource(createTransactionFixture(eventManager).dataSource, { name: "getList" }, async () => await service.getList({ take: 1 }));
+		const result = await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "getList" }, async () => await service.getList({ take: 1 }));
 		const beforeContext = before.mock.calls[0]?.[3] as { DATA: { repository: Repository<GetListEntity> } } | undefined;
 		const afterContext = after.mock.calls[0]?.[4] as { DATA: { repository: Repository<GetListEntity> } } | undefined;
 

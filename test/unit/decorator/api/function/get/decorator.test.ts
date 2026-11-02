@@ -147,20 +147,22 @@ describe("ApiFunctionGet", () => {
 	});
 
 	it("uses event manager repository when provided", async () => {
-		const repository = {
-			findOne: vi.fn(async () => ({ id: "id-1", name: "direct" })),
-		} as unknown as Repository<GetEntity>;
 		const eventRepository = {
 			findOne: vi.fn(async () => ({ id: "id-2", name: "event" })),
 		} as unknown as Repository<GetEntity>;
 		const eventManager = {
 			getRepository: vi.fn(() => eventRepository),
 		} as unknown as EntityManager;
+		const { dataSource } = createTransactionFixture(eventManager);
+		const repository = {
+			findOne: vi.fn(async () => ({ id: "id-1", name: "direct" })),
+			manager: { dataSource },
+		} as unknown as Repository<GetEntity>;
 		const service = new GetService(repository);
 
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
 
-		const result = await ApiFunctionTransactionScope.runWithDataSource(createTransactionFixture(eventManager).dataSource, { name: "get" }, async () => await service.get({ where: { id: "id-2" } }));
+		const result = await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "get" }, async () => await service.get({ where: { id: "id-2" } }));
 
 		expect(eventManager.getRepository).toHaveBeenCalledWith(GetEntity);
 		expect(eventRepository.findOne).toHaveBeenCalledWith({ where: { id: "id-2" } });

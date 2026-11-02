@@ -1,7 +1,7 @@
 import type { ApiFunctionTransactionRegistry } from "@class/api/function/transaction/registry.class";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { TApiFunctionTransactionTraceType } from "@type/class/api/function/transaction";
-import type { EntityManager, Repository } from "typeorm";
+import type { DataSource, EntityManager, Repository } from "typeorm";
 
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/runtime.class";
@@ -40,6 +40,16 @@ export async function ApiFunctionExecuteWithTransaction<E extends IApiBaseEntity
 }): Promise<R> {
 	const activeRegistry: ApiFunctionTransactionRegistry | undefined = ApiFunctionContextStorage.getTransactionRegistry();
 	const activeEventManager: EntityManager | undefined = activeRegistry ? ApiFunctionContextStorage.getEventManager() : undefined;
+
+	if (activeEventManager && options.repository) {
+		const dataSource: DataSource = options.repository.manager.dataSource;
+
+		// The manager of a transaction only reaches its own data source.
+		if (activeEventManager.dataSource !== dataSource) {
+			return await ApiFunctionContextStorage.runOnDataSource(dataSource, async (): Promise<R> => await ApiFunctionExecuteWithTransaction(options));
+		}
+	}
+
 	const label: string = options.label ?? "ApiFunction";
 	const isSubscriberObservable: boolean = Boolean(options.serviceConstructor && Reflect.hasMetadata(SERVICE_API_DECORATOR_CONSTANT.OBSERVABLE_METADATA_KEY, options.serviceConstructor));
 

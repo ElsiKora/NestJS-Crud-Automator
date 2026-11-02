@@ -67,20 +67,22 @@ describe("ApiFunctionCreate", () => {
 	});
 
 	it("uses event manager repository when provided", async () => {
-		const repository = {
-			save: vi.fn(async () => ({ id: "repo" })),
-		} as unknown as Repository<CreateEntity>;
 		const eventRepository = {
 			save: vi.fn(async () => ({ id: "event" })),
 		} as unknown as Repository<CreateEntity>;
 		const eventManager = {
 			getRepository: vi.fn(() => eventRepository),
 		} as unknown as EntityManager;
+		const { dataSource } = createTransactionFixture(eventManager);
+		const repository = {
+			manager: { dataSource },
+			save: vi.fn(async () => ({ id: "repo" })),
+		} as unknown as Repository<CreateEntity>;
 		const service = new CreateService(repository);
 
 		vi.spyOn(ApiSubscriberExecutor, "executeFunctionSubscribers").mockResolvedValue(undefined);
 
-		const result = await ApiFunctionTransactionScope.runWithDataSource(createTransactionFixture(eventManager).dataSource, { name: "create" }, async () => await service.create({ name: "txn" } as CreateEntity));
+		const result = await ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "create" }, async () => await service.create({ name: "txn" } as CreateEntity));
 
 		expect(eventRepository.save).toHaveBeenCalled();
 		expect(repository.save).not.toHaveBeenCalled();
@@ -115,15 +117,16 @@ describe("ApiFunctionCreate", () => {
 	});
 
 	it("binds the preflight error repository to the active transaction", async () => {
-		const repository = { name: "service" } as unknown as Repository<CreateEntity>;
 		const eventRepository = { name: "transaction" } as unknown as Repository<CreateEntity>;
 		const eventManager = {
 			getRepository: vi.fn(() => eventRepository),
 		} as unknown as EntityManager;
+		const { dataSource } = createTransactionFixture(eventManager);
+		const repository = { manager: { dataSource }, name: "service" } as unknown as Repository<CreateEntity>;
 		const service = new NoneCreateService(repository);
 		const errorSpy = vi.spyOn(ApiSubscriberExecutor, "executeFunctionErrorSubscribers").mockResolvedValue(undefined);
 
-		await expect(ApiFunctionTransactionScope.runWithDataSource(createTransactionFixture(eventManager).dataSource, { name: "create" }, async () => await service.create({ name: "txn" } as CreateEntity))).rejects.toThrow("ApiFunction transaction mode NONE cannot run inside an active transaction");
+		await expect(ApiFunctionTransactionScope.runWithDataSource(dataSource, { name: "create" }, async () => await service.create({ name: "txn" } as CreateEntity))).rejects.toThrow("ApiFunction transaction mode NONE cannot run inside an active transaction");
 		expect(errorSpy).toHaveBeenCalledWith(NoneCreateService, expect.any(CreateEntity), EApiFunctionType.CREATE, EApiSubscriberOnType.BEFORE_ERROR, expect.objectContaining({ DATA: { eventManager, repository: eventRepository } }), expect.any(Error));
 	});
 
