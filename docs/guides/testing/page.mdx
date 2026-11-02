@@ -312,6 +312,7 @@ The items below apply to a controller with an enabled generated route. A control
 
 - A plain object without TypeORM metadata and a manager as the repository, such as `{ provide: getRepositoryToken(UserEntity), useValue: { findOne: vi.fn() } }`, fails at bootstrap, because the date and time filter checks and the relation load checks could not run.
 - A mocked service with no repository, such as `{ provide: UserService, useValue: { get: vi.fn() } }`, fails at bootstrap too. Generated routes also accept only the methods `@ApiService` installs.
+- A service double with a TypeORM repository whose `create`, `get`, `update` or `delete` is not the function `@ApiService` or the matching built-in `@ApiFunction*` decorator defines, such as `{ provide: UserService, useValue: { get: vi.fn(), repository } }`, fails at bootstrap for every enabled route that calls that function: `POST` calls `create` and `get`, `PUT` and `PATCH` call `update` and `get`, `GET` calls `get`, `DELETE` calls `delete`. Keep the `@ApiService` service and stub the repository.
 - A repository of a DataSource that is not initialized yet fails at bootstrap with the cause. With `manualInitialization`, call `dataSource.initialize()` before `app.init()`.
 
 The bootstrap error names the controller, the entity, and the missing part:
