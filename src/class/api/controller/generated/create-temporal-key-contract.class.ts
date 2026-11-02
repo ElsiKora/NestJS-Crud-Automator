@@ -1,13 +1,16 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
+import type { ValidationError } from "class-validator";
 import type { Driver, Repository } from "typeorm";
 
 import { ApiControllerGeneratedTemporalBodySource } from "@class/api/controller/generated/temporal-body-source.class";
 import { ApiControllerGeneratedUtcDate } from "@class/api/controller/generated/utc-date.class";
+import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
+import { CREATE_KEY_FAILURE_CONSTANT } from "@constant/create-key-failure.constant";
 import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
 import { DATABASE_DRIVER_TYPE_CONSTANT } from "@constant/database-driver-type.constant";
 import { DATE_TIME_TEXT_CONSTANT } from "@constant/date-time-text.constant";
-import { BadRequestException } from "@nestjs/common";
+import { ApiControllerParametersCreateFailure } from "@utility/api/controller/parameters/create-failure.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { IsCalendarDateTime } from "@utility/is/calendar-date-time.utility";
 
@@ -88,7 +91,7 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 	 * @template E The entity type
 	 * @param {Repository<E> | undefined} repository - Repository of the created entity.
 	 * @param {object | undefined} body - Create body, changed in place.
-	 * @throws {BadRequestException} When a value is not a date and time, an instant has no zone, a value is more precise than its column, or a wall clock column cannot store the value apart from another one.
+	 * @throws {ApiRequestValidationException} With one failure per refused key, under its property path, when a value is not a date and time, an instant has no zone, a value is more precise than its column, or a wall clock column cannot store the value apart from another one.
 	 */
 	public static parse<E extends IApiBaseEntity>(repository: Repository<E> | undefined, body: object | undefined): void {
 		if (!repository) {
@@ -100,7 +103,7 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 		}
 
 		const driver: Driver = repository.manager.dataSource.driver;
-		const messages: Array<string> = [];
+		const failures: Array<ValidationError> = [];
 
 		for (const column of repository.metadata.primaryColumns) {
 			const columnType: string = driver.normalizeType(column);
@@ -118,35 +121,36 @@ export class ApiControllerGeneratedCreateTemporalKeyContract {
 			const isInstant: boolean = DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType);
 			// Every other column stores the local wall clock of the Date, which the second occurrence of a repeated hour shares with the first, so one key would name the row of the other.
 			const isWallClock: boolean = !isInstant && !DATABASE_DRIVER_TYPE_CONSTANT.SQLITE_FAMILY.has(repository.manager.dataSource.options.type);
-			const message: string | undefined = this.check(path, date, text, isInstant, Math.min(this.getPrecision(driver, column, columnType) ?? DATE_FRACTION_DIGITS, DATE_FRACTION_DIGITS)) ?? (isWallClock && date && this.isRepeatedHour(date) ? `${path} falls in the second occurrence of an hour that a daylight saving change repeats in the process time zone, which this column cannot store apart from the first` : undefined);
+			const repeatedHourFailure: undefined | ValidationError = isWallClock && date && this.isRepeatedHour(date) ? ApiControllerParametersCreateFailure(path, CREATE_KEY_FAILURE_CONSTANT.REPEATED_HOUR_CONSTRAINT, `${path} falls in the second occurrence of an hour that a daylight saving change repeats in the process time zone, which this column cannot store apart from the first`) : undefined;
+			const failure: undefined | ValidationError = this.check(path, date, text, isInstant, Math.min(this.getPrecision(driver, column, columnType) ?? DATE_FRACTION_DIGITS, DATE_FRACTION_DIGITS)) ?? repeatedHourFailure;
 
-			if (message) {
-				messages.push(message);
+			if (failure) {
+				failures.push(failure);
 			} else if (date) {
 				// The column transformer receives this Date once on the write; node-postgres would move an instant in a zone whose offset holds seconds.
 				this.writePath(body, path, isInstant && DATABASE_DRIVER_TYPE_CONSTANT.NODE_POSTGRES.has(repository.manager.dataSource.options.type) ? new ApiControllerGeneratedUtcDate(date.getTime()) : date);
 			}
 		}
 
-		if (messages.length > 0) {
-			throw new BadRequestException(messages);
+		if (failures.length > 0) {
+			throw new ApiRequestValidationException(failures);
 		}
 	}
 
-	private static check(property: string, date: Date | undefined, text: string | undefined, isInstant: boolean, fractionDigits: number): string | undefined {
+	private static check(property: string, date: Date | undefined, text: string | undefined, isInstant: boolean, fractionDigits: number): undefined | ValidationError {
 		// JavaScript rolls a day or hour that does not exist over into the next one, so the text itself must name an existing one.
 		if (!date || Number.isNaN(date.getTime()) || (text !== undefined && (!DATE_TIME_PATTERN.test(text) || !IsCalendarDateTime(text)))) {
-			return `${property} must be a valid ISO 8601 date-time`;
+			return ApiControllerParametersCreateFailure(property, CREATE_KEY_FAILURE_CONSTANT.NOT_DATE_TIME_CONSTRAINT, `${property} must be a valid ISO 8601 date-time`);
 		}
 
 		// An instant column stores a point in time, which a wall-clock value without a zone does not name.
 		if (isInstant && text !== undefined && !DATE_TIME_TEXT_CONSTANT.ZONE_PATTERN.test(text)) {
-			return `${property} must carry a time zone designator or an offset`;
+			return ApiControllerParametersCreateFailure(property, CREATE_KEY_FAILURE_CONSTANT.NO_TIME_ZONE_CONSTRAINT, `${property} must carry a time zone designator or an offset`);
 		}
 
 		const isStorable: boolean = text === undefined ? (date.getTime() % MILLISECONDS_PER_SECOND) % DECIMAL_BASE ** (DATE_FRACTION_DIGITS - fractionDigits) === 0 : ZERO_DIGITS_PATTERN.test(FRACTION_PATTERN.exec(text)?.[1]?.slice(fractionDigits) ?? "");
 
-		return isStorable ? undefined : `${property} must not hold more than ${fractionDigits} fractional second digits`;
+		return isStorable ? undefined : ApiControllerParametersCreateFailure(property, CREATE_KEY_FAILURE_CONSTANT.FINER_THAN_COLUMN_CONSTRAINT, `${property} must not hold more than ${fractionDigits} fractional second digits`);
 	}
 
 	private static getPrecision(driver: Driver, column: TTypeOrmColumnMetadata, columnType: string): number | undefined {

@@ -1,8 +1,10 @@
+import type { ValidationError } from "class-validator";
 import type { Repository } from "typeorm";
 
 import { ApiControllerGeneratedCreateTemporalKeyContract } from "@class/api/controller/generated/create-temporal-key-contract.class";
 import { ApiControllerGeneratedTemporalBodySource } from "@class/api/controller/generated/temporal-body-source.class";
-import { BadRequestException } from "@nestjs/common";
+import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
+import { ApiRequestValidationGetErrors } from "@utility/api/request-validation-get-errors.utility";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 interface ITemporalKeyColumn {
@@ -24,16 +26,24 @@ function createRepository(columns: Array<ITemporalKeyColumn>, driverType: string
 	} as unknown as Repository<object>;
 }
 
-function readMessages(callback: () => void): Array<string> {
+function readException(callback: () => void): ApiRequestValidationException {
 	try {
 		callback();
 	} catch (error) {
-		expect(error).toBeInstanceOf(BadRequestException);
+		expect(error).toBeInstanceOf(ApiRequestValidationException);
 
-		return ((error as BadRequestException).getResponse() as { message: Array<string> }).message;
+		return error as ApiRequestValidationException;
 	}
 
-	throw new Error("Expected a BadRequestException");
+	throw new Error("Expected an ApiRequestValidationException");
+}
+
+function readFailures(callback: () => void): Array<Pick<ValidationError, "constraints" | "property">> {
+	return (ApiRequestValidationGetErrors(readException(callback)) ?? []).map((failure: ValidationError): Pick<ValidationError, "constraints" | "property"> => ({ constraints: failure.constraints, property: failure.property }));
+}
+
+function readMessages(callback: () => void): Array<string> {
+	return (readException(callback).getResponse() as { message: Array<string> }).message;
 }
 
 const INSTANT: ITemporalKeyColumn = { propertyName: "at", type: "timestamp with time zone" };
@@ -198,6 +208,30 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.assertIdentifiable(createRepository([{ ...INSTANT, precision: 6, propertyPath: "key.at" }]), "Controller", true)).toThrow("date and time primary column key.at of TemporalKeyEntity");
 		});
 
+		it.each([
+			["impossible text", INSTANT, "2026-02-30T00:00:00.000Z", "isDateFormatValue", "at must be a valid ISO 8601 date-time"],
+			["a value that is not text", INSTANT, 1_704_164_645_678, "isDateFormatValue", "at must be a valid ISO 8601 date-time"],
+			["an instant without a zone", INSTANT, "2024-03-10T02:30:00", "createKeyNoTimeZone", "at must carry a time zone designator or an offset"],
+			["a value finer than the column", { ...INSTANT, precision: 0 }, "2024-01-02T03:04:05.678Z", "createKeyFinerThanColumn", "at must not hold more than 0 fractional second digits"],
+		])("refuses %s with a validation failure a host filter can translate and the default body", (_name: string, column: ITemporalKeyColumn, value: unknown, constraint: string, message: string) => {
+			const parse = (): void => ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([column]), { at: value });
+
+			expect(readFailures(parse)).toEqual([{ constraints: { [constraint]: message }, property: "at" }]);
+			expect(readException(parse).getResponse()).toEqual({ error: "Bad Request", message: [message], statusCode: 400 });
+		});
+
+		it("gives every refused key its own failure under its property path", () => {
+			const columns: Array<ITemporalKeyColumn> = [
+				{ ...INSTANT, propertyPath: "key.at" },
+				{ precision: 0, propertyName: "until", type: "timestamp without time zone" },
+			];
+
+			expect(readFailures(() => ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository(columns), { key: { at: "2024-01-02T03:04:05" }, until: "2024-01-02T03:04:05.5" }))).toEqual([
+				{ constraints: { createKeyNoTimeZone: "key.at must carry a time zone designator or an offset" }, property: "key.at" },
+				{ constraints: { createKeyFinerThanColumn: "until must not hold more than 0 fractional second digits" }, property: "until" },
+			]);
+		});
+
 		it("needs the repository and accepts a missing body", () => {
 			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.parse(undefined, {})).toThrow("Repository is not available in this context");
 			expect(() => ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([INSTANT]), undefined)).not.toThrow();
@@ -222,6 +256,10 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 
 		it.each([["postgres"], ["cockroachdb"], ["mariadb"], ["mysql"]])("refuses the second occurrence on a wall clock column of %s", (driverType: string) => {
 			expect(readMessages(() => ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([WALL_CLOCK], driverType), { at: "2024-11-03T06:30:00.000Z" }))).toEqual(["at falls in the second occurrence of an hour that a daylight saving change repeats in the process time zone, which this column cannot store apart from the first"]);
+		});
+
+		it("refuses the second occurrence with a validation failure a host filter can translate", () => {
+			expect(readFailures(() => ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([WALL_CLOCK], "postgres"), { at: "2024-11-03T06:30:00.000Z" }))).toEqual([{ constraints: { createKeyRepeatedHour: "at falls in the second occurrence of an hour that a daylight saving change repeats in the process time zone, which this column cannot store apart from the first" }, property: "at" }]);
 		});
 
 		it.each([
