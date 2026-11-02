@@ -88,10 +88,14 @@ const BODY_RELATION_KEY_CLEAR_REJECTION_REASON: string = "it cannot be cleared, 
 const BODY_RELATION_LOCKED_CLEAR_REJECTION_REASON: string = "it cannot be cleared, because its columns are in the primary key or bound by the path";
 const BODY_RELATION_OBJECT_REJECTION_REASON: string = "a relation over several columns must be sent as an object naming its join columns";
 const BODY_RELATION_SPLIT_REJECTION_REASON: string = "relation must name each of its own columns, which the entity must declare";
+const BODY_RELATION_UNNAMED_REJECTION_REASON: string = "a relation object must name its join columns";
 const BODY_RELATION_VALUE_REJECTION_REASON: string = "a relation over one column must be sent as the value of the column it references, or an object naming it";
 const BODY_UNADDRESSED_KEY_REJECTION_REASON: string = "key column is not in the path";
 
 export class ApiRouteRuntime {
+	// The body of each generated request as the client sent it, before subscribers and transformers can change the object a route without a pipe shares with the request.
+	private static readonly SENT_BODIES: WeakMap<object, unknown> = new WeakMap<object, unknown>();
+
 	public static async executeCustom<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>): Promise<R> {
 		const action: string = options.metadata.resource.action;
 		const entityInstance: E = new (options.metadata.resource.entity as new () => E)();
@@ -206,6 +210,7 @@ export class ApiRouteRuntime {
 
 		const entityInstance: E = new (options.properties.entity as new () => E)();
 		const authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined = ApiControllerGeneratedSecuritySnapshot.create(AuthorizationDecisionResolveFromRequest(options.targets.authenticationRequest));
+		this.keepSentBody(options.targets.authenticationRequest);
 
 		const beforeData: IApiSubscriberRouteExecutionContextData<E> = { authorizationDecision: ApiControllerGeneratedSecuritySnapshot.createSubscriberView(authorizationDecision), entityMetadata: options.entityMetadata, method: options.method, methodName: options.methodName, properties: options.properties };
 		let typedTargets: IApiRouteRuntimeGeneratedTargets<E>;
@@ -304,27 +309,6 @@ export class ApiRouteRuntime {
 	 */
 	private static createBodyParameterException(propertyName: string, reason: string): BadRequestException {
 		return new BadRequestException({ details: { propertyName, reason }, error: "Bad Request", message: "PARAMETERS_NOT_VALID", statusCode: HttpStatus.BAD_REQUEST });
-	}
-
-	/**
-	 * Removes from an update body a relation over one column that still holds the bare value of its referenced column once request relations are loaded. The update save does not read a bare value as a related row and would insert another row, while the entity's own column already holds that value; an insert ignores the bare value.
-	 * @template E - Entity type owned by the route.
-	 * @template R - Generated route type.
-	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
-	 * @param {unknown} body - The update body the route writes.
-	 */
-	private static dropScalarRelations<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, body: unknown): void {
-		const repository: unknown = (options.controller.service as { repository?: unknown }).repository;
-
-		if (!(repository instanceof Repository) || !this.isPlainRecord(body)) {
-			return;
-		}
-
-		for (const relation of (repository as Repository<IApiBaseEntity>).metadata.relations) {
-			if (relation.joinColumns.length === 1 && relation.joinColumns.every((column: TTypeOrmColumnMetadata): boolean => !column.isVirtual) && this.isRelationScalar(body[relation.propertyName])) {
-				Reflect.deleteProperty(body, relation.propertyName);
-			}
-		}
 	}
 
 	private static async executeCustomErrorSubscribers<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>, entityInstance: E, contextData: IApiRouteRuntimeContextData<E>, onType: EApiSubscriberOnType, error: unknown): Promise<void> {
@@ -452,7 +436,7 @@ export class ApiRouteRuntime {
 					routeConfig,
 					async (eventManager: EntityManager | undefined): Promise<E> => {
 						const createInput: DeepPartial<E> = writeBody as DeepPartial<E>;
-						await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, createInput);
+						await this.loadWriteRelations(options, routeConfig, writeBody);
 						markAfterBoundary();
 
 						// The reload checks the row the protected function stored, by the key it reported before its subscribers could replace the result.
@@ -825,8 +809,8 @@ export class ApiRouteRuntime {
 	): Promise<E> {
 		const responseLoad: IApiControllerPropertiesRouteBaseRelationsResponseLoad<E> | undefined = routeConfig.relations?.response?.load;
 
-		await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {});
-		this.dropScalarRelations(options, targets.body);
+		targets.body ??= {} as never;
+		await this.loadWriteRelations(options, routeConfig, targets.body as Record<string, unknown>);
 		const updateCriteria: NonNullable<TApiAuthorizationScopeWhere<E>> = await this.resolveWriteCriteria(options, targets, authorizationDecision, eventManager);
 		markAfterBoundary();
 		await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.UPDATE, updateCriteria, updateCriteria, async (): Promise<E> => await Reflect.apply(updateFunction, service, [updateCriteria, (targets.body ?? {}) as never]));
@@ -915,12 +899,12 @@ export class ApiRouteRuntime {
 	}
 
 	/**
-	 * Tells whether a value is a plain object a body can name columns in, as opposed to null, an array or a single value.
+	 * Tells whether a value is a plain object a body can name columns in, as opposed to null, an array or a single value. A `Date` is a single value, as a transforming pipe makes it from a date and time string.
 	 * @param {unknown} value - Value to inspect.
-	 * @returns {boolean} Whether the value is a non-null object that is not an array.
+	 * @returns {boolean} Whether the value is a non-null object that is neither an array nor a `Date`.
 	 */
 	private static isPlainRecord(value: unknown): value is Record<string, unknown> {
-		return typeof value === "object" && value !== null && !Array.isArray(value);
+		return typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date);
 	}
 
 	/**
@@ -952,6 +936,24 @@ export class ApiRouteRuntime {
 		return this.toWriteValue(left) === this.toWriteValue(right);
 	}
 
+	/**
+	 * Keeps a copy of the request body as the client sent it, so the checks against the path read the sent value even after a transformer changed the body object in place.
+	 * @param {unknown} request - The HTTP request of the route.
+	 */
+	private static keepSentBody(request: unknown): void {
+		const body: unknown = (request as { body?: unknown } | undefined)?.body;
+
+		if (typeof request !== "object" || request === null || !this.isPlainRecord(body)) {
+			return;
+		}
+
+		try {
+			this.SENT_BODIES.set(request, structuredClone(body));
+		} catch {
+			// A body that cannot be copied stays readable as it is, as before.
+		}
+	}
+
 	private static async loadCustomResponseRelations<E extends IApiBaseEntity>(service: ApiServiceBase<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: unknown): Promise<unknown> {
 		if (response === null || typeof response !== "object") {
 			return response;
@@ -979,17 +981,55 @@ export class ApiRouteRuntime {
 	}
 
 	/**
+	 * Loads the request relations of a generated write, then removes every relation whose join columns the entity declares and that loading left as the body sent it. The split already wrote its value into the entity's own column, which the save then reads alone: a value the client sent, such as a `Date` a pipe made from a string or an object a pipe never checked, would otherwise reach the save as a related row, and an update would insert another row. A loaded row stays for the save and its subscribers, and so does a null that clears the relation.
+	 * @template E - Entity type owned by the route.
+	 * @template R - Generated route type.
+	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
+	 * @param {TApiControllerPropertiesRoute<E, R>} routeConfig - Route configuration.
+	 * @param {Record<string, unknown>} body - The body the route writes, changed in place.
+	 * @returns {Promise<void>} Resolves once the body holds only loaded relations.
+	 */
+	private static async loadWriteRelations<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, routeConfig: TApiControllerPropertiesRoute<E, R>, body: Record<string, unknown>): Promise<void> {
+		const repository: unknown = (options.controller.service as { repository?: unknown }).repository;
+		const relations: ReadonlyArray<RelationMetadata> = repository instanceof Repository ? (repository as Repository<IApiBaseEntity>).metadata.relations.filter((relation: RelationMetadata): boolean => relation.joinColumns.length > 0 && relation.joinColumns.every((column: TTypeOrmColumnMetadata): boolean => !column.isVirtual)) : [];
+		const sentValues: Map<string, unknown> = new Map<string, unknown>(relations.map((relation: RelationMetadata): [string, unknown] => [relation.propertyName, body[relation.propertyName]]));
+
+		await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, body as DeepPartial<E>);
+
+		for (const relation of relations) {
+			const value: unknown = body[relation.propertyName];
+
+			if (value !== undefined && value !== null && value === sentValues.get(relation.propertyName)) {
+				Reflect.deleteProperty(body, relation.propertyName);
+			}
+		}
+	}
+
+	/**
 	 * Reads the value a relation gives one of its join columns: the referenced property of an object, or a scalar itself, which names the one referenced column of a relation over one column.
 	 * @param {unknown} value - Value the body gives the relation.
 	 * @param {string | undefined} referencedName - Property of the related entity the join column references.
 	 * @returns {unknown} The value of the join column, or `undefined` when the relation does not name it.
 	 */
 	private static readRelationComponent(value: unknown, referencedName: string | undefined): unknown {
-		if (!this.isPlainRecord(value)) {
+		if (this.isRelationScalar(value) || !this.isPlainRecord(value)) {
 			return value;
 		}
 
 		return referencedName ? value[referencedName] : undefined;
+	}
+
+	/**
+	 * Reads the request body as the client sent it.
+	 * @param {unknown} request - The HTTP request of the route.
+	 * @returns {unknown} The copy taken when the route started, or the request body when there is none.
+	 */
+	private static readSentBody(request: unknown): unknown {
+		if (typeof request === "object" && request !== null && this.SENT_BODIES.has(request)) {
+			return this.SENT_BODIES.get(request);
+		}
+
+		return (request as { body?: unknown } | undefined)?.body;
 	}
 
 	/**
@@ -1210,7 +1250,7 @@ export class ApiRouteRuntime {
 	 * @throws {BadRequestException} When the body differs from the path or names a relation the route cannot split.
 	 */
 	private static resolveWriteBody<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, pathPlan: IApiControllerPathPlan): Record<string, unknown> {
-		const rawBody: unknown = (targets.authenticationRequest as { body?: unknown } | undefined)?.body;
+		const rawBody: unknown = this.readSentBody(targets.authenticationRequest);
 		const pathValues: Record<string, unknown> = this.resolveRouteWhere(options, targets, pathPlan, ApiControllerPathRouteParameters(pathPlan, options.method));
 		const unaddressedFields: ReadonlyArray<string> = options.method === EApiRouteType.CREATE ? [] : pathPlan.primaryFields.filter((field: string): boolean => !Object.hasOwn(pathValues, field));
 		const repository: unknown = (options.controller.service as { repository?: unknown }).repository;
@@ -1315,8 +1355,13 @@ export class ApiRouteRuntime {
 				throw this.createBodyParameterException(relation.propertyName, isSingleColumn ? this.resolveRelationClearReason(relation, pathValues, lockedKeyFields) : this.resolveRelationObjectReason(relation, pathValues, lockedKeyFields));
 			}
 
-			if (!values.every((value: unknown): boolean => this.isPlainRecord(value) || (isSingleColumn && this.isRelationScalar(value)))) {
+			if (!values.every((value: unknown): boolean => (isSingleColumn && this.isRelationScalar(value)) || this.isPlainRecord(value))) {
 				throw this.createBodyParameterException(relation.propertyName, isSingleColumn ? BODY_RELATION_VALUE_REJECTION_REASON : this.resolveRelationObjectReason(relation, pathValues, lockedKeyFields));
+			}
+
+			// An object that names none of the columns would reach the save as a relation without a key, whatever the own columns hold.
+			if (values.some((value: unknown): boolean => this.isPlainRecord(value) && relation.joinColumns.every((column: TTypeOrmColumnMetadata): boolean => column.referencedColumn === undefined || value[column.referencedColumn.propertyName] === undefined))) {
+				throw this.createBodyParameterException(relation.propertyName, BODY_RELATION_UNNAMED_REJECTION_REASON);
 			}
 
 			if (declaredColumns.length < relation.joinColumns.length) {

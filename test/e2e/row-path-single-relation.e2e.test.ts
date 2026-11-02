@@ -16,6 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { TRowPathDriver } from "./row-path/fixture";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
+import { ROW_PATH_SINGLE_DATE_FIXTURES } from "./row-path/single-date-relation.fixture";
 import { ROW_PATH_SINGLE_ENTITIES, RowPathSingleModule, SINGLE_TENANT_OTHER, SINGLE_TENANT_PINNED } from "./row-path/single-relation.fixture";
 
 type TPipe = "forbid" | "none" | "plain" | "transform";
@@ -25,6 +26,10 @@ type TRow = { id: string; name: string; tenantId: string };
 const CHILD_ID: string = "cccccccc-0000-4000-8000-000000000001";
 const CONFLICT_REASON: string = "relation must name the same value as the entity's own column";
 const KEY_CLEAR_REASON: string = "it cannot be cleared, because its columns are in the primary key";
+const UNNAMED_REASON: string = "a relation object must name its join columns";
+const PATH_MISMATCH_REASON: string = "value must be the one the path names";
+const SLOT_AT: string = "2026-01-01T00:00:00.002Z";
+const SLOT_OTHER: string = "2026-01-01T00:00:00.003Z";
 
 const PIPES: Record<TPipe, Array<Provider>> = {
 	forbid: [{ provide: APP_PIPE, useValue: new ValidationPipe({ forbidNonWhitelisted: true, skipMissingProperties: true, transform: true, whitelist: true }) }],
@@ -57,8 +62,9 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one colum
 		const liftStatus = (created: number): number => (pipe === "plain" ? 400 : created);
 
 		beforeAll(async () => {
+			const entities: Array<new () => object> = [...ROW_PATH_SINGLE_ENTITIES, ...ROW_PATH_SINGLE_DATE_FIXTURES[driver].entities];
 			const reference = await Test.createTestingModule({
-				imports: [ApiAuthorizationModule.forRoot({}), ApiSubscriberModule, TypeOrmModule.forRoot(container ? { dropSchema: true, entities: ROW_PATH_SINGLE_ENTITIES, synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", entities: ROW_PATH_SINGLE_ENTITIES, synchronize: true, type: "better-sqlite3" }), RowPathSingleModule],
+				imports: [ApiAuthorizationModule.forRoot({}), ApiSubscriberModule, TypeOrmModule.forRoot(container ? { dropSchema: true, entities, synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", entities, synchronize: true, type: "better-sqlite3" }), RowPathSingleModule, ROW_PATH_SINGLE_DATE_FIXTURES[driver].module],
 				providers: PIPES[pipe],
 			}).compile();
 
@@ -79,7 +85,23 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one colum
 			await dataSource.query(`INSERT INTO row_path_single_tenants ("id", "name") VALUES ('${SINGLE_TENANT_PINNED}', 'pinned'), ('${SINGLE_TENANT_OTHER}', 'other')`);
 			await dataSource.query(`INSERT INTO row_path_single_children ("id", "name", "tenantId") VALUES ('${CHILD_ID}', 'seeded', '${SINGLE_TENANT_PINNED}')`);
 			await dataSource.query(`INSERT INTO row_path_single_key_children ("id", "name", "tenantId") VALUES ('${CHILD_ID}', 'seeded', '${SINGLE_TENANT_PINNED}')`);
+			await dataSource.query("DELETE FROM row_path_single_date_events");
+			await dataSource.query("DELETE FROM row_path_single_date_bookings");
+			await dataSource.query("DELETE FROM row_path_single_date_slots");
+			await dataSource.query(`INSERT INTO row_path_single_date_slots ("at", "name") VALUES ('${instantLiteral(SLOT_AT)}', 'slot'), ('${instantLiteral(SLOT_OTHER)}', 'other')`);
 		});
+
+		const instantLiteral = (instant: string): string => (driver === "postgres" ? instant : instant.replace("T", " ").replace("Z", ""));
+
+		const readInstant = (value: unknown): null | string => {
+			if (value === null || value === undefined) {
+				return null;
+			}
+
+			return value instanceof Date ? value.toISOString() : new Date(`${String(value).replace(" ", "T")}Z`).toISOString();
+		};
+
+		const dateRows = async (table: string, column: string): Promise<Array<[string, null | string]>> => ((await dataSource.query(`SELECT "id", "${column}" AS "instant" FROM ${table} ORDER BY "id"`)) as Array<{ id: string; instant: unknown }>).map(({ id, instant }) => [id, readInstant(instant)]);
 
 		const seeded: Array<TRow> = [{ id: CHILD_ID, name: "seeded", tenantId: SINGLE_TENANT_PINNED }];
 
@@ -229,6 +251,112 @@ describe.each<TRowPathDriver>(["postgres", "sqlite"])("a relation over one colum
 				expect(response.statusCode).toBe(200);
 				expect(response.json()).toMatchObject({ id: CHILD_ID, name: "kept", tenantId: SINGLE_TENANT_PINNED });
 				expect(await rows("row_path_single_key_children")).toEqual([{ id: CHILD_ID, name: "kept", tenantId: SINGLE_TENANT_PINNED }]);
+			});
+		});
+
+		// The published relation is a date and time string, which a transforming pipe turns into a Date: it is the value of the join column, not an object of the relation.
+		describe("a relation over one date and time column", () => {
+			// The generated create body leaves a key column the client sets out, so a forbidding pipe refuses the id.
+			const createStatus: number = pipe === "forbid" ? 400 : 201;
+
+			it.each([
+				[{ id: "E1", name: "made", slot: SLOT_AT }, liftStatus(createStatus)],
+				[{ eventAt: SLOT_AT, id: "E1", name: "made", slot: SLOT_AT }, createStatus],
+			])("POST /single-date-event with %j writes the instant into the own column and reads it back", async (payload: object, status: number) => {
+				const response: TResponse = await send("POST", "/single-date-event", payload);
+
+				expect(response.statusCode).toBe(status);
+				expect(await dateRows("row_path_single_date_events", "eventAt")).toEqual(status === 201 ? [["E1", SLOT_AT]] : []);
+
+				if (status === 201) {
+					expect(response.json()).toMatchObject({ eventAt: SLOT_AT, id: "E1" });
+					expect((await send("GET", "/single-date-event/E1")).json()).toMatchObject({ eventAt: SLOT_AT, id: "E1" });
+				}
+			});
+
+			it("POST /single-date-event with an own instant that differs from the relation answers 400 and adds no row", async () => {
+				const response: TResponse = await send("POST", "/single-date-event", { eventAt: SLOT_OTHER, id: "E1", name: "made", slot: SLOT_AT });
+
+				expect(response.statusCode).toBe(400);
+
+				if (pipe === "none") {
+					expect(response.json()).toMatchObject({ details: { propertyName: "slot", reason: CONFLICT_REASON } });
+				}
+
+				expect(await dateRows("row_path_single_date_events", "eventAt")).toEqual([]);
+			});
+
+			it("POST /single-date-booking with only the relation writes the key instant and the row path reads it back", async () => {
+				const response: TResponse = await send("POST", "/single-date-booking", { id: "B1", name: "made", slot: SLOT_AT });
+
+				expect(response.statusCode).toBe(createStatus);
+				expect(await dateRows("row_path_single_date_bookings", "at")).toEqual(createStatus === 201 ? [["B1", SLOT_AT]] : []);
+
+				if (createStatus === 201) {
+					expect(response.json()).toMatchObject({ at: SLOT_AT, id: "B1" });
+
+					const read: TResponse = await send("GET", `/single-date-booking/${SLOT_AT}/B1`);
+
+					expect(read.statusCode).toBe(200);
+					expect(read.json()).toMatchObject({ at: SLOT_AT, id: "B1", name: "made" });
+				}
+			});
+
+			it.each([[{ at: SLOT_OTHER, id: "B1", name: "made", slot: SLOT_AT }], [{ id: "B1", name: "made", slot: null }]])("POST /single-date-booking with %j answers 400 and adds no row", async (payload: object) => {
+				expect((await send("POST", "/single-date-booking", payload)).statusCode).toBe(400);
+				expect(await dateRows("row_path_single_date_bookings", "at")).toEqual([]);
+			});
+
+			// Only the parsed value of the own column reaches the insert, never the relation string, so the database never sees text it cannot read; that instant names no slot.
+			it.runIf(pipe === "none")("POST /single-date-booking with a relation object naming an impossible date is refused without a server error and adds no row", async () => {
+				const response: TResponse = await send("POST", "/single-date-booking", { id: "B1", name: "made", slot: { at: "2026-02-30T00:00:00.000Z" } });
+
+				expect(response.statusCode).toBeGreaterThanOrEqual(400);
+				expect(response.statusCode).toBeLessThan(500);
+				expect(await dateRows("row_path_single_date_bookings", "at")).toEqual([]);
+			});
+
+			it.each([["PATCH"], ["PUT"]])("%s /single-date-event with the relation moves the own instant", async (method: string) => {
+				await dataSource.query(`INSERT INTO row_path_single_date_events ("id", "name", "eventAt") VALUES ('E1', 'seeded', '${instantLiteral(SLOT_AT)}')`);
+
+				const response: TResponse = await send(method, "/single-date-event/E1", method === "PUT" ? { name: "moved", slot: SLOT_OTHER } : { slot: SLOT_OTHER });
+				const status: number = method === "PUT" ? liftStatus(200) : 200;
+
+				expect(response.statusCode).toBe(status);
+				expect(await dateRows("row_path_single_date_events", "eventAt")).toEqual([["E1", status === 200 ? SLOT_OTHER : SLOT_AT]]);
+
+				if (status === 200) {
+					expect(response.json()).toMatchObject({ eventAt: SLOT_OTHER, id: "E1" });
+				}
+			});
+		});
+
+		describe("a relation object that names no join column", () => {
+			it.each([
+				["/single-pinned", { name: "made", tenant: {} }],
+				["/single-pinned", { name: "made", tenant: { name: "x" } }],
+				["/single-plain", { name: "made", tenant: {}, tenantId: SINGLE_TENANT_OTHER }],
+			])("POST %s with %j answers 400 and adds no row", async (path: string, payload: object) => {
+				expectRefusal(await send("POST", path, payload), UNNAMED_REASON);
+				expect(await rows("row_path_single_children")).toEqual(seeded);
+			});
+		});
+
+		// A transformer pins the key in the body the route writes, so the key the client sent is compared with the path as it was sent, whatever pipe runs.
+		describe("a key column the client sent before a transformer pinned it", () => {
+			it.each([
+				["PATCH", { tenantId: SINGLE_TENANT_OTHER }],
+				["PUT", { name: "moved", tenantId: SINGLE_TENANT_OTHER }],
+			])("%s /single-key-pinned with %j answers 400 and changes no row", async (method: string, payload: object) => {
+				const response: TResponse = await send(method, `/single-key-pinned/${CHILD_ID}/${SINGLE_TENANT_PINNED}`, payload);
+
+				expect(response.statusCode).toBe(400);
+
+				if (pipe === "none") {
+					expect(response.json()).toMatchObject({ details: { propertyName: "tenantId", reason: PATH_MISMATCH_REASON } });
+				}
+
+				expect(await rows("row_path_single_key_children")).toEqual(seeded);
 			});
 		});
 
