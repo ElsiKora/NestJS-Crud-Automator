@@ -261,8 +261,7 @@ describe.each([{ adapterName: "Fastify" }, { adapterName: "Express" }])("ApiRequ
 				const response: IE2eExceptionResponse = await post(`${base}${url}`, `{"payload":${wideObject(1001)}}`, clientId);
 
 				expect(response.status).toBe(HttpStatus.BAD_REQUEST);
-				// `error` and `message` are what the correlation contract gives a body on this base.
-				expect(response.body).toEqual({ code: VALIDATION_CODE, correlationID: response.correlationId, error: "Bad Request", errors: [constraint], message: "Bad Request", statusCode: HttpStatus.BAD_REQUEST, timestamp: expect.any(Number) });
+				expect(response.body).toEqual({ code: VALIDATION_CODE, correlationID: response.correlationId, errors: [constraint], statusCode: HttpStatus.BAD_REQUEST, timestamp: expect.any(Number) });
 				expect(response.correlationId).toEqual(clientId ?? expect.any(String));
 			});
 		});
