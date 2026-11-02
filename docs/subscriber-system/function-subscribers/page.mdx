@@ -127,6 +127,8 @@ async onBeforeDelete(
 
 ### Transaction Expectations
 
+In a transaction a route or a function owns, `onAfterErrorCreate` runs after the rollback and receives no `eventManager`, so a subscriber with an expectation cannot use it there: see [Scoped CREATE](/docs/nestjs-crud-automator/guides/authorization#scoped-create).
+
 Function subscribers can declare that they require a transaction manager. This is a subscriber-level expectation and is not inferred from the service or function transaction config.
 
 When `transaction.expectation` is `REQUIRED` or `MANDATORY`, pass the same expectation to `ApiFunctionSubscriberBase` and the helper context type. `context.DATA.eventManager` is then typed as `EntityManager`, and the executor throws before your hook runs if no manager is available. The generic is type-only; decorator metadata is the runtime source of truth.
