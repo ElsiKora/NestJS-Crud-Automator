@@ -9,12 +9,13 @@ import { applyDecorators } from "@nestjs/common";
 import { ApiProperty, ApiResponseProperty } from "@nestjs/swagger";
 import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
+import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
 import { IsRegularExpressionValidator } from "@validator/is-regular-expression.validator";
-import { Exclude, Expose, Type } from "class-transformer";
+import { Exclude, Type } from "class-transformer";
 import {
 	ArrayMaxSize,
 	ArrayMinSize,
@@ -631,7 +632,7 @@ function buildResponseDecorators(properties: TApiPropertyStringProperties): Arra
 		decorators.push(ApiResponseProperty());
 
 		if (!("isExpose" in properties) || properties.isExpose === undefined || ("isExpose" in properties && properties.isExpose)) {
-			decorators.push(Expose());
+			decorators.push(ApplyAutoExpose);
 		} else {
 			decorators.push(Exclude());
 		}

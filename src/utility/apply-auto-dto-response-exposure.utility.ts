@@ -1,6 +1,7 @@
 import type { TApiPropertyBaseProperties } from "@type/decorator/api/property/base/properties.type";
 
-import { Exclude, Expose } from "class-transformer";
+import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
+import { Exclude } from "class-transformer";
 
 const AUTO_DTO_RESPONSE_EXPOSURE_METADATA_KEY: string = "crud-automator:auto-dto-response-exposure";
 
@@ -26,7 +27,7 @@ export function ApplyAutoDtoResponseExposure(target: object, propertyKey: string
 	if (properties.isExpose === false) {
 		Exclude()(target, propertyKey);
 	} else {
-		Expose()(target, propertyKey);
+		ApplyAutoExpose(target, propertyKey);
 	}
 
 	Reflect.defineMetadata?.(AUTO_DTO_RESPONSE_EXPOSURE_METADATA_KEY, true, target, propertyKey);

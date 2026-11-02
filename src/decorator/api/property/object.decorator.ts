@@ -12,6 +12,7 @@ import { ApiDiscriminatorValidateConfig } from "@utility/api/discriminator-valid
 import { ApiPropertyGetArrayOptionsErrors } from "@utility/api/property-get-array-options-errors.utility";
 import { ApiPropertyGetTargetClassName } from "@utility/api/property-get-target-class-name.utility";
 import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-exposure.utility";
+import { ApplyAutoExpose } from "@utility/apply-auto-expose.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerateContextualManualDto } from "@utility/dto/generate/manual-child.utility";
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
@@ -22,7 +23,7 @@ import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
 import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
 import { MustMatchOneOfSchemasValidator } from "@validator/must-match-one-of-schemas.validator";
-import { Exclude, Expose, Transform, TransformationType, Type } from "class-transformer";
+import { Exclude, Transform, TransformationType, Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsObject, Validate, ValidateIf, ValidateNested } from "class-validator";
 
 /**
@@ -256,7 +257,7 @@ function buildResponseDecorators(properties: TApiPropertyObjectProperties): Arra
 		decorators.push(ApiResponseProperty());
 
 		if (!("isExpose" in properties) || properties.isExpose === undefined || ("isExpose" in properties && properties.isExpose)) {
-			decorators.push(Expose());
+			decorators.push(ApplyAutoExpose);
 		} else {
 			decorators.push(Exclude());
 		}

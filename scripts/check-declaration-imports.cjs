@@ -8,8 +8,12 @@ const ts = require("typescript");
 const outputRoot = path.resolve("dist");
 const manifest = JSON.parse(fs.readFileSync(path.resolve("package.json"), "utf8"));
 const declaredPackages = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})]);
+
 // Packages without an exports map: the only subpaths dist may import from them
-const subpathAllowlist = new Map([["lodash", /^[A-Za-z]+\.js$/]]);
+const subpathAllowlist = new Map([
+	["class-transformer", /^cjs\/storage\.js$/],
+	["lodash", /^[A-Za-z]+\.js$/],
+]);
 const invalidDeclarationPaths = [];
 const extensionlessImports = [];
 const invalidPackageImports = [];
