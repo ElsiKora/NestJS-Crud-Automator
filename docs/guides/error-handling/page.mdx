@@ -615,7 +615,7 @@ Example response:
 }
 ```
 
-A create that loses a race for a new key, and an update that hits a unique column, answer the same body, so a client handles all of them in one place. The original driver error stays in `cause` for your logs: read it with `FormatErrorEvidenceForLog(exception.cause)`.
+A create also answers this `409` when it would change a row that already exists, such as a body that names the primary key of an existing row or a cascade that would rename a related row. That refusal comes before any write. A create that loses a race for a new key, and an update that hits a unique column, answer the same body, so a client handles all of them in one place. The original driver error stays in `cause` for your logs: read it with `FormatErrorEvidenceForLog(exception.cause)`. See [Creating with Relations](/docs/nestjs-crud-automator/guides/relations#creating-with-relations).
 
 For other database constraint violations (for example, foreign keys), you can still map `QueryFailedError` to a cleaner HTTP exception in your service:
 
@@ -722,7 +722,7 @@ Update clients and error mappings that match these strings.
 
 ### Duplicate key body in 5.0.0
 
-Before 5.0.0, a `409` `UNIQUE_VIOLATION` from create or update copied driver text into `details`: `constraint`, `detail`, `field`, `table` and `value`, and which of them were present depended on the driver. From 5.0.0 those fields are removed, and every duplicate key answers `{ "details": { "type": "UNIQUE_VIOLATION" }, "error": "Conflict", "message": "{ENTITY}_DUPLICATE_KEY", "statusCode": 409 }`. `ExceptionDetailsUniqueViolationDTO` declares only `type`.
+Before 5.0.0, a `409` `UNIQUE_VIOLATION` from create or update copied driver text into `details`: `constraint`, `detail`, `field`, `table` and `value`, and which of them were present depended on the driver. From 5.0.0 those fields are removed, and every duplicate key answers `{ "details": { "type": "UNIQUE_VIOLATION" }, "error": "Conflict", "message": "{ENTITY}_DUPLICATE_KEY", "statusCode": 409 }`, whether the database refused the write or the create refused it first. `ExceptionDetailsUniqueViolationDTO` declares only `type`.
 
 Clients that read the column or the value from `details` must read `message` and `details.type` instead, and tell the user which field clashed from what they sent. Server code that needs the constraint name reads it from `exception.cause` in a filter or a log, never from the response.
 

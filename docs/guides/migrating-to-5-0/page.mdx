@@ -173,6 +173,7 @@ Every generated `CREATE` runs in one transaction with its checks. Read [Authoriz
 - `onAfterErrorCreate` runs after the rollback in a transaction a route or a function owns: read through `DATA.repository`, and move work that needs the transaction to `onBeforeErrorCreate`.
 - A `CREATE` that loses a concurrency race answers `409` and leaves no row, so clients can send it again.
 - A date and time primary key in the body that names a day or an hour the calendar does not hold, such as `2026-02-30T00:00:00.000Z`, `2026-04-31T10:00:00+03:00`, `2025-02-29 08:00:00Z` or `2026-01-01T24:00:00Z`, answers `400` with `at must be a valid ISO 8601 date-time` and no SQL runs. It used to be stored as the day or hour it rolls over into, such as March 2 for February 30. See [Impossible Calendar Dates](#impossible-calendar-dates).
+- A create only inserts. A body that names the primary key of an existing row, soft deleted included, a cascade that would change an existing related row, and a `OneToMany` or inverse `OneToOne` item that names an existing row answer `409` `{ENTITY}_DUPLICATE_KEY` and change nothing, where they used to update that row and answer `201`. Send UPDATE or PARTIAL_UPDATE to change a row, and leave the key out of a create body unless it is new. In tests that stub `repository.save`, leave the key of a stored row out of the create body. See [Relations: Creating with Relations](/docs/nestjs-crud-automator/guides/relations#creating-with-relations).
 
 ## Custom Routes On Securable Controllers
 

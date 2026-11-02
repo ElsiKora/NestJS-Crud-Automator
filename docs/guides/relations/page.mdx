@@ -516,7 +516,7 @@ A request reference to a `OneToMany` or `ManyToMany` relation is still a single 
 
 | Route                            | `"tags": "t1"` in the body                                                                                                          |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| CREATE                           | Becomes `tags: [tag]`, so the new row is bound to that one tag                                                                      |
+| CREATE                           | Becomes `tags: [tag]`, so the new row is bound to that one tag; a `OneToMany` reference answers `409`, see below                    |
 | UPDATE, PARTIAL_UPDATE           | Rejected with `400` `REFERENCE_NOT_VALID` before any relation is loaded or locked and before any row is written; `"tags": null` too |
 | Custom route (`@ApiRouteCustom`) | The handler receives `body.tags` as `[tag]`, unless `route.type` is UPDATE or PARTIAL_UPDATE: then it is rejected as above          |
 
@@ -533,7 +533,7 @@ Updates reject the reference because TypeORM saves the value as the full new set
 
 A to-one reference with the wrong shape or a missing row keeps its own `400` `REFERENCE_NOT_VALID` body, with `details: { expectedShape, propertyName, referenceKey }`. An update body without the to-many key leaves the stored rows untouched, and to-one references keep hydrating as before. Relations declared on a parent entity class follow the same rules as the entity's own relations. To add, remove or replace related rows, use a custom route of another type, such as `POST /posts/:id/tags`, that changes the set explicitly.
 
-On CREATE, a `OneToMany` reference binds the referenced row by writing its foreign key, so a row that already belongs to another parent moves to the new entity: `POST /posts` with `{ "notes": "n3" }` takes `n3` away from the post that held it. This is how TypeORM saves a `OneToMany` set. A `ManyToMany` reference only adds a join row, so the referenced row keeps its other links. If a client must not move rows that belong to someone else, check the reference in a request validator or a BEFORE subscriber.
+On CREATE, a `ManyToMany` reference only adds a join row, so the referenced row keeps its other links. A `OneToMany` reference would bind the referenced row by writing its foreign key, which changes a row that already exists, so it answers `409` with `{ENTITY}_DUPLICATE_KEY` and writes nothing, whether the row is free or belongs to another parent (see [Creating with Relations](#creating-with-relations)). To attach existing rows to a new entity, create the entity first and then update each row's own reference, or do both in a custom route.
 
 ## Custom Route Relations
 
@@ -673,9 +673,19 @@ await userService.create({
 });
 ```
 
+A create only inserts. A related object that holds only its key, or the same values the row already has, links that existing row: a `ManyToOne` or owning `OneToOne` sets the foreign key, and a `ManyToMany` adds a join row. A create that would change a row that already exists answers `409` with `{ENTITY}_DUPLICATE_KEY` and `details: { "type": "UNIQUE_VIOLATION" }`, before TypeORM writes anything, so every row stays as it was:
+
+- the body names the primary key of an existing row, also a soft deleted one, whether its values differ or not;
+- a cascade would change the columns of an existing related row, such as `author: { id: "existing-user-uuid", username: "renamed" }`;
+- a `OneToMany` or inverse `OneToOne` item names an existing row, which the create would move to the new row.
+
+Change existing rows through their own UPDATE route. The rule holds for the built-in `create` function, so it covers generated `CREATE` routes, with or without authorization, and direct calls of the service.
+
 ## Migration Notes
 
 ### 5.0.0
+
+From 5.0.0, a create only inserts (see [Creating with Relations](#creating-with-relations)). TypeORM `save` used to update a row whose primary key the body named, a cascaded related row whose values differed, and an existing `OneToMany` item it moved to the new row, and the route answered `201`. Such a request now answers `409` with `{ENTITY}_DUPLICATE_KEY` and changes nothing. Clients that sent `POST` to change a row, or used it as an upsert, must send UPDATE or PARTIAL_UPDATE to that row instead. A body that names an existing related row only by its key keeps linking it.
 
 From 5.0.0, response projection of to-many relations keeps the array. Routes with a `OneToMany` or `ManyToMany` relation in `relations.response.load.include` change on the wire, whether the relation is described as `RELATION` or as an `OBJECT` array. TypeORM `lazy: true` relations are not supported in responses: one in the include now fails at startup, instead of sending `{}`.
 
@@ -694,12 +704,12 @@ From 5.0.0, `{ items }` is no longer read from the shape of a response alone. An
 
 From 5.0.0, request hydration of to-many references changes too. In the CREATE body a reference is still one value. The generated UPDATE and PARTIAL_UPDATE body schemas no longer declare `OneToMany` or `ManyToMany` relations, so OpenAPI clients generated from them lose those properties.
 
-| Route                               | Before                                                                                                                                         | After                                                 |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| CREATE                              | `ManyToMany` silently not bound, `OneToMany` failed with `500`                                                                                 | Bound to the referenced row                           |
-| UPDATE, PARTIAL_UPDATE              | `ManyToMany` silently ignored with `200`, `OneToMany` failed with `500`; `null` cleared the whole set or failed with `500` on a `NOT NULL` key | `400` `REFERENCE_NOT_VALID`, nothing written          |
-| Custom UPDATE, PARTIAL_UPDATE route | `body.tags` was the single entity                                                                                                              | `400` `REFERENCE_NOT_VALID`, the handler does not run |
-| Other custom route                  | `body.tags` was the single entity                                                                                                              | `body.tags` is `[entity]`                             |
+| Route                               | Before                                                                                                                                         | After                                                  |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| CREATE                              | `ManyToMany` silently not bound, `OneToMany` failed with `500`                                                                                 | `ManyToMany` bound; `OneToMany` `409`, nothing written |
+| UPDATE, PARTIAL_UPDATE              | `ManyToMany` silently ignored with `200`, `OneToMany` failed with `500`; `null` cleared the whole set or failed with `500` on a `NOT NULL` key | `400` `REFERENCE_NOT_VALID`, nothing written           |
+| Custom UPDATE, PARTIAL_UPDATE route | `body.tags` was the single entity                                                                                                              | `400` `REFERENCE_NOT_VALID`, the handler does not run  |
+| Other custom route                  | `body.tags` was the single entity                                                                                                              | `body.tags` is `[entity]`                              |
 
 A custom route handler that read a to-many request relation as one entity must read the first element of the array. A client that sent a to-many reference or `null` on an update and relied on the `200` must drop the key or move the change to a custom route of another type. A custom UPDATE or PARTIAL_UPDATE route whose handler reads a to-many key from the body must take it under another property name or change its `route.type`. The `400` applies to every to-many relation of the entity, including one left out of `relations.request`, excluded with `include: false`, on a route without `relations.request`, inside an embedded column, or declared only on a child of a table inheritance root.
 

@@ -52,6 +52,10 @@ class ItemEntity {
 	@OneToMany(() => ChildEntity, (child: ChildEntity) => child.parent, { cascade: true })
 	public children?: Array<ChildEntity>;
 
+	@Column({ length: 64, nullable: true, type: "varchar", unique: true })
+	@describeString("code")
+	public code?: null | string;
+
 	@PrimaryColumn({ length: 64, type: "varchar" })
 	@describeString("id")
 	public id!: string;
@@ -147,6 +151,10 @@ class NoOverwriteAuthGuard implements IAuthGuard {
 	}
 }
 
+// The one body of a duplicate key, whether the create's own check, the database in a race, or an update refused the row.
+const DUPLICATE_ITEM: Record<string, unknown> = { details: { type: "UNIQUE_VIOLATION" }, error: "Conflict", message: "ITEMENTITY_DUPLICATE_KEY", statusCode: 409 };
+const DUPLICATE_MEMBERSHIP: Record<string, unknown> = { ...DUPLICATE_ITEM, message: "MEMBERSHIPENTITY_DUPLICATE_KEY" };
+
 const createOnly = {
 	[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
 	[EApiRouteType.GET]: { generation: { isEnabled: false } },
@@ -172,7 +180,7 @@ class ScopedItemController {
 	public readonly service!: ItemService;
 }
 
-@ApiController<ItemEntity>({ entity: ItemEntity, name: "no-overwrite-open", path: "items", routes: { [EApiRouteType.CREATE]: {}, ...createOnly } })
+@ApiController<ItemEntity>({ entity: ItemEntity, name: "no-overwrite-open", path: "items", routes: { ...createOnly, [EApiRouteType.CREATE]: {}, [EApiRouteType.GET]: {}, [EApiRouteType.PARTIAL_UPDATE]: {} } })
 class OpenItemController {
 	@Inject(ItemService)
 	public readonly service!: ItemService;
@@ -226,19 +234,19 @@ describe.each(DRIVERS)("Generated CREATE never overwrites an existing row on $na
 	let memberships: Repository<MembershipEntity>;
 	let owners: Repository<OwnerEntity>;
 
-	const post = async (path: string, payload: object): Promise<{ body: Record<string, unknown>; status: number }> => {
+	const send = async (method: "PATCH" | "POST", path: string, payload: object): Promise<{ body: Record<string, unknown>; status: number }> => {
 		const response = await app
 			.getHttpAdapter()
 			.getInstance()
-			.inject({ method: "POST", payload, url: `/${path}` });
+			.inject({ method, payload, url: `/${path}` });
 
-		return { body: response.json<Record<string, unknown>>(), status: response.statusCode };
+		return { body: response.json() as Record<string, unknown>, status: response.statusCode };
 	};
 
 	const readItem = async (id: string): Promise<Record<string, unknown> | null> => {
 		const item: ItemEntity | null = await items.findOne({ relations: { owner: true }, where: { id } });
 
-		return item ? { id: item.id, name: item.name, ownerId: item.owner?.id ?? null, tenantId: item.tenantId } : null;
+		return item ? { code: item.code ?? null, id: item.id, name: item.name, ownerId: item.owner?.id ?? null, tenantId: item.tenantId } : null;
 	};
 
 	const readChild = async (id: string): Promise<Record<string, unknown> | null> => {
@@ -280,12 +288,12 @@ describe.each(DRIVERS)("Generated CREATE never overwrites an existing row on $na
 		await owners.createQueryBuilder().delete().execute();
 		await memberships.createQueryBuilder().delete().execute();
 		await owners.save({ id: "owner-foreign", name: "Foreign owner", tenantId: OUT_OF_SCOPE });
-		await items.save({ id: "item-foreign", name: "Foreign item", owner: { id: "owner-foreign" }, tenantId: OUT_OF_SCOPE });
+		await items.save({ code: "code-foreign", id: "item-foreign", name: "Foreign item", owner: { id: "owner-foreign" }, tenantId: OUT_OF_SCOPE });
 		await children.save({ id: "child-foreign", name: "Foreign child", parent: { id: "item-foreign" }, tenantId: OUT_OF_SCOPE });
 		await memberships.save({ code: "member-1", role: "owner", tenantId: OUT_OF_SCOPE });
 	});
 
-	const FOREIGN_ITEM: Record<string, unknown> = { id: "item-foreign", name: "Foreign item", ownerId: "owner-foreign", tenantId: OUT_OF_SCOPE };
+	const FOREIGN_ITEM: Record<string, unknown> = { code: "code-foreign", id: "item-foreign", name: "Foreign item", ownerId: "owner-foreign", tenantId: OUT_OF_SCOPE };
 	const FOREIGN_OWNER: Record<string, unknown> = { id: "owner-foreign", name: "Foreign owner", tenantId: OUT_OF_SCOPE };
 	const FOREIGN_CHILD: Record<string, unknown> = { id: "child-foreign", name: "Foreign child", parentId: "item-foreign", tenantId: OUT_OF_SCOPE };
 
@@ -299,40 +307,23 @@ describe.each(DRIVERS)("Generated CREATE never overwrites an existing row on $na
 	};
 
 	describe.each(["items", "scoped-items"])("through %s", (path: string) => {
-		it("answers 409 and keeps the row when the body names an existing primary key", async () => {
-			const response = await post(path, { id: "item-foreign", name: "Hijacked", tenantId: IN_SCOPE });
+		it.each([
+			["the body names an existing primary key", { id: "item-foreign", name: "Hijacked", tenantId: IN_SCOPE }],
+			["the body repeats an existing row exactly", { code: "code-foreign", id: "item-foreign", name: "Foreign item", tenantId: OUT_OF_SCOPE }],
+			["a cascade would rename an existing related row", { id: "item-new", name: "New", owner: { id: "owner-foreign", name: "hacked" }, tenantId: IN_SCOPE }],
+			["the body would take over an existing child row", { children: [{ id: "child-foreign" }], id: "item-new", name: "New", tenantId: IN_SCOPE }],
+		])("answers the duplicate key body and keeps every row when %s", async (_name: string, payload: object) => {
+			const response = await send("POST", path, payload);
 
-			expect.soft(response.status).toBe(409);
-			expect(JSON.stringify(response.body)).not.toContain("item-foreign");
-			await expectUntouched();
-		});
-
-		it("answers 409 and keeps the row when the body repeats an existing row exactly", async () => {
-			const response = await post(path, { id: "item-foreign", name: "Foreign item", tenantId: OUT_OF_SCOPE });
-
-			expect.soft(response.status).toBe(409);
-			await expectUntouched();
-		});
-
-		it("answers 409 and keeps the owner when a cascade would rename an existing related row", async () => {
-			const response = await post(path, { id: "item-new", name: "New", owner: { id: "owner-foreign", name: "hacked" }, tenantId: IN_SCOPE });
-
-			expect.soft(response.status).toBe(409);
-			await expectUntouched();
-		});
-
-		it("answers 409 and keeps the child when the body would take over an existing child row", async () => {
-			const response = await post(path, { children: [{ id: "child-foreign" }], id: "item-new", name: "New", tenantId: IN_SCOPE });
-
-			expect.soft(response.status).toBe(409);
+			expect.soft(response).toEqual({ body: DUPLICATE_ITEM, status: 409 });
 			await expectUntouched();
 		});
 
 		it("creates a row with a new client key, a referenced owner and new cascaded rows", async () => {
-			const response = await post(path, { children: [{ id: "child-new", name: "New child", tenantId: IN_SCOPE }], id: "item-new", name: "New", owner: { id: "owner-foreign" }, tenantId: IN_SCOPE });
+			const response = await send("POST", path, { children: [{ id: "child-new", name: "New child", tenantId: IN_SCOPE }], id: "item-new", name: "New", owner: { id: "owner-foreign" }, tenantId: IN_SCOPE });
 
 			expect(response.status).toBe(201);
-			expect(await readItem("item-new")).toEqual({ id: "item-new", name: "New", ownerId: "owner-foreign", tenantId: IN_SCOPE });
+			expect(await readItem("item-new")).toEqual({ code: null, id: "item-new", name: "New", ownerId: "owner-foreign", tenantId: IN_SCOPE });
 			expect(await readChild("child-new")).toEqual({ id: "child-new", name: "New child", parentId: "item-new", tenantId: IN_SCOPE });
 			expect(await owners.findOneByOrFail({ id: "owner-foreign" })).toEqual(FOREIGN_OWNER);
 			expect(await readItem("item-foreign")).toEqual(FOREIGN_ITEM);
@@ -340,46 +331,64 @@ describe.each(DRIVERS)("Generated CREATE never overwrites an existing row on $na
 		});
 
 		it("creates a new owner through the cascade", async () => {
-			const response = await post(path, { id: "item-new", name: "New", owner: { id: "owner-new", name: "New owner", tenantId: IN_SCOPE }, tenantId: IN_SCOPE });
+			const response = await send("POST", path, { id: "item-new", name: "New", owner: { id: "owner-new", name: "New owner", tenantId: IN_SCOPE }, tenantId: IN_SCOPE });
 
 			expect(response.status).toBe(201);
 			expect(await owners.findOneByOrFail({ id: "owner-new" })).toEqual({ id: "owner-new", name: "New owner", tenantId: IN_SCOPE });
-			expect(await readItem("item-new")).toEqual({ id: "item-new", name: "New", ownerId: "owner-new", tenantId: IN_SCOPE });
+			expect(await readItem("item-new")).toEqual({ code: null, id: "item-new", name: "New", ownerId: "owner-new", tenantId: IN_SCOPE });
 		});
 	});
 
-	it("answers 409 and keeps the row when a composite key already exists", async () => {
-		const response = await post("memberships", { code: "member-1", role: "admin", tenantId: OUT_OF_SCOPE });
+	it("answers the duplicate key body when the database refuses a unique column on CREATE", async () => {
+		const response = await send("POST", "items", { code: "code-foreign", id: "item-new", name: "New", tenantId: IN_SCOPE });
 
-		expect.soft(response.status).toBe(409);
+		expect(response).toEqual({ body: DUPLICATE_ITEM, status: 409 });
+		await expectUntouched();
+	});
+
+	it("answers the duplicate key body when the database refuses a unique column on UPDATE", async () => {
+		await items.save({ id: "item-own", name: "Own", tenantId: IN_SCOPE });
+
+		const response = await send("PATCH", "items/item-own", { code: "code-foreign" });
+
+		expect(response).toEqual({ body: DUPLICATE_ITEM, status: 409 });
+		expect(await readItem("item-own")).toEqual({ code: null, id: "item-own", name: "Own", ownerId: null, tenantId: IN_SCOPE });
+		expect(await readItem("item-foreign")).toEqual(FOREIGN_ITEM);
+	});
+
+	it("answers the duplicate key body and keeps the row when a composite key already exists", async () => {
+		const response = await send("POST", "memberships", { code: "member-1", role: "admin", tenantId: OUT_OF_SCOPE });
+
+		expect.soft(response).toEqual({ body: DUPLICATE_MEMBERSHIP, status: 409 });
 		expect(await memberships.find()).toEqual([{ code: "member-1", role: "owner", tenantId: OUT_OF_SCOPE }]);
 	});
 
 	it("creates a composite key that shares one key part with an existing row", async () => {
-		const response = await post("memberships", { code: "member-1", role: "admin", tenantId: IN_SCOPE });
+		const response = await send("POST", "memberships", { code: "member-1", role: "admin", tenantId: IN_SCOPE });
 
 		expect(response.status).toBe(201);
 		expect(await memberships.count()).toBe(2);
 		expect(await memberships.findOneByOrFail({ code: "member-1", tenantId: OUT_OF_SCOPE })).toEqual({ code: "member-1", role: "owner", tenantId: OUT_OF_SCOPE });
 	});
 
-	it.runIf(driver.isRaceCovered)("lets exactly one of the requests racing for one new key create it, and keeps its values", { timeout: 120_000 }, async () => {
+	it.runIf(driver.isRaceCovered)("lets exactly one of the requests racing for one new key create it, and answers the others with the duplicate key body", { timeout: 120_000 }, async () => {
 		for (let round: number = 0; round < RACE_ROUNDS; round += 1) {
 			const id: string = `race-${String(round)}`;
 
-			const answers: Array<{ name: string; status: number }> = await Promise.all(
-				Array.from({ length: RACE_SIZE }, async (_value: unknown, index: number): Promise<{ name: string; status: number }> => {
+			const answers: Array<{ body: Record<string, unknown>; name: string; status: number }> = await Promise.all(
+				Array.from({ length: RACE_SIZE }, async (_value: unknown, index: number): Promise<{ body: Record<string, unknown>; name: string; status: number }> => {
 					const name: string = `racer-${String(index)}`;
 
-					return { name, status: (await post("items", { id, name, tenantId: IN_SCOPE })).status };
+					return { name, ...(await send("POST", "items", { id, name, tenantId: IN_SCOPE })) };
 				}),
 			);
 
-			const winners: Array<{ name: string; status: number }> = answers.filter((answer: { status: number }): boolean => answer.status === 201);
+			const winners: Array<{ name: string }> = answers.filter((answer: { status: number }): boolean => answer.status === 201);
+			const losers: Array<{ body: Record<string, unknown>; status: number }> = answers.filter((answer: { status: number }): boolean => answer.status !== 201).map(({ body, status }: { body: Record<string, unknown>; status: number }) => ({ body, status }));
 
-			expect(answers.filter((answer: { status: number }): boolean => answer.status !== 201 && answer.status !== 409)).toEqual([]);
 			expect(winners).toHaveLength(1);
-			expect(await readItem(id)).toEqual({ id, name: winners[0]?.name, ownerId: null, tenantId: IN_SCOPE });
+			expect(losers).toEqual(Array.from({ length: RACE_SIZE - 1 }, () => ({ body: DUPLICATE_ITEM, status: 409 })));
+			expect(await readItem(id)).toEqual({ code: null, id, name: winners[0]?.name, ownerId: null, tenantId: IN_SCOPE });
 		}
 	});
 });

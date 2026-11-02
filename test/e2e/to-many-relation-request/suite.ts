@@ -139,13 +139,20 @@ export function describeHydrationSuite(name: string, options: IE2eHydrationSuite
 				expect((await readStoredPost(body.id)).tags).toEqual([TAG_C]);
 			});
 
-			it("binds a OneToMany reference and returns it as an array", async () => {
-				const response = await fastify.inject({ method: "POST", payload: { notes: NOTE_FREE, title: "created" }, url: "/hydration-posts" });
-				const body = response.json() as { id: string; notes: unknown };
+			// Binding a OneToMany row writes its foreign key, which changes a stored row, and a create only inserts.
+			it.each([
+				["a free OneToMany row", NOTE_FREE],
+				["a OneToMany row of another post", NOTE_ATTACHED_FIRST],
+			])("refuses a reference to %s with 409 and writes nothing", async (_name: string, note: string) => {
+				const postsBefore: number = await manager.count(E2eHydrationPostEntity);
+				const notesBefore: Array<E2eHydrationNoteEntity> = await manager.find(E2eHydrationNoteEntity, { order: { id: "ASC" }, relations: { post: true } });
+				const response = await fastify.inject({ method: "POST", payload: { notes: note, title: "created" }, url: "/hydration-posts" });
 
-				expect(response.statusCode).toBe(HttpStatus.CREATED);
-				expect(body.notes).toEqual([{ id: NOTE_FREE }]);
-				expect((await readStoredPost(body.id)).notes).toEqual([NOTE_FREE]);
+				expect(response.statusCode).toBe(HttpStatus.CONFLICT);
+				expect(response.json()).toMatchObject({ details: { type: EApiExceptionDetailsType.UNIQUE_VIOLATION }, error: "Conflict", message: "E2EHYDRATIONPOSTENTITY_DUPLICATE_KEY", statusCode: HttpStatus.CONFLICT });
+				expect(await manager.count(E2eHydrationPostEntity)).toBe(postsBefore);
+				expect(await manager.find(E2eHydrationNoteEntity, { order: { id: "ASC" }, relations: { post: true } })).toEqual(notesBefore);
+				expect(await readStoredPost(POST)).toEqual(STORED_POST);
 			});
 
 			it("keeps hydrating a to-one reference into a single entity", async () => {

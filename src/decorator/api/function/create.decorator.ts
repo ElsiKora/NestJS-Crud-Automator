@@ -11,6 +11,7 @@ import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/
 import { ApiControllerGeneratedInsertedKeyStorage } from "@class/api/controller/generated/inserted-key-storage.class";
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
+import { ApiFunctionCreateInsertGuard } from "@class/api/function/create-insert-guard.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind } from "@enum/decorator/api";
 import { EApiFunctionType } from "@enum/decorator/api/function";
@@ -144,7 +145,8 @@ async function executor<E extends IApiBaseEntity>(options: IApiFunctionCreateExe
 	const eventManager: EntityManager | undefined = ApiFunctionContextStorage.getEventManager();
 
 	try {
-		const result: E = await repository.save(properties);
+		// A create only inserts: a save that would change a row that already exists answers 409 before it writes.
+		const result: E = await ApiFunctionCreateInsertGuard.save(repository, properties, entity);
 		// A generated route reads its response by the key TypeORM saved, taken before a function subscriber can replace or change the result.
 		reportInsertedKey?.(repository.metadata.getEntityIdMap(result));
 		const entityInstance: E = new entity();

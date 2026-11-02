@@ -97,7 +97,7 @@ describe("ApiController (E2E)", () => {
 	beforeAll(async () => {
 		dataSource = await new DataSource({ database: ":memory:", entities: [ControllerEntity], synchronize: true, type: "better-sqlite3" }).initialize();
 		controllerRepository = dataSource.getRepository(ControllerEntity);
-		// The create checks its stored row through the transaction, past the stubs, so the row the stubbed save answers with is stored.
+		// The create checks its stored row through the transaction, past the stubs, so the row the stubbed save answers with is stored. The create body leaves its key out, because a body that names the key of a stored row answers 409.
 		await controllerRepository.insert({ count: 1, id: CONTROLLER_ENTITY_ID, name: "saved" });
 		vi.spyOn(controllerRepository, "find").mockResolvedValue([{ count: 1, id: CONTROLLER_ENTITY_ID, name: "saved" }]);
 		vi.spyOn(controllerRepository, "findAndCount").mockResolvedValue([[{ count: 1, id: CONTROLLER_ENTITY_ID, name: "item" }], 1]);
@@ -116,7 +116,7 @@ describe("ApiController (E2E)", () => {
 		const ip = "127.0.0.1";
 
 		await controller.onApplicationBootstrap();
-		await controller.create({ id: CONTROLLER_ENTITY_ID, name: "created", count: 1 }, headers, ip);
+		await controller.create({ name: "created", count: 1 }, headers, ip);
 		await controller.get({ id: CONTROLLER_ENTITY_ID }, headers, ip);
 		await controller.getList({ limit: 10, page: 1 }, headers, ip);
 		await controller.update({ id: CONTROLLER_ENTITY_ID }, { name: "updated" }, headers, ip);
