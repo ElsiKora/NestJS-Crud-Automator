@@ -136,6 +136,7 @@ Generated route transaction rules:
 - `isExpose` is response-only and requires `isResponse: true`.
 - Guard-scoped DTO generation depends on the route's configured guard class; it is not a per-request role check.
 - `isUniqueItems` is OpenAPI schema metadata unless source adds explicit runtime uniqueness validation.
+- `ApiPropertyObject` request arrays must declare `minItems`, `maxItems` and `isUniqueItems`; response arrays (`isResponse: true`) may omit them, and the schema then publishes no bounds.
 
 ## Service And Function Signatures
 
