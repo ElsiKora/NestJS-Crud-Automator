@@ -337,7 +337,7 @@ export class PolicyDocumentDto {
 }
 ```
 
-If `PolicyDocumentDto` is used by an entity field that participates in both create body and get response DTO generation, the generated Swagger models are context-specific, for example `PolicyCreateBodyDocumentDTO` and `PolicyGetResponseDocumentDTO` for a `PolicyController`. Free-form `type: Object` fields remain plain JSON objects.
+If `PolicyDocumentDto` is used by an entity field that participates in both create body and get response DTO generation, the generated Swagger models are context-specific, for example `PolicyCreateBodyDocumentDTO` and `PolicyGetResponseDocumentDTO` for a `PolicyController`. Free-form `type: Object` fields remain plain JSON objects and [arrive as sent](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object#free-form-objects) under a whitelisting `ValidationPipe`.
 
 ## Discriminated Union DTOs
 

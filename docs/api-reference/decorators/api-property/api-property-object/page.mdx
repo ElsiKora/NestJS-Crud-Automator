@@ -14,7 +14,7 @@ Describes nested object fields in DTOs. Works with single DTO types, arrays, pol
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `type`                                             | Either a single DTO class, an array of DTOs (for polymorphic `oneOf`), or a dynamically generated DTO registry.                                                                                                                                                                                                                     |
 | `discriminator`                                    | Optional `{ propertyName, mapping, shouldKeepDiscriminatorProperty }` enabling OpenAPI discriminators and runtime validation. Required when supplying multiple types.                                                                                                                                                               |
-| `shouldValidateNested`                             | Adds `ValidateNested` and `Type` decorators so nested objects are validated/serialized. Mandatory for request-side arrays.                                                                                                                                                                                                          |
+| `shouldValidateNested`                             | Adds `ValidateNested` against the declared class. Mandatory for request-side arrays. Adds nothing to a [free-form value](#free-form-objects).                                                                                                                                                                                       |
 | `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables arrays with validation. `isUniqueItems: true` rejects items equal by value on a request array; see [Unique Items](/docs/nestjs-crud-automator/guides/validation#unique-items). A request array must declare all three bounds; a response array (`isResponse: true`) may leave them out, and the schema then publishes none. |
 | `additionalProperties`                             | OpenAPI `boolean`, `SchemaObject`, or `ReferenceObject`; literal `true` has request runtime behavior described below.                                                                                                                                                                                                               |
 
@@ -29,7 +29,7 @@ Describes nested object fields in DTOs. Works with single DTO types, arrays, pol
 - Registers every class of an array `type` and every dynamically generated variant as an extra model of the DTO that holds the property, so each `oneOf` reference resolves to a component of the OpenAPI document. A Swagger mapped type (`PickType`, `OmitType`, `PartialType`, `IntersectionType`) copies the property and not the extra models, so a mapped class that keeps such a property declares `@ApiExtraModels(...)` with the variant classes.
 - Adds `ApiResponseProperty`, `Expose`, or `Exclude` for response DTOs.
 - When a manual DTO is nested inside an auto-generated DTO, creates context-specific wrapper schemas so request and response metadata do not collide.
-- Leaves `type: Object` as a free-form object and does not wrap it as a contextual DTO; its free-form behavior is unaffected by `additionalProperties` request stripping.
+- Leaves `type: Object` as a [free-form object](#free-form-objects) and does not wrap it as a contextual DTO; its free-form behavior is unaffected by `additionalProperties` request stripping.
 - When `discriminator` is used, every variant DTO must declare the discriminator property with the usual property decorators, such as `ApiPropertyEnum` or `ApiProperty`.
 
 `@ApiPropertyObject` discriminators apply to nested object properties inside a DTO. For a flat custom route body union or flat polymorphic custom route response, use root-level `ApiRouteCustom.dto.body` and `ApiRouteCustom.response` discriminators instead.
@@ -68,6 +68,19 @@ class OrderDto {
 }
 ```
 
+## Free-form objects
+
+A property with `type: Object`, or with no `type`, declares no class for its value. On a request it arrives as sent, at any depth:
+
+- It gets no `ValidateNested`, whatever `shouldValidateNested` says. A host `ValidationPipe` with `whitelist: true` keeps every key, and `forbidNonWhitelisted: true` rejects none of them, including a nested key. The pipe still applies to the keys beside the property, so a junk key next to `meta` in a declared item is stripped or rejected as usual.
+- The value must be an object. A single property answers `400` with `single must be an object`, and an array answers `400` with `each value in payloads must be an object` for an item that is a number, a string, `null` or an array.
+- `isUniqueItems: true` applies as on every request array: `[{ "id": 1 }, { "id": 1 }]` answers `400` with `payloads must not contain duplicate items`. Items compare on all their keys, by value at any depth and whatever their key order, so `{ "a": 1, "b": 2 }` and `{ "b": 2, "a": 1 }` are equal. Such an array also answers `400` for an item that nests past 64 levels. See [Unique Items](/docs/nestjs-crud-automator/guides/validation#unique-items).
+- Nothing else inside the value is validated, so check it in the handler, or declare a class and pass it as `type` when its shape is known.
+
+The OpenAPI schema publishes an open object: `{ "type": "object" }` for a single property and `{ "type": "array", "items": { "type": "object" }, "minItems": 0, "maxItems": 5, "uniqueItems": true }` for an array, with no `properties`. `additionalProperties` appears only when the option is set.
+
+A raw `class-validator` `@ValidateNested()` without `@Type` has no such handling, so a plain object under it is still emptied by `whitelist: true` and rejected by `forbidNonWhitelisted: true`. Use `@ApiPropertyObject({ type: Object })` for a free-form value, or add `@Type` with a class for a declared one.
+
 ## Nested manual DTOs in auto DTOs
 
 Manual DTOs decorated with `@ApiPropertyObject` and the other `@ApiProperty*` decorators can be reused inside auto-generated body and response DTOs. When the same manual DTO appears in multiple generated contexts, the library materializes path-specific wrapper classes for Swagger, validation, and serialization metadata.
@@ -82,6 +95,7 @@ Neutral manual DTO fields do not need to be marked with `isResponse: true` just 
 
 - A request array without `minItems`, `maxItems` or `isUniqueItems` fails at decoration. Before, it decorated, a missing `minItems` or `maxItems` then rejected every value, and a missing `isUniqueItems` only left `uniqueItems` out of the schema. Declare all three bounds, or mark a response-only property `isResponse: true`.
 - A `minItems` or `maxItems` that is not a non-negative integer, or an `isUniqueItems` that is not a boolean, fails at decoration on request and response arrays, and so does an `isArray` that is not a boolean. Before, such a bound decorated and could reject every request value, such an `isUniqueItems` only reached the OpenAPI schema, and such an `isArray` skipped the bound checks. Pass valid values; a number read from the environment needs a default.
+- A free-form request value (`type: Object` or no `type`) arrives as sent. Before, `shouldValidateNested: true`, which every request array needs, attached `ValidateNested` to it: under a `ValidationPipe` with `whitelist: true`, `[{ "id": 1 }, { "id": 2 }]` reached the handler as `[{}, {}]`, and with `forbidNonWhitelisted: true` each key answered `400`. Code that relied on the emptied value must drop those keys itself. A free-form array item that is not an object now answers `400` with `each value in <name> must be an object`, which replaces the `nested property` message for a number, a string or `null`, and also covers a nested array such as `[[{ "id": 1 }]]`, which passed before.
 - `TApiPropertyObjectProperties` includes `TApiPropertyBaseResponseArrayProperties`, a response array whose bounds are optional. Code that reads the options and narrows on `isArray === true` gets `minItems`, `maxItems` and `isUniqueItems` as possibly `undefined`; also check `isResponse !== true` to read the required bounds of a request array.
 
 ## Related resources

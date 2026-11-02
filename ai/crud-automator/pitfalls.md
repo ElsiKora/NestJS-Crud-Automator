@@ -282,6 +282,10 @@ From 5.0.0 `IApiBaseEntity` is `object`, a breaking change: it has no index sign
 
 Use `EApiGetDefaultStringFormatPropertiesBigIntStringSign` instead of the removed `TApiGetDefaultStringFormatPropertiesBigIntStringSign` type. Do not import the removed `EHasPairedCustomSuffixesFieldsArgumentType`, `THasPairedCustomSuffixesFieldsOperationConfig`, or `VALIDATOR_HAS_PAIRED_CUSTOM_SUFFIXES_FIELDS_CONSTANT`; `HasPairedCustomSuffixesFieldsValidator` remains public. Import supported symbols from the package root.
 
+## Free-Form Objects
+
+Do not put a raw `class-validator` `@ValidateNested()` without `@Type` on a plain object: `whitelist: true` removes every key and `forbidNonWhitelisted: true` rejects them. For a free-form value use `@ApiPropertyObject({ type: Object })`, which arrives as sent. Nothing inside it is validated beyond `isUniqueItems` comparing array items, so do not treat it as checked input.
+
 ## Docs Drift
 
 If docs conflict with source, source wins. Check `src/interface/**`, `src/type/**`, tests, and public barrels before treating a docs snippet as current API.

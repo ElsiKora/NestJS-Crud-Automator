@@ -159,6 +159,7 @@ function buildDecorators(properties: TApiPropertyObjectProperties, apiPropertyOp
 
 /**
  * Builds decorators for validation of nested objects.
+ * A free-form value declares no class to validate against, so it gets no nested validation: `ValidateNested` would only hand it to a whitelisting pipe, which removes every key of a plain object.
  * @param {TApiPropertyObjectProperties} properties - The property configuration
  * @returns {Array<PropertyDecorator>} An array of object validation decorators
  * @private
@@ -167,7 +168,20 @@ function buildObjectValidationDecorators(properties: TApiPropertyObjectPropertie
 	const decorators: Array<PropertyDecorator> = [];
 	const isArray: boolean = properties.isArray ?? false;
 
-	if (!properties.isResponse && properties.shouldValidateNested) {
+	if (properties.isResponse) {
+		return decorators;
+	}
+
+	if (isFreeFormObjectProperties(properties)) {
+		if (isArray) {
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			decorators.push(IsObject({ each: true }));
+		}
+
+		return decorators;
+	}
+
+	if (properties.shouldValidateNested) {
 		// eslint-disable-next-line @elsikora/typescript/naming-convention
 		decorators.push(ValidateNested({ each: isArray }));
 	}
@@ -338,6 +352,15 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
  */
 function isApiPropertyObjectWithDiscriminatorProperties(properties: TApiPropertyObjectProperties): properties is TApiPropertyObjectWithDiscriminatorProperties {
 	return Array.isArray(properties.type) && "discriminator" in properties && Boolean(properties.discriminator) && !("isDynamicallyGenerated" in properties && properties.isDynamicallyGenerated);
+}
+
+/**
+ * Checks whether an object property declares no class for its value, with `type: Object` or no `type` at all.
+ * @param {TApiPropertyObjectProperties} properties - Object property options.
+ * @returns {boolean} Whether the value is a free-form object.
+ */
+function isFreeFormObjectProperties(properties: TApiPropertyObjectProperties): boolean {
+	return properties.type === Object || properties.type === undefined;
 }
 
 /**
