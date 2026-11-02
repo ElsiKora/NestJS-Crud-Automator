@@ -7,7 +7,7 @@ import type { TApiPropertyCopyProperties } from "@type/decorator/api/property/co
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { applyDecorators } from "@nestjs/common";
-import { API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY } from "@utility/api/controller/parameters/dto/metadata-key.constant";
+import { API_CONTROLLER_PARAMETERS_AUTO_COPY_METADATA_KEY, API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY } from "@utility/api/controller/parameters/dto/metadata-key.constant";
 import { DtoBuildDecorator } from "@utility/dto/build-decorator.utility";
 import { DtoGenerateDynamic } from "@utility/dto/generate/dynamic.utility";
 import { DtoSchemaNameStripSuffix } from "@utility/dto/schema-name/strip-suffix.utility";
@@ -144,6 +144,10 @@ export function ApiPropertyCopy<E>(properties: TApiPropertyCopyProperties<E>): P
 		};
 
 		if (shouldAutoResolveContext) {
+			// A custom route reads this to give the DTO its route context, and startup to refuse a copy no context reached.
+			const autoCopies: ReadonlyArray<string> = (Reflect.getMetadata(API_CONTROLLER_PARAMETERS_AUTO_COPY_METADATA_KEY, target) as ReadonlyArray<string> | undefined) ?? [];
+			Reflect.defineMetadata(API_CONTROLLER_PARAMETERS_AUTO_COPY_METADATA_KEY, [...autoCopies, String(key)], target);
+
 			QueueAutoContextRetry(target, () => {
 				executeWithEntity(target);
 			});

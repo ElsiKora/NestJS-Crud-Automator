@@ -17,7 +17,7 @@ import { getMetadataStorage, IS_UUID, ValidationTypes } from "class-validator";
 
 import { ApiControllerParametersIsDecimalColumn } from "./column/numeric-type.utility";
 import { ApiControllerParametersConvert } from "./convert.utility";
-import { API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY } from "./dto/metadata-key.constant";
+import { API_CONTROLLER_PARAMETERS_AUTO_COPY_METADATA_KEY, API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY } from "./dto/metadata-key.constant";
 import { ApiControllerParametersRouteDtoFindDropped, ApiControllerParametersRouteDtoReadExposure } from "./route-dto-startup.utility";
 import { ApiControllerParametersRouteDtoCheckSample } from "./route-dto.utility";
 
@@ -64,6 +64,10 @@ export function ApiControllerParametersBuildCustomRule(options: IApiControllerPa
 
 	if (firstParameter !== undefined && !options.dto) {
 		throw ErrorException(`${route} has the path parameter "${firstParameter}" but declares no PARAMETERS DTO, so a policy and the handler would read the text as sent, where "016" or an upper-case UUID names the row a policy denies: declare the route with @ApiRouteCustom and a dto[EApiDtoType.PARAMETERS] that describes it with ApiPropertyCopy or an ApiProperty* decorator`);
+	}
+
+	if (options.dto && parameters.size > 0) {
+		assertNoPendingCopy(options.dto, route);
 	}
 
 	const routeDtoProperties: ReadonlyMap<string, string> | undefined = options.dto && parameters.size > 0 ? resolveProperties(options.dto, parameters, route) : undefined;
@@ -167,6 +171,25 @@ function assertDescribed(dto: Type<unknown>, properties: ReadonlyMap<string, str
 		if (!described.has(property) && !isConverted(dto, property)) {
 			throw ErrorException(`${route} has the path parameter "${parameter}", which its PARAMETERS DTO "${dto.name}" does not describe, so a policy and the handler would read the text as sent: describe it with ApiPropertyCopy or an ApiProperty* decorator`);
 		}
+	}
+}
+
+/**
+ * Rejects an `ApiPropertyCopy` with `shouldAutoResolveContext` that no route context reached, so it copied nothing: startup cannot tell how it checks a path value, such as whether a UUID must be lower-case.
+ * A custom route gives its PARAMETERS DTO the context of its `route.type`; a DTO that inherits the copy from another class, or a route without a route type, gets none.
+ * @param {{ prototype: object; name: string }} dto - PARAMETERS DTO of the route.
+ * @param {object} dto.prototype - Prototype of the DTO class.
+ * @param {string} dto.name - Name of the DTO class.
+ * @param {string} route - Controller and method, for the error message.
+ * @returns {void}
+ * @throws {Error} When a copy of the DTO waits for a route context.
+ */
+function assertNoPendingCopy(dto: { name: string; prototype: object }, route: string): void {
+	const autoCopies: ReadonlyArray<string> = (Reflect.getMetadata(API_CONTROLLER_PARAMETERS_AUTO_COPY_METADATA_KEY, dto.prototype) as ReadonlyArray<string> | undefined) ?? [];
+	const pending: string | undefined = autoCopies.find((property: string): boolean => !Reflect.hasMetadata(API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY, dto.prototype, property));
+
+	if (pending !== undefined) {
+		throw ErrorException(`${route} reads its path parameters with the PARAMETERS DTO "${dto.name}", whose property "${pending}" copies an entity column with shouldAutoResolveContext and has no route context, so startup cannot tell how it checks a path value: give the copy method and dtoType, or declare the route type of the custom route in route.type`);
 	}
 }
 

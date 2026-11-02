@@ -13,11 +13,12 @@ import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/author
 import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiPolicyEffect } from "@enum/class/authorization";
 import { IApiAuthorizationDecision } from "@interface/class/api/authorization";
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, InternalServerErrorException, Optional } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, InternalServerErrorException, Optional, Type } from "@nestjs/common";
 import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
 import { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ApiControllerParametersDtoGet, ApiControllerParametersResolveRequest } from "@utility/api/controller/parameters";
+import { ApiControllerParametersBuildRouteRule } from "@utility/api/controller/parameters/route-rule.utility";
 import { AuthorizationSerializeParameters } from "@utility/authorization/serialize-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
@@ -70,7 +71,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 		// Path values are validated before authorization; authorization sees their canonical text, and so does every later reader of request.params.
 		// A custom route rule belongs to the controller class, because a handler inherited by several controllers is one shared function.
 		this.assertKnownPathParameters(context, request);
-		const parametersRule: IApiControllerParametersRule | undefined = this.parametersRuleRegistry.get(context.getClass(), context.getHandler()) ?? ApiControllerParametersDtoGet(context.getHandler());
+		const parametersRule: IApiControllerParametersRule | undefined = this.parametersRuleRegistry.get(context.getClass(), context.getHandler()) ?? ApiControllerParametersDtoGet(context.getHandler()) ?? this.buildUncheckedRule(context, request, routeMetadata);
 		const parameters: Partial<IApiBaseEntity> | undefined = await ApiControllerParametersResolveRequest<IApiBaseEntity>(request, parametersRule, request.params as Partial<IApiBaseEntity> | undefined);
 		this.rewriteRequestParameters(request, parameters);
 		const requestMetadata: IApiAuthorizationRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode> = this.resolveRequestMetadata<IApiBaseEntity, EApiControllerGetListQueryPaginationMode>(request, parameters, identityPlan);
@@ -126,6 +127,42 @@ export class ApiAuthorizationGuard implements CanActivate {
 	private attachDecisionToRequest<R>(request: TApiAuthorizationGuardRequest, decision: IApiAuthorizationDecision<IApiBaseEntity, R>): void {
 		request.authorizationDecision = decision as IApiAuthorizationDecision<IApiBaseEntity, unknown>;
 		request[AUTHORIZATION_DECISION_METADATA_CONSTANT.REQUEST_KEY] = decision;
+	}
+
+	/**
+	 * Builds the path value rule of a route when startup checks were replaced, as the documented test harness does, so a path value is checked by the PARAMETERS DTO of its route, as startup would have it, and never reaches authorization as sent.
+	 * The rule is kept for the next request. A route that startup would refuse is refused before authorization, because its path values have no rule to be checked by.
+	 * @param {ExecutionContext} context - Execution context of the request.
+	 * @param {TApiAuthorizationGuardRequest} request - HTTP request, whose path parameters are those of the route.
+	 * @param {IApiRouteMetadata<IApiBaseEntity>} metadata - Route metadata of the handler.
+	 * @returns {IApiControllerParametersRule | undefined} The rule, or undefined when startup checked the routes or the route has no path parameter.
+	 * @throws {InternalServerErrorException} When startup would refuse the route.
+	 */
+	private buildUncheckedRule(context: ExecutionContext, request: TApiAuthorizationGuardRequest, metadata: IApiRouteMetadata<IApiBaseEntity>): IApiControllerParametersRule | undefined {
+		const requestParameters: unknown = request.params;
+		const pathParameters: Array<string> = requestParameters && typeof requestParameters === "object" ? Object.keys(requestParameters) : [];
+
+		if (this.parametersRuleRegistry?.isStartupChecked() !== false || pathParameters.length === 0) {
+			return undefined;
+		}
+
+		const controller: Type<unknown> = context.getClass();
+		const handler: { name: string } = context.getHandler();
+		let rule: IApiControllerParametersRule | undefined;
+
+		try {
+			rule = ApiControllerParametersBuildRouteRule({ controller, handler, metadata, methodName: handler.name, pathParameters });
+		} catch (error) {
+			authorizationGuardLogger.error(`Controller "${controller.name}" method "${handler.name}" has no path value rule, because startup checks were replaced and the route fails them, so the request is refused before authorization: ${error instanceof Error ? error.message : String(error)}`);
+
+			throw new InternalServerErrorException();
+		}
+
+		if (rule) {
+			this.parametersRuleRegistry.set(controller, handler, rule);
+		}
+
+		return rule;
 	}
 
 	private isControllerSecurable(context: ExecutionContext): boolean {

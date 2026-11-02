@@ -12,7 +12,6 @@ import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/
 import { AUTHORIZATION_GATEWAY_METADATA_CONSTANT, AUTHORIZATION_MICROSERVICE_METADATA_CONSTANT, AUTHORIZATION_MODULE_OPTIONS_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
-import { DTO_SCHEMA_NAME_CONSTANT } from "@constant/utility/dto/schema-name.constant";
 import { EApiAuthorizationMode } from "@enum/class/authorization";
 import { EApiDtoType } from "@enum/decorator/api";
 import { EApiRouteType } from "@enum/decorator/api/route";
@@ -21,13 +20,13 @@ import { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorato
 import { Inject, Injectable, OnApplicationBootstrap, Optional, RequestMethod, ValidationPipe } from "@nestjs/common";
 import { addLeadingSlash, METHOD_METADATA, MODULE_PATH, PATH_METADATA, stripEndSlash, VERSION_METADATA } from "@nestjs/common/internal";
 import { ApplicationConfig, DiscoveryService, HttpAdapterHost, MetadataScanner, ModulesContainer } from "@nestjs/core";
-import { ApiControllerGetMethodName } from "@utility/api/controller/get/method-name.utility";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity/plan/get.utility";
-import { ApiControllerParametersAssertComparableColumns, ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
+import { ApiControllerParametersAssertComparableColumns } from "@utility/api/controller/parameters/custom-rule.utility";
 import { ApiControllerParametersDtoGet } from "@utility/api/controller/parameters/dto";
 import { ApiControllerParametersAssertHandlerArguments } from "@utility/api/controller/parameters/handler-arguments.utility";
 import { ApiControllerParametersReadPath } from "@utility/api/controller/parameters/read-path.utility";
 import { ApiControllerParametersAssertResourcePathPlaceholders } from "@utility/api/controller/parameters/resource-path.utility";
+import { ApiControllerParametersBuildRouteRule } from "@utility/api/controller/parameters/route-rule.utility";
 import { ApiControllerParametersAssertValidationPipePackages, ApiControllerParametersReadValidationPipes } from "@utility/api/controller/parameters/validation-pipe.utility";
 import { AuthorizationIsHandlerAuthorized } from "@utility/authorization/is-handler-authorized.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -155,18 +154,8 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 				ApiControllerParametersAssertResourcePathPlaceholders({ action: `${policyNamespace ?? ""}:${metadata.resource.action}`, pathParameters: authorizedParameters, policyNamespace, resourcePath, route, routeType: metadata.route.type });
 			}
 
-			if (generatedRule || this.isGeneratedRoute(metatype, methodName, handler, metadata)) {
-				continue;
-			}
-
-			const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({
-				controller: metatype,
-				dto: routeDto,
-				isColumnTypeRequired: mode === EApiAuthorizationMode.HOOKS,
-				methodName,
-				pathParameters,
-				resourcePath: mode === EApiAuthorizationMode.IAM ? resourcePath : undefined,
-			});
+			// A generated route carries its own rule; every other route gets the rule the guard would build without startup.
+			const rule: IApiControllerParametersRule | undefined = generatedRule ? undefined : ApiControllerParametersBuildRouteRule({ controller: metatype, handler, metadata, methodName, pathParameters });
 
 			if (rule) {
 				this.parametersRuleRegistry.set(metatype, handler, rule);
@@ -351,21 +340,6 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	 */
 	private isDtoClass(value: unknown): value is Type<unknown> {
 		return typeof value === "function";
-	}
-
-	/**
-	 * Tells whether a handler is a route `@ApiController` generates: it carries the name of its route type, that route is not disabled, and `@ApiRouteCustom` did not declare it. Such a route carries its own PARAMETERS rule, or none without a path parameter, so no custom rule is built for it.
-	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
-	 * @param {string} methodName - Handler name.
-	 * @param {object} handler - Handler function.
-	 * @param {IApiRouteMetadata<IApiBaseEntity>} metadata - Route metadata of the handler.
-	 * @returns {boolean} Whether the handler is a generated route.
-	 */
-	private isGeneratedRoute(metatype: new (...arguments_: Array<unknown>) => unknown, methodName: string, handler: object, metadata: IApiRouteMetadata<IApiBaseEntity>): boolean {
-		const routeType: EApiRouteType | undefined = metadata.route.type;
-		const properties: IApiControllerProperties<IApiBaseEntity> | undefined = Reflect.getMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, metatype) as IApiControllerProperties<IApiBaseEntity> | undefined;
-
-		return routeType !== undefined && methodName === ApiControllerGetMethodName(routeType) && properties?.routes[routeType]?.generation?.isEnabled !== false && !Reflect.hasMetadata(DTO_SCHEMA_NAME_CONSTANT.CUSTOM_ROUTE_METADATA_KEY, handler);
 	}
 
 	/**

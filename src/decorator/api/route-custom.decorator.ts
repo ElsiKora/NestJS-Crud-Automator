@@ -8,7 +8,7 @@ import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { DTO_SCHEMA_NAME_CONSTANT } from "@constant/utility/dto/schema-name.constant";
 import { ApiMethod } from "@decorator/api/method.decorator";
-import { EApiControllerResponseTarget } from "@enum/decorator/api";
+import { EApiControllerResponseTarget, EApiDtoType } from "@enum/decorator/api";
 import { ApiRouteRuntimeInterceptor } from "@interceptor/api-route-runtime.interceptor";
 import { applyDecorators, HttpStatus, SetMetadata, UseFilters } from "@nestjs/common";
 import { EXCEPTION_FILTERS_METADATA, ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
@@ -16,6 +16,7 @@ import { ApiControllerGetErrorFlags, ApiControllerGetErrorResponseDecorators } f
 import { ApiControllerGetCustomErrorStatuses } from "@utility/api/controller/get/error-statuses.utility";
 import { ApiRouteApplyDtoMetadata } from "@utility/api/route/apply-dto-metadata.utility";
 import { ApiRouteCreateAnonymousCheck } from "@utility/api/route/create-anonymous-check.utility";
+import { ApiRoutePushParametersContext } from "@utility/api/route/push-parameters-context.utility";
 
 /**
  * Creates a custom API route with metadata, runtime properties, and route runtime interception.
@@ -76,6 +77,7 @@ export function ApiRouteCustom<E extends IApiBaseEntity>(properties: IApiRouteCu
 	};
 
 	return function (target: object, propertyKey: string | symbol, descriptor: PropertyDescriptor): void {
+		ApiRoutePushParametersContext(Reflect.get(properties.dto ?? {}, EApiDtoType.PARAMETERS), properties.route.type);
 		ApiControllerRequestRelationsValidator.register<E>(target, properties.resource.entity, `Custom route ${target.constructor.name}.${String(propertyKey)}`, properties.relations?.request);
 
 		const originalMethod: (...methodArguments: Array<unknown>) => unknown = descriptor.value as (...methodArguments: Array<unknown>) => unknown;

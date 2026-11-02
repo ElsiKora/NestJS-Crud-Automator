@@ -236,7 +236,7 @@ const moduleReference = await Test.createTestingModule({
 
 The replaced runtime returns a complete `IApiAuthorizationDecision`, with the enums rather than string literals: `EApiPolicyEffect.ALLOW` is `"Allow"`. A generated route runs the `transforms` of the decision on the response, so an object without them, such as `{ effect: "allow", principal: { id: "test" } }`, answers `500`. To test a `403`, return `EApiPolicyEffect.DENY` with `EApiAuthorizationDecisionType.EXPLICIT_DENY` in the trace. See [Authorization: Test Harness](/docs/nestjs-crud-automator/guides/authorization#test-harness).
 
-This turns off every startup check, the one for plain routes and the path parameter comparison of each request included, so keep it in tests. A plain route still answers `403` there, because the class guard of `@ApiControllerSecurable()` stays on.
+This turns off every startup check, the one for plain routes and the path parameter comparison of each request included, so keep it in tests. The path values of a route are still checked: without startup the guard builds the rule of a custom route from its PARAMETERS DTO on its first request, so an upper-case UUID still returns `400` before the runtime and the handler, and a route whose DTO startup would refuse answers `500`. Before 5.0.0 such a test let a custom route pass the value as sent. A plain route still answers `403` there, because the class guard of `@ApiControllerSecurable()` stays on.
 
 See [Authorization: Every Served Route Goes Through Authorization](/docs/nestjs-crud-automator/guides/authorization#every-served-route-goes-through-authorization).
 
