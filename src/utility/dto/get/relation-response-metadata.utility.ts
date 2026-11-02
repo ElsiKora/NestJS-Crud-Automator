@@ -4,7 +4,7 @@ import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties, TApiPropertyDescribePropertiesBaseProperties } from "@type/decorator/api/property";
-import type { TTypeOrmColumnMetadataArguments, TTypeOrmMetadataArgumentsStorage, TTypeOrmRelationMetadataArguments } from "@type/utility/typeorm";
+import type { TTypeOrmColumnMetadataArguments, TTypeOrmMetadataArgumentsStorage, TTypeOrmRelationMetadataArguments, TTypeOrmTableMetadataArguments } from "@type/utility/typeorm";
 import type { ObjectLiteral } from "typeorm";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
@@ -24,19 +24,20 @@ const DEFAULT_REFERENCE_KEY: string = "id";
  * the reference key for OBJECT, the key value itself for SCALAR, and an array of either for a to-many relation.
  * Any other relation keeps its describe metadata, because the serializer sends it through that DTO unchanged.
  * Every relation is nullable when TypeORM can return null for it, and required only when the route always loads it:
- * it is included, or eager.
+ * it is included, or eager. This rule replaces any `isRequired` in the describe metadata of the relation.
  * @param {ObjectLiteral} entity - Entity class that owns the relation.
  * @param {IApiEntity<E>} entityMetadata - Metadata of that entity.
  * @param {IApiEntityColumn<E>} column - Relation column of the property.
  * @param {TApiPropertyDescribeProperties} metadata - Describe metadata of the property.
  * @param {EApiRouteType} method - Route type of the generated DTO.
  * @param {string} dtoNameBase - Name of the generated DTO without the `DTO` suffix, which starts the name of a nested reference DTO.
+ * @param {string} routeOrigin - Route DTO named in errors, from `DtoSchemaNameGetRouteOrigin`.
  * @param {IApiControllerPropertiesRouteBaseRelationsResponse<E>} [responseRelations] - Response relation config of the route.
  * @returns {TApiPropertyDescribeProperties} Describe metadata that matches the wire value of the property.
- * @throws {Error} When the reference key of a projected relation is not a described, non-nullable scalar of the related entity
+ * @throws {Error} When a projected relation has no reference or is lazy, or its reference key is not a described, non-nullable scalar of the related entity
  * @template E - The entity type
  */
-export function DtoGetRelationResponseMetadata<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, column: IApiEntityColumn<E>, metadata: TApiPropertyDescribeProperties, method: EApiRouteType, dtoNameBase: string, responseRelations?: IApiControllerPropertiesRouteBaseRelationsResponse<E>): TApiPropertyDescribeProperties {
+export function DtoGetRelationResponseMetadata<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, column: IApiEntityColumn<E>, metadata: TApiPropertyDescribeProperties, method: EApiRouteType, dtoNameBase: string, routeOrigin: string, responseRelations?: IApiControllerPropertiesRouteBaseRelationsResponse<E>): TApiPropertyDescribeProperties {
 	const propertyName: string = String(column.name);
 	const hierarchy: Array<Type<unknown>> = GetClassHierarchy(entity);
 	const relation: TTypeOrmRelationMetadataArguments | undefined = getMetadataArgsStorage().relations.find((candidate: TTypeOrmRelationMetadataArguments): boolean => candidate.propertyName === propertyName && hierarchy.includes(candidate.target as Type<unknown>));
@@ -48,24 +49,34 @@ export function DtoGetRelationResponseMetadata<E>(entity: ObjectLiteral, entityM
 	const include: Record<string, unknown> = responseRelations?.load?.include ?? {};
 	const isToMany: boolean = relation.relationType === "one-to-many" || relation.relationType === "many-to-many";
 	const isRequired: boolean = Boolean(include[propertyName]) || relation.options.eager === true;
-	const isNullable: boolean = !isToMany && isToOneNullable(hierarchy, relation);
+	const isNullable: boolean = !isToMany && isToOneNullable(hierarchy, relation, column.relation?.target);
 	const properties: TApiPropertyDescribePropertiesBaseProperties = withResponseRequired(metadata.properties, method, isRequired);
 
 	if (!responseRelations || !Object.keys(include).includes(propertyName)) {
 		return { ...metadata, isNullable, properties };
 	}
 
+	const relationName: string = `${String(entityMetadata.name)}.${propertyName} in ${routeOrigin}`;
+	const reference: IApiControllerPropertiesRouteBaseRelationsResponse<E>["reference"] | undefined = responseRelations.reference;
+
+	if (!reference?.shape) {
+		throw ErrorException(`Response relation ${relationName} is in relations.response.load.include, so the route must set relations.response.reference with a shape`);
+	}
+
+	if (relation.isLazy && include[propertyName]) {
+		throw ErrorException(`Response relation ${relationName} is lazy, and a lazy relation cannot be sent as a reference. Make the relation non-lazy or remove it from relations.response.load.include`);
+	}
+
 	const description: string = ("description" in metadata ? (metadata.description?.trim() ?? "") : "") || propertyName;
 	const base: Record<string, unknown> = { description, isAutoDtoEnabled: metadata.isAutoDtoEnabled, isNullable, properties };
 	const array: Record<string, unknown> = isToMany ? { isArray: true, minItems: 0 } : { isArray: false };
-	const key: string = responseRelations.reference.key ?? DEFAULT_REFERENCE_KEY;
-	const isScalar: boolean = responseRelations.reference.shape === EApiControllerRelationReferenceShape.SCALAR;
+	const key: string = reference.key ?? DEFAULT_REFERENCE_KEY;
+	const isScalar: boolean = reference.shape === EApiControllerRelationReferenceShape.SCALAR;
+	const keyMetadata: TApiPropertyDescribeProperties = getReferenceKeyMetadata(column, key, relationName);
 
-	if (key === DEFAULT_REFERENCE_KEY) {
+	if (key === DEFAULT_REFERENCE_KEY && keyMetadata.type === EApiPropertyDescribeType.UUID) {
 		return (isScalar ? { ...base, ...array, type: EApiPropertyDescribeType.UUID } : { ...base, type: EApiPropertyDescribeType.RELATION }) as TApiPropertyDescribeProperties;
 	}
-
-	const keyMetadata: TApiPropertyDescribeProperties = getReferenceKeyMetadata(column, key, `${String(entityMetadata.name)}.${propertyName}`);
 
 	if (isScalar) {
 		return { ...keyMetadata, ...base, ...array };
@@ -89,14 +100,21 @@ export function DtoGetRelationResponseMetadata<E>(entity: ObjectLiteral, entityM
  * @param {string} key - Configured reference key.
  * @param {string} relationName - Relation named in errors.
  * @returns {TApiPropertyDescribeProperties} Scalar describe metadata of the key.
- * @throws {Error} When the key is not a described, non-nullable scalar of the related entity
+ * @throws {Error} When the key is not a described, non-nullable scalar of the related entity, or is `id` on a target with a composite primary key
  * @template E - The entity type
  */
 function getReferenceKeyMetadata<E>(column: IApiEntityColumn<E>, key: string, relationName: string): TApiPropertyDescribeProperties {
 	const target: IApiEntityColumn<E>["relation"] = column.relation;
 	const targetEntity: TApiEntityReference | undefined = target?.target;
 	const targetName: string = String(targetEntity?.name);
-	const keyColumn: IApiEntityColumn<unknown> | undefined = target ? GenerateEntityInformation(target.target).columns.find((candidate: IApiEntityColumn<unknown>): boolean => candidate.name === key) : undefined;
+	const targetColumns: Array<IApiEntityColumn<unknown>> = target ? GenerateEntityInformation<unknown>(target.target).columns : [];
+	const primaryColumnCount: number = targetColumns.filter((candidate: IApiEntityColumn<unknown>): boolean => candidate.isPrimary).length;
+
+	if (key === DEFAULT_REFERENCE_KEY && primaryColumnCount > 1) {
+		throw ErrorException(`Response relation reference key "${key}" of ${relationName} cannot identify a row of ${targetName}, because its primary key has ${String(primaryColumnCount)} columns. Set relations.response.reference.key to a described, unique scalar of ${targetName}`);
+	}
+
+	const keyColumn: IApiEntityColumn<unknown> | undefined = targetColumns.find((candidate: IApiEntityColumn<unknown>): boolean => candidate.name === key);
 	const keyMetadata: TApiPropertyDescribeProperties | undefined = keyColumn?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
 
 	if (!keyColumn || !keyMetadata) {
@@ -117,17 +135,32 @@ function getReferenceKeyMetadata<E>(column: IApiEntityColumn<E>, key: string, re
 }
 
 /**
+ * Returns whether a relation target has a soft-delete column, on its own class or a parent class.
+ * @param {TApiEntityReference} [target] - Relation target, which holds only the name for a relation declared by entity name.
+ * @returns {boolean} Whether a target row can be soft-deleted.
+ */
+function isSoftDeletable(target?: TApiEntityReference): boolean {
+	const storage: TTypeOrmMetadataArgumentsStorage = getMetadataArgsStorage();
+	const declaredHierarchy: Array<Type<unknown>> = GetClassHierarchy(target);
+	const targetHierarchy: Array<Type<unknown>> = declaredHierarchy.length > 0 ? declaredHierarchy : GetClassHierarchy(storage.tables.find((table: TTypeOrmTableMetadataArguments): boolean => (table.target as Type<unknown>).name === target?.name)?.target);
+
+	return storage.columns.some((candidate: TTypeOrmColumnMetadataArguments): boolean => candidate.mode === "deleteDate" && targetHierarchy.includes(candidate.target as Type<unknown>));
+}
+
+/**
  * Returns whether TypeORM can return null for a to-one relation.
- * The inverse side of a one-to-one relation has no column and is null when no row points at it.
- * The owner side is nullable unless the relation is `nullable: false` or a join column is backed by a non-null or primary column.
+ * The inverse side of a one-to-one relation has no column and is null when no row points at it. A soft-deleted target is left out of the join, so a target with a soft-delete column gives null even on a non-null relation.
+ * The owner side is otherwise nullable unless the relation is `nullable: false` or every join column is backed by a non-null or primary column.
  * @param {Array<Type<unknown>>} hierarchy - Entity class and its parent classes.
  * @param {TTypeOrmRelationMetadataArguments} relation - Relation metadata.
+ * @param {TApiEntityReference} [target] - Relation target.
  * @returns {boolean} Whether the relation can be null on the wire.
  */
-function isToOneNullable(hierarchy: Array<Type<unknown>>, relation: TTypeOrmRelationMetadataArguments): boolean {
-	const joinColumns: Array<TTypeOrmMetadataArgumentsStorage["joinColumns"][number]> = getMetadataArgsStorage().joinColumns.filter((joinColumn: TTypeOrmMetadataArgumentsStorage["joinColumns"][number]): boolean => joinColumn.propertyName === relation.propertyName && hierarchy.includes(joinColumn.target as Type<unknown>));
+function isToOneNullable(hierarchy: Array<Type<unknown>>, relation: TTypeOrmRelationMetadataArguments, target?: TApiEntityReference): boolean {
+	const storage: TTypeOrmMetadataArgumentsStorage = getMetadataArgsStorage();
+	const joinColumns: Array<TTypeOrmMetadataArgumentsStorage["joinColumns"][number]> = storage.joinColumns.filter((joinColumn: TTypeOrmMetadataArgumentsStorage["joinColumns"][number]): boolean => joinColumn.propertyName === relation.propertyName && hierarchy.includes(joinColumn.target as Type<unknown>));
 
-	if (relation.relationType === "one-to-one" && joinColumns.length === 0) {
+	if ((relation.relationType === "one-to-one" && joinColumns.length === 0) || isSoftDeletable(target)) {
 		return true;
 	}
 
@@ -135,9 +168,15 @@ function isToOneNullable(hierarchy: Array<Type<unknown>>, relation: TTypeOrmRela
 		return false;
 	}
 
-	const columnNames: Set<string> = new Set<string>(joinColumns.map((joinColumn: TTypeOrmMetadataArgumentsStorage["joinColumns"][number]): string | undefined => joinColumn.name).filter((name: string | undefined): name is string => name !== undefined));
+	if (joinColumns.length === 0) {
+		return true;
+	}
 
-	return !getMetadataArgsStorage().columns.some((candidate: TTypeOrmColumnMetadataArguments): boolean => hierarchy.includes(candidate.target as Type<unknown>) && (columnNames.has(candidate.propertyName) || (candidate.options.name !== undefined && columnNames.has(candidate.options.name))) && (candidate.options.primary === true || candidate.options.nullable !== true));
+	return joinColumns.some(({ name }: TTypeOrmMetadataArgumentsStorage["joinColumns"][number]): boolean => {
+		const isBackedByRequiredColumn: boolean = name !== undefined && storage.columns.some((candidate: TTypeOrmColumnMetadataArguments): boolean => hierarchy.includes(candidate.target as Type<unknown>) && (candidate.propertyName === name || candidate.options.name === name) && (candidate.options.primary === true || candidate.options.nullable !== true));
+
+		return !isBackedByRequiredColumn;
+	});
 }
 
 /**

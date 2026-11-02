@@ -98,6 +98,7 @@ export function DtoGenerate<E>(
 	dtoGenerateCache.set(entity, entityDtoCache);
 
 	const cached: Type<unknown> | undefined = entityDtoCache.get(cacheKey);
+	const routeOrigin: string = DtoSchemaNameGetRouteOrigin(schemaPrefix, routeName ?? method, dtoType);
 	const namePrefix: string = routeName ? `${schemaPrefix}${routeName}` : schemaPrefix;
 	const dtoNameBase: string = responseVariantName?.replace(/DTO$/, "") ?? `${schemaPrefix}${routeName ?? CamelCaseString(method)}${CamelCaseString(dtoType)}`;
 
@@ -128,7 +129,7 @@ export function DtoGenerate<E>(
 
 			markedProperties.push({
 				isPrimary: column.isPrimary,
-				metadata: isResponse && column.relation ? DtoGetRelationResponseMetadata(entity, entityMetadata, column, metadata, method, dtoNameBase, responseRelations) : metadata,
+				metadata: isResponse && column.relation ? DtoGetRelationResponseMetadata(entity, entityMetadata, column, metadata, method, dtoNameBase, routeOrigin, responseRelations) : metadata,
 				name: column.name,
 			});
 		}
@@ -194,8 +195,6 @@ export function DtoGenerate<E>(
 			}
 		}
 	}
-
-	const routeOrigin: string = DtoSchemaNameGetRouteOrigin(schemaPrefix, routeName ?? method, dtoType);
 
 	DtoSetGeneratedName(GeneratedDTO, responseVariantName ?? (queryPlan && method === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY ? queryPlan.schemaName : `${dtoNameBase}DTO`), responseVariantName ? `variant ${responseVariantName} of ${routeOrigin}` : routeOrigin);
 
