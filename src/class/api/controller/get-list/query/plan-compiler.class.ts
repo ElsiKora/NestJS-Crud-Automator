@@ -114,8 +114,8 @@ export class ApiControllerGetListQueryPlanCompiler {
 		const cursorFields: ReadonlyArray<string> = isCursor ? ApiControllerGetListQueryResolveCursorOrderFields(order) : Object.freeze([]);
 
 		if (isCursor) {
-			this.validateCursorPlan(entity, entityMetadata, order, cursorFields, routeConfig);
-			this.validateCursorTableInheritanceVariants(entityMetadata, cursorFields, routeConfig);
+			this.validateCursorPlan(controller, entity, entityMetadata, order, cursorFields, routeConfig);
+			this.validateCursorTableInheritanceVariants(controller, entityMetadata, cursorFields, routeConfig);
 		}
 
 		const normalizedOrder: Record<string, unknown> = {
@@ -889,7 +889,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 		}
 	}
 
-	private static validateCursorPlan<E>(entity: ObjectLiteral, entityMetadata: IApiEntity<E>, order: TApiControllerGetListQueryCompiledOrder, cursorFields: ReadonlyArray<string>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>): void {
+	private static validateCursorPlan<E>(controller: Type<unknown>, entity: ObjectLiteral, entityMetadata: IApiEntity<E>, order: TApiControllerGetListQueryCompiledOrder, cursorFields: ReadonlyArray<string>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>): void {
 		const primaryFields: ReadonlySet<string> = new Set<string>(entityMetadata.columns.filter((column: IApiEntityColumn<E>): boolean => column.isPrimary).map((column: IApiEntityColumn<E>): string => String(column.name)));
 
 		if (primaryFields.size === 0) {
@@ -935,24 +935,24 @@ export class ApiControllerGetListQueryPlanCompiler {
 				throw ErrorException(`CURSOR GET_LIST order field "${fieldName}" must be a raw data property, not an accessor`);
 			}
 
-			this.validateCursorResponseExposure(entityMetadata, fieldName);
+			this.validateCursorResponseExposure(controller, entityMetadata, fieldName);
 		}
 
 		this.validateCursorCustomResponseDto(routeConfig, potentialFields, order);
 	}
 
-	private static validateCursorResponseExposure<E>(entityMetadata: IApiEntity<E>, fieldName: string): void {
+	private static validateCursorResponseExposure<E>(controller: Type<unknown>, entityMetadata: IApiEntity<E>, fieldName: string): void {
 		const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((candidate: IApiEntityColumn<E>): boolean => String(candidate.name) === fieldName);
 		const metadata: TApiPropertyDescribeProperties | undefined = column ? this.getPropertyMetadata(column) : undefined;
 
 		if (!column || !metadata) {
-			throw ErrorException(`CURSOR GET_LIST order field "${fieldName}" must be raw-exposed in the generated response`);
+			throw ErrorException(`Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": CURSOR GET_LIST order field "${fieldName}" must be raw-exposed in the generated response`);
 		}
 
 		const effectiveResponse: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(EApiRouteType.GET_LIST, metadata, EApiDtoType.RESPONSE);
 
 		if (effectiveResponse.guard || !DtoIsPropertyExposedInListResponse(fieldName, metadata, column.isPrimary)) {
-			throw ErrorException(`CURSOR GET_LIST order field "${fieldName}" must be unconditionally raw-exposed in the generated response`);
+			throw ErrorException(`Controller "${controller.name}" route "${EApiRouteType.GET_LIST}": CURSOR GET_LIST order field "${fieldName}" must be unconditionally raw-exposed in the generated response`);
 		}
 	}
 
@@ -1040,12 +1040,13 @@ export class ApiControllerGetListQueryPlanCompiler {
 	/**
 	 * Validates every table inheritance variant against the CURSOR order fields, because rows of any child are paged together.
 	 * @template E - Entity type.
+	 * @param {Type<unknown>} controller - Controller class, which a response exposure error names.
 	 * @param {IApiEntity<E>} entityMetadata - Root entity metadata carrying the compiled table inheritance plan.
 	 * @param {ReadonlyArray<string>} cursorFields - Order fields encoded in the cursor.
 	 * @param {TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>} routeConfig - GET_LIST route configuration.
 	 * @returns {void}
 	 */
-	private static validateCursorTableInheritanceVariants<E>(entityMetadata: IApiEntity<E>, cursorFields: ReadonlyArray<string>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>): void {
+	private static validateCursorTableInheritanceVariants<E>(controller: Type<unknown>, entityMetadata: IApiEntity<E>, cursorFields: ReadonlyArray<string>, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST>): void {
 		for (const variant of entityMetadata.tableInheritance?.variants ?? []) {
 			if (this.hasAfterLoadListener(variant.entity)) {
 				throw ErrorException(`CURSOR GET_LIST entity variant ${String(variant.entityMetadata.name)} cannot declare TypeORM after-load listeners`);
@@ -1057,7 +1058,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 				}
 
 				if (!routeConfig.dto?.[EApiDtoType.RESPONSE]) {
-					this.validateCursorResponseExposure(variant.entityMetadata, fieldName);
+					this.validateCursorResponseExposure(controller, variant.entityMetadata, fieldName);
 				}
 			}
 		}
