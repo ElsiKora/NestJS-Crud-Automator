@@ -26,7 +26,8 @@ import { DtoGenerateException } from "@utility/dto/generate/exception.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
-const FLAGGED_ERROR_STATUSES: ReadonlySet<number> = new Set<number>([HttpStatus.BAD_REQUEST, HttpStatus.CONFLICT, HttpStatus.FORBIDDEN, HttpStatus.INTERNAL_SERVER_ERROR, HttpStatus.NOT_FOUND, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.UNAUTHORIZED]);
+// Statuses ApiMethod declares itself, on every route or from a response.errors flag
+const API_METHOD_ERROR_STATUSES: ReadonlySet<number> = new Set<number>([HttpStatus.BAD_REQUEST, HttpStatus.CONFLICT, HttpStatus.FORBIDDEN, HttpStatus.INTERNAL_SERVER_ERROR, HttpStatus.NOT_FOUND, HttpStatus.PAYLOAD_TOO_LARGE, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.UNAUTHORIZED, HttpStatus.UNSUPPORTED_MEDIA_TYPE]);
 
 /**
  * Applies appropriate decorators to controller methods based on the route type.
@@ -92,10 +93,8 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 	const errorStatuses: Array<number> = ApiControllerGetErrorStatuses(method, routeConfig, ApiControllerReadPlanGet(targetMethod as object, methodName) !== undefined);
 
 	const errors: NonNullable<IApiRouteMetadata<E>["response"]>["errors"] = {
-		hasBadRequest: errorStatuses.includes(HttpStatus.BAD_REQUEST),
 		hasConflict: errorStatuses.includes(HttpStatus.CONFLICT),
 		hasForbidden: errorStatuses.includes(HttpStatus.FORBIDDEN),
-		hasInternalServerError: errorStatuses.includes(HttpStatus.INTERNAL_SERVER_ERROR),
 		hasNotFound: errorStatuses.includes(HttpStatus.NOT_FOUND),
 		hasTooManyRequests: errorStatuses.includes(HttpStatus.TOO_MANY_REQUESTS),
 		hasUnauthorized: errorStatuses.includes(HttpStatus.UNAUTHORIZED),
@@ -159,10 +158,10 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 		}
 	}
 
-	// Statuses without an ApiMethod flag, such as a request validator answering 422, unless the route documents the status itself
+	// Statuses ApiMethod does not declare, such as a request validator answering 422, unless the route documents the status itself
 	const documentedStatuses: ReadonlySet<unknown> = new Set<unknown>((routeConfig.documentation?.response?.statuses ?? []).map((response: { status: unknown }): unknown => response.status));
 
-	for (const status of errorStatuses.filter((errorStatus: number): errorStatus is HttpStatus => EnumIsValue(HttpStatus, errorStatus) && !FLAGGED_ERROR_STATUSES.has(errorStatus) && !documentedStatuses.has(errorStatus))) {
+	for (const status of errorStatuses.filter((errorStatus: number): errorStatus is HttpStatus => EnumIsValue(HttpStatus, errorStatus) && !API_METHOD_ERROR_STATUSES.has(errorStatus) && !documentedStatuses.has(errorStatus))) {
 		customDecorators.push(ApiResponse({ description: STATUS_CODES[status] ?? HttpStatus[status], status, type: DtoGenerateException(status) }));
 	}
 

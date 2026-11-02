@@ -5,7 +5,7 @@ import type { OpenAPIObject } from "@nestjs/swagger";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import type { Repository } from "typeorm";
 
-import { ForbiddenException, HttpStatus, Inject, Injectable, RequestMethod, UnauthorizedException, UnprocessableEntityException, ValidationPipe } from "@nestjs/common";
+import { ForbiddenException, Headers, HttpStatus, Inject, Injectable, RequestMethod, UnauthorizedException, UnprocessableEntityException, ValidationPipe } from "@nestjs/common";
 import { APP_GUARD, HttpAdapterHost } from "@nestjs/core";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
@@ -18,7 +18,7 @@ import addFormats from "ajv-formats";
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import type { IApiPolicyAttachmentSource, IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "../../src/index";
+import type { IApiAuthenticationRequest, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiPolicyAttachmentSource, IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "../../src/index";
 
 import {
 	ApiAuthorizationModule,
@@ -35,6 +35,7 @@ import {
 	ApiService,
 	ApiServiceBase,
 	ApiSubscriberModule,
+	AuthorizationResolveDefaultPrincipal,
 	CorrelationIDResponseBodyExceptionFilter,
 	CorrelationIDResponseBodyInterceptor,
 	DtoGenerateException,
@@ -215,6 +216,11 @@ class OpenApiErrorBlockGuard implements CanActivate {
 @Injectable()
 @ApiAuthorizationPolicy({ entity: OpenApiErrorSecuredItemEntity })
 class OpenApiErrorSecuredItemPolicy extends ApiAuthorizationPolicyBase<OpenApiErrorSecuredItemEntity> {
+	// Custom routes reach their handler for admins only
+	public getCustomActionRule() {
+		return this.allowForRoles(["admin"]);
+	}
+
 	public onBeforeCreate() {
 		return this.allowForRoles(["admin"]);
 	}
@@ -256,6 +262,16 @@ function explodeOnHeader<T extends { headers?: Record<string, string> }>(context
 	}
 
 	return context.result;
+}
+
+/**
+ * Fails a custom route handler that receives the `x-explode` header, to reproduce an unexpected `500`.
+ * @param {Record<string, string | undefined>} headers - Request headers.
+ */
+function explodeOnCustomHeader(headers: Record<string, string | undefined>): void {
+	if (headers["x-explode"]) {
+		throw new Error("unexpected failure");
+	}
 }
 
 @Injectable()
@@ -313,6 +329,17 @@ const iamDocumentSource: IApiPolicyDocumentSource = {
 	},
 };
 
+// The authorization guard fails on the x-principal-crash header, also on routes without authentication
+const principalResolver: IApiAuthorizationPrincipalResolver = {
+	resolve(user: unknown, request?: IApiAuthenticationRequest): IApiAuthorizationPrincipal {
+		if ((request as { headers?: Record<string, string | undefined> } | undefined)?.headers?.["x-principal-crash"]) {
+			throw new Error("principal store failure");
+		}
+
+		return AuthorizationResolveDefaultPrincipal(user);
+	},
+};
+
 const authentication = { guard: OpenApiErrorAuthenticationGuard, type: EApiAuthenticationType.USER };
 const execution = { guards: [OpenApiErrorBlockGuard] };
 
@@ -367,7 +394,9 @@ class OpenApiErrorItemController {
 		response: { status: HttpStatus.OK, type: undefined },
 		route: { method: RequestMethod.GET, path: "custom/summary" },
 	})
-	public summary(): { isReady: boolean } {
+	public summary(@Headers() headers: Record<string, string | undefined>): { isReady: boolean } {
+		explodeOnCustomHeader(headers);
+
 		return { isReady: true };
 	}
 
@@ -377,7 +406,21 @@ class OpenApiErrorItemController {
 		route: { method: RequestMethod.GET, path: "custom/throttled" },
 		throttling: { default: { limit: 1, ttl: 60_000 } },
 	})
-	public throttled(): { isReady: boolean } {
+	public throttled(@Headers() headers: Record<string, string | undefined>): { isReady: boolean } {
+		explodeOnCustomHeader(headers);
+
+		return { isReady: true };
+	}
+
+	@ApiRouteCustom<OpenApiErrorItemEntity>({
+		execution,
+		resource: { action: "items.guarded", entity: OpenApiErrorItemEntity },
+		response: { status: HttpStatus.OK, type: undefined },
+		route: { method: RequestMethod.GET, path: "custom/guarded" },
+	})
+	public guarded(@Headers() headers: Record<string, string | undefined>): { isReady: boolean } {
+		explodeOnCustomHeader(headers);
+
 		return { isReady: true };
 	}
 }
@@ -391,7 +434,9 @@ class OpenApiErrorSharedStatusRoutes {
 		response: { status: HttpStatus.OK, type: undefined },
 		route: { method: RequestMethod.GET, path: "custom/status" },
 	})
-	public status(): { isShared: boolean } {
+	public status(@Headers() headers: Record<string, string | undefined>): { isShared: boolean } {
+		explodeOnCustomHeader(headers);
+
 		return { isShared: true };
 	}
 }
@@ -436,7 +481,9 @@ class OpenApiErrorSecuredItemController extends OpenApiErrorSharedStatusRoutes {
 		route: { method: RequestMethod.GET, path: "custom/export" },
 		security: { authentication },
 	})
-	public export(): { isExported: boolean } {
+	public export(@Headers() headers: Record<string, string | undefined>): { isExported: boolean } {
+		explodeOnCustomHeader(headers);
+
 		return { isExported: true };
 	}
 
@@ -447,7 +494,9 @@ class OpenApiErrorSecuredItemController extends OpenApiErrorSharedStatusRoutes {
 			route: { method: RequestMethod.GET, path: "custom/ping" },
 		},
 	})
-	public ping(): { isPinged: boolean } {
+	public ping(@Headers() headers: Record<string, string | undefined>): { isPinged: boolean } {
+		explodeOnCustomHeader(headers);
+
 		return { isPinged: true };
 	}
 }
@@ -501,6 +550,7 @@ const ITEM: string = "/openapi-error-items/{id}";
 const SECURED_ITEMS: string = "/openapi-error-secured-items";
 const SECURED_ITEM: string = "/openapi-error-secured-items/{id}";
 const ITEM_SUMMARY: string = "/openapi-error-items/custom/summary";
+const ITEM_GUARDED: string = "/openapi-error-items/custom/guarded";
 const SECURED_EXPORT: string = "/openapi-error-secured-items/custom/export";
 const SECURED_PING: string = "/openapi-error-secured-items/custom/ping";
 const ITEM_THROTTLED: string = "/openapi-error-items/custom/throttled";
@@ -521,6 +571,7 @@ const BLOCKED_HEADERS: Record<string, string> = { ...ADMIN_HEADERS, "x-block": "
 const FORBIDDEN_HEADERS: Record<string, string> = { ...ADMIN_HEADERS, "x-forbid": "true" };
 const GUARD_CRASH_HEADERS: Record<string, string> = { ...ADMIN_HEADERS, "x-guard-crash": "true" };
 const AUTHENTICATION_CRASH_HEADERS: Record<string, string> = { "x-auth-crash": "true" };
+const PRINCIPAL_CRASH_HEADERS: Record<string, string> = { "x-principal-crash": "true" };
 const IAM_ALLOWED_HEADERS: Record<string, string> = { "x-user-id": IAM_ALLOWED_USER };
 const IAM_DENIED_HEADERS: Record<string, string> = { "x-user-id": "iam-denied" };
 const IAM_CRASH_HEADERS: Record<string, string> = { "x-user-id": IAM_CRASH_USER };
@@ -590,6 +641,9 @@ const WIRE_CASES: Array<IWireCase> = [
 	wireCase("delete", SECURED_ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "unexpected failure", `${SECURED_ITEMS}/${SECURED_ID}`, { headers: ADMIN_EXPLODE }),
 	wireCase("get", IAM_ITEM, HttpStatus.BAD_REQUEST, "path DTO validation", `${IAM_ITEMS}/${LONG_ID}`, { headers: IAM_ALLOWED_HEADERS }),
 	wireCase("get", IAM_ITEM, HttpStatus.NOT_FOUND, "row not found", `${IAM_ITEMS}/iam-missing`, { headers: IAM_ALLOWED_HEADERS }),
+	// Before the throttled route reaches its limit in the guard cases
+	...[ITEM_SUMMARY, ITEM_THROTTLED, ITEM_GUARDED, PUBLIC_STATUS].map((path: string): IWireCase => wireCase("get", path, HttpStatus.INTERNAL_SERVER_ERROR, "custom route handler failure", path, { headers: EXPLODE })),
+	wireCase("get", SECURED_EXPORT, HttpStatus.INTERNAL_SERVER_ERROR, "custom route handler failure", SECURED_EXPORT, { headers: ADMIN_EXPLODE }),
 ];
 
 const SECURED_OPERATIONS: Array<{ method: TSwaggerMethod; path: string; payload?: Record<string, unknown>; url: string }> = [
@@ -619,12 +673,15 @@ const GUARD_CASES: Array<IWireCase> = SECURED_OPERATIONS.flatMap((operation: (ty
 	wireCase("get", ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "execution guard failure without authorization", `${ITEMS}/item-1`, { headers: GUARD_CRASH_HEADERS }),
 	wireCase("get", ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "authentication guard failure without authorization", `${ITEMS}/item-1`, { headers: AUTHENTICATION_CRASH_HEADERS }),
 	wireCase("get", ITEM_THROTTLED, HttpStatus.TOO_MANY_REQUESTS, "route throttling", ITEM_THROTTLED, { precedingRequests: 1 }),
+	wireCase("get", ITEM_GUARDED, HttpStatus.FORBIDDEN, "custom route guard returning false", ITEM_GUARDED, { headers: BLOCKED_HEADERS }),
+	wireCase("get", ITEM_GUARDED, HttpStatus.INTERNAL_SERVER_ERROR, "custom route guard failure", ITEM_GUARDED, { headers: GUARD_CRASH_HEADERS }),
+	...[SECURED_PING, SECURED_STATUS].map((path: string): IWireCase => wireCase("get", path, HttpStatus.INTERNAL_SERVER_ERROR, "custom route authorization guard failure", path, { headers: PRINCIPAL_CRASH_HEADERS })),
 	wireCase("get", IAM_ITEM, HttpStatus.UNAUTHORIZED, "IAM authentication guard", `${IAM_ITEMS}/iam-1`),
 	wireCase("get", IAM_ITEM, HttpStatus.FORBIDDEN, "IAM deny", `${IAM_ITEMS}/iam-1`, { headers: IAM_DENIED_HEADERS }),
 	wireCase("get", IAM_ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "IAM document source failure", `${IAM_ITEMS}/iam-1`, { headers: IAM_CRASH_HEADERS }),
 ]);
 
-const BODY_OPERATIONS: Array<{ method: TSwaggerMethod; path: string; url: string }> = [{ method: "post", path: ITEMS, url: ITEMS }, { method: "put", path: ITEM, url: `${ITEMS}/item-1` }, { method: "patch", path: ITEM, url: `${ITEMS}/item-1` }, ...SECURED_OPERATIONS.filter((operation: (typeof SECURED_OPERATIONS)[number]): boolean => operation.payload !== undefined)];
+const BODY_OPERATIONS: Array<{ method: TSwaggerMethod; path: string; url: string }> = [{ method: "post", path: ITEMS, url: ITEMS }, { method: "put", path: ITEM, url: `${ITEMS}/item-1` }, { method: "patch", path: ITEM, url: `${ITEMS}/item-1` }, { method: "delete", path: ITEM, url: `${ITEMS}/item-1` }, ...SECURED_OPERATIONS.filter((operation: (typeof SECURED_OPERATIONS)[number]): boolean => operation.method !== "get")];
 
 // Over the Fastify default body limit of 1 MiB
 const OVERSIZED_BODY: string = JSON.stringify({ name: "x".repeat(1_100_000) });
@@ -709,7 +766,7 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 			imports: [
 				TypeOrmModule.forRoot({ dropSchema: true, entities: ENTITIES, synchronize: true, type: "postgres", url: container.getConnectionUri() }),
 				TypeOrmModule.forFeature(ENTITIES),
-				ApiAuthorizationModule.forRoot({ iam: { attachmentSources: [iamAttachmentSource], documentSources: [iamDocumentSource] } }),
+				ApiAuthorizationModule.forRoot({ iam: { attachmentSources: [iamAttachmentSource], documentSources: [iamDocumentSource] }, principalResolver }),
 				ApiSubscriberModule,
 				// Routes without throttling config never reach this limit
 				ThrottlerModule.forRoot([{ limit: 10_000, ttl: 60_000 }]),
@@ -762,32 +819,33 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 
 	it("declares exactly the error statuses each configuration can return", () => {
 		expect(declaredStatuses(ITEMS, "post")).toEqual([400, 404, 409, 413, 415, 422, 500]);
-		expect(declaredStatuses(ITEMS, "get")).toEqual([400, 500]);
-		expect(declaredStatuses(ITEM, "get")).toEqual([400, 401, 403, 404, 500]);
+		expect(declaredStatuses(ITEMS, "get")).toEqual([400, 413, 415, 500]);
+		expect(declaredStatuses(ITEM, "get")).toEqual([400, 401, 403, 404, 413, 415, 500]);
 		expect(declaredStatuses(ITEM, "put")).toEqual([400, 404, 409, 413, 415, 500]);
 		expect(declaredStatuses(ITEM, "patch")).toEqual([400, 404, 409, 413, 415, 500]);
-		expect(declaredStatuses(ITEM, "delete")).toEqual([400, 404, 500]);
+		expect(declaredStatuses(ITEM, "delete")).toEqual([400, 404, 413, 415, 500]);
 
 		expect(declaredStatuses(SECURED_ITEMS, "post")).toEqual([400, 401, 403, 409, 413, 415, 500]);
-		expect(declaredStatuses(SECURED_ITEMS, "get")).toEqual([400, 401, 403, 500]);
-		expect(declaredStatuses(SECURED_ITEM, "get")).toEqual([400, 401, 403, 404, 500]);
+		expect(declaredStatuses(SECURED_ITEMS, "get")).toEqual([400, 401, 403, 413, 415, 500]);
+		expect(declaredStatuses(SECURED_ITEM, "get")).toEqual([400, 401, 403, 404, 413, 415, 500]);
 		expect(declaredStatuses(SECURED_ITEM, "put")).toEqual([400, 401, 403, 404, 409, 413, 415, 500]);
 		expect(declaredStatuses(SECURED_ITEM, "patch")).toEqual([400, 401, 403, 404, 409, 413, 415, 500]);
-		expect(declaredStatuses(SECURED_ITEM, "delete")).toEqual([400, 401, 403, 404, 500]);
+		expect(declaredStatuses(SECURED_ITEM, "delete")).toEqual([400, 401, 403, 404, 413, 415, 500]);
 
-		expect(declaredStatuses(IAM_ITEM, "get")).toEqual([400, 401, 403, 404, 500]);
+		expect(declaredStatuses(IAM_ITEM, "get")).toEqual([400, 401, 403, 404, 413, 415, 500]);
 	});
 
 	it("declares the guard statuses of custom routes from their config", () => {
-		expect(declaredStatuses(ITEM_SUMMARY, "get")).toEqual([]);
-		expect(declaredStatuses(SECURED_EXPORT, "get")).toEqual([401, 403]);
-		expect(declaredStatuses(SECURED_PING, "get")).toEqual([403]);
-		expect(declaredStatuses(ITEM_THROTTLED, "get")).toEqual([429]);
+		expect(declaredStatuses(ITEM_SUMMARY, "get")).toEqual([400, 413, 415, 500]);
+		expect(declaredStatuses(SECURED_EXPORT, "get")).toEqual([400, 401, 403, 413, 415, 500]);
+		expect(declaredStatuses(SECURED_PING, "get")).toEqual([400, 403, 413, 415, 500]);
+		expect(declaredStatuses(ITEM_THROTTLED, "get")).toEqual([400, 413, 415, 429, 500]);
+		expect(declaredStatuses(ITEM_GUARDED, "get")).toEqual([400, 403, 413, 415, 500]);
 	});
 
 	it("declares 403 on an inherited custom route only for the securable controller", async () => {
-		expect(declaredStatuses(SECURED_STATUS, "get")).toEqual([403]);
-		expect(declaredStatuses(PUBLIC_STATUS, "get")).toEqual([]);
+		expect(declaredStatuses(SECURED_STATUS, "get")).toEqual([400, 403, 413, 415, 500]);
+		expect(declaredStatuses(PUBLIC_STATUS, "get")).toEqual([400, 413, 415, 500]);
 
 		const response = await fastify.inject({ method: "GET", url: PUBLIC_STATUS });
 
@@ -813,10 +871,13 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 	});
 
 	it("reproduces every declared error status on the wire", () => {
-		const covered: Array<string> = [...new Set([...WIRE_CASES, ...GUARD_CASES, ...BODY_PARSER_CASES].map((wireCase: IWireCase): string => `${wireCase.operation.method} ${wireCase.operation.path} ${String(wireCase.expectedStatus)}`))].sort();
+		// Fastify never parses a GET body, so body-parser-statuses.e2e reproduces these GET statuses on Express
+		const coveredOnExpress = (key: string): boolean => /^get .* (400|413|415)$/u.test(key);
+		const covered: Array<string> = [...new Set([...WIRE_CASES, ...GUARD_CASES, ...BODY_PARSER_CASES].map((wireCase: IWireCase): string => `${wireCase.operation.method} ${wireCase.operation.path} ${String(wireCase.expectedStatus)}`))].filter((key: string): boolean => !coveredOnExpress(key)).sort();
 		const declared: Array<string> = Object.entries(document.paths)
 			.filter(([path]: [string, unknown]): boolean => path.startsWith("/openapi-error-"))
 			.flatMap(([path, item]: [string, OpenAPIObject["paths"][string]]): Array<string> => (["delete", "get", "patch", "post", "put"] as const).filter((method: TSwaggerMethod): boolean => item[method] !== undefined).flatMap((method: TSwaggerMethod): Array<string> => declaredStatuses(path, method).map((status: number): string => `${method} ${path} ${String(status)}`)))
+			.filter((key: string): boolean => !coveredOnExpress(key))
 			.sort();
 
 		expect(covered).toEqual(declared);

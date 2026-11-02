@@ -18,9 +18,6 @@ import { ApiRouteCollectDtoWithRegisteredChildren } from "@utility/api/route/dto
 import { DtoGenerateException } from "@utility/dto/generate/exception.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 
-// Methods whose body the body parser reads before the route runs
-const REQUEST_BODY_METHODS: ReadonlySet<RequestMethod> = new Set<RequestMethod>([RequestMethod.PATCH, RequestMethod.POST, RequestMethod.PUT]);
-
 /**
  * Composes Nest route, Swagger, throttling, authentication, and route metadata decorators.
  * @template E - Entity type represented by the route metadata.
@@ -144,20 +141,20 @@ export function ApiMethod<E extends IApiBaseEntity>(options: IApiMethodPropertie
 	// An authentication guard can reject or refuse, and any route guard can refuse
 	const hasAuthentication: boolean = metadata.security?.authentication !== undefined;
 	const hasForbidden: boolean = !!errors?.hasForbidden || hasAuthentication || (options.execution?.guards?.length ?? 0) > 0;
-	// The body parser refuses a malformed, oversized, or unsupported body
-	const hasRequestBody: boolean = REQUEST_BODY_METHODS.has(metadata.route.method);
 	// A status the route documents itself replaces the default response of that status, since Swagger joins two declarations
 	const documentedStatuses: ReadonlySet<unknown> = new Set<unknown>((metadata.documentation?.response?.statuses ?? []).map((response: { status: unknown }): unknown => response.status));
 
 	const errorStatuses: Array<[boolean, HttpStatus]> = [
 		[!!errors?.hasUnauthorized || hasAuthentication, HttpStatus.UNAUTHORIZED],
 		[hasForbidden, HttpStatus.FORBIDDEN],
-		[!!errors?.hasInternalServerError, HttpStatus.INTERNAL_SERVER_ERROR],
+		// A handler or a guard that throws can fail any route
+		[true, HttpStatus.INTERNAL_SERVER_ERROR],
 		[!!errors?.hasNotFound, HttpStatus.NOT_FOUND],
-		[!!errors?.hasBadRequest || hasRequestBody, HttpStatus.BAD_REQUEST],
+		// The body parser refuses a malformed, oversized, or unsupported body on any method: Fastify parses one on DELETE, PATCH, POST, and PUT, Express on GET too
+		[true, HttpStatus.BAD_REQUEST],
 		[!!errors?.hasConflict, HttpStatus.CONFLICT],
-		[hasRequestBody, HttpStatus.PAYLOAD_TOO_LARGE],
-		[hasRequestBody, HttpStatus.UNSUPPORTED_MEDIA_TYPE],
+		[true, HttpStatus.PAYLOAD_TOO_LARGE],
+		[true, HttpStatus.UNSUPPORTED_MEDIA_TYPE],
 		// The ThrottlerGuard answers 429 once it counts the route over its limit
 		[!!errors?.hasTooManyRequests || metadata.throttling?.default !== undefined, HttpStatus.TOO_MANY_REQUESTS],
 	];
