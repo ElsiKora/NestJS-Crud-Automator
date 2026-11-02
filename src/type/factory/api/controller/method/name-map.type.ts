@@ -1,6 +1,6 @@
-import type { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import type { EApiRouteType } from "@enum/decorator/api";
+import type { TApiControllerMethodName } from "@type/factory/api/controller/method/name.type";
 
 export type TApiControllerMethodNameMap = {
-	[K in EApiRouteType]: `${typeof CONTROLLER_API_DECORATOR_CONSTANT.RESERVED_METHOD_PREFIX}${Capitalize<K>}`;
+	[K in EApiRouteType]: TApiControllerMethodName<K>;
 };

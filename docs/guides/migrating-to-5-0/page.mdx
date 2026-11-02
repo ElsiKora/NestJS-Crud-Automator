@@ -110,6 +110,12 @@ Importing the package no longer runs `dotenv`'s `config()`, and the package has 
 
 An `@ApiPropertyObject` request array without `minItems`, `maxItems` or `isUniqueItems`, possible from JavaScript or `any`, fails at decoration and names the DTO class, the property and the missing bounds. A `minItems` or `maxItems` that is not a non-negative integer, such as `NaN`, or an `isUniqueItems` that is not a boolean fails at decoration on any object array, and so does an `isArray` that is not a boolean. Before 5.0.0 such a bound decorated and could then reject every value, such an `isUniqueItems` only reached the OpenAPI schema, and such an `isArray` skipped the bound checks. A response array (`isResponse: true`) may leave the bounds out, so code that narrows `TApiPropertyObjectProperties` on `isArray === true` reads them as possibly `undefined`. See [`@ApiPropertyObject`: Migration Notes](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object#migration-notes).
 
+## Generated Controller Method Types
+
+`TApiControllerMethodName`, `TApiControllerMethodNameMap` and `TApiControllerTargetMethod` now give the names the methods have at runtime: `create`, `delete`, `get`, `getList`, `partialUpdate` and `update`. Before 5.0.0 they gave `${string}Create` and the like, so `controller.create` did not compile while `controller.xCreate` did, although no such method exists.
+
+Call the methods by their runtime names. A cast on a value already typed with these types can go. `@ApiController` cannot change a class's type, so `new UserController(service).create` still does not compile: a decorated class still needs a type assertion or declaration merging. See [Controllers: Migration Notes](/docs/nestjs-crud-automator/core-concepts/controllers#migration-notes).
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.

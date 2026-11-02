@@ -3,6 +3,12 @@ import type { IApiAuthenticationRequest } from "@interface/api/authentication-re
 import type { TApiControllerGetListQuery, TApiControllerGetListResponse } from "@type/decorator/api/controller";
 import type { DeepPartial } from "typeorm";
 
+/**
+ * The arguments of the generated controller methods.
+ * On a route with `read.scope.parameters`, the generated `getList` takes `(parameters, query, headers, ip)` instead, which a type cannot see, so a direct call with these arguments answers `400 INVALID_PARAMETERS`.
+ * @template E - Entity type.
+ * @template M - List pagination mode.
+ */
 export type TApiControllerMethodMap<E, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> = {
 	[EApiRouteType.CREATE]: (body: DeepPartial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<E>;
 	[EApiRouteType.DELETE]: (parameters: Partial<E>, headers: Record<string, string>, ip: string, authenticationRequest?: IApiAuthenticationRequest) => Promise<void>;

@@ -7,7 +7,7 @@ import type { IApiControllerReadPlan } from "@interface/class/api/controller/rea
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
 import type { TApiControllerMethod } from "@type/class";
-import type { TApiControllerGetListQuery, TApiControllerGetListResponse, TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
+import type { TApiControllerConstructor, TApiControllerGetListQuery, TApiControllerGetListResponse, TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { TApiControllerMethodMap, TApiControllerMethodName, TApiControllerMethodNameMap, TApiControllerTargetMethod } from "@type/factory/api/controller";
 import type { DeepPartial } from "typeorm";
 
@@ -31,14 +31,14 @@ import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
 export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> {
-	protected get targetPrototype(): InstanceType<typeof this.target> {
-		return this.target.prototype as InstanceType<typeof this.target>;
+	protected get targetPrototype(): InstanceType<TApiControllerTargetMethod<E, M>> {
+		return this.target.prototype as InstanceType<TApiControllerTargetMethod<E, M>>;
 	}
 
 	private readonly ENTITY!: IApiEntity<E>;
 
 	constructor(
-		protected target: TApiControllerTargetMethod<E, M>,
+		protected target: TApiControllerConstructor,
 		private readonly properties: IApiControllerProperties<E>,
 	) {
 		const entityInformation: IApiEntity<E> = GenerateEntityInformation<E>(properties.entity);
@@ -68,7 +68,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 		if (!(method in this.properties.routes) || this.properties.routes[method]?.generation?.isEnabled !== false) {
 			const routeConfig: TApiControllerPropertiesRoute<E, typeof method> = this.properties.routes[method] ?? {};
 			const routeDecorators: Array<MethodDecorator> | Array<PropertyDecorator> = routeConfig.generation?.decorators ?? [];
-			const methodName: TApiControllerMethodNameMap[typeof method] = ApiControllerGetMethodName(method) as TApiControllerMethodNameMap[typeof method];
+			const methodName: TApiControllerMethodNameMap[typeof method] = ApiControllerGetMethodName(method);
 			let queryPlan: IApiControllerGetListQueryPlan | undefined;
 			const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanCompiler.compile(this.target, this.properties.path, this.ENTITY, method, routeConfig);
 			const identityPlan: IApiControllerIdentityPlan | undefined = ApiControllerIdentityPlanCompiler.compile(this.target, this.properties.path, this.ENTITY, method, routeConfig, readPlan);
@@ -87,7 +87,7 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 				}
 			}
 
-			const targetMethod: TApiControllerMethodMap<E, M>[typeof method] = this.targetPrototype[methodName] as TApiControllerMethodMap<E, M>[typeof method];
+			const targetMethod: TApiControllerMethodMap<E, M>[typeof method] = this.targetPrototype[methodName];
 
 			if (identityPlan) {
 				ApiControllerIdentityPlanSet(targetMethod, identityPlan);

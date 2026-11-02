@@ -489,6 +489,25 @@ export class PostController {
 }
 ```
 
+## Generated Method Names
+
+Each generated route is a method on the controller class, named after its `EApiRouteType` value: `create`, `delete`, `get`, `getList`, `partialUpdate` and `update`. `TApiControllerMethodName`, `TApiControllerMethodNameMap` and `TApiControllerTargetMethod` give exactly these names, and `ApiControllerGetMethodName` returns them at runtime.
+
+A decorator cannot change a class's type, so these methods are not on the type of a class decorated with `@ApiController`: `new UserController(service).create` does not compile. Type such a value with a type assertion to `InstanceType<TApiControllerTargetMethod<UserEntity>>`, or merge the methods into the class with an `interface UserController extends TApiControllerMethodMap<UserEntity>` declaration.
+
+`TApiControllerTargetMethod` and `TApiControllerMethodMap` always list all six methods, because a type cannot see the `routes` of a controller. So with `[EApiRouteType.DELETE]: { generation: { isEnabled: false } }`, `controller.delete(...)` compiles and throws `TypeError: controller.delete is not a function`. Remove a disabled route from the type:
+
+```typescript copy
+type TUserController = Omit<InstanceType<TApiControllerTargetMethod<UserEntity>>, "delete">;
+```
+
+These types also give `getList` the arguments `(query, headers, ip)`. On a route with `read.scope.parameters`, the generated method takes `(parameters, query, headers, ip)`, so a direct call with the typed arguments answers `400 INVALID_PARAMETERS`. HTTP requests to the route are not affected. Whether a route has a read scope is not visible to the types either, so call this method through a type of your own.
+
+## Migration Notes
+
+- **5.0:** `TApiControllerMethodName`, `TApiControllerMethodNameMap` and `TApiControllerTargetMethod` give the runtime names. Before 5.0.0 they gave `${string}Create` and the like, so `controller.create` did not compile while `controller.xCreate` did, although no such method exists. Call the methods by their runtime names. A cast on a value already typed with these types can go, but a decorated class still needs a type assertion or declaration merging.
+- **5.0:** An instance of `TApiControllerTargetMethod` now has all six methods as required properties, including the methods of disabled routes, so a test stub of that type has to implement them. `ApiControllerFactory` takes the undecorated class as a `TApiControllerConstructor`, and its protected `target` has that type too.
+
 ## Next Steps
 
 - [Services](/docs/nestjs-crud-automator/core-concepts/services) - Configure service layer
