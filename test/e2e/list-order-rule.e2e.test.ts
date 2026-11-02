@@ -15,7 +15,7 @@ import { DataSource } from "typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleItemController, E2eListOrderRuleItemEntity, E2eListOrderRuleItemService, E2eListOrderRuleManualItemController, E2eListOrderRuleOwnerEntity, E2eListOrderRuleSharedLabelController, E2eListOrderRuleSharedRankController, E2eListOrderRuleTypedItemController, E2eListOrderRuleVariantController } from "./list-order-rule";
+import { E2eListOrderRuleAllowHiddenItemController, E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleDefaultOrderItemController, E2eListOrderRuleItemController, E2eListOrderRuleItemEntity, E2eListOrderRuleItemService, E2eListOrderRuleManualItemController, E2eListOrderRuleOwnerEntity, E2eListOrderRuleSharedLabelController, E2eListOrderRuleSharedRankController, E2eListOrderRuleTypedItemController, E2eListOrderRuleVariantController } from "./list-order-rule";
 
 class ListOrderRuleLogger implements Logger {
 	public readonly queries: Array<string> = [];
@@ -76,7 +76,7 @@ describe.each([
 			const entities: Array<new () => unknown> = [E2eListOrderRuleItemEntity, E2eListOrderRuleOwnerEntity];
 			const connection = { dropSchema: true, entities, logger: queryLogger, logging: true, synchronize: true } as const;
 			const moduleReference = await Test.createTestingModule({
-				controllers: [E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleItemController, E2eListOrderRuleManualItemController, E2eListOrderRuleSharedLabelController, E2eListOrderRuleSharedRankController, E2eListOrderRuleTypedItemController, E2eListOrderRuleVariantController],
+				controllers: [E2eListOrderRuleAllowHiddenItemController, E2eListOrderRuleDefaultDirectionItemController, E2eListOrderRuleDefaultOrderItemController, E2eListOrderRuleItemController, E2eListOrderRuleManualItemController, E2eListOrderRuleSharedLabelController, E2eListOrderRuleSharedRankController, E2eListOrderRuleTypedItemController, E2eListOrderRuleVariantController],
 				imports: [TypeOrmModule.forRoot(container ? { ...connection, type: "postgres", url: container.getConnectionUri() } : { ...connection, database: ":memory:", type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
 				providers: [E2eListOrderRuleItemService],
 			}).compile();
@@ -127,6 +127,28 @@ describe.each([
 			expect(await listLabels(`${path}?${PAGE}&orderBy=rank&orderDirection=asc`)).toEqual(["Beta", "Alpha", "Gamma", "Delta"]);
 			await expectRejected(`${path}?${PAGE}&orderBy=rank&orderDirection=ASC`);
 			await expectRejected(`${path}?${PAGE}&orderBy=rank&orderDirection=Desc`);
+		});
+
+		it.each(["secret", "missing", "owner", "owner.level"])("rejects orderBy=%s on a manual QUERY DTO without any query", async (field: string) => {
+			expect(await expectRejected(`${MANUAL_ITEMS}?${PAGE}&orderBy=${field}&orderDirection=asc`)).toContain("INVALID_ORDER");
+		});
+
+		it("rejects a repeated orderBy on a manual QUERY DTO without any query", async () => {
+			await expectRejected(`${MANUAL_ITEMS}?${PAGE}&orderBy=rank&orderBy=label&orderDirection=asc`);
+		});
+
+		it("applies the orderable rule to a field a manual QUERY DTO allows", async () => {
+			expect(await expectRejected(`/list-order-rule/allow-hidden-items?${PAGE}&orderBy=secret&orderDirection=asc`)).toContain("INVALID_ORDER");
+			expect(await expectRejected(`/list-order-rule/allow-hidden-items?${PAGE}&orderBy=rank&orderDirection=asc`)).toContain("orderBy must be one of the following values: secret");
+		});
+
+		it("orders a manual QUERY DTO by an orderable field", async () => {
+			expect(await listLabels(`${MANUAL_ITEMS}?${PAGE}&orderBy=rank&orderDirection=asc`)).toEqual(["Beta", "Alpha", "Gamma", "Delta"]);
+		});
+
+		it("keeps a manual QUERY DTO class default as the route's own order, which a client cannot name", async () => {
+			expect(await listLabels(`/list-order-rule/default-order-items?${PAGE}`)).toEqual(["Beta", "Gamma", "Alpha", "Delta"]);
+			expect(await expectRejected(`/list-order-rule/default-order-items?${PAGE}&orderBy=secret&orderDirection=desc`)).toContain("INVALID_ORDER");
 		});
 
 		it.each([ITEMS, TYPED_ITEMS, MANUAL_ITEMS])("rejects a one-sided order on %s", async (path: string) => {

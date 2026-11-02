@@ -1,6 +1,6 @@
 import { Inject } from "@nestjs/common";
 import { Type } from "class-transformer";
-import { IsInt, IsOptional } from "class-validator";
+import { IsIn, IsInt, IsOptional } from "class-validator";
 
 import { ApiController, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType } from "../../../src/index";
 
@@ -35,6 +35,20 @@ export class E2eListOrderRuleManualQueryDto {
 export class E2eListOrderRuleDefaultDirectionQueryDto extends E2eListOrderRuleManualQueryDto {
 	@IsOptional()
 	public override orderDirection?: string = "desc";
+}
+
+export class E2eListOrderRuleAllowHiddenQueryDto extends E2eListOrderRuleManualQueryDto {
+	@IsIn(["secret"])
+	@IsOptional()
+	public override orderBy?: string = undefined;
+}
+
+export class E2eListOrderRuleDefaultOrderQueryDto extends E2eListOrderRuleManualQueryDto {
+	@IsOptional()
+	public override orderBy?: string = "secret";
+
+	@IsOptional()
+	public override orderDirection?: string = "asc";
 }
 
 @ApiController<E2eListOrderRuleItemEntity>({
@@ -77,6 +91,28 @@ export class E2eListOrderRuleManualItemController {
 	routes: { ...disabledRoutes, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.QUERY]: E2eListOrderRuleDefaultDirectionQueryDto } } },
 })
 export class E2eListOrderRuleDefaultDirectionItemController {
+	@Inject(E2eListOrderRuleItemService)
+	public readonly service!: E2eListOrderRuleItemService;
+}
+
+@ApiController<E2eListOrderRuleItemEntity>({
+	entity: E2eListOrderRuleItemEntity,
+	name: "E2eListOrderRuleAllowHiddenItems",
+	path: "list-order-rule/allow-hidden-items",
+	routes: { ...disabledRoutes, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.QUERY]: E2eListOrderRuleAllowHiddenQueryDto } } },
+})
+export class E2eListOrderRuleAllowHiddenItemController {
+	@Inject(E2eListOrderRuleItemService)
+	public readonly service!: E2eListOrderRuleItemService;
+}
+
+@ApiController<E2eListOrderRuleItemEntity>({
+	entity: E2eListOrderRuleItemEntity,
+	name: "E2eListOrderRuleDefaultOrderItems",
+	path: "list-order-rule/default-order-items",
+	routes: { ...disabledRoutes, [EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.QUERY]: E2eListOrderRuleDefaultOrderQueryDto } } },
+})
+export class E2eListOrderRuleDefaultOrderItemController {
 	@Inject(E2eListOrderRuleItemService)
 	public readonly service!: E2eListOrderRuleItemService;
 }
