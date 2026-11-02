@@ -10,8 +10,7 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
 import { FILTER_OPERATOR_REGISTRY_CONSTANT } from "@constant/filter";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { DTO_GENERATE_CONSTANT } from "@constant/utility/dto/generate.constant";
-import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
-import { ApiExtraModels } from "@nestjs/swagger";
+import { EApiControllerGetListQueryPaginationMode, EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoAutoContextPop } from "@utility/dto/auto/context/pop.utility";
@@ -90,9 +89,6 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 	if (!entityMetadata.primaryKey?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY]) {
 		throw ErrorException(`Primary key for entity ${String(entityMetadata.name)} not found in metadata storage`);
 	}
-
-	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
-	const extraModels: Array<Function> = [];
 
 	const markedProperties: Array<{
 		isPrimary: boolean;
@@ -227,11 +223,6 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 						decorator(GeneratedDTO.prototype, property.name as string);
 					}
 				}
-
-				if (property.metadata.type === EApiPropertyDescribeType.OBJECT && Array.isArray(property.metadata.dataType)) {
-					// @ts-ignore
-					extraModels.push(...property.metadata.dataType);
-				}
 			}
 		}
 	} finally {
@@ -285,10 +276,6 @@ export function DtoGenerate<E>(entity: ObjectLiteral, entityMetadata: IApiEntity
 		if (ApiControllerGetListQueryGetPaginationMode(queryPlan) === EApiControllerGetListQueryPaginationMode.CURSOR) {
 			Validate(AtMostOneOfListedPropertiesValidator, ["after", "before"])(GeneratedDTO.prototype, "object");
 		}
-	}
-
-	if (extraModels.length > 0) {
-		ApiExtraModels(...extraModels)(GeneratedDTO);
 	}
 
 	const result: Type<unknown> = isGetListResponse && !responseVariantName ? DtoGenerateGetListItemsResponse(entity, GeneratedDTO, schemaPrefix, queryPlan) : GeneratedDTO;
