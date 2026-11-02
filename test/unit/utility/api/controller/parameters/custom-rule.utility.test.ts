@@ -6,6 +6,7 @@ import { ApiRequestValidationException } from "@class/api/request-validation-exc
 import { ApiPropertyCopy } from "@decorator/api/property/copy.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
+import { ApiPropertyString } from "@decorator/api/property/string.decorator";
 import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
@@ -29,6 +30,10 @@ class CustomRuleItemEntity {
 		type: EApiPropertyDescribeType.NUMBER,
 	})
 	public id!: number;
+
+	@Column({ type: "uuid" })
+	@ApiPropertyDescribe({ description: "code", type: EApiPropertyDescribeType.UUID })
+	public code!: string;
 
 	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({
@@ -117,6 +122,21 @@ class CustomRuleBooleanParametersDto {
 
 class CustomRuleBareUuidParametersDto {
 	@IsUUID()
+	public id!: string;
+}
+
+class CustomRuleStringUuidParametersDto {
+	@ApiPropertyString({ description: "id", entity: CustomRuleItemEntity, exampleValue: "550e8400-e29b-41d4-a716-446655440000", format: EApiPropertyStringType.UUID, isRequired: true, maxLength: 36, minLength: 36, pattern: "/^.+$/" })
+	public id!: string;
+}
+
+class CustomRuleCopiedUuidParametersDto {
+	@ApiPropertyCopy({ dtoType: EApiDtoType.PARAMETERS, entity: () => CustomRuleItemEntity, method: EApiRouteType.GET, propertyName: "code" })
+	public id!: string;
+}
+
+class CustomRuleAutoCopyParametersDto {
+	@ApiPropertyCopy({ entity: () => CustomRuleItemEntity, propertyName: "code", shouldAutoResolveContext: true })
 	public id!: string;
 }
 
@@ -568,6 +588,21 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 		await expect(ApiControllerParametersValidate(bare!, { id: sent } as never)).rejects.toMatchObject({ response: { message: ["id must be a lower-case UUID"] } });
 		await expect(ApiControllerParametersValidate(described!, { id: "16", owner: sent } as never)).rejects.toMatchObject({ response: { message: ["owner must be a lower-case UUID"] } });
 		await expect(ApiControllerParametersValidate(bare!, { id: sent.toLowerCase() } as never)).resolves.toEqual({ id: sent.toLowerCase() });
+	});
+
+	it.each([
+		["ApiPropertyString with the UUID format", CustomRuleStringUuidParametersDto],
+		["ApiPropertyCopy of a UUID column", CustomRuleCopiedUuidParametersDto],
+	])("refuses an upper-case UUID under %s", async (_name: string, dto: new () => unknown) => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "uuid", pathParameters: ["id"], resourcePath: "custom-rule/item" });
+		const sent: string = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA";
+
+		await expect(ApiControllerParametersValidate(rule!, { id: sent } as never)).rejects.toMatchObject({ response: { message: ["id must be a lower-case UUID"] } });
+		await expect(ApiControllerParametersValidate(rule!, { id: sent.toLowerCase() } as never)).resolves.toEqual({ id: sent.toLowerCase() });
+	});
+
+	it("fails at startup on a copy with shouldAutoResolveContext that no route context reached, whose rule it cannot know", () => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleAutoCopyParametersDto, methodName: "auto", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow('reads its path parameters with the PARAMETERS DTO "CustomRuleAutoCopyParametersDto", whose property "id" copies an entity column with shouldAutoResolveContext and has no route context');
 	});
 
 	it.each([

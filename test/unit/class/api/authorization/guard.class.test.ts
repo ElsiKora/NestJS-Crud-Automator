@@ -5,9 +5,10 @@ import { ApiAuthorizationParametersRuleRegistry } from "@class/api/authorization
 import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/authorization";
 import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
-import { EApiRouteType } from "@enum/decorator/api";
+import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { ForbiddenException, InternalServerErrorException, RequestMethod } from "@nestjs/common";
 import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
+import { IsUUID } from "class-validator";
 import { describe, expect, it, vi } from "vitest";
 
 class GuardEntity {
@@ -110,8 +111,8 @@ describe("ApiAuthorizationGuard", () => {
 		expect(runtime.evaluate).not.toHaveBeenCalled();
 	});
 
-	it("compares nothing when startup checks were replaced, as the documented test harness does", async () => {
-		const runtime = { evaluate: vi.fn().mockResolvedValue({ effect: EApiPolicyEffect.ALLOW, principal: { id: "user" } }) };
+	it("refuses a route startup would refuse when startup checks were replaced, as the documented test harness does, before the policy runs", async () => {
+		const runtime = { evaluate: vi.fn() };
 		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
 		const handler = function read() {};
 		const controller = class {};
@@ -120,7 +121,32 @@ describe("ApiAuthorizationGuard", () => {
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, { authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: GuardEntity, routes: {} }, controller);
 		defineRouteMetadata(handler, "read");
 
-		await expect(guard.canActivate(createExecutionContext(controller, handler, { params: { extra: "016" } }))).resolves.toBe(true);
+		await expect(guard.canActivate(createExecutionContext(controller, handler, { params: { extra: "016" } }))).rejects.toBeInstanceOf(InternalServerErrorException);
+		expect(runtime.evaluate).not.toHaveBeenCalled();
+	});
+
+	it("checks a path value by the PARAMETERS DTO of a custom route when startup checks were replaced, and keeps the rule", async () => {
+		class GuardUuidParametersDto {
+			@IsUUID()
+			public id!: string;
+		}
+
+		const runtime = { evaluate: vi.fn().mockResolvedValue({ effect: EApiPolicyEffect.ALLOW, principal: { id: "user" } }) };
+		const registry: ApiAuthorizationParametersRuleRegistry = new ApiAuthorizationParametersRuleRegistry();
+		const guard = new ApiAuthorizationGuard(runtime as never, registry);
+		const handler = function readPolicy() {};
+		const controller = class {};
+		const sent: string = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA";
+
+		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
+		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, { authorization: { defaultMode: EApiAuthorizationMode.IAM }, entity: GuardEntity, routes: {} }, controller);
+		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, { dto: { [EApiDtoType.PARAMETERS]: GuardUuidParametersDto } }, handler);
+		defineRouteMetadata(handler, "policy", undefined, EApiAuthorizationMode.IAM);
+
+		await expect(guard.canActivate(createExecutionContext(controller, handler, { params: { id: sent } }))).rejects.toMatchObject({ response: { message: ["id must be a lower-case UUID"] } });
+		expect(runtime.evaluate).not.toHaveBeenCalled();
+		await expect(guard.canActivate(createExecutionContext(controller, handler, { params: { id: sent.toLowerCase() } }))).resolves.toBe(true);
+		expect(registry.get(controller, handler)?.dto).toBe(GuardUuidParametersDto);
 	});
 
 	it("allows access when controller is not securable", async () => {
