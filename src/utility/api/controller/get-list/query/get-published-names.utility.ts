@@ -1,14 +1,16 @@
 import type { Type } from "@nestjs/common";
 
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
-import { plainToInstance } from "class-transformer";
+import { ClassTransformerGetStorage } from "@utility/class-transformer/get-storage.utility";
+import { TransformationType } from "class-transformer";
 import { getMetadataStorage } from "class-validator";
 
 const PUBLISHED_PROPERTY_NAMES_BY_DTO: WeakMap<Type<unknown>, ReadonlySet<string>> = new WeakMap<Type<unknown>, ReadonlySet<string>>();
 
 /**
- * Resolves and caches the query keys a QUERY DTO publishes: properties with validation or Swagger metadata, including inherited ones, own properties of a new instance, and names exposed with `@Expose`.
- * A member of the prototype chain, such as the `object` method that anchors the generated filter-pairing validator, is not a query key.
+ * Resolves and caches the query keys a QUERY DTO publishes: properties with validation, Swagger or `@Expose` metadata, including inherited ones, and own properties of a new instance.
+ * A property exposed under another name publishes that name instead of its own, because the name is what class-transformer reads, so the DTO's validators never see a value sent under the property name.
+ * A read-only member of the prototype chain, such as the `object` method that anchors the generated filter-pairing validator, is not a query key.
  * @param {Type<unknown>} dto - QUERY DTO of the route.
  * @returns {ReadonlySet<string>} Published property names.
  */
@@ -19,17 +21,20 @@ export function ApiControllerGetListQueryGetPublishedNames(dto: Type<unknown>): 
 		return cachedPropertyNames;
 	}
 
-	const instance: object = new dto() as object;
-	const swaggerPropertyNames: Array<string> = ((Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES_ARRAY, dto.prototype as object) as Array<string> | undefined) ?? []).map((propertyName: string): string => propertyName.replace(/^:/u, ""));
+	const prototype: object = dto.prototype as object;
+	const storage: ReturnType<typeof ClassTransformerGetStorage> = ClassTransformerGetStorage(prototype, "query");
+	const exposedPropertyNames: ReadonlySet<string> = new Set<string>(storage.getExposedProperties(dto, TransformationType.PLAIN_TO_CLASS));
+	const swaggerPropertyNames: Array<string> = ((Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES_ARRAY, prototype) as Array<string> | undefined) ?? []).map((propertyName: string): string => propertyName.replace(/^:/u, ""));
 
 	const candidateNames: Array<string> = [
 		...getMetadataStorage()
 			.getTargetValidationMetadatas(dto, "", true, false)
 			.map(({ propertyName }: { propertyName: string }): string => propertyName),
 		...swaggerPropertyNames,
-		...getExposedQueryNames(dto),
+		...exposedPropertyNames,
 	];
-	const publishedPropertyNames: ReadonlySet<string> = new Set<string>([...candidateNames.filter((propertyName: string): boolean => !(propertyName in (dto.prototype as object))), ...Object.keys(instance)]);
+
+	const publishedPropertyNames: ReadonlySet<string> = new Set<string>([...candidateNames.filter((propertyName: string): boolean => !isReadOnlyMember(prototype, propertyName)), ...Object.keys(new dto() as object)].map((propertyName: string): string => (exposedPropertyNames.has(propertyName) ? (storage.findExposeMetadata(dto, propertyName)?.options?.name ?? propertyName) : propertyName)));
 
 	PUBLISHED_PROPERTY_NAMES_BY_DTO.set(dto, publishedPropertyNames);
 
@@ -37,28 +42,19 @@ export function ApiControllerGetListQueryGetPublishedNames(dto: Type<unknown>): 
 }
 
 /**
- * Reads the query keys a QUERY DTO exposes, such as `sort` for `@Expose({ name: "sort" }) orderBy`. class-transformer offers its expose metadata only through the keys it looks up while converting, so this converts an empty query and records them.
- * @param {Type<unknown>} dto - QUERY DTO of the route.
- * @returns {Array<string>} Exposed query keys.
+ * Tells whether the prototype chain holds a member under this name that a query cannot set, such as a method or a getter without a setter.
+ * @param {object} prototype - Prototype of the QUERY DTO.
+ * @param {string} propertyName - Property name.
+ * @returns {boolean} Whether the name is a read-only member.
  */
-function getExposedQueryNames(dto: Type<unknown>): Array<string> {
-	const exposedQueryNames: Array<string> = [];
+function isReadOnlyMember(prototype: object, propertyName: string): boolean {
+	for (let current: null | object = prototype; current; current = Object.getPrototypeOf(current) as null | object) {
+		const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(current, propertyName);
 
-	plainToInstance(
-		dto,
-		new Proxy<object>(
-			{},
-			{
-				get: (target: object, key: string | symbol): unknown => {
-					if (typeof key === "string") {
-						exposedQueryNames.push(key);
-					}
+		if (descriptor) {
+			return descriptor.set === undefined;
+		}
+	}
 
-					return Reflect.get(target, key);
-				},
-			},
-		),
-	);
-
-	return exposedQueryNames;
+	return false;
 }
