@@ -175,7 +175,7 @@ export const buildE2ePathParameterKeySpellingDecimalRoute = (keyCase: Pick<IE2eP
 };
 
 /**
- * Builds a securable HOOKS controller over a decimal key column: no Deny compares its text, so it starts.
+ * Builds a securable HOOKS controller over a decimal key column, which fails at startup: a policy compares `context.parameters` as text, and no text names every spelling of one decimal key.
  * @returns {Pick<IE2ePathParameterKeySpellingRoute, "controller" | "entity" | "service"> & { policy: new () => unknown }} The route and the hooks policy of its entity.
  */
 export const buildE2ePathParameterKeySpellingDecimalHooksRoute = (): Pick<IE2ePathParameterKeySpellingRoute, "controller" | "entity" | "service"> & { policy: new () => unknown } => {
