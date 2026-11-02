@@ -88,6 +88,43 @@ const resourceDefinition: IApiAuthorizationResourceDefinition<PlannerItemEntity>
 	resourceType: "gameport:admin:item",
 };
 
+abstract class PlannerInheritedBaseEntity {
+	@ApiPropertyDescribe({
+		description: "code",
+		exampleValue: "abc",
+		format: EApiPropertyStringType.STRING,
+		maxLength: 64,
+		minLength: 1,
+		pattern: "/^.+$/",
+		type: EApiPropertyDescribeType.STRING,
+	})
+	public code!: string;
+
+	@ApiPropertyDescribe({
+		description: "external id",
+		exampleValue: "9007199254740993",
+		format: EApiPropertyStringType.BIGINT_STRING,
+		maxLength: 20,
+		minLength: 1,
+		pattern: "/^[0-9]+$/",
+		type: EApiPropertyDescribeType.STRING,
+	})
+	public inheritedExternalId!: string;
+}
+
+class PlannerInheritedItemEntity extends PlannerInheritedBaseEntity {}
+
+const inheritedResourceDefinition: IApiAuthorizationResourceDefinition<PlannerInheritedItemEntity> = {
+	entity: PlannerInheritedItemEntity,
+	fields: [
+		{ isFilterable: true, path: "resource.code", queryPath: "code" },
+		{ isFilterable: true, path: "resource.inheritedExternalId", queryPath: "inheritedExternalId" },
+	],
+	namespace: "admin:item",
+	resourcePath: "gameport:admin:item/{code}",
+	resourceType: "gameport:admin:item",
+};
+
 const principal: IApiAuthorizationPrincipal = {
 	attributes: { emptyValue: "", nullValue: null, operatorId: "operator-1" },
 	id: "user-1",
@@ -243,6 +280,31 @@ describe("ApiAuthorizationIamQueryPlanner", () => {
 
 		it.each(["status", "operatorId", "externalId", "token"])("does not compile a prefix constraint on the non-text field %s", (placeholder: string) => {
 			expect(planDeny([{ resourceConstraints: [{ isPrefix: true, placeholder, value: "abc" }] }])).toEqual({ isFullyCompilable: false });
+		});
+
+		it("compiles a prefix constraint on a text field inherited from an abstract base", () => {
+			const result = new ApiAuthorizationIamQueryPlanner().planExclusion({
+				exclusions: [{ resourceConstraints: [{ isPrefix: true, placeholder: "code", value: "abc" }], statement: createStatement(EApiPolicyEffect.DENY, {}) }],
+				principal,
+				requestMetadata: {},
+				resourceDefinition: inheritedResourceDefinition,
+			});
+			const where = result.scope?.where as [{ code: FindOperator<unknown> }, { code: FindOperator<unknown> }];
+
+			expect(result.isFullyCompilable).toBe(true);
+			expect(where[0].code.objectLiteralParameters).toEqual({ [`iamResourcePrefix${Buffer.from("abc").toString("hex")}`]: "abc%" });
+			expect(where[1]).toEqual({ code: IsNull() });
+		});
+
+		it("does not compile a prefix constraint on a non-text field inherited from an abstract base", () => {
+			expect(
+				new ApiAuthorizationIamQueryPlanner().planExclusion({
+					exclusions: [{ resourceConstraints: [{ isPrefix: true, placeholder: "inheritedExternalId", value: "1" }], statement: createStatement(EApiPolicyEffect.DENY, {}) }],
+					principal,
+					requestMetadata: {},
+					resourceDefinition: inheritedResourceDefinition,
+				}),
+			).toEqual({ isFullyCompilable: false });
 		});
 
 		it.each(["secret", "unknown"])("is not compilable when the placeholder maps to %s", (placeholder: string) => {

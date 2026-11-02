@@ -94,6 +94,8 @@ describe.each<{ driver: "better-sqlite3" | "postgres" }>([{ driver: "better-sqli
 		expect((secondByBeta.json().items as Array<{ beta: number }>).map((item) => item.beta)).toEqual([3, 4]);
 		expect(firstByAlpha.statusCode).toBe(200);
 		expect((firstByAlpha.json().items as Array<{ alpha: string }>).map((item) => item.alpha)).toEqual(["abc"]);
+		expect((await fastify.inject({ method: "GET", url: "/same-name-first-items?limit=10&page=1&orderBy=beta&orderDirection=asc" })).statusCode).toBe(400);
+		expect((await fastify.inject({ method: "GET", url: "/same-name-second-items?limit=10&page=1&orderBy=alpha&orderDirection=asc" })).statusCode).toBe(400);
 	});
 
 	describe("relation and primary key of a same-named entity", () => {

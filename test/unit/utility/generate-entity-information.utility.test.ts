@@ -175,6 +175,80 @@ const InfoSameNameKeySecondEntity: new () => unknown = ((): new () => unknown =>
 	return InfoSameNameKeyEntity;
 })();
 
+/**
+ * Declares an unrelated class that shares its name with an ancestor of an entity.
+ * @returns {Function} Detached class with its own column.
+ */
+function createDetachedSharedNameBase() {
+	abstract class InfoSharedNameBaseEntity {
+		@Column({ type: "varchar" })
+		public detachedColumn!: string;
+
+		@ManyToOne(() => InfoRelationTargetEntity)
+		public detachedRelation!: InfoRelationTargetEntity;
+	}
+
+	return InfoSharedNameBaseEntity;
+}
+
+createDetachedSharedNameBase();
+
+abstract class InfoSharedNameBaseEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	public sharedColumn!: string;
+}
+
+@Entity("info_shared_name_entities")
+class InfoSharedNameEntity extends InfoSharedNameBaseEntity {}
+
+/**
+ * Declares an entity under a class name another entity also uses.
+ * @param {string} tableName - Table of the entity.
+ * @returns {Function} Entity class.
+ */
+function createSharedTableEntity(tableName: string) {
+	@Entity(tableName)
+	class InfoSharedTableEntity {
+		@PrimaryGeneratedColumn("uuid")
+		public id!: string;
+	}
+
+	return InfoSharedTableEntity;
+}
+
+const InfoSharedTableFirstEntity = createSharedTableEntity("info_shared_table_first");
+const InfoSharedTableSecondEntity = createSharedTableEntity("info_shared_table_second");
+
+abstract class InfoRedeclaredBaseEntity {
+	@Column({ length: 16, type: "varchar" })
+	public code!: string;
+}
+
+@Entity("info_redeclared_entities")
+class InfoRedeclaredEntity extends InfoRedeclaredBaseEntity {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+
+	@Column({ length: 32, type: "varchar" })
+	public override code: string = "";
+}
+
+abstract class InfoAnonymousBase {
+	@Column({ type: "varchar" })
+	public anonymousColumn!: string;
+}
+
+Object.defineProperty(InfoAnonymousBase, "name", { value: "" });
+
+@Entity("info_anonymous_ancestor_entities")
+class InfoAnonymousAncestorEntity extends InfoAnonymousBase {
+	@PrimaryGeneratedColumn("uuid")
+	public id!: string;
+}
+
 describe("GenerateEntityInformation", () => {
 	it("matches the table, columns, relations and primary key of a same-named class by class identity", () => {
 		const first = GenerateEntityInformation<InfoSameNameKeyEntity>(InfoSameNameKeyEntity as unknown as IApiBaseEntity);
@@ -258,5 +332,33 @@ describe("GenerateEntityInformation", () => {
 
 	it("fails for an entity name that matches more than one entity class", () => {
 		expect(() => GenerateEntityInformation({ name: "InfoDuplicateNameEntity" })).toThrowError('Metadata target "InfoDuplicateNameEntity" matches 2 entity classes in TypeORM metadata');
+	});
+
+	it("reads the table of the entity class, not of another entity with the same name", () => {
+		expect(GenerateEntityInformation(InfoSharedTableFirstEntity as unknown as IApiBaseEntity).tableName).toBe("info_shared_table_first");
+		expect(GenerateEntityInformation(InfoSharedTableSecondEntity as unknown as IApiBaseEntity).tableName).toBe("info_shared_table_second");
+	});
+
+	it("still finds the table of an entity given only by name", () => {
+		expect(GenerateEntityInformation({ name: "InfoEntity" }).tableName).toBe("info_entities");
+	});
+
+	it("reads columns and relations from the class hierarchy only, not from unrelated classes with the same name", () => {
+		const metadata = GenerateEntityInformation<InfoSharedNameEntity>(InfoSharedNameEntity as unknown as IApiBaseEntity);
+
+		expect(metadata.columns.map(({ name }) => String(name)).toSorted()).toEqual(["id", "sharedColumn"]);
+	});
+
+	it("lists a column declared again on a subclass once, as TypeORM maps it", () => {
+		const metadata = GenerateEntityInformation<InfoRedeclaredEntity>(InfoRedeclaredEntity as unknown as IApiBaseEntity);
+
+		expect(metadata.columns.map(({ name }) => String(name)).toSorted()).toEqual(["code", "id"]);
+	});
+
+	it("stops at an unnamed ancestor the way TypeORM builds the inheritance tree", () => {
+		const metadata = GenerateEntityInformation<InfoAnonymousAncestorEntity>(InfoAnonymousAncestorEntity as unknown as IApiBaseEntity);
+
+		expect(InfoAnonymousBase.name).toBe("");
+		expect(metadata.columns.map(({ name }) => String(name))).toEqual(["id"]);
 	});
 });
