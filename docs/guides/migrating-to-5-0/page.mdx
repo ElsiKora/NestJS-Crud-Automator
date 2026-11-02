@@ -364,13 +364,13 @@ Under a host `ValidationPipe`, a request value of an `@ApiPropertyDate` property
 - The rule holds under `enableImplicitConversion`. A `DATE_TIME` property typed `Date` used to accept anything class-transformer turned into a `Date`, and a `DATE` or `TIME` property typed `Date` used to refuse a valid value.
 - The message is `<property> must be in <form> format` with constraint `isDateFormatValue`, instead of `<property> must be a Date instance` with `isDate`.
 
-Type `DATE` and `TIME` properties of request DTOs as `string`, and change custom handlers that call `Date` methods on them. Without a host pipe a generated route does not check the body, as before, and stores the text as sent.
+Type `DATE` and `TIME` properties of request DTOs as `string`, and change custom handlers that call `Date` methods on them. Without a host pipe a generated route does not check the body, as before: it passes the text to TypeORM, so an impossible date such as `2026-02-30` can be stored as another day, stored as sent, or answer `500`. See [Impossible Calendar Dates](#impossible-calendar-dates).
 
 `@ApiPropertyString` with `format: EApiPropertyStringType.DATE` now fails at decoration, on request and response properties, and an entity property described with `@ApiPropertyDescribe({ type: EApiPropertyDescribeType.STRING, format: EApiPropertyStringType.DATE })` fails when a generated DTO is built from it, naming that DTO. It accepted any text `new Date()` could read and turned it into a `Date`. On a DTO use `@ApiPropertyDate` with `EApiPropertyDateType.DATE`, or `DATE_TIME` for an instant. On an entity use `@ApiPropertyDescribe({ type: EApiPropertyDescribeType.DATE, format: EApiPropertyDateType.DATE, identifier: EApiPropertyDateIdentifier.DATE })`.
 
 ## Impossible Calendar Dates
 
-Every place the library reads date text applies one rule: the text must name a day and a time of day that exist. February 30, April 31, February 29 in a common year, month `13`, hour `24`, and minute or second `60` answer `400` before any SQL, with the body of that entry point, instead of rolling over into the next day or month as a JavaScript `Date` would:
+The entry points below check that date text names a day and a time of day that exist. February 30, April 31, February 29 in a common year, month `13`, hour `24`, and minute or second `60` answer `400` before any SQL, with the body of that entry point, instead of rolling over into the next day or month as a JavaScript `Date` would:
 
 | Entry point                                                              | Body                                                                           |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
@@ -380,7 +380,14 @@ Every place the library reads date text applies one rule: the text must name a d
 | A `GET_LIST` filter value                                                | `FILTER_NOT_VALID`, or the QUERY DTO message on a route without a typed filter |
 | A CURSOR token value                                                     | `CURSOR_NOT_VALID`                                                             |
 
-The day is checked as the text writes it, before an offset moves the instant, so `2026-02-28T23:00:00-05:00` is accepted and names March 1 in UTC. Only the primary key of a `CREATE` body used to roll over; the other entry points already refused such values and now share the check. Without a host pipe a generated route still does not check the other body properties and stores their text as sent. IAM conditions compare text and do not read dates.
+The day is checked as the text writes it, before an offset moves the instant, so `2026-02-28T23:00:00-05:00` is accepted and names March 1 in UTC. Of these, only the date and time primary key of a `CREATE` body used to roll over; the others already refused such values and now share the check.
+
+The library does not check these, so validate them yourself:
+
+- A `date` primary key in a generated `CREATE` body. The generated body DTO does not declare a primary key, so a host pipe does not check it either, and the route writes it from the request. SQLite stores `2026-02-30` as sent, and the row cannot be reached through its key afterwards; PostgreSQL answers `500`.
+- `DATE` and `DATE_TIME` properties of a generated write body without a host `ValidationPipe`. The route passes the text to TypeORM unchecked. On SQLite a `DATE_TIME` value such as `2026-02-30T00:00:00.000Z` is stored as the day it rolls over into, month `13` as an unreadable value, and a `DATE` value as sent; on PostgreSQL a `DATE_TIME` value rolls over or answers `500`, and a `DATE` value answers `500`.
+
+IAM conditions compare text and do not read dates.
 
 ## Path Values
 
