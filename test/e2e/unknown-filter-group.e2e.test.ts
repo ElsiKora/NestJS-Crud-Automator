@@ -13,7 +13,7 @@ import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { E2eUnknownFilterCursorItemController, E2eUnknownFilterItemController, E2eUnknownFilterItemEntity, E2eUnknownFilterItemService, E2eUnknownFilterManualItemController, E2eUnknownFilterOwnerEntity, E2eUnknownFilterOwnerService, E2eUnknownFilterTagEntity, E2eUnknownFilterTagService, E2eUnknownFilterTypedItemController } from "./unknown-filter-group";
+import { E2eUnknownFilterCursorItemController, E2eUnknownFilterItemController, E2eUnknownFilterItemEntity, E2eUnknownFilterItemService, E2eUnknownFilterManualItemController, E2eUnknownFilterOwnerEntity, E2eUnknownFilterOwnerService, E2eUnknownFilterTagEntity, E2eUnknownFilterTagService, E2eUnknownFilterToManyItemController, E2eUnknownFilterTypedItemController } from "./unknown-filter-group";
 
 class UnknownFilterQueryLogger implements Logger {
 	public readonly queries: Array<string> = [];
@@ -130,6 +130,14 @@ const CURSOR_ACCEPTED_CASES: Array<{ labels: Array<string>; query: string }> = [
 	{ labels: ["Alpha", "Gamma"], query: "owner.name[operator]=eq&owner.name[value]=Ann" },
 	{ labels: ["Beta", "Gamma"], query: "rank[operator]=gt&rank[value]=1" },
 ];
+
+describe("GET_LIST filters a manual QUERY DTO publishes (E2E)", () => {
+	it("fails startup for a to-many filter the route cannot apply, before any request", async () => {
+		const compile = Test.createTestingModule({ controllers: [E2eUnknownFilterToManyItemController], imports: [ApiAuthorizationModule.forRoot()], providers: [{ provide: E2eUnknownFilterItemService, useValue: {} }] }).compile();
+
+		await expect(compile).rejects.toThrowError('publishes "tags.name[operator]", a filter the route cannot apply');
+	});
+});
 
 describe.each([
 	{ databaseName: "SQLite", isPostgres: false },

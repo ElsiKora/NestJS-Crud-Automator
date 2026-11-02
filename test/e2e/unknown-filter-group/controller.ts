@@ -49,6 +49,26 @@ export class E2eUnknownFilterManualDto {
 	public page!: number;
 }
 
+export class E2eUnknownFilterToManyDto {
+	@IsIn(["eq"])
+	@IsOptional()
+	public "tags.name[operator]"?: string;
+
+	@IsOptional()
+	@IsString()
+	public "tags.name[value]"?: string;
+
+	@IsInt()
+	@Min(1)
+	@Type(() => Number)
+	public limit!: number;
+
+	@IsInt()
+	@Min(1)
+	@Type(() => Number)
+	public page!: number;
+}
+
 @ApiController<E2eUnknownFilterItemEntity>({
 	entity: E2eUnknownFilterItemEntity,
 	name: "E2eUnknownFilterItems",
@@ -70,6 +90,20 @@ export class E2eUnknownFilterItemController {
 	},
 })
 export class E2eUnknownFilterManualItemController {
+	@Inject(E2eUnknownFilterItemService)
+	public readonly service!: E2eUnknownFilterItemService;
+}
+
+@ApiController<E2eUnknownFilterItemEntity>({
+	entity: E2eUnknownFilterItemEntity,
+	name: "E2eUnknownFilterToManyItems",
+	path: "unknown-filter/to-many-items",
+	routes: {
+		...disabledRoutes,
+		[EApiRouteType.GET_LIST]: { dto: { [EApiDtoType.QUERY]: E2eUnknownFilterToManyDto } },
+	},
+})
+export class E2eUnknownFilterToManyItemController {
 	@Inject(E2eUnknownFilterItemService)
 	public readonly service!: E2eUnknownFilterItemService;
 }
