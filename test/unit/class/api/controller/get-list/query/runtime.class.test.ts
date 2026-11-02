@@ -1068,6 +1068,26 @@ describe("typed GET_LIST query plan and runtime", () => {
 		expect(() => ApiControllerGetListQueryPlanCompiler.compile(CursorQueryController, CursorInheritedQueryEntity, inheritedMetadata, inheritedConfig)).toThrow('order field "inheritedNullableRank" must be a described non-null direct scalar field');
 	});
 
+	it("lets a CURSOR route order by a non-null column a parent class declares", () => {
+		const inheritedMetadata: IApiEntity<CursorInheritedQueryEntity> = GenerateEntityInformation<CursorInheritedQueryEntity>(CursorInheritedQueryEntity as unknown as IApiBaseEntity);
+		const inheritedConfig = {
+			request: {
+				[EApiControllerRequestTarget.QUERY]: {
+					order: {
+						defaultOrder: [{ direction: EFilterOrderDirection.ASC, field: "inheritedRank" }],
+						fields: { inheritedRank: { isEnabled: true } },
+						tieBreakers: [{ direction: EFilterOrderDirection.ASC, field: "id" }],
+						unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT,
+					},
+					pagination: { mode: EApiControllerGetListQueryPaginationMode.CURSOR },
+				},
+			},
+		} as unknown as TApiControllerPropertiesRoute<CursorInheritedQueryEntity, EApiRouteType.GET_LIST>;
+		const plan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanCompiler.compile(CursorQueryController, CursorInheritedQueryEntity, inheritedMetadata, inheritedConfig);
+
+		expect(Object.keys(plan?.order.fields ?? {})).toEqual(["inheritedRank"]);
+	});
+
 	it.each(["2", "__proto__"] as const)("rejects a CURSOR order field whose name cannot preserve safe object-key semantics: %s", (fieldName) => {
 		const entityMetadata: IApiEntity<CursorUnsafeFieldNameQueryEntity> = GenerateEntityInformation<CursorUnsafeFieldNameQueryEntity>(CursorUnsafeFieldNameQueryEntity as unknown as IApiBaseEntity);
 		const routeConfig = {

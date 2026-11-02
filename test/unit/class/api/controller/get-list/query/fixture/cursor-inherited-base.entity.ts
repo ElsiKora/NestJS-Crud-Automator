@@ -14,4 +14,16 @@ export class CursorInheritedBaseEntity {
 		type: EApiPropertyDescribeType.NUMBER,
 	})
 	public inheritedNullableRank?: number;
+
+	@Column({ type: "int" })
+	@ApiPropertyDescribe({
+		description: "inherited rank",
+		exampleValue: 1,
+		format: EApiPropertyNumberType.INTEGER,
+		maximum: 100,
+		minimum: 0,
+		multipleOf: 1,
+		type: EApiPropertyDescribeType.NUMBER,
+	})
+	public inheritedRank!: number;
 }

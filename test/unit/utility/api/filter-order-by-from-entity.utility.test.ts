@@ -8,7 +8,7 @@ import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator"
 import { EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiRouteType } from "@enum/decorator/api";
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
-import { Column, Entity } from "typeorm";
+import { ChildEntity, Column, Entity, TableInheritance } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 @Entity("filter_entities")
@@ -171,7 +171,44 @@ class VisibilityEntity {
 	public adminRank!: number;
 }
 
+abstract class OrderBaseEntity {
+	@Column({ type: "int" })
+	@ApiPropertyDescribe({ description: "base rank", format: EApiPropertyNumberType.INTEGER, maximum: 100, minimum: 0, multipleOf: 1, type: EApiPropertyDescribeType.NUMBER } as TApiPropertyDescribeProperties)
+	public baseRank!: number;
+}
+
+@Entity("order_base_children")
+class OrderBaseChildEntity extends OrderBaseEntity {
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({ description: "label", type: EApiPropertyDescribeType.STRING } as TApiPropertyDescribeProperties)
+	public label!: string;
+}
+
+@Entity("order_sti_roots")
+@TableInheritance({ column: { name: "kind", type: "varchar" } })
+class OrderStiRootEntity {
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({ description: "name", type: EApiPropertyDescribeType.STRING } as TApiPropertyDescribeProperties)
+	public name!: string;
+}
+
+@ChildEntity("child")
+class OrderStiChildEntity extends OrderStiRootEntity {
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe({ description: "extra", type: EApiPropertyDescribeType.STRING } as TApiPropertyDescribeProperties)
+	public extra!: string;
+}
+
 describe("FilterOrderByFromEntity", () => {
+	it("orders by columns an abstract parent class or a table inheritance root declares", () => {
+		const baseChildMetadata = GenerateEntityInformation<OrderBaseChildEntity>(OrderBaseChildEntity as unknown as IApiBaseEntity);
+		const stiChildMetadata = GenerateEntityInformation<OrderStiChildEntity>(OrderStiChildEntity as unknown as IApiBaseEntity);
+
+		expect(FilterOrderByFromEntity(OrderBaseChildEntity, baseChildMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY)).toEqual({ BASE_RANK: "baseRank", LABEL: "label" });
+		expect(FilterOrderByFromEntity(OrderStiChildEntity, stiChildMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY)).toEqual({ EXTRA: "extra", NAME: "name" });
+		expect(FilterOrderByFromEntity(OrderBaseChildEntity, baseChildMetadata, EApiRouteType.GET_LIST, EApiDtoType.QUERY, { baseRank: false })).toEqual({ LABEL: "label" });
+	});
+
 	it("orders only by columns listed in the response and enabled as query fields for the route guard", () => {
 		const metadata = GenerateEntityInformation<VisibilityEntity>(VisibilityEntity as unknown as IApiBaseEntity);
 
