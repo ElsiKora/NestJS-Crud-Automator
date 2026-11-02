@@ -11,6 +11,7 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import { IsIn, IsOptional, IsString } from "class-validator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiController, ApiSubscriberModule, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiRouteType, EFilterOperation } from "../../src/index";
@@ -104,6 +105,38 @@ function createFilterController(name: string, field: string, config: Record<stri
 	return E2eListHiddenConfiguredController;
 }
 
+/**
+ * Declares a GET_LIST controller whose manual QUERY DTO publishes one filter group.
+ * @param {string} name - Controller name.
+ * @param {string} field - The published filter field.
+ * @param {boolean} hasManualResponse - Whether the route answers with the manual list response DTO, which leaves out rank.
+ * @returns {new () => unknown} The controller class.
+ */
+function createManualQueryController(name: string, field: string, hasManualResponse: boolean = false): new () => unknown {
+	class E2eListHiddenManualQueryDto {}
+
+	IsIn([EFilterOperation.EQ])(E2eListHiddenManualQueryDto.prototype, `${field}[operator]`);
+	IsOptional()(E2eListHiddenManualQueryDto.prototype, `${field}[operator]`);
+	IsString()(E2eListHiddenManualQueryDto.prototype, `${field}[value]`);
+	IsOptional()(E2eListHiddenManualQueryDto.prototype, `${field}[value]`);
+
+	@ApiController<E2eListHiddenItemEntity>({
+		entity: E2eListHiddenItemEntity,
+		name,
+		path: `list-hidden/${name}`,
+		routes: {
+			...LIST_HIDDEN_DISABLED_ROUTES,
+			[EApiRouteType.GET_LIST]: { dto: { ...(hasManualResponse ? { [EApiDtoType.RESPONSE]: E2eListHiddenManualListDto } : {}), [EApiDtoType.QUERY]: E2eListHiddenManualQueryDto }, security: LIST_HIDDEN_SECURITY },
+		},
+	})
+	class E2eListHiddenManualQueryController {
+		@Inject(E2eListHiddenItemService)
+		public readonly service!: E2eListHiddenItemService;
+	}
+
+	return E2eListHiddenManualQueryController;
+}
+
 describe("GET_LIST filters on columns hidden from the list response at startup (E2E)", () => {
 	it.each(HIDDEN_FIELDS.map(({ field }: { field: string }): string => field))("refuses an explicit filter config on %s", (field: string) => {
 		expect(() => createFilterController(`E2eListHiddenExplicit${field.replace(".", "")}`, field, { allowedOperations: [EFilterOperation.EQ], isEnabled: true })).toThrow(`Controller "E2eListHiddenConfiguredController" route "getList": GET_LIST filter field "${field}" is hidden from the list response, so no client may filter by it`);
@@ -132,6 +165,24 @@ describe("GET_LIST filters on columns hidden from the list response at startup (
 		const controller: new () => unknown = createFilterController("E2eListHiddenManualExplicit", "rank", { allowedOperations: [EFilterOperation.EQ], isEnabled: true }, true);
 
 		expect(() => new controller()).toThrow('GET_LIST filter field "rank" is hidden from the list response, so no client may filter by it: the manual GET_LIST response DTO does not publish it');
+	});
+
+	it.each(HIDDEN_FIELDS.map(({ field }: { field: string }): string => field))("refuses a manual QUERY DTO that publishes a filter on %s", (field: string) => {
+		const controller: new () => unknown = createManualQueryController(`E2eListHiddenManualQuery${field.replace(".", "")}`, field);
+
+		expect(() => new controller()).toThrow(`E2eListHiddenManualQueryController: GET_LIST QUERY DTO E2eListHiddenManualQueryDto publishes "${field}[operator]", a filter on a field the list response hides, so no client may filter by it`);
+	});
+
+	it("refuses a manual QUERY DTO that publishes a filter on a field the manual list response leaves out", () => {
+		const controller: new () => unknown = createManualQueryController("E2eListHiddenManualQueryRank", "rank", true);
+
+		expect(() => new controller()).toThrow('publishes "rank[operator]", a filter on a field the list response hides, so no client may filter by it');
+	});
+
+	it("accepts a manual QUERY DTO that publishes a filter on a field the manual list response publishes", () => {
+		const controller: new () => unknown = createManualQueryController("E2eListHiddenManualQueryLabel", "label", true);
+
+		expect(() => new controller()).not.toThrow();
 	});
 
 	it("refuses an explicit order config on a column the database does not select", () => {
