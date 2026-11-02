@@ -28,7 +28,7 @@ const ROUTE_FUNCTIONS: ReadonlyArray<[EApiRouteType, ReadonlyArray<IApiControlle
  * @param {object} service - The `service` of the controller, whose repository the bootstrap already checked.
  * @param {string} controllerName - Controller named in the error.
  * @template E - The entity type
- * @throws {Error} When an enabled route calls a function the service does not protect with its built-in decorator, or one in a transaction mode it cannot run in.
+ * @throws {Error} When an enabled route calls a function the service does not protect with its built-in decorator, a plain override included, or one in a transaction mode it cannot run in.
  */
 export function ApiControllerAssertRouteFunctions<E extends IApiBaseEntity>(properties: IApiControllerProperties<E>, service: object, controllerName: string): void {
 	const serviceName: string = service.constructor.name;
@@ -48,7 +48,14 @@ export function ApiControllerAssertRouteFunctions<E extends IApiBaseEntity>(prop
 			try {
 				functionMode = ApiControllerGeneratedFunctionCapability.resolveTransactionMode(service, functionType, functionType, properties.entity);
 			} catch {
-				throw ErrorException(`Controller "${controllerName}" route "${routeType}" ${purpose} the ${functionType.toUpperCase()} function of service "${serviceName}", but that service has no ${functionType.toUpperCase()} function protected by its built-in decorator. Let @ApiService define it, or decorate the method with ${decorator} or @ApiFunction({ type: EApiFunctionType.${functionType.toUpperCase()} }).`);
+				// A built-in decorator replaces the body of the method it decorates, so a plain override must move its logic elsewhere rather than gain the decorator.
+				if (typeof Reflect.get(service, functionType) === "function") {
+					throw ErrorException(
+						`Controller "${controllerName}" route "${routeType}" ${purpose} the ${functionType.toUpperCase()} function of service "${serviceName}", but its ${functionType} method is a plain method, not the ${functionType.toUpperCase()} function protected by its built-in decorator. Remove the method and let @ApiService define the function, and move its logic into ${functionType.toUpperCase()} function subscribers or a custom route: ${decorator} on the method would replace its body.`,
+					);
+				}
+
+				throw ErrorException(`Controller "${controllerName}" route "${routeType}" ${purpose} the ${functionType.toUpperCase()} function of service "${serviceName}", but that service has no ${functionType.toUpperCase()} function protected by its built-in decorator. Let @ApiService define it, or decorate a method with ${decorator} or @ApiFunction({ type: EApiFunctionType.${functionType.toUpperCase()} }).`);
 			}
 
 			if (functionMode === EApiFunctionTransactionMode.MANDATORY && !isTransactionHeld) {

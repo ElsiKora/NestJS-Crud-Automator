@@ -30,13 +30,14 @@ const ALL_SUPPORTS: Record<TCheckedFunctionType, EApiFunctionTransactionMode> = 
 
 /**
  * Builds a service whose functions are decorated with one transaction mode each, or not decorated.
- * @param {Partial<Record<TCheckedFunctionType, EApiFunctionTransactionMode>>} modes - Transaction mode of each decorated function; a function left out is not decorated.
+ * @param {Partial<Record<TCheckedFunctionType, EApiFunctionTransactionMode>>} modes - Transaction mode of each decorated function; a function left out is a plain method.
+ * @param {TCheckedFunctionType} [missing] - A function the service does not have at all.
  * @returns {object} Service instance.
  */
-function createService(modes: Partial<Record<TCheckedFunctionType, EApiFunctionTransactionMode>>): object {
+function createService(modes: Partial<Record<TCheckedFunctionType, EApiFunctionTransactionMode>>, missing?: TCheckedFunctionType): object {
 	class AssertFunctionsService {}
 
-	for (const functionType of Object.keys(DECORATORS) as Array<TCheckedFunctionType>) {
+	for (const functionType of (Object.keys(DECORATORS) as Array<TCheckedFunctionType>).filter((candidate: TCheckedFunctionType): boolean => candidate !== missing)) {
 		const descriptor: PropertyDescriptor = { configurable: true, value: async (): Promise<RuntimeRouteEntity> => ({ id: "row" }), writable: true };
 		const mode: EApiFunctionTransactionMode | undefined = modes[functionType];
 
@@ -95,12 +96,31 @@ describe("ApiControllerAssertRouteFunctions", () => {
 		[EApiRouteType.PARTIAL_UPDATE, EApiFunctionType.GET, "reads its response through"],
 		[EApiRouteType.UPDATE, EApiFunctionType.UPDATE, "writes through"],
 		[EApiRouteType.UPDATE, EApiFunctionType.GET, "reads its response through"],
-	])("refuses route %s without a decorated %s function", (routeType: EApiRouteType, functionType: TCheckedFunctionType, purpose: string) => {
+	])("refuses route %s whose %s function is a plain method, and says to move its logic out", (routeType: EApiRouteType, functionType: TCheckedFunctionType, purpose: string) => {
 		const modes: Partial<Record<TCheckedFunctionType, EApiFunctionTransactionMode>> = { ...ALL_SUPPORTS };
 		delete modes[functionType];
 		const name: string = functionType.toUpperCase();
 
-		expect(() => ApiControllerAssertRouteFunctions(createProperties(routeType), createService(modes), "ItemController")).toThrow(`Controller "ItemController" route "${routeType}" ${purpose} the ${name} function of service "AssertFunctionsService", but that service has no ${name} function protected by its built-in decorator.`);
+		expect(() => ApiControllerAssertRouteFunctions(createProperties(routeType), createService(modes), "ItemController")).toThrow(
+			`Controller "ItemController" route "${routeType}" ${purpose} the ${name} function of service "AssertFunctionsService", but its ${functionType} method is a plain method, not the ${name} function protected by its built-in decorator. Remove the method and let @ApiService define the function, and move its logic into ${name} function subscribers or a custom route`,
+		);
+	});
+
+	it.each<[EApiRouteType, TCheckedFunctionType, string]>([
+		[EApiRouteType.CREATE, EApiFunctionType.CREATE, "writes through"],
+		[EApiRouteType.CREATE, EApiFunctionType.GET, "reads its response through"],
+		[EApiRouteType.DELETE, EApiFunctionType.DELETE, "writes through"],
+		[EApiRouteType.GET, EApiFunctionType.GET, "reads its response through"],
+		[EApiRouteType.PARTIAL_UPDATE, EApiFunctionType.UPDATE, "writes through"],
+		[EApiRouteType.PARTIAL_UPDATE, EApiFunctionType.GET, "reads its response through"],
+		[EApiRouteType.UPDATE, EApiFunctionType.UPDATE, "writes through"],
+		[EApiRouteType.UPDATE, EApiFunctionType.GET, "reads its response through"],
+	])("refuses route %s whose service has no %s function", (routeType: EApiRouteType, functionType: TCheckedFunctionType, purpose: string) => {
+		const modes: Partial<Record<TCheckedFunctionType, EApiFunctionTransactionMode>> = { ...ALL_SUPPORTS };
+		delete modes[functionType];
+		const name: string = functionType.toUpperCase();
+
+		expect(() => ApiControllerAssertRouteFunctions(createProperties(routeType), createService(modes, functionType), "ItemController")).toThrow(`Controller "ItemController" route "${routeType}" ${purpose} the ${name} function of service "AssertFunctionsService", but that service has no ${name} function protected by its built-in decorator. Let @ApiService define it, or decorate a method with`);
 	});
 
 	it("does not check route getList", () => {

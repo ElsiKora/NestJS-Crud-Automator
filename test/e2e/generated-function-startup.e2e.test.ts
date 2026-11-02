@@ -133,7 +133,7 @@ describe("Generated routes and the service functions they call at startup (E2E)"
 	it.each(ROUTE_FUNCTIONS)("refuses route %s on a service whose %s function is a plain method", async (routeType: EApiRouteType, functionType: TCheckedFunctionType, purpose: string) => {
 		const name: string = functionType.toUpperCase();
 
-		await expect(start(createService({}, functionType), routeType)).rejects.toThrow(`Controller "GeneratedFunctionStartupController" route "${routeType}" ${purpose} the ${name} function of service "GeneratedFunctionStartupService", but that service has no ${name} function protected by its built-in decorator.`);
+		await expect(start(createService({}, functionType), routeType)).rejects.toThrow(`Controller "GeneratedFunctionStartupController" route "${routeType}" ${purpose} the ${name} function of service "GeneratedFunctionStartupService", but its ${functionType} method is a plain method, not the ${name} function protected by its built-in decorator. Remove the method and let @ApiService define the function`);
 	});
 
 	it("starts a DELETE route on a service whose GET function is a plain method", async () => {
