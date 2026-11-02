@@ -162,15 +162,15 @@ describe("@Expose name and decorator order (E2E)", () => {
 		expect(JSON.stringify(response.json().message)).toContain("displayName");
 	});
 
-	it("reads the exposed name from what a custom route handler returns and sends the property key without the interceptor", async () => {
-		const response = await fastify.inject({ method: "GET", url: "/expose-exclude/named/exposed-key" });
+	it("reads the property key from what a custom route handler returns and sends the exposed name without the interceptor", async () => {
+		const response = await fastify.inject({ method: "GET", url: "/expose-exclude/named/property-key" });
 
 		expect(response.statusCode).toBe(HttpStatus.OK);
-		expect(response.json()).toEqual({ displayName: "first" });
+		expect(response.json()).toEqual({ display_name: "first" });
 	});
 
-	it("answers an empty body to a custom route handler that returns the property key without the interceptor", async () => {
-		const response = await fastify.inject({ method: "GET", url: "/expose-exclude/named/property-key" });
+	it("answers an empty body to a custom route handler that returns only the exposed name without the interceptor", async () => {
+		const response = await fastify.inject({ method: "GET", url: "/expose-exclude/named/exposed-key" });
 
 		expect(response.statusCode).toBe(HttpStatus.OK);
 		expect(response.json()).toEqual({});
