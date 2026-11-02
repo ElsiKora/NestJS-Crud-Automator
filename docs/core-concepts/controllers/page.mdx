@@ -134,7 +134,7 @@ A date and time key column in the path of a composite key must be a `timestamptz
 - The route first reads the key of the matching rows with `take: 2`, under the current HOOKS or IAM scope, through the transaction of the route. It adds this one `SELECT` only on a route with a reduced key.
 - More than one match answers `500` before any change. The value of a reduced column is not checked by the path, so a key that repeats is a deployment fault, not a client error. Rows are counted as the database stores them, so two rows whose left-out instants differ only below a millisecond count as two.
 - A write answers `500` before any change when a left-out date and time key column holds a finer value than a millisecond: the write could not address that row. GET still reads it.
-- After CREATE, the route reloads the row it inserted by its full key. A key column whose stored value a `Date` cannot reproduce is left out of that reload, and the other key columns must then name one row: a sibling row answers `500`, after the new row is stored.
+- CREATE does not read the path to find the row it inserted. It reloads that row by every key column TypeORM saved, as on any controller, so a left-out date and time key column matches its whole millisecond, and a reload that matches more than one row answers `500` and rolls back.
 
 Limits of a reduced key:
 
@@ -217,8 +217,6 @@ A relation over one column is sent as the value of the column it references, `{ 
 A relation over several columns must be sent as an object. `null`, a single value or an array answers `400` when the entity or the path sets one of its columns, with a reason that names how to clear the relation: set its own columns to `null`, as in `{ "parentId": null }`, which keeps `tenantId`. A relation whose columns are all in the primary key or bound by the path cannot be cleared, and the reason says so. On CREATE, a date and time key column inside the relation, `null` included, takes the canonical UTC millisecond string like the column itself.
 
 The generated BODY DTO publishes these relations in the same form. A relation over one column is the value of its referenced column, with the type and format the related entity describes for it, instead of a UUID: a relation to a `varchar` key is a string. It leaves the body when its column is bound by the path, or is a key column on PATCH and PUT. A relation over several columns is an object of the join columns the client may write, under the related entity's names and with each column's own type and format, instead of a scalar. A column the path binds leaves the object, and so does every key column on PATCH and PUT, since the route refuses any other value for them. A relation with no column left leaves the body, and one that lost a column is not nullable. A `ValidationPipe` with `forbidNonWhitelisted` therefore refuses the bound column inside the relation, as it does at the top level. Each referenced column must be described with `@ApiPropertyDescribe` on the related entity, or startup fails.
-
-The response of CREATE reloads the row by every key column. A date and time key that the inserted row carries as a string, as the body spelled it, is converted to a `Date` first, so the reload compares an instant with the stored value.
 
 A `request[PARAMETERS]` transformer runs before the binding is read, so a transformer on a bound field overrides the value of the path for every query and write of that request.
 
