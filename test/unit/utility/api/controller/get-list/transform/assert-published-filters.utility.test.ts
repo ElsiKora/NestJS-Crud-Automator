@@ -8,6 +8,7 @@ import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator"
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerGetListTransformAssertPublishedFilters } from "@utility/api/controller/get-list/transform/assert-published-filters.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
+import { Expose } from "class-transformer";
 import { IsOptional } from "class-validator";
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
@@ -99,8 +100,49 @@ function createDto(key: string): new () => unknown {
 	return UnappliableQueryDto;
 }
 
+class AliasedFilterQueryDto {
+	@Expose({ name: "q" })
+	@IsOptional()
+	public "label[value]"?: string;
+}
+
+class ToPlainAliasedFilterQueryDto {
+	@Expose({ name: "q", toPlainOnly: true })
+	@IsOptional()
+	public "label[value]"?: string;
+}
+
+class FilterAliasOnPropertyQueryDto {
+	@Expose({ name: "label[operator]" })
+	@IsOptional()
+	public labelOperator?: string;
+
+	@Expose({ name: "label[value]" })
+	@IsOptional()
+	public labelValue?: string;
+}
+
+class UnappliableFilterAliasQueryDto {
+	@Expose({ name: "foo[value]" })
+	@IsOptional()
+	public fooValue?: string;
+}
+
 describe("ApiControllerGetListTransformAssertPublishedFilters", () => {
 	const metadata = GenerateEntityInformation<AssertPublishedItemEntity>(AssertPublishedItemEntity as unknown as IApiBaseEntity);
+
+	it("fails for a filter property exposed under another name, which the route never reads", () => {
+		expect(() => ApiControllerGetListTransformAssertPublishedFilters("ItemController", AliasedFilterQueryDto, metadata)).toThrowError('ItemController: GET_LIST QUERY DTO AliasedFilterQueryDto exposes the filter property "label[value]" as "q". The route reads a filter from its own query key, so it would never apply this one');
+	});
+
+	it("accepts a filter property that keeps its name on a query, and a property exposed under a filter key", () => {
+		expect(() => ApiControllerGetListTransformAssertPublishedFilters("ItemController", ToPlainAliasedFilterQueryDto, metadata)).not.toThrow();
+		expect(() => ApiControllerGetListTransformAssertPublishedFilters("ItemController", FilterAliasOnPropertyQueryDto, metadata)).not.toThrow();
+	});
+
+	it("judges a filter key a property is exposed under", () => {
+		expect(() => ApiControllerGetListTransformAssertPublishedFilters("ItemController", UnappliableFilterAliasQueryDto, metadata)).toThrowError('publishes "foo[value]", a filter the route cannot apply');
+	});
 
 	it("accepts columns, one-hop to-one paths, and keys that are not filter groups", () => {
 		expect(() => ApiControllerGetListTransformAssertPublishedFilters("ItemController", AppliedQueryDto, metadata)).not.toThrow();
