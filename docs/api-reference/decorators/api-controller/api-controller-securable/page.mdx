@@ -14,8 +14,8 @@ Marker-only decorator that enables the authorization pipeline for a controller. 
 - Does not choose `hooks` vs `iam`.
 - Does not declare `policyNamespace`, `resourceDefinition`, sources, or fallback behavior.
 - Must be paired with `@ApiController({ authorization: ... })` on any secured controller.
-- Requires custom `@ApiMethod(...)` handlers on the controller to declare `metadata.resource.action`.
-- Is validated at bootstrap: missing `authorization` on a securable controller is treated as a configuration error.
+- Requires custom `@ApiMethod(...)` and `@ApiRouteCustom(...)` handlers on the controller and its base classes to declare `resource.action` and a `resource.entity` equal to the controller entity.
+- Is validated at bootstrap: missing `authorization` on a securable controller and a custom route that breaks the rule above are configuration errors.
 
 ## Example
 
@@ -37,7 +37,7 @@ export class UserController {}
 - Keep this decorator even in IAM mode.
 - Use route-level `security.authorization.mode` inside `@ApiController(...)` when a specific route must differ from the controller default.
 - Each route still runs in exactly one authorization mode.
-- Auto-generated CRUD routes receive `metadata.route.type`; bespoke `@ApiMethod(...)` routes must provide `metadata.resource.action` explicitly.
+- Auto-generated CRUD routes receive `metadata.route.type`; bespoke `@ApiMethod(...)` routes must provide `metadata.resource.action` explicitly, and run in `authorization.defaultMode` without `metadata.security.authorization.mode`.
 
 ## Related resources
 

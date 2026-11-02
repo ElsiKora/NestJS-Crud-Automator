@@ -301,8 +301,8 @@ Observation is a separate diagnostic projection. It neither expands the ordinary
 
 - Generated CRUD route actions map to the authorization runtime automatically.
 - Custom route action identity is `metadata.resource.action` for `@ApiMethod` and `resource.action` for `@ApiRouteCustom`.
+- On a securable controller, startup checks each custom route, declared or inherited, for `resource.action` and a `resource.entity` equal to the controller entity. The closest definition of a method name is the one checked. A route without `security.authorization.mode` runs in `authorization.defaultMode`, and the resolved mode selects the prerequisites: a route that resolves to hooks needs a registered policy, a route that resolves to IAM needs the IAM configuration.
 - Custom `@ApiMethod(...)` and `@ApiRouteCustom(...)` routes without `metadata.route.type` do not dispatch to CRUD policy hooks; handle them in `getCustomActionRule(action, context)` and branch on the declared `resource.action`.
-- Securable custom methods require authorization mode metadata.
 - `resourceDefinition.resourcePath` may contain placeholders like `{id}`.
 - Policy statement `Resource` values should be concrete strings or wildcard strings such as `gameport:admin:item/*`.
 - Omitted authorization cache configuration means `EApiAuthorizationCacheMode.SOURCE_FIRST`: each evaluation re-reads hooks permissions, IAM attachments, and requested IAM documents, and does not read or populate cross-request resolver maps.

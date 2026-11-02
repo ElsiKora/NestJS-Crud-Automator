@@ -22,6 +22,7 @@
 - Automatically applies `ApiAuthorizationGuard` along with the configured `security.authentication.guard`.
 - Orders `execution.guards` by `EApiRouteGuardStage` (see [Guard stages](#guard-stages)) and preserves the declared `execution.interceptors` order.
 - Stores `metadata.resource.action` as the single action source for docs, subscribers, hooks authorization, and IAM authorization.
+- On a securable controller, startup requires `metadata.resource.action` and a `metadata.resource.entity` equal to the controller entity, also for a route inherited from a base class.
 - Does not run request transformers, relation loading, subscribers, authorization result transforms, or response serialization. Use `@ApiRouteCustom` when a custom handler needs the shared route runtime.
 
 ## Guard stages

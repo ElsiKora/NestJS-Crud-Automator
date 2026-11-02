@@ -5,7 +5,7 @@ NestJS CRUD Automator ships with a single authorization pipeline and two first-c
 - `hooks`: entity-scoped `@ApiAuthorizationPolicy({ entity })` classes
 - `iam`: storage-agnostic policy attachments and IAM documents
 
-`@ApiControllerSecurable()` is marker-only. It enables the authorization pipeline for a controller, but the selected mode and all authorization configuration live in `@ApiController({ authorization: ... })`. A generated route can override the controller default with `routes[routeType].security.authorization.mode`. `@ApiMethod` custom routes use `metadata.security.authorization.mode`, while `@ApiRouteCustom` uses top-level `security.authorization.mode`. Each route still runs in exactly one mode.
+`@ApiControllerSecurable()` is marker-only. It enables the authorization pipeline for a controller, but the selected mode and all authorization configuration live in `@ApiController({ authorization: ... })`. A generated route can override the controller default with `routes[routeType].security.authorization.mode`. `@ApiMethod` custom routes use `metadata.security.authorization.mode`, while `@ApiRouteCustom` uses top-level `security.authorization.mode`. A route without a mode falls back to `authorization.defaultMode`. Each route still runs in exactly one mode.
 
 ## Module Setup
 
@@ -256,6 +256,10 @@ Bootstrap validation fails fast when:
 - `@ApiControllerSecurable()` is present but the controller has no `authorization` block
 - a controller declares `authorization` but is missing `@ApiControllerSecurable()`
 - the selected mode is not `hooks` or `iam`
+- a custom `@ApiMethod(...)` or `@ApiRouteCustom(...)` route of the controller, declared on the class or inherited from a base class, has no `resource.action` or has a `resource.entity` other than the controller entity
+- a custom route resolves to `hooks` and no `@ApiAuthorizationPolicy(...)` is registered for the entity, or resolves to `iam` and the controller does not meet the IAM prerequisites, also when the controller default is the other mode
+
+The closest definition of a method name is the one checked. An override with `@ApiMethod(...)` or `@ApiRouteCustom(...)` is checked in place of the route of the base class, and an override with no route decorator at all is not a route. A plain `@Post` override is served, but it has no route metadata, so neither this check nor `ApiAuthorizationGuard` applies to it. A custom route without a mode resolves to `defaultMode`, and the prerequisites of that mode apply.
 
 ## Runtime authorization actions
 
@@ -734,8 +738,9 @@ The authorization module validates configuration during bootstrap. Common failur
 
 - securable controllers without an `authorization` block
 - controllers with an `authorization` block but no `@ApiControllerSecurable()`
-- hooks mode enabled for an entity with no discovered `@ApiAuthorizationPolicy(...)`
-- IAM mode without `policyNamespace`, `resourceDefinition`, or registered `documentSources`
+- a custom route, declared or inherited, without `resource.action` or with a `resource.entity` other than the controller entity
+- hooks mode enabled for an entity with no discovered `@ApiAuthorizationPolicy(...)`, for routes that resolve to that mode
+- IAM mode without `policyNamespace`, `resourceDefinition`, or registered `documentSources`, for routes that resolve to that mode
 - an unknown authorization cache mode or `MEMORY` without positive safe-integer `ttlMs` and `maxEntries`
 - `resourceDefinition.namespace` not matching `policyNamespace`
 - `resourceDefinition.entity` not matching the controller entity
@@ -755,6 +760,8 @@ When moving from the older authorization API:
 4. Use `@ApiAuthorizationPolicy(...)` only for hooks mode.
 5. Use IAM attachment/document sources for declarative IAM evaluation.
 6. Treat source-first resolver reads as the new default. Applications that intentionally need process-local resolver reuse must opt into bounded `MEMORY`, choose finite TTL and entry limits, and own invalidation; the old unbounded, indefinitely retained resolver maps are not preserved.
+
+Startup now checks custom routes on securable controllers, including inherited ones. 4.x read the wrapper class that `@ApiController` returns, which holds no route, so a route of another entity started without an error.
 
 IAM Deny statements are compiled into row exclusions instead of being applied to the whole request or ignored:
 

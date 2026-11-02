@@ -126,6 +126,15 @@ An `@ApiProperty*` request array without `minItems`, `maxItems` or `isUniqueItem
 
 Call the methods by their runtime names. A cast on a value already typed with these types can go. `@ApiController` cannot change a class's type, so `new UserController(service).create` still does not compile: a decorated class still needs a type assertion or declaration merging. See [Controllers: Migration Notes](/docs/nestjs-crud-automator/core-concepts/controllers#migration-notes).
 
+## Custom Routes On Securable Controllers
+
+Startup now checks the custom routes of a securable controller. 4.x read the wrapper class that `@ApiController` returns, which holds no route, so the check never ran. An application with a route that breaks the rule fails to start with an error that names the controller and the method.
+
+- Every `@ApiMethod(...)` and `@ApiRouteCustom(...)` route on a securable controller or its base classes declares `resource.action` and a `resource.entity` equal to the controller entity.
+- The resolved mode of a custom route counts for the prerequisites, which is `security.authorization.mode` or `authorization.defaultMode` without it: a route that resolves to `hooks` needs a registered `@ApiAuthorizationPolicy(...)` for the entity, and a route that resolves to `iam` needs `policyNamespace`, `resourceDefinition` and document sources, also when the controller default is the other mode.
+
+See [Authorization: Migration Notes](/docs/nestjs-crud-automator/guides/authorization#migration-notes).
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.
