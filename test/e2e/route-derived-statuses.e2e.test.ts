@@ -45,7 +45,6 @@ import { expectEveryReferenceToResolve } from "./expect-every-reference-to-resol
 interface IWireCase {
 	body?: Record<string, unknown>;
 	documentPath?: string;
-	isExpressKnownBug?: boolean;
 	method: "GET" | "POST";
 	name: string;
 	path: string;
@@ -331,12 +330,12 @@ class DerivedGuardedSiblingController extends DerivedBaseController {}
 
 const WIRE_CASES: Array<IWireCase> = [
 	{ body: { id: "scoped-out", name: "hidden" }, method: "POST", name: "a securable CREATE outside its policy scope", path: "/derived-scoped", status: HttpStatus.FORBIDDEN },
-	{ body: {}, isExpressKnownBug: true, method: "POST", name: "a custom route validator", path: "/derived-children/custom/validated", status: HttpStatus.UNPROCESSABLE_ENTITY },
-	{ body: { parent: "parent-missing" }, isExpressKnownBug: true, method: "POST", name: "a custom route request relation with a missing row", path: "/derived-children/custom/relation", status: HttpStatus.NOT_FOUND },
-	{ isExpressKnownBug: true, method: "GET", name: "a custom route response relation with a missing row", path: "/derived-children/custom/response-relation", status: HttpStatus.NOT_FOUND },
-	{ isExpressKnownBug: true, method: "GET", name: "a custom route response relation that disables every relation", path: "/derived-children/custom/response-relation-disabled", status: HttpStatus.NOT_FOUND },
-	{ isExpressKnownBug: true, method: "GET", name: "a custom route query validator", path: "/derived-children/custom/validated-query", status: HttpStatus.UNPROCESSABLE_ENTITY },
-	{ body: {}, isExpressKnownBug: true, method: "POST", name: "a validator whose status HttpStatus does not list", path: "/derived-children/custom/client-closed", status: 499 },
+	{ body: {}, method: "POST", name: "a custom route validator", path: "/derived-children/custom/validated", status: HttpStatus.UNPROCESSABLE_ENTITY },
+	{ body: { parent: "parent-missing" }, method: "POST", name: "a custom route request relation with a missing row", path: "/derived-children/custom/relation", status: HttpStatus.NOT_FOUND },
+	{ method: "GET", name: "a custom route response relation with a missing row", path: "/derived-children/custom/response-relation", status: HttpStatus.NOT_FOUND },
+	{ method: "GET", name: "a custom route response relation that disables every relation", path: "/derived-children/custom/response-relation-disabled", status: HttpStatus.NOT_FOUND },
+	{ method: "GET", name: "a custom route query validator", path: "/derived-children/custom/validated-query", status: HttpStatus.UNPROCESSABLE_ENTITY },
+	{ body: {}, method: "POST", name: "a validator whose status HttpStatus does not list", path: "/derived-children/custom/client-closed", status: 499 },
 	{ method: "GET", name: "a NotFoundException without arguments and no interceptor", path: "/derived-bare/missing", status: HttpStatus.NOT_FOUND },
 	{ method: "GET", name: "a ConflictException without arguments and no interceptor", path: "/derived-bare/conflict", status: HttpStatus.CONFLICT },
 	{ documentPath: "/derived-subscribed/{id}", method: "GET", name: "an HttpException from a subscriber on a generated route", path: "/derived-subscribed/subscribed-1", status: HttpStatus.NOT_FOUND },
@@ -375,7 +374,7 @@ function withoutNonNullableFlags(value: unknown): unknown {
 	);
 }
 
-describe.each(ADAPTERS)("statuses derived from the route config on %s (E2E)", (adapterName: string, createAdapter: () => ExpressAdapter | FastifyAdapter) => {
+describe.each(ADAPTERS)("statuses derived from the route config on %s (E2E)", (_adapterName: string, createAdapter: () => ExpressAdapter | FastifyAdapter) => {
 	let app: INestApplication;
 	let ajv: Ajv;
 	let baseUrl: string;
@@ -427,12 +426,7 @@ describe.each(ADAPTERS)("statuses derived from the route config on %s (E2E)", (a
 		await app?.close();
 	});
 
-	it.each(WIRE_CASES.filter((wireCase: IWireCase): boolean => adapterName !== "express" || !wireCase.isExpressKnownBug).map((wireCase: IWireCase): [string, IWireCase] => [wireCase.name, wireCase]))("declares the answer of %s", async (_name: string, wireCase: IWireCase) => {
-		await expectDeclaredAnswer(wireCase);
-	});
-
-	// Express answers these 500 until bugfix/custom-route-express-query merges, then this block fails and the marker goes
-	it.fails.each(WIRE_CASES.filter((wireCase: IWireCase): boolean => adapterName === "express" && wireCase.isExpressKnownBug === true).map((wireCase: IWireCase): [string, IWireCase] => [wireCase.name, wireCase]))("declares the answer of %s", async (_name: string, wireCase: IWireCase) => {
+	it.each(WIRE_CASES.map((wireCase: IWireCase): [string, IWireCase] => [wireCase.name, wireCase]))("declares the answer of %s", async (_name: string, wireCase: IWireCase) => {
 		await expectDeclaredAnswer(wireCase);
 	});
 
@@ -480,8 +474,7 @@ describe.each(ADAPTERS)("statuses derived from the route config on %s (E2E)", (a
 		expect((await fetch(`${baseUrl}/derived-securable-sibling/custom/shared`)).status).toBe(HttpStatus.FORBIDDEN);
 	});
 
-	// Express answers this 500 until bugfix/custom-route-express-query merges, then this case fails and the marker goes
-	(adapterName === "express" ? it.fails : it)("answers the plain sibling without a refusal", async () => {
+	it("answers the plain sibling without a refusal", async () => {
 		expect((await fetch(`${baseUrl}/derived-plain-sibling/custom/shared`)).status).toBe(HttpStatus.OK);
 	});
 

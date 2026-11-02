@@ -126,7 +126,16 @@ export class ApiRouteRuntime {
 			if (beforeResult) {
 				request.body = beforeResult.body;
 				request.params = beforeResult.parameters;
-				request.query = beforeResult.query;
+				// Express 5 serves `query` from a getter on the request prototype, which an assignment cannot replace, so an own property takes its place.
+				Object.defineProperty(request, "query", {
+					// eslint-disable-next-line @elsikora/typescript/naming-convention
+					configurable: true,
+					// eslint-disable-next-line @elsikora/typescript/naming-convention
+					enumerable: true,
+					value: beforeResult.query,
+					// eslint-disable-next-line @elsikora/typescript/naming-convention
+					writable: true,
+				});
 			}
 
 			if (options.metadata.route.type === EApiRouteType.PARTIAL_UPDATE || options.metadata.route.type === EApiRouteType.UPDATE) {

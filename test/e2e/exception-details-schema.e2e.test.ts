@@ -168,8 +168,6 @@ const ADAPTERS: Array<[string, () => ExpressAdapter | FastifyAdapter]> = [
 interface IDetailsCase {
 	body?: unknown;
 	details: Record<string, unknown>;
-	// Every custom route answers 500 on Express until the runtime stops assigning request.query
-	isExpressKnownBug?: boolean;
 	method: "delete" | "patch" | "post" | "put";
 	name: string;
 	path: string;
@@ -182,12 +180,12 @@ const TO_MANY_DETAILS = { propertyName: "children", reason: "to-many reference i
 const DETAILS_CASES: Array<IDetailsCase> = [
 	{ body: { children: ["child-1"] }, details: TO_MANY_DETAILS, method: "patch", name: "a to-many key on PATCH", path: "/details-parents/{id}", status: HttpStatus.BAD_REQUEST, url: "/details-parents/parent-1" },
 	{ body: { children: ["child-1"], name: "Parent" }, details: TO_MANY_DETAILS, method: "put", name: "a to-many key on PUT", path: "/details-parents/{id}", status: HttpStatus.BAD_REQUEST, url: "/details-parents/parent-1" },
-	{ body: { parent: { id: "parent-1" } }, isExpressKnownBug: true, details: { expectedShape: EApiControllerRelationReferenceShape.SCALAR, propertyName: "parent", referenceKey: "id", type: EApiExceptionDetailsType.REFERENCE_NOT_VALID }, method: "post", name: "a relation reference of the wrong shape", path: "/details-children/custom/relation", status: HttpStatus.BAD_REQUEST, url: "/details-children/custom/relation" },
+	{ body: { parent: { id: "parent-1" } }, details: { expectedShape: EApiControllerRelationReferenceShape.SCALAR, propertyName: "parent", referenceKey: "id", type: EApiExceptionDetailsType.REFERENCE_NOT_VALID }, method: "post", name: "a relation reference of the wrong shape", path: "/details-children/custom/relation", status: HttpStatus.BAD_REQUEST, url: "/details-children/custom/relation" },
 	{ details: { type: EApiExceptionDetailsType.FOREIGN_KEY_VIOLATION }, method: "delete", name: "a foreign key in use", path: "/details-parents/{id}", status: HttpStatus.BAD_REQUEST, url: "/details-parents/parent-1" },
 	{ body: { id: "item-2", name: "One" }, details: { type: EApiExceptionDetailsType.UNIQUE_VIOLATION }, method: "post", name: "a duplicate key", path: "/details-items", status: HttpStatus.CONFLICT, url: "/details-items" },
 ];
 
-describe.each(ADAPTERS)("exception schemas on %s (E2E)", (adapterName: string, createAdapter: () => ExpressAdapter | FastifyAdapter) => {
+describe.each(ADAPTERS)("exception schemas on %s (E2E)", (_adapterName: string, createAdapter: () => ExpressAdapter | FastifyAdapter) => {
 	describe.each(SETUPS)("%s", (_setupName: string, setup: ISetup) => {
 		let app: INestApplication;
 		let ajv: Ajv;
@@ -245,11 +243,7 @@ describe.each(ADAPTERS)("exception schemas on %s (E2E)", (adapterName: string, c
 			await app?.close();
 		});
 
-		it.each(DETAILS_CASES.filter((detailsCase: IDetailsCase): boolean => adapterName !== "express" || !detailsCase.isExpressKnownBug).map((detailsCase: IDetailsCase): [string, IDetailsCase] => [detailsCase.name, detailsCase]))("%s matches exactly one details variant of the declared schema", async (_name: string, detailsCase: IDetailsCase) => {
-			await expectDetails(detailsCase);
-		});
-
-		it.fails.each(DETAILS_CASES.filter((detailsCase: IDetailsCase): boolean => adapterName === "express" && detailsCase.isExpressKnownBug === true).map((detailsCase: IDetailsCase): [string, IDetailsCase] => [detailsCase.name, detailsCase]))("known bug: %s reaches the handler chain", async (_name: string, detailsCase: IDetailsCase) => {
+		it.each(DETAILS_CASES.map((detailsCase: IDetailsCase): [string, IDetailsCase] => [detailsCase.name, detailsCase]))("%s matches exactly one details variant of the declared schema", async (_name: string, detailsCase: IDetailsCase) => {
 			await expectDetails(detailsCase);
 		});
 

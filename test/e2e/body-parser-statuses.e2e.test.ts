@@ -136,12 +136,6 @@ const EXPECTED_STATUSES: Record<TAdapterName, Record<TBodyCaseName, Record<TOper
 	},
 };
 
-// Express answers 500 on a custom route the body parser lets through until bugfix/custom-route-express-query merges. The table holds the correct status, so these cases fail once the fix lands and the marker goes
-const EXPRESS_KNOWN_BUG_CASES: ReadonlyArray<[TBodyCaseName, TOperationName]> = [
-	["noBody", "customGet"],
-	["unsupportedContentType", "customGet"],
-];
-
 const ADAPTERS: Array<[TAdapterName, () => ExpressAdapter | FastifyAdapter]> = [
 	["fastify", (): FastifyAdapter => new FastifyAdapter()],
 	["express", (): ExpressAdapter => new ExpressAdapter()],
@@ -153,17 +147,6 @@ const EXCEPTION_FILTER_MODES: Array<[string, (application: INestApplication) => 
 ];
 
 const TABLE_CASES: Array<[TBodyCaseName, TOperationName]> = (Object.keys(BODY_CASES) as Array<TBodyCaseName>).flatMap((bodyCaseName: TBodyCaseName): Array<[TBodyCaseName, TOperationName]> => (Object.keys(OPERATIONS) as Array<TOperationName>).map((operationName: TOperationName): [TBodyCaseName, TOperationName] => [bodyCaseName, operationName]));
-
-/**
- * Checks whether a table case is the known Express custom route failure.
- * @param {TAdapterName} adapterName - Adapter under test.
- * @param {TBodyCaseName} bodyCaseName - Body case.
- * @param {TOperationName} operationName - Operation.
- * @returns {boolean} Whether the case is expected to fail until the fix merges.
- */
-function isKnownBug(adapterName: TAdapterName, bodyCaseName: TBodyCaseName, operationName: TOperationName): boolean {
-	return adapterName === "express" && EXPRESS_KNOWN_BUG_CASES.some(([knownBodyCase, knownOperation]: [TBodyCaseName, TOperationName]): boolean => knownBodyCase === bodyCaseName && knownOperation === operationName);
-}
 
 /**
  * Drops OpenAPI `nullable: false`, its default, which Ajv rejects next to a schema combinator.
@@ -285,11 +268,7 @@ describe.each(ADAPTERS)("body parser statuses on %s (E2E)", (adapterName: TAdapt
 			expect(validate?.errors ?? null, JSON.stringify(answer.body)).toBeNull();
 		};
 
-		it.each(TABLE_CASES.filter(([bodyCaseName, operationName]: [TBodyCaseName, TOperationName]): boolean => !isKnownBug(adapterName, bodyCaseName, operationName)))("answers %s on %s with the exact status of the table", async (bodyCaseName: TBodyCaseName, operationName: TOperationName) => {
-			await expectTableStatus(bodyCaseName, operationName);
-		});
-
-		it.fails.each(TABLE_CASES.filter(([bodyCaseName, operationName]: [TBodyCaseName, TOperationName]): boolean => isKnownBug(adapterName, bodyCaseName, operationName)))("answers %s on %s with the exact status of the table", async (bodyCaseName: TBodyCaseName, operationName: TOperationName) => {
+		it.each(TABLE_CASES)("answers %s on %s with the exact status of the table", async (bodyCaseName: TBodyCaseName, operationName: TOperationName) => {
 			await expectTableStatus(bodyCaseName, operationName);
 		});
 	});
