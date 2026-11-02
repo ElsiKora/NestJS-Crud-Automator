@@ -114,11 +114,10 @@ export class ApiAuthorizationIamDocumentValidator {
 					throw ErrorException(`Policy document "${documentId}" contains an invalid Condition operand map`);
 				}
 
+				// A list, object or null operand keeps the document valid and fails closed when evaluated: the key fails for an Allow and holds for a Deny, whose other keys still decide.
 				for (const [path, operand] of Object.entries(value)) {
 					if (typeof operand !== "string" && typeof operand !== "number" && typeof operand !== "boolean") {
-						iamDocumentValidatorLogger.error(`Policy document "${documentId}" contains a non-scalar Condition operand for "${path}"`);
-
-						throw ErrorException(`Policy document "${documentId}" contains a non-scalar Condition operand for "${path}"`);
+						iamDocumentValidatorLogger.warn(`Policy document "${documentId}" contains a non-scalar Condition operand for "${path}"; the key fails closed: it fails for an Allow and holds for a Deny`);
 					}
 				}
 			}

@@ -3,6 +3,7 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiAuthorizationIamDenyExclusion, IApiAuthorizationIamResourceConstraint, IApiAuthorizationPrincipal, IApiAuthorizationRequestMetadata, IApiAuthorizationResourceDefinition, IApiAuthorizationScope, IApiPolicyStatement } from "@interface/class/api/authorization";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
 import type { TApiPropertyDescribeProperties } from "@type/decorator/api/property";
+import type { TTypeOrmColumnMetadataArguments, TTypeOrmEmbeddedMetadataArguments, TTypeOrmMetadataArgumentsStorage, TTypeOrmRelationMetadataArguments } from "@type/utility/typeorm";
 import type { FindOperator, FindOptionsWhere } from "typeorm";
 
 import { Buffer } from "node:buffer";
@@ -13,12 +14,22 @@ import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/ap
 import { EApiPolicyConditionOperator } from "@enum/class/authorization";
 import { EApiPropertyDescribeType, EApiPropertyStringType } from "@enum/decorator/api";
 import { Injectable } from "@nestjs/common";
+import { ApiControllerGetListQueryParseValue } from "@utility/api/controller/get-list/query/parse-value.utility";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
+import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
+import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
 import { LoggerUtility } from "@utility/logger.utility";
-import { Equal, IsNull, Not, Raw } from "typeorm";
+import { ResolveRelationTarget } from "@utility/resolve/relation-target.utility";
+import { Equal, getMetadataArgsStorage, IsNull, Not, Raw } from "typeorm";
 
 const iamQueryPlannerLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationIamQueryPlanner");
+
+// TypeORM column types that hold a boolean: `Boolean` comes from a `boolean` property without an explicit type, and `bit` is the SQL Server boolean.
+const iamQueryPlannerBooleanColumnTypes: ReadonlySet<unknown> = new Set<unknown>(["bit", "bool", Boolean, "boolean"]);
+
+// Resolved query paths, per resource entity class, so TypeORM metadata is walked once per path.
+const iamQueryPlannerFieldCache: WeakMap<object, Map<string, { isBoolean: boolean; isResolvable: boolean }>> = new WeakMap<object, Map<string, { isBoolean: boolean; isResolvable: boolean }>>();
 
 @Injectable()
 export class ApiAuthorizationIamQueryPlanner {
@@ -175,8 +186,15 @@ export class ApiAuthorizationIamQueryPlanner {
 				return { isCompilable: false };
 			}
 
+			// An exact placeholder binds like a condition value, so `bool:item/true` compares a boolean column with true.
+			const columnValue: { isComparable: boolean; value?: unknown } = constraint.isPrefix ? { isComparable: true } : this.resolveColumnValue(options.resourceDefinition, fieldDefinition.queryPath, constraint.value);
+
+			if (!columnValue.isComparable) {
+				return { isCompilable: false };
+			}
+
 			// A row whose placeholder is NULL renders `*` in its resource string, which no row-scoped pattern matches.
-			branches.push(this.createWhere(fieldDefinition.queryPath, constraint.isPrefix ? this.createPrefixExclusion(constraint.value) : Not(Equal(constraint.value))), this.createWhere(fieldDefinition.queryPath, IsNull()));
+			branches.push(this.createWhere(fieldDefinition.queryPath, constraint.isPrefix ? this.createPrefixExclusion(constraint.value) : Not(Equal(columnValue.value))), this.createWhere(fieldDefinition.queryPath, IsNull()));
 		}
 
 		for (const [operator, operands] of Object.entries(options.condition ?? {})) {
@@ -193,7 +211,8 @@ export class ApiAuthorizationIamQueryPlanner {
 					resource: options.resource,
 				});
 
-				const negatedOperators: Array<FindOperator<unknown>> | undefined = this.isCompilableValue(resolvedValue) ? this.negateConditionOperator(operator, resolvedValue) : undefined;
+				const columnValue: { isComparable: boolean; value?: unknown } = fieldDefinition && this.isCompilableValue(resolvedValue) ? this.resolveColumnValue(options.resourceDefinition, fieldDefinition.queryPath, resolvedValue) : { isComparable: false };
+				const negatedOperators: Array<FindOperator<unknown>> | undefined = columnValue.isComparable ? this.negateConditionOperator(operator, columnValue.value) : undefined;
 
 				if (!fieldDefinition || !negatedOperators) {
 					return { isCompilable: false };
@@ -242,11 +261,13 @@ export class ApiAuthorizationIamQueryPlanner {
 					resource: options.resource,
 				});
 
-				if (!this.isCompilableValue(resolvedValue)) {
+				const columnValue: { isComparable: boolean; value?: unknown } = this.isCompilableValue(resolvedValue) ? this.resolveColumnValue(options.resourceDefinition, fieldDefinition.queryPath, resolvedValue) : { isComparable: false };
+
+				if (!columnValue.isComparable) {
 					return { isCompilable: false };
 				}
 
-				this.assignWhereValue(where, fieldDefinition.queryPath, resolvedValue);
+				this.assignWhereValue(where, fieldDefinition.queryPath, columnValue.value);
 			}
 		}
 
@@ -345,6 +366,82 @@ export class ApiAuthorizationIamQueryPlanner {
 		}
 	}
 
+	/**
+	 * Walks a query path through the TypeORM metadata of the resource entity: relations of any depth, embedded properties,
+	 * and columns declared on parent classes. The column the path ends on is a boolean when its TypeORM type holds one or
+	 * its `@ApiPropertyDescribe` type is `BOOLEAN`, so a boolean column without describe metadata counts too, and so does `bit`, the SQL Server boolean.
+	 * A path that ends before a column, or names a property TypeORM does not map, is not resolvable. So is every path of a
+	 * resource entity that no TypeORM decorator maps, such as one registered only through an `EntitySchema`: its column types
+	 * cannot be read, so its scope fails closed instead of binding values as text.
+	 * @param {object} entity - Resource entity class.
+	 * @param {string} queryPath - Entity query path such as `isActive`, `owner.company.isVerified` or `meta.isLocked`.
+	 * @returns {{ isBoolean: boolean; isResolvable: boolean }} Whether the path names a column, and whether that column holds a boolean.
+	 */
+	private readField(entity: object, queryPath: string): { isBoolean: boolean; isResolvable: boolean } {
+		const storage: TTypeOrmMetadataArgumentsStorage = getMetadataArgsStorage();
+		const segments: Array<string> = queryPath.split(".");
+
+		if (!GetClassHierarchy(entity).some((entityClass: object): boolean => storage.tables.some(({ target }: { target: unknown }): boolean => target === entityClass))) {
+			return { isBoolean: false, isResolvable: false };
+		}
+
+		let target: object | undefined = entity;
+
+		for (const [index, segment] of segments.entries()) {
+			const hierarchy: Array<new () => unknown> = GetClassHierarchy(target);
+			const column: TTypeOrmColumnMetadataArguments | undefined = storage.filterColumns(hierarchy).find((candidate: TTypeOrmColumnMetadataArguments): boolean => candidate.propertyName === segment);
+
+			if (column) {
+				if (index !== segments.length - 1 || !hierarchy[0]) {
+					break;
+				}
+
+				const metadata: Partial<TApiPropertyDescribeProperties> | undefined = MetadataStorage.getInstance().getMetadata(hierarchy[0], segment, PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY);
+
+				return { isBoolean: iamQueryPlannerBooleanColumnTypes.has(column.options.type) || metadata?.type === EApiPropertyDescribeType.BOOLEAN, isResolvable: true };
+			}
+
+			target = this.resolveNestedTarget(storage, hierarchy, segment);
+
+			if (!target) {
+				break;
+			}
+		}
+
+		return { isBoolean: false, isResolvable: false };
+	}
+
+	/**
+	 * Converts a resolved scalar condition value to the value its column compares against in SQL, following the in-memory
+	 * evaluator, which compares the text of both sides. A boolean column holds only `true` and `false`, so `true`, `false`
+	 * or that exact text binds as a boolean, which each driver compares in its own stored form (`1`/`0` on SQLite and MySQL).
+	 * Any other value, such as `"1"`, `"yes"` or the number `1`, equals no row in memory and is not comparable, so the scope fails closed.
+	 * A path TypeORM cannot resolve is not comparable either. Values for other columns are kept as they are.
+	 * @template E - Entity type.
+	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition.
+	 * @param {string} queryPath - Entity query path such as `isActive` or `owner.company.isVerified`.
+	 * @param {unknown} value - Resolved non-empty scalar condition value.
+	 * @returns {{ isComparable: boolean; value?: unknown }} The value to bind, or a non-comparable result.
+	 */
+	private resolveColumnValue<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, queryPath: string, value: unknown): { isComparable: boolean; value?: unknown } {
+		const field: { isBoolean: boolean; isResolvable: boolean } = this.resolveField(resourceDefinition.entity, queryPath);
+
+		if (!field.isResolvable) {
+			return { isComparable: false };
+		}
+
+		if (!field.isBoolean) {
+			return { isComparable: true, value };
+		}
+
+		try {
+			// The one boolean rule of every filter value: true, false, or that exact text.
+			return { isComparable: true, value: ApiControllerGetListQueryParseValue(value, { description: queryPath, type: EApiPropertyDescribeType.BOOLEAN }) };
+		} catch {
+			return { isComparable: false };
+		}
+	}
+
 	private resolveConditionValue(
 		value: unknown,
 		context: {
@@ -392,6 +489,30 @@ export class ApiAuthorizationIamQueryPlanner {
 	}
 
 	/**
+	 * Returns the resolved column of a query path, read once per resource entity and path.
+	 * @param {object} entity - Resource entity class.
+	 * @param {string} queryPath - Entity query path.
+	 * @returns {{ isBoolean: boolean; isResolvable: boolean }} Whether the path names a column, and whether that column holds a boolean.
+	 */
+	private resolveField(entity: object, queryPath: string): { isBoolean: boolean; isResolvable: boolean } {
+		let entityCache: Map<string, { isBoolean: boolean; isResolvable: boolean }> | undefined = iamQueryPlannerFieldCache.get(entity);
+
+		if (!entityCache) {
+			entityCache = new Map<string, { isBoolean: boolean; isResolvable: boolean }>();
+			iamQueryPlannerFieldCache.set(entity, entityCache);
+		}
+
+		let field: { isBoolean: boolean; isResolvable: boolean } | undefined = entityCache.get(queryPath);
+
+		if (!field) {
+			field = this.readField(entity, queryPath);
+			entityCache.set(queryPath, field);
+		}
+
+		return field;
+	}
+
+	/**
 	 * Resolves the resource field mapping of a `resource.*` path when it may be used in a database scope.
 	 * @template E - Entity type.
 	 * @param {IApiAuthorizationResourceDefinition<E>} resourceDefinition - IAM resource definition.
@@ -400,6 +521,44 @@ export class ApiAuthorizationIamQueryPlanner {
 	 */
 	private resolveFilterableField<E extends IApiBaseEntity>(resourceDefinition: IApiAuthorizationResourceDefinition<E>, path: string): IApiAuthorizationResourceDefinition<E>["fields"][number] | undefined {
 		return resourceDefinition.fields.find((field: IApiAuthorizationResourceDefinition<E>["fields"][number]): boolean => field.path === path && field.isFilterable);
+	}
+
+	/**
+	 * Resolves the class one path segment leads to: the type of an embedded property, or the entity a relation targets.
+	 * @param {TTypeOrmMetadataArgumentsStorage} storage - TypeORM decorator metadata.
+	 * @param {Array<new () => unknown>} hierarchy - The current class and its parent classes.
+	 * @param {string} segment - Property name of the segment.
+	 * @returns {object | undefined} The next class, or undefined when the segment is neither an embedded property nor a relation to an entity.
+	 */
+	private resolveNestedTarget(storage: TTypeOrmMetadataArgumentsStorage, hierarchy: Array<new () => unknown>, segment: string): object | undefined {
+		const embedded: TTypeOrmEmbeddedMetadataArguments | undefined = storage.filterEmbeddeds(hierarchy).find((candidate: TTypeOrmEmbeddedMetadataArguments): boolean => candidate.propertyName === segment);
+
+		if (embedded) {
+			const embeddedType: unknown = embedded.type();
+
+			return IsEntityConstructor(embeddedType) ? embeddedType : undefined;
+		}
+
+		const relation: TTypeOrmRelationMetadataArguments | undefined = storage.filterRelations(hierarchy).find((candidate: TTypeOrmRelationMetadataArguments): boolean => candidate.propertyName === segment);
+
+		if (!relation) {
+			return undefined;
+		}
+
+		let relationType: unknown = relation.type;
+
+		try {
+			relationType = (relation.type as () => unknown)();
+		} catch {
+			// The relation names its target class or entity name directly.
+		}
+
+		try {
+			return ResolveRelationTarget(typeof relationType === "string" ? { name: relationType } : (relationType as object));
+		} catch {
+			// A name that matches several entity classes cannot be resolved, so the path does not compile.
+			return undefined;
+		}
 	}
 
 	private resolvePathValue(source: unknown, path: string): unknown {

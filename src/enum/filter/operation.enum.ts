@@ -33,7 +33,6 @@ export enum EFilterOperationArray {
 
 export enum EFilterOperationBoolean {
 	EQ = EFilterOperation.EQ,
-	EXCL = EFilterOperation.EXCL,
 	IN = EFilterOperation.IN,
 	ISNULL = EFilterOperation.ISNULL,
 	NE = EFilterOperation.NE,

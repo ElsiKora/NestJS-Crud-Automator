@@ -6,7 +6,7 @@ import type { EFilterOperation, EFilterOperationBoolean, EFilterOperationDate, E
  */
 export type TApiControllerGetListQueryFilterOperationForValue<V> =
 	| ([NonNullable<V>] extends [boolean]
-			? Exclude<`${EFilterOperationBoolean}`, `${EFilterOperation.EXCL | EFilterOperation.ISNULL | EFilterOperation.NOTNULL}`>
+			? Exclude<`${EFilterOperationBoolean}`, `${EFilterOperation.ISNULL | EFilterOperation.NOTNULL}`>
 			: [NonNullable<V>] extends [Date]
 				? Exclude<`${EFilterOperationDate}`, `${EFilterOperation.ISNULL | EFilterOperation.NOTNULL}`>
 				: [NonNullable<V>] extends [number]

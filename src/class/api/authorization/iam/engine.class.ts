@@ -457,7 +457,18 @@ export class ApiAuthorizationIamEngine {
 					return { isMatched: false };
 				}
 
-				if (!this.evaluateOperator(operator, this.resolvePathValue(evaluationContext, path), this.resolveConditionValue(rawExpectedValue, evaluationContext))) {
+				const expectedValue: unknown = this.resolveConditionValue(rawExpectedValue, evaluationContext);
+
+				// A literal null, list or object operand has no text to compare, so it fails closed like an unknown operator; a variable resolving to null still compares as "".
+				if (rawExpectedValue === null || (typeof expectedValue === "object" && expectedValue !== null && !(expectedValue instanceof Date))) {
+					if (isDeny) {
+						continue;
+					}
+
+					return { isMatched: false };
+				}
+
+				if (!this.evaluateOperator(operator, this.resolvePathValue(evaluationContext, path), expectedValue)) {
 					return { isMatched: false };
 				}
 			}

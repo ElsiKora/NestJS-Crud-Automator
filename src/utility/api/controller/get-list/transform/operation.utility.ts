@@ -110,10 +110,11 @@ export function ApiControllerGetListTransformOperation(operation: EFilterOperati
 }
 
 /**
- * Keeps a Date comparison operand as the instant it names, so the read binds it for its column, and compares any other value as its text.
+ * Keeps a Date or boolean comparison operand as it is, so the read binds it for its column, and compares any other value as its text.
+ * A boolean as text would compare `'true'` with the stored `1` on SQLite and match no row.
  * @param {unknown} value - Parsed filter value
  * @returns {unknown} The operand of the comparison
  */
 function toComparisonOperand(value: unknown): unknown {
-	return value instanceof Date ? value : String(value);
+	return value instanceof Date || typeof value === "boolean" ? value : String(value);
 }
