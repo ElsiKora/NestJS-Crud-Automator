@@ -2,13 +2,13 @@ import "reflect-metadata";
 
 import type { INestApplication } from "@nestjs/common";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import type { EntityManager } from "typeorm";
+import type { EntityManager, EntitySubscriberInterface, InsertEvent } from "typeorm";
 
 import { Injectable, Module } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { Column, DataSource, Entity, JoinColumn, ManyToOne, PrimaryColumn, Repository } from "typeorm";
+import { Column, DataSource, Entity, EventSubscriber, JoinColumn, ManyToOne, PrimaryColumn, Repository } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiFunctionTransactionScope, ApiPropertyDescribe, ApiService, ApiServiceBase, ApiSubscriberModule, EApiPropertyDescribeType, EApiPropertyStringType } from "../../src/index";
@@ -44,6 +44,52 @@ class GuardIsolationItemEntity {
 	public owner?: GuardIsolationOwnerEntity | null;
 }
 
+@Entity("guard_isolation_counters")
+class GuardIsolationCounterEntity {
+	@PrimaryColumn({ length: 64, type: "varchar" })
+	public id!: string;
+
+	@Column({ length: 64, type: "varchar" })
+	public label!: string;
+
+	@Column({ length: 64, type: "varchar" })
+	public note!: string;
+
+	@Column({ default: 0, type: "integer" })
+	public value!: number;
+}
+
+// The event in which the application subscriber writes the counter row, or none.
+let counterWritePhase: "afterInsert" | "beforeInsert" | undefined;
+
+/** An application subscriber that writes another existing row, a counter, while a create inserts an item. */
+@EventSubscriber()
+class GuardIsolationCounterSubscriber implements EntitySubscriberInterface<GuardIsolationItemEntity> {
+	public async afterInsert(event: InsertEvent<GuardIsolationItemEntity>): Promise<void> {
+		await this.write(event, "afterInsert");
+	}
+
+	public async beforeInsert(event: InsertEvent<GuardIsolationItemEntity>): Promise<void> {
+		await this.write(event, "beforeInsert");
+	}
+
+	public listenTo(): typeof GuardIsolationItemEntity {
+		return GuardIsolationItemEntity;
+	}
+
+	private async write(event: InsertEvent<GuardIsolationItemEntity>, phase: "afterInsert" | "beforeInsert"): Promise<void> {
+		if (counterWritePhase !== phase) {
+			return;
+		}
+
+		const counter: GuardIsolationCounterEntity = await event.manager.findOneByOrFail(GuardIsolationCounterEntity, { id: "counter-1" });
+		counter.label = `${phase} saved`;
+		await event.manager.save(counter);
+		await event.manager.update(GuardIsolationCounterEntity, { id: "counter-1" }, { note: `${phase} updated` });
+		await event.manager.increment(GuardIsolationCounterEntity, { id: "counter-1" }, "value", 1);
+	}
+}
+
 @Injectable()
 @ApiService({ entity: GuardIsolationItemEntity })
 class GuardIsolationItemService extends ApiServiceBase<GuardIsolationItemEntity> {
@@ -75,6 +121,7 @@ describe.each(DRIVERS)("A create guards only its own save on $name (E2E)", (driv
 	let dataSource: DataSource;
 	let items: Repository<GuardIsolationItemEntity>;
 	let owners: Repository<GuardIsolationOwnerEntity>;
+	let counters: Repository<GuardIsolationCounterEntity>;
 	let service: GuardIsolationItemService;
 
 	const readRows = async (): Promise<unknown> => ({
@@ -87,7 +134,7 @@ describe.each(DRIVERS)("A create guards only its own save on $name (E2E)", (driv
 		container = started.container;
 
 		@Module({
-			imports: [TypeOrmModule.forRoot({ ...started.options, dropSchema: true, entities: [GuardIsolationItemEntity, GuardIsolationOwnerEntity], logging: false, synchronize: true } as never), TypeOrmModule.forFeature([GuardIsolationItemEntity]), ApiSubscriberModule],
+			imports: [TypeOrmModule.forRoot({ ...started.options, dropSchema: true, entities: [GuardIsolationCounterEntity, GuardIsolationItemEntity, GuardIsolationOwnerEntity], logging: false, subscribers: [GuardIsolationCounterSubscriber], synchronize: true } as never), TypeOrmModule.forFeature([GuardIsolationItemEntity]), ApiSubscriberModule],
 			providers: [GuardIsolationItemService],
 		})
 		class GuardIsolationModule {}
@@ -99,6 +146,7 @@ describe.each(DRIVERS)("A create guards only its own save on $name (E2E)", (driv
 		items = dataSource.getRepository(GuardIsolationItemEntity);
 		owners = dataSource.getRepository(GuardIsolationOwnerEntity);
 		service = moduleRef.get(GuardIsolationItemService);
+		counters = dataSource.getRepository(GuardIsolationCounterEntity);
 	}, 300_000);
 
 	afterAll(async () => {
@@ -107,6 +155,8 @@ describe.each(DRIVERS)("A create guards only its own save on $name (E2E)", (driv
 	}, 60_000);
 
 	beforeEach(async () => {
+		counterWritePhase = undefined;
+		await counters.save({ id: "counter-1", label: "start", note: "start", value: 0 });
 		await items.createQueryBuilder().delete().execute();
 		await owners.createQueryBuilder().delete().execute();
 		await owners.save({ id: "owner-1", name: "Owner" });
@@ -164,5 +214,20 @@ describe.each(DRIVERS)("A create guards only its own save on $name (E2E)", (driv
 		expect(results[0]).toMatchObject({ reason: { response: { message: "GUARDISOLATIONITEMENTITY_DUPLICATE_KEY", statusCode: 409 } }, status: "rejected" });
 		expect(results[1]?.status).toBe("fulfilled");
 		expect(await readRows()).toEqual({ items: [{ id: "item-1", name: "Item", owner: { id: "owner-1", name: "Owner changed" } }], owners: [{ id: "owner-1", name: "Owner changed" }] });
+	});
+
+	// A save, update or increment that an application subscriber starts during the create is a save of its own, so the guard leaves it alone.
+	it.each([["beforeInsert"], ["afterInsert"]] as const)("lets an application subscriber write another existing row in %s of the created row", async (phase: "afterInsert" | "beforeInsert") => {
+		counterWritePhase = phase;
+
+		await expect(service.create({ id: "item-new", name: "New", owner: { id: "owner-1" } } as never)).resolves.toMatchObject({ id: "item-new" });
+		expect(await counters.findOneByOrFail({ id: "counter-1" })).toEqual({ id: "counter-1", label: `${phase} saved`, note: `${phase} updated`, value: 1 });
+		expect(await readRows()).toEqual({
+			items: [
+				{ id: "item-1", name: "Item", owner: { id: "owner-1", name: "Owner" } },
+				{ id: "item-new", name: "New", owner: { id: "owner-1", name: "Owner" } },
+			],
+			owners: [{ id: "owner-1", name: "Owner" }],
+		});
 	});
 });
