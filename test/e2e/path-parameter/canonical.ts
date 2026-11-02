@@ -3,11 +3,36 @@ import type { ExecutionContext } from "@nestjs/common";
 import { Body, Inject, Injectable, Param, Query, RequestMethod } from "@nestjs/common";
 import { ApiProperty } from "@nestjs/swagger";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Type } from "class-transformer";
+import { Expose, Type } from "class-transformer";
 import { IsInt, Max } from "class-validator";
 import { Column, Entity, PrimaryColumn, PrimaryGeneratedColumn, Repository } from "typeorm";
 
-import { ApiController, ApiControllerObservable, ApiControllerSecurable, ApiPropertyBoolean, ApiPropertyCopy, ApiPropertyDescribe, ApiRouteCustom, ApiService, ApiServiceBase, EApiAuthenticationType, EApiAuthorizationMode, EApiDtoType, EApiPolicyEffect, EApiPolicySourceType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
+import {
+	ApiController,
+	ApiControllerObservable,
+	ApiControllerSecurable,
+	ApiPropertyBoolean,
+	ApiPropertyCopy,
+	ApiPropertyDescribe,
+	ApiPropertyNumber,
+	ApiRouteCustom,
+	ApiService,
+	ApiServiceBase,
+	EApiAuthenticationType,
+	EApiAuthorizationMode,
+	EApiControllerGetListQueryUnlistedFields,
+	EApiControllerRequestTarget,
+	EApiDtoType,
+	EApiPolicyEffect,
+	EApiPolicySourceType,
+	EApiPropertyDateIdentifier,
+	EApiPropertyDateType,
+	EApiPropertyDescribeType,
+	EApiPropertyNumberType,
+	EApiPropertyStringType,
+	EApiRouteType,
+	EFilterOperation,
+} from "../../../src/index";
 
 export const E2E_PATH_PARAMETER_CANONICAL_AT: string = "2024-03-10T12:00:00.000Z";
 export const E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -264,7 +289,12 @@ export class E2ePathParameterCanonicalNarrowController {
 	public readonly service!: E2ePathParameterCanonicalIntItemService;
 }
 
-@ApiController<E2ePathParameterCanonicalTextUuidItemEntity>({ entity: E2ePathParameterCanonicalTextUuidItemEntity, name: "E2ePathParameterCanonicalTextUuid", path: "path-parameter/canonical/text-uuid", routes: { [EApiRouteType.DELETE]: disabledRoute, [EApiRouteType.GET_LIST]: disabledRoute, [EApiRouteType.UPDATE]: disabledRoute } })
+@ApiController<E2ePathParameterCanonicalTextUuidItemEntity>({
+	entity: E2ePathParameterCanonicalTextUuidItemEntity,
+	name: "E2ePathParameterCanonicalTextUuid",
+	path: "path-parameter/canonical/text-uuid",
+	routes: { [EApiRouteType.DELETE]: disabledRoute, [EApiRouteType.GET_LIST]: { request: { [EApiControllerRequestTarget.QUERY]: { filter: { fields: { ownerId: { allowedOperations: [EFilterOperation.EQ], isEnabled: true } }, unlistedFields: EApiControllerGetListQueryUnlistedFields.REJECT } } } }, [EApiRouteType.UPDATE]: disabledRoute } as never,
+})
 export class E2ePathParameterCanonicalTextUuidController {
 	@Inject(E2ePathParameterCanonicalTextUuidItemService)
 	public readonly service!: E2ePathParameterCanonicalTextUuidItemService;
@@ -450,6 +480,129 @@ export class E2ePathParameterCanonicalBooleanEchoController {
 	}
 }
 
+/**
+ * Uses the described path value `id` only in an IAM condition, not in its resource path.
+ */
+@ApiControllerSecurable()
+@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-cond-only", E2ePathParameterCanonicalIntItemEntity, "ppc-cond-only/item", ["id"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalConditionOnly", path: "path-parameter/canonical/ppc-cond-only", routes: noRoutes })
+export class E2ePathParameterCanonicalConditionOnlyController extends E2ePathParameterCanonicalInheritedIdBaseController {}
+
+/**
+ * Base controller with an accessor that only works on an instance, as a service-backed getter does.
+ */
+export class E2ePathParameterCanonicalGetterBaseController extends E2ePathParameterCanonicalInheritedIdBaseController {
+	protected get tableName(): string {
+		return this.service.repository.metadata.tableName;
+	}
+}
+
+@ApiControllerSecurable()
+@ApiController<E2ePathParameterCanonicalIntItemEntity>({ authorization: buildAuthorization("ppc-getter", E2ePathParameterCanonicalIntItemEntity, "ppc-getter/{id}", ["id"]), entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalGetter", path: "path-parameter/canonical/ppc-getter", routes: noRoutes })
+export class E2ePathParameterCanonicalGetterController extends E2ePathParameterCanonicalGetterBaseController {}
+
+const SENT_BOOLEAN = { description: "flag", entity: E2ePathParameterCanonicalIntItemEntity, isRequired: false } as never;
+const SENT_BOOLEANS = { description: "flags", entity: E2ePathParameterCanonicalIntItemEntity, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, minItems: 1 } as never;
+const SENT_INTEGER = { description: "count", entity: E2ePathParameterCanonicalIntItemEntity, exampleValue: 1, format: EApiPropertyNumberType.INTEGER, isRequired: false, maximum: 100, minimum: 0, multipleOf: 1 } as never;
+const SENT_INTEGERS = { description: "counts", entity: E2ePathParameterCanonicalIntItemEntity, exampleValue: [1], format: EApiPropertyNumberType.INTEGER, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, maximum: 100, minimum: 0, minItems: 1, multipleOf: 1 } as never;
+
+/**
+ * A boolean and a boolean list, under their own names.
+ */
+export class E2ePathParameterCanonicalSentBooleanDto {
+	@ApiPropertyBoolean(SENT_BOOLEAN)
+	public value?: boolean;
+
+	@ApiPropertyBoolean(SENT_BOOLEANS)
+	public values?: Array<boolean>;
+}
+
+/**
+ * A boolean and a boolean list, renamed in the request with `@Expose({ name })`.
+ */
+export class E2ePathParameterCanonicalSentRenamedBooleanDto {
+	@Expose({ name: "sent_value" })
+	@ApiPropertyBoolean(SENT_BOOLEAN)
+	public value?: boolean;
+
+	@Expose({ name: "sent_values" })
+	@ApiPropertyBoolean(SENT_BOOLEANS)
+	public values?: Array<boolean>;
+}
+
+/**
+ * An integer and an integer list, under their own names.
+ */
+export class E2ePathParameterCanonicalSentIntegerDto {
+	@ApiPropertyNumber(SENT_INTEGER)
+	public value?: number;
+
+	@ApiPropertyNumber(SENT_INTEGERS)
+	public values?: Array<number>;
+}
+
+/**
+ * An integer and an integer list, renamed in the request with `@Expose({ name })`.
+ */
+export class E2ePathParameterCanonicalSentRenamedIntegerDto {
+	@Expose({ name: "sent_value" })
+	@ApiPropertyNumber(SENT_INTEGER)
+	public value?: number;
+
+	@Expose({ name: "sent_values" })
+	@ApiPropertyNumber(SENT_INTEGERS)
+	public values?: Array<number>;
+}
+
+/**
+ * Echoes the body or query a host pipe gives the handler, for each sent-value DTO.
+ */
+@ApiControllerObservable()
+@ApiController<E2ePathParameterCanonicalIntItemEntity>({ entity: E2ePathParameterCanonicalIntItemEntity, name: "E2ePathParameterCanonicalSentValue", path: "path-parameter/canonical/sent-value", routes: noRoutes })
+export class E2ePathParameterCanonicalSentValueController {
+	@Inject(E2ePathParameterCanonicalIntItemService)
+	public readonly service!: E2ePathParameterCanonicalIntItemService;
+
+	@buildBooleanEchoRoute(RequestMethod.POST, "boolean-plain", { [EApiDtoType.BODY]: E2ePathParameterCanonicalSentBooleanDto })
+	public booleanPlainBody(@Body() body: E2ePathParameterCanonicalSentBooleanDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: JSON.stringify(body) };
+	}
+
+	@buildBooleanEchoRoute(RequestMethod.GET, "boolean-plain", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentBooleanDto })
+	public booleanPlainQuery(@Query() query: E2ePathParameterCanonicalSentBooleanDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: JSON.stringify(query) };
+	}
+
+	@buildBooleanEchoRoute(RequestMethod.POST, "boolean-renamed", { [EApiDtoType.BODY]: E2ePathParameterCanonicalSentRenamedBooleanDto })
+	public booleanRenamedBody(@Body() body: E2ePathParameterCanonicalSentRenamedBooleanDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: JSON.stringify(body) };
+	}
+
+	@buildBooleanEchoRoute(RequestMethod.GET, "boolean-renamed", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentRenamedBooleanDto })
+	public booleanRenamedQuery(@Query() query: E2ePathParameterCanonicalSentRenamedBooleanDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: JSON.stringify(query) };
+	}
+
+	@buildBooleanEchoRoute(RequestMethod.POST, "integer-plain", { [EApiDtoType.BODY]: E2ePathParameterCanonicalSentIntegerDto })
+	public integerPlainBody(@Body() body: E2ePathParameterCanonicalSentIntegerDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: JSON.stringify(body) };
+	}
+
+	@buildBooleanEchoRoute(RequestMethod.GET, "integer-plain", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentIntegerDto })
+	public integerPlainQuery(@Query() query: E2ePathParameterCanonicalSentIntegerDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: JSON.stringify(query) };
+	}
+
+	@buildBooleanEchoRoute(RequestMethod.POST, "integer-renamed", { [EApiDtoType.BODY]: E2ePathParameterCanonicalSentRenamedIntegerDto })
+	public integerRenamedBody(@Body() body: E2ePathParameterCanonicalSentRenamedIntegerDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: JSON.stringify(body) };
+	}
+
+	@buildBooleanEchoRoute(RequestMethod.GET, "integer-renamed", { [EApiDtoType.QUERY]: E2ePathParameterCanonicalSentRenamedIntegerDto })
+	public integerRenamedQuery(@Query() query: E2ePathParameterCanonicalSentRenamedIntegerDto): E2ePathParameterCanonicalCustomResponseDto {
+		return { value: JSON.stringify(query) };
+	}
+}
+
 const buildDocument = (id: string, statements: Array<Record<string, unknown>>): Record<string, unknown> => ({ document: { Statement: statements, Version: "2012-10-17" }, id, namespace: id, sourceType: EApiPolicySourceType.DATABASE, version: "1" });
 const allow = (namespace: string, condition?: Record<string, unknown>): Record<string, unknown> => ({ Action: [`${namespace}:*`], ...(condition ? { Condition: condition } : {}), Effect: EApiPolicyEffect.ALLOW, Resource: ["*"] });
 const deny = (namespace: string, resource: Array<string>, condition?: Record<string, unknown>): Record<string, unknown> => ({ Action: [`${namespace}:*`], ...(condition ? { Condition: condition } : {}), Effect: EApiPolicyEffect.DENY, Resource: resource });
@@ -468,6 +621,8 @@ export const E2E_PATH_PARAMETER_CANONICAL_DOCUMENTS: Array<Record<string, unknow
 	buildDocument("ppc-inh-vb", [allow("ppc-inh-vb"), deny("ppc-inh-vb", ["ppc-inh-vb/true/*"])]),
 	buildDocument("ppc-inh-a", [allow("ppc-inh-a")]),
 	buildDocument("ppc-inh-b", [allow("ppc-inh-b")]),
+	buildDocument("ppc-cond-only", [allow("ppc-cond-only"), deny("ppc-cond-only", ["*"], { StringEquals: { "request.parameters.id": "16" } })]),
+	buildDocument("ppc-getter", [allow("ppc-getter")]),
 ];
 
 export const E2E_PATH_PARAMETER_CANONICAL_CONTROLLERS: Array<new () => unknown> = [
@@ -485,4 +640,6 @@ export const E2E_PATH_PARAMETER_CANONICAL_CONTROLLERS: Array<new () => unknown> 
 	E2ePathParameterCanonicalInheritedVaController,
 	E2ePathParameterCanonicalInheritedVbController,
 	E2ePathParameterCanonicalBooleanEchoController,
+	E2ePathParameterCanonicalSentValueController,
+	E2ePathParameterCanonicalConditionOnlyController,
 ];

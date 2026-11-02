@@ -1,5 +1,6 @@
 export { E2E_PATH_PARAMETER_TRANSFORMED_ID, E2ePathParameterDayItemController, E2ePathParameterGroupIntItemController, E2ePathParameterIntItemController, E2ePathParameterManualUuidItemController, E2ePathParameterOwnerUuidItemController, E2ePathParameterTransformedUuidItemController, E2ePathParameterUuidItemController } from "./controller";
 export { E2E_PATH_PARAMETER_INT_MAXIMUM, E2ePathParameterDayItemEntity, E2ePathParameterIntItemEntity, E2ePathParameterManualUuidParametersDto, E2ePathParameterUuidItemEntity } from "./entity";
+export { buildE2ePathParameterConsumerPipe } from "./consumer-pipe";
 export { E2ePathParameterDayItemService, E2ePathParameterIntItemService, E2ePathParameterUuidItemService } from "./service";
 export { E2E_PATH_PARAMETER_SUBSCRIBER_TRACE, E2ePathParameterIntItemSubscriber } from "./subscriber";
 export {
@@ -28,6 +29,7 @@ export {
 	E2E_PATH_PARAMETER_CANONICAL_DOCUMENTS,
 	E2E_PATH_PARAMETER_CANONICAL_DTO_KINDS,
 	E2E_PATH_PARAMETER_CANONICAL_NARROW_MAXIMUM,
+	E2ePathParameterCanonicalGetterController,
 	E2ePathParameterCanonicalGuard,
 	E2ePathParameterCanonicalInheritedAController,
 	E2ePathParameterCanonicalInheritedBController,

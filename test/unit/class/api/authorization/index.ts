@@ -4,4 +4,5 @@ export * from "./engine.class.test";
 export * from "./guard.class.test";
 export * from "./hook";
 export * from "./iam";
+export * from "./parameters-rule-registry.class.test";
 export * from "./policy";

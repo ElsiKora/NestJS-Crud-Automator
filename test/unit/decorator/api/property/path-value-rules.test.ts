@@ -8,7 +8,7 @@ import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator"
 import { ApiPropertyNumber } from "@decorator/api/property/number.decorator";
 import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
 import { EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType } from "@enum/decorator/api";
-import { plainToInstance } from "class-transformer";
+import { Expose, plainToInstance } from "class-transformer";
 import { isUUID, validateSync } from "class-validator";
 import { describe, expect, it } from "vitest";
 
@@ -37,6 +37,26 @@ class PathValueBooleanDto {
 class PathValueBooleanArrayDto {
 	@ApiPropertyBoolean({ description: "flags", entity: PathValueRulesEntity, isArray: true, isRequired: true, isUniqueItems: false, maxItems: 5, minItems: 1 } as never)
 	public flags!: Array<boolean>;
+}
+
+class PathValueRenamedBooleanDto {
+	@Expose({ name: "is_active" })
+	@ApiPropertyBoolean({ description: "active", entity: PathValueRulesEntity, isRequired: false })
+	public active?: boolean;
+
+	@Expose({ name: "flag_list" })
+	@ApiPropertyBoolean({ description: "flags", entity: PathValueRulesEntity, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, minItems: 1 } as never)
+	public flags?: Array<boolean>;
+}
+
+class PathValueRenamedIntegerDto {
+	@Expose({ name: "n" })
+	@ApiPropertyNumber({ description: "count", entity: PathValueRulesEntity, exampleValue: 1, format: EApiPropertyNumberType.INTEGER, isRequired: false, maximum: 100, minimum: 0, multipleOf: 1 })
+	public count?: number;
+
+	@Expose({ name: "id_list" })
+	@ApiPropertyNumber({ description: "ids", entity: PathValueRulesEntity, exampleValue: [1], format: EApiPropertyNumberType.INTEGER, isArray: true, isRequired: false, isUniqueItems: false, maxItems: 5, maximum: 100, minimum: 0, minItems: 1, multipleOf: 1 })
+	public ids?: Array<number>;
 }
 
 class PathValueDoubleDto {
@@ -149,6 +169,75 @@ describe("path value rules of property decorators", () => {
 		}
 
 		expect(validateSync(plainToInstance(PathValueBooleanArrayDto, { flags: ["true", "0"] }, options)).length).toBeGreaterThan(0);
+	});
+
+	it.each([
+		["plain", false],
+		["plain", true],
+		["renamed", false],
+		["renamed", true],
+	] as Array<[string, boolean]>)("checks exactly the boolean and integer the client sent, %s, implicit conversion %s", (naming: string, isImplicit: boolean) => {
+		const options: { enableImplicitConversion: boolean } = { enableImplicitConversion: isImplicit };
+		const isRenamed: boolean = naming === "renamed";
+		const toBoolean = (active: unknown): { errors: number; value: unknown } => {
+			const instance: { active?: unknown } = isRenamed ? plainToInstance(PathValueRenamedBooleanDto, { is_active: active }, options) : plainToInstance(PathValueBooleanDto, { active }, options);
+
+			return { errors: validateSync(instance).length, value: instance.active };
+		};
+		const toBooleans = (flags: unknown): { errors: number; value: unknown } => {
+			const instance: { flags?: unknown } = isRenamed ? plainToInstance(PathValueRenamedBooleanDto, { flag_list: flags }, options) : plainToInstance(PathValueBooleanArrayDto, { flags }, options);
+
+			return { errors: validateSync(instance).length, value: instance.flags };
+		};
+		const toInteger = (count: unknown): { errors: number; value: unknown } => {
+			const instance: { count?: unknown; id?: unknown } = isRenamed ? plainToInstance(PathValueRenamedIntegerDto, { n: count }, options) : plainToInstance(PathValueIntegerDto, { id: count }, options);
+
+			return { errors: validateSync(instance).length, value: isRenamed ? instance.count : instance.id };
+		};
+		const toIntegers = (ids: unknown): { errors: number; value: unknown } => {
+			const instance: { ids?: unknown } = isRenamed ? plainToInstance(PathValueRenamedIntegerDto, { id_list: ids }, options) : plainToInstance(PathValueIntegerArrayDto, { ids }, options);
+
+			return { errors: validateSync(instance).length, value: instance.ids };
+		};
+
+		expect([toBoolean("true"), toBoolean("false"), toBoolean(true), toBoolean(false)]).toEqual([
+			{ errors: 0, value: true },
+			{ errors: 0, value: false },
+			{ errors: 0, value: true },
+			{ errors: 0, value: false },
+		]);
+		expect([toBooleans(["true", "false"]), toBooleans("false")]).toEqual([
+			{ errors: 0, value: [true, false] },
+			{ errors: 0, value: [false] },
+		]);
+		expect([toInteger("16"), toInteger(16), toIntegers(["1", "2"]), toIntegers([3])]).toEqual([
+			{ errors: 0, value: 16 },
+			{ errors: 0, value: 16 },
+			{ errors: 0, value: [1, 2] },
+			{ errors: 0, value: [3] },
+		]);
+
+		for (const sent of ["1", "0", "no", "TRUE", "", 1, 0, ["true"]]) {
+			expect({ errors: toBoolean(sent).errors > 0, sent }).toEqual({ errors: true, sent });
+		}
+
+		for (const sent of [
+			["true", "no"],
+			["false", 0],
+		]) {
+			expect({ errors: toBooleans(sent).errors > 0, sent }).toEqual({ errors: true, sent });
+		}
+
+		for (const sent of ["016", "1e1", "0x10", "16.0", " 16", true, ["16"]]) {
+			expect({ errors: toInteger(sent).errors > 0, sent }).toEqual({ errors: true, sent });
+		}
+
+		for (const sent of [
+			["1", "016"],
+			["1", true],
+		]) {
+			expect({ errors: toIntegers(sent).errors > 0, sent }).toEqual({ errors: true, sent });
+		}
 	});
 
 	it("keeps decimal and exponent text for DOUBLE properties", () => {

@@ -16,6 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule, CorrelationIDResponseBodyInterceptor } from "../../src/index";
 import {
+	buildE2ePathParameterConsumerPipe,
 	E2E_PATH_PARAMETER_INT_MAXIMUM,
 	E2E_PATH_PARAMETER_SUBSCRIBER_TRACE,
 	E2ePathParameterDayItemController,
@@ -111,6 +112,7 @@ describe.each([
 ])("generated path parameter validation on $databaseName (E2E)", ({ isPostgres }: { databaseName: string; isPostgres: boolean }) => {
 	let app: INestApplication | undefined;
 	let pipeApp: INestApplication | undefined;
+	let consumerApp: INestApplication | undefined;
 	let container: StartedPostgreSqlContainer | undefined;
 	let document: OpenAPIObject;
 	let intItemId: number;
@@ -120,6 +122,7 @@ describe.each([
 		inject: (options: { method: string; payload?: Record<string, unknown>; url: string }) => Promise<{ json: () => unknown; statusCode: number }>;
 	};
 	let pipeFastify: typeof fastify;
+	let consumerFastify: typeof fastify;
 
 	beforeAll(async () => {
 		if (isPostgres) {
@@ -150,6 +153,18 @@ describe.each([
 		pipeApp.useGlobalPipes(new ValidationPipe({ transform: true }));
 		await pipeApp.init();
 		pipeFastify = pipeApp.getHttpAdapter().getInstance();
+
+		const consumerModuleReference = await Test.createTestingModule({
+			controllers: CONTROLLERS,
+			imports: [TypeOrmModule.forRoot(container ? { entities, logger: queryLogger, logging: ["query", "error"], type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", entities, logger: queryLogger, logging: ["query", "error"], synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature(entities), ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
+			providers: PROVIDERS,
+		}).compile();
+
+		consumerApp = consumerModuleReference.createNestApplication(new FastifyAdapter());
+		consumerApp.useGlobalInterceptors(new CorrelationIDResponseBodyInterceptor());
+		consumerApp.useGlobalPipes(buildE2ePathParameterConsumerPipe());
+		await consumerApp.init();
+		consumerFastify = consumerApp.getHttpAdapter().getInstance();
 	}, 120_000);
 
 	beforeEach(async () => {
@@ -168,6 +183,7 @@ describe.each([
 	});
 
 	afterAll(async () => {
+		await consumerApp?.close();
 		await pipeApp?.close();
 		await app?.close();
 		await container?.stop();
@@ -194,6 +210,30 @@ describe.each([
 		expect(response.statusCode).toBe(pipeResponse.statusCode);
 		expect(Object.keys(response.json() as object).toSorted()).toEqual(Object.keys(pipeResponse.json() as object).toSorted());
 		expect(omitPerRequestFields(response.json())).toEqual(omitPerRequestFields(pipeResponse.json()));
+	});
+
+	it.each(REJECTED_CASES)("rejects $name with 400 before any query under a consumer pipe", async ({ method, payload, url }: IPathParameterCase) => {
+		const response = await consumerFastify.inject({ method, payload, url });
+
+		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		expect(queryLogger.queries).toEqual([]);
+	});
+
+	it("reads, updates and deletes rows addressed by valid path values under a consumer pipe", async () => {
+		await consumerApp!.get(E2ePathParameterUuidItemService).repository.save({ id: UUID_ITEM_ID, label: "Uuid", ownerId: OWNER_ID });
+		const consumerIntItemId: number = (await consumerApp!.get(E2ePathParameterIntItemService).repository.save({ groupNumber: GROUP_NUMBER, label: "Int" })).id;
+		const uuidResponse = await consumerFastify.inject({ method: "GET", url: `/path-parameter/uuid-items/${UUID_ITEM_ID}` });
+		const intResponse = await consumerFastify.inject({ method: "GET", url: `/path-parameter/int-items/${String(consumerIntItemId)}` });
+		const patchResponse = await consumerFastify.inject({ method: "PATCH", payload: WRITE_PAYLOAD, url: `/path-parameter/int-items/${String(consumerIntItemId)}` });
+		const deleteResponse = await consumerFastify.inject({ method: "DELETE", url: `/path-parameter/uuid-items/${UUID_ITEM_ID}` });
+
+		expect(uuidResponse.statusCode).toBe(HttpStatus.OK);
+		expect(uuidResponse.json()).toMatchObject({ id: UUID_ITEM_ID });
+		expect(intResponse.statusCode).toBe(HttpStatus.OK);
+		expect(intResponse.json()).toMatchObject({ id: consumerIntItemId });
+		expect(patchResponse.statusCode).toBe(HttpStatus.OK);
+		expect(patchResponse.json()).toMatchObject({ id: consumerIntItemId, label: "Renamed" });
+		expect(deleteResponse.statusCode).toBe(HttpStatus.NO_CONTENT);
 	});
 
 	it("still queries for a well-formed uuid that does not exist", async () => {

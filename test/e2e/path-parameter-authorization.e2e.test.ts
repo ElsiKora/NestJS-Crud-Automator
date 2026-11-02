@@ -14,6 +14,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, AuthorizationResolveDefaultPrincipal, CorrelationIDResponseBodyExceptionFilter, CorrelationIDResponseBodyInterceptor, EApiAuthorizationPrincipalType } from "../../src/index";
 import {
+	buildE2ePathParameterConsumerPipe,
 	E2E_PATH_PARAMETER_IAM_ALLOWED_INT_ID,
 	E2E_PATH_PARAMETER_IAM_ALLOWED_UUID_ID,
 	E2E_PATH_PARAMETER_IAM_DENIED_INT_ID,
@@ -36,12 +37,14 @@ const ALLOWED_INT: string = String(E2E_PATH_PARAMETER_IAM_ALLOWED_INT_ID);
 const NON_CANONICAL_DENIED_INT_ALIASES: Array<string> = ["016", "%2016", "0x10", "16.0", "1.6e1", "1e3", "007"];
 
 describe.each([
-	{ databaseName: "SQLite", hasExceptionFilter: false, hasHostPipe: false, isPostgres: false },
-	{ databaseName: "SQLite", hasExceptionFilter: false, hasHostPipe: true, isPostgres: false },
-	{ databaseName: "SQLite", hasExceptionFilter: true, hasHostPipe: false, isPostgres: false },
-	{ databaseName: "PostgreSQL", hasExceptionFilter: false, hasHostPipe: false, isPostgres: true },
-	{ databaseName: "PostgreSQL", hasExceptionFilter: false, hasHostPipe: true, isPostgres: true },
-])("typed path values in IAM authorization on $databaseName, host pipe: $hasHostPipe, exception filter: $hasExceptionFilter (E2E)", ({ hasExceptionFilter, hasHostPipe, isPostgres }: { databaseName: string; hasExceptionFilter: boolean; hasHostPipe: boolean; isPostgres: boolean }) => {
+	{ databaseName: "SQLite", hasExceptionFilter: false, hostPipe: "none", isPostgres: false },
+	{ databaseName: "SQLite", hasExceptionFilter: false, hostPipe: "transform", isPostgres: false },
+	{ databaseName: "SQLite", hasExceptionFilter: false, hostPipe: "consumer", isPostgres: false },
+	{ databaseName: "SQLite", hasExceptionFilter: true, hostPipe: "none", isPostgres: false },
+	{ databaseName: "PostgreSQL", hasExceptionFilter: false, hostPipe: "none", isPostgres: true },
+	{ databaseName: "PostgreSQL", hasExceptionFilter: false, hostPipe: "transform", isPostgres: true },
+	{ databaseName: "PostgreSQL", hasExceptionFilter: false, hostPipe: "consumer", isPostgres: true },
+])("typed path values in IAM authorization on $databaseName, host pipe: $hostPipe, exception filter: $hasExceptionFilter (E2E)", ({ hasExceptionFilter, hostPipe, isPostgres }: { databaseName: string; hasExceptionFilter: boolean; hostPipe: string; isPostgres: boolean }) => {
 	const VALIDATION_BODY = (message: string): Record<string, unknown> => ({
 		error: "Bad Request",
 		message: expect.arrayContaining([message]) as unknown,
@@ -84,8 +87,13 @@ describe.each([
 			app.useGlobalFilters(new CorrelationIDResponseBodyExceptionFilter(app.get(HttpAdapterHost)));
 		}
 
-		if (hasHostPipe) {
+		if (hostPipe === "transform") {
 			app.useGlobalPipes(new ValidationPipe({ transform: true }));
+		}
+
+		// The guard checks path values before any pipe runs, so a consumer pipe with its own error body leaves the guard answer unchanged.
+		if (hostPipe === "consumer") {
+			app.useGlobalPipes(buildE2ePathParameterConsumerPipe());
 		}
 
 		await app.init();

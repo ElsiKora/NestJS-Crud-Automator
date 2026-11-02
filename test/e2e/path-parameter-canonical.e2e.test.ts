@@ -1,11 +1,10 @@
 import "reflect-metadata";
 
-import type { INestApplication, PipeTransform } from "@nestjs/common";
+import type { INestApplication } from "@nestjs/common";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import type { ValidationError } from "class-validator";
 import type { IApiAuthorizationPrincipal } from "../../src/index";
 
-import { BadRequestException, HttpStatus, ValidationPipe } from "@nestjs/common";
+import { HttpStatus, ValidationPipe } from "@nestjs/common";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { TypeOrmModule } from "@nestjs/typeorm";
@@ -15,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ApiAuthorizationModule, ApiSubscriberModule, AuthorizationResolveDefaultPrincipal, CorrelationIDResponseBodyInterceptor, EApiAuthorizationPrincipalType } from "../../src/index";
 import {
 	buildE2ePathParameterCanonicalUndescribedCustomController,
+	buildE2ePathParameterConsumerPipe,
 	E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID,
 	E2E_PATH_PARAMETER_CANONICAL_AT,
 	E2E_PATH_PARAMETER_CANONICAL_CONTROLLERS,
@@ -22,6 +22,7 @@ import {
 	E2E_PATH_PARAMETER_CANONICAL_DOCUMENTS,
 	E2E_PATH_PARAMETER_CANONICAL_DTO_KINDS,
 	E2E_PATH_PARAMETER_CANONICAL_NARROW_MAXIMUM,
+	E2ePathParameterCanonicalGetterController,
 	E2ePathParameterCanonicalGuard,
 	E2ePathParameterCanonicalInheritedAController,
 	E2ePathParameterCanonicalInheritedBController,
@@ -47,19 +48,53 @@ const UPPER_TEXT_UUID: string = "DDDDDDDD-DDDD-4DDD-8DDD-DDDDDDDDDDDD";
 const NON_CANONICAL_INTEGERS: Array<string> = ["016", "1.6e1", "0x10", "abc"];
 const NON_CANONICAL_BOOLEANS: Array<string> = ["1", "no", "TRUE", "garbage"];
 
-/**
- * Builds a host pipe like the one a consumer service registers: implicit conversion, whitelisting and its own error body.
- * @returns {PipeTransform} Host validation pipe.
- */
-const buildConsumerPipe = (): PipeTransform =>
-	new ValidationPipe({
-		exceptionFactory: (errors: Array<ValidationError>) => new BadRequestException({ code: "VALIDATION_FAILED", errors: errors.flatMap((error: ValidationError) => Object.keys(error.constraints ?? {}).map((rule: string) => ({ path: error.property, rule }))) }),
-		forbidNonWhitelisted: true,
-		forbidUnknownValues: true,
-		transform: true,
-		transformOptions: { enableImplicitConversion: true },
-		whitelist: true,
-	});
+interface ISentValueCase {
+	received?: unknown;
+	route: string;
+	sent: unknown;
+	target: "body" | "query";
+}
+
+const BOOLEAN_SENT: Array<[unknown, unknown, Array<"body" | "query">]> = [
+	["true", true, ["body", "query"]],
+	["false", false, ["body", "query"]],
+	[true, true, ["body"]],
+	[false, false, ["body"]],
+	["1", undefined, ["body", "query"]],
+	["0", undefined, ["body", "query"]],
+	["no", undefined, ["body", "query"]],
+	["TRUE", undefined, ["body", "query"]],
+	[1, undefined, ["body"]],
+	[
+		["true", "false"],
+		[true, false],
+		["body", "query"],
+	],
+	[["true", "no"], undefined, ["body", "query"]],
+	[["false", "0"], undefined, ["body", "query"]],
+];
+
+const INTEGER_SENT: Array<[unknown, unknown, Array<"body" | "query">]> = [
+	["16", 16, ["body", "query"]],
+	[16, 16, ["body"]],
+	["016", undefined, ["body", "query"]],
+	["1e1", undefined, ["body", "query"]],
+	["0x10", undefined, ["body", "query"]],
+	["16.0", undefined, ["body", "query"]],
+	[true, undefined, ["body"]],
+	[
+		["1", "2"],
+		[1, 2],
+		["body", "query"],
+	],
+	[[3], [3], ["body"]],
+	[["1", "016"], undefined, ["body", "query"]],
+];
+
+const SENT_VALUE_CASES: Array<ISentValueCase> = (["plain", "renamed"] as const).flatMap((naming: string): Array<ISentValueCase> => [
+	...BOOLEAN_SENT.flatMap(([sent, received, targets]: [unknown, unknown, Array<"body" | "query">]) => targets.map((target: "body" | "query"): ISentValueCase => ({ received, route: `boolean-${naming}`, sent, target }))),
+	...INTEGER_SENT.flatMap(([sent, received, targets]: [unknown, unknown, Array<"body" | "query">]) => targets.map((target: "body" | "query"): ISentValueCase => ({ received, route: `integer-${naming}`, sent, target }))),
+]);
 
 /**
  * Builds the testing module of the canonical path value suite.
@@ -91,9 +126,11 @@ const createCanonicalApplication = async (container: StartedPostgreSqlContainer 
 describe.each([
 	{ databaseName: "SQLite", isPostgres: false, pipe: "none" },
 	{ databaseName: "SQLite", isPostgres: false, pipe: "transform" },
+	{ databaseName: "SQLite", isPostgres: false, pipe: "implicit" },
 	{ databaseName: "SQLite", isPostgres: false, pipe: "consumer" },
 	{ databaseName: "PostgreSQL", isPostgres: true, pipe: "none" },
 	{ databaseName: "PostgreSQL", isPostgres: true, pipe: "transform" },
+	{ databaseName: "PostgreSQL", isPostgres: true, pipe: "implicit" },
 	{ databaseName: "PostgreSQL", isPostgres: true, pipe: "consumer" },
 ])("canonical path values on $databaseName, host pipe: $pipe (E2E)", ({ isPostgres, pipe }: { databaseName: string; isPostgres: boolean; pipe: string }) => {
 	let app: INestApplication | undefined;
@@ -120,8 +157,12 @@ describe.each([
 			app.useGlobalPipes(new ValidationPipe({ transform: true }));
 		}
 
+		if (pipe === "implicit") {
+			app.useGlobalPipes(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true } }));
+		}
+
 		if (pipe === "consumer") {
-			app.useGlobalPipes(buildConsumerPipe());
+			app.useGlobalPipes(buildE2ePathParameterConsumerPipe());
 		}
 
 		await app.init();
@@ -244,6 +285,42 @@ describe.each([
 		await expectStatus(`/path-parameter/canonical/boolean-echo/${kind}`, HttpStatus.BAD_REQUEST, "POST", { active: 1 });
 	});
 
+	it.each(SENT_VALUE_CASES.map((sentCase: ISentValueCase): [string, ISentValueCase] => [`${sentCase.route} ${sentCase.target} ${JSON.stringify(sentCase.sent)}`, sentCase]))("checks exactly the value the client sent: %s", async (_name: string, sentCase: ISentValueCase) => {
+		const key: string = (sentCase.route.endsWith("renamed") ? "sent_" : "") + (Array.isArray(sentCase.sent) ? "values" : "value");
+		const url: string = `/path-parameter/canonical/sent-value/${sentCase.route}`;
+		const response = sentCase.target === "body" ? await fastify.inject({ method: "POST", payload: { [key]: sentCase.sent }, url }) : await fastify.inject({ method: "GET", url: `${url}?${(Array.isArray(sentCase.sent) ? sentCase.sent : [sentCase.sent]).map((item: unknown) => `${key}=${encodeURIComponent(String(item))}`).join("&")}` });
+
+		// Without a host pipe the route validates no body or query: the handler reads the request as sent.
+		if (pipe === "none") {
+			expect(response.statusCode).toBe(HttpStatus.OK);
+
+			return;
+		}
+
+		const expected: { body: unknown; status: HttpStatus } = sentCase.received === undefined ? { body: expect.anything(), status: HttpStatus.BAD_REQUEST } : { body: { value: JSON.stringify({ [Array.isArray(sentCase.sent) ? "values" : "value"]: sentCase.received }) }, status: HttpStatus.OK };
+
+		expect({ body: response.json(), status: response.statusCode }).toEqual(expected);
+	});
+
+	it("gives IAM the canonical text of a described path value that only a condition names", async () => {
+		await expectStatus("/path-parameter/canonical/ppc-cond-only/16", HttpStatus.FORBIDDEN);
+
+		for (const value of NON_CANONICAL_INTEGERS) {
+			await expectStatus(`/path-parameter/canonical/ppc-cond-only/${value}`, HttpStatus.BAD_REQUEST);
+		}
+
+		expect(await expectStatus("/path-parameter/canonical/ppc-cond-only/1", HttpStatus.OK)).toEqual({ value: "string:1" });
+	});
+
+	it("filters a UUID text column by the lower-case value it stores", async () => {
+		const ownerId: string = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+		await app!.get(E2ePathParameterCanonicalTextUuidItemService).repository.save({ label: "filtered", ownerId });
+
+		const list: { items: Array<{ ownerId: string }> } = (await expectStatus(`/path-parameter/canonical/text-uuid?ownerId[operator]=eq&ownerId[value]=${ownerId.toUpperCase()}&limit=10&page=1`, HttpStatus.OK)) as { items: Array<{ ownerId: string }> };
+
+		expect(list.items).toEqual([expect.objectContaining({ ownerId })]);
+	});
+
 	it("leaves the raw path text to a guard that runs before authorization", async () => {
 		E2ePathParameterCanonicalGuard.RAW_PARAMETERS.length = 0;
 		await expectStatus("/path-parameter/canonical/ppc-custom-int/016", HttpStatus.BAD_REQUEST);
@@ -292,6 +369,16 @@ describe("inherited custom routes (E2E)", () => {
 		["Vb then Va", [E2ePathParameterCanonicalInheritedVbController, E2ePathParameterCanonicalInheritedVaController]],
 	] as Array<[string, Array<new () => unknown>]>)("validates the subclass Vb by its own resource path when registered %s", async (_order: string, controllers: Array<new () => unknown>) => {
 		await expectInApplication(controllers, [...vbExpectations, ["/path-parameter/canonical/ppc-inh-va/true/016", HttpStatus.BAD_REQUEST]]);
+	});
+
+	it("starts with an accessor inherited by a securable controller and still validates its custom route", async () => {
+		await expectInApplication(
+			[E2ePathParameterCanonicalGetterController],
+			[
+				["/path-parameter/canonical/ppc-getter/016", HttpStatus.BAD_REQUEST],
+				["/path-parameter/canonical/ppc-getter/1", HttpStatus.OK],
+			],
+		);
 	});
 
 	it("does not carry the rule of one application into the next", async () => {
