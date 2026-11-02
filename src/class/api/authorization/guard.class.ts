@@ -13,7 +13,7 @@ import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/author
 import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiPolicyEffect } from "@enum/class/authorization";
 import { IApiAuthorizationDecision } from "@interface/class/api/authorization";
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Optional } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, InternalServerErrorException, Optional } from "@nestjs/common";
 import { TApiAuthorizationGuardRequest } from "@type/class/api/authorization";
 import { TApiControllerGetListQuery } from "@type/decorator/api/controller";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
@@ -69,6 +69,7 @@ export class ApiAuthorizationGuard implements CanActivate {
 
 		// Path values are validated before authorization; authorization sees their canonical text, and so does every later reader of request.params.
 		// A custom route rule belongs to the controller class, because a handler inherited by several controllers is one shared function.
+		this.assertKnownPathParameters(context, request);
 		const parametersRule: IApiControllerParametersRule | undefined = this.parametersRuleRegistry.get(context.getClass(), context.getHandler()) ?? ApiControllerParametersDtoGet(context.getHandler());
 		const parameters: Partial<IApiBaseEntity> | undefined = await ApiControllerParametersResolveRequest<IApiBaseEntity>(request, parametersRule, request.params as Partial<IApiBaseEntity> | undefined);
 		this.rewriteRequestParameters(request, parameters);
@@ -96,6 +97,30 @@ export class ApiAuthorizationGuard implements CanActivate {
 		authorizationGuardLogger.verbose(`Access granted for entity "${entityConstructor.name}" action "${action}" principal "${decision.principal.id}"`);
 
 		return true;
+	}
+
+	/**
+	 * Refuses a request whose path carries a parameter that startup did not check for this route, before any policy, handler, or query sees it, so a value no rule converted never reaches authorization.
+	 * Startup reads the global prefix, the `RouterModule` path, the controller path, and the route path; a parameter outside them, or a route startup did not check, fails closed. When startup checks were replaced, as a test harness does, nothing is recorded to compare with.
+	 * @param {ExecutionContext} context - Execution context of the request.
+	 * @param {TApiAuthorizationGuardRequest} request - HTTP request.
+	 * @returns {void}
+	 * @throws {InternalServerErrorException} When `request.params` holds a parameter startup did not check.
+	 */
+	private assertKnownPathParameters(context: ExecutionContext, request: TApiAuthorizationGuardRequest): void {
+		if (!this.parametersRuleRegistry?.isStartupChecked()) {
+			return;
+		}
+
+		const requestParameters: unknown = request.params;
+		const knownParameters: ReadonlySet<string> | undefined = this.parametersRuleRegistry.getPathParameters(context.getClass(), context.getHandler());
+		const unknownParameter: string | undefined = requestParameters && typeof requestParameters === "object" ? Object.keys(requestParameters).find((key: string): boolean => !knownParameters?.has(key)) : undefined;
+
+		if (unknownParameter !== undefined) {
+			authorizationGuardLogger.error(`Controller "${context.getClass().name}" method "${context.getHandler().name}" received the path parameter "${unknownParameter}", which startup did not check for this route, so the request is refused before authorization`);
+
+			throw new InternalServerErrorException();
+		}
 	}
 
 	private attachDecisionToRequest<R>(request: TApiAuthorizationGuardRequest, decision: IApiAuthorizationDecision<IApiBaseEntity, R>): void {

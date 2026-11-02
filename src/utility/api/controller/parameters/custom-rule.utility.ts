@@ -46,9 +46,10 @@ export function ApiControllerParametersAssertComparableColumns(rule: IApiControl
  * Builds the path value rule of a securable custom route, IAM or HOOKS: the guard runs the route's own PARAMETERS DTO on the path values, so a policy sees the values the DTO produces and a handler reads the same values.
  * A route with a path parameter must declare a PARAMETERS DTO that describes it, because a policy and a handler would otherwise read the text as sent, where `016` or an upper-case UUID names the row a policy denies.
  * Each check on a request also runs here on sample values, so a DTO that could only refuse requests fails at startup. A check on samples cannot see everything, so the limits a sample cannot show are read from the metadata, and the check on each request runs on every real value.
- * @param {IApiControllerParametersCustomRuleOptions} options - Route description: the controller class and the handler name for the error message, the PARAMETERS DTO, the path parameter names of the controller and route paths, and the IAM resource path of the controller, if any.
+ * A HOOKS route also needs a column type on each path parameter, `ApiPropertyCopy` or an `ApiProperty*` decorator, because its policy compares the text with no resource path rule behind it.
+ * @param {IApiControllerParametersCustomRuleOptions} options - Route description: the controller class and the handler name for the error message, the PARAMETERS DTO, the path parameter names of the whole route path, whether each needs a column type, and the IAM resource path of the controller, if any.
  * @returns {IApiControllerParametersRule | undefined} The rule, or undefined when the route has no path parameter, so such a route costs nothing per request.
- * @throws {Error} When a path parameter has no PARAMETERS DTO that describes it, when the DTO cannot give a handler the value a policy saw, or when a resource path placeholder is not copied from an entity column.
+ * @throws {Error} When a path parameter has no PARAMETERS DTO that describes it, or no column type where one is required, when the DTO cannot give a handler the value a policy saw, or when a resource path placeholder is not copied from an entity column.
  */
 export function ApiControllerParametersBuildCustomRule(options: IApiControllerParametersCustomRuleOptions): IApiControllerParametersRule | undefined {
 	const route: string = `Controller "${options.controller.name}" method "${options.methodName}"`;
@@ -68,6 +69,11 @@ export function ApiControllerParametersBuildCustomRule(options: IApiControllerPa
 
 	if (options.dto && routeDtoProperties) {
 		assertDescribed(options.dto, routeDtoProperties, route);
+
+		if (options.isColumnTypeRequired) {
+			assertColumnTyped(options.dto, routeDtoProperties, route);
+		}
+
 		assertRouteDto(options.dto, routeDtoProperties, route);
 	}
 
@@ -113,6 +119,26 @@ function assertBooleanKeepsItsText(dto: Type<unknown>, properties: ReadonlyMap<s
 			if (readSampleText(dto, sample, property, isImplicit) === (text === "true" ? "false" : "true")) {
 				throw fail(parameter, `its PARAMETERS DTO turns "${text}" into the other boolean value: use ApiPropertyBoolean, or a @Transform that keeps both values`);
 			}
+		}
+	}
+}
+
+/**
+ * Rejects a path parameter of a HOOKS route that the PARAMETERS DTO holds without a column type: a bare validator such as `@IsString()` keeps the text as sent, so `016` or another spelling of a key names the row a policy denies.
+ * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
+ * @param {ReadonlyMap<string, string>} properties - The DTO property that holds each path parameter.
+ * @param {string} route - Controller and method, for the error message.
+ * @returns {void}
+ * @throws {Error} When a path parameter has neither `ApiPropertyCopy` nor an `ApiProperty*` decorator.
+ */
+function assertColumnTyped(dto: Type<unknown>, properties: ReadonlyMap<string, string>, route: string): void {
+	const manualProperties: ReadonlyMap<string | symbol, unknown> = GetManualDtoPropertyMetadata(dto.prototype as object);
+
+	for (const [parameter, property] of properties) {
+		const source: unknown = Reflect.getMetadata(API_CONTROLLER_PARAMETERS_SOURCE_METADATA_KEY, dto.prototype as object, property);
+
+		if (source === undefined && !manualProperties.has(property)) {
+			throw ErrorException(`${route} has the path parameter "${parameter}", which its PARAMETERS DTO "${dto.name}" holds without a column type, so a HOOKS policy would compare the text as a bare validator keeps it, where another spelling of a key names the row it denies: describe it with ApiPropertyCopy or an ApiProperty* decorator`);
 		}
 	}
 }

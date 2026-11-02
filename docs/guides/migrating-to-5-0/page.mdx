@@ -236,7 +236,7 @@ const moduleReference = await Test.createTestingModule({
 
 The replaced runtime returns a complete `IApiAuthorizationDecision`, with the enums rather than string literals: `EApiPolicyEffect.ALLOW` is `"Allow"`. A generated route runs the `transforms` of the decision on the response, so an object without them, such as `{ effect: "allow", principal: { id: "test" } }`, answers `500`. To test a `403`, return `EApiPolicyEffect.DENY` with `EApiAuthorizationDecisionType.EXPLICIT_DENY` in the trace. See [Authorization: Test Harness](/docs/nestjs-crud-automator/guides/authorization#test-harness).
 
-This turns off every startup check, the one for plain routes included, so keep it in tests. A plain route still answers `403` there, because the class guard of `@ApiControllerSecurable()` stays on.
+This turns off every startup check, the one for plain routes and the path parameter comparison of each request included, so keep it in tests. A plain route still answers `403` there, because the class guard of `@ApiControllerSecurable()` stays on.
 
 See [Authorization: Every Served Route Goes Through Authorization](/docs/nestjs-crud-automator/guides/authorization#every-served-route-goes-through-authorization).
 
@@ -398,11 +398,15 @@ A generated route, and a securable custom route with a PARAMETERS DTO in IAM or 
 - A `DATE_TIME` path value is the published `YYYY-MM-DDTHH:mm:ss.sssZ` text: `/stamps/2026-11-02T10:00:00Z` and the microsecond text `/stamps/2026-11-02T10:00:00.123456Z` return `400`. A row whose `timestamptz` key holds microseconds cannot be addressed by a generated route; keep such keys at a precision of 3 or less.
 - A decimal, numeric, float, double or money column as a path value fails at startup on a securable route, in HOOKS mode as in IAM mode. Use an integer, UUID or text key.
 
-A securable `@ApiRouteCustom` or `@ApiMethod` route with a path parameter must give its handler and its policy the value authorization saw, in IAM and HOOKS mode alike, or the application fails at startup with an error that names the controller, method, and parameter:
+A securable `@ApiRouteCustom` or `@ApiMethod` route with a path parameter must give its handler and its policy the value authorization saw, in IAM and HOOKS mode alike, or the application fails at startup with an error that names the controller, method, and parameter. The path parameters are those of the whole path: the global prefix, the `RouterModule` path, nested modules included, the controller path, and the route path.
 
-- Declare a `dto[EApiDtoType.PARAMETERS]` that describes every path parameter, preferably with `ApiPropertyCopy`, or with an `ApiProperty*` decorator. An `@ApiMethod` route with a path parameter becomes an `@ApiRouteCustom` route with that DTO.
-- Remove pipes from `@Param`, such as `@Param("id", ParseIntPipe)`; the PARAMETERS DTO converts the value.
-- Type `@Param("id")` as `string`, and read a converted value from `@Param()` typed as the PARAMETERS DTO under `ValidationPipe({ transform: true })`.
+- Declare a `dto[EApiDtoType.PARAMETERS]` that describes every path parameter, preferably with `ApiPropertyCopy`, or with an `ApiProperty*` decorator. An `@ApiMethod` route with a path parameter becomes an `@ApiRouteCustom` route with that DTO. On a HOOKS route only `ApiPropertyCopy` and `ApiProperty*` count, so replace a bare `@IsInt() @Type(() => Number)` or `@IsString()`.
+- Describe the parameters of the global prefix and the `RouterModule` path too. On a generated route, map them with `read.scope.parameters` on `GET` and `GET_LIST`, or serve the route with `@ApiRouteCustom`.
+- Replace a wildcard (`*`, `*name`, `{*name}`) in any part of a securable route's path with named path parameters.
+- Remove pipes other than `ValidationPipe` from `@UsePipes` on the method and the controller, and pipes from `@Param`, such as `@Param("id", ParseIntPipe)`; the PARAMETERS DTO converts the value. A global pipe of the host is not checked, so keep it to `ValidationPipe`.
+- Give `@Param("id")` a type that compiles to `String` or `Object`: `string`, `unknown`, `any`, or a union, not `number` or a class. Read a converted value from `@Param()` typed as the PARAMETERS DTO under `ValidationPipe({ transform: true })`.
+
+A request whose `request.params` holds a path parameter startup did not record for its route, such as one an earlier guard or middleware adds, answers `500` before the policy, the handler, and any query.
 
 A HOOKS policy now reads `context.parameters` as the canonical text, so `/016` and an upper-case UUID return `400` before it runs.
 

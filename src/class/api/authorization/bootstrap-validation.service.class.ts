@@ -18,13 +18,15 @@ import { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorator/api";
 import { Inject, Injectable, OnApplicationBootstrap, Optional, RequestMethod } from "@nestjs/common";
 import { METHOD_METADATA, MODULE_PATH, PATH_METADATA, VERSION_METADATA } from "@nestjs/common/internal";
-import { DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
+import { ApplicationConfig, DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
 import { ApiControllerParametersAssertComparableColumns, ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
 import { ApiControllerParametersDtoGet } from "@utility/api/controller/parameters/dto";
 import { ApiControllerParametersAssertHandlerArguments } from "@utility/api/controller/parameters/handler-arguments.utility";
+import { ApiControllerParametersReadPath } from "@utility/api/controller/parameters/read-path.utility";
 import { AuthorizationIsHandlerAuthorized } from "@utility/authorization/is-handler-authorized.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
+import { getMetadataStorage } from "class-validator";
 
 const authorizationBootstrapValidationLogger: LoggerUtility = LoggerUtility.getLogger("ApiAuthorizationBootstrapValidationService");
 
@@ -45,6 +47,8 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		@Optional()
 		private readonly moduleOptions: IApiAuthorizationModuleOptions = {},
 		private readonly parametersRuleRegistry: ApiAuthorizationParametersRuleRegistry,
+		@Optional()
+		private readonly applicationConfig?: ApplicationConfig,
 	) {
 		// A manual `new` without the registry, from JavaScript or through a cast, fails here instead of on the first start.
 		if (!(parametersRuleRegistry instanceof ApiAuthorizationParametersRuleRegistry)) {
@@ -65,21 +69,27 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			this.validateController(controllerWrapper);
 		}
 
+		this.parametersRuleRegistry.markStartupChecked();
+
 		authorizationBootstrapValidationLogger.verbose("Authorization bootstrap validation finished.");
 	}
 
 	/**
-	 * Registers the path value rule of each securable custom route with a path parameter, IAM or HOOKS, so the guard runs its PARAMETERS DTO and the policy and the handler see the canonical text of the values it produces. A generated route already has its rule, and only its columns are checked here.
-	 * The rule is built and kept for this controller class: a handler inherited from a base class is shared with its other subclasses, whose resource paths may differ.
-	 * A HOOKS policy compares `context.parameters` as text as an IAM Deny does, so both modes need the same rule: a route without a PARAMETERS DTO that describes each path parameter, a path value held in a decimal column, and a handler argument that converts a path value by another rule fail startup.
+	 * Checks every route of a securable controller against its whole path: the global prefix, the `RouterModule` path, the controller path, and the route path. Each path parameter must reach a policy and the handler as the text authorization checked, so:
+	 * - a wildcard in any part of the path fails startup, because its value has no name a PARAMETERS DTO can describe;
+	 * - a generated route must describe every path parameter in its generated PARAMETERS DTO;
+	 * - a custom route, IAM or HOOKS, gets the rule of its PARAMETERS DTO, which must describe every path parameter, with a column type on a HOOKS route;
+	 * - a handler argument or a `@UsePipes` pipe that converts a path value by another rule fails startup.
+	 * The parameters of each route are recorded, so the guard refuses a request that carries another one. The rule is built and kept for this controller class: a handler inherited from a base class is shared with its other subclasses, whose resource paths may differ.
+	 * @param {InstanceWrapper} controllerWrapper - Wrapper of the controller, which names its module.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
 	 * @param {EApiAuthorizationMode} defaultMode - Controller authorization mode.
 	 * @param {string | undefined} resourcePath - IAM resource path of the controller, or undefined when the controller has no IAM resource definition.
 	 * @returns {void}
-	 * @throws {Error} When a path parameter has no PARAMETERS DTO that describes it, the DTO cannot give authorization the text of a path value, a placeholder that is a path parameter is not copied from an entity column, a path parameter holds a decimal column, or a handler argument converts a path value by another rule.
+	 * @throws {Error} When a path part has a wildcard, a path parameter has no PARAMETERS DTO that describes it, the DTO cannot give authorization the text of a path value, a placeholder that is a path parameter is not copied from an entity column, a path parameter holds a decimal column, or a handler argument or pipe converts a path value by another rule.
 	 */
-	private applyRouteParameterRules(metatype: new (...arguments_: Array<unknown>) => unknown, defaultMode: EApiAuthorizationMode, resourcePath: string | undefined): void {
-		const controllerPathParameters: Array<string> = this.resolvePathParameters(Reflect.getMetadata(PATH_METADATA, metatype));
+	private applyRouteParameterRules(controllerWrapper: InstanceWrapper, metatype: new (...arguments_: Array<unknown>) => unknown, defaultMode: EApiAuthorizationMode, resourcePath: string | undefined): void {
+		const prefixPaths: Array<unknown> = [this.applicationConfig?.getGlobalPrefix() ?? "", this.resolveModulePath(controllerWrapper), Reflect.getMetadata(PATH_METADATA, metatype)];
 
 		for (const [methodName, handler] of this.collectMethods(metatype)) {
 			const metadata: IApiRouteMetadata<IApiBaseEntity> | undefined = (Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, handler) ?? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, metatype.prototype as object, methodName)) as IApiRouteMetadata<IApiBaseEntity> | undefined;
@@ -88,35 +98,65 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 				continue;
 			}
 
+			const route: string = `Controller "${metatype.name}" method "${methodName}"`;
+			const pathParameters: Array<string> = [...new Set<string>([...prefixPaths, Reflect.getMetadata(PATH_METADATA, handler)].flatMap((path: unknown): Array<string> => ApiControllerParametersReadPath(path, route)))];
+			this.parametersRuleRegistry.setPathParameters(metatype, handler, new Set<string>(pathParameters));
+
 			// A generated route carries its own rule, built from the controller entity when the controller is declared.
 			const generatedRule: IApiControllerParametersRule | undefined = ApiControllerParametersDtoGet(handler);
 
 			if (generatedRule) {
-				ApiControllerParametersAssertComparableColumns(generatedRule, `Controller "${metatype.name}" method "${methodName}"`);
-
-				continue;
+				ApiControllerParametersAssertComparableColumns(generatedRule, route);
+				this.assertGeneratedRuleDescribes(generatedRule, pathParameters, route);
 			}
 
 			const runtimeProperties: IApiRouteRuntimeProperties<IApiBaseEntity> | undefined = Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, handler) as IApiRouteRuntimeProperties<IApiBaseEntity> | undefined;
-			const dtos: object = runtimeProperties?.dto ?? {};
-			const dto: unknown = Reflect.get(dtos, EApiDtoType.PARAMETERS);
-			const pathParameters: Array<string> = [...controllerPathParameters, ...this.resolvePathParameters(Reflect.getMetadata(PATH_METADATA, handler))];
-			const routeDto: (new (...arguments_: Array<unknown>) => unknown) | undefined = this.isDtoClass(dto) ? dto : undefined;
+			const dto: unknown = Reflect.get(runtimeProperties?.dto ?? {}, EApiDtoType.PARAMETERS);
+			const routeDto: (new (...arguments_: Array<unknown>) => unknown) | undefined = generatedRule?.dto ?? (this.isDtoClass(dto) ? dto : undefined);
+
+			if (pathParameters.length > 0) {
+				ApiControllerParametersAssertHandlerArguments(metatype, methodName, handler, routeDto, route);
+			}
+
+			if (generatedRule) {
+				continue;
+			}
+
+			const mode: EApiAuthorizationMode = metadata.security?.authorization?.mode ?? defaultMode;
 
 			const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({
 				controller: metatype,
 				dto: routeDto,
+				isColumnTypeRequired: mode === EApiAuthorizationMode.HOOKS,
 				methodName,
 				pathParameters,
-				resourcePath: (metadata.security?.authorization?.mode ?? defaultMode) === EApiAuthorizationMode.IAM ? resourcePath : undefined,
+				resourcePath: mode === EApiAuthorizationMode.IAM ? resourcePath : undefined,
 			});
-
-			if (pathParameters.length > 0) {
-				ApiControllerParametersAssertHandlerArguments(metatype, methodName, routeDto, `Controller "${metatype.name}" method "${methodName}"`);
-			}
 
 			if (rule) {
 				this.parametersRuleRegistry.set(metatype, handler, rule);
+			}
+		}
+	}
+
+	/**
+	 * Rejects a path parameter that the generated PARAMETERS DTO of a route does not hold, such as one a `RouterModule` path or the global prefix adds: the generated rule would pass its text as sent.
+	 * @param {IApiControllerParametersRule} rule - Generated path value rule of the route.
+	 * @param {ReadonlyArray<string>} pathParameters - Path parameters of the whole route path.
+	 * @param {string} route - Controller and method, for the error message.
+	 * @returns {void}
+	 * @throws {Error} When a path parameter has no property in the generated PARAMETERS DTO.
+	 */
+	private assertGeneratedRuleDescribes(rule: IApiControllerParametersRule, pathParameters: ReadonlyArray<string>, route: string): void {
+		const described: Set<string> = new Set<string>(
+			getMetadataStorage()
+				.getTargetValidationMetadatas(rule.dto, "", false, false)
+				.map(({ propertyName }: { propertyName: string }): string => propertyName),
+		);
+
+		for (const parameter of pathParameters) {
+			if (!described.has(parameter)) {
+				throw ErrorException(`${route} has the path parameter "${parameter}", which its generated PARAMETERS DTO does not describe, so a policy and the service would read the text as sent: map it with read.scope.parameters on GET or GET_LIST, or serve the route with @ApiRouteCustom and a PARAMETERS DTO that describes it`);
 			}
 		}
 	}
@@ -283,17 +323,6 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		return (Reflect.getMetadata(`${MODULE_PATH}${this.modulesContainer.applicationId}`, moduleMetatype) as string | undefined) ?? (Reflect.getMetadata(MODULE_PATH, moduleMetatype) as string | undefined) ?? "";
 	}
 
-	/**
-	 * Lists the `:name` parameters of a Nest path.
-	 * @param {unknown} path - Nest `path` metadata: a string or a list of strings.
-	 * @returns {Array<string>} Parameter names.
-	 */
-	private resolvePathParameters(path: unknown): Array<string> {
-		const paths: Array<unknown> = Array.isArray(path) ? path : [path];
-
-		return paths.flatMap((entry: unknown): Array<string> => (typeof entry === "string" ? [...entry.matchAll(/:(\w+)/g)].map((match: RegExpExecArray): string => match[1] ?? "") : []));
-	}
-
 	private validateController(controllerWrapper: InstanceWrapper): void {
 		const metatype: (new (...arguments_: Array<unknown>) => unknown) | null = controllerWrapper.metatype as (new (...arguments_: Array<unknown>) => unknown) | null;
 
@@ -381,7 +410,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			this.validateResourceDefinition(metatype.name, authorization.resourceDefinition);
 		}
 
-		this.applyRouteParameterRules(metatype, authorization.defaultMode, authorization.resourceDefinition?.resourcePath);
+		this.applyRouteParameterRules(controllerWrapper, metatype, authorization.defaultMode, authorization.resourceDefinition?.resourcePath);
 	}
 
 	/**

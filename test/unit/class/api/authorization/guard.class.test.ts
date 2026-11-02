@@ -6,13 +6,26 @@ import { AUTHORIZATION_DECISION_METADATA_CONSTANT } from "@constant/class/author
 import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiAuthorizationPrincipalType, EApiPolicyEffect } from "@enum/class/authorization";
 import { EApiRouteType } from "@enum/decorator/api";
-import { ForbiddenException, RequestMethod } from "@nestjs/common";
+import { ForbiddenException, InternalServerErrorException, RequestMethod } from "@nestjs/common";
 import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
 import { describe, expect, it, vi } from "vitest";
 
 class GuardEntity {
 	public id?: string;
 }
+
+/**
+ * Builds the registry as startup leaves it for a route whose whole path has these parameters.
+ * @param {...string} parameters - Path parameter names startup checked.
+ * @returns {ApiAuthorizationParametersRuleRegistry} The registry.
+ */
+const checkedRegistry = (...parameters: Array<string>): ApiAuthorizationParametersRuleRegistry => {
+	const registry: ApiAuthorizationParametersRuleRegistry = new ApiAuthorizationParametersRuleRegistry();
+	vi.spyOn(registry, "getPathParameters").mockReturnValue(new Set<string>(parameters));
+	registry.markStartupChecked();
+
+	return registry;
+};
 
 const createExecutionContext = (controller: object, handler: () => void, request: Record<string, unknown>): ExecutionContext =>
 	({
@@ -71,6 +84,43 @@ describe("ApiAuthorizationGuard", () => {
 
 		await expect(guard.canActivate({ getClass: () => controller, getHandler: () => handler, switchToHttp: () => ({ getRequest: () => ({}) }) } as never)).rejects.toThrow("ApiAuthorizationGuard needs ApiAuthorizationParametersRuleRegistry");
 		expect(runtime.evaluate).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["a parameter startup did not record for the route", ["id"], { extra: "016", id: "1" }],
+		["any parameter of a route startup did not check", undefined, { id: "1" }],
+	])("fails closed on %s, before the policy runs", async (_case: string, recorded: Array<string> | undefined, params: Record<string, string>) => {
+		const runtime = { evaluate: vi.fn() };
+		const registry: ApiAuthorizationParametersRuleRegistry = new ApiAuthorizationParametersRuleRegistry();
+		const guard = new ApiAuthorizationGuard(runtime as never, registry);
+		const handler = function read() {};
+		const controller = class {};
+
+		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
+		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, { authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: GuardEntity, routes: {} }, controller);
+		defineRouteMetadata(handler, "read");
+
+		if (recorded) {
+			registry.setPathParameters(controller, handler, new Set<string>(recorded));
+		}
+
+		registry.markStartupChecked();
+
+		await expect(guard.canActivate(createExecutionContext(controller, handler, { params }))).rejects.toBeInstanceOf(InternalServerErrorException);
+		expect(runtime.evaluate).not.toHaveBeenCalled();
+	});
+
+	it("compares nothing when startup checks were replaced, as the documented test harness does", async () => {
+		const runtime = { evaluate: vi.fn().mockResolvedValue({ effect: EApiPolicyEffect.ALLOW, principal: { id: "user" } }) };
+		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
+		const handler = function read() {};
+		const controller = class {};
+
+		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, controller);
+		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, { authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: GuardEntity, routes: {} }, controller);
+		defineRouteMetadata(handler, "read");
+
+		await expect(guard.canActivate(createExecutionContext(controller, handler, { params: { extra: "016" } }))).resolves.toBe(true);
 	});
 
 	it("allows access when controller is not securable", async () => {
@@ -231,7 +281,7 @@ describe("ApiAuthorizationGuard", () => {
 			transforms: [],
 		};
 		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
-		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
+		const guard = new ApiAuthorizationGuard(runtime as never, checkedRegistry("id"));
 		const handler = function partialUpdate() {};
 		const controller = class {};
 		const request: Record<string, unknown> = {
@@ -309,7 +359,7 @@ describe("ApiAuthorizationGuard", () => {
 			transforms: [],
 		};
 		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
-		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
+		const guard = new ApiAuthorizationGuard(runtime as never, checkedRegistry("gameId", "ownerId"));
 		const handler = function get() {};
 		const controller = class {};
 		const rawParameters = { gameId: "entity-1", ownerId: "owner-1" };
@@ -368,7 +418,7 @@ describe("ApiAuthorizationGuard", () => {
 			transforms: [],
 		};
 		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
-		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
+		const guard = new ApiAuthorizationGuard(runtime as never, checkedRegistry("gameId", "id", "itemId"));
 
 		class AliasedBaseController {
 			public get(): void {}
@@ -465,7 +515,7 @@ describe("ApiAuthorizationGuard", () => {
 			transforms: [],
 		};
 		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
-		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
+		const guard = new ApiAuthorizationGuard(runtime as never, checkedRegistry("id"));
 		const handler = function publish() {};
 		const controller = class {};
 		const request: Record<string, unknown> = {
@@ -518,7 +568,7 @@ describe("ApiAuthorizationGuard", () => {
 			transforms: [],
 		};
 		const runtime = { evaluate: vi.fn().mockResolvedValue(decision) };
-		const guard = new ApiAuthorizationGuard(runtime as never, new ApiAuthorizationParametersRuleRegistry());
+		const guard = new ApiAuthorizationGuard(runtime as never, checkedRegistry("id"));
 		const handler = function partialUpdate() {};
 		const controller = class {};
 		const request: Record<string, unknown> = {
