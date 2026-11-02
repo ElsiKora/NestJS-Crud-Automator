@@ -330,7 +330,7 @@ class DerivedPlainSiblingController extends DerivedBaseController {}
 class DerivedGuardedSiblingController extends DerivedBaseController {}
 
 const WIRE_CASES: Array<IWireCase> = [
-	{ body: { id: "scoped-out", name: "hidden" }, method: "POST", name: "a securable CREATE outside its policy scope", path: "/derived-scoped", status: HttpStatus.NOT_FOUND },
+	{ body: { id: "scoped-out", name: "hidden" }, method: "POST", name: "a securable CREATE outside its policy scope", path: "/derived-scoped", status: HttpStatus.FORBIDDEN },
 	{ body: {}, isExpressKnownBug: true, method: "POST", name: "a custom route validator", path: "/derived-children/custom/validated", status: HttpStatus.UNPROCESSABLE_ENTITY },
 	{ body: { parent: "parent-missing" }, isExpressKnownBug: true, method: "POST", name: "a custom route request relation with a missing row", path: "/derived-children/custom/relation", status: HttpStatus.NOT_FOUND },
 	{ isExpressKnownBug: true, method: "GET", name: "a custom route response relation with a missing row", path: "/derived-children/custom/response-relation", status: HttpStatus.NOT_FOUND },
@@ -466,8 +466,8 @@ describe.each(ADAPTERS)("statuses derived from the route config on %s (E2E)", (a
 		}
 	});
 
-	it("declares 404 on a CREATE only where a policy scope can hide the new row", () => {
-		expect(declaredStatuses("/derived-scoped", "post")).toEqual([400, 403, 404, 409, 413, 415, 500]);
+	it("declares 403 and no 404 on a securable CREATE, which refuses a body outside the policy scope with 403", () => {
+		expect(declaredStatuses("/derived-scoped", "post")).toEqual([400, 403, 409, 413, 415, 500]);
 		expect(declaredStatuses("/derived-open", "post")).toEqual([400, 409, 413, 415, 500]);
 	});
 

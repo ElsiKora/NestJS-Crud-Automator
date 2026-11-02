@@ -220,7 +220,7 @@ describe("ApiControllerApplySecurableResponses", () => {
 		expect(Reflect.get(PlainSiblingController.prototype, "mine")).toBe(sharedHandler);
 	});
 
-	it("declares 404 once on a generated CREATE of a securable controller, in either decorator order", () => {
+	it("declares 403 and no 404 of its own on a generated CREATE of a securable controller, in either decorator order, because a body outside the scope answers 403", () => {
 		@ApiControllerSecurable()
 		@ApiController<ForbiddenResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: ForbiddenResponseEntity, routes: {} })
 		class ScopedAfterController {
@@ -244,9 +244,13 @@ describe("ApiControllerApplySecurableResponses", () => {
 			public service!: ApiServiceBase<ForbiddenResponseEntity>;
 		}
 
-		for (const controller of [ScopedAfterController, ScopedBeforeController, ScopedRelationController]) {
-			expect(getResponses(controller, EApiRouteType.CREATE)[HttpStatus.NOT_FOUND], controller.name).toMatchObject({ description: "Not Found" });
+		for (const controller of [ScopedAfterController, ScopedBeforeController]) {
+			expect(getResponses(controller, EApiRouteType.CREATE)[HttpStatus.FORBIDDEN], controller.name).toMatchObject({ description: "Forbidden" });
+			expect(getResponses(controller, EApiRouteType.CREATE)[HttpStatus.NOT_FOUND], controller.name).toBeUndefined();
 		}
+
+		// The missing related row of a request relation still answers 404.
+		expect(getResponses(ScopedRelationController, EApiRouteType.CREATE)[HttpStatus.NOT_FOUND]).toMatchObject({ description: "Not Found" });
 
 		expect(getResponses(NotSecurableCreateController, EApiRouteType.CREATE)[HttpStatus.NOT_FOUND]).toBeUndefined();
 	});
