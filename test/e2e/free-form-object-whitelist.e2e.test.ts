@@ -35,6 +35,9 @@ const PIPE_CASES: Array<IPipeCase> = [
 
 const FREE_FORM_VALUE: Record<string, unknown> = { deep: { list: [{ junk: true, toString: "kept" }], other: null, valueOf: 1 }, hasOwnProperty: true, id: 1, junk: "kept", toString: "kept", valueOf: 2 };
 
+// A generated route refuses the reserved key hasOwnProperty before any pipe, so its values keep only the other prototype-named keys.
+const ROUTE_FREE_FORM_VALUE: Record<string, unknown> = { deep: { list: [{ junk: true, toString: "kept" }], other: null, valueOf: 1 }, id: 1, junk: "kept", toString: "kept", valueOf: 2 };
+
 describe.each([
 	{ databaseName: "SQLite", isPostgres: false },
 	{ databaseName: "PostgreSQL", isPostgres: true },
@@ -251,8 +254,8 @@ describe.each([
 		});
 
 		it("stores and returns free-form values through a generated CREATE route", async () => {
-			const payloads: Array<Record<string, unknown>> = [{ id: 1 }, FREE_FORM_VALUE];
-			const item: Record<string, unknown> = { meta: FREE_FORM_VALUE, name: "first" };
+			const payloads: Array<Record<string, unknown>> = [{ id: 1 }, ROUTE_FREE_FORM_VALUE];
+			const item: Record<string, unknown> = { meta: ROUTE_FREE_FORM_VALUE, name: "first" };
 			const response: IInjectResponse = await fastify.inject({ method: "POST", payload: { item, payloads }, url: "/free-form-object/records" });
 			const body: { id: string; item: unknown; payloads: unknown } = response.json() as never;
 
@@ -265,7 +268,7 @@ describe.each([
 		});
 
 		it("stores and returns a value with no declared class through generated CREATE, GET and GET_LIST routes", async () => {
-			const value: { meta: Record<string, unknown>; metas: Array<Record<string, unknown>> } = { meta: FREE_FORM_VALUE, metas: [{ id: 1 }, FREE_FORM_VALUE] };
+			const value: { meta: Record<string, unknown>; metas: Array<Record<string, unknown>> } = { meta: ROUTE_FREE_FORM_VALUE, metas: [{ id: 1 }, ROUTE_FREE_FORM_VALUE] };
 			const created: IInjectResponse = await fastify.inject({ method: "POST", payload: value, url: "/free-form-object/undeclared-records" });
 			const body: { id: string } = created.json() as never;
 

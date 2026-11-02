@@ -147,22 +147,13 @@ describe("ApiRouteAssertRequestBodyShape", () => {
 		expect(JSON.stringify((refusal(wide) as BadRequestException).getResponse())).not.toContain("clientKeyMarker");
 	});
 
-	it("counts an own __proto__ key from JSON.parse as one key and leaves prototypes alone", () => {
-		const atLimit: unknown = JSON.parse(`{"__proto__":{"polluted":true},${JSON.stringify(wideObject(999)).slice(1)}`);
+	it("counts the keys of an object before it reads them, and leaves prototypes alone", () => {
 		const overLimit: unknown = JSON.parse(`{"__proto__":0,${JSON.stringify(wideObject(1000)).slice(1)}`);
-
-		expect(() => {
-			ApiRouteAssertRequestBodyShape(atLimit);
-		}).not.toThrow();
+		const reserved: unknown = JSON.parse('{"__proto__":{"polluted":true}}');
 
 		expect((refusal(overLimit) as BadRequestException).getResponse()).toMatchObject({ message: [KEYS_MESSAGE] });
+		expect((refusal(reserved) as BadRequestException).getResponse()).toMatchObject({ message: ["request body must not use the reserved key __proto__"] });
 		expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
-	});
-
-	it("walks into a __proto__ key from JSON.parse", () => {
-		const body: unknown = JSON.parse(`{"__proto__":${JSON.stringify(wideObject(1001))}}`);
-
-		expect((refusal(body) as BadRequestException).getResponse()).toMatchObject({ message: [KEYS_MESSAGE] });
 	});
 
 	it.each([
@@ -298,7 +289,6 @@ describe("ApiRouteAssertRequestBodyShape", () => {
 		{ body: wideObject(1001), expected: "", name: "the body itself" },
 		{ body: { first: { second: wideObject(1001) } }, expected: "first.second", name: "a nested object" },
 		{ body: { items: [{ ok: 1 }, { wide: wideObject(1001) }] }, expected: "items.1.wide", name: "an array item" },
-		{ body: JSON.parse(`{"__proto__":${JSON.stringify(wideObject(1001))}}`) as object, expected: "__proto__", name: "an own __proto__ key" },
 	])("gives the path of $name", ({ body, expected }: { body: object; expected: string }) => {
 		expect((refusal(body) as ApiRequestValidationException).validationErrors[0]?.property).toBe(expected);
 	});

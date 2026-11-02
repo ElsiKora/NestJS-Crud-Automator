@@ -321,6 +321,8 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 		);
 	} else if (isFreeFormObjectProperties(properties)) {
 		decorators.push(
+			// A declared type keeps class-transformer from building the value through its own `constructor` key, which a stored row may hold.
+			Type(() => Object),
 			ClassTransformerAutomatorTransform(
 				({ key, obj }: { key: string; obj: Record<string, unknown> }) => {
 					return obj[key];
