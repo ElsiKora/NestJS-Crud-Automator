@@ -105,7 +105,7 @@ function missingModuleError(controller: string): Error {
  * @returns {Error} The expected error.
  */
 function replacedHandlerError(controller: string, method: string, route: string): Error {
-	return new Error(`[NestJS-Crud-Automator] Controller "${controller}" method "${method}" serves ${route} through a function set on the controller instance, and Nest takes guards from that function, so the route skips authorization: remove the assignment, for example this.${method} = this.${method}.bind(this) in the constructor. Nest already calls a handler with this set to the controller`);
+	return new Error(`[NestJS-Crud-Automator] Controller "${controller}" method "${method}" serves ${route} through a function set on the controller instance, and Nest takes guards from that function, so the handler skips authorization: remove the assignment, for example this.${method} = this.${method}.bind(this) in the constructor. Nest already calls a handler with this set to the controller`);
 }
 
 /**
@@ -1084,6 +1084,19 @@ describe("Served routes of securable controllers (E2E)", () => {
 			applications.push(microservice);
 
 			await expect(microservice.listen()).rejects.toThrow(patternHandlerError("MessagePatternController", "message", `"securable.message"`));
+		});
+
+		it("refuses a pattern handler in a standalone microservice without the module", async () => {
+			const moduleReference: TestingModule = await Test.createTestingModule({
+				controllers: [EventPatternController],
+				imports: [TypeOrmModule.forRoot({ database: ":memory:", dropSchema: true, entities: [SecurablePlainRouteItemEntity], logging: false, synchronize: true, type: "better-sqlite3" }), TypeOrmModule.forFeature([SecurablePlainRouteItemEntity]), ApiSubscriberModule],
+				providers: [SecurablePlainRouteItemService],
+			}).compile();
+			const microservice: INestMicroservice = moduleReference.createNestMicroservice({ logger: false, options: { host: "127.0.0.1", port: await findFreePort() }, transport: Transport.TCP });
+
+			applications.push(microservice);
+
+			await expect(microservice.listen()).rejects.toThrow(missingModuleError("EventPatternController"));
 		});
 
 		it("refuses @MessagePattern in a hybrid application", async () => {

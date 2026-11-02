@@ -1,11 +1,10 @@
 import type { IApiAuthorizationModuleOptions } from "@interface/class/api/authorization";
 import type { InstanceWrapper } from "@nestjs/core/internal";
 
-import { ApiAuthorizationGuard } from "@class/api/authorization/guard.class";
 import { ApiAuthorizationHookPermissionCache } from "@class/api/authorization/hook";
 import { ApiAuthorizationIamAttachmentCache, ApiAuthorizationIamDocumentCache } from "@class/api/authorization/iam";
 import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/registry.class";
-import { AUTHORIZATION_MODULE_OPTIONS_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
+import { AUTHORIZATION_MICROSERVICE_METADATA_CONSTANT, AUTHORIZATION_MODULE_OPTIONS_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { EApiAuthorizationMode } from "@enum/class/authorization";
@@ -13,8 +12,9 @@ import { EApiRouteType } from "@enum/decorator/api/route";
 import { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorator/api";
 import { Inject, Injectable, OnApplicationBootstrap, Optional, RequestMethod } from "@nestjs/common";
-import { GUARDS_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/internal";
-import { DiscoveryService, MetadataScanner } from "@nestjs/core";
+import { METHOD_METADATA, MODULE_PATH, PATH_METADATA, VERSION_METADATA } from "@nestjs/common/internal";
+import { DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
+import { AuthorizationIsHandlerAuthorized } from "@utility/authorization/is-handler-authorized.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 
@@ -22,10 +22,10 @@ const authorizationBootstrapValidationLogger: LoggerUtility = LoggerUtility.getL
 
 @Injectable()
 export class ApiAuthorizationBootstrapValidationService implements OnApplicationBootstrap {
-	private readonly metadataScanner: MetadataScanner = new MetadataScanner();
-
 	public constructor(
 		private readonly discoveryService: DiscoveryService,
+		private readonly metadataScanner: MetadataScanner,
+		private readonly modulesContainer: ModulesContainer,
 		private readonly policyRegistry: ApiAuthorizationPolicyRegistry,
 		private readonly hookPermissionCache: ApiAuthorizationHookPermissionCache,
 		private readonly iamAttachmentCache: ApiAuthorizationIamAttachmentCache,
@@ -54,23 +54,44 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
-	 * Fails startup when a securable controller serves a route that skips authorization.
-	 * Only the Nest route metadata on the handler makes it a route.
+	 * Fails startup when a securable controller serves a handler that skips authorization.
+	 * Nest takes the route and the pattern from the prototype and the guards from the function on the instance, so both are checked. An instance of a request-scoped controller does not exist yet, so its replaced handler is left to `ApiAuthorizationHandlerGuard`.
+	 * @param {InstanceWrapper} controllerWrapper - Wrapper of the controller.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class that Nest registered.
 	 * @param {string} methodName - Name of the handler.
-	 * @param {object} handler - The handler Nest serves under that name.
+	 * @param {object} handler - The function on the prototype under that name.
 	 * @returns {void}
 	 */
-	private assertServedRouteAuthorized(metatype: new (...arguments_: Array<unknown>) => unknown, methodName: string, handler: object): void {
-		if (Reflect.getMetadata(PATH_METADATA, handler) === undefined || this.isRouteAuthorized(metatype, handler)) {
+	private assertServedHandlerAuthorized(controllerWrapper: InstanceWrapper, metatype: new (...arguments_: Array<unknown>) => unknown, methodName: string, handler: object): void {
+		const route: string | undefined = this.formatServedRoute(controllerWrapper, metatype, handler);
+		const pattern: string | undefined = this.formatHandledPattern(handler);
+
+		if (route === undefined && pattern === undefined) {
 			return;
 		}
 
-		const message: string = `Controller "${metatype.name}" method "${methodName}" serves ${this.formatServedRoute(metatype, handler)} without authorization: declare it with @ApiRouteCustom or @ApiMethod, or move it to a controller that is not securable. Route metadata written by hand also needs ApiAuthorizationGuard or a subclass of it in @UseGuards on the method or the controller; a guard instance and APP_GUARD do not count`;
+		if (!AuthorizationIsHandlerAuthorized(metatype, handler)) {
+			const message: string =
+				route === undefined
+					? `Controller "${metatype.name}" method "${methodName}" handles pattern ${String(pattern)} without authorization: move it to a controller that is not securable`
+					: `Controller "${metatype.name}" method "${methodName}" serves ${route} without authorization: declare it with @ApiRouteCustom or @ApiMethod, or move it to a controller that is not securable. Route metadata written by hand also needs ApiAuthorizationGuard or a subclass of it in @UseGuards on the method or the controller; a guard instance and APP_GUARD do not count`;
 
-		authorizationBootstrapValidationLogger.error(message);
+			authorizationBootstrapValidationLogger.error(message);
 
-		throw ErrorException(message);
+			throw ErrorException(message);
+		}
+
+		const instance: Record<string, unknown> | undefined = controllerWrapper.instance as Record<string, unknown> | undefined;
+		const servedHandler: unknown = instance ? instance[methodName] : handler;
+
+		if (servedHandler !== handler && !AuthorizationIsHandlerAuthorized(metatype, servedHandler)) {
+			const served: string = route ?? `pattern ${String(pattern)}`;
+			const message: string = `Controller "${metatype.name}" method "${methodName}" serves ${served} through a function set on the controller instance, and Nest takes guards from that function, so the handler skips authorization: remove the assignment, for example this.${methodName} = this.${methodName}.bind(this) in the constructor. Nest already calls a handler with this set to the controller`;
+
+			authorizationBootstrapValidationLogger.error(message);
+
+			throw ErrorException(message);
+		}
 	}
 
 	private assertValidMode(mode: unknown, controllerName: string, routeName?: string): asserts mode is EApiAuthorizationMode {
@@ -89,23 +110,61 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		throw ErrorException(`Controller "${controllerName}" uses unknown authorization mode "${String(mode)}"`);
 	}
 
-	private formatServedRoute(metatype: new (...arguments_: Array<unknown>) => unknown, handler: object): string {
-		const requestMethod: RequestMethod = Reflect.getMetadata(METHOD_METADATA, handler) as RequestMethod;
-		const controllerPaths: Array<string> = [Reflect.getMetadata(PATH_METADATA, metatype) as unknown].flat() as Array<string>;
-		const routePaths: Array<string> = [Reflect.getMetadata(PATH_METADATA, handler) as unknown].flat() as Array<string>;
-		const paths: Array<string> = controllerPaths.flatMap((controllerPath: string): Array<string> => routePaths.map((routePath: string): string => `/${controllerPath}/${routePath}`.replaceAll(/\/+/gu, "/").replace(/(?<=.)\/$/u, "")));
-
-		return `${RequestMethod[requestMethod]} ${paths.join(", ")}`;
-	}
-
-	private isRouteAuthorized(metatype: new (...arguments_: Array<unknown>) => unknown, handler: object): boolean {
-		if (Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, handler) === undefined) {
-			return false;
+	/**
+	 * Formats the patterns of a `@MessagePattern` or `@EventPattern` handler for an error message.
+	 * @param {object} handler - The function on the prototype.
+	 * @returns {string | undefined} The patterns as JSON, or undefined when the handler has none.
+	 */
+	private formatHandledPattern(handler: object): string | undefined {
+		if (Reflect.getMetadata(AUTHORIZATION_MICROSERVICE_METADATA_CONSTANT.PATTERN_HANDLER_KEY, handler) === undefined) {
+			return undefined;
 		}
 
-		const guards: Array<unknown> = [...((Reflect.getMetadata(GUARDS_METADATA, handler) as Array<unknown> | undefined) ?? []), ...((Reflect.getMetadata(GUARDS_METADATA, metatype) as Array<unknown> | undefined) ?? [])];
+		const patterns: Array<unknown> = (Reflect.getMetadata(AUTHORIZATION_MICROSERVICE_METADATA_CONSTANT.PATTERN_KEY, handler) as Array<unknown> | undefined) ?? [];
 
-		return guards.some((guard: unknown): boolean => guard === ApiAuthorizationGuard || (typeof guard === "function" && guard.prototype instanceof ApiAuthorizationGuard));
+		return patterns.map((pattern: unknown): string => JSON.stringify(pattern)).join(", ");
+	}
+
+	/**
+	 * Formats the HTTP route of a handler for an error message, with the `RouterModule` prefix and the version.
+	 * The global prefix and the form of the version belong to the application configuration, which is not available here.
+	 * @param {InstanceWrapper} controllerWrapper - Wrapper of the controller.
+	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class that Nest registered.
+	 * @param {object} handler - The function on the prototype.
+	 * @returns {string | undefined} The request method and paths, or undefined when the handler is not an HTTP route.
+	 */
+	private formatServedRoute(controllerWrapper: InstanceWrapper, metatype: new (...arguments_: Array<unknown>) => unknown, handler: object): string | undefined {
+		const routePath: unknown = Reflect.getMetadata(PATH_METADATA, handler);
+
+		if (routePath === undefined) {
+			return undefined;
+		}
+
+		const requestMethod: RequestMethod | undefined = Reflect.getMetadata(METHOD_METADATA, handler) as RequestMethod | undefined;
+		const modulePath: string = this.resolveModulePath(controllerWrapper);
+		const controllerPaths: Array<string> = [Reflect.getMetadata(PATH_METADATA, metatype) as unknown].flat() as Array<string>;
+		const routePaths: Array<string> = [routePath].flat() as Array<string>;
+		const paths: Array<string> = controllerPaths.flatMap((controllerPath: string): Array<string> => routePaths.map((path: string): string => `/${modulePath}/${controllerPath}/${path}`.replaceAll(/\/+/gu, "/").replace(/(?<=.)\/$/u, "")));
+		const versions: Array<unknown> = [(Reflect.getMetadata(VERSION_METADATA, handler) as unknown) ?? (Reflect.getMetadata(VERSION_METADATA, metatype) as unknown) ?? []].flat();
+		const formattedMethod: string = requestMethod === undefined ? "" : `${RequestMethod[requestMethod]} `;
+		const formattedVersion: string = versions.length === 0 ? "" : ` (version ${versions.map((version: unknown): string => (typeof version === "symbol" ? "neutral" : String(version))).join(", ")})`;
+
+		return `${formattedMethod}${paths.join(", ")}${formattedVersion}`;
+	}
+
+	/**
+	 * Resolves the `RouterModule` prefix of the module that holds a controller, the way Nest does.
+	 * @param {InstanceWrapper} controllerWrapper - Wrapper of the controller.
+	 * @returns {string} The prefix, or an empty string without one.
+	 */
+	private resolveModulePath(controllerWrapper: InstanceWrapper): string {
+		const moduleMetatype: object | undefined = controllerWrapper.host?.metatype;
+
+		if (!moduleMetatype) {
+			return "";
+		}
+
+		return (Reflect.getMetadata(`${MODULE_PATH}${this.modulesContainer.applicationId}`, moduleMetatype) as string | undefined) ?? (Reflect.getMetadata(MODULE_PATH, moduleMetatype) as string | undefined) ?? "";
 	}
 
 	private validateController(controllerWrapper: InstanceWrapper): void {
@@ -141,7 +200,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 
 		const enabledRouteTypes: Array<EApiRouteType> = Object.values(EApiRouteType).filter((routeType: EApiRouteType) => properties.routes[routeType]?.generation?.isEnabled !== false);
 		const enabledRouteModes: Set<EApiAuthorizationMode> = new Set<EApiAuthorizationMode>(enabledRouteTypes.map((routeType: EApiRouteType) => properties.routes[routeType]?.security?.authorization?.mode ?? authorization.defaultMode));
-		const methodRouteModes: Set<EApiAuthorizationMode> = this.validateControllerRoutes(metatype, properties);
+		const methodRouteModes: Set<EApiAuthorizationMode> = this.validateControllerRoutes(controllerWrapper, metatype, properties);
 
 		for (const routeMode of methodRouteModes) {
 			enabledRouteModes.add(routeMode);
@@ -197,20 +256,21 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
-	 * Validates every route a controller serves, walking its methods the way Nest does, because `@ApiController` returns a wrapper class whose prototype holds no route.
+	 * Validates every handler a controller serves, walking its methods the way Nest does, because `@ApiController` returns a wrapper class whose prototype holds no route.
 	 * The closest definition of a method name is the one Nest serves, so it hides the definitions further up, also when it has no route metadata. Accessors do not run.
+	 * @param {InstanceWrapper} controllerWrapper - Wrapper of the controller.
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class that Nest registered.
 	 * @param {IApiControllerProperties<IApiBaseEntity>} properties - Controller properties.
 	 * @returns {Set<EApiAuthorizationMode>} Authorization modes of the routes with route metadata.
 	 */
-	private validateControllerRoutes(metatype: new (...arguments_: Array<unknown>) => unknown, properties: IApiControllerProperties<IApiBaseEntity>): Set<EApiAuthorizationMode> {
+	private validateControllerRoutes(controllerWrapper: InstanceWrapper, metatype: new (...arguments_: Array<unknown>) => unknown, properties: IApiControllerProperties<IApiBaseEntity>): Set<EApiAuthorizationMode> {
 		const modes: Set<EApiAuthorizationMode> = new Set<EApiAuthorizationMode>();
 		const prototype: Record<string, unknown> = metatype.prototype as Record<string, unknown>;
 
 		for (const methodName of this.metadataScanner.getAllMethodNames(prototype)) {
 			const handler: object = prototype[methodName] as object;
 
-			this.assertServedRouteAuthorized(metatype, methodName, handler);
+			this.assertServedHandlerAuthorized(controllerWrapper, metatype, methodName, handler);
 
 			const metadata: IApiRouteMetadata<IApiBaseEntity> | undefined = Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, handler) as IApiRouteMetadata<IApiBaseEntity> | undefined;
 
@@ -224,6 +284,10 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 
 			if (metadata.resource.entity !== properties.entity) {
 				throw ErrorException(`Controller "${metatype.name}" method "${methodName}" route resource.entity must match controller entity`);
+			}
+
+			if (!(metadata as Partial<IApiRouteMetadata<IApiBaseEntity>>).route) {
+				throw ErrorException(`Controller "${metatype.name}" method "${methodName}" route metadata must declare route`);
 			}
 
 			const mode: unknown = metadata.security?.authorization?.mode ?? properties.authorization?.defaultMode;

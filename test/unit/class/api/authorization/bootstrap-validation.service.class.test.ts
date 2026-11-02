@@ -7,7 +7,7 @@ import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/
 import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiAuthorizationCacheMode, EApiAuthorizationMode, EApiAuthorizationPrincipalType } from "@enum/class/authorization";
 import { RequestMethod } from "@nestjs/common";
-import { DiscoveryService } from "@nestjs/core";
+import { DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
 import { describe, expect, it, vi } from "vitest";
 
 class ValidationEntity {}
@@ -90,7 +90,7 @@ function createService(
 		hasSubscriberForEntity: vi.fn(() => true),
 	} as unknown as ApiAuthorizationPolicyRegistry;
 
-	return new ApiAuthorizationBootstrapValidationService(discoveryService, policyRegistry, caches.hookPermission, caches.iamAttachment, caches.iamDocument, [], moduleOptions);
+	return new ApiAuthorizationBootstrapValidationService(discoveryService, new MetadataScanner(), new ModulesContainer(), policyRegistry, caches.hookPermission, caches.iamAttachment, caches.iamDocument, [], moduleOptions);
 }
 
 describe("ApiAuthorizationBootstrapValidationService", () => {
