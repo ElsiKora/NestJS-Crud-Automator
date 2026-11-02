@@ -206,6 +206,12 @@ describe.each<IHostPipeCase>([{ name: "no host pipe" }, { createPipe: () => new 
 			expect(accepted.statusCode, JSON.stringify(accepted.json())).toBe(HttpStatus.OK);
 		});
 
+		it("refuses an orderDirection in another case through the deferred DTO of a custom route", async () => {
+			const response = await fastify.inject({ method: "GET", url: `/list-lazy-response/same-file-custom?${PAGE}&orderBy=label&orderDirection=ASC` });
+
+			expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+		});
+
 		it.each(["orderBy=label", "orderDirection=asc"])("rejects %s alone through the deferred DTO of a custom route", async (order: string) => {
 			const response = await fastify.inject({ method: "GET", url: `/list-lazy-response/same-file-custom?${PAGE}&${order}` });
 
