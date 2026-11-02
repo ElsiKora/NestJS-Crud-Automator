@@ -187,7 +187,7 @@ const STORED_ROW: RuntimeRouteEntity = { id: "route-transaction-1", source: "sto
 function createStoredRowRepository(storedRows: Array<RuntimeRouteEntity>, primaryColumns: Array<{ propertyName: string; type: string }> = [], connection: object = {}): Repository<RuntimeRouteEntity> {
 	return {
 		find: vi.fn(async (): Promise<Array<RuntimeRouteEntity>> => storedRows),
-		manager: { dataSource: Object.assign(connection, { driver: { normalizeType: (column: { type: string }): string => column.type } }) },
+		manager: { dataSource: Object.assign(connection, { driver: { normalizeType: (column: { type: string }): string => column.type } }, "options" in connection ? {} : { options: { type: "postgres" } }) },
 		metadata: { primaryColumns },
 	} as unknown as Repository<RuntimeRouteEntity>;
 }
@@ -1187,7 +1187,11 @@ describe("ApiRouteRuntime generated transactions", () => {
 
 			await ApiRouteRuntime.executeGenerated(options);
 
-			expect(vi.mocked(service.create).mock.calls[0]?.[0]).toEqual({ createdAt: "2026-01-02T03:04:05.678Z", id: "route-transaction-1" });
+			const written: { createdAt: unknown; id: unknown } = vi.mocked(service.create).mock.calls[0]?.[0] as never;
+
+			expect(written.id).toBe("route-transaction-1");
+			expect(written.createdAt).toBeInstanceOf(Date);
+			expect((written.createdAt as Date).toISOString()).toBe("2026-01-02T03:04:05.678Z");
 		});
 
 		it("refuses a date and time key the column cannot store before the transaction and the write", async () => {

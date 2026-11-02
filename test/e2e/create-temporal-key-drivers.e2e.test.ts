@@ -3,7 +3,7 @@ import "reflect-metadata";
 import type { ExecutionContext, INestApplication, Type } from "@nestjs/common";
 import type { IAuthGuard } from "@nestjs/passport";
 import type { StartedTestContainer } from "testcontainers";
-import type { DataSourceOptions } from "typeorm";
+import type { DataSourceOptions, ValueTransformer } from "typeorm";
 
 import { Inject, Injectable, Module, ValidationPipe } from "@nestjs/common";
 import { APP_PIPE } from "@nestjs/core";
@@ -19,10 +19,11 @@ import { ApiAuthorizationModule, ApiAuthorizationPolicy, ApiAuthorizationPolicyB
 interface IColumnOptions {
 	default?: () => string;
 	precision?: number;
+	transformer?: ValueTransformer;
 	type?: unknown;
 }
 
-type TKeyName = "dateFunction" | "inferred" | "instant" | "instantAlias" | "instantDefault" | "instantThree" | "timestamp" | "wall" | "wallDefault" | "wallZero";
+type TKeyName = "dateFunction" | "inferred" | "instant" | "instantAlias" | "instantDefault" | "instantThree" | "instantTransformed" | "timestamp" | "wall" | "wallDefault" | "wallTransformed" | "wallZero";
 
 interface IDriverSpec {
 	columns: Partial<Record<TKeyName, IColumnOptions>>;
@@ -39,6 +40,20 @@ const MYSQL_PORT: number = 3306;
 const COCKROACH_PORT: number = 26_257;
 const CONTAINER_START_TIMEOUT: number = 240_000;
 const MICROSECOND_DEFAULT: string = "'2024-01-02 03:04:05.678912'";
+const MILLISECONDS_PER_SECOND: number = 1000;
+
+// What each call of the key transformer received, so a test sees that the key reached it as a Date.
+const transformerInputs: Array<string> = [];
+
+// Stores whole seconds, so a range over the key would collapse once each end went through it.
+const secondsTransformer: ValueTransformer = {
+	from: (value: unknown): unknown => value,
+	to: (value: unknown): unknown => {
+		transformerInputs.push(value instanceof Date ? "Date" : typeof value);
+
+		return value instanceof Date ? new Date(Math.floor(value.getTime() / MILLISECONDS_PER_SECOND) * MILLISECONDS_PER_SECOND) : value;
+	},
+};
 const STORED_PATTERN: RegExp = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?/u;
 
 const describeKey: PropertyDecorator = ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, properties: { [EApiRouteType.CREATE]: { [EApiDtoType.BODY]: { isRequired: false } } }, type: EApiPropertyDescribeType.DATE } as never);
@@ -66,6 +81,7 @@ const DRIVERS: Array<IDriverSpec> = [
 			timestamp: { precision: 3, type: "timestamp" },
 			wall: { precision: 3, type: "datetime" },
 			wallDefault: { default: () => "CURRENT_TIMESTAMP(3)", precision: 3, type: "datetime" },
+			wallTransformed: { precision: 3, transformer: secondsTransformer, type: "datetime" },
 			wallZero: { type: "datetime" },
 		},
 		name: "mariadb",
@@ -80,8 +96,10 @@ const DRIVERS: Array<IDriverSpec> = [
 			instantAlias: { type: "timestamp with time zone" },
 			instantDefault: { default: () => "now()", type: "timestamptz" },
 			instantThree: { precision: 3, type: "timestamptz" },
+			instantTransformed: { transformer: secondsTransformer, type: "timestamptz" },
 			wall: { type: "timestamp" },
 			wallDefault: { default: () => "now()", type: "timestamp" },
+			wallTransformed: { transformer: secondsTransformer, type: "timestamp" },
 			wallZero: { precision: 0, type: "timestamp" },
 		},
 		name: "cockroachdb",
@@ -210,6 +228,7 @@ describe.each(DRIVERS)("Generated CREATE temporal key on $name (E2E)", (driver: 
 	const wallClocks = pick("wall", "wallDefault", "timestamp");
 	const finer = pick("instant", "instantThree", "wall");
 	const defaults = pick("dateFunction", "inferred");
+	const transformed = pick("instantTransformed", "wallTransformed");
 	const wall = fixtures.wall as ReturnType<typeof createFixture>;
 	const wallZero = fixtures.wallZero as ReturnType<typeof createFixture>;
 	let container: StartedTestContainer | undefined;
@@ -258,6 +277,8 @@ describe.each(DRIVERS)("Generated CREATE temporal key on $name (E2E)", (driver: 
 			for (const fixture of all) {
 				await dataSource.query(`delete from ${fixture.table}`);
 			}
+
+			transformerInputs.length = 0;
 		});
 
 		async function readStored(fixture: ReturnType<typeof createFixture>, isInstant: boolean = false): Promise<Array<string>> {
@@ -266,7 +287,7 @@ describe.each(DRIVERS)("Generated CREATE temporal key on $name (E2E)", (driver: 
 			return rows.map((row: { at: Date | string }): string => normalizeStored(String(row.at))).sort();
 		}
 
-		describe.each(["UTC", "America/New_York"])("in the %s time zone", (zone: string) => {
+		describe.each(["UTC", "America/New_York", "Asia/Kolkata"])("in the %s time zone", (zone: string) => {
 			let timeZone: string | undefined;
 
 			beforeAll(() => {
@@ -295,6 +316,24 @@ describe.each(DRIVERS)("Generated CREATE temporal key on $name (E2E)", (driver: 
 
 				expect(response.json()).toEqual({ error: "Bad Request", message: ["at must carry a time zone designator or an offset"], statusCode: 400 });
 				expect(await readStored(fixture, true)).toEqual([]);
+			});
+
+			it.runIf(instants.length > 0).each(instants)("stores a historic instant exactly on %s", async (_name: TKeyName, fixture: ReturnType<typeof createFixture>) => {
+				// Before standard time a zone offset holds seconds, which node-postgres cuts from a Date it writes.
+				const response = await fastify.inject({ method: "POST", payload: { at: "1800-06-01T12:00:02Z", name: IN_SCOPE }, url: `/${fixture.path}` });
+
+				expect(response.statusCode).toBe(201);
+				expect(await readStored(fixture, true)).toEqual(["1800-06-01 12:00:02.000000"]);
+			});
+
+			it.each(transformed)("identifies a transformed key on %s by its stored value", async (name: TKeyName, fixture: ReturnType<typeof createFixture>) => {
+				const isInstant: boolean = name.startsWith("instant");
+				const response = await fastify.inject({ method: "POST", payload: { at: isInstant ? "2024-01-02T03:04:05.678Z" : "2024-01-02T03:04:05.678", name: IN_SCOPE }, url: `/${fixture.path}` });
+
+				expect(response.statusCode).toBe(201);
+				expect(await readStored(fixture, isInstant)).toEqual(["2024-01-02 03:04:05.000000"]);
+				expect(transformerInputs.length).toBeGreaterThan(0);
+				expect(new Set(transformerInputs)).toEqual(new Set(["Date"]));
 			});
 
 			it.each(wallClocks)("stores a value without a zone as its wall clock on %s", async (_name: TKeyName, fixture: ReturnType<typeof createFixture>) => {

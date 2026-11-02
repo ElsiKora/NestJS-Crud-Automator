@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import type { INestApplication, Type } from "@nestjs/common";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import type { ValueTransformer } from "typeorm";
 
 import { Inject, Injectable, Module, ValidationPipe } from "@nestjs/common";
 import { APP_PIPE } from "@nestjs/core";
@@ -15,6 +16,20 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ApiAuthorizationModule, ApiController, ApiPropertyDescribe, ApiService, ApiServiceBase, ApiSubscriberModule, AuthorizationResolveDefaultPrincipal, EApiDtoType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from "../../src/index";
 
 const MICROSECOND_DEFAULT: string = "'2024-01-02 03:04:05.678912'";
+const MILLISECONDS_PER_SECOND: number = 1000;
+
+// What each call of the key transformer received, so a test sees that the key reached it as a Date.
+const transformerInputs: Array<string> = [];
+
+// Stores whole seconds, so a range over the key would collapse once each end went through it.
+const secondsTransformer: ValueTransformer = {
+	from: (value: unknown): unknown => value,
+	to: (value: unknown): unknown => {
+		transformerInputs.push(value instanceof Date ? "Date" : typeof value);
+
+		return value instanceof Date ? new Date(Math.floor(value.getTime() / MILLISECONDS_PER_SECOND) * MILLISECONDS_PER_SECOND) : value;
+	},
+};
 
 const describeKey: PropertyDecorator = ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.DATE, properties: { [EApiRouteType.CREATE]: { [EApiDtoType.BODY]: { isRequired: false } } }, type: EApiPropertyDescribeType.DATE } as never);
 const describeName: PropertyDecorator = ApiPropertyDescribe({ description: "name", exampleValue: "value", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING });
@@ -118,7 +133,40 @@ class InferredKeyEntity {
 	public name!: string;
 }
 
-const entities: Array<Type<object>> = [DateFunctionKeyEntity, InferredKeyEntity, InstantAliasKeyEntity, InstantDefaultKeyEntity, InstantKeyEntity, InstantThreeDigitsKeyEntity, WallClockDefaultKeyEntity, WallClockKeyEntity, WallClockZeroDigitsKeyEntity];
+@Entity("temporal_key_instant_transformed")
+class InstantTransformedKeyEntity {
+	@PrimaryColumn({ transformer: secondsTransformer, type: "timestamptz" })
+	@describeKey
+	public at!: Date;
+
+	@Column({ type: "varchar" })
+	@describeName
+	public name!: string;
+}
+
+@Entity("temporal_key_instant_alias_transformed")
+class InstantAliasTransformedKeyEntity {
+	@PrimaryColumn({ transformer: secondsTransformer, type: "timestamp with time zone" })
+	@describeKey
+	public at!: Date;
+
+	@Column({ type: "varchar" })
+	@describeName
+	public name!: string;
+}
+
+@Entity("temporal_key_wall_transformed")
+class WallClockTransformedKeyEntity {
+	@PrimaryColumn({ transformer: secondsTransformer, type: "timestamp" })
+	@describeKey
+	public at!: Date;
+
+	@Column({ type: "varchar" })
+	@describeName
+	public name!: string;
+}
+
+const entities: Array<Type<object>> = [DateFunctionKeyEntity, InferredKeyEntity, InstantAliasKeyEntity, InstantAliasTransformedKeyEntity, InstantDefaultKeyEntity, InstantKeyEntity, InstantThreeDigitsKeyEntity, InstantTransformedKeyEntity, WallClockDefaultKeyEntity, WallClockKeyEntity, WallClockTransformedKeyEntity, WallClockZeroDigitsKeyEntity];
 
 function createFixture(entity: Type<object>): { controller: Type<unknown>; service: Type<unknown> } {
 	@Injectable()
@@ -194,6 +242,8 @@ describe("Generated CREATE temporal key from the body on PostgreSQL (E2E)", () =
 			for (const entity of entities) {
 				await dataSource.getRepository(entity).clear();
 			}
+
+			transformerInputs.length = 0;
 		});
 
 		async function readStored(entity: Type<object>): Promise<Array<string>> {
@@ -262,6 +312,31 @@ describe("Generated CREATE temporal key from the body on PostgreSQL (E2E)", () =
 				expect(response.statusCode).toBe(400);
 				expect(response.json()).toEqual({ error: "Bad Request", message: [`at must not hold more than ${digits} fractional second digits`], statusCode: 400 });
 				expect(await readStored(entity)).toEqual([]);
+			});
+
+			it.each([
+				["timestamptz", InstantKeyEntity],
+				["the long timestamptz alias", InstantAliasKeyEntity],
+				["timestamptz with a default", InstantDefaultKeyEntity],
+			])("stores a historic instant exactly on %s", async (_name: string, entity: Type<object>) => {
+				// Before standard time a zone offset holds seconds, which node-postgres cuts from a Date it writes.
+				const response = await fastify.inject({ method: "POST", payload: { at: "1800-06-01T12:00:02Z", name: "historic" }, url: `/${entity.name}` });
+
+				expect(response.statusCode).toBe(201);
+				expect(await readStored(entity)).toEqual(["1800-06-01 12:00:02.000000"]);
+			});
+
+			it.each([
+				["timestamptz", InstantTransformedKeyEntity, "2024-01-02T03:04:05.678Z"],
+				["the long timestamptz alias", InstantAliasTransformedKeyEntity, "2024-01-02T03:04:05.678Z"],
+				["timestamp", WallClockTransformedKeyEntity, "2024-01-02T03:04:05.678"],
+			])("identifies a transformed key on %s by its stored value", async (_name: string, entity: Type<object>, at: string) => {
+				const response = await fastify.inject({ method: "POST", payload: { at, name: "transformed" }, url: `/${entity.name}` });
+
+				expect(response.statusCode).toBe(201);
+				expect(await readStored(entity)).toEqual(["2024-01-02 03:04:05.000000"]);
+				expect(transformerInputs.length).toBeGreaterThan(0);
+				expect(new Set(transformerInputs)).toEqual(new Set(["Date"]));
 			});
 
 			it("stores a value the column precision holds", async () => {

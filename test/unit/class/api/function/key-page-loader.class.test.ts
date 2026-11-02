@@ -1,5 +1,6 @@
 import type { DataSourceOptions, FindManyOptions, ObjectLiteral, Repository } from "typeorm";
 
+import { ApiFunctionBoundOperator } from "@class/api/function/bound-operator.class";
 import { ApiFunctionKeyPageLoader } from "@class/api/function/key-page-loader.class";
 import { KeyPageAccountEntity } from "@test/unit/class/api/function/fixture/key-page-account.entity";
 import { KeyPageAuditorEntity } from "@test/unit/class/api/function/fixture/key-page-auditor.entity";
@@ -449,6 +450,13 @@ describe("ApiFunctionKeyPageLoader", () => {
 			expect(await bindParameters({ transformedAt: condition })).toEqual(parameters);
 			expect(KEY_PAGE_INSTANT_INPUTS).toHaveLength(transformerCalls);
 			expect(KEY_PAGE_INSTANT_INPUTS.every((input: unknown): boolean => input instanceof Date)).toBe(true);
+		});
+
+		it("keeps a condition that is already bound and hands the transformer nothing", async () => {
+			const bound: ApiFunctionBoundOperator<unknown> = new ApiFunctionBoundOperator<unknown>("1800-06-01T12:00:00.000Z", instants.metadata.findColumnWithPropertyPath("transformedAt")?.transformer);
+
+			expect(await bindParameters({ transformedAt: bound })).toEqual(["1800-06-01T12:00:00.000Z"]);
+			expect(KEY_PAGE_INSTANT_INPUTS).toEqual([]);
 		});
 
 		it("keeps a nested operator inside Not and binds its Date", async () => {

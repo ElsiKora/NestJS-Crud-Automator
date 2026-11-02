@@ -41,12 +41,37 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 			["a wall-clock value without a zone", WALL_CLOCK, "2024-03-10T02:30:00", new Date("2024-03-10T02:30:00")],
 			["a wall-clock value with a space separator", WALL_CLOCK, "2024-01-02 03:04:05.678", new Date("2024-01-02T03:04:05.678")],
 			["a fraction padded with zeros", { ...INSTANT, precision: 0 }, "2024-01-02T03:04:05.000000Z", "2024-01-02T03:04:05.000Z"],
-		])("writes the parsed value of %s into the body", (_name: string, column: ITemporalKeyColumn, value: string, expected: Date | string) => {
+		])("writes the parsed Date of %s into the body", (_name: string, column: ITemporalKeyColumn, value: string, expected: Date | string) => {
 			const body: Record<string, unknown> = { at: value };
 
 			ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([column]), body);
 
-			expect(body.at).toEqual(expected);
+			expect(body.at).toBeInstanceOf(Date);
+			expect((body.at as Date).getTime()).toBe(new Date(expected).getTime());
+		});
+
+		it.each([["postgres"], ["cockroachdb"]])("writes an instant on %s as a Date whose local fields are its UTC fields", (driverType: string) => {
+			const body: Record<string, unknown> = { at: "1800-06-01T12:00:02Z" };
+
+			ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([INSTANT], driverType), body);
+
+			const date: Date = body.at as Date;
+
+			expect(date).toBeInstanceOf(Date);
+			expect(date.toISOString()).toBe("1800-06-01T12:00:02.000Z");
+			expect([date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds(), date.getMilliseconds(), date.getTimezoneOffset()]).toEqual([1800, 5, 1, 12, 0, 2, 0, 0]);
+		});
+
+		it.each([
+			["a wall-clock value on postgres", WALL_CLOCK, "postgres"],
+			["an instant on mariadb", INSTANT, "mariadb"],
+		])("writes %s as the parsed Date itself", (_name: string, column: ITemporalKeyColumn, driverType: string) => {
+			const parsed: Date = ApiControllerGeneratedTemporalBodySource.parse("2024-01-02T03:04:05.678Z");
+			const body: Record<string, unknown> = { at: parsed };
+
+			ApiControllerGeneratedCreateTemporalKeyContract.parse(createRepository([column], driverType), body);
+
+			expect(body.at).toBe(parsed);
 		});
 
 		it("refuses an instant without a zone and leaves the body as it was", () => {
@@ -88,7 +113,7 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 
 			if (isAccepted) {
 				parse();
-				expect(body.at).toBe(value.toISOString());
+				expect((body.at as Date).getTime()).toBe(value.getTime());
 			} else {
 				expect(readMessages(parse)).toEqual([`at must not hold more than ${String(column.precision)} fractional second digits`]);
 			}
@@ -109,7 +134,7 @@ describe("ApiControllerGeneratedCreateTemporalKeyContract", () => {
 				expect(body.at).toBe(date);
 			} else {
 				parse();
-				expect(body.at).toBe(date.toISOString());
+				expect((body.at as Date).getTime()).toBe(date.getTime());
 			}
 		});
 
