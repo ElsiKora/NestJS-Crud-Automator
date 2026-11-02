@@ -260,12 +260,15 @@ Bootstrap validation fails fast when:
 - a custom route resolves to `hooks` and no `@ApiAuthorizationPolicy(...)` is registered for the entity, or resolves to `iam` and the controller does not meet the IAM prerequisites, also when the controller default is the other mode
 - the controller serves a route that skips authorization
 - the application has a securable controller and does not import `ApiAuthorizationModule`
+- the controller has a `@MessagePattern` or `@EventPattern` handler without authorization
+- a handler is replaced on the controller instance by a function that does not carry its authorization
+- route metadata written by hand has no `route`
 
 The closest definition of a method name is the one checked. An override with `@ApiMethod(...)` or `@ApiRouteCustom(...)` is checked in place of the route of the base class, and an override with no route decorator at all is not a route. A plain `@Post` override is served without authorization, so it fails startup, as described below. A custom route without a mode resolves to `defaultMode`, and the prerequisites of that mode apply.
 
 ### Every Served Route Goes Through Authorization
 
-On a controller decorated with `@ApiControllerSecurable()`, every route Nest serves goes through authorization, or the application does not start. Generated routes, `@ApiMethod` and `@ApiRouteCustom` qualify. A route declared only with Nest decorators, such as `@Get`, `@Post`, `@All`, `@Sse`, or `@Redirect` next to a route decorator, does not. The rule also covers a plain route inherited from a base class and a plain override of a generated or custom route.
+On a controller decorated with `@ApiControllerSecurable()`, every handler Nest serves goes through authorization, or the application does not start. Generated routes, `@ApiMethod` and `@ApiRouteCustom` qualify. A route declared only with Nest decorators, such as `@Get`, `@Post`, `@All`, `@Sse`, or `@Redirect` next to a route decorator, does not. The rule also covers a plain route inherited from a base class and a plain override of a generated or custom route.
 
 ```text
 Controller "UserController" method "report" serves GET /users/report without authorization: declare it with @ApiRouteCustom or @ApiMethod, or move it to a controller that is not securable. Route metadata written by hand also needs ApiAuthorizationGuard or a subclass of it in @UseGuards on the method or the controller; a guard instance and APP_GUARD do not count
@@ -274,7 +277,13 @@ Controller "UserController" method "report" serves GET /users/report without aut
 - There is no public or skip option. A health check or another open route moves to a controller without `@ApiControllerSecurable()`, where plain routes keep working.
 - An override with no route decorator is not a route: Nest does not serve it, and the application starts. Helper methods and accessors are ignored.
 - Route metadata written by hand counts only with `ApiAuthorizationGuard` or a subclass of it in `@UseGuards` on the method or the controller. A guard instance and `APP_GUARD` do not count. Metadata alone never runs the guard, and the guard alone answers every request with an error.
-- An application with a securable controller and no `ApiAuthorizationModule` does not start, and the error names the controller and the module. This covers a bare `@Controller` and a request-scoped controller. `Test.createTestingModule(...).compile()` without `init()` runs no startup check.
+- An application with a securable controller and no `ApiAuthorizationModule` does not start. With only plain routes `app.init()` fails, and the error names the controller and the module. This covers a bare `@Controller` and a request-scoped controller. With a generated, `@ApiMethod` or `@ApiRouteCustom` route Nest fails first, already on `compile()`, with its dependency error that names `ApiAuthorizationGuard` and `ApiAuthorizationRuntime`. The fix is the same: import the module. `Test.createTestingModule(...).compile()` of a controller with only plain routes runs no startup check.
+- A `@MessagePattern` or `@EventPattern` handler is a served handler, so it fails startup as well, in a microservice and in a hybrid application. Move it to a controller that is not securable. A handler that also has `@ApiMethod` starts and asks the policy on both transports; over a microservice transport a denial reaches the client as `Internal server error`.
+- Nest takes the route from the prototype and the guards from the function on the instance. `this.report = this.report.bind(this)` in a constructor therefore drops the guards, and startup refuses it, because Nest already calls a handler with `this` set to the controller. A function that carries all the metadata of the handler is accepted. A request-scoped instance does not exist at startup, so there the guard below decides.
+
+`@ApiControllerSecurable()` also attaches `ApiAuthorizationHandlerGuard` to the class. It applies the same rule per request and denies a handler that does not go through authorization: `403` over HTTP, `Forbidden resource` over a microservice transport. It evaluates no policy, so an authorized route is evaluated once. It covers what startup cannot see, such as a request-scoped handler or path metadata removed after the routes were registered. The guard runs for any execution context, so it also applies to a GraphQL resolver on a securable class; that case is untested, because GraphQL is not a dependency of this package.
+
+Code written to evade the check is out of scope, for example calling `ApiControllerSecurable()` inside a bootstrap hook or a constructor that returns an object of another class.
 
 ## Runtime authorization actions
 
@@ -754,7 +763,7 @@ The authorization module validates configuration during bootstrap. Common failur
 - securable controllers without an `authorization` block
 - controllers with an `authorization` block but no `@ApiControllerSecurable()`
 - a custom route, declared or inherited, without `resource.action` or with a `resource.entity` other than the controller entity
-- a securable controller that serves a route that skips authorization; see [Every Served Route Goes Through Authorization](#every-served-route-goes-through-authorization)
+- a securable controller that serves a route, a pattern handler or a handler replaced on the instance that skips authorization; see [Every Served Route Goes Through Authorization](#every-served-route-goes-through-authorization)
 - hooks mode enabled for an entity with no discovered `@ApiAuthorizationPolicy(...)`, for routes that resolve to that mode
 - IAM mode without `policyNamespace`, `resourceDefinition`, or registered `documentSources`, for routes that resolve to that mode
 - an unknown authorization cache mode or `MEMORY` without positive safe-integer `ttlMs` and `maxEntries`
@@ -787,6 +796,6 @@ IAM Deny statements are compiled into row exclusions instead of being applied to
 - An Allow statement whose `resource.*` value is `""` or resolves to `null` or `""` is no longer compiled into an equality scope; the statement is unmatched, so without another matching Allow the request is an implicit deny.
 - Row-scoped list Deny patterns that cannot be mapped, such as a prefix pattern that crosses a placeholder or runs over several of them, deny the list with `403`.
 
-From 5.0.0 a securable controller with a plain Nest route does not start, and neither does an application with a securable controller and no `ApiAuthorizationModule`. Before 5.0.0 such a route was served with no authorization and startup said nothing. Declare the route with `@ApiRouteCustom` or `@ApiMethod`, or move it to a controller that is not securable, and import the module. See [Every Served Route Goes Through Authorization](#every-served-route-goes-through-authorization).
+From 5.0.0 a securable controller with a plain Nest route, a pattern handler without authorization or a handler replaced on the instance without its guards does not start, and neither does an application with a securable controller and no `ApiAuthorizationModule`. Before 5.0.0 such a handler was served with no authorization and startup said nothing. Declare the route with `@ApiRouteCustom` or `@ApiMethod`, or move it to a controller that is not securable, remove the replacement, and import the module. See [Every Served Route Goes Through Authorization](#every-served-route-goes-through-authorization).
 
-See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the hooks policy contract and the [controller decorator docs](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) for marker behavior.
+See the [API Reference](/docs/nestjs-crud-automator/api-reference/decorators#apiauthorizationpolicy) for the hooks policy contract and the [controller decorator docs](/docs/nestjs-crud-automator/api-reference/decorators/api-controller/api-controller-securable) for what the decorator does.

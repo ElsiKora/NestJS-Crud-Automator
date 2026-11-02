@@ -17,7 +17,8 @@ Decorator without options that enables the authorization pipeline for a controll
 - Requires custom `@ApiMethod(...)` and `@ApiRouteCustom(...)` handlers on the controller and its base classes to declare `resource.action` and a `resource.entity` equal to the controller entity.
 - Is validated at bootstrap: missing `authorization` on a securable controller and a custom route that breaks the rule above are configuration errors.
 - Fails startup in an application that does not import `ApiAuthorizationModule`, on a bare `@Controller` too.
-- Refuses at bootstrap any served route that skips authorization, such as a plain `@Get`. See [Every Served Route Goes Through Authorization](/docs/nestjs-crud-automator/guides/authorization#every-served-route-goes-through-authorization).
+- Attaches `ApiAuthorizationHandlerGuard` to the class, which denies per request a handler that does not go through authorization.
+- Refuses at bootstrap any served handler that skips authorization, such as a plain `@Get`, a `@MessagePattern` handler or a handler bound in a constructor. See [Every Served Route Goes Through Authorization](/docs/nestjs-crud-automator/guides/authorization#every-served-route-goes-through-authorization).
 
 ## Example
 
