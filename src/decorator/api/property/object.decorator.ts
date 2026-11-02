@@ -423,19 +423,22 @@ function validateOptions(properties: TApiPropertyObjectProperties): void {
 	}
 
 	if (properties.isArray === true) {
-		if (properties.minItems > properties.maxItems) {
+		// A response array may leave out its bounds; each check runs on the bounds it declares.
+		const { isUniqueItems, maxItems, minItems }: { isUniqueItems?: boolean; maxItems?: number; minItems?: number } = properties;
+
+		if (minItems !== undefined && maxItems !== undefined && minItems > maxItems) {
 			errors.push("'minItems' is greater than 'maxItems'");
 		}
 
-		if (properties.minItems < 0) {
+		if (minItems !== undefined && minItems < 0) {
 			errors.push("'minItems' is less than 0");
 		}
 
-		if (properties.maxItems < 0) {
+		if (maxItems !== undefined && maxItems < 0) {
 			errors.push("'maxItems' is less than 0");
 		}
 
-		if (properties.isUniqueItems && properties.maxItems <= 1) {
+		if (isUniqueItems && maxItems !== undefined && maxItems <= 1) {
 			errors.push("'uniqueItems' is true but 'maxItems' is less than or equal to 1");
 		}
 	}

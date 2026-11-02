@@ -108,7 +108,21 @@ class OpenDiscriminatorDto {
 	public pet!: CatDto | DogDto;
 }
 
+class UnboundedResponseArrayDto {
+	@ApiPropertyObject({ description: "rows", entity: ObjectEntity, isArray: true, isResponse: true, type: ChildDto })
+	public rows!: Array<ChildDto>;
+}
+
 describe("ApiPropertyObject", () => {
+	it("documents a response array without bounds when it declares none", () => {
+		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, UnboundedResponseArrayDto.prototype, "rows") as Record<string, unknown>;
+
+		expect(metadata.isArray).toBe(true);
+		expect(metadata).not.toHaveProperty("maxItems");
+		expect(metadata).not.toHaveProperty("minItems");
+		expect(metadata).not.toHaveProperty("uniqueItems");
+	});
+
 	it("writes swagger metadata for single objects", () => {
 		const metadata = Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES, ParentDto.prototype, "payload");
 

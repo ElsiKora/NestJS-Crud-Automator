@@ -1,5 +1,5 @@
 import type { Type } from "@nestjs/common";
-import type { TApiPropertyBaseProperties } from "@type/decorator/api/property/base";
+import type { TApiPropertyBaseProperties, TApiPropertyBaseResponseArrayProperties } from "@type/decorator/api/property/base";
 import type { TSwaggerReferenceObject, TSwaggerSchemaObject } from "@type/swagger";
 import type { ClassConstructor } from "class-transformer";
 
@@ -9,7 +9,7 @@ export type TApiPropertyObjectWithDiscriminatorProperties = {
 	shouldValidateNested?: boolean;
 	// eslint-disable-next-line @elsikora/typescript/no-unsafe-function-type
 	type: Array<Function> | Array<Type<unknown>>;
-} & TApiPropertyBaseProperties;
+} & (TApiPropertyBaseProperties | TApiPropertyBaseResponseArrayProperties);
 
 export type TTypeDiscriminator = {
 	mapping: Record<string, ClassConstructor<unknown>>;
