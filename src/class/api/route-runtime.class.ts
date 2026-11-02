@@ -367,7 +367,8 @@ export class ApiRouteRuntime {
 							async (): Promise<E> => await Reflect.apply(createFunction, service, [createProperties]),
 							(entity: object): Partial<Record<keyof E, unknown>> => ApiControllerGeneratedCreateIdentityContract.capture(entity, primaryColumns),
 						);
-						const identity: FindOptionsWhere<E> = await ApiControllerGeneratedCreateIdentityContract.identify(repository && eventManager?.getRepository<E>(repository.target), createdKey);
+						const identityRepository: Repository<E> | undefined = repository && eventManager?.getRepository<E>(repository.target);
+						const identity: FindOptionsWhere<E> = await ApiControllerGeneratedCreateIdentityContract.identify(identityRepository, createdKey);
 
 						const requestProperties: TApiFunctionGetProperties<E> = {
 							relationLoadStrategy: routeConfig.relations?.response?.load?.relationLoadStrategy,
@@ -375,7 +376,7 @@ export class ApiRouteRuntime {
 							where: AuthorizationScopeMergeWhere(identity, scopeWhere),
 						};
 
-						return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => {
+						const created: E = await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => {
 							try {
 								return await Reflect.apply(getFunction, service, [requestProperties]);
 							} catch (error) {
@@ -386,6 +387,11 @@ export class ApiRouteRuntime {
 								throw error;
 							}
 						});
+
+						// A row another request committed into the millisecond of the created key would answer in its place.
+						await ApiControllerGeneratedCreateIdentityContract.confirm(identityRepository, identity);
+
+						return created;
 					},
 					true,
 				);

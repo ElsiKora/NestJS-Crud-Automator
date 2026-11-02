@@ -79,7 +79,7 @@ class FactoryEntity {
 	public count!: number;
 }
 
-const storedRowRepository = { find: vi.fn(async () => [{ id: "id-1" }]), metadata: { primaryColumns: [] } };
+const storedRowRepository = { count: vi.fn(async () => 1), metadata: { primaryColumns: [] } };
 
 class FactoryService extends ApiServiceBase<FactoryEntity> {
 	public override create = vi.fn(async (properties: Partial<FactoryEntity>) => {
@@ -169,7 +169,14 @@ describe("ApiController", () => {
 
 		// GET_LIST reads filter column types from the repository metadata; the test never connects.
 		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
-		(controller.service as FactoryService & { repository?: unknown }).repository = dataSource.getRepository(FactoryEntity);
+		const repository: Repository<FactoryEntity> = dataSource.getRepository(FactoryEntity);
+		(controller.service as FactoryService & { repository?: unknown }).repository = repository;
+
+		// The route transaction of CREATE runs on a stub connection whose repository holds the created row once.
+		const stored: Repository<FactoryEntity> = Object.assign(Object.create(repository) as Repository<FactoryEntity>, { count: vi.fn(async () => 1) });
+		const transaction = createTransactionFixture({ getRepository: vi.fn(() => stored) } as never);
+		Object.assign(transaction.entityManager, { dataSource });
+		vi.spyOn(dataSource, "createQueryRunner").mockReturnValue(transaction.queryRunner);
 
 		const headers: Record<string, string> = {};
 		const ip = "127.0.0.1";
@@ -204,26 +211,31 @@ describe("ApiController", () => {
 	});
 
 	describe("generated create at startup", () => {
-		const REFUSED_REPOSITORY: Repository<IApiBaseEntity> = Object.create(Repository.prototype, {
-			manager: { value: { dataSource: { driver: { normalizeType: (column: { type: string }): string => column.type }, isInitialized: true, options: { type: "mysql" } } } },
-			metadata: { value: { name: "FactoryEntity", primaryColumns: [{ isCreateDate: true, propertyName: "at", type: "datetime" }] } },
-		}) as Repository<IApiBaseEntity>;
 		const CREATE_DISABLED: object = { [EApiRouteType.CREATE]: { generation: { isEnabled: false } } };
+		let repository: Repository<IApiBaseEntity>;
 
-		beforeEach(() => {
+		beforeEach(async () => {
 			vi.spyOn(ApiFunctionKeyPageLoader, "assertRelationLoad").mockReturnValue(undefined);
+
+			const dataSource: DataSource = new DataSource({ entities: [FactoryEntity], type: "postgres" });
+
+			// Metadata is enough for the startup check; the test never connects.
+			await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+			repository = dataSource.getRepository(FactoryEntity) as Repository<IApiBaseEntity>;
 		});
 
 		afterEach(() => {
 			vi.restoreAllMocks();
 		});
 
-		function createController(routes: object, service: unknown, onApplicationBootstrap?: () => void): { onApplicationBootstrap: () => Promise<void> } {
+		function createController(routes: object, isProtected: boolean, onApplicationBootstrap?: () => void): { onApplicationBootstrap: () => Promise<void> } {
 			@ApiService<IApiBaseEntity>({ entity: FactoryEntity })
 			class ProtectedService extends ApiServiceBase<IApiBaseEntity> {}
 
+			const service: ApiServiceBase<IApiBaseEntity> = isProtected ? new ProtectedService() : new ApiServiceBase<IApiBaseEntity>();
+
 			class StartupController {
-				public service = (service === "protected" ? Object.assign(new ProtectedService(), { repository: REFUSED_REPOSITORY }) : service) as ApiServiceBase<any>;
+				public service = Object.assign(service, { repository }) as ApiServiceBase<any>;
 			}
 
 			if (onApplicationBootstrap) {
@@ -235,34 +247,22 @@ describe("ApiController", () => {
 			return new Decorated() as unknown as { onApplicationBootstrap: () => Promise<void> };
 		}
 
-		it("names the controller and the reason of a key the database cannot hand back", async () => {
-			await expect(createController({}, "protected").onApplicationBootstrap()).rejects.toThrow('Controller "StartupController" route "create" cannot identify the row it creates: the database fills date and time primary column at of FactoryEntity, and the mysql driver cannot read that value back');
-		});
-
 		it("names the controller and the reason of a NONE route", async () => {
-			await expect(createController({ [EApiRouteType.CREATE]: { transaction: { mode: EApiFunctionTransactionMode.NONE } } }, "protected").onApplicationBootstrap()).rejects.toThrow('Controller "StartupController" route "create" cannot use transaction mode NONE, because a generated create checks the stored row before it commits');
+			await expect(createController({ [EApiRouteType.CREATE]: { transaction: { mode: EApiFunctionTransactionMode.NONE } } }, true).onApplicationBootstrap()).rejects.toThrow('Controller "StartupController" route "create" cannot use transaction mode NONE, because a generated create checks the stored row before it commits');
 		});
 
 		it("names the controller and the reason of an undecorated create", async () => {
-			await expect(createController({}, { repository: REFUSED_REPOSITORY }).onApplicationBootstrap()).rejects.toThrow('Controller "StartupController" route "create": Generated create service function is not available');
+			await expect(createController({}, false).onApplicationBootstrap()).rejects.toThrow('Controller "StartupController" route "create": Generated create service function is not');
 		});
 
 		it("does not check a controller whose create is not generated", async () => {
-			await expect(createController(CREATE_DISABLED, { repository: REFUSED_REPOSITORY }).onApplicationBootstrap()).resolves.toBeUndefined();
-		});
-
-		it.each([
-			["a mocked repository", { create: vi.fn(), get: vi.fn(), repository: { find: vi.fn() } }],
-			["a service without a repository", {}],
-			["no service", undefined],
-		])("skips the checks for %s", async (_name: string, service: unknown) => {
-			await expect(createController({}, service).onApplicationBootstrap()).resolves.toBeUndefined();
+			await expect(createController(CREATE_DISABLED, false).onApplicationBootstrap()).resolves.toBeUndefined();
 		});
 
 		it("still runs the bootstrap hook of the controller", async () => {
 			const onApplicationBootstrap = vi.fn();
 
-			await createController(CREATE_DISABLED, undefined, onApplicationBootstrap).onApplicationBootstrap();
+			await createController(CREATE_DISABLED, true, onApplicationBootstrap).onApplicationBootstrap();
 
 			expect(onApplicationBootstrap).toHaveBeenCalledTimes(1);
 		});

@@ -185,11 +185,9 @@ function createGeneratedReadOrDeleteOptions(service: ApiServiceBase<RuntimeRoute
 const STORED_ROW: RuntimeRouteEntity = { id: "route-transaction-1", source: "stored" };
 
 function createStoredRowRepository(storedRows: Array<RuntimeRouteEntity>, primaryColumns: Array<{ propertyName: string; type: string }> = [], connection: object = {}): Repository<RuntimeRouteEntity> {
-	return {
-		find: vi.fn(async (): Promise<Array<RuntimeRouteEntity>> => storedRows),
-		manager: { dataSource: Object.assign(connection, { driver: { normalizeType: (column: { type: string }): string => column.type } }, "options" in connection ? {} : { options: { type: "postgres" } }) },
-		metadata: { primaryColumns },
-	} as unknown as Repository<RuntimeRouteEntity>;
+	const dataSource: object = Object.assign(connection, { driver: { normalizeType: (column: { type: string }): string => column.type } }, "options" in connection ? {} : { options: { type: "postgres" } });
+
+	return Object.assign(createTypeOrmRepositoryStub<RuntimeRouteEntity>(dataSource, { columns: [], primaryColumns }), { count: vi.fn(async (): Promise<number> => storedRows.length) });
 }
 
 function createRouteTransactionFixture(storedRows: Array<RuntimeRouteEntity> = [STORED_ROW], primaryColumns: Array<{ propertyName: string; type: string }> = []): ReturnType<typeof createTransactionFixture> {
@@ -1059,7 +1057,7 @@ describe("ApiRouteRuntime generated transactions", () => {
 
 			await ApiRouteRuntime.executeGenerated(createCompositeOptions(service, { source: "response" }));
 
-			expect(vi.mocked(transaction.entityManager.getRepository).mock.results[0]?.value.find).toHaveBeenCalledWith({ loadEagerRelations: false, take: 2, where: { id: "route-transaction-1" } });
+			expect(vi.mocked(transaction.entityManager.getRepository).mock.results[0]?.value.count).toHaveBeenCalledWith({ loadEagerRelations: false, where: { id: "route-transaction-1" } });
 			expect(vi.mocked(service.get).mock.calls[0]?.[0].where).toEqual({ id: Equal("route-transaction-1"), source: Equal("response") });
 			expect(transaction.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
 		});
@@ -1102,6 +1100,20 @@ describe("ApiRouteRuntime generated transactions", () => {
 
 			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }))).rejects.toThrow("Generated create result must identify exactly one stored row");
 			expect(service.get).not.toHaveBeenCalled();
+			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+			expect(transaction.queryRunner.commitTransaction).not.toHaveBeenCalled();
+		});
+
+		it("rolls back with 500 when a sibling row matches the identity after the reload", async () => {
+			const transaction = createRouteTransactionFixture();
+			const service: ApiServiceBase<RuntimeRouteEntity> = createRouteService(transaction.dataSource);
+			const repository: Repository<RuntimeRouteEntity> = vi.mocked(transaction.entityManager.getRepository)(RuntimeRouteEntity) as Repository<RuntimeRouteEntity>;
+
+			vi.mocked(repository.count).mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+
+			await expect(ApiRouteRuntime.executeGenerated(createScopedCreateOptions(service, { source: "response" }))).rejects.toThrow("Generated create result must identify exactly one stored row");
+			expect(service.get).toHaveBeenCalledTimes(1);
+			expect(repository.count).toHaveBeenCalledTimes(2);
 			expect(transaction.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
 			expect(transaction.queryRunner.commitTransaction).not.toHaveBeenCalled();
 		});
