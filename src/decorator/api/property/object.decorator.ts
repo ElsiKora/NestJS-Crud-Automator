@@ -19,9 +19,10 @@ import { ErrorException } from "@utility/error/exception.utility";
 import { GetAutoDtoContext } from "@utility/get/auto-dto-context.utility";
 import { RegisterAutoDtoChild } from "@utility/register-auto-dto-child.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
+import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
 import { MustMatchOneOfSchemasValidator } from "@validator/must-match-one-of-schemas.validator";
 import { Exclude, Expose, Transform, TransformationType, Type } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsObject, ValidateIf, ValidateNested } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsObject, Validate, ValidateIf, ValidateNested } from "class-validator";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
@@ -209,6 +210,10 @@ function buildRequestDecorators(properties: TApiPropertyObjectProperties): Array
 
 		if (properties.isArray === true) {
 			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
+
+			if (properties.isUniqueItems) {
+				decorators.push(Validate(ArrayUniqueItemsValidator));
+			}
 
 			if (properties.minItems > 0) {
 				decorators.push(ArrayNotEmpty());

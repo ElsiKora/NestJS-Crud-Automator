@@ -1,8 +1,4 @@
-import type { ClassConstructor } from "class-transformer";
-
-import { getMetadataStorage } from "class-validator";
-
-const DECLARED_PROPERTY_NAMES_BY_TYPE: WeakMap<ClassConstructor<unknown>, ReadonlySet<string>> = new WeakMap<ClassConstructor<unknown>, ReadonlySet<string>>();
+import { DtoGetDeclaredPropertyNames } from "@utility/dto/get/declared-property-names.utility";
 
 /**
  * Removes undeclared own properties from an already transformed request DTO or DTO array.
@@ -25,29 +21,6 @@ export function DtoProjectOpenRequestObject(value: unknown): unknown {
 }
 
 /**
- * Resolves and caches the complete inherited validation-property inventory for a DTO type.
- * @param {ClassConstructor<unknown>} constructor - Runtime DTO constructor.
- * @returns {ReadonlySet<string>} Declared validation property names.
- */
-function getDeclaredPropertyNames(constructor: ClassConstructor<unknown>): ReadonlySet<string> {
-	const cachedPropertyNames: ReadonlySet<string> | undefined = DECLARED_PROPERTY_NAMES_BY_TYPE.get(constructor);
-
-	if (cachedPropertyNames) {
-		return cachedPropertyNames;
-	}
-
-	const declaredPropertyNames: ReadonlySet<string> = new Set(
-		getMetadataStorage()
-			.getTargetValidationMetadatas(constructor, "", true, false)
-			.map(({ propertyName }: { propertyName: string }): string => propertyName),
-	);
-
-	DECLARED_PROPERTY_NAMES_BY_TYPE.set(constructor, declaredPropertyNames);
-
-	return declaredPropertyNames;
-}
-
-/**
  * Projects one transformed DTO instance to properties declared by validation metadata.
  * @param {unknown} value - Candidate transformed DTO instance.
  * @returns {void}
@@ -57,15 +30,11 @@ function projectObject(value: unknown): void {
 		return;
 	}
 
-	const prototype: null | object = Object.getPrototypeOf(value) as null | object;
-	const constructorCandidate: unknown = prototype && "constructor" in prototype ? prototype.constructor : undefined;
+	const declaredPropertyNames: ReadonlySet<string> | undefined = DtoGetDeclaredPropertyNames(value);
 
-	if (typeof constructorCandidate !== "function" || constructorCandidate === Object) {
+	if (!declaredPropertyNames) {
 		return;
 	}
-
-	const constructor: ClassConstructor<unknown> = constructorCandidate as ClassConstructor<unknown>;
-	const declaredPropertyNames: ReadonlySet<string> = getDeclaredPropertyNames(constructor);
 
 	for (const propertyName of Object.keys(value)) {
 		if (!declaredPropertyNames.has(propertyName)) {

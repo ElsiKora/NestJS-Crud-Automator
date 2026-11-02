@@ -14,8 +14,9 @@ import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-e
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
+import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
 import { Exclude, Expose } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsUUID, ValidateIf } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsUUID, Validate, ValidateIf } from "class-validator";
 
 /**
  * Creates a decorator that applies NestJS Swagger and class-validator/class-transformer decorators
@@ -192,6 +193,11 @@ function buildRequestDecorators(properties: TApiPropertyUuidProperties): Array<P
 
 		if (properties.isArray === true) {
 			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
+
+			if (properties.isUniqueItems) {
+				// One UUID can be spelled in either case, and IsUUID accepts both.
+				decorators.push(Validate(ArrayUniqueItemsValidator, [(item: string): string => item.toLowerCase()]));
+			}
 
 			if (properties.minItems > 0) {
 				decorators.push(ArrayNotEmpty());

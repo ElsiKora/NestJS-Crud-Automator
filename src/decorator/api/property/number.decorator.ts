@@ -13,8 +13,9 @@ import { ApplyAutoDtoResponseExposure } from "@utility/apply-auto-dto-response-e
 import { RegisterManualDtoPropertyMetadata } from "@utility/dto/manual/property-metadata/register.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { WithResolvedPropertyEntity } from "@utility/with-resolved-property-entity.utility";
+import { ArrayUniqueItemsValidator } from "@validator/array-unique-items.validator";
 import { Exclude, Expose, Transform, Type } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDivisibleBy, IsInt, isInt, IsNumber, Max, Min, ValidateIf } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, ArrayNotEmpty, IsArray, IsDivisibleBy, IsInt, isInt, IsNumber, Max, Min, Validate, ValidateIf } from "class-validator";
 import random from "lodash/random.js";
 
 /**
@@ -260,6 +261,10 @@ function buildRequestDecorators(properties: TApiPropertyNumberProperties): Array
 
 		if (properties.isArray === true) {
 			decorators.push(IsArray(), ArrayMinSize(properties.minItems), ArrayMaxSize(properties.maxItems));
+
+			if (properties.isUniqueItems) {
+				decorators.push(Validate(ArrayUniqueItemsValidator));
+			}
 
 			if (properties.minItems > 0) {
 				decorators.push(ArrayNotEmpty());
