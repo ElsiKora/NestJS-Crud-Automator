@@ -108,6 +108,7 @@ function buildApiPropertyOptions(uuidExample: string, properties: TApiPropertyUu
 		apiPropertyOptions.items = {
 			maxLength: uuidExample.length,
 			minLength: uuidExample.length,
+			type: EApiPropertyDataType.STRING,
 		};
 		apiPropertyOptions.example = [uuidExample];
 	} else {

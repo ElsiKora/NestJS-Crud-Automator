@@ -177,6 +177,7 @@ function buildApiPropertyOptions(properties: TApiPropertyStringProperties): ApiP
 		apiPropertyOptions.items = {
 			maxLength: properties.maxLength,
 			minLength: properties.minLength,
+			type: EApiPropertyDataType.STRING,
 		};
 		apiPropertyOptions.example = Array.isArray(properties.exampleValue) ? properties.exampleValue : [properties.exampleValue];
 	} else {

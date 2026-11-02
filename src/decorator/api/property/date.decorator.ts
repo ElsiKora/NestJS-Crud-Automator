@@ -118,6 +118,7 @@ function buildApiPropertyOptions(properties: TApiPropertyDateProperties): ApiPro
 		apiPropertyOptions.items = {
 			maxLength: example.length,
 			minLength: example.length,
+			type: EApiPropertyDataType.STRING,
 		};
 		apiPropertyOptions.example = [example];
 	} else {
