@@ -6,7 +6,7 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 import type { TApiRouteDiscriminatedDtoProperties } from "@type/decorator/api/route";
 
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
-import { EApiDtoType } from "@enum/decorator/api";
+import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { applyDecorators } from "@nestjs/common";
 import { PARAMTYPES_METADATA, ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
 import { ApiBody, ApiExtraModels } from "@nestjs/swagger";
@@ -131,8 +131,13 @@ function resolveRequestDto<E extends IApiBaseEntity>(metadata: IApiRouteMetadata
 		routes: {},
 	};
 
+	const responseType: Array<Type<unknown>> | Type<unknown> | undefined = metadata.response?.type;
+	// A single response type limits the GET_LIST order fields to the item properties it publishes, as a generated route's manual response DTO does.
+	const listResponseDto: Type<unknown> | undefined = metadata.route.type === EApiRouteType.GET_LIST && dtoType === EApiDtoType.QUERY && !runtimeProperties.dto?.[EApiDtoType.RESPONSE] && !Array.isArray(responseType) ? responseType : undefined;
+
 	const routeConfig: TApiControllerPropertiesRoute<E, typeof metadata.route.type> = {
 		...runtimeProperties,
+		...(listResponseDto ? { dto: { ...runtimeProperties.dto, [EApiDtoType.RESPONSE]: listResponseDto } } : {}),
 		security: metadata.security,
 	} as TApiControllerPropertiesRoute<E, typeof metadata.route.type>;
 
