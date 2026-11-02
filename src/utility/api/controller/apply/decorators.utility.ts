@@ -2,6 +2,7 @@ import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/a
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
+import type { IApiControllerPathPlan, IApiControllerPathPlanParameter } from "@interface/class/api/controller/path";
 import type { IApiRouteMetadata } from "@interface/decorator/api";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
@@ -18,6 +19,7 @@ import { ApiControllerBuildRouteDocumentation } from "@utility/api/controller/bu
 import { ApiControllerGetListQueryOpenApiDecorators } from "@utility/api/controller/get-list/query";
 import { ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
 import { ApiControllerGetErrorStatuses } from "@utility/api/controller/get/error-statuses.utility";
+import { ApiControllerPathPlanAssert } from "@utility/api/controller/path";
 import { ApiControllerReadPlanAssert, ApiControllerReadPlanGet } from "@utility/api/controller/read";
 import { ApiRouteIsDiscriminatedDtoProperties } from "@utility/api/route/discriminator";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -50,6 +52,7 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity, M extends
 	queryPlan?: IApiControllerGetListQueryPlan,
 ): void {
 	ApiControllerReadPlanAssert(routeConfig);
+	ApiControllerPathPlanAssert(properties);
 
 	ApiControllerApplyDecoratorsWithIdentityPlan(targetMethod, entity, properties, method, methodName, routeConfig, decorators, schemaPrefix, queryPlan);
 }
@@ -67,6 +70,7 @@ export function ApiControllerApplyDecorators<E extends IApiBaseEntity, M extends
  * @param {string} schemaPrefix - Schema prefix of the controller that owns the route, from `ApiControllerGetSchemaPrefix`; it starts every generated DTO name
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Internal compiled GET_LIST query plan.
  * @param {IApiControllerIdentityPlan} [identityPlan] - Internal compiled GET identity alias plan.
+ * @param {IApiControllerPathPlan} [pathPlan] - Internal compiled controller path plan.
  * @returns {void}
  */
 export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE>(
@@ -80,7 +84,9 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 	schemaPrefix: string,
 	queryPlan?: IApiControllerGetListQueryPlan,
 	identityPlan?: IApiControllerIdentityPlan,
+	pathPlan?: IApiControllerPathPlan,
 ): void {
+	const rowPath: string = pathPlan ? pathPlan.rowParameters.map(({ parameter }: IApiControllerPathPlanParameter): string => `:${parameter}`).join("/") : `:${String(entity.primaryKey?.name)}`;
 	const responseDto: TApiRouteDiscriminatedDtoProperties | Type<unknown> | undefined = ApiControllerGetResponseDto(properties, entity, method, routeConfig, schemaPrefix, queryPlan, identityPlan);
 	const customDecorators: Array<MethodDecorator> = [...decorators];
 	const errorStatuses: Array<number> = ApiControllerGetErrorStatuses(method, routeConfig, ApiControllerReadPlanGet(targetMethod, methodName) !== undefined);
@@ -95,18 +101,16 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 		}
 
 		case EApiRouteType.DELETE: {
-			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.DELETE, `:${String(entity.primaryKey?.name)}`, HttpStatus.NO_CONTENT, undefined, errors) }));
+			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.DELETE, rowPath, HttpStatus.NO_CONTENT, undefined, errors) }));
 
 			break;
 		}
 
 		case EApiRouteType.GET: {
-			const path: string = `:${identityPlan?.parameter ?? String(entity.primaryKey?.name)}`;
-
 			customDecorators.push(
 				ApiMethod({
 					execution: routeConfig.execution,
-					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, path, HttpStatus.OK, responseDto, errors),
+					metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.GET, identityPlan ? `:${identityPlan.parameter}` : rowPath, HttpStatus.OK, responseDto, errors),
 				}),
 			);
 
@@ -129,13 +133,13 @@ export function ApiControllerApplyDecoratorsWithIdentityPlan<E extends IApiBaseE
 		}
 
 		case EApiRouteType.PARTIAL_UPDATE: {
-			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PATCH, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, errors) }));
+			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PATCH, rowPath, HttpStatus.OK, responseDto, errors) }));
 
 			break;
 		}
 
 		case EApiRouteType.UPDATE: {
-			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PUT, `:${String(entity.primaryKey?.name)}`, HttpStatus.OK, responseDto, errors) }));
+			customDecorators.push(ApiMethod({ execution: routeConfig.execution, metadata: createRouteMetadata(properties, routeConfig, method, RequestMethod.PUT, rowPath, HttpStatus.OK, responseDto, errors) }));
 
 			break;
 		}

@@ -10,19 +10,18 @@ import { getDataSourceToken, TypeOrmModule } from "@nestjs/typeorm";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import type { TRowPathFixture } from "./row-path/fixture";
+import type { TRowPathDriver, TRowPathFixture } from "./row-path/fixture";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../src/index";
-import { createRowPathFixture } from "./row-path/fixture";
+import { ROW_PATH_FIXTURES } from "./row-path/fixture";
 
-type TDriver = "postgres" | "sqlite";
 type TResponse = { body: string; json: () => unknown; statusCode: number };
 
 const FOREIGN_ITEM_ID: string = "22222222-2222-4222-8222-222222222222";
 const MICROSECOND_TIMESTAMP: string = "2026-01-01 00:00:00.123456";
 const OWN_ITEM_ID: string = "11111111-1111-4111-8111-111111111111";
 
-describe.each<TDriver>(["postgres", "sqlite"])("generated row routes on %s (E2E)", (driver: TDriver) => {
+describe.each<TRowPathDriver>(["postgres", "sqlite"])("generated row routes on %s (E2E)", (driver: TRowPathDriver) => {
 	let app: INestApplication;
 	let container: StartedPostgreSqlContainer | undefined;
 	let dataSource: DataSource;
@@ -33,13 +32,12 @@ describe.each<TDriver>(["postgres", "sqlite"])("generated row routes on %s (E2E)
 	const rows = async (table: string, order: string): Promise<Array<Record<string, unknown>>> => (await dataSource.query(`SELECT * FROM ${table} ORDER BY ${order}`)) as Array<Record<string, unknown>>;
 
 	beforeAll(async () => {
-		const isPostgres: boolean = driver === "postgres";
-		const fixture: TRowPathFixture = createRowPathFixture(isPostgres ? { type: "timestamptz", widePrecision: 6 } : { type: "datetime" });
+		const fixture: TRowPathFixture = ROW_PATH_FIXTURES[driver];
 
-		container = isPostgres ? await new PostgreSqlContainer("postgres:17-alpine").start() : undefined;
+		container = driver === "postgres" ? await new PostgreSqlContainer("postgres:17-alpine").start() : undefined;
 
 		const reference = await Test.createTestingModule({
-			imports: [ApiAuthorizationModule.forRoot({}), ApiSubscriberModule, TypeOrmModule.forRoot(container ? { entities: [...fixture.entities], synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", entities: [...fixture.entities], synchronize: true, type: "better-sqlite3" }), fixture.module],
+			imports: [ApiAuthorizationModule.forRoot({}), ApiSubscriberModule, TypeOrmModule.forRoot(container ? { entities: fixture.entities, synchronize: true, type: "postgres", url: container.getConnectionUri() } : { database: ":memory:", entities: fixture.entities, synchronize: true, type: "better-sqlite3" }), fixture.module],
 		}).compile();
 
 		app = reference.createNestApplication(new FastifyAdapter());

@@ -2,6 +2,7 @@ import type { EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
+import type { IApiControllerPathPlan } from "@interface/class/api/controller/path";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
@@ -47,9 +48,10 @@ export function ApiControllerApplyMetadata<E extends IApiBaseEntity>(target: obj
  * @param {IApiControllerGetListQueryPlan} [queryPlan] - Internal compiled QUERY plan.
  * @param {IApiControllerReadPlan} [readPlan] - Internal compiled PARAMETERS plan.
  * @param {IApiControllerIdentityPlan} [identityPlan] - Internal GET identity alias plan.
+ * @param {IApiControllerPathPlan} [pathPlan] - Internal compiled controller path plan.
  * @returns {void}
  */
-export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan): void {
+export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>(target: object, targetPrototype: object, entity: IApiEntity<E>, properties: IApiControllerProperties<E>, method: EApiRouteType, methodName: string, routeConfig: TApiControllerPropertiesRoute<E, typeof method>, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan, pathPlan?: IApiControllerPathPlan): void {
 	const schemaPrefix: string = ApiControllerGetSchemaPrefix(target);
 	let parameterIndex: number = 0;
 	let routeArgumentsMetadata: unknown = {};
@@ -57,15 +59,15 @@ export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>
 
 	// Path values are always converted by the rule of the described columns; a configured PARAMETERS DTO only validates the converted values.
 	const configuredRequestDto: Type<unknown> | undefined = routeConfig.dto?.[EApiDtoType.PARAMETERS];
-	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, configuredRequestDto ? ({ ...routeConfig, dto: { ...routeConfig.dto, [EApiDtoType.PARAMETERS]: undefined } } as TApiControllerPropertiesRoute<E, typeof method>) : routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
-	const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.QUERY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
-	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan);
+	const requestDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.PARAMETERS, configuredRequestDto ? ({ ...routeConfig, dto: { ...routeConfig.dto, [EApiDtoType.PARAMETERS]: undefined } } as TApiControllerPropertiesRoute<E, typeof method>) : routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan, undefined, pathPlan);
+	const queryDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.QUERY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan, undefined, pathPlan);
+	const bodyDto: Type<unknown> | undefined = ApiControllerGetDtoWithReadPlan(properties, entity, method, EApiDtoType.BODY, routeConfig, schemaPrefix, queryPlan, readPlan, identityPlan, undefined, pathPlan);
 
 	if (requestDto) {
 		const handler: unknown = Reflect.get(targetPrototype, methodName);
 
 		if (typeof handler === "function") {
-			ApiControllerParametersDtoSet(handler, { columns: readParameterColumns(entity, requestDto, identityPlan, readPlan), configuredDto: configuredRequestDto, dto: requestDto });
+			ApiControllerParametersDtoSet(handler, { columns: readParameterColumns(entity, requestDto, identityPlan, readPlan, pathPlan), configuredDto: configuredRequestDto, dto: requestDto });
 		}
 
 		routeArgumentsMetadata = assignMetadata(routeArgumentsMetadata, RouteParamtypes.PARAM, parameterIndex);
@@ -101,16 +103,17 @@ export function ApiControllerApplyMetadataWithReadPlan<E extends IApiBaseEntity>
 }
 
 /**
- * Lists the entity column each path parameter of a generated route holds. A key holds the column of its name; an identity alias or a read scope parameter names its own field.
+ * Lists the entity column each path parameter of a generated route holds. A key holds the column of its name; an identity alias, a read scope parameter or a row path parameter names its own field.
  * @template E - Entity type
  * @param {IApiEntity<E>} entity - Entity metadata.
  * @param {Type<unknown>} dto - Generated PARAMETERS DTO.
  * @param {IApiControllerIdentityPlan} [identityPlan] - Internal GET identity alias plan.
  * @param {IApiControllerReadPlan} [readPlan] - Internal compiled PARAMETERS plan.
+ * @param {IApiControllerPathPlan} [pathPlan] - Internal compiled controller path plan.
  * @returns {Map<string, IApiEntityColumn<unknown>>} The column of each path parameter.
  */
-function readParameterColumns<E>(entity: IApiEntity<E>, dto: Type<unknown>, identityPlan?: IApiControllerIdentityPlan, readPlan?: IApiControllerReadPlan): Map<string, IApiEntityColumn<unknown>> {
-	const fields: Map<string, string> = new Map<string, string>([...(identityPlan ? [identityPlan] : []), ...(readPlan?.parameters ?? [])].map(({ field, parameter }: { field: string; parameter: string }): [string, string] => [parameter, field]));
+function readParameterColumns<E>(entity: IApiEntity<E>, dto: Type<unknown>, identityPlan?: IApiControllerIdentityPlan, readPlan?: IApiControllerReadPlan, pathPlan?: IApiControllerPathPlan): Map<string, IApiEntityColumn<unknown>> {
+	const fields: Map<string, string> = new Map<string, string>([...(identityPlan ? [identityPlan] : []), ...(readPlan?.parameters ?? []), ...(pathPlan?.rowParameters ?? [])].map(({ field, parameter }: { field: string; parameter: string }): [string, string] => [parameter, field]));
 	const columns: Map<string, IApiEntityColumn<unknown>> = new Map<string, IApiEntityColumn<unknown>>();
 
 	for (const { propertyName } of getMetadataStorage().getTargetValidationMetadatas(dto, "", false, false)) {

@@ -1,5 +1,6 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
+import type { IApiControllerPathPlan, IApiControllerPathPlanParameter } from "@interface/class/api/controller/path";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { CanActivate, Type } from "@nestjs/common";
@@ -21,7 +22,7 @@ import { parse } from "path-to-regexp";
 const IDENTITY_PARAMETER_PATTERN: RegExp = /^[A-Za-z_$][\w$]*$/u;
 
 export class ApiControllerIdentityPlanCompiler {
-	public static compile<E extends IApiBaseEntity, R extends EApiRouteType>(controller: Type<unknown>, controllerPath: string | undefined, entityMetadata: IApiEntity<E>, method: R, routeConfig: TApiControllerPropertiesRoute<E, R>, readPlan?: IApiControllerReadPlan): IApiControllerIdentityPlan | undefined {
+	public static compile<E extends IApiBaseEntity, R extends EApiRouteType>(controller: Type<unknown>, controllerPath: string | undefined, entityMetadata: IApiEntity<E>, method: R, routeConfig: TApiControllerPropertiesRoute<E, R>, pathPlan: IApiControllerPathPlan, readPlan?: IApiControllerReadPlan): IApiControllerIdentityPlan | undefined {
 		const identityDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(routeConfig, "identity");
 
 		if (!identityDescriptor) {
@@ -43,7 +44,13 @@ export class ApiControllerIdentityPlanCompiler {
 		}
 
 		const parameter: string = this.readParameter(rawIdentity);
-		const primaryColumn: IApiEntityColumn<E> | undefined = entityMetadata.primaryKey;
+		const [rowParameter, ...otherRowParameters]: ReadonlyArray<IApiControllerPathPlanParameter> = pathPlan.rowParameters;
+
+		if (otherRowParameters.length > 0) {
+			throw ErrorException(`Generated identity aliases one path field, but controller ${controller.name} addresses its rows by ${String(pathPlan.rowParameters.length)} fields`);
+		}
+
+		const primaryColumn: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((column: IApiEntityColumn<E>): boolean => String(column.name) === rowParameter?.field);
 		const primaryMetadata: TApiPropertyDescribeProperties | undefined = primaryColumn?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
 
 		if (!primaryColumn || primaryColumn.relation || !primaryMetadata || primaryMetadata.isAutoDtoEnabled === false || primaryMetadata.type === EApiPropertyDescribeType.OBJECT || primaryMetadata.type === EApiPropertyDescribeType.RELATION) {

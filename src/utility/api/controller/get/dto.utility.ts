@@ -2,6 +2,7 @@ import type { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerGetListQueryPlan } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
+import type { IApiControllerPathPlan } from "@interface/class/api/controller/path";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiControllerPropertiesRouteGetListResponseDtoConfig } from "@interface/decorator/api/controller/properties/route";
@@ -14,11 +15,13 @@ import type { ObjectLiteral } from "typeorm";
 import { EApiControllerGetListQueryPaginationMode, EApiDtoType as EApiDtoTypeValue, EApiRouteType as EApiRouteTypeValue } from "@enum/decorator/api";
 import { ApiControllerGetListQueryGetPaginationMode } from "@utility/api/controller/get-list/query/get-pagination-mode.utility";
 import { ApiControllerIdentityPlanAssert } from "@utility/api/controller/identity";
+import { ApiControllerPathPlanAssert, ApiControllerPathRowParameters } from "@utility/api/controller/path";
 import { ApiControllerReadPlanAssert } from "@utility/api/controller/read";
 import { CamelCaseString } from "@utility/camel-case-string.utility";
 import { DtoGenerate, DtoGenerateGetListResponse } from "@utility/dto";
 import { DtoGenerateGetListCursorResponse } from "@utility/dto/generate/get-list";
 import { DtoGenerateIdentityReadParameters } from "@utility/dto/generate/identity-read-parameters.utility";
+import { DtoGeneratePathParameters } from "@utility/dto/generate/path-parameters.utility";
 import { DtoGenerateReadParameters } from "@utility/dto/generate/read-parameters.utility";
 import { DtoGenerateTableInheritanceResponse } from "@utility/dto/generate/table-inheritance-response.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -43,6 +46,7 @@ const getListItemResponseDtoNameModeCache: WeakMap<object, Map<string, EApiContr
  */
 export function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan): Type<unknown> | undefined {
 	ApiControllerReadPlanAssert(routeConfig);
+	ApiControllerPathPlanAssert(properties);
 
 	return ApiControllerGetDtoWithReadPlan(properties, entity, method, dtoType, routeConfig, schemaPrefix, queryPlan);
 }
@@ -61,9 +65,10 @@ export function ApiControllerGetDto<E extends IApiBaseEntity, R extends EApiRout
  * @param {IApiControllerReadPlan} [readPlan] - Internal route-scoped PARAMETERS plan.
  * @param {IApiControllerIdentityPlan} [identityPlan] - Internal GET identity alias plan.
  * @param {string} [routeName] - PascalCase handler method name of a custom route; it replaces the route type in generated DTO names.
+ * @param {IApiControllerPathPlan} [pathPlan] - Internal compiled controller path plan.
  * @returns {Type<unknown> | undefined} Resolved DTO class or undefined.
  */
-export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan, routeName?: string): Type<unknown> | undefined {
+export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R extends EApiRouteType>(properties: IApiControllerProperties<E>, entity: IApiEntity<E>, method: R, dtoType: EApiDtoType, routeConfig: TApiControllerPropertiesRoute<E, R>, schemaPrefix: string, queryPlan?: IApiControllerGetListQueryPlan, readPlan?: IApiControllerReadPlan, identityPlan?: IApiControllerIdentityPlan, routeName?: string, pathPlan?: IApiControllerPathPlan): Type<unknown> | undefined {
 	ApiControllerIdentityPlanAssert(routeConfig, identityPlan);
 
 	if (dtoType === EApiDtoTypeValue.PARAMETERS) {
@@ -91,6 +96,10 @@ export function ApiControllerGetDtoWithReadPlan<E extends IApiBaseEntity, R exte
 
 		if (readPlan) {
 			return DtoGenerateReadParameters(entity, method, readPlan, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard);
+		}
+
+		if (pathPlan && !pathPlan.isDefaultRowPath && method !== EApiRouteTypeValue.CREATE && method !== EApiRouteTypeValue.GET_LIST) {
+			return DtoGeneratePathParameters(entity, method, pathPlan, ApiControllerPathRowParameters(pathPlan), schemaPrefix, routeConfig.autoDto?.[dtoType], routeConfig.security?.authentication?.guard);
 		}
 	}
 

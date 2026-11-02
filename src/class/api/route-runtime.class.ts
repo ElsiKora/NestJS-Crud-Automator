@@ -5,6 +5,7 @@ import type { IApiAuthorizationDecision } from "@interface/class/api/authorizati
 import type { IApiControllerGetListQueryAstNode, IApiControllerGetListQueryPlan, IApiControllerGetListQueryPlanOrderEntry, IApiControllerGetListQueryRuntimeResult } from "@interface/class/api/controller/get-list/query";
 import type { IApiControllerIdentityPlan } from "@interface/class/api/controller/identity-plan.interface";
 import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
+import type { IApiControllerPathPlan, IApiControllerPathPlanParameter } from "@interface/class/api/controller/path";
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiRouteRuntimeContextData, IApiRouteRuntimeCustomExecutionOptions, IApiRouteRuntimeGeneratedExecutionOptions, IApiRouteRuntimeGeneratedTargets, IApiRouteRuntimeHttpRequest } from "@interface/class/api/route";
 import type { IApiSubscriberRouteErrorExecutionContext } from "@interface/class/api/subscriber/route/error-execution-context.interface";
@@ -12,8 +13,7 @@ import type { IApiSubscriberRouteExecutionContextData } from "@interface/class/a
 import type { IApiSubscriberRouteExecutionContext } from "@interface/class/api/subscriber/route/execution/context";
 import type { IApiControllerProperties, IApiControllerPropertiesRouteBaseRelationsResponseLoad, IApiControllerPropertiesRouteBaseRequestTarget, IApiRouteMetadata, IApiRouteRuntimeProperties } from "@interface/decorator/api";
 import type { IApiControllerPropertiesRouteGetListResponseDtoConfig } from "@interface/decorator/api/controller/properties/route";
-import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
-import type { IApiControllerPrimaryColumn } from "@interface/utility";
+import type { IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiAuthorizationRuleTransformPayload } from "@type/class/api/authorization/rule/transform-payload.type";
 import type { TApiAuthorizationScopeWhere } from "@type/class/api/authorization/scope-where.type";
@@ -29,7 +29,7 @@ import type { TApiControllerTransformDataTargets } from "@type/utility/api/contr
 import type { TTypeOrmColumnMetadata } from "@type/utility/typeorm";
 import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
-import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsOrder, FindOptionsWhere, ObjectLiteral, RelationMetadata, Repository } from "typeorm";
+import type { DeepPartial, EntityManager, EntityMetadata, FindOptionsOrder, FindOptionsSelect, FindOptionsWhere, ObjectLiteral, RelationMetadata } from "typeorm";
 
 import { ApiControllerGeneratedCreateIdentityContract, ApiControllerGeneratedCreateTemporalKeyContract, ApiControllerGeneratedInsertedKeyStorage, ApiControllerGeneratedReadScopeStorage, ApiControllerGeneratedSecuritySnapshot } from "@class/api/controller/generated";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
@@ -38,16 +38,14 @@ import { ApiControllerGetListCursorRuntime } from "@class/api/controller/get-lis
 import { ApiControllerGetListQueryRuntime } from "@class/api/controller/get-list/query";
 import { ApiFunctionContextStorage } from "@class/api/function/context-storage.class";
 import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/runtime.class";
-import { ApiRequestValidationException } from "@class/api/request-validation-exception.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
 import { ClassTransformerFreeFormValue } from "@class/class-transformer-free-form-value.class";
 import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
 import { CONTROLLER_API_DECORATOR_CONSTANT, FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
-import { PATH_PARAMETER_FAILURE_CONSTANT } from "@constant/path-parameter-failure.constant";
 import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
 import { EApiDtoType } from "@enum/decorator/api";
-import { BadRequestException, ForbiddenException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, InternalServerErrorException } from "@nestjs/common";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ApiControllerGetListIsHiddenColumn } from "@utility/api/controller/get-list/is-hidden-column.utility";
 import { ApiControllerGetListQueryPlanGet } from "@utility/api/controller/get-list/query";
@@ -59,12 +57,11 @@ import { ApiControllerGetListResponsePublishedFields } from "@utility/api/contro
 import { ApiControllerGetListTransformAssertRequestRelationTargets } from "@utility/api/controller/get-list/transform/assert-request-relation-targets.utility";
 import { ApiControllerGetListTransformFilter } from "@utility/api/controller/get-list/transform/filter.utility";
 import { ApiControllerGetDtoWithReadPlan, ApiControllerGetResponseDto } from "@utility/api/controller/get/dto.utility";
-import { ApiControllerGetPrimaryColumn } from "@utility/api/controller/get/primary-column.utility";
 import { ApiControllerHandleRequestRelations } from "@utility/api/controller/handle-request-relations.utility";
 import { ApiControllerHasResponseRelationInclude } from "@utility/api/controller/has-response-relation-include.utility";
 import { ApiControllerIdentityPlanGet } from "@utility/api/controller/identity";
 import { ApiControllerParametersDtoGet, ApiControllerParametersResolveRequest, ApiControllerParametersValidate } from "@utility/api/controller/parameters";
-import { ApiControllerParametersCreateFailure } from "@utility/api/controller/parameters/create-failure.utility";
+import { ApiControllerPathPlanGet, ApiControllerPathRowParameters, ApiControllerPathWhere } from "@utility/api/controller/path";
 import { ApiControllerReadPlanGet, ApiControllerReadScopeWhere } from "@utility/api/controller/read";
 import { ApiControllerRejectToManyUpdateKeys } from "@utility/api/controller/reject-to-many-update-keys.utility";
 import { ApiControllerSerializeRouteResponse } from "@utility/api/controller/serialize-route-response.utility";
@@ -81,9 +78,12 @@ import { DatabaseTypeOrmAssertServiceRepository } from "@utility/database/typeor
 import { ErrorException } from "@utility/error/exception.utility";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
+import { Repository } from "typeorm";
 
 // A filter value key names its path before "[value]" or "[values]", as the query carries it.
 const FILTER_VALUE_KEY_PATTERN: RegExp = /^(.+)\[values?\]$/u;
+// Two rows are enough to tell that a path does not name one row.
+const PATH_MATCH_LIMIT: number = 2;
 
 export class ApiRouteRuntime {
 	public static async executeCustom<E extends IApiBaseEntity, R>(options: IApiRouteRuntimeCustomExecutionOptions<E, R>): Promise<R> {
@@ -344,7 +344,7 @@ export class ApiRouteRuntime {
 			const updateFunction: (this: ApiServiceBase<E>, criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: never) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.UPDATE, EApiFunctionType.UPDATE, options.properties.entity);
 			const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
 
-			return await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<E> => await this.executeGeneratedUpdateOperation(options, targets, authorizationDecision, routeConfig, markAfterBoundary, service, updateFunction, getFunction));
+			return await this.executeGeneratedTransaction(options, routeConfig, async (eventManager: EntityManager | undefined): Promise<E> => await this.executeGeneratedUpdateOperation(options, targets, authorizationDecision, routeConfig, markAfterBoundary, service, updateFunction, getFunction, eventManager));
 		}
 
 		switch (method) {
@@ -367,7 +367,7 @@ export class ApiRouteRuntime {
 						const createInput: DeepPartial<E> = targets.body ?? ({} as DeepPartial<E>);
 						await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, createInput);
 						// An entity without primary key metadata fails here, before the route writes, as GET, PUT, PATCH and DELETE fail.
-						this.resolvePrimaryKey(createInput, options.entityMetadata);
+						this.resolvePathPlan(options);
 						markAfterBoundary();
 
 						// The reload checks the row the protected function stored, by the key it reported before its subscribers could replace the result.
@@ -407,11 +407,8 @@ export class ApiRouteRuntime {
 				const service: ApiServiceBase<E> = options.controller.service;
 				const deleteFunction: (this: ApiServiceBase<E>, criteria: Array<TApiFunctionDeleteCriteria<E>> | TApiFunctionDeleteCriteria<E>) => Promise<void> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.DELETE, EApiFunctionType.DELETE, options.properties.entity);
 
-				await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<void> => {
-					const primaryKey: IApiControllerPrimaryColumn<E> = this.resolvePrimaryKey(targets.parameters, options.entityMetadata);
-					const requestCriteria: TApiFunctionDeleteCriteria<E> = { [primaryKey.key]: primaryKey.value } as TApiFunctionDeleteCriteria<E>;
-					const scopedCriteria: Array<TApiFunctionDeleteCriteria<E>> | TApiFunctionDeleteCriteria<E> | undefined = AuthorizationScopeMergeWhere(requestCriteria, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
-					const deleteCriteria: Array<TApiFunctionDeleteCriteria<E>> | TApiFunctionDeleteCriteria<E> = scopedCriteria ?? requestCriteria;
+				await this.executeGeneratedTransaction(options, routeConfig, async (eventManager: EntityManager | undefined): Promise<void> => {
+					const deleteCriteria: Array<TApiFunctionDeleteCriteria<E>> | TApiFunctionDeleteCriteria<E> = await this.resolveWriteCriteria(options, targets, authorizationDecision, eventManager);
 
 					markAfterBoundary();
 					await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.DELETE, deleteCriteria, deleteCriteria, async (): Promise<void> => {
@@ -427,11 +424,11 @@ export class ApiRouteRuntime {
 				const service: ApiServiceBase<E> = options.controller.service;
 				const getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E> = ApiControllerGeneratedFunctionCapability.resolve(service, EApiFunctionType.GET, EApiFunctionType.GET, options.properties.entity);
 
-				return await this.executeGeneratedTransaction(options, routeConfig, async (): Promise<E> => {
+				return await this.executeGeneratedTransaction(options, routeConfig, async (eventManager: EntityManager | undefined): Promise<E> => {
 					const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName);
 					const identityPlan: IApiControllerIdentityPlan | undefined = this.resolveIdentityPlan(options.controller, options.methodName);
-					const primaryKey: IApiControllerPrimaryColumn<E> = this.resolveReadIdentity(targets.parameters, options.entityMetadata, identityPlan);
-					const identityWhere: FindOptionsWhere<E> = { [primaryKey.key]: primaryKey.value } as FindOptionsWhere<E>;
+					const pathPlan: IApiControllerPathPlan = this.resolvePathPlan(options);
+					const identityWhere: FindOptionsWhere<E> = this.resolveRouteWhere(options, targets, pathPlan, ApiControllerPathRowParameters(pathPlan, identityPlan));
 					const routeScopedWhere: TApiAuthorizationScopeWhere<E> = readPlan ? AuthorizationScopeMergeWhere(identityWhere, ApiControllerReadScopeWhere(targets.parameters, readPlan)) : identityWhere;
 
 					const requestProperties: TApiFunctionGetProperties<E> = {
@@ -439,6 +436,11 @@ export class ApiRouteRuntime {
 						relations: routeConfig.relations?.response?.load?.include,
 						where: AuthorizationScopeMergeWhere(routeScopedWhere, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
 					};
+
+					// A row a finer stored value keeps out of the full key stays readable, so the read keeps the where its path names.
+					if (!pathPlan.isKeyCovered && requestProperties.where) {
+						await this.findPathMatches(options, requestProperties.where, pathPlan, eventManager);
+					}
 
 					markAfterBoundary();
 
@@ -550,13 +552,7 @@ export class ApiRouteRuntime {
 							throw ErrorException("Generated CURSOR GET_LIST function capability is not available");
 						}
 
-						const serviceRepository: Repository<E> | undefined = (service as { repository?: Repository<E> } & ApiServiceBase<E>).repository;
-
-						if (!serviceRepository) {
-							throw ErrorException("Repository is not available in this context");
-						}
-
-						const activeRepository: Repository<E> = eventManager ? eventManager.getRepository<E>(serviceRepository.target) : serviceRepository;
+						const activeRepository: Repository<E> = this.resolveActiveRepository(service, eventManager);
 						const validateStorageValue: TApiControllerGetListCursorExecutionOptions<E>["validateStorageValue"] = ApiControllerGetListCursorDataSourceContract.createRouteValueValidator(activeRepository, cursorPlan, routeSource);
 
 						return await ApiControllerGetListCursorRuntime.execute<E>({
@@ -740,14 +736,12 @@ export class ApiRouteRuntime {
 		service: ApiServiceBase<E>,
 		updateFunction: (this: ApiServiceBase<E>, criteria: Array<TApiFunctionUpdateCriteria<E>> | TApiFunctionUpdateCriteria<E>, properties: never) => Promise<E>,
 		getFunction: (this: ApiServiceBase<E>, properties: TApiFunctionGetProperties<E>) => Promise<E>,
+		eventManager: EntityManager | undefined,
 	): Promise<E> {
 		const responseLoad: IApiControllerPropertiesRouteBaseRelationsResponseLoad<E> | undefined = routeConfig.relations?.response?.load;
 
 		await ApiControllerHandleRequestRelations(options.controller, options.properties, routeConfig.relations?.request, targets.body ?? {});
-		const primaryKey: IApiControllerPrimaryColumn<E> = this.resolvePrimaryKey(targets.parameters, options.entityMetadata);
-		const requestCriteria: TApiFunctionUpdateCriteria<E> = { [primaryKey.key]: primaryKey.value } as TApiFunctionUpdateCriteria<E>;
-		const scopedCriteria: TApiAuthorizationScopeWhere<E> = AuthorizationScopeMergeWhere(requestCriteria, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision));
-		const updateCriteria: TApiAuthorizationScopeWhere<E> = scopedCriteria ?? requestCriteria;
+		const updateCriteria: NonNullable<TApiAuthorizationScopeWhere<E>> = await this.resolveWriteCriteria(options, targets, authorizationDecision, eventManager);
 		markAfterBoundary();
 		await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.UPDATE, updateCriteria, updateCriteria, async (): Promise<E> => await Reflect.apply(updateFunction, service, [updateCriteria, (targets.body ?? {}) as never]));
 
@@ -755,7 +749,8 @@ export class ApiRouteRuntime {
 		const requestProperties: TApiFunctionGetProperties<E> = {
 			relationLoadStrategy: responseLoad?.relationLoadStrategy,
 			relations: responseLoad?.include,
-			where: AuthorizationScopeMergeWhere(requestCriteria, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)),
+			// The write addressed one row by these criteria and the body cannot change its key, so they still name that row.
+			where: updateCriteria,
 		};
 
 		return await ApiControllerGeneratedReadScopeStorage.run(EApiFunctionType.GET, requestProperties, requestProperties.where, async (): Promise<E> => await Reflect.apply(getFunction, service, [requestProperties]));
@@ -777,6 +772,33 @@ export class ApiRouteRuntime {
 		await this.executeDiscriminatedRequestBodyDto(runtimeProperties, request);
 	}
 
+	/**
+	 * Reads the key of the rows a where clause names, through the active transaction. Several rows mean the deployed key promise is wrong, which a client cannot fix.
+	 * @template E - Entity type owned by the route.
+	 * @template R - Generated route type.
+	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
+	 * @param {TApiAuthorizationScopeWhere<E>} where - Where clause, with the request's security scope applied.
+	 * @param {IApiControllerPathPlan} pathPlan - Path plan of the route.
+	 * @param {EntityManager | undefined} eventManager - Active transaction manager.
+	 * @returns {Promise<Array<E>>} The row, or none.
+	 * @throws {InternalServerErrorException} When the where clause names several rows.
+	 */
+	private static async findPathMatches<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, where: NonNullable<TApiAuthorizationScopeWhere<E>>, pathPlan: IApiControllerPathPlan, eventManager: EntityManager | undefined): Promise<Array<E>> {
+		const matches: Array<E> = await this.resolveActiveRepository(options.controller.service, eventManager).find({
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			loadEagerRelations: false,
+			select: Object.fromEntries(pathPlan.primaryFields.map((field: string): [string, boolean] => [field, true])) as FindOptionsSelect<E>,
+			take: PATH_MATCH_LIMIT,
+			where,
+		});
+
+		if (matches.length > 1) {
+			throw new InternalServerErrorException("Generated route path names more than one row");
+		}
+
+		return matches;
+	}
+
 	private static async loadCustomResponseRelations<E extends IApiBaseEntity>(service: ApiServiceBase<E>, runtimeProperties: IApiRouteRuntimeProperties<E>, response: unknown): Promise<unknown> {
 		if (response === null || typeof response !== "object" || !("id" in response)) {
 			return response;
@@ -795,6 +817,24 @@ export class ApiRouteRuntime {
 				id: responseId,
 			} as unknown as FindOptionsWhere<E>,
 		});
+	}
+
+	/**
+	 * Resolves the repository of a service in the active transaction.
+	 * @template E - Entity type owned by the service.
+	 * @param {ApiServiceBase<E>} service - Service of the route.
+	 * @param {EntityManager | undefined} eventManager - Active transaction manager.
+	 * @returns {Repository<E>} The repository.
+	 * @throws {Error} When the service has no repository.
+	 */
+	private static resolveActiveRepository<E extends IApiBaseEntity>(service: ApiServiceBase<E>, eventManager: EntityManager | undefined): Repository<E> {
+		const repository: Repository<E> | undefined = (service as { repository?: Repository<E> } & ApiServiceBase<E>).repository;
+
+		if (!repository) {
+			throw ErrorException("Repository is not available in this context");
+		}
+
+		return eventManager ? eventManager.getRepository<E>(repository.target) : repository;
 	}
 
 	/**
@@ -871,38 +911,97 @@ export class ApiRouteRuntime {
 		return typeof handler === "function" ? ApiControllerParametersDtoGet(handler) : undefined;
 	}
 
-	private static resolvePrimaryKey<E extends IApiBaseEntity>(source: DeepPartial<E> | Partial<E> | undefined, entityMetadata: IApiEntity<E>): IApiControllerPrimaryColumn<E> {
-		const primaryKey: IApiControllerPrimaryColumn<E> | undefined = ApiControllerGetPrimaryColumn<E>(source ?? {}, entityMetadata);
+	/**
+	 * Resolves the path plan of a generated route. A route the factory did not compile addresses its first primary column.
+	 * @template E - Entity type owned by the route.
+	 * @template R - Generated route type.
+	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
+	 * @returns {IApiControllerPathPlan} The path plan of the route.
+	 */
+	private static resolvePathPlan<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>): IApiControllerPathPlan {
+		const primaryColumn: IApiEntityColumn<E> | undefined = options.entityMetadata.columns.find((column: IApiEntityColumn<E>): boolean => column.isPrimary);
 
-		if (!primaryKey) {
+		if (!primaryColumn) {
 			throw ErrorException("Primary key not found in entity columns");
 		}
 
-		return primaryKey;
+		const pathPlan: IApiControllerPathPlan | undefined = ApiControllerPathPlanGet(Object.getPrototypeOf(options.controller) as object, options.methodName);
+
+		if (pathPlan) {
+			return pathPlan;
+		}
+
+		const field: string = String(primaryColumn.name);
+
+		return { controllerName: options.controller.constructor.name, isDefaultRowPath: true, isKeyCovered: true, isRowPathDeclared: false, primaryFields: [field], rowParameters: [{ field, parameter: field }], signature: "" };
 	}
 
-	private static resolveReadIdentity<E extends IApiBaseEntity>(source: DeepPartial<E> | Partial<E> | undefined, entityMetadata: IApiEntity<E>, identityPlan: IApiControllerIdentityPlan | undefined): IApiControllerPrimaryColumn<E> {
-		if (!identityPlan) {
-			return this.resolvePrimaryKey(source, entityMetadata);
+	/**
+	 * Builds the where clause a route path addresses. Date and time values of a composite route must name one exact instant, which a single-column key route leaves to the database as before.
+	 * @template E - Entity type owned by the route.
+	 * @template R - Generated route type.
+	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
+	 * @param {IApiRouteRuntimeGeneratedTargets<E>} targets - Request targets.
+	 * @param {IApiControllerPathPlan} pathPlan - Path plan of the route.
+	 * @param {ReadonlyArray<IApiControllerPathPlanParameter>} mappings - Path parameters to read.
+	 * @returns {FindOptionsWhere<E>} The where clause.
+	 */
+	private static resolveRouteWhere<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, pathPlan: IApiControllerPathPlan, mappings: ReadonlyArray<IApiControllerPathPlanParameter>): FindOptionsWhere<E> {
+		if (pathPlan.primaryFields.length === 1) {
+			return ApiControllerPathWhere<E>(targets.parameters, mappings);
 		}
 
-		const parameters: Record<string, unknown> | undefined = source as Record<string, unknown> | undefined;
+		const repository: unknown = (options.controller.service as { repository?: unknown }).repository;
+		const instantFields: Set<string> = new Set<string>();
 
-		const value: unknown = parameters && Object.hasOwn(parameters, identityPlan.parameter) ? parameters[identityPlan.parameter] : undefined;
+		if (repository instanceof Repository) {
+			for (const mapping of mappings) {
+				const column: TTypeOrmColumnMetadata | undefined = repository.metadata.findColumnWithPropertyPath(mapping.field);
+				const columnType: string | undefined = column ? repository.manager.dataSource.driver.normalizeType(column) : undefined;
 
-		if (value === undefined || value === null) {
-			throw new ApiRequestValidationException([ApiControllerParametersCreateFailure(identityPlan.parameter, PATH_PARAMETER_FAILURE_CONSTANT.MISSING_CONSTRAINT, `${identityPlan.parameter} should not be null or undefined`)]);
+				if (columnType && (DATABASE_COLUMN_TYPE_CONSTANT.DATE_TIME.has(columnType) || DATABASE_COLUMN_TYPE_CONSTANT.INSTANT.has(columnType))) {
+					instantFields.add(mapping.field);
+				}
+			}
 		}
 
-		const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((entityColumn: IApiEntityColumn<E>): boolean => String(entityColumn.name) === identityPlan.field);
+		return ApiControllerPathWhere<E>(targets.parameters, mappings, instantFields, (targets.authenticationRequest as { params?: Record<string, unknown> } | undefined)?.params);
+	}
 
-		if (!column) {
-			throw ErrorException(`Identity field ${identityPlan.field} not found in entity columns`);
+	/**
+	 * Resolves the criteria of a generated write. A path that leaves key columns out is first resolved to the one row it names, so the write targets its complete key.
+	 * @template E - Entity type owned by the route.
+	 * @template R - Generated route type.
+	 * @param {IApiRouteRuntimeGeneratedExecutionOptions<E, R>} options - Generated route execution options.
+	 * @param {IApiRouteRuntimeGeneratedTargets<E>} targets - Request targets.
+	 * @param {IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined} authorizationDecision - Security snapshot of the request.
+	 * @param {EntityManager | undefined} eventManager - Active transaction manager.
+	 * @returns {Promise<NonNullable<TApiAuthorizationScopeWhere<E>>>} Criteria of the write. A missing row keeps the requested criteria, so the function answers 404.
+	 * @throws {InternalServerErrorException} When a `Date` cannot reproduce the stored key of the row.
+	 */
+	private static async resolveWriteCriteria<E extends IApiBaseEntity, R extends EApiRouteType>(options: IApiRouteRuntimeGeneratedExecutionOptions<E, R>, targets: IApiRouteRuntimeGeneratedTargets<E>, authorizationDecision: IApiAuthorizationDecision<E, TApiAuthorizationRuleTransformPayload<E>> | undefined, eventManager: EntityManager | undefined): Promise<NonNullable<TApiAuthorizationScopeWhere<E>>> {
+		const pathPlan: IApiControllerPathPlan = this.resolvePathPlan(options);
+		const requestCriteria: FindOptionsWhere<E> = this.resolveRouteWhere(options, targets, pathPlan, pathPlan.rowParameters);
+		const criteria: NonNullable<TApiAuthorizationScopeWhere<E>> = AuthorizationScopeMergeWhere(requestCriteria, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)) ?? requestCriteria;
+
+		if (pathPlan.isKeyCovered) {
+			return criteria;
 		}
 
-		return {
-			key: column.name,
-			value: value as string,
-		};
+		const [match]: Array<E> = await this.findPathMatches(options, criteria, pathPlan, eventManager);
+
+		if (!match) {
+			return criteria;
+		}
+
+		const key: FindOptionsWhere<E> = Object.fromEntries(pathPlan.primaryFields.map((field: string): [string, unknown] => [field, (match as Record<string, unknown>)[field]])) as FindOptionsWhere<E>;
+		const hasInstant: boolean = Object.values(key).some((value: unknown): boolean => value instanceof Date);
+
+		// A write through a key the stored value does not equal would insert a second row or delete nothing, so it stops here.
+		if (hasInstant && !(await this.resolveActiveRepository(options.controller.service, eventManager).exists({ where: key }))) {
+			throw new InternalServerErrorException("Generated route cannot address a row whose key column holds a finer value than a millisecond");
+		}
+
+		return AuthorizationScopeMergeWhere(key, ApiControllerGeneratedSecuritySnapshot.createMutableScopeWhere(authorizationDecision)) ?? key;
 	}
 }

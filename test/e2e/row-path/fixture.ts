@@ -8,111 +8,131 @@ import { Column, Entity, PrimaryColumn, PrimaryGeneratedColumn } from "typeorm";
 
 import { ApiController, ApiPropertyDescribe, ApiService, ApiServiceBase, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyStringType } from "../../../src/index";
 
-export type TRowPathFixture = { entities: ReadonlyArray<new () => object>; module: new () => object };
+export type TRowPathDriver = "postgres" | "sqlite";
+export type TRowPathFixture = { entities: Array<new () => object>; module: new () => object };
 
-/**
- * Describes a plain string column of a fixture entity.
- * @param {string} description - Property description.
- * @returns {PropertyDecorator} The property decorator.
- */
-export function describeText(description: string): PropertyDecorator {
-	return ApiPropertyDescribe({ description, exampleValue: "value", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING });
+const TEXT_PROPERTY: Parameters<typeof ApiPropertyDescribe>[0] = { description: "text", exampleValue: "value", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING };
+const CREATED_AT_PROPERTY: Parameters<typeof ApiPropertyDescribe>[0] = { format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.CREATED_AT, type: EApiPropertyDescribeType.DATE };
+
+@Entity("row_path_probes")
+export class RowPathProbeEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
+
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public tenantId!: string;
 }
 
-/**
- * Builds the entities and controllers of one database, because the temporal column types differ per driver.
- * @param {object} temporal - Column options of a temporal key column on this driver.
- * @param {"datetime" | "timestamptz"} temporal.type - Column type.
- * @param {number} [temporal.widePrecision] - Declared precision of a column that holds finer values.
- * @returns {TRowPathFixture} Entities and module of this database.
- */
-export function createRowPathFixture(temporal: { type: "datetime" | "timestamptz"; widePrecision?: number }): TRowPathFixture {
-	@Entity("row_path_probes")
-	class RowPathProbeEntity {
-		@PrimaryColumn({ type: "varchar" })
-		@describeText("id")
-		public id!: string;
+@Entity("row_path_items")
+export class RowPathItemEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
 
-		@Column({ type: "varchar" })
-		@describeText("name")
-		public name!: string;
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
 
-		@PrimaryColumn({ type: "varchar" })
-		@describeText("tenantId")
-		public tenantId!: string;
-	}
-
-	@Entity("row_path_items")
-	class RowPathItemEntity {
-		@PrimaryGeneratedColumn("uuid")
-		@ApiPropertyDescribe({ type: EApiPropertyDescribeType.UUID })
-		public id!: string;
-
-		@Column({ type: "varchar" })
-		@describeText("name")
-		public name!: string;
-
-		@Column({ type: "varchar" })
-		@describeText("parentId")
-		public parentId!: string;
-	}
-
-	@Entity("row_path_transactions")
-	class RowPathTransactionEntity {
-		@PrimaryColumn({ type: "varchar" })
-		@describeText("id")
-		public id!: string;
-
-		// eslint-disable-next-line @elsikora/perfectionist/sort-classes
-		@PrimaryColumn({ ...(temporal.widePrecision === undefined ? {} : { precision: temporal.widePrecision }), type: temporal.type })
-		@ApiPropertyDescribe({ format: EApiPropertyDateType.DATE_TIME, identifier: EApiPropertyDateIdentifier.CREATED_AT, type: EApiPropertyDescribeType.DATE })
-		public createdAt!: Date;
-
-		@Column({ type: "varchar" })
-		@describeText("name")
-		public name!: string;
-	}
-
-	@Injectable()
-	@ApiService({ entity: RowPathProbeEntity })
-	class RowPathProbeService extends ApiServiceBase<RowPathProbeEntity> {
-		@InjectRepository(RowPathProbeEntity)
-		public readonly repository!: Repository<RowPathProbeEntity>;
-	}
-
-	@Injectable()
-	@ApiService({ entity: RowPathItemEntity })
-	class RowPathItemService extends ApiServiceBase<RowPathItemEntity> {
-		@InjectRepository(RowPathItemEntity)
-		public readonly repository!: Repository<RowPathItemEntity>;
-	}
-
-	@Injectable()
-	@ApiService({ entity: RowPathTransactionEntity })
-	class RowPathTransactionService extends ApiServiceBase<RowPathTransactionEntity> {
-		@InjectRepository(RowPathTransactionEntity)
-		public readonly repository!: Repository<RowPathTransactionEntity>;
-	}
-
-	@ApiController<RowPathProbeEntity>({ entity: RowPathProbeEntity, path: "probe", routes: {} })
-	class RowPathProbeController {
-		constructor(public readonly service: RowPathProbeService) {}
-	}
-
-	@ApiController<RowPathItemEntity>({ entity: RowPathItemEntity, path: "parent/:parentId/item", pathScope: { parameters: [{ field: "parentId", parameter: "parentId" }] }, routes: {} } as never)
-	class RowPathItemController {
-		constructor(public readonly service: RowPathItemService) {}
-	}
-
-	@ApiController<RowPathTransactionEntity>({ entity: RowPathTransactionEntity, path: "transaction", rowPath: { fields: ["id"] }, routes: {} } as never)
-	class RowPathTransactionController {
-		constructor(public readonly service: RowPathTransactionService) {}
-	}
-
-	const entities: ReadonlyArray<new () => object> = [RowPathItemEntity, RowPathProbeEntity, RowPathTransactionEntity];
-
-	@Module({ controllers: [RowPathItemController, RowPathProbeController, RowPathTransactionController], imports: [TypeOrmModule.forFeature(entities as Array<new () => object>)], providers: [RowPathItemService, RowPathProbeService, RowPathTransactionService] })
-	class RowPathFeatureModule {}
-
-	return { entities, module: RowPathFeatureModule };
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public parentId!: string;
 }
+
+// A key column holding finer values than a millisecond, as a partitioned ledger keeps them: Postgres stores microseconds in timestamptz(6).
+@Entity("row_path_transactions")
+export class RowPathPostgresTransactionEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@PrimaryColumn({ precision: 6, type: "timestamptz" })
+	@ApiPropertyDescribe(CREATED_AT_PROPERTY)
+	public createdAt!: Date;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
+}
+
+@Entity("row_path_transactions")
+export class RowPathSqliteTransactionEntity {
+	@PrimaryColumn({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public id!: string;
+
+	@PrimaryColumn({ type: "datetime" })
+	@ApiPropertyDescribe(CREATED_AT_PROPERTY)
+	public createdAt!: Date;
+
+	@Column({ type: "varchar" })
+	@ApiPropertyDescribe(TEXT_PROPERTY)
+	public name!: string;
+}
+
+@Injectable()
+@ApiService({ entity: RowPathProbeEntity })
+class RowPathProbeService extends ApiServiceBase<RowPathProbeEntity> {
+	@InjectRepository(RowPathProbeEntity)
+	public readonly repository!: Repository<RowPathProbeEntity>;
+}
+
+@Injectable()
+@ApiService({ entity: RowPathItemEntity })
+class RowPathItemService extends ApiServiceBase<RowPathItemEntity> {
+	@InjectRepository(RowPathItemEntity)
+	public readonly repository!: Repository<RowPathItemEntity>;
+}
+
+@Injectable()
+@ApiService({ entity: RowPathPostgresTransactionEntity })
+class RowPathPostgresTransactionService extends ApiServiceBase<RowPathPostgresTransactionEntity> {
+	@InjectRepository(RowPathPostgresTransactionEntity)
+	public readonly repository!: Repository<RowPathPostgresTransactionEntity>;
+}
+
+@Injectable()
+@ApiService({ entity: RowPathSqliteTransactionEntity })
+class RowPathSqliteTransactionService extends ApiServiceBase<RowPathSqliteTransactionEntity> {
+	@InjectRepository(RowPathSqliteTransactionEntity)
+	public readonly repository!: Repository<RowPathSqliteTransactionEntity>;
+}
+
+@ApiController<RowPathProbeEntity>({ entity: RowPathProbeEntity, path: "probe", routes: {} })
+class RowPathProbeController {
+	constructor(public readonly service: RowPathProbeService) {}
+}
+
+@ApiController<RowPathItemEntity>({ entity: RowPathItemEntity, path: "parent/:parentId/item", pathScope: { parameters: [{ field: "parentId", parameter: "parentId" }] }, routes: {} } as never)
+class RowPathItemController {
+	constructor(public readonly service: RowPathItemService) {}
+}
+
+@ApiController<RowPathPostgresTransactionEntity>({ entity: RowPathPostgresTransactionEntity, path: "transaction", rowPath: { fields: ["id"] }, routes: {} })
+class RowPathPostgresTransactionController {
+	constructor(public readonly service: RowPathPostgresTransactionService) {}
+}
+
+@ApiController<RowPathSqliteTransactionEntity>({ entity: RowPathSqliteTransactionEntity, path: "transaction", rowPath: { fields: ["id"] }, routes: {} })
+class RowPathSqliteTransactionController {
+	constructor(public readonly service: RowPathSqliteTransactionService) {}
+}
+
+const POSTGRES_ENTITIES: Array<new () => object> = [RowPathItemEntity, RowPathPostgresTransactionEntity, RowPathProbeEntity];
+const SQLITE_ENTITIES: Array<new () => object> = [RowPathItemEntity, RowPathProbeEntity, RowPathSqliteTransactionEntity];
+
+@Module({ controllers: [RowPathItemController, RowPathPostgresTransactionController, RowPathProbeController], imports: [TypeOrmModule.forFeature(POSTGRES_ENTITIES)], providers: [RowPathItemService, RowPathPostgresTransactionService, RowPathProbeService] })
+class RowPathPostgresModule {}
+
+@Module({ controllers: [RowPathItemController, RowPathProbeController, RowPathSqliteTransactionController], imports: [TypeOrmModule.forFeature(SQLITE_ENTITIES)], providers: [RowPathItemService, RowPathProbeService, RowPathSqliteTransactionService] })
+class RowPathSqliteModule {}
+
+export const ROW_PATH_FIXTURES: Record<TRowPathDriver, TRowPathFixture> = {
+	postgres: { entities: POSTGRES_ENTITIES, module: RowPathPostgresModule },
+	sqlite: { entities: SQLITE_ENTITIES, module: RowPathSqliteModule },
+};

@@ -8,6 +8,8 @@ export interface IApiEntityColumn<E> {
 	isSelected?: boolean;
 	metadata?: Record<string, unknown>;
 	name: keyof E;
+	/** Declared precision of a column, when its options name one. */
+	precision?: null | number;
 	relation?: {
 		target: IApiBaseEntity;
 	};

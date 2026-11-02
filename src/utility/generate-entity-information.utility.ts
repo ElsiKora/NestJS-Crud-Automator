@@ -56,6 +56,7 @@ export function GenerateEntityInformation<E>(entity: TApiEntityReference): IApiE
 				isSelected: options.select !== false,
 				metadata,
 				name: propertyName as keyof E,
+				precision: options.precision,
 				// eslint-disable-next-line @elsikora/typescript/no-non-null-assertion
 				type: options.type!,
 			};
