@@ -39,6 +39,7 @@ import { ApiFunctionContextStorage } from "@class/api/function/context-storage.c
 import { ApiFunctionTransactionRuntime } from "@class/api/function/transaction/runtime.class";
 import { ApiServiceBase } from "@class/api/service-base.class";
 import { ApiSubscriberExecutor } from "@class/api/subscriber/executor.class";
+import { ClassTransformerFreeFormValue } from "@class/class-transformer-free-form-value.class";
 import { DATABASE_COLUMN_TYPE_CONSTANT } from "@constant/database-column-type.constant";
 import { FUNCTION_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { EApiControllerGetListQueryPaginationMode, EApiControllerRequestTarget, EApiFunctionTransactionMode, EApiFunctionTransactionOwnerKind, EApiFunctionType, EApiRouteType, EApiSubscriberOnType } from "@enum/decorator/api";
@@ -71,7 +72,7 @@ import { AuthorizationDecisionApplyResult, AuthorizationDecisionAttachResource, 
 import { AuthorizationScopeMergeWhere } from "@utility/authorization/scope-merge-where.utility";
 import { DatabaseTypeOrmAssertServiceRepository } from "@utility/database/typeorm/assert/service-repository.utility";
 import { ErrorException } from "@utility/error/exception.utility";
-import { instanceToPlain, plainToInstance } from "class-transformer";
+import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 
 // A filter value key names its path before "[value]" or "[values]", as the query carries it.
@@ -618,7 +619,7 @@ export class ApiRouteRuntime {
 		const serializedResponse: unknown = ApiControllerSerializeRouteResponse(routeConfig, dto, projectedResponse);
 
 		if (cursorOrderFields && cursorResponseSignature) {
-			const wireResponse: unknown = instanceToPlain(serializedResponse);
+			const wireResponse: unknown = ClassTransformerFreeFormValue.instanceToPlain(serializedResponse);
 
 			assertCursorResponseInvariant(wireResponse);
 

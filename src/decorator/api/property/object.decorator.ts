@@ -5,6 +5,7 @@ import type { TApiEntityReference } from "@type/api-entity-reference.type";
 import type { TApiPropertyObjectProperties, TApiPropertyObjectWithDiscriminatorProperties } from "@type/decorator/api/property";
 import type { ClassConstructor } from "class-transformer";
 
+import { ClassTransformerFreeFormValue } from "@class/class-transformer-free-form-value.class";
 import { EManualDtoPropertyMetadataDecorator } from "@enum/utility/manual-dto-property-metadata-decorator.enum";
 import { applyDecorators } from "@nestjs/common";
 import { ApiExtraModels, ApiProperty, ApiResponseProperty, getSchemaPath } from "@nestjs/swagger";
@@ -329,6 +330,8 @@ function buildTransformDecorators(properties: TApiPropertyObjectProperties): Arr
 				},
 				{ toClassOnly: true },
 			),
+			// `instanceToPlain` walks the value and drops its `constructor` and `__proto__` keys, so it gets a stand-in.
+			ClassTransformerAutomatorTransform(({ value }: { value: unknown }): unknown => ClassTransformerFreeFormValue.toPlain(value), { toPlainOnly: true }),
 		);
 	} else {
 		decorators.push(Type(() => properties.type as () => unknown));
