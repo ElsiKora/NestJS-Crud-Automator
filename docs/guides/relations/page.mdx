@@ -216,7 +216,7 @@ On PostgreSQL and CockroachDB, `"query"` loading fails for every relation of an 
 
 ## Transaction-Bound Hydration and Direct Locks
 
-Generated routes accept `transaction: { mode: EApiFunctionTransactionMode }`. Omitted configuration and `SUPPORTS` keep the legacy route behavior without opening a new transaction, except for a [scoped `CREATE`](/docs/nestjs-crud-automator/guides/authorization#scoped-create), which opens a route-owned transaction. `REQUIRED` opens a route-owned transaction when no owner is active, while `MANDATORY` requires an existing Automator transaction and `NONE` rejects one.
+Generated routes accept `transaction: { mode: EApiFunctionTransactionMode }`. Omitted configuration and `SUPPORTS` keep the legacy route behavior without opening a new transaction, except for a [generated `CREATE`](/docs/nestjs-crud-automator/guides/authorization#scoped-create), which always opens a route-owned transaction. `REQUIRED` opens a route-owned transaction when no owner is active, while `MANDATORY` requires an existing Automator transaction and `NONE` rejects one.
 
 For route-owned `REQUIRED`, request transformation and validation finish first. Request relation hydration, the generated service operation, and response relation reload then run through one manager. The database commit and post-commit lifecycle finish before response transformation, route-after subscribers, authorization result handling, and serialization. Hydration, operation, and reload failures roll back together.
 
