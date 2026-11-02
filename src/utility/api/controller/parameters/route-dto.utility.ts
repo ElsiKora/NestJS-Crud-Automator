@@ -1,194 +1,212 @@
-import type { IApiControllerParametersRouteDtoRead } from "@interface/class/api/controller/parameters-route-dto-read.interface";
+import type { IApiControllerParametersRouteDtoAttempt } from "@interface/class/api/controller/parameters-route-dto-attempt.interface";
+import type { IApiControllerParametersRouteDtoProblem } from "@interface/class/api/controller/parameters-route-dto-problem.interface";
 import type { Type } from "@nestjs/common";
-import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
 
 import { BadRequestException } from "@nestjs/common";
 import { ApiRouteValidationFlattenErrors } from "@utility/api/route/validation-flatten-errors.utility";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
-import { instanceToPlain, plainToInstance } from "class-transformer";
-import { validate } from "class-validator";
+import { validate, validateSync } from "class-validator";
 
-const EXPOSED_PROPERTIES: WeakMap<object, Map<string, string>> = new WeakMap<object, Map<string, string>>();
+import { ApiControllerParametersConvert } from "./convert.utility";
+
+const DISAGREEMENT_REASON: string = "its PARAMETERS DTO converts it differently with and without implicit conversion, so a handler could read another value than IAM saw: declare the conversion with @Type or @Transform";
+const UNSTABLE_REASON: string = "its PARAMETERS DTO changes its own output, so a host pipe would convert the text IAM saw again: make its @Transform give the same result on its own output, or move the conversion into the handler";
 
 /**
- * Converts path values with a custom route's own PARAMETERS DTO and finds the property that holds each value.
+ * Checks one sample path value the way the guard checks a request, so a DTO that could only refuse requests fails at startup.
+ * A mode that throws, rejects the sample, or gives no text says nothing about real values, so it is ignored here; the check on each request stays the guarantee.
  * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
- * @param {Record<string, unknown>} parameters - Path values under their path parameter names.
- * @param {boolean} isImplicit - Whether to convert as a host pipe with implicit conversion does.
- * @returns {IApiControllerParametersRouteDtoRead} The DTO instance and the property of each path parameter.
+ * @param {ReadonlyMap<string, string>} properties - The DTO property that holds each path parameter.
+ * @param {Record<string, string>} sample - Sample text of each path parameter.
+ * @returns {IApiControllerParametersRouteDtoProblem | undefined} What is wrong with the DTO, if anything.
  */
-export function ApiControllerParametersRouteDtoRead(dto: Type<unknown>, parameters: Record<string, unknown>, isImplicit: boolean): IApiControllerParametersRouteDtoRead {
-	const instance: Record<string, unknown> = plainToInstance(
-		dto as ClassConstructor<Record<string, unknown>>,
-		{ ...parameters },
-		{
-			// eslint-disable-next-line @elsikora/typescript/naming-convention
-			enableImplicitConversion: isImplicit,
-		},
-	);
-	const properties: Map<string, string> = new Map<string, string>();
+export function ApiControllerParametersRouteDtoCheckSample(dto: Type<unknown>, properties: ReadonlyMap<string, string>, sample: Record<string, string>): IApiControllerParametersRouteDtoProblem | undefined {
+	const attempts: Array<IApiControllerParametersRouteDtoAttempt> = [runSync(dto, properties, sample, true), runSync(dto, properties, sample, false)];
 
-	for (const parameter of Object.keys(parameters)) {
-		const property: string | undefined = resolveProperty(dto, instance, parameter);
-
-		if (property !== undefined) {
-			properties.set(parameter, property);
+	for (const attempt of attempts) {
+		for (const [parameter, value] of Object.entries(attempt.values)) {
+			if (typeof value === "object" && value !== null && !(value instanceof Date)) {
+				return { parameter, reason: "its PARAMETERS DTO makes it an object or a list, which IAM cannot compare as text: describe a scalar value" };
+			}
 		}
 	}
 
-	return { instance, properties };
+	const accepted: Array<IApiControllerParametersRouteDtoAttempt> = attempts.filter((attempt: IApiControllerParametersRouteDtoAttempt): boolean => hasText(attempt));
+	const [first]: Array<IApiControllerParametersRouteDtoAttempt> = accepted;
+
+	if (!first) {
+		return undefined;
+	}
+
+	const texts: Record<string, string | undefined> = readTexts(first.values);
+	const parameter: string | undefined = findDifferentText(accepted, texts);
+
+	if (parameter !== undefined) {
+		return { parameter, reason: DISAGREEMENT_REASON };
+	}
+
+	const unstable: string | undefined = findDifferentText(
+		[runSync(dto, properties, texts, true), runSync(dto, properties, texts, false)].filter((attempt: IApiControllerParametersRouteDtoAttempt): boolean => hasText(attempt)),
+		texts,
+	);
+
+	return unstable === undefined ? undefined : { parameter: unstable, reason: UNSTABLE_REASON };
 }
 
 /**
- * Lists the path values whose canonical text can replace the sent text on the request.
- * A host pipe runs the DTO again on what the request holds, so text whose conversion gives different text, as a prefixing `@Transform` does, stays as sent: the pipe then produces exactly the value authorization saw.
- * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
- * @param {Record<string, unknown>} parameters - Path values as the request holds them.
- * @param {Record<string, string>} texts - Canonical text of each path value.
- * @returns {Record<string, string>} The text to write back, or nothing when the request already holds it.
- */
-export function ApiControllerParametersRouteDtoSelectStableText(dto: Type<unknown>, parameters: Record<string, unknown>, texts: Record<string, string>): Record<string, string> {
-	const changed: Array<[string, string]> = Object.entries(texts).filter(([key, text]: [string, string]): boolean => parameters[key] !== text);
-
-	if (changed.length === 0) {
-		return {};
-	}
-
-	try {
-		const { instance, properties }: IApiControllerParametersRouteDtoRead = ApiControllerParametersRouteDtoRead(dto, { ...parameters, ...texts }, true);
-
-		return Object.fromEntries(changed.filter(([key, text]: [string, string]): boolean => AuthorizationSerializeValue(instance[properties.get(key) ?? key]) === text));
-	} catch {
-		// The DTO cannot convert its own output, so a host pipe must get the sent text.
-		return {};
-	}
-}
-
-/**
- * Runs a custom route's own PARAMETERS DTO on the path values, so authorization sees the values the DTO produces and not the text the client sent.
- * The guard cannot see the options of a host pipe, so the values are converted as a pipe with implicit conversion does, and, when the DTO rejects that result, as a pipe without it does.
+ * Runs a custom route's own PARAMETERS DTO on the path values, so authorization sees the value the DTO produces and a handler reads the same value in every host pipe mode, or the request is refused.
+ * The guard cannot see the options of a host pipe, so both conversions run, with and without implicit conversion. When both accept a value and give different text, or the DTO gives different text on its own output, a pipe could hand the handler another value than IAM saw, so the request is refused.
  * Only the properties that hold a path value are checked: a host pipe still rejects a required property the path does not carry.
  * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
+ * @param {ReadonlyMap<string, string>} properties - The DTO property that holds each path parameter.
  * @param {Record<string, unknown>} parameters - Path values as Nest passed them to the handler.
  * @returns {Promise<Record<string, unknown>>} The value the DTO produced for each path parameter.
- * @throws {BadRequestException} With the flattened class-validator messages when a path value fails the DTO or has no text form.
+ * @throws {BadRequestException} With the flattened class-validator messages when a path value fails the DTO, has no text form, or does not keep one text.
  */
-export async function ApiControllerParametersRouteDtoValidate(dto: Type<unknown>, parameters: Record<string, unknown>): Promise<Record<string, unknown>> {
-	let messages: Array<string> | undefined;
-	let failure: { error: unknown } | undefined;
+export async function ApiControllerParametersRouteDtoValidate(dto: Type<unknown>, properties: ReadonlyMap<string, string>, parameters: Record<string, unknown>): Promise<Record<string, unknown>> {
+	const attempts: Array<IApiControllerParametersRouteDtoAttempt> = [await run(dto, properties, parameters, true), await run(dto, properties, parameters, false)];
+	const accepted: Array<IApiControllerParametersRouteDtoAttempt> = attempts.filter((attempt: IApiControllerParametersRouteDtoAttempt): boolean => attempt.isAccepted);
+	const [first]: Array<IApiControllerParametersRouteDtoAttempt> = accepted;
 
-	for (const isImplicit of [true, false]) {
-		try {
-			const result: { messages: Array<string>; values: Record<string, unknown> } = await runDto(dto, parameters, isImplicit);
+	if (!first) {
+		const rejected: IApiControllerParametersRouteDtoAttempt | undefined = attempts.find((attempt: IApiControllerParametersRouteDtoAttempt): boolean => attempt.messages.length > 0);
 
-			if (result.messages.length === 0) {
-				return result.values;
-			}
-
-			messages ??= result.messages;
-		} catch (error) {
-			failure ??= { error };
+		if (rejected) {
+			throw new BadRequestException(rejected.messages);
 		}
+
+		throw attempts[0]?.failure?.error;
 	}
 
-	if (messages) {
-		throw new BadRequestException(messages);
+	const texts: Record<string, string | undefined> = readTexts(first.values);
+	const noText: Array<string> = Object.keys(texts).filter((key: string): boolean => texts[key] === undefined);
+
+	if (noText.length > 0) {
+		throw new BadRequestException(noText.map((key: string): string => `${key} has no text form`));
 	}
 
-	throw failure?.error;
+	const different: string | undefined = findDifferentText(accepted, texts);
+
+	if (different !== undefined) {
+		throw new BadRequestException([`${different} converts differently with and without implicit conversion`]);
+	}
+
+	// A pure DTO gives the same result on the same text, so only changed text needs another run.
+	if (Object.keys(texts).every((key: string): boolean => texts[key] === parameters[key])) {
+		return first.values;
+	}
+
+	const unstable: string | undefined = findDifferentText([await run(dto, properties, texts, true), await run(dto, properties, texts, false)], texts);
+
+	if (unstable !== undefined) {
+		throw new BadRequestException([`${unstable} does not keep its value when its DTO runs on it again`]);
+	}
+
+	return first.values;
 }
 
 /**
- * Writes one property of a DTO back to a plain object and lists the keys that come out.
- * @param {{ prototype: object }} dto - PARAMETERS DTO of the route.
- * @param {object} dto.prototype - Prototype of the DTO class.
- * @param {string} property - Property name.
- * @param {unknown} value - Converted value of the property.
- * @returns {Array<string>} The keys of the plain object, empty when a `@Transform` without a direction rejects the value.
+ * Finds the path parameter whose text in an accepting attempt differs from the given text.
+ * @param {Array<IApiControllerParametersRouteDtoAttempt>} attempts - Attempts to compare.
+ * @param {Record<string, string | undefined>} texts - Text of each path parameter.
+ * @returns {string | undefined} The path parameter, or undefined when every accepting attempt agrees.
  */
-function readExposedNames(dto: { prototype: object }, property: string, value: unknown): Array<string> {
-	const probe: Record<string, unknown> = Object.create(dto.prototype) as Record<string, unknown>;
-	// An unset value would come out as no key at all.
-	probe[property] = value ?? "";
+function findDifferentText(attempts: Array<IApiControllerParametersRouteDtoAttempt>, texts: Record<string, string | undefined>): string | undefined {
+	for (const attempt of attempts) {
+		const attemptTexts: Record<string, string | undefined> = readTexts(attempt.values);
+		const different: string | undefined = attempt.isAccepted ? Object.keys(texts).find((key: string): boolean => attemptTexts[key] !== texts[key]) : undefined;
 
-	try {
-		return Object.keys(
-			instanceToPlain(probe, {
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
-				exposeUnsetFields: false,
-			}),
-		);
-	} catch {
-		return [];
+		if (different !== undefined) {
+			return different;
+		}
 	}
+
+	return undefined;
 }
 
 /**
- * Finds the DTO property that holds a path parameter.
- * Each property is written back alone, so its exposed name is the one key that comes out. The value read is the one from the conversion, so a `@Transform` without a direction cannot change it a second time. The result is kept for each DTO, because exposed names do not change.
- * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
- * @param {Record<string, unknown>} instance - Converted DTO instance.
- * @param {string} parameter - Path parameter name.
- * @returns {string | undefined} The property name, or undefined when the DTO drops the value.
+ * Tells whether an attempt accepted a sample and gave every path parameter a text. A sample that a conversion cannot read, such as letters under a number property, says nothing about real values.
+ * @param {IApiControllerParametersRouteDtoAttempt} attempt - Attempt on a sample.
+ * @returns {boolean} Whether the attempt says anything about real values.
  */
-function resolveProperty(dto: Type<unknown>, instance: Record<string, unknown>, parameter: string): string | undefined {
-	const exposedProperties: Map<string, string> = EXPOSED_PROPERTIES.get(dto) ?? new Map<string, string>();
+function hasText(attempt: IApiControllerParametersRouteDtoAttempt): boolean {
+	return attempt.isAccepted && Object.values(readTexts(attempt.values)).every((text: string | undefined): boolean => text !== undefined);
+}
 
-	if (!exposedProperties.has(parameter)) {
-		for (const property of Object.keys(instance)) {
-			const exposedNames: Array<string> = readExposedNames(dto, property, instance[property]);
-
-			if (exposedNames.length === 1 && exposedNames[0] !== undefined) {
-				exposedProperties.set(exposedNames[0], property);
-			}
-		}
-
-		EXPOSED_PROPERTIES.set(dto, exposedProperties);
-	}
-
-	// A property with no exposed name, as with an exclusion for the plain direction, still holds a value under its own name.
-	return exposedProperties.get(parameter) ?? (instance[parameter] === undefined ? undefined : parameter);
+/**
+ * Renders each value as its canonical text.
+ * @param {Record<string, unknown>} values - Value of each path parameter.
+ * @returns {Record<string, string | undefined>} Text of each path parameter.
+ */
+function readTexts(values: Record<string, unknown>): Record<string, string | undefined> {
+	return Object.fromEntries(Object.entries(values).map(([key, value]: [string, unknown]): [string, string | undefined] => [key, AuthorizationSerializeValue(value)]));
 }
 
 /**
  * Converts and validates path values once.
  * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
+ * @param {ReadonlyMap<string, string>} properties - The DTO property that holds each path parameter.
  * @param {Record<string, unknown>} parameters - Path values under their path parameter names.
  * @param {boolean} isImplicit - Whether to convert as a host pipe with implicit conversion does.
- * @returns {Promise<{ messages: Array<string>; values: Record<string, unknown> }>} The messages of the failed path values and the value of each path parameter.
+ * @returns {Promise<IApiControllerParametersRouteDtoAttempt>} What this conversion made of the values.
  */
-async function runDto(dto: Type<unknown>, parameters: Record<string, unknown>, isImplicit: boolean): Promise<{ messages: Array<string>; values: Record<string, unknown> }> {
-	const { instance, properties }: IApiControllerParametersRouteDtoRead = ApiControllerParametersRouteDtoRead(dto, parameters, isImplicit);
-	const pathProperties: Set<string> = new Set<string>(properties.values());
+async function run(dto: Type<unknown>, properties: ReadonlyMap<string, string>, parameters: Record<string, unknown>, isImplicit: boolean): Promise<IApiControllerParametersRouteDtoAttempt> {
+	try {
+		const instance: object = ApiControllerParametersConvert(dto, parameters, {
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			enableImplicitConversion: isImplicit,
+		});
 
-	const allErrors: Array<ValidationError> = await validate(instance, {
-		// eslint-disable-next-line @elsikora/typescript/naming-convention
-		forbidUnknownValues: false,
-	});
-	const errors: Array<ValidationError> = allErrors.filter((error: ValidationError): boolean => pathProperties.has(error.property));
-	const messages: Array<string> = ApiRouteValidationFlattenErrors(errors);
-	const values: Record<string, unknown> = {};
+		const errors: Array<ValidationError> = await validate(instance, {
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			forbidUnknownValues: false,
+		});
 
-	if (errors.length === 0) {
-		for (const parameter of Object.keys(parameters)) {
-			const value: unknown = instance[properties.get(parameter) ?? parameter];
-
-			if (AuthorizationSerializeValue(value) === undefined) {
-				messages.push(`${parameter} has no text form`);
-			}
-
-			Object.defineProperty(values, parameter, {
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
-				configurable: true,
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
-				enumerable: true,
-				value,
-				// eslint-disable-next-line @elsikora/typescript/naming-convention
-				writable: true,
-			});
-		}
+		return settle(instance, errors, properties, parameters);
+	} catch (error) {
+		return { failure: { error }, isAccepted: false, messages: [], values: {} };
 	}
+}
 
-	return { messages, values };
+/**
+ * Converts and validates a sample at startup, where a guard check cannot wait for asynchronous validators.
+ * @param {Type<unknown>} dto - PARAMETERS DTO of the route.
+ * @param {ReadonlyMap<string, string>} properties - The DTO property that holds each path parameter.
+ * @param {Record<string, unknown>} parameters - Path values under their path parameter names.
+ * @param {boolean} isImplicit - Whether to convert as a host pipe with implicit conversion does.
+ * @returns {IApiControllerParametersRouteDtoAttempt} What this conversion made of the values.
+ */
+function runSync(dto: Type<unknown>, properties: ReadonlyMap<string, string>, parameters: Record<string, unknown>, isImplicit: boolean): IApiControllerParametersRouteDtoAttempt {
+	try {
+		const instance: object = ApiControllerParametersConvert(dto, parameters, {
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			enableImplicitConversion: isImplicit,
+		});
+
+		const errors: Array<ValidationError> = validateSync(instance, {
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			forbidUnknownValues: false,
+		});
+
+		return settle(instance, errors, properties, parameters);
+	} catch (error) {
+		return { failure: { error }, isAccepted: false, messages: [], values: {} };
+	}
+}
+
+/**
+ * Reads the outcome of one conversion: the errors of the properties that hold a path value, and the value of each path parameter.
+ * @param {object} instance - Converted DTO instance.
+ * @param {Array<ValidationError>} errors - Validation errors of the instance.
+ * @param {ReadonlyMap<string, string>} properties - The DTO property that holds each path parameter.
+ * @param {Record<string, unknown>} parameters - Path values under their path parameter names.
+ * @returns {IApiControllerParametersRouteDtoAttempt} What this conversion made of the values.
+ */
+function settle(instance: object, errors: Array<ValidationError>, properties: ReadonlyMap<string, string>, parameters: Record<string, unknown>): IApiControllerParametersRouteDtoAttempt {
+	const pathProperties: Set<string> = new Set<string>(properties.values());
+	const messages: Array<string> = ApiRouteValidationFlattenErrors(errors.filter((error: ValidationError): boolean => pathProperties.has(error.property)));
+	const values: Record<string, unknown> = Object.fromEntries(Object.keys(parameters).map((parameter: string): [string, unknown] => [parameter, Reflect.get(instance, properties.get(parameter) ?? parameter)]));
+
+	return { isAccepted: messages.length === 0, messages, values };
 }

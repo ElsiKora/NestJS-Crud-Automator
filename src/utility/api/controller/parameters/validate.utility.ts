@@ -1,14 +1,13 @@
 import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { IApiControllerParametersRule } from "@interface/class/api/controller/parameters-rule.interface";
 import type { Type } from "@nestjs/common";
-import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
 
 import { BadRequestException } from "@nestjs/common";
 import { ApiRouteValidationFlattenErrors } from "@utility/api/route/validation-flatten-errors.utility";
-import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 
+import { ApiControllerParametersConvert } from "./convert.utility";
 import { ApiControllerParametersRouteDtoValidate } from "./route-dto.utility";
 
 /**
@@ -23,14 +22,14 @@ import { ApiControllerParametersRouteDtoValidate } from "./route-dto.utility";
  * @throws {BadRequestException} With the flattened class-validator messages, the same body a Nest `ValidationPipe` returns, when any path value fails its described type or the configured DTO.
  */
 export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(rule: IApiControllerParametersRule | Type<unknown>, parameters: Partial<E> | undefined): Promise<Partial<E>> {
-	const { configuredDto, dto, isRouteDto }: IApiControllerParametersRule = typeof rule === "function" ? { dto: rule } : rule;
+	const { configuredDto, dto, routeDtoProperties }: IApiControllerParametersRule = typeof rule === "function" ? { dto: rule } : rule;
 	const parameterRecord: Record<string, unknown> = parameters ?? {};
 
-	if (isRouteDto) {
-		return (await ApiControllerParametersRouteDtoValidate(dto, parameterRecord)) as Partial<E>;
+	if (routeDtoProperties) {
+		return (await ApiControllerParametersRouteDtoValidate(dto, routeDtoProperties, parameterRecord)) as Partial<E>;
 	}
 
-	const instance: Record<string, unknown> = plainToInstance(dto as ClassConstructor<Record<string, unknown>>, parameterRecord);
+	const instance: object = ApiControllerParametersConvert(dto, parameterRecord);
 	const errors: Array<ValidationError> = await validate(instance);
 
 	if (errors.length > 0) {
@@ -45,7 +44,7 @@ export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(
 			configurable: true,
 			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			enumerable: true,
-			value: instance[key],
+			value: Reflect.get(instance, key),
 			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			writable: true,
 		});
@@ -53,7 +52,7 @@ export async function ApiControllerParametersValidate<E extends IApiBaseEntity>(
 
 	if (configuredDto) {
 		// The configured DTO sees the converted values, and its own transformers do not change the values the route uses.
-		const configuredErrors: Array<ValidationError> = await validate(plainToInstance(configuredDto as ClassConstructor<Record<string, unknown>>, { ...validated }), {
+		const configuredErrors: Array<ValidationError> = await validate(ApiControllerParametersConvert(configuredDto, { ...validated }), {
 			// eslint-disable-next-line @elsikora/typescript/naming-convention
 			forbidUnknownValues: false,
 		});

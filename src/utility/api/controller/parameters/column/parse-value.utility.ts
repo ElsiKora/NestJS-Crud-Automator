@@ -2,15 +2,15 @@ import type { IApiControllerParametersColumnValue } from "@interface/class/api/c
 import type { IApiEntity, IApiEntityColumn } from "@interface/entity";
 import type { Type } from "@nestjs/common";
 import type { TApiPropertyDescribeDtoProperties, TApiPropertyDescribeProperties } from "@type/decorator/api/property";
-import type { ClassConstructor } from "class-transformer";
 import type { ValidationError } from "class-validator";
 
 import { PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT } from "@constant/decorator/api";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { DtoGenerateDecorator } from "@utility/dto/generate/decorator.utility";
 import { DtoGetDecoratorConfig } from "@utility/dto/get/decorator-config.utility";
-import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
+
+import { ApiControllerParametersConvert } from "../convert.utility";
 
 const columnValueDtoCache: WeakMap<object, Map<string, null | Type<unknown>>> = new WeakMap<object, Map<string, null | Type<unknown>>>();
 
@@ -30,10 +30,10 @@ export async function ApiControllerParametersParseColumnValue<E>(entityMetadata:
 		return { isDescribed: false, isValid: true, value };
 	}
 
-	const instance: Record<string, unknown> = plainToInstance(dto as ClassConstructor<Record<string, unknown>>, { [columnName]: String(value) });
+	const instance: object = ApiControllerParametersConvert(dto, { [columnName]: String(value) });
 	const errors: Array<ValidationError> = await validate(instance);
 
-	return { isDescribed: true, isValid: errors.length === 0, value: instance[columnName] };
+	return { isDescribed: true, isValid: errors.length === 0, value: Reflect.get(instance, columnName) };
 }
 
 /**
@@ -60,7 +60,7 @@ function resolveColumnValueDto<E>(entityMetadata: IApiEntity<E>, columnName: str
 	const column: IApiEntityColumn<E> | undefined = entityMetadata.columns.find((candidate: IApiEntityColumn<E>): boolean => String(candidate.name) === columnName);
 	const metadata: TApiPropertyDescribeProperties | undefined = column?.metadata?.[PROPERTY_DESCRIBE_DECORATOR_API_CONSTANT.METADATA_KEY] as TApiPropertyDescribeProperties | undefined;
 
-	if (!metadata || metadata.type === EApiPropertyDescribeType.OBJECT || metadata.type === EApiPropertyDescribeType.RELATION || (metadata as { isArray?: boolean }).isArray === true) {
+	if (!metadata || metadata.type === EApiPropertyDescribeType.OBJECT || metadata.type === EApiPropertyDescribeType.RELATION || ("isArray" in metadata && metadata.isArray === true)) {
 		entityCache.set(columnName, null);
 
 		return null;

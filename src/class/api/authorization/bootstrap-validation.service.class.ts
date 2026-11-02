@@ -92,11 +92,12 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			}
 
 			const runtimeProperties: IApiRouteRuntimeProperties<IApiBaseEntity> | undefined = Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, handler) as IApiRouteRuntimeProperties<IApiBaseEntity> | undefined;
-			const dto: unknown = (runtimeProperties?.dto as Partial<Record<EApiDtoType, unknown>> | undefined)?.[EApiDtoType.PARAMETERS];
+			const dtos: object = runtimeProperties?.dto ?? {};
+			const dto: unknown = Reflect.get(dtos, EApiDtoType.PARAMETERS);
 
 			const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({
 				controller: metatype,
-				dto: typeof dto === "function" ? (dto as Type<unknown>) : undefined,
+				dto: this.isDtoClass(dto) ? dto : undefined,
 				methodName,
 				pathParameters: [...controllerPathParameters, ...this.resolvePathParameters(Reflect.getMetadata(PATH_METADATA, handler))],
 				resourcePath,
@@ -172,6 +173,35 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
+	 * Lists the methods of a controller class, own and inherited, so a route declared on a base class is checked for each controller that serves it.
+	 * Each name is read from its property descriptor, nearest class first, so an override hides the base method and an accessor is skipped without running it.
+	 * @param {{ prototype: object }} metatype - Controller class.
+	 * @param {object} metatype.prototype - Prototype of the controller class.
+	 * @returns {Map<string, object>} Handler functions by method name, without `constructor`.
+	 */
+	private collectMethods(metatype: { prototype: object }): Map<string, object> {
+		const methods: Map<string, object> = new Map<string, object>();
+		const seenNames: Set<string> = new Set<string>();
+
+		for (let prototype: null | object = metatype.prototype; prototype && prototype !== Object.prototype; prototype = Reflect.getPrototypeOf(prototype)) {
+			for (const name of Object.getOwnPropertyNames(prototype)) {
+				if (name === "constructor" || seenNames.has(name)) {
+					continue;
+				}
+
+				seenNames.add(name);
+				const value: unknown = Object.getOwnPropertyDescriptor(prototype, name)?.value;
+
+				if (typeof value === "function") {
+					methods.set(name, value);
+				}
+			}
+		}
+
+		return methods;
+	}
+
+	/**
 	 * Formats the patterns of a `@MessagePattern`, `@EventPattern` or `@SubscribeMessage` handler for an error message.
 	 * @param {object} handler - The function on the prototype.
 	 * @returns {string | undefined} The patterns as JSON, or undefined when the handler has none.
@@ -218,6 +248,15 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
+	 * Tells whether a configured DTO is a class.
+	 * @param {unknown} value - Configured DTO.
+	 * @returns {boolean} Whether it is a class.
+	 */
+	private isDtoClass(value: unknown): value is Type<unknown> {
+		return typeof value === "function";
+	}
+
+	/**
 	 * Resolves the `RouterModule` prefix of the module that holds a controller, the way Nest does.
 	 * @param {InstanceWrapper} controllerWrapper - Wrapper of the controller.
 	 * @returns {string} The prefix, or an empty string without one.
@@ -230,34 +269,6 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		}
 
 		return (Reflect.getMetadata(`${MODULE_PATH}${this.modulesContainer.applicationId}`, moduleMetatype) as string | undefined) ?? (Reflect.getMetadata(MODULE_PATH, moduleMetatype) as string | undefined) ?? "";
-	}
-
-	/**
-	 * Lists the methods of a controller class, own and inherited, so a route declared on a base class is checked for each controller that serves it.
-	 * Each name is read from its property descriptor, nearest class first, so an override hides the base method and an accessor is skipped without running it.
-	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
-	 * @returns {Map<string, object>} Handler functions by method name, without `constructor`.
-	 */
-	private collectMethods(metatype: new (...arguments_: Array<unknown>) => unknown): Map<string, object> {
-		const methods: Map<string, object> = new Map<string, object>();
-		const seenNames: Set<string> = new Set<string>();
-
-		for (let prototype: null | object = metatype.prototype as object; prototype && prototype !== Object.prototype; prototype = Object.getPrototypeOf(prototype) as null | object) {
-			for (const name of Object.getOwnPropertyNames(prototype)) {
-				if (name === "constructor" || seenNames.has(name)) {
-					continue;
-				}
-
-				seenNames.add(name);
-				const value: unknown = Object.getOwnPropertyDescriptor(prototype, name)?.value;
-
-				if (typeof value === "function") {
-					methods.set(name, value);
-				}
-			}
-		}
-
-		return methods;
 	}
 
 	/**
