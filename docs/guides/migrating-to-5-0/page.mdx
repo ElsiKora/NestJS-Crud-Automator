@@ -135,6 +135,10 @@ Startup now checks the custom routes of a securable controller. 4.x read the wra
 
 See [Authorization: Migration Notes](/docs/nestjs-crud-automator/guides/authorization#migration-notes).
 
+## Unique Array Items
+
+`isUniqueItems: true` on a request array now answers `400` for equal items, on every `@ApiProperty*` decorator and, when the application installs a `ValidationPipe`, on generated routes. An array whose items nest more than 64 levels answers `400` as well. Before 5.0.0 it only set `uniqueItems` in the OpenAPI schema. Set `isUniqueItems: false` on an array that accepts repeated values. See [Validation: Migration Notes](/docs/nestjs-crud-automator/guides/validation#migration-notes).
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.

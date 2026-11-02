@@ -10,11 +10,11 @@ Describes UUID-based DTO fields and enforces RFC 4122 validation. Supports singl
 
 ## Options
 
-| Option                                               | Description                                                         |
-| ---------------------------------------------------- | ------------------------------------------------------------------- |
-| `description`                                        | Defaults to `"identifier"` if omitted; appended to the entity name. |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enables arrays of UUIDs with full validation.                       |
-| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Standard property flags.                                            |
+| Option                                               | Description                                                                                                                                                                                                        |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `description`                                        | Defaults to `"identifier"` if omitted; appended to the entity name.                                                                                                                                                |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enables arrays of UUIDs with full validation. `isUniqueItems: true` rejects equal items without regard to case on a request array; see [Unique Items](/docs/nestjs-crud-automator/guides/validation#unique-items). |
+| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Standard property flags.                                                                                                                                                                                           |
 
 ## Behavior
 

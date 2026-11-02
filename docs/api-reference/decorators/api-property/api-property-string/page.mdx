@@ -10,14 +10,14 @@ Provides comprehensive Swagger, validation, and transformation support for strin
 
 ## Key options
 
-| Option                                               | Description                                                                                                                                                           |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format`                                             | Required `EApiPropertyStringType` value (STRING, EMAIL, URL, PASSWORD, UUID, REGEXP, PHONE_NUMBER, etc.). Determines validators such as `IsEmail`, `IsUrl`, `IsUUID`. |
-| `pattern`                                            | Stringified RegExp (`"/^[a-z]+$/"`). Used by `Matches` and validated against `exampleValue`.                                                                          |
-| `minLength` / `maxLength`                            | Enforced with `Length`.                                                                                                                                               |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enable string arrays with `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, `ArrayNotEmpty`.                                                                                 |
-| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Control optionality, Swagger metadata, and serialization.                                                                                                             |
-| `exampleValue`                                       | Single value or array; validated against the regex/length constraints.                                                                                                |
+| Option                                               | Description                                                                                                                                                                                                                                 |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`                                             | Required `EApiPropertyStringType` value (STRING, EMAIL, URL, PASSWORD, UUID, REGEXP, PHONE_NUMBER, etc.). Determines validators such as `IsEmail`, `IsUrl`, `IsUUID`.                                                                       |
+| `pattern`                                            | Stringified RegExp (`"/^[a-z]+$/"`). Used by `Matches` and validated against `exampleValue`.                                                                                                                                                |
+| `minLength` / `maxLength`                            | Enforced with `Length`.                                                                                                                                                                                                                     |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enable string arrays with `IsArray`, `ArrayMinSize`, `ArrayMaxSize`, `ArrayNotEmpty`. `isUniqueItems: true` rejects exactly equal items on a request array; see [Unique Items](/docs/nestjs-crud-automator/guides/validation#unique-items). |
+| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Control optionality, Swagger metadata, and serialization.                                                                                                                                                                                   |
+| `exampleValue`                                       | Single value or array; validated against the regex/length constraints.                                                                                                                                                                      |
 
 Use `GetDefaultStringFormatProperties(format)` when you want the package defaults for built-in formats instead of hand-maintaining `description`, `exampleValue`, `minLength`, `maxLength`, and `pattern`.
 

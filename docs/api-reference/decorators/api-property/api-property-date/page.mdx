@@ -10,12 +10,12 @@ Formats, validates, and serializes date/time fields. Supports ISO date-time stri
 
 ## Key options
 
-| Option                                               | Description                                                                                                                                               |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `identifier`                                         | `EApiPropertyDateIdentifier` describing semantic meaning. It drives default description text and generated write ownership for infrastructure timestamps. |
-| `format`                                             | `EApiPropertyDateType.DATE`, `DATE_TIME`, or `TIME`. Controls regex pattern, example value, and expected serializer format.                               |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enables arrays of date values with full validation.                                                                                                       |
-| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Same semantics as other property decorators.                                                                                                              |
+| Option                                               | Description                                                                                                                                                                                                |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `identifier`                                         | `EApiPropertyDateIdentifier` describing semantic meaning. It drives default description text and generated write ownership for infrastructure timestamps.                                                  |
+| `format`                                             | `EApiPropertyDateType.DATE`, `DATE_TIME`, or `TIME`. Controls regex pattern, example value, and expected serializer format.                                                                                |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems`   | Enables arrays of date values with full validation. `isUniqueItems: true` rejects items at one instant on a request array; see [Unique Items](/docs/nestjs-crud-automator/guides/validation#unique-items). |
+| `isRequired`, `isNullable`, `isResponse`, `isExpose` | Same semantics as other property decorators.                                                                                                                                                               |
 
 ## Behavior
 

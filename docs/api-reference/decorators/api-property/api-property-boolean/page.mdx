@@ -10,14 +10,14 @@ Applies Swagger metadata, validation decorators, and serialization logic for boo
 
 ## Notable options
 
-| Option                                             | Description                                                                                   |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `entity`                                           | Entity or factory returning the entity. Required so descriptions embed the entity name.       |
-| `description`                                      | Field description appended to Swagger docs.                                                   |
-| `isRequired`                                       | Controls whether missing `undefined` values fail validation.                                  |
-| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables `boolean[]` with array validation.                                                    |
-| `isNullable`                                       | Allows `null` while preserving strict `undefined` handling.                                   |
-| `isResponse`, `isExpose`                           | Controls whether `ApiResponseProperty`, `Expose`, or `Exclude` are emitted for response DTOs. |
+| Option                                             | Description                                                                                                                                                                              |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entity`                                           | Entity or factory returning the entity. Required so descriptions embed the entity name.                                                                                                  |
+| `description`                                      | Field description appended to Swagger docs.                                                                                                                                              |
+| `isRequired`                                       | Controls whether missing `undefined` values fail validation.                                                                                                                             |
+| `isArray`, `minItems`, `maxItems`, `isUniqueItems` | Enables `boolean[]` with array validation. `isUniqueItems: true` rejects equal items on a request array; see [Unique Items](/docs/nestjs-crud-automator/guides/validation#unique-items). |
+| `isNullable`                                       | Allows `null` while preserving strict `undefined` handling.                                                                                                                              |
+| `isResponse`, `isExpose`                           | Controls whether `ApiResponseProperty`, `Expose`, or `Exclude` are emitted for response DTOs.                                                                                            |
 
 ## Behavior
 
