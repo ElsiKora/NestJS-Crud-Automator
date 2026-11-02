@@ -108,7 +108,7 @@ Importing the package no longer runs `dotenv`'s `config()`, and the package has 
 
 ## Object Array Bounds
 
-An `@ApiPropertyObject` request array without `minItems`, `maxItems` or `isUniqueItems`, possible from JavaScript or `any`, fails at decoration and names the property and the missing bounds. Before 5.0.0 it decorated and then rejected every value. A response array (`isResponse: true`) may leave the bounds out, so code that narrows `TApiPropertyObjectProperties` on `isArray === true` reads them as possibly `undefined`. See [`@ApiPropertyObject`: Migration Notes](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object#migration-notes).
+An `@ApiPropertyObject` request array without `minItems`, `maxItems` or `isUniqueItems`, possible from JavaScript or `any`, fails at decoration and names the DTO class, the property and the missing bounds. A `minItems` or `maxItems` that is not a non-negative integer, such as `NaN`, or an `isUniqueItems` that is not a boolean fails at decoration on any object array. Before 5.0.0 these decorated and could then reject every value. A response array (`isResponse: true`) may leave the bounds out, so code that narrows `TApiPropertyObjectProperties` on `isArray === true` reads them as possibly `undefined`. See [`@ApiPropertyObject`: Migration Notes](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object#migration-notes).
 
 ## Checking The Upgrade
 

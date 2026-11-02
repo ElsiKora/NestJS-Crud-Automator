@@ -136,7 +136,7 @@ Generated route transaction rules:
 - `isExpose` is response-only and requires `isResponse: true`.
 - Guard-scoped DTO generation depends on the route's configured guard class; it is not a per-request role check.
 - `isUniqueItems` is OpenAPI schema metadata unless source adds explicit runtime uniqueness validation.
-- `ApiPropertyObject` request arrays must declare `minItems`, `maxItems` and `isUniqueItems`; one that leaves any out from JavaScript or `any` fails at decoration naming the property and the missing bounds. Response arrays (`isResponse: true`, typed `TApiPropertyBaseResponseArrayProperties`) may omit them, and the schema then publishes no bounds, so narrowing the options on `isArray === true` alone leaves the bounds possibly `undefined`.
+- `ApiPropertyObject` request arrays must declare `minItems`, `maxItems` and `isUniqueItems`; one that leaves any out from JavaScript or `any` fails at decoration naming the DTO class, the property and the missing bounds. On any object array, a `minItems` or `maxItems` that is not a non-negative integer (`NaN` from `Number(process.env.X)`) or an `isUniqueItems` that is not a boolean fails at decoration. Response arrays (`isResponse: true`, typed `TApiPropertyBaseResponseArrayProperties`) may omit them, and the schema then publishes no bounds, so narrowing the options on `isArray === true` alone leaves the bounds possibly `undefined`.
 
 ## Service And Function Signatures
 
