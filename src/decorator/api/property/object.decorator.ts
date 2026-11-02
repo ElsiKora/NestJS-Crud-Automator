@@ -60,7 +60,7 @@ export function ApiPropertyObject(options: TApiPropertyObjectProperties): Proper
 				RegisterAutoDtoChild(target, Object.values(normalizedOptions.generatedDTOs));
 			}
 
-			validateOptions(normalizedOptions);
+			validateOptions(normalizedOptions, propertyKey);
 			RegisterManualDtoPropertyMetadata(target, propertyKey, {
 				apply: ApiPropertyObject(normalizedOptions),
 				decorator: EManualDtoPropertyMetadataDecorator.OBJECT,
@@ -411,11 +411,12 @@ function resolveContextualObjectType(type: NestType<unknown>, method: EApiRouteT
  * Validates the configuration options for the API property object.
  * Throws an error if the configuration is invalid.
  * @param {TApiPropertyObjectProperties} properties - The property configuration to validate
+ * @param {string | symbol} propertyKey - Decorated property key, named in the error.
  * @returns {void}
  * @throws {Error} If the configuration is invalid
  * @private
  */
-function validateOptions(properties: TApiPropertyObjectProperties): void {
+function validateOptions(properties: TApiPropertyObjectProperties, propertyKey: string | symbol): void {
 	const errors: Array<string> = [];
 
 	if (properties.isArray && !properties.shouldValidateNested && !properties.isResponse) {
@@ -425,6 +426,17 @@ function validateOptions(properties: TApiPropertyObjectProperties): void {
 	if (properties.isArray === true) {
 		// A response array may leave out its bounds; each check runs on the bounds it declares.
 		const { isUniqueItems, maxItems, minItems }: { isUniqueItems?: boolean; maxItems?: number; minItems?: number } = properties;
+
+		if (properties.isResponse !== true) {
+			// The types require all three on a request array, but JavaScript or `any` can still leave one out, and the validators would then reject every value.
+			const missingBounds: Array<string> = Object.entries({ isUniqueItems, maxItems, minItems })
+				.filter(([, bound]: [string, boolean | number | undefined]): boolean => bound === undefined)
+				.map(([name]: [string, boolean | number | undefined]): string => `'${name}'`);
+
+			if (missingBounds.length > 0) {
+				errors.push(`Request array property '${String(propertyKey)}' must declare ${missingBounds.join(", ")}`);
+			}
+		}
 
 		if (minItems !== undefined && maxItems !== undefined && minItems > maxItems) {
 			errors.push("'minItems' is greater than 'maxItems'");
