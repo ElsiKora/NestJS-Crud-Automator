@@ -8,7 +8,7 @@ import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { GetRegisteredAutoDtoChildrenRecursive } from "@utility/register-auto-dto-child.utility";
-import { instanceToInstance, plainToInstance } from "class-transformer";
+import { instanceToInstance, instanceToPlain, plainToInstance } from "class-transformer";
 import { getMetadataStorage, validateSync, ValidationTypes } from "class-validator";
 import { describe, expect, it } from "vitest";
 
@@ -146,6 +146,84 @@ class FreeFormRequestDto {
 		type: undefined,
 	})
 	public undeclared?: Record<string, unknown>;
+}
+
+class OmittedKeepDto {
+	@ApiPropertyObject({
+		description: "pet",
+		discriminator: {
+			mapping: {
+				cat: CatDto,
+				dog: DogDto,
+			},
+			propertyName: "kind",
+		},
+		entity: ObjectEntity,
+		isRequired: true,
+		shouldValidateNested: true,
+		type: [CatDto, DogDto],
+	})
+	public pet!: CatDto | DogDto;
+
+	@ApiPropertyObject({
+		description: "pets",
+		discriminator: {
+			mapping: {
+				cat: CatDto,
+				dog: DogDto,
+			},
+			propertyName: "kind",
+		},
+		entity: ObjectEntity,
+		isArray: true,
+		isRequired: true,
+		isUniqueItems: false,
+		maxItems: 2,
+		minItems: 1,
+		shouldValidateNested: true,
+		type: [CatDto, DogDto],
+	})
+	public pets!: Array<CatDto | DogDto>;
+}
+
+class OmittedKeepDynamicDto {
+	@ApiPropertyObject({
+		description: "dynamic",
+		discriminator: {
+			mapping: {
+				cat: "CatDto",
+			},
+			propertyName: "kind",
+		},
+		entity: ObjectEntity,
+		generatedDTOs: {
+			CatDto,
+		},
+		isDynamicallyGenerated: true,
+		isRequired: true,
+		shouldValidateNested: true,
+		type: [CatDto],
+	})
+	public dynamic!: CatDto;
+}
+
+class FalseKeepResponseDto {
+	@ApiPropertyObject({
+		description: "pet",
+		discriminator: {
+			mapping: {
+				cat: CatDto,
+				dog: DogDto,
+			},
+			propertyName: "kind",
+			shouldKeepDiscriminatorProperty: false,
+		},
+		entity: ObjectEntity,
+		isRequired: true,
+		isResponse: true,
+		type: [CatDto, DogDto],
+	})
+	public pet!: CatDto | DogDto;
 }
 
 describe("ApiPropertyObject", () => {
@@ -369,6 +447,68 @@ describe("ApiPropertyObject", () => {
 				.map((metadata) => metadata.propertyName);
 
 			expect(nestedProperties).toEqual(["payloads"]);
+		});
+	});
+
+	describe("shouldKeepDiscriminatorProperty", () => {
+		it("keeps the discriminator and validates when the option is omitted", () => {
+			const instance = plainToInstance(OmittedKeepDto, { pet: { kind: "cat" }, pets: [{ kind: "dog" }] });
+
+			expect(validateSync(instance)).toHaveLength(0);
+			expect(instance.pet).toBeInstanceOf(CatDto);
+			expect(instance.pet.kind).toBe("cat");
+			expect(instance.pets[0]).toBeInstanceOf(DogDto);
+			expect(instance.pets[0]?.kind).toBe("dog");
+		});
+
+		it("keeps the discriminator on a dynamically generated property when the option is omitted", () => {
+			const instance = plainToInstance(OmittedKeepDynamicDto, { dynamic: { kind: "cat" } });
+
+			expect(validateSync(instance)).toHaveLength(0);
+			expect(instance.dynamic).toBeInstanceOf(CatDto);
+			expect(instance.dynamic.kind).toBe("cat");
+		});
+
+		it("rejects false on a property that is not marked as a response, whatever else it declares", () => {
+			const applyDecorator = (): void => {
+				class FalseKeepRequestDto {
+					@ApiPropertyObject({
+						description: "pet",
+						discriminator: {
+							mapping: {
+								cat: CatDto,
+								dog: DogDto,
+							},
+							propertyName: "kind",
+							shouldKeepDiscriminatorProperty: false,
+						},
+						entity: ObjectEntity,
+						isRequired: true,
+						isResponse: false,
+						type: [CatDto, DogDto],
+					})
+					public pet!: CatDto | DogDto;
+				}
+
+				expect(FalseKeepRequestDto).toBeDefined();
+			};
+
+			expect(applyDecorator).toThrow("ApiPropertyObject error: Request property 'FalseKeepRequestDto.pet' cannot set 'discriminator.shouldKeepDiscriminatorProperty' to false: a removed discriminator cannot be validated. Leave the option out. A manual DTO property that is only returned sets 'isResponse: true'; a generated write body that should not carry it sets 'properties[route][BODY].isEnabled: false'");
+		});
+
+		it("removes the discriminator from a response property with false, from the source object too", () => {
+			const source = { pet: { kind: "cat" } };
+			const instance = plainToInstance(FalseKeepResponseDto, source);
+
+			expect(instance.pet).toBeInstanceOf(CatDto);
+			expect(instance.pet.kind).toBeUndefined();
+			expect(source.pet).not.toHaveProperty("kind");
+		});
+
+		it("writes the discriminator of a response property with false back in instanceToPlain", () => {
+			const instance = plainToInstance(FalseKeepResponseDto, { pet: { kind: "cat" } });
+
+			expect(instanceToPlain(instance)).toEqual({ pet: { kind: "cat" } });
 		});
 	});
 
