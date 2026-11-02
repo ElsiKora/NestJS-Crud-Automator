@@ -68,7 +68,7 @@ const UUID_ITEM_ID: string = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const MISSING_UUID_ITEM_ID: string = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const GROUP_NUMBER: number = 7;
 const OUT_OF_RANGE_INT: string = String(E2E_PATH_PARAMETER_INT_MAXIMUM + 1);
-const LIST_QUERY: string = "limit=10&page=1&orderBy=label&orderDirection=ASC";
+const LIST_QUERY: string = "limit=10&page=1&orderBy=label&orderDirection=asc";
 const WRITE_PAYLOAD: Record<string, unknown> = { label: "Renamed" };
 const SCOPE_DAY: string = "2024-03-10";
 const TIME_ZONES: Array<string> = ["UTC", "America/New_York", "Asia/Tokyo"];

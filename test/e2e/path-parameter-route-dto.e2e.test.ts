@@ -18,7 +18,7 @@ type TRouteDtoFastify = { inject: (options: { method: string; url: string }) => 
 const SPELLINGS: Array<[string, string]> = E2E_PATH_PARAMETER_ROUTE_DTO_CASES.flatMap((routeCase: IE2ePathParameterRouteDtoCase) => routeCase.denied.map((spelling: string): [string, string] => [routeCase.name, spelling]));
 const INVALID_VALUES: Array<[string, string]> = E2E_PATH_PARAMETER_ROUTE_DTO_CASES.flatMap((routeCase: IE2ePathParameterRouteDtoCase) => routeCase.invalid.map((value: string): [string, string] => [routeCase.name, value]));
 
-const PIPES: Array<TE2ePathParameterRouteDtoPipe> = ["none", "validate", "transform", "implicit", "consumer", "groups", "version"];
+const PIPES: Array<TE2ePathParameterRouteDtoPipe> = ["none", "validate", "transform", "implicit", "consumer", "groups", "version", "oldVersion"];
 
 /**
  * Builds the application of one host pipe mode, not yet started.
@@ -67,6 +67,10 @@ const buildApplication = async (pipe: TE2ePathParameterRouteDtoPipe, controllers
 
 	if (pipe === "version") {
 		application.useGlobalPipes(new ValidationPipe({ transform: true, transformOptions: { version: 2 } }));
+	}
+
+	if (pipe === "oldVersion") {
+		application.useGlobalPipes(new ValidationPipe({ transform: true, transformOptions: { version: 1 } }));
 	}
 
 	return application;
@@ -129,6 +133,6 @@ describe.each<TE2ePathParameterRouteDtoPipe>(PIPES)("the guard runs the route PA
 	it.each(E2E_PATH_PARAMETER_ROUTE_DTO_REFUSED)("does not start a route whose DTO cannot keep the value IAM saw: $name", async (refused: { dto: new () => unknown; name: string }) => {
 		const refusedApp: INestApplication = await buildApplication(pipe, [buildE2ePathParameterRouteDtoController(refused)]);
 
-		await expect(refusedApp.init()).rejects.toThrow(/Controller "\w+" method "read" property "id" of PARAMETERS DTO/);
+		await expect(refusedApp.init()).rejects.toThrow(/Controller "\w+" method "read" property "\w+" of PARAMETERS DTO/);
 	});
 });

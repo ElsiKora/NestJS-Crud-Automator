@@ -23,7 +23,7 @@ describe("GetDefaultStringFormatProperties", () => {
 			format: EApiPropertyStringType.BIGINT_STRING,
 			maxLength: 20,
 			minLength: 1,
-			pattern: String.raw`/^-?(0|[1-9]\d{0,18})$/`,
+			pattern: String.raw`/^(0|-?[1-9]\d{0,18})$/`,
 		});
 	});
 
@@ -52,7 +52,7 @@ describe("GetDefaultStringFormatProperties", () => {
 			minLength: 1,
 			pattern: String.raw`/^(0|[1-9]\d{0,19})$/`,
 		});
-		expect(defaultProperties.pattern).toBe(String.raw`/^-?(0|[1-9]\d{0,18})$/`);
+		expect(defaultProperties.pattern).toBe(String.raw`/^(0|-?[1-9]\d{0,18})$/`);
 	});
 
 	it("types format-specific options", () => {

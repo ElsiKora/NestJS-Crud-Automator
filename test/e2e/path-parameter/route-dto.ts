@@ -2,7 +2,7 @@ import { Inject, Injectable, Param, RequestMethod } from "@nestjs/common";
 import { ApiProperty, IntersectionType, OmitType, PartialType, PickType } from "@nestjs/swagger";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Expose, Transform, Type } from "class-transformer";
-import { IsBoolean, IsDateString, IsDefined, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID } from "class-validator";
+import { IsBoolean, IsDate, IsDateString, IsDefined, IsInt, IsNotEmpty, IsNumberString, IsOptional, IsString, IsUUID } from "class-validator";
 import { Column, Entity, PrimaryColumn, Repository } from "typeorm";
 
 import { ApiController, ApiControllerSecurable, ApiPropertyCopy, ApiPropertyDate, ApiPropertyDescribe, ApiPropertyNumber, ApiPropertyString, ApiPropertyUUID, ApiRouteCustom, ApiService, ApiServiceBase, EApiAuthenticationType, EApiAuthorizationMode, EApiDtoType, EApiPolicyEffect, EApiPolicySourceType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
@@ -20,6 +20,10 @@ export class E2ePathParameterRouteDtoItemEntity {
 	@Column({ type: "varchar" })
 	@ApiPropertyDescribe({ description: "label", exampleValue: "Label", format: EApiPropertyStringType.STRING, maxLength: 64, minLength: 1, pattern: "/^.+$/", type: EApiPropertyDescribeType.STRING })
 	public label!: string;
+
+	@Column({ nullable: true, type: "varchar" })
+	@ApiPropertyDescribe({ description: "changed setting", type: EApiPropertyDescribeType.UUID })
+	public settingId!: string;
 }
 
 @ApiService({ entity: E2ePathParameterRouteDtoItemEntity })
@@ -199,7 +203,118 @@ class WiderThanPathDto {
 	public required!: string;
 }
 
-export type TE2ePathParameterRouteDtoPipe = "consumer" | "groups" | "implicit" | "none" | "transform" | "validate" | "version";
+class RenamedTrimDto {
+	@Expose({ name: "id" })
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).trim())
+	public inner!: string;
+}
+
+class RenamedPlainDateDto {
+	@Expose({ name: "id" })
+	@IsDate()
+	@Transform(({ value }: { value: Date }): string => value.toISOString(), { toPlainOnly: true })
+	@Type(() => Date)
+	public inner!: Date;
+}
+
+class PlainDateDto {
+	@IsDate()
+	@Transform(({ value }: { value: Date }): string => value.toISOString(), { toPlainOnly: true })
+	@Type(() => Date)
+	public id!: Date;
+}
+
+class ToPlainGroupDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).toUpperCase(), { groups: ["g"], toPlainOnly: true })
+	public id!: string;
+}
+
+class OtherPropertyGroupDto {
+	@IsString()
+	public id!: string;
+
+	@IsOptional()
+	@Transform(({ value }: { value: unknown }): string => String(value).toUpperCase(), { groups: ["g"] })
+	public other?: string;
+}
+
+// The replacement a controller without its own entity class uses: the column of the area's entity that holds the same value.
+class CopiedForeignColumnDto {
+	@ApiPropertyCopy({ dtoType: EApiDtoType.PARAMETERS, entity: (): typeof E2ePathParameterRouteDtoItemEntity => E2ePathParameterRouteDtoItemEntity, method: EApiRouteType.GET, propertyName: "settingId" } as never)
+	public id!: string;
+}
+
+class GroupTrimDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).trim(), { groups: ["g"] })
+	public id!: string;
+}
+
+class GroupLeadingZerosDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).replace(/^0+(?=\d)/, ""), { groups: ["g"] })
+	public id!: string;
+}
+
+class GroupOneValueDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): unknown => (value === "7" ? "8" : value), { groups: ["g"] })
+	public id!: string;
+}
+
+class GroupDecodeDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => decodeURIComponent(String(value)), { groups: ["g"] })
+	public id!: string;
+}
+
+class GroupPlusDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).replace(/^\+/, ""), { groups: ["g"] })
+	public id!: string;
+}
+
+class GroupRenamedDto {
+	@Expose({ name: "id" })
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).trim(), { groups: ["g"] })
+	public inner!: string;
+}
+
+class GroupClassOnlyDto {
+	@IsNumberString()
+	@Transform(({ value }: { value: unknown }): string => String(Number(value)), { groups: ["g"], toClassOnly: true })
+	public id!: string;
+}
+
+class VersionSwapDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).toLowerCase(), { until: 2 })
+	@Transform(({ value }: { value: unknown }): string => String(value).toUpperCase(), { since: 2 })
+	public id!: string;
+}
+
+class VersionExposedDto {
+	@Expose({ since: 2 })
+	@IsString()
+	public id!: string;
+}
+
+class GroupValidatorDto {
+	@IsInt({ groups: ["admin"] })
+	@Type(() => Number)
+	public id!: number;
+}
+
+class GroupValidatorsDto {
+	@IsInt({ groups: ["admin"] })
+	@IsString({ groups: ["user"] })
+	public id!: string;
+}
+
+export type TE2ePathParameterRouteDtoPipe = "consumer" | "groups" | "implicit" | "none" | "oldVersion" | "transform" | "validate" | "version";
 
 export interface IE2ePathParameterRouteDtoAllowed {
 	// What a pipe that converts hands the handler.
@@ -217,12 +332,14 @@ export interface IE2ePathParameterRouteDtoCase {
 	dto: new () => unknown;
 	invalid: Array<string>;
 	name: string;
+	// A Deny on this resource path replaces the Deny on the path value.
+	resourcePath?: string;
 	value: string;
 	widerThanPath?: boolean;
 }
 
 // Under a pipe with no implicit conversion a bare `@IsInt()` sees text, so that pipe gives its own 400.
-const TEXT_REJECTED_PIPES: Partial<Record<TE2ePathParameterRouteDtoPipe, { status: number }>> = { groups: { status: 400 }, transform: { status: 400 }, validate: { status: 400 }, version: { status: 400 } };
+const TEXT_REJECTED_PIPES: Partial<Record<TE2ePathParameterRouteDtoPipe, { status: number }>> = { groups: { status: 400 }, oldVersion: { status: 400 }, transform: { status: 400 }, validate: { status: 400 }, version: { status: 400 } };
 // Under a pipe with implicit conversion `@IsDateString() id: Date` sees a Date, so that pipe gives its own 400.
 const DATE_REJECTED_PIPES: Partial<Record<TE2ePathParameterRouteDtoPipe, { status: number }>> = { consumer: { status: 400 }, implicit: { status: 400 } };
 
@@ -245,16 +362,19 @@ export const E2E_PATH_PARAMETER_ROUTE_DTO_CASES: Array<IE2ePathParameterRouteDto
 	{ allowed: { piped: { id: "2024-03-11" }, pipes: DATE_REJECTED_PIPES, raw: { id: "2024-03-11" }, sent: "2024-03-11" }, denied: ["2024-03-10"], dto: DeclaredTextDto, invalid: ["garbage"], name: "declared-text", value: "2024-03-10" },
 	{ allowed: { piped: { id: "17" }, pipes: { consumer: { status: 200, value: { id: 17 } }, implicit: { status: 200, value: { id: 17 } } }, raw: { id: "17" }, sent: "17" }, denied: ["16"], dto: UntypedNumberDto, invalid: ["016", "0x10", "abc"], name: "untyped-number", value: "16" },
 	{ allowed: { piped: { id: "abc" }, raw: { id: "abc" }, sent: "abc" }, denied: ["denied"], dto: GrowsOnSomeValuesDto, invalid: ["xyz"], name: "grows-on-some-values", value: "denied" },
-	{ allowed: { piped: undefined, pipes: { consumer: { status: 400 }, groups: { status: 400 }, implicit: { status: 400 }, none: { status: 400 }, transform: { status: 400 }, validate: { status: 400 }, version: { status: 400 } }, raw: undefined, sent: "abc" }, denied: [], dto: ThrowsOnSamplePrefixDto, invalid: ["abc", "p-abc"], name: "throws-on-sample-prefix", value: "abc" },
+	{ allowed: { piped: undefined, pipes: { consumer: { status: 400 }, groups: { status: 400 }, implicit: { status: 400 }, none: { status: 400 }, oldVersion: { status: 400 }, transform: { status: 400 }, validate: { status: 400 }, version: { status: 400 } }, raw: undefined, sent: "abc" }, denied: [], dto: ThrowsOnSamplePrefixDto, invalid: ["abc", "p-abc"], name: "throws-on-sample-prefix", value: "abc" },
+	{ allowed: { piped: { inner: "xyz" }, raw: { id: "xyz" }, sent: "xyz" }, denied: ["abc", "%20abc", "abc%20"], dto: RenamedTrimDto, invalid: [], name: "renamed-trim", value: "abc" },
+	{ allowed: { piped: { inner: "2024-03-11T12:00:00.000Z" }, raw: { id: "2024-03-11T12:00:00.000Z" }, sent: "2024-03-11T12:00:00Z" }, denied: [DENIED_AT, "2024-03-10T12:00:00Z", "2024-03-10T13:00:00%2B01:00"], dto: RenamedPlainDateDto, invalid: ["garbage"], name: "renamed-plain-date", value: DENIED_AT },
+	{ allowed: { piped: { id: "2024-03-11T12:00:00.000Z" }, raw: { id: "2024-03-11T12:00:00.000Z" }, sent: "2024-03-11T12:00:00Z" }, denied: [DENIED_AT, "2024-03-10T12:00:00Z", "2024-03-10T13:00:00%2B01:00"], dto: PlainDateDto, invalid: ["garbage"], name: "plain-date", value: DENIED_AT },
+	{ allowed: { piped: { id: "xyz" }, raw: { id: "xyz" }, sent: "xyz" }, denied: ["abc"], dto: ToPlainGroupDto, invalid: [], name: "to-plain-group", value: "abc" },
+	{ allowed: { piped: { id: "xyz" }, raw: { id: "xyz" }, sent: "xyz" }, denied: ["abc"], dto: OtherPropertyGroupDto, invalid: [], name: "other-property-group", value: "abc" },
+	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: CopiedForeignColumnDto, invalid: ["not-a-uuid"], name: "copied-foreign-column", resourcePath: "copied-foreign-column/{id}", value: DENIED_UUID },
 	{ allowed: { piped: undefined, raw: { id: "17" }, sent: "17" }, denied: ["16"], dto: WiderThanPathDto, invalid: ["016"], name: "wider-than-path", value: "16", widerThanPath: true },
 ];
 
 export const E2E_PATH_PARAMETER_ROUTE_DTO_DOCUMENTS: Array<Record<string, unknown>> = E2E_PATH_PARAMETER_ROUTE_DTO_CASES.map((routeCase: IE2ePathParameterRouteDtoCase) => ({
 	document: {
-		Statement: [
-			{ Action: [`${routeCase.name}:*`], Effect: EApiPolicyEffect.ALLOW, Resource: ["*"] },
-			{ Action: [`${routeCase.name}:*`], Condition: { StringEquals: { "request.parameters.id": routeCase.value } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] },
-		],
+		Statement: [{ Action: [`${routeCase.name}:*`], Effect: EApiPolicyEffect.ALLOW, Resource: ["*"] }, routeCase.resourcePath ? { Action: [`${routeCase.name}:*`], Effect: EApiPolicyEffect.DENY, Resource: [routeCase.resourcePath.replace("{id}", routeCase.value)] } : { Action: [`${routeCase.name}:*`], Condition: { StringEquals: { "request.parameters.id": routeCase.value } }, Effect: EApiPolicyEffect.DENY, Resource: ["*"] }],
 		Version: "2012-10-17",
 	},
 	id: routeCase.name,
@@ -267,10 +387,10 @@ const DISABLED_ROUTES: never = Object.fromEntries([EApiRouteType.CREATE, EApiRou
 
 /**
  * Builds a securable controller with one custom `GET :id` route whose handler echoes the `@Param()` value.
- * @param {Pick<IE2ePathParameterRouteDtoCase, "dto" | "name">} routeCase - Route name and PARAMETERS DTO.
+ * @param {Pick<IE2ePathParameterRouteDtoCase, "dto" | "name" | "resourcePath">} routeCase - Route name, PARAMETERS DTO and IAM resource path.
  * @returns {new () => unknown} Controller class.
  */
-export const buildE2ePathParameterRouteDtoController = (routeCase: Pick<IE2ePathParameterRouteDtoCase, "dto" | "name">): new () => unknown => {
+export const buildE2ePathParameterRouteDtoController = (routeCase: Pick<IE2ePathParameterRouteDtoCase, "dto" | "name" | "resourcePath">): new () => unknown => {
 	class RouteDtoController {
 		@Inject(E2ePathParameterRouteDtoItemService)
 		public readonly service!: E2ePathParameterRouteDtoItemService;
@@ -291,7 +411,7 @@ export const buildE2ePathParameterRouteDtoController = (routeCase: Pick<IE2ePath
 	// The prefix of generated names comes from the class name, so each route's controller needs its own.
 	Object.defineProperty(RouteDtoController, "name", { value: `E2ePathParameterRouteDto${routeCase.name.replaceAll("-", "")}Controller` });
 	ApiController<E2ePathParameterRouteDtoItemEntity>({
-		authorization: { defaultMode: EApiAuthorizationMode.IAM, policyNamespace: routeCase.name, resourceDefinition: { entity: E2ePathParameterRouteDtoItemEntity, fields: [{ isFilterable: true, path: "resource.id", queryPath: "id" }], namespace: routeCase.name, resourcePath: `${routeCase.name}/item`, resourceType: routeCase.name } } as never,
+		authorization: { defaultMode: EApiAuthorizationMode.IAM, policyNamespace: routeCase.name, resourceDefinition: { entity: E2ePathParameterRouteDtoItemEntity, fields: [{ isFilterable: true, path: "resource.id", queryPath: "id" }], namespace: routeCase.name, resourcePath: routeCase.resourcePath ?? `${routeCase.name}/item`, resourceType: routeCase.name } } as never,
 		entity: E2ePathParameterRouteDtoItemEntity,
 		name: `E2ePathParameterRouteDto${routeCase.name.replaceAll("-", "")}`,
 		path: `route-dto/${routeCase.name}`,
@@ -312,4 +432,15 @@ export const E2E_PATH_PARAMETER_ROUTE_DTO_REFUSED: Array<Pick<IE2ePathParameterR
 	{ dto: PlusOneDto, name: "refused-plus-one" },
 	{ dto: TypeSensitiveDto, name: "refused-type-sensitive" },
 	{ dto: BooleanEqualsDto, name: "refused-boolean-equals" },
+	{ dto: GroupTrimDto, name: "refused-group-trim" },
+	{ dto: GroupLeadingZerosDto, name: "refused-group-leading-zeros" },
+	{ dto: GroupOneValueDto, name: "refused-group-one-value" },
+	{ dto: GroupDecodeDto, name: "refused-group-decode" },
+	{ dto: GroupPlusDto, name: "refused-group-plus" },
+	{ dto: GroupRenamedDto, name: "refused-group-renamed" },
+	{ dto: GroupClassOnlyDto, name: "refused-group-class-only" },
+	{ dto: VersionSwapDto, name: "refused-version-swap" },
+	{ dto: VersionExposedDto, name: "refused-version-exposed" },
+	{ dto: GroupValidatorDto, name: "refused-group-validator" },
+	{ dto: GroupValidatorsDto, name: "refused-group-validators" },
 ];

@@ -11,8 +11,8 @@ import { ApiControllerParametersBuildCustomRule } from "@utility/api/controller/
 import { ApiControllerParametersValidate } from "@utility/api/controller/parameters/validate.utility";
 import { ApiPropertyBoolean } from "@decorator/api/property/boolean.decorator";
 import { Exclude, Expose, Transform, TransformationType, Type } from "class-transformer";
-import { IsBoolean, IsDefined, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, ValidateNested } from "class-validator";
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { IsBoolean, IsDate, IsDefined, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, ValidateNested } from "class-validator";
+import { Column, Entity, PrimaryColumn, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 @Entity("custom_rule_items")
@@ -169,6 +169,136 @@ class CustomRuleGroupTransformParametersDto {
 class CustomRuleVersionTransformParametersDto {
 	@IsString()
 	@Transform(({ value }: { value: unknown }): string => String(value).toLowerCase(), { since: 2 })
+	public id!: string;
+}
+
+class CustomRuleSteadyGroupTransformParametersDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).trim(), { groups: ["g"] })
+	public id!: string;
+}
+
+class CustomRuleSteadyRenamedGroupTransformParametersDto {
+	@Expose({ name: "id" })
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).trim(), { groups: ["g"] })
+	public inner!: string;
+}
+
+class CustomRuleSteadyClassOnlyGroupTransformParametersDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): unknown => (value === "7" ? "8" : value), { groups: ["g"], toClassOnly: true })
+	public id!: string;
+}
+
+class CustomRuleUntilTransformParametersDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).toLowerCase(), { until: 2 })
+	public id!: string;
+}
+
+class CustomRuleVersionExposeParametersDto {
+	@Expose({ since: 2 })
+	@IsString()
+	public id!: string;
+}
+
+class CustomRuleGroupValidatorParametersDto {
+	@IsInt({ groups: ["admin"] })
+	@Type(() => Number)
+	public id!: number;
+}
+
+class CustomRuleGroupValidatorsParametersDto {
+	@IsInt({ groups: ["admin"] })
+	@IsString({ groups: ["user"] })
+	public id!: string;
+}
+
+class CustomRuleToPlainGroupTransformParametersDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).toUpperCase(), { groups: ["g"], toPlainOnly: true })
+	public id!: string;
+}
+
+class CustomRuleOtherPropertyGroupTransformParametersDto {
+	@IsString()
+	public id!: string;
+
+	@IsOptional()
+	@Transform(({ value }: { value: unknown }): string => String(value).toUpperCase(), { groups: ["g"] })
+	public other?: string;
+}
+
+class CustomRuleRenamedTrimParametersDto {
+	@Expose({ name: "id" })
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).trim())
+	public inner!: string;
+}
+
+class CustomRuleRenamedDefaultSiblingParametersDto {
+	@Expose({ name: "id" })
+	@IsString()
+	public inner!: string;
+
+	@Expose()
+	@Transform(({ value }: { value: unknown }): unknown => value ?? "default")
+	public label?: string;
+}
+
+class CustomRuleRenamedPlainDateParametersDto {
+	@Expose({ name: "id" })
+	@IsDate()
+	@Transform(({ value }: { value: Date }): string => value.toISOString(), { toPlainOnly: true })
+	@Type(() => Date)
+	public inner!: Date;
+}
+
+class CustomRuleBooleanTransformParametersDto {
+	@IsBoolean()
+	@Transform(({ value }: { value: unknown }): unknown => {
+		if (value === "true") {
+			return true;
+		}
+
+		return value === "false" ? false : value;
+	})
+	public id!: boolean;
+}
+
+class CustomRuleForeignEntityNameParametersDto {
+	@ApiPropertyUUID({ entity: { name: "ConfigData" }, isRequired: true })
+	public id!: string;
+}
+
+@Entity("custom_rule_keys")
+class CustomRuleKeyEntity {
+	@PrimaryColumn({ precision: 10, scale: 2, type: "decimal" })
+	@ApiPropertyDescribe({ description: "amount", exampleValue: 1.5, format: EApiPropertyNumberType.DOUBLE, maximum: 1000, minimum: 0, multipleOf: 0.01, type: EApiPropertyDescribeType.NUMBER })
+	public amount!: number;
+
+	@Column({ type: "float" })
+	@ApiPropertyDescribe({ description: "rate", exampleValue: 1.5, format: EApiPropertyNumberType.DOUBLE, maximum: 1000, minimum: 0, multipleOf: 0.01, type: EApiPropertyDescribeType.NUMBER })
+	public rate!: number;
+
+	@Column({ type: "int" })
+	@ApiPropertyDescribe({ description: "ref", exampleValue: "16", format: EApiPropertyStringType.STRING, maxLength: 20, minLength: 1, pattern: String.raw`/^-?\d+$/`, type: EApiPropertyDescribeType.STRING })
+	public ref!: string;
+}
+
+class CustomRuleDecimalCopyParametersDto {
+	@ApiPropertyCopy({ dtoType: EApiDtoType.PARAMETERS, entity: (): typeof CustomRuleKeyEntity => CustomRuleKeyEntity, method: EApiRouteType.GET, propertyName: "amount" })
+	public id!: number;
+}
+
+class CustomRuleFloatCopyParametersDto {
+	@ApiPropertyCopy({ dtoType: EApiDtoType.PARAMETERS, entity: (): typeof CustomRuleKeyEntity => CustomRuleKeyEntity, method: EApiRouteType.GET, propertyName: "rate" })
+	public id!: number;
+}
+
+class CustomRuleIntegerTextCopyParametersDto {
+	@ApiPropertyCopy({ dtoType: EApiDtoType.PARAMETERS, entity: (): typeof CustomRuleKeyEntity => CustomRuleKeyEntity, method: EApiRouteType.GET, propertyName: "ref" })
 	public id!: string;
 }
 
@@ -415,8 +545,72 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 		await expect(ApiControllerParametersValidate(described!, { id: "16", owner: sent } as never)).resolves.toEqual({ id: 16, owner: sent.toLowerCase() });
 	});
 
-	it("does not fail at startup on a Transform limited to a version, which any later pipe leaves on text IAM saw", () => {
-		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleVersionTransformParametersDto, methodName: "versioned", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toBeDefined();
+	it.each([
+		["a group", CustomRuleSteadyGroupTransformParametersDto],
+		["a group, on a renamed property", CustomRuleSteadyRenamedGroupTransformParametersDto],
+		["a group and to the conversion from the request", CustomRuleSteadyClassOnlyGroupTransformParametersDto],
+		["a since version", CustomRuleVersionTransformParametersDto],
+		["an until version", CustomRuleUntilTransformParametersDto],
+	])("fails at startup on a Transform limited to %s, even when it leaves every sample unchanged", (_name: string, dto: new () => unknown) => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "limited", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow("a @Transform of it is limited to class-transformer groups or versions");
+	});
+
+	it("fails at startup on an Expose limited to a version, which a host pipe of another version drops", () => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleVersionExposeParametersDto, methodName: "exposedVersion", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow("its @Expose is limited to class-transformer versions");
+	});
+
+	it.each([
+		["one validator", CustomRuleGroupValidatorParametersDto],
+		["two validators", CustomRuleGroupValidatorsParametersDto],
+	])("fails at startup on %s limited to groups, which would always answer 400", (_name: string, dto: new () => unknown) => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "groupValidator", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow("a validator of it is limited to class-validator groups");
+	});
+
+	it("starts on a limited Transform that does not touch a path value", () => {
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleToPlainGroupTransformParametersDto, methodName: "toPlainGroup", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toBeDefined();
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleOtherPropertyGroupTransformParametersDto, methodName: "otherGroup", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toBeDefined();
+	});
+
+	it("reads the exposed name of a Transform that gives text for an unset value", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleRenamedTrimParametersDto, methodName: "renamedTrim", pathParameters: ["id"], resourcePath: "custom-rule/item" });
+
+		await expect(ApiControllerParametersValidate(rule!, { id: " abc " } as never)).resolves.toEqual({ id: "abc" });
+	});
+
+	it("reads the exposed name of a property next to a sibling that gives a default", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleRenamedDefaultSiblingParametersDto, methodName: "renamedSibling", pathParameters: ["id"], resourcePath: "custom-rule/item" });
+
+		await expect(ApiControllerParametersValidate(rule!, { id: "16" } as never)).resolves.toEqual({ id: "16" });
+	});
+
+	it("starts a renamed date whose written form only a date has, as the same DTO without the rename does", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleRenamedPlainDateParametersDto, methodName: "renamedDate", pathParameters: ["id"], resourcePath: "custom-rule/item" });
+		const values: Record<string, unknown> = (await ApiControllerParametersValidate(rule!, { id: "2024-03-10T12:00:00Z" } as never)) as Record<string, unknown>;
+
+		expect(values.id).toEqual(new Date("2024-03-10T12:00:00.000Z"));
+	});
+
+	it("tells a DTO whose Transform reads the converted value how to reach the sent text", () => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleBooleanTransformParametersDto, methodName: "booleanTransform", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow("read the sent text from obj[key]");
+	});
+
+	it("fails at startup on a described UUID that a resource path names without an entity column", () => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleForeignEntityNameParametersDto, methodName: "foreignName", pathParameters: ["id"], resourcePath: "config-data/{id}" })).toThrow("must copy that value from an entity column");
+	});
+
+	it.each([
+		["a decimal", CustomRuleDecimalCopyParametersDto],
+		["a float", CustomRuleFloatCopyParametersDto],
+	])("fails at startup on a copy of %s column, whose text no Deny can compare", (_name: string, dto: new () => unknown) => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "decimalCopy", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow(/method "decimalCopy" holds the path parameter "id" in the \w+ column "\w+"/);
+	});
+
+	it("refuses a spelling of an integer column copied as text", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleIntegerTextCopyParametersDto, methodName: "integerText", pathParameters: ["id"], resourcePath: "custom-rule/{id}" });
+
+		await expect(ApiControllerParametersValidate(rule!, { id: "16" } as never)).resolves.toEqual({ id: "16" });
+		await expect(ApiControllerParametersValidate(rule!, { id: "016" } as never)).rejects.toThrow("Bad Request");
+		await expect(ApiControllerParametersValidate(rule!, { id: "-0" } as never)).rejects.toThrow("Bad Request");
 	});
 
 	it("does not fail at startup when a Transform rejects the startup sample", () => {
