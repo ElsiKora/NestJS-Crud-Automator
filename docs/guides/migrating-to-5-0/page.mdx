@@ -448,7 +448,7 @@ Generated GET, PATCH, PUT and DELETE now address every primary key column. Befor
 })
 ```
 
-A `timestamptz` key column with a precision above 3, an unset precision, or another date and time type except `datetime` on SQLite now fails at startup while it is in the path. Leave it out with `rowPath`, as above, or change the column. On such a route, more than one matching row answers `500`, and a write answers `500` before any change when a left-out date and time column holds a finer value than a millisecond. Before 5.0.0, PATCH and PUT inserted a duplicate row there, and DELETE answered `204` without deleting.
+A `timestamptz` key column with a precision above 3, an unset precision, another date and time type, or a `datetime` with a precision above 3 now fails at startup while it is in the path. A `datetime` with no precision or precision 0 to 3 stays allowed on SQLite, MySQL and MariaDB. Leave it out with `rowPath`, as above, or change the column. On such a route, more than one matching row answers `500`, and a write answers `500` before any change when a left-out date and time column holds a finer value than a millisecond. Before 5.0.0, PATCH and PUT inserted a duplicate row there, and DELETE answered `204` without deleting.
 
 **The route `read` key is removed.** Move the mapping to the controller as `pathScope`. It now binds the parameters on every generated route:
 
@@ -474,7 +474,9 @@ A `timestamptz` key column with a precision above 3, an unset precision, or anot
 
 **Every controller path parameter must be bound** when a generated route is enabled, so a controller that starts today with an unbound, wildcard or optional parameter fails at startup. Add it to `pathScope`, or disable the generated routes. A controller of custom routes only, with all six generated routes disabled, keeps any path.
 
-**A bound field leaves the generated body.** CREATE takes the value from the path. A body naming the bound field is refused by a `ValidationPipe` with `forbidNonWhitelisted`; without one, a different value answers `400` and an equal one passes.
+**A bound field leaves the generated body.** CREATE takes the value from the path. A body naming the bound field is refused by a `ValidationPipe` with `forbidNonWhitelisted`; with any other pipe or none, a different value answers `400` and an equal one passes.
+
+**A key column in a PATCH or PUT body must equal the path.** Before 5.0.0, a body such as `{ "id": "I2" }` on `PATCH /parent/P1/item/I1` moved the row `I2` of another parent into `P1`, and a composite key column in the body inserted a duplicate row. Now a differing key value, or a key column the path leaves out, answers `400` with nothing changed, whatever pipe runs.
 
 **Names.** The PARAMETERS DTO of a bound route is `<Prefix><Route>ParametersDTO`, without a signature. `IApiControllerPropertiesRouteBaseRead`, `IApiControllerPropertiesRouteReadScope`, `IApiControllerPropertiesRouteReadScopeParameter` and `TApiControllerReadDirectScalarField` are replaced by `IApiControllerPropertiesPathScope`, `IApiControllerPropertiesPathScopeParameter` and `TApiControllerPathDirectScalarField`.
 

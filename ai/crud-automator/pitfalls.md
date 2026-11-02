@@ -364,9 +364,11 @@ Do not type a `DATE` or `TIME` request property as `Date` or call `Date` methods
 
 Do not call `service.update`, `service.delete` or `service.get` with part of a composite key and expect one row. The service takes the criteria you pass: `rowPath` and `pathScope` apply only to generated routes. A partial key on `update` in SAVE mode can insert a row, so pass the complete key.
 
-Do not put a `timestamptz(6)`, an unset precision, or a `timestamp` key column in the path of a composite key: it fails at startup, because a `Date` cannot reproduce its stored value. Leave it out with `rowPath: { fields: ["id"] }`. That route answers `500` before a write to a row holding a finer value than a millisecond, and GET still reads the row.
+Do not put a `timestamptz(6)`, an unset precision, a `timestamp`, or a MySQL or MariaDB `datetime(6)` key column in the path of a composite key: it fails at startup, because a `Date` cannot reproduce its stored value. Leave it out with `rowPath: { fields: ["id"] }`. That route answers `500` before a write to a row holding a finer value than a millisecond, and GET still reads the row.
 
 A reduced `rowPath` is a promise that the remaining columns name one row. More than one match answers `500`. Between the check and the write there is no lock outside a transaction, a function subscriber's `withDeleted` does not reach the check, an IAM placeholder for a left-out column renders `*`, and on a partitioned table the check visits every partition unless an index serves it.
+
+Do not rely on a pipe to keep keys out of a write body: the route itself refuses a PATCH or PUT body whose key column differs from the path or that names a key column the path leaves out, and a bound field that differs on any write. Do not use a `request[PARAMETERS]` transformer on a bound field unless it should override the path value.
 
 Do not rely on a two-segment custom route on a controller whose default row path has two columns: `orders/export/daily` can be captured by `orders/:tenantId/:id`.
 

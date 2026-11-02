@@ -127,13 +127,14 @@ export class OrderController {
 
 This generates `GET /orders/:id/:tenantId`. An empty list, an unknown column, a column outside the key, a repeated column, or a column `pathScope` already binds fails at startup.
 
-A date and time key column in the path of a composite key must be a `timestamptz` with precision 0 to 3, or a `datetime` on SQLite, because a JavaScript `Date` cannot reproduce a finer value. Any other column fails at startup, and the value in the path must be the canonical UTC form such as `2026-01-15T05:06:07.123Z`; any other form answers `400`.
+A date and time key column in the path of a composite key must be a `timestamptz` with precision 0 to 3, or a `datetime` with no precision or precision 0 to 3 (SQLite, MySQL, MariaDB), because a JavaScript `Date` cannot reproduce a finer value. A MySQL or MariaDB `datetime(6)` therefore fails at startup. Any other column fails at startup, and the value in the path must be the canonical UTC form such as `2026-01-15T05:06:07.123Z`; any other form answers `400`.
 
 `rowPath` may leave key columns out, for example `rowPath: { fields: ["id"] }` on a partitioned ledger keyed by `id, createdAt`, where `createdAt` holds microseconds. The path is then a promise that it names one row:
 
 - The route first reads the key of the matching rows with `take: 2`, under the current HOOKS or IAM scope, through the transaction of the route. It adds this one `SELECT` only on a route with a reduced key.
-- More than one match answers `500` before any change. The value of a reduced column is not checked by the path, so a key that repeats is a deployment fault, not a client error.
+- More than one match answers `500` before any change. The value of a reduced column is not checked by the path, so a key that repeats is a deployment fault, not a client error. Rows are counted as the database stores them, so two rows whose left-out instants differ only below a millisecond count as two.
 - A write answers `500` before any change when a left-out date and time key column holds a finer value than a millisecond: the write could not address that row. GET still reads it.
+- After CREATE, the route reloads the row it inserted by its full key. A key column whose stored value a `Date` cannot reproduce is left out of that reload, and the other key columns must then name one row: a sibling row answers `500`, after the new row is stored.
 
 Limits of a reduced key:
 
@@ -184,13 +185,23 @@ export class ProviderGameController {
 
 `providerKey` is the external path name; `providerId` is the described direct scalar entity field used in the database predicate.
 
-| Route              | Effect of `pathScope`                                                                                                                                                       |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET, GET_LIST      | The row or list is limited to the bound value.                                                                                                                              |
-| PATCH, PUT, DELETE | Only a row with the bound value is written. A row of another parent answers `404` and stays unchanged.                                                                      |
-| CREATE             | The bound value comes from the path. A body naming another value answers `400` without echoing it, including through a relation key such as `owner` over a bound `ownerId`. |
+| Route              | Effect of `pathScope`                                                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET, GET_LIST      | The row or list is limited to the bound value.                                                                                                                               |
+| PATCH, PUT, DELETE | Only a row with the bound value is written. A row of another parent answers `404` and stays unchanged. A body naming another bound value or another key value answers `400`. |
+| CREATE             | The bound value comes from the path. A body naming another value answers `400` without echoing it, including through a relation key such as `owner` over a bound `ownerId`.  |
 
 Bound fields leave the generated BODY DTO, so a `ValidationPipe` with `forbidNonWhitelisted` refuses them in a body. A bound key column also leaves the row path: with the key `tenantId, id` and `tenantId` bound, the row path is `/:id`.
+
+The route compares the body with the path itself, whatever pipe runs. It reads the body both as the client sent it and as the route will write it, so a pipe that strips or transforms a property changes nothing:
+
+- A bound field in the body, directly or through the relation it joins, must equal the path value on CREATE, PATCH and PUT.
+- A key column in a PATCH or PUT body must equal its row parameter. A key column the path leaves out, through `rowPath`, cannot appear in the body at all.
+- Only a scalar names a value: an array, an object or `null` in place of one answers `400`.
+
+A differing value answers `400 INVALID_PARAMETERS` before any change and is not echoed.
+
+A `request[PARAMETERS]` transformer runs before the binding is read, so a transformer on a bound field overrides the value of the path for every query and write of that request.
 
 Every path parameter must be bound as soon as one generated route is enabled, and required: an unbound, wildcard or optional parameter fails at startup. Bind it or disable the route. A controller with all six generated routes disabled, which serves only custom routes, starts with any path it declares. A declared `pathScope` or `rowPath` is still validated. Duplicate parameters, duplicate fields, unknown path names, relations and objects fail at startup, as does a path parameter named like a row parameter, and binding every key column on a controller with a row route enabled.
 
