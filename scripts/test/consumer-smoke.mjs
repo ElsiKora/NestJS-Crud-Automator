@@ -8,13 +8,14 @@
  * authorization, pagination and Swagger scenarios, test/consumer/cyclic with entities that
  * import each other through Relation<T>) and runs it against Postgres. The swc consumer has its own app with extensionless
  * alias imports: SWC builds it to ES modules as the Nest CLI SWC builder does, and tsc only typechecks it with bundler resolution.
+ * test/consumer/bundle goes through esbuild with class-transformer inside the bundle and needs no database.
  * DATABASE_URL selects an existing database; otherwise a testcontainers Postgres is started and removed afterwards.
  *
  * Flags: --skip-build reuses the current dist, --keep leaves the temporary project in place, --peer-floors installs
  * every peerDependency at the lower bound of its range (and @nestjs/platform-fastify at the @nestjs/core floor) instead of
  * the repository devDependency versions, and fails unless exactly those versions were installed.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -41,6 +42,17 @@ const TYPES_NODE_RANGE = "^22.13.0";
 const ABSENT_PACKAGES = ["@nestjs/microservices", "@nestjs/platform-socket.io", "@nestjs/websockets", "socket.io-client"];
 // The SWC toolchain is not a repository devDependency, so the smoke pins it exactly
 const SWC_TOOLCHAIN = { "@swc/cli": "0.8.1", "@swc/core": "1.16.18" };
+// esbuild is not a repository devDependency either, so the smoke pins it exactly
+const ESBUILD_VERSION = "0.28.2";
+// The bundling that picks the ES entry of class-transformer next to the deep import of its CommonJS storage, and the ways out the refusal names
+const STORAGE_REFUSAL = "Cannot read class-transformer metadata";
+const BUNDLE_TWO_COPIES = ["--main-fields=module,main"];
+
+const BUNDLES_ONE_COPY = [
+	{ flags: ["--main-fields=main,module"], name: "main before module" },
+	// An esbuild alias also rewrites subpaths, so the storage needs its own, longer alias to keep its path
+	{ flags: ["--main-fields=module,main", "--alias:class-transformer=class-transformer/cjs/index.js", "--alias:class-transformer/cjs/storage.js=class-transformer/cjs/storage.js"], name: "alias" },
+];
 const ARGS = new Set(process.argv.slice(2));
 // Nest packages that must stay on the @nestjs/core release when the peers are pinned to their floors
 const NEST_FLOOR_FOLLOWERS = ["@nestjs/platform-fastify"];
@@ -89,7 +101,7 @@ function run(command, commandArguments, options) {
  */
 function createManifest(tarball) {
 	const repositoryManifest = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8"));
-	const dependencies = { "@elsikora/nestjs-crud-automator": `file:${tarball}`, "@types/node": TYPES_NODE_RANGE, "reflect-metadata": repositoryManifest.dependencies["reflect-metadata"], rxjs: repositoryManifest.dependencies.rxjs, ...SWC_TOOLCHAIN };
+	const dependencies = { "@elsikora/nestjs-crud-automator": `file:${tarball}`, "@types/node": TYPES_NODE_RANGE, "reflect-metadata": repositoryManifest.dependencies["reflect-metadata"], rxjs: repositoryManifest.dependencies.rxjs, ...SWC_TOOLCHAIN, esbuild: ESBUILD_VERSION };
 
 	for (const name of STACK) {
 		const version = repositoryManifest.devDependencies[name];
@@ -121,6 +133,41 @@ async function startDatabase() {
 	const container = await new PostgreSqlContainer("postgres:17-alpine").start();
 
 	return { stop: async () => void (await container.stop()), url: container.getConnectionUri() };
+}
+
+/**
+ * Bundles test/consumer/bundle with the package and class-transformer inside, then runs it: two copies of class-transformer must fail at decoration, one must pass.
+ * @param {string} workDirectory - The temporary project.
+ * @returns {void}
+ */
+function testBundledConsumer(workDirectory) {
+	const bundleDirectory = path.join(workDirectory, "bundle");
+	const packageManifest = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8"));
+	const bundled = new Set(["class-transformer"]);
+	const externals = [...Object.keys(packageManifest.dependencies ?? {}), ...Object.keys(packageManifest.peerDependencies ?? {}), "@nestjs/*", "lodash/*"].filter((name) => !bundled.has(name)).map((name) => `--external:${name}`);
+
+	cpSync(path.join(CONSUMER_ROOT, "bundle"), bundleDirectory, { recursive: true });
+
+	const bundle = (flags) => {
+		run(path.join(workDirectory, "node_modules/.bin/esbuild"), ["main.mjs", "--bundle", "--platform=node", "--format=cjs", "--outfile=dist/main.cjs", "--log-level=warning", ...externals, ...flags], { cwd: bundleDirectory });
+	};
+
+	process.stdout.write("\n=== consumer bundle, two copies of class-transformer ===\n");
+	bundle(BUNDLE_TWO_COPIES);
+
+	const refused = spawnSync("node", ["dist/main.cjs"], { cwd: bundleDirectory, encoding: "utf8" });
+
+	if (refused.status === 0 || !refused.stderr.includes(STORAGE_REFUSAL)) {
+		throw new Error(`A bundle with two copies of class-transformer must fail with "${STORAGE_REFUSAL}": exit ${refused.status}\n${refused.stderr}`);
+	}
+
+	process.stdout.write(`PASS bundled: two copies fail with "${STORAGE_REFUSAL}"\n`);
+
+	for (const { flags, name } of BUNDLES_ONE_COPY) {
+		process.stdout.write(`\n=== consumer bundle, ${name} ===\n`);
+		bundle(flags);
+		run("node", ["dist/main.cjs"], { cwd: bundleDirectory });
+	}
 }
 
 const workDirectory = mkdtempSync(path.join(tmpdir(), "crud-automator-consumer-"));
@@ -160,6 +207,13 @@ try {
 		if (existsSync(path.join(workDirectory, "node_modules", name))) {
 			throw new Error(`The consumer project must not have ${name}`);
 		}
+	}
+
+	try {
+		testBundledConsumer(workDirectory);
+	} catch (error) {
+		failed = true;
+		process.stdout.write(`consumer bundle FAILED: ${error instanceof Error ? error.message : String(error)}\n`);
 	}
 
 	database = await startDatabase();
