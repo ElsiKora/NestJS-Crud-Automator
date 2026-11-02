@@ -200,11 +200,86 @@ describe("ApiRouteAssertRequestBodyShape", () => {
 		expect(getter).not.toHaveBeenCalled();
 	});
 
-	it("refuses a cyclic body instead of walking it forever", () => {
+	it("passes a cyclic body, walking each object once", () => {
 		const cycle: Record<string, unknown> = {};
 		cycle.self = cycle;
 
-		expect((refusal(cycle) as BadRequestException).getResponse()).toMatchObject({ message: [DEPTH_MESSAGE] });
+		expect(() => {
+			ApiRouteAssertRequestBodyShape(cycle);
+		}).not.toThrow();
+	});
+
+	it("walks an object shared from many places once", () => {
+		const getter = vi.fn((): number => 0);
+		let current: Record<string, unknown> = {};
+
+		Object.defineProperty(current, "counted", { enumerable: true, get: getter });
+
+		// Each level points at the next twice, which is 2^20 paths to the last object.
+		for (let index: number = 0; index < 20; index += 1) {
+			current = { left: current, right: current };
+		}
+
+		ApiRouteAssertRequestBodyShape(current);
+
+		expect(getter).toHaveBeenCalledTimes(1);
+	});
+
+	it("passes fields that point back at the body, as multipart attachFieldsToBody builds them", () => {
+		const body: Record<string, unknown> = {};
+
+		for (const name of ["first", "second", "third", "fourth"]) {
+			body[name] = { fieldname: name, fields: body, type: "field", value: "v" };
+		}
+
+		expect(() => {
+			ApiRouteAssertRequestBodyShape(body);
+		}).not.toThrow();
+	});
+
+	it("counts a shared object at its shallowest level", () => {
+		const shared: object = nestedObjects(63);
+		// Through the long chain the shared object would start at level 30, and its end at level 92.
+		const longPath: Record<string, unknown> = nestedObjects(28) as Record<string, unknown>;
+		let end: Record<string, unknown> = longPath;
+
+		while (Object.keys(end).length > 0) {
+			end = end.nested as Record<string, unknown>;
+		}
+
+		end.nested = shared;
+
+		expect(() => {
+			ApiRouteAssertRequestBodyShape({ longPath, shared });
+		}).not.toThrow();
+	});
+
+	it("still refuses a chain past the limit that ends in a cycle", () => {
+		const body: object = nestedObjects(65);
+		let end: Record<string, unknown> = body as Record<string, unknown>;
+
+		while (Object.keys(end).length > 0) {
+			end = end.nested as Record<string, unknown>;
+		}
+
+		end.back = body;
+
+		expect((refusal(body) as BadRequestException).getResponse()).toMatchObject({ message: [DEPTH_MESSAGE] });
+	});
+
+	it("applies the limits to an object whose prototype has no prototype, as fast-querystring builds them", () => {
+		function QueryResult(this: object): void {}
+
+		QueryResult.prototype = Object.create(null) as object;
+
+		const wide: Record<string, number> = new (QueryResult as unknown as new () => Record<string, number>)();
+
+		for (let index: number = 0; index < 1001; index += 1) {
+			wide[`k${String(index)}`] = 0;
+		}
+
+		expect((refusal(wide) as BadRequestException).getResponse()).toMatchObject({ message: [KEYS_MESSAGE] });
+		expect((refusal({ nested: wide }) as BadRequestException).getResponse()).toMatchObject({ message: [KEYS_MESSAGE] });
 	});
 
 	it("does not change the body it checks", () => {

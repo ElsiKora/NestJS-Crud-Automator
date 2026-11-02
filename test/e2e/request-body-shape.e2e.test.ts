@@ -511,11 +511,11 @@ describe.each([
 		expect(response.json()).toEqual({ kind: "instance" });
 	});
 
-	it("answers 400, not a hang or a crash, for a cyclic body a consumer interceptor built", async () => {
+	it("passes a cyclic body a consumer interceptor built, with no hang or crash", async () => {
 		const response: IE2eBodyShapeResponse = await fastify.inject({ headers: { "content-type": "application/json", "x-replace-body": "cycle" }, method: "POST", payload: "{}", url: "/body-shape-custom/received" });
 
-		expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-		expect(response.json().message).toEqual([DEPTH_MESSAGE]);
+		expect(response.statusCode).toBe(HttpStatus.OK);
+		expect(response.json()).toEqual({ kind: "object" });
 	});
 
 	it.each([
