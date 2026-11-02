@@ -9,6 +9,7 @@ import { EApiAuthorizationDecisionType, EApiAuthorizationMode, EApiPolicyConditi
 import { EApiRouteType } from "@enum/decorator/api";
 import { Injectable } from "@nestjs/common";
 import { AuthorizationScopeMergeWhere } from "@utility/authorization";
+import { AuthorizationIsListRoute } from "@utility/authorization/is-list-route.utility";
 import { AuthorizationSerializeValue } from "@utility/authorization/serialize-value.utility";
 import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { ErrorException } from "@utility/error/exception.utility";
@@ -35,7 +36,7 @@ export class ApiAuthorizationIamEngine {
 
 		const resourceSegments: Array<IApiAuthorizationIamResourceSegment> = this.resolveResourceSegments(options.resourceDefinition, options.requestMetadata, options.resource);
 		const isCreateRequest: boolean = options.routeType === EApiRouteType.CREATE || (options.routeType === undefined && options.action === `${options.policyNamespace}:create`);
-		const isListRequest: boolean = options.routeType === EApiRouteType.GET_LIST || (options.routeType === undefined && options.action === `${options.policyNamespace}:list`);
+		const isListRequest: boolean = AuthorizationIsListRoute(options.routeType, options.action, options.policyNamespace);
 		const documentMap: Map<string, IApiPolicyDocumentRecord> = new Map<string, IApiPolicyDocumentRecord>(options.documents.map((document: IApiPolicyDocumentRecord): [string, IApiPolicyDocumentRecord] => [document.id, document]));
 
 		const identityDocuments: ReadonlyArray<IApiPolicyDocumentRecord> = options.attachments.attachments.map((attachment: IApiPolicyAttachment): IApiPolicyDocumentRecord => this.resolveDocumentRecord(attachment.policyId, documentMap, options.policyNamespace));

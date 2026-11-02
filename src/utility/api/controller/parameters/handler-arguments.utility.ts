@@ -4,9 +4,11 @@ import { ValidationPipe } from "@nestjs/common";
 import { PARAMTYPES_METADATA, PIPES_METADATA, ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
 import { ErrorException } from "@utility/error/exception.utility";
 
+import { ApiControllerParametersAssertValidationPipeOptions, ApiControllerParametersReadValidationPipes } from "./validation-pipe.utility";
+
 /**
  * Rejects a handler argument that could read another path value than a policy saw on a securable route.
- * The guard writes the canonical text of each path value to `request.params`. A pipe on `@Param`, a pipe other than `ValidationPipe` in `@UsePipes` on the method or the controller, a `@Param("name")` whose type compiles to neither `String` nor `Object`, which a host `ValidationPipe({ transform: true })` converts, and a `@Param()` typed as another class than the PARAMETERS DTO would each convert that text by a rule the guard did not run.
+ * The guard writes the canonical text of each path value to `request.params`. A pipe on `@Param`, a pipe other than `ValidationPipe` in `@UsePipes` on the method or the controller, a `ValidationPipe` there whose `expectedType` replaces the DTO, a `@Param("name")` whose type compiles to neither `String` nor `Object`, which a host `ValidationPipe({ transform: true })` converts, and a `@Param()` typed as another class than the PARAMETERS DTO would each convert that text by a rule the guard did not run.
  * `unknown`, `any`, and a union compile to `Object`, so they are allowed. A global pipe of the host is the host's own choice and is not checked here.
  * @param {{ prototype: object }} controller - Controller class that serves the route.
  * @param {object} controller.prototype - Prototype that holds the handler.
@@ -15,7 +17,7 @@ import { ErrorException } from "@utility/error/exception.utility";
  * @param {Type<unknown> | undefined} dto - PARAMETERS DTO of the route.
  * @param {string} route - Controller and method, for the error message.
  * @returns {void}
- * @throws {Error} When `@UsePipes` holds another pipe than `ValidationPipe`, a `@Param` argument has a pipe, a `@Param("name")` type compiles to neither `String` nor `Object`, or a `@Param()` is typed as another class than the PARAMETERS DTO.
+ * @throws {Error} When `@UsePipes` holds another pipe than `ValidationPipe` or a `ValidationPipe` with `expectedType`, a `@Param` argument has a pipe, a `@Param("name")` type compiles to neither `String` nor `Object`, or a `@Param()` is typed as another class than the PARAMETERS DTO.
  */
 export function ApiControllerParametersAssertHandlerArguments(controller: { prototype: object }, methodName: string, handler: object, dto: Type<unknown> | undefined, route: string): void {
 	for (const [place, pipes] of [
@@ -29,6 +31,10 @@ export function ApiControllerParametersAssertHandlerArguments(controller: { prot
 
 			throw ErrorException(`${route} runs ${pipeName} from @UsePipes on the ${place}, which could change a path value after the policy saw it: remove it, or use ValidationPipe, and let the PARAMETERS DTO convert the value`);
 		}
+	}
+
+	for (const { pipe, place } of ApiControllerParametersReadValidationPipes(controller, handler)) {
+		ApiControllerParametersAssertValidationPipeOptions(pipe, route, place);
 	}
 
 	// Nest keeps the arguments on the class that declares the handler, and a subclass reads them through its prototype chain.

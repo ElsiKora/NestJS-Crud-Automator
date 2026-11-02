@@ -5,6 +5,8 @@ export interface IApiControllerParametersCustomRuleOptions {
 	dto: Type<unknown> | undefined;
 	/** Whether each path parameter must be held by a property with a column type, `ApiPropertyCopy` or an `ApiProperty*` decorator: a HOOKS route, whose policy has no resource path rule to lean on. */
 	isColumnTypeRequired?: boolean;
+	/** Whether IAM evaluates the route as a list, which maps a resource path placeholder the path does not carry to row exclusions; any other IAM route must carry each placeholder as a path parameter. */
+	isListRoute?: boolean;
 	methodName: string;
 	/** Path parameters of the whole route path: global prefix, `RouterModule` path, controller path, and route path. */
 	pathParameters: ReadonlyArray<string>;

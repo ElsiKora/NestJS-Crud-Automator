@@ -11,19 +11,23 @@ import { ApiAuthorizationPolicyRegistry } from "@class/api/authorization/policy/
 import { AUTHORIZATION_GATEWAY_METADATA_CONSTANT, AUTHORIZATION_MICROSERVICE_METADATA_CONSTANT, AUTHORIZATION_MODULE_OPTIONS_TOKEN, AUTHORIZATION_POLICY_DOCUMENT_SOURCES_TOKEN } from "@constant/class/authorization";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
+import { DTO_SCHEMA_NAME_CONSTANT } from "@constant/utility/dto/schema-name.constant";
 import { EApiAuthorizationMode } from "@enum/class/authorization";
 import { EApiDtoType } from "@enum/decorator/api";
 import { EApiRouteType } from "@enum/decorator/api/route";
 import { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import { IApiControllerProperties, IApiRouteMetadata } from "@interface/decorator/api";
-import { Inject, Injectable, OnApplicationBootstrap, Optional, RequestMethod } from "@nestjs/common";
-import { METHOD_METADATA, MODULE_PATH, PATH_METADATA, VERSION_METADATA } from "@nestjs/common/internal";
+import { Inject, Injectable, OnApplicationBootstrap, Optional, RequestMethod, ValidationPipe } from "@nestjs/common";
+import { addLeadingSlash, METHOD_METADATA, MODULE_PATH, PATH_METADATA, stripEndSlash, VERSION_METADATA } from "@nestjs/common/internal";
 import { ApplicationConfig, DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
+import { ApiControllerGetMethodName } from "@utility/api/controller/get/method-name.utility";
 import { ApiControllerParametersAssertComparableColumns, ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
 import { ApiControllerParametersDtoGet } from "@utility/api/controller/parameters/dto";
 import { ApiControllerParametersAssertHandlerArguments } from "@utility/api/controller/parameters/handler-arguments.utility";
 import { ApiControllerParametersReadPath } from "@utility/api/controller/parameters/read-path.utility";
+import { ApiControllerParametersAssertValidationPipePackages, ApiControllerParametersReadValidationPipes } from "@utility/api/controller/parameters/validation-pipe.utility";
 import { AuthorizationIsHandlerAuthorized } from "@utility/authorization/is-handler-authorized.utility";
+import { AuthorizationIsListRoute } from "@utility/authorization/is-list-route.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { LoggerUtility } from "@utility/logger.utility";
 import { getMetadataStorage } from "class-validator";
@@ -32,6 +36,9 @@ const authorizationBootstrapValidationLogger: LoggerUtility = LoggerUtility.getL
 
 @Injectable()
 export class ApiAuthorizationBootstrapValidationService implements OnApplicationBootstrap {
+	// Checks that need a pipe to run, collected while the routes are read and run once all routes are read.
+	private pipeProbes: Array<() => Promise<void>> = [];
+
 	public constructor(
 		private readonly discoveryService: DiscoveryService,
 		private readonly metadataScanner: MetadataScanner,
@@ -56,7 +63,13 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 		}
 	}
 
-	public onApplicationBootstrap(): void {
+	/**
+	 * Validates every securable controller and records what the guard compares each request with.
+	 * It returns a promise only when a route runs `ValidationPipe` from `@UsePipes`, whose packages are checked by running it, so a failure without one is thrown at once.
+	 * @returns {Promise<void> | void} A promise when a pipe check is pending.
+	 */
+	public onApplicationBootstrap(): Promise<void> | void {
+		this.pipeProbes = [];
 		this.hookPermissionCache.configure(this.moduleOptions.cache);
 		this.iamAttachmentCache.configure(this.moduleOptions.cache);
 		this.iamDocumentCache.configure(this.moduleOptions.cache);
@@ -69,9 +82,18 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			this.validateController(controllerWrapper);
 		}
 
-		this.parametersRuleRegistry.markStartupChecked();
+		const pipeProbes: Array<() => Promise<void>> = this.pipeProbes;
+		this.pipeProbes = [];
 
-		authorizationBootstrapValidationLogger.verbose("Authorization bootstrap validation finished.");
+		if (pipeProbes.length === 0) {
+			this.finishStartupChecks();
+
+			return;
+		}
+
+		return Promise.all(pipeProbes.map(async (probe: () => Promise<void>): Promise<void> => probe())).then((): void => {
+			this.finishStartupChecks();
+		});
 	}
 
 	/**
@@ -85,12 +107,11 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
 	 * @param {EApiAuthorizationMode} defaultMode - Controller authorization mode.
 	 * @param {string | undefined} resourcePath - IAM resource path of the controller, or undefined when the controller has no IAM resource definition.
+	 * @param {string | undefined} policyNamespace - IAM policy namespace of the controller, which names its `list` action.
 	 * @returns {void}
 	 * @throws {Error} When a path part has a wildcard, a path parameter has no PARAMETERS DTO that describes it, the DTO cannot give authorization the text of a path value, a placeholder that is a path parameter is not copied from an entity column, a path parameter holds a decimal column, or a handler argument or pipe converts a path value by another rule.
 	 */
-	private applyRouteParameterRules(controllerWrapper: InstanceWrapper, metatype: new (...arguments_: Array<unknown>) => unknown, defaultMode: EApiAuthorizationMode, resourcePath: string | undefined): void {
-		const prefixPaths: Array<unknown> = [this.applicationConfig?.getGlobalPrefix() ?? "", this.resolveModulePath(controllerWrapper), Reflect.getMetadata(PATH_METADATA, metatype)];
-
+	private applyRouteParameterRules(controllerWrapper: InstanceWrapper, metatype: new (...arguments_: Array<unknown>) => unknown, defaultMode: EApiAuthorizationMode, resourcePath: string | undefined, policyNamespace: string | undefined): void {
 		for (const [methodName, handler] of this.collectMethods(metatype)) {
 			const metadata: IApiRouteMetadata<IApiBaseEntity> | undefined = (Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, handler) ?? Reflect.getMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY, metatype.prototype as object, methodName)) as IApiRouteMetadata<IApiBaseEntity> | undefined;
 
@@ -99,7 +120,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			}
 
 			const route: string = `Controller "${metatype.name}" method "${methodName}"`;
-			const pathParameters: Array<string> = [...new Set<string>([...prefixPaths, Reflect.getMetadata(PATH_METADATA, handler)].flatMap((path: unknown): Array<string> => ApiControllerParametersReadPath(path, route)))];
+			const pathParameters: Array<string> = this.readRouteParameters(controllerWrapper, metatype, handler, route);
 			this.parametersRuleRegistry.setPathParameters(metatype, handler, new Set<string>(pathParameters));
 
 			// A generated route carries its own rule, built from the controller entity when the controller is declared.
@@ -116,9 +137,10 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 
 			if (pathParameters.length > 0) {
 				ApiControllerParametersAssertHandlerArguments(metatype, methodName, handler, routeDto, route);
+				this.queueValidationPipeProbes(controllerWrapper, metatype, handler, route);
 			}
 
-			if (generatedRule) {
+			if (generatedRule || this.isGeneratedRoute(metatype, methodName, handler, metadata)) {
 				continue;
 			}
 
@@ -128,6 +150,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 				controller: metatype,
 				dto: routeDto,
 				isColumnTypeRequired: mode === EApiAuthorizationMode.HOOKS,
+				isListRoute: AuthorizationIsListRoute(metadata.route.type, `${policyNamespace ?? ""}:${metadata.resource.action}`, policyNamespace),
 				methodName,
 				pathParameters,
 				resourcePath: mode === EApiAuthorizationMode.IAM ? resourcePath : undefined,
@@ -156,7 +179,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 
 		for (const parameter of pathParameters) {
 			if (!described.has(parameter)) {
-				throw ErrorException(`${route} has the path parameter "${parameter}", which its generated PARAMETERS DTO does not describe, so a policy and the service would read the text as sent: map it with read.scope.parameters on GET or GET_LIST, or serve the route with @ApiRouteCustom and a PARAMETERS DTO that describes it`);
+				throw ErrorException(`${route} has the path parameter "${parameter}", which its generated PARAMETERS DTO does not describe, so a policy and the service would read the text as sent: serve the route with @ApiRouteCustom and a PARAMETERS DTO that describes it`);
 			}
 		}
 	}
@@ -254,6 +277,16 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	}
 
 	/**
+	 * Records that startup checked every route, so the guard compares each request with what was recorded.
+	 * @returns {void}
+	 */
+	private finishStartupChecks(): void {
+		this.parametersRuleRegistry.markStartupChecked();
+
+		authorizationBootstrapValidationLogger.verbose("Authorization bootstrap validation finished.");
+	}
+
+	/**
 	 * Formats the patterns of a `@MessagePattern`, `@EventPattern` or `@SubscribeMessage` handler for an error message.
 	 * @param {object} handler - The function on the prototype.
 	 * @returns {string | undefined} The patterns as JSON, or undefined when the handler has none.
@@ -306,6 +339,86 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 	 */
 	private isDtoClass(value: unknown): value is Type<unknown> {
 		return typeof value === "function";
+	}
+
+	/**
+	 * Tells whether a handler is a route `@ApiController` generates: it carries the name of its route type, that route is not disabled, and `@ApiRouteCustom` did not declare it. Such a route without a path parameter has no PARAMETERS rule, and its route type decides how IAM reads its resource path.
+	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
+	 * @param {string} methodName - Handler name.
+	 * @param {object} handler - Handler function.
+	 * @param {IApiRouteMetadata<IApiBaseEntity>} metadata - Route metadata of the handler.
+	 * @returns {boolean} Whether the handler is a generated route.
+	 */
+	private isGeneratedRoute(metatype: new (...arguments_: Array<unknown>) => unknown, methodName: string, handler: object, metadata: IApiRouteMetadata<IApiBaseEntity>): boolean {
+		const routeType: EApiRouteType | undefined = metadata.route.type;
+		const properties: IApiControllerProperties<IApiBaseEntity> | undefined = Reflect.getMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, metatype) as IApiControllerProperties<IApiBaseEntity> | undefined;
+
+		return routeType !== undefined && methodName === ApiControllerGetMethodName(routeType) && properties?.routes[routeType]?.generation?.isEnabled !== false && !Reflect.hasMetadata(DTO_SCHEMA_NAME_CONSTANT.CUSTOM_ROUTE_METADATA_KEY, handler);
+	}
+
+	/**
+	 * Queues the check of each `ValidationPipe` in `@UsePipes` of a route with a path parameter. Nest creates the class form once per module, so its instance is taken from the module of the controller.
+	 * @param {InstanceWrapper} controllerWrapper - Wrapper of the controller.
+	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
+	 * @param {object} handler - Handler function.
+	 * @param {string} route - Controller and method, for the error message.
+	 * @returns {void}
+	 */
+	private queueValidationPipeProbes(controllerWrapper: InstanceWrapper, metatype: new (...arguments_: Array<unknown>) => unknown, handler: object, route: string): void {
+		for (const { pipe, place } of ApiControllerParametersReadValidationPipes(metatype, handler)) {
+			const instance: unknown = pipe instanceof ValidationPipe ? pipe : controllerWrapper.host?.injectables.get(ValidationPipe)?.instance;
+
+			if (instance instanceof ValidationPipe) {
+				this.pipeProbes.push(async (): Promise<void> => ApiControllerParametersAssertValidationPipePackages(instance, route, place));
+			}
+		}
+	}
+
+	/**
+	 * Lists the path parameters of the paths Nest serves a handler at: the global prefix, unless `setGlobalPrefix` excludes the route, the `RouterModule` path, the controller path, and the route path.
+	 * A handler served at several paths gets the parameters of all of them, because each request carries the parameters of one.
+	 * @param {InstanceWrapper} controllerWrapper - Wrapper of the controller, whose module holds the `RouterModule` path.
+	 * @param {new (...arguments_: Array<unknown>) => unknown} metatype - Controller class.
+	 * @param {object} handler - Handler function.
+	 * @param {string} route - Controller and method, for the error message.
+	 * @returns {Array<string>} Parameter names, each once.
+	 * @throws {Error} When a part of a served path has a wildcard.
+	 */
+	private readRouteParameters(controllerWrapper: InstanceWrapper, metatype: new (...arguments_: Array<unknown>) => unknown, handler: object, route: string): Array<string> {
+		const modulePath: string = this.resolveModulePath(controllerWrapper);
+		const requestMethod: RequestMethod | undefined = Reflect.getMetadata(METHOD_METADATA, handler) as RequestMethod | undefined;
+		const globalPrefix: string = this.applicationConfig?.getGlobalPrefix() ?? "";
+		const excludedRoutes: ReadonlyArray<{ pathRegex: RegExp; requestMethod: RequestMethod }> = this.applicationConfig?.getGlobalPrefixOptions().exclude ?? [];
+		const controllerPaths: Array<unknown> = [Reflect.getMetadata(PATH_METADATA, metatype) as unknown].flat();
+		const routePaths: Array<unknown> = [Reflect.getMetadata(PATH_METADATA, handler) as unknown].flat();
+		const parameters: Set<string> = new Set<string>();
+
+		for (const controllerPath of controllerPaths) {
+			for (const routePath of routePaths) {
+				// Nest joins the parts this way and matches the exclusions of the global prefix against the result, see RoutePathFactory.
+				let path: string = "";
+
+				for (const part of [modulePath, controllerPath, routePath]) {
+					if (typeof part === "string" && part.length > 0) {
+						path = stripEndSlash(path) + addLeadingSlash(part);
+					}
+				}
+
+				const isExcluded: boolean =
+					requestMethod !== undefined &&
+					excludedRoutes.some(
+						(excluded: { pathRegex: RegExp; requestMethod: RequestMethod }): boolean =>
+							// Nest reads both RequestMethod.ALL and -1 as every method, see isRouteExcluded.
+							[-1, requestMethod, RequestMethod.ALL].includes(excluded.requestMethod) && excluded.pathRegex.exec(addLeadingSlash(path)) !== null,
+					);
+
+				for (const parameter of ApiControllerParametersReadPath([isExcluded ? "" : globalPrefix, modulePath, controllerPath, routePath], route)) {
+					parameters.add(parameter);
+				}
+			}
+		}
+
+		return [...parameters];
 	}
 
 	/**
@@ -410,7 +523,7 @@ export class ApiAuthorizationBootstrapValidationService implements OnApplication
 			this.validateResourceDefinition(metatype.name, authorization.resourceDefinition);
 		}
 
-		this.applyRouteParameterRules(controllerWrapper, metatype, authorization.defaultMode, authorization.resourceDefinition?.resourcePath);
+		this.applyRouteParameterRules(controllerWrapper, metatype, authorization.defaultMode, authorization.resourceDefinition?.resourcePath, authorization.policyNamespace);
 	}
 
 	/**

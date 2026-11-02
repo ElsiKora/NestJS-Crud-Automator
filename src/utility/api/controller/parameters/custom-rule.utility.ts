@@ -47,9 +47,10 @@ export function ApiControllerParametersAssertComparableColumns(rule: IApiControl
  * A route with a path parameter must declare a PARAMETERS DTO that describes it, because a policy and a handler would otherwise read the text as sent, where `016` or an upper-case UUID names the row a policy denies.
  * Each check on a request also runs here on sample values, so a DTO that could only refuse requests fails at startup. A check on samples cannot see everything, so the limits a sample cannot show are read from the metadata, and the check on each request runs on every real value.
  * A HOOKS route also needs a column type on each path parameter, `ApiPropertyCopy` or an `ApiProperty*` decorator, because its policy compares the text with no resource path rule behind it.
- * @param {IApiControllerParametersCustomRuleOptions} options - Route description: the controller class and the handler name for the error message, the PARAMETERS DTO, the path parameter names of the whole route path, whether each needs a column type, and the IAM resource path of the controller, if any.
+ * @param {IApiControllerParametersCustomRuleOptions} options - Route description: the controller class and the handler name for the error message, the PARAMETERS DTO, the path parameter names of the whole route path, whether each needs a column type, whether IAM evaluates it as a list, and the IAM resource path of the controller, if any.
  * @returns {IApiControllerParametersRule | undefined} The rule, or undefined when the route has no path parameter, so such a route costs nothing per request.
- * @throws {Error} When a path parameter has no PARAMETERS DTO that describes it, or no column type where one is required, when the DTO cannot give a handler the value a policy saw, or when a resource path placeholder is not copied from an entity column.
+ * An IAM route that does not list must carry each resource path placeholder as a path parameter: the guard has no loaded resource to fill it from, so it would render as `*`, which no Deny on a value matches. A list maps such a placeholder to row exclusions instead.
+ * @throws {Error} When a path parameter has no PARAMETERS DTO that describes it, or no column type where one is required, when the DTO cannot give a handler the value a policy saw, when a resource path placeholder is not copied from an entity column, or when an IAM route that does not list lacks a placeholder in its path.
  */
 export function ApiControllerParametersBuildCustomRule(options: IApiControllerParametersCustomRuleOptions): IApiControllerParametersRule | undefined {
 	const route: string = `Controller "${options.controller.name}" method "${options.methodName}"`;
@@ -79,6 +80,10 @@ export function ApiControllerParametersBuildCustomRule(options: IApiControllerPa
 
 	for (const placeholder of (options.resourcePath ?? "").matchAll(/\{([\w.-]+)\}/g)) {
 		const parameter: string = placeholder[1] ?? "";
+
+		if (!parameters.has(parameter) && !options.isListRoute) {
+			throw ErrorException(`${route} names "{${parameter}}" in its IAM resourcePath, which is not a path parameter of the route, and a route that does not list renders it as "*", so no Deny on a value of it matches: serve the route under the path parameter "${parameter}" copied with ApiPropertyCopy, declare it as a list with route.type GET_LIST, or authorize it in HOOKS mode`);
+		}
 
 		if (parameters.has(parameter) && !isColumnCopy(options.dto, routeDtoProperties?.get(parameter) ?? parameter)) {
 			throw ErrorException(`${route} names the path parameter "${parameter}" in its IAM resourcePath, so its PARAMETERS DTO must copy that value from an entity column with ApiPropertyCopy, and it does not`);
