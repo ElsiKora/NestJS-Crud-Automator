@@ -390,6 +390,29 @@ describe("stored reserved keys through a CURSOR GET_LIST on PostgreSQL (E2E)", (
 			expect(({} as { polluted?: unknown }).polluted).toBeUndefined();
 		});
 	});
+
+	describe.each(ADAPTERS)("under a host ClassSerializerInterceptor through $adapterName", ({ adapterName }: { adapterName: string }) => {
+		let application: IE2eReservedApplication;
+
+		beforeAll(async () => {
+			application = await startApplication(adapterName, container, true);
+		});
+
+		afterAll(async () => {
+			await application.app.close();
+		});
+
+		it.each(STORED_SHAPES)("answers with $name as a PAGE GET_LIST answers it", async ({ payload }: { payload: string }) => {
+			const rowId: string = await seed(application.dataSource, "cursor-serialized", payload);
+			const cursorList: IE2eReservedResponse = await send(application.base, "GET", `${CURSOR_ROW_URL}?limit=100`);
+			const pageList: IE2eReservedResponse = await send(application.base, "GET", `${ROW_URL}?limit=100&page=1`);
+
+			expect(cursorList.status, JSON.stringify(cursorList.body)).toBe(HttpStatus.OK);
+			expect(pageList.status, JSON.stringify(pageList.body)).toBe(HttpStatus.OK);
+			expect(canonical(findItem(cursorList, rowId))).toBe(canonical(findItem(pageList, rowId)));
+			expect(canonical(findItem(cursorList, rowId)?.payload)).toBe(canonicalWithoutDroppedKeys(JSON.parse(payload)));
+		});
+	});
 });
 
 describe.each(ADAPTERS)("stored reserved keys under a host ClassSerializerInterceptor through $adapterName on SQLite (E2E)", ({ adapterName }: { adapterName: string }) => {

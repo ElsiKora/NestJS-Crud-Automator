@@ -3,7 +3,7 @@ import "reflect-metadata";
 import { ClassTransformerFreeFormValue } from "@class/class-transformer-free-form-value.class";
 import { ApiPropertyObject } from "@decorator/api/property/object.decorator";
 import { Expose, instanceToPlain, plainToInstance } from "class-transformer";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, type MockInstance, vi } from "vitest";
 
 class FreeFormOwnerEntity {
 	public id!: string;
@@ -35,7 +35,6 @@ describe("ClassTransformerFreeFormValue", () => {
 		const plain: { name: string; payload: unknown } = ClassTransformerFreeFormValue.instanceToPlain(response) as never;
 
 		expect(JSON.stringify(plain.payload)).toBe(JSON.stringify(JSON.parse(payload)));
-		expect(plain.payload).toBe(response.payload);
 		expect(plain.name).toBe("row");
 		expect(plain).not.toHaveProperty("hidden");
 	});
@@ -52,6 +51,14 @@ describe("ClassTransformerFreeFormValue", () => {
 
 		expect(JSON.stringify(plain.payload)).toBe(expected);
 		expect(({} as { polluted?: unknown }).polluted).toBeUndefined();
+	});
+
+	it.each(STORED_SHAPES)("lets a host instanceToPlain walk the converted value %s and answer what it answers for the instance", (payload: string) => {
+		const response: FreeFormResponseDto = createResponse(payload);
+		const converted: unknown = ClassTransformerFreeFormValue.instanceToPlain(response);
+
+		expect(JSON.stringify(instanceToPlain(converted))).toBe(JSON.stringify(instanceToPlain(response)));
+		expect(JSON.stringify(response.payload)).toBe(JSON.stringify(JSON.parse(payload)));
 	});
 
 	it("does not change the value it copies for a host serializer", () => {
@@ -96,5 +103,33 @@ describe("ClassTransformerFreeFormValue", () => {
 
 		expect(() => ClassTransformerFreeFormValue.instanceToPlain(new FailingDto())).toThrow("failing getter");
 		expect(ClassTransformerFreeFormValue.toPlain({ constructor: "c", keep: 1 })).toEqual({ keep: 1 });
+	});
+
+	it("does not walk the bytes of a Buffer or a typed array beside a free-form value", () => {
+		class BinaryDto {
+			@Expose()
+			public bytes: Buffer = Buffer.alloc(16);
+
+			@ApiPropertyObject({ description: "payload", entity: FreeFormOwnerEntity, isRequired: true, isResponse: true, type: Object })
+			@Expose()
+			public payload: unknown = JSON.parse(STORED_SHAPES[0] as string);
+
+			@Expose()
+			public get samples(): Array<Float64Array> {
+				return [new Float64Array(16)];
+			}
+		}
+
+		const entries: MockInstance<typeof Object.entries> = vi.spyOn(Object, "entries");
+
+		try {
+			const plain: { bytes: Buffer; payload: unknown } = ClassTransformerFreeFormValue.instanceToPlain(new BinaryDto()) as never;
+
+			expect(JSON.stringify(plain.payload)).toBe(STORED_SHAPES[0]);
+			expect(plain.bytes).toBeInstanceOf(Buffer);
+			expect(entries.mock.calls.filter(([value]: [unknown]): boolean => ArrayBuffer.isView(value))).toEqual([]);
+		} finally {
+			entries.mockRestore();
+		}
 	});
 });
