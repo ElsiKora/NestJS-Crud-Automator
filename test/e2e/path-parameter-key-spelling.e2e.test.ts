@@ -128,11 +128,11 @@ describe.each(["sqlite", "postgres"])("a database reads a spelling of a generate
 		await refused.close();
 	});
 
-	it("starts a HOOKS route over a decimal key, where no Deny compares its text", async () => {
+	it("does not start a HOOKS route over a decimal key, because a policy compares context.parameters as text", async () => {
 		const hooks = buildE2ePathParameterKeySpellingDecimalHooksRoute();
-		const started: INestApplication = await buildApplication(container, [hooks], [hooks.policy]);
+		const refused: INestApplication = await buildApplication(container, [hooks], [hooks.policy]);
 
-		await expect(started.init()).resolves.toBeDefined();
-		await started.close();
+		await expect(refused.init()).rejects.toThrow(/method "\w+" holds the path parameter "key" in the decimal column "key"/);
+		await refused.close();
 	});
 });

@@ -170,17 +170,32 @@ describe.each([
 		expect(otherRow.statusCode).toBe(HttpStatus.NOT_FOUND);
 	});
 
-	it("applies a Deny on a UUID key to every letter case of that UUID", async () => {
+	it("applies a Deny on a UUID key and refuses a malformed UUID", async () => {
 		const denied = await fastify.inject({ method: "GET", url: `/path-parameter/iam/uuid-deny/${E2E_PATH_PARAMETER_IAM_DENIED_UUID_ID}` });
-		const deniedUpperCase = await fastify.inject({ method: "GET", url: `/path-parameter/iam/uuid-deny/${E2E_PATH_PARAMETER_IAM_DENIED_UUID_ID.toUpperCase()}` });
 		const allowed = await fastify.inject({ method: "GET", url: `/path-parameter/iam/uuid-deny/${E2E_PATH_PARAMETER_IAM_ALLOWED_UUID_ID}` });
 		const malformed = await fastify.inject({ method: "GET", url: "/path-parameter/iam/uuid-deny/not-a-uuid" });
 
 		expect(denied.statusCode).toBe(HttpStatus.FORBIDDEN);
-		expect(deniedUpperCase.statusCode).toBe(HttpStatus.FORBIDDEN);
 		expect(allowed.statusCode).toBe(HttpStatus.OK);
 		expect(malformed.statusCode).toBe(HttpStatus.BAD_REQUEST);
 		expect(malformed.json()).toEqual(VALIDATION_BODY("id must be a UUID"));
+	});
+
+	it.each([
+		{ name: "the denied row", uuid: E2E_PATH_PARAMETER_IAM_DENIED_UUID_ID },
+		{ name: "an allowed row", uuid: E2E_PATH_PARAMETER_IAM_ALLOWED_UUID_ID },
+	])("refuses an upper-case UUID of $name on GET, PATCH and DELETE instead of reading it as the lower-case key", async ({ uuid }: { name: string; uuid: string }) => {
+		const url: string = `/path-parameter/iam/uuid-deny/${uuid.toUpperCase()}`;
+		const read = await fastify.inject({ method: "GET", url });
+		const update = await fastify.inject({ method: "PATCH", payload: { label: "patched" }, url });
+		const removal = await fastify.inject({ method: "DELETE", url });
+
+		for (const response of [read, update, removal]) {
+			expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+			expect(response.json()).toEqual(VALIDATION_BODY("id must be a lower-case UUID"));
+		}
+
+		expect(await app!.get(E2ePathParameterIamUuidItemService).repository.findOneBy({ id: uuid })).toMatchObject({ id: uuid, label: uuid === E2E_PATH_PARAMETER_IAM_DENIED_UUID_ID ? "denied" : "allowed" });
 	});
 
 	it("matches the request.parameters condition recipe on a UUID key", async () => {
@@ -189,7 +204,6 @@ describe.each([
 
 		expect(allowed.statusCode).toBe(HttpStatus.OK);
 		expect(allowed.json()).toMatchObject({ id: E2E_PATH_PARAMETER_IAM_ALLOWED_UUID_ID, label: "allowed" });
-		expect(upperCase.statusCode).toBe(HttpStatus.OK);
-		expect(upperCase.json()).toMatchObject({ id: E2E_PATH_PARAMETER_IAM_ALLOWED_UUID_ID });
+		expect(upperCase.statusCode).toBe(HttpStatus.BAD_REQUEST);
 	});
 });

@@ -380,7 +380,8 @@ export const E2E_PATH_PARAMETER_ROUTE_DTO_CASES: Array<IE2ePathParameterRouteDto
 	{ allowed: { piped: { id: "2024-03-11T12:00:00.000Z" }, raw: { id: "2024-03-11T12:00:00.000Z" }, sent: "2024-03-11T12:00:00Z" }, denied: [DENIED_AT, "2024-03-10T12:00:00Z", "2024-03-10T13:00:00%2B01:00"], dto: PlainDateDto, invalid: ["garbage"], name: "plain-date", value: DENIED_AT },
 	{ allowed: { piped: { id: "xyz" }, raw: { id: "xyz" }, sent: "xyz" }, denied: ["abc"], dto: ToPlainGroupDto, invalid: [], name: "to-plain-group", value: "abc" },
 	{ allowed: { piped: { id: "xyz" }, raw: { id: "xyz" }, sent: "xyz" }, denied: ["abc"], dto: OtherPropertyGroupDto, invalid: [], name: "other-property-group", value: "abc" },
-	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: CopiedForeignColumnDto, invalid: ["not-a-uuid"], name: "copied-foreign-column", resourcePath: "copied-foreign-column/{id}", value: DENIED_UUID },
+	// A copied UUID column refuses an upper-case value rather than lower-casing it, because a database reads both cases as one key.
+	{ allowed: { piped: { id: OTHER_UUID }, raw: { id: OTHER_UUID }, sent: OTHER_UUID }, denied: [DENIED_UUID], dto: CopiedForeignColumnDto, invalid: ["not-a-uuid", DENIED_UUID.toUpperCase(), OTHER_UUID.toUpperCase()], name: "copied-foreign-column", resourcePath: "copied-foreign-column/{id}", value: DENIED_UUID },
 	{ allowed: { piped: undefined, raw: { id: "17" }, sent: "17" }, denied: ["16"], dto: WiderThanPathDto, invalid: ["016"], name: "wider-than-path", value: "16", widerThanPath: true },
 ];
 

@@ -248,6 +248,18 @@ class CustomRuleRenamedDefaultSiblingParametersDto {
 	public label?: string;
 }
 
+class CustomRuleRenamedConstantBesideDefaultParametersDto {
+	@Expose({ name: "id" })
+	@IsString()
+	@Transform((): string => "constant", { toPlainOnly: true })
+	public inner!: string;
+
+	@Expose()
+	@IsOptional()
+	@Transform(({ value }: { value: unknown }): unknown => value ?? "default")
+	public label?: string;
+}
+
 class CustomRuleRenamedPlainDateParametersDto {
 	@Expose({ name: "id" })
 	@IsDate()
@@ -564,7 +576,7 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 		["one validator", CustomRuleGroupValidatorParametersDto],
 		["two validators", CustomRuleGroupValidatorsParametersDto],
 	])("fails at startup on %s limited to groups, which would always answer 400", (_name: string, dto: new () => unknown) => {
-		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "groupValidator", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow("a validator of it is limited to class-validator groups");
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "groupValidator", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow("a validator of it is limited to class-validator groups: the guard runs every validator, while a host pipe with groups runs only those of its groups");
 	});
 
 	it("starts on a limited Transform that does not touch a path value", () => {
@@ -576,6 +588,10 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleRenamedTrimParametersDto, methodName: "renamedTrim", pathParameters: ["id"], resourcePath: "custom-rule/item" });
 
 		await expect(ApiControllerParametersValidate(rule!, { id: " abc " } as never)).resolves.toEqual({ id: "abc" });
+	});
+
+	it("fails at startup when a renamed property writes a constant beside a sibling that gives a default, so the name it holds stays unknown", () => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleRenamedConstantBesideDefaultParametersDto, methodName: "renamedConstant", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow('reads the path parameter "id" through PARAMETERS DTO "CustomRuleRenamedConstantBesideDefaultParametersDto", where the property "inner" writes the same value under "id" and "label" whatever the sample');
 	});
 
 	it("reads the exposed name of a property next to a sibling that gives a default", async () => {

@@ -103,7 +103,7 @@ describe.each([{ adapterName: "Fastify" }, { adapterName: "Express" }])("a malfo
 		});
 
 		it("still reads a valid path value", async () => {
-			const response: Response = await fetch(`${base}/path-parameter/exception/secured/${E2E_PATH_PARAMETER_EXCEPTION_ID.toUpperCase()}`);
+			const response: Response = await fetch(`${base}/path-parameter/exception/secured/${E2E_PATH_PARAMETER_EXCEPTION_ID}`);
 
 			expect(response.status).toBe(HttpStatus.OK);
 			expect(await response.json()).toMatchObject({ id: E2E_PATH_PARAMETER_EXCEPTION_ID, label: "one" });

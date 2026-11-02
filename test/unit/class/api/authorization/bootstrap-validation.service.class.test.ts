@@ -10,11 +10,11 @@ import { CONTROLLER_API_DECORATOR_CONSTANT, METHOD_API_DECORATOR_CONSTANT } from
 import { ApiPropertyCopy } from "@decorator/api/property/copy.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiAuthorizationCacheMode, EApiAuthorizationMode, EApiAuthorizationPrincipalType } from "@enum/class/authorization";
-import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiRouteType } from "@enum/decorator/api";
+import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { RequestMethod } from "@nestjs/common";
 import { PATH_METADATA } from "@nestjs/common/internal";
 import { DiscoveryService, MetadataScanner, ModulesContainer } from "@nestjs/core";
-import { Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Entity, PrimaryColumn, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it, vi } from "vitest";
 
 @Entity("bootstrap_validation_entities")
@@ -30,6 +30,22 @@ class ValidationEntity {
 		type: EApiPropertyDescribeType.NUMBER,
 	})
 	public id!: number;
+}
+
+@Entity("bootstrap_validation_decimal_entities")
+class ValidationDecimalEntity {
+	@PrimaryColumn({ precision: 10, scale: 2, type: "decimal" })
+	@ApiPropertyDescribe({ description: "amount", exampleValue: "1.50", format: EApiPropertyStringType.STRING, maxLength: 32, minLength: 1, pattern: String.raw`/^\d+(\.\d+)?$/`, type: EApiPropertyDescribeType.STRING })
+	public amount!: string;
+}
+
+class ValidationDecimalParametersDto {
+	@ApiPropertyCopy({ dtoType: EApiDtoType.PARAMETERS, entity: () => ValidationDecimalEntity, method: EApiRouteType.GET, propertyName: "amount" })
+	public amount!: string;
+}
+
+class HooksDecimalRouteController {
+	public read(): void {}
 }
 
 class ValidationParametersDto {
@@ -369,6 +385,15 @@ describe("ApiAuthorizationBootstrapValidationService", () => {
 		expect(secondRule).not.toBe(firstRule);
 		expect(registry.get(InheritedRouteOverrideController, InheritedRouteOverrideController.prototype.read)).toBeDefined();
 		expect(registry.get(InheritedRouteOverrideController, InheritedRouteBaseController.prototype.read)).toBeUndefined();
+	});
+
+	it("does not start a HOOKS custom route that holds a path value in a decimal column, because a policy compares context.parameters as text", () => {
+		defineSecurableControllerMetadata(HooksDecimalRouteController);
+		Reflect.defineMetadata(PATH_METADATA, "amounts/:amount", HooksDecimalRouteController);
+		defineRouteMetadata(HooksDecimalRouteController.prototype.read, "read");
+		Reflect.defineMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, { dto: { [EApiDtoType.PARAMETERS]: ValidationDecimalParametersDto } }, HooksDecimalRouteController.prototype.read);
+
+		expect(() => createIamService([HooksDecimalRouteController], new ApiAuthorizationParametersRuleRegistry()).onApplicationBootstrap()).toThrow('Controller "HooksDecimalRouteController" method "read" holds the path parameter "amount" in the decimal column "amount"');
 	});
 
 	it("forgets the path value rules of an earlier start", () => {

@@ -265,13 +265,15 @@ describe.each([
 		await expectStatus("/path-parameter/canonical/narrow/016", HttpStatus.BAD_REQUEST);
 	});
 
-	it("stores a UUID body value lower-case, so a text column reads it back by either letter case", async () => {
+	it("stores a UUID body value lower-case, and refuses an upper-case path value instead of reading it as that key", async () => {
 		const created: { id: string } = (await expectStatus("/path-parameter/canonical/text-uuid", HttpStatus.CREATED, "POST", { label: "created", ownerId: UPPER_TEXT_UUID })) as { id: string };
 		const repository = app!.get(E2ePathParameterCanonicalTextUuidItemService).repository;
 
 		expect(await repository.findOneBy({ id: created.id })).toMatchObject({ ownerId: UPPER_TEXT_UUID.toLowerCase() });
-		expect(await expectStatus(`/path-parameter/canonical/text-uuid/${created.id.toUpperCase()}`, HttpStatus.OK)).toMatchObject({ id: created.id, ownerId: UPPER_TEXT_UUID.toLowerCase() });
-		await expectStatus(`/path-parameter/canonical/text-uuid/${created.id.toUpperCase()}`, HttpStatus.OK, "PATCH", { ownerId: E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID.toUpperCase() });
+		expect(await expectStatus(`/path-parameter/canonical/text-uuid/${created.id}`, HttpStatus.OK)).toMatchObject({ id: created.id, ownerId: UPPER_TEXT_UUID.toLowerCase() });
+		await expectStatus(`/path-parameter/canonical/text-uuid/${created.id.toUpperCase()}`, HttpStatus.BAD_REQUEST);
+		await expectStatus(`/path-parameter/canonical/text-uuid/${created.id.toUpperCase()}`, HttpStatus.BAD_REQUEST, "PATCH", { ownerId: E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID });
+		await expectStatus(`/path-parameter/canonical/text-uuid/${created.id}`, HttpStatus.OK, "PATCH", { ownerId: E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID.toUpperCase() });
 
 		expect(await repository.findOneBy({ id: created.id })).toMatchObject({ ownerId: E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID });
 	});
@@ -285,8 +287,9 @@ describe.each([
 
 		expect(await expectStatus("/path-parameter/canonical/ppc-custom-int/1", HttpStatus.OK)).toEqual({ value: "string:1" });
 		await expectStatus(`/path-parameter/canonical/ppc-custom-uuid/${E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID}`, HttpStatus.FORBIDDEN);
-		await expectStatus(`/path-parameter/canonical/ppc-custom-uuid/${E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID.toUpperCase()}`, HttpStatus.FORBIDDEN);
-		expect(await expectStatus(`/path-parameter/canonical/ppc-custom-uuid/${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID.toUpperCase()}`, HttpStatus.OK)).toEqual({ value: `string:${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID}` });
+		await expectStatus(`/path-parameter/canonical/ppc-custom-uuid/${E2E_PATH_PARAMETER_CANONICAL_DENIED_UUID.toUpperCase()}`, HttpStatus.BAD_REQUEST);
+		await expectStatus(`/path-parameter/canonical/ppc-custom-uuid/${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID.toUpperCase()}`, HttpStatus.BAD_REQUEST);
+		expect(await expectStatus(`/path-parameter/canonical/ppc-custom-uuid/${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID}`, HttpStatus.OK)).toEqual({ value: `string:${E2E_PATH_PARAMETER_CANONICAL_ALLOWED_UUID}` });
 	});
 
 	it("validates an inherited custom route by the resource path of each subclass", async () => {
