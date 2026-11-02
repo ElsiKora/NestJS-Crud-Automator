@@ -1,16 +1,14 @@
 import type { Type } from "@nestjs/common";
 import type { ValidationError } from "class-validator";
 
-import { SWAGGER_METADATA_CONSTANT } from "@constant/swagger";
 import { BadRequestException } from "@nestjs/common";
+import { ApiControllerGetListQueryGetPublishedNames } from "@utility/api/controller/get-list/query/get-published-names.utility";
 import { ApiRouteValidationFlattenErrors } from "@utility/api/route/validation-flatten-errors.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { plainToInstance } from "class-transformer";
-import { getMetadataStorage, validate } from "class-validator";
+import { validate } from "class-validator";
 
 const PAGINATION_AND_ORDER_PROPERTIES: ReadonlyArray<string> = ["limit", "orderBy", "orderDirection", "page"];
-
-const PUBLISHED_PROPERTY_NAMES_BY_DTO: WeakMap<Type<unknown>, ReadonlySet<string>> = new WeakMap<Type<unknown>, ReadonlySet<string>>();
 
 /**
  * Validates a raw GET_LIST query against the route's QUERY DTO before any query runs, whether or not the host registers a ValidationPipe.
@@ -40,7 +38,7 @@ export async function ApiControllerGetListQueryValidate<Q extends object>(dto: T
 
 	// eslint-disable-next-line @elsikora/typescript/naming-convention
 	const errors: Array<ValidationError> = await validate(instance, { forbidUnknownValues: false });
-	const publishedPropertyNames: ReadonlySet<string> = getPublishedPropertyNames(dto);
+	const publishedPropertyNames: ReadonlySet<string> = ApiControllerGetListQueryGetPublishedNames(dto);
 
 	const messages: Array<string> = Object.keys(query)
 		.filter((key: string): boolean => !publishedPropertyNames.has(key))
@@ -71,61 +69,4 @@ export async function ApiControllerGetListQueryValidate<Q extends object>(dto: T
 	}
 
 	return validated;
-}
-
-/**
- * Reads the query keys a QUERY DTO exposes, such as `sort` for `@Expose({ name: "sort" }) orderBy`. class-transformer offers its expose metadata only through the keys it looks up while converting, so this converts an empty query and records them.
- * @param {Type<unknown>} dto - QUERY DTO of the route.
- * @returns {Array<string>} Exposed query keys.
- */
-function getExposedQueryNames(dto: Type<unknown>): Array<string> {
-	const exposedQueryNames: Array<string> = [];
-
-	plainToInstance(
-		dto,
-		new Proxy<object>(
-			{},
-			{
-				get: (target: object, key: string | symbol): unknown => {
-					if (typeof key === "string") {
-						exposedQueryNames.push(key);
-					}
-
-					return Reflect.get(target, key);
-				},
-			},
-		),
-	);
-
-	return exposedQueryNames;
-}
-
-/**
- * Resolves and caches the query keys a QUERY DTO publishes: properties with validation or Swagger metadata, including inherited ones, own properties of a new instance, and names exposed with `@Expose`.
- * A member of the prototype chain, such as the `object` method that anchors the generated filter-pairing validator, is not a query key.
- * @param {Type<unknown>} dto - QUERY DTO of the route.
- * @returns {ReadonlySet<string>} Published property names.
- */
-function getPublishedPropertyNames(dto: Type<unknown>): ReadonlySet<string> {
-	const cachedPropertyNames: ReadonlySet<string> | undefined = PUBLISHED_PROPERTY_NAMES_BY_DTO.get(dto);
-
-	if (cachedPropertyNames) {
-		return cachedPropertyNames;
-	}
-
-	const instance: object = new dto() as object;
-	const swaggerPropertyNames: Array<string> = ((Reflect.getMetadata(SWAGGER_METADATA_CONSTANT.MODEL_PROPERTIES_ARRAY, dto.prototype as object) as Array<string> | undefined) ?? []).map((propertyName: string): string => propertyName.replace(/^:/u, ""));
-
-	const candidateNames: Array<string> = [
-		...getMetadataStorage()
-			.getTargetValidationMetadatas(dto, "", true, false)
-			.map(({ propertyName }: { propertyName: string }): string => propertyName),
-		...swaggerPropertyNames,
-		...getExposedQueryNames(dto),
-	];
-	const publishedPropertyNames: ReadonlySet<string> = new Set<string>([...candidateNames.filter((propertyName: string): boolean => !(propertyName in (dto.prototype as object))), ...Object.keys(instance)]);
-
-	PUBLISHED_PROPERTY_NAMES_BY_DTO.set(dto, publishedPropertyNames);
-
-	return publishedPropertyNames;
 }

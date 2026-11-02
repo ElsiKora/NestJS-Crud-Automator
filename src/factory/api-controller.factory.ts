@@ -6,6 +6,7 @@ import type { IApiControllerIdentityPlan } from "@interface/class/api/controller
 import type { IApiControllerReadPlan } from "@interface/class/api/controller/read";
 import type { IApiControllerProperties } from "@interface/decorator/api";
 import type { IApiEntity } from "@interface/entity";
+import type { Type } from "@nestjs/common";
 import type { TApiControllerMethod } from "@type/class";
 import type { TApiControllerConstructor, TApiControllerGetListQuery, TApiControllerGetListResponse, TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 import type { TApiControllerMethodMap, TApiControllerMethodName, TApiControllerMethodNameMap, TApiControllerTargetMethod } from "@type/factory/api/controller";
@@ -21,7 +22,7 @@ import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { API_CONTROLLER_TESTING_GUIDE_URL } from "@constant/api-controller-testing-guide.constant";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { DTO_SCHEMA_NAME_CONSTANT } from "@constant/utility/dto/schema-name.constant";
-import { EApiRouteType } from "@enum/decorator/api";
+import { EApiDtoType, EApiRouteType } from "@enum/decorator/api";
 import { Controller, UseFilters } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { ApiControllerGetMethodName, ApiControllerWriteMethod } from "@utility/api";
@@ -29,7 +30,8 @@ import { ApiControllerApplyDecoratorsWithIdentityPlan } from "@utility/api/contr
 import { ApiControllerApplyMetadataWithReadPlan } from "@utility/api/controller/apply/metadata.utility";
 import { ApiControllerAssertRouteCursorDataSource, ApiControllerAssertRouteRelationLoads } from "@utility/api/controller/assert";
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
-import { ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
+import { ApiControllerGetListQueryPlanGet, ApiControllerGetListQueryPlanSet } from "@utility/api/controller/get-list/query";
+import { ApiControllerGetListTransformAssertPublishedFilters } from "@utility/api/controller/get-list/transform/assert-published-filters.utility";
 import { ApiControllerGetListTransformAssertRelationTargets } from "@utility/api/controller/get-list/transform/assert-relation-targets.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { ApiControllerIdentityPlanSet } from "@utility/api/controller/identity";
@@ -72,6 +74,20 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.ENTITY_METADATA_KEY, this.properties.entity, this.target);
 		Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.PROPERTIES_METADATA_KEY, this.properties, this.target);
+	}
+
+	/**
+	 * Fails startup when the manual QUERY DTO of a GET_LIST route without a typed filter publishes a filter the route cannot apply. The check waits until here because a relation target may be named by a class that did not exist while the controller was decorated.
+	 * @returns {void}
+	 */
+	assertGetListPublishedFilters(): void {
+		const routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType.GET_LIST> | undefined = this.properties.routes[EApiRouteType.GET_LIST];
+		const queryDto: Type<unknown> | undefined = routeConfig?.dto?.[EApiDtoType.QUERY];
+		const queryPlan: IApiControllerGetListQueryPlan | undefined = ApiControllerGetListQueryPlanGet(this.targetPrototype, ApiControllerGetMethodName(EApiRouteType.GET_LIST));
+
+		if (queryDto && routeConfig?.generation?.isEnabled !== false && (!queryPlan || queryPlan.filter.isLegacy)) {
+			ApiControllerGetListTransformAssertPublishedFilters(this.target.name, queryDto, this.ENTITY, routeConfig?.security?.authentication?.guard);
+		}
 	}
 
 	/**

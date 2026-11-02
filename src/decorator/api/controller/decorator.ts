@@ -42,6 +42,7 @@ export const ApiController =
 			factory.assertTableInheritanceChildren();
 			factory.assertListResponseOrder();
 			factory.assertGetListRelationTargets();
+			factory.assertGetListPublishedFilters();
 		};
 
 		// eslint-disable-next-line @elsikora/typescript/no-explicit-any
