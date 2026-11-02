@@ -84,6 +84,7 @@ const UNKNOWN_PLAIN_KEYS: Array<{ key: string; query: string }> = [
 	{ key: "nmae[foo]", query: "nmae[foo]=Alpha" },
 	{ key: "object", query: "object=x" },
 	{ key: "after", query: "after=abc" },
+	{ key: "then", query: "then=1" },
 ];
 
 const LEGACY_REJECTED_CASES: Array<{ messages: Array<string>; query: string }> = [

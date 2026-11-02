@@ -3,7 +3,7 @@ import "reflect-metadata";
 import { BadRequestException } from "@nestjs/common";
 import { ApiProperty } from "@nestjs/swagger";
 import { ApiControllerGetListQueryValidate } from "@utility/api/controller/get-list/query/validate.utility";
-import { Expose, Type } from "class-transformer";
+import { Expose, Transform, Type } from "class-transformer";
 import { IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
 import { describe, expect, it } from "vitest";
 
@@ -55,6 +55,57 @@ class AliasedQueryDto {
 	@Expose({ name: "dir" })
 	@IsOptional()
 	public orderDirection?: string;
+}
+
+class ValidatedAliasQueryDto {
+	@Expose({ name: "sort" })
+	@IsIn(["label"])
+	@IsOptional()
+	public orderBy?: string;
+
+	@Expose({ groups: ["admin"] })
+	@IsOptional()
+	public scope?: string;
+}
+
+class TransformedAliasQueryDto {
+	@Expose({ name: "sort" })
+	@IsOptional()
+	@Transform(({ value }: { value: string }): string => value.toLowerCase())
+	public orderBy?: string;
+
+	@Expose({ name: "dir" })
+	@IsOptional()
+	public orderDirection?: string;
+}
+
+class SetterAliasQueryDto {
+	private storedOrderBy?: string;
+
+	public get orderBy(): string | undefined {
+		return this.storedOrderBy;
+	}
+
+	@Expose({ name: "sort" })
+	@IsOptional()
+	public set orderBy(value: string | undefined) {
+		if (value === undefined) {
+			throw new TypeError("orderBy is required");
+		}
+
+		this.storedOrderBy = value;
+	}
+
+	@Expose({ name: "dir" })
+	@IsOptional()
+	public orderDirection?: string;
+}
+
+class ReadOnlyMemberQueryDto extends ListQueryDto {
+	@IsOptional()
+	public get computed(): string {
+		return "computed";
+	}
 }
 
 class UndecoratedFilterQueryDto {
@@ -126,6 +177,40 @@ describe("ApiControllerGetListQueryValidate", () => {
 		const error: unknown = await ApiControllerGetListQueryValidate(AliasedQueryDto, { constructor: "x", dir: "asc", sort: "label", sortBy: "label" }).catch((caught: unknown) => caught);
 
 		expect((error as BadRequestException).getResponse()).toEqual({ error: "Bad Request", message: ["property constructor should not exist", "property sortBy should not exist"], statusCode: 400 });
+	});
+
+	it("refuses the property behind an alias, so the DTO's validators hold", async () => {
+		const error: unknown = await ApiControllerGetListQueryValidate(ValidatedAliasQueryDto, { orderBy: "rank" }).catch((caught: unknown) => caught);
+
+		expect((error as BadRequestException).getResponse()).toEqual({ error: "Bad Request", message: ["property orderBy should not exist"], statusCode: 400 });
+
+		const aliasError: unknown = await ApiControllerGetListQueryValidate(ValidatedAliasQueryDto, { sort: "rank" }).catch((caught: unknown) => caught);
+
+		expect((aliasError as BadRequestException).getResponse()).toEqual({ error: "Bad Request", message: ["orderBy must be one of the following values: label"], statusCode: 400 });
+	});
+
+	it("publishes a property exposed without a name", async () => {
+		await expect(ApiControllerGetListQueryValidate(ValidatedAliasQueryDto, { scope: "x" })).resolves.toMatchObject({ scope: "x" });
+	});
+
+	it.each(["then", "constructor", "toString", "hasOwnProperty"])("rejects %s, which reading a DTO must not publish", async (key: string) => {
+		const error: unknown = await ApiControllerGetListQueryValidate(AliasedQueryDto, { [key]: "1", dir: "asc", sort: "label" }).catch((caught: unknown) => caught);
+
+		expect((error as BadRequestException).getResponse()).toEqual({ error: "Bad Request", message: [`property ${key} should not exist`], statusCode: 400 });
+	});
+
+	it("does not run a transform of the DTO to read its names", async () => {
+		await expect(ApiControllerGetListQueryValidate(TransformedAliasQueryDto, { dir: "asc", sort: "LABEL" })).resolves.toMatchObject({ orderBy: "label", orderDirection: "asc" });
+	});
+
+	it("does not call a setter of the DTO with undefined to read its names", async () => {
+		await expect(ApiControllerGetListQueryValidate(SetterAliasQueryDto, { dir: "asc", sort: "label" })).resolves.toMatchObject({ orderBy: "label", orderDirection: "asc" });
+	});
+
+	it("rejects a read-only member of the DTO, which a query cannot set", async () => {
+		const error: unknown = await ApiControllerGetListQueryValidate(ReadOnlyMemberQueryDto, { computed: "x", page: "1" }).catch((caught: unknown) => caught);
+
+		expect((error as BadRequestException).getResponse()).toEqual({ error: "Bad Request", message: ["property computed should not exist"], statusCode: 400 });
 	});
 
 	it("rejects a raw __proto__ query key without polluting the prototype", async () => {

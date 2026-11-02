@@ -167,7 +167,11 @@ describe.each([
 		});
 
 		it("rejects the property name of an aliased orderBy on a hidden field without any query", async () => {
-			expect(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&orderBy=secret&orderDirection=asc`)).toContain("ORDER_NOT_VALID");
+			expect(JSON.parse(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&orderBy=secret&orderDirection=asc`))).toEqual(["property orderBy should not exist", "property orderDirection should not exist"]);
+		});
+
+		it("rejects the property name of an aliased order on an orderable field too, so the DTO's validators hold", async () => {
+			expect(JSON.parse(await expectRejected(`${ALIAS_ITEMS}?${PAGE}&orderBy=rank&orderDirection=asc`))).toEqual(["property orderBy should not exist", "property orderDirection should not exist"]);
 		});
 
 		it("orders by an orderable field through the aliases of a manual QUERY DTO", async () => {
@@ -191,7 +195,7 @@ describe.each([
 			expect(await listLabels(`${ALIAS_DEFAULT_ITEMS}?${PAGE}`)).toEqual(["Beta", "Gamma", "Alpha", "Delta"]);
 			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=secret&dir=asc`)).toContain("ORDER_NOT_VALID");
 			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=secret`)).toContain("ORDER_NOT_VALID");
-			expect(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&orderBy=secret&orderDirection=asc`)).toContain("ORDER_NOT_VALID");
+			expect(JSON.parse(await expectRejected(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&orderBy=secret&orderDirection=asc`))).toEqual(["property orderBy should not exist", "property orderDirection should not exist"]);
 			expect(await listLabels(`${ALIAS_DEFAULT_ITEMS}?${PAGE}&sort=rank&dir=desc`)).toEqual(["Delta", "Gamma", "Alpha", "Beta"]);
 		});
 
