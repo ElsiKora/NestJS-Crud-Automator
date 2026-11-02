@@ -37,6 +37,8 @@ export default defineConfig({
 		exclude: ["node_modules/**/*"],
 		fileParallelism: false,
 		globals: true,
+		// Longer than testTimeout: hooks seed rows and stop containers. The explicit container hooks use this value too.
+		hookTimeout: 120_000,
 		include: ["test/e2e/**/*.test.ts"],
 		maxWorkers: 1,
 		root: ".",
