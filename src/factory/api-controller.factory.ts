@@ -260,18 +260,21 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 	}
 
 	/**
-	 * Validates the table inheritance children, the service repository, the route relation loads, and a CURSOR route's database contract against the initialized data source.
+	 * Validates the table inheritance children and, when a generated route is enabled, the service repository, the route relation loads, and a CURSOR route's database contract against the initialized data source.
 	 * @param {object} controller - The controller instance Nest bootstraps
 	 * @throws {Error} When the controller cannot serve its routes on the active data source
 	 */
 	private assertBootstrap(controller: object): void {
 		this.assertTableInheritanceChildren();
 
+		// With every generated route disabled nothing reads through the repository, and the relation load and CURSOR checks skip a disabled route.
+		if (!Object.values(EApiRouteType).some((routeType: EApiRouteType): boolean => this.properties.routes[routeType]?.generation?.isEnabled !== false)) {
+			return;
+		}
+
 		const repository: Repository<E> = DatabaseTypeOrmAssertServiceRepository<E>(Reflect.get(controller, "service"), `Controller "${this.target.name}" of entity "${this.properties.entity.name}"`, `. In tests, use a repository of an in-memory DataSource and stub its methods: ${API_CONTROLLER_TESTING_GUIDE_URL}`);
 
-		if (Object.values(EApiRouteType).some((routeType: EApiRouteType): boolean => this.properties.routes[routeType]?.generation?.isEnabled !== false)) {
-			ApiControllerAssertRepositoryEntity(this.properties.entity, repository, this.target.name);
-		}
+		ApiControllerAssertRepositoryEntity(this.properties.entity, repository, this.target.name);
 
 		for (const routeType of Object.values(EApiRouteType)) {
 			ApiControllerAssertRouteRelationLoads(repository, this.properties.routes[routeType], `Controller "${this.target.name}" route "${routeType}"`);

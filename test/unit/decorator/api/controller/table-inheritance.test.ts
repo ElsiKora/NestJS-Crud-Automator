@@ -10,7 +10,7 @@ import { EApiPropertyDescribeType, EApiPropertyStringType, EApiRouteType } from 
 import { Inject, Injectable } from "@nestjs/common";
 import { ApiProperty } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
-import { ChildEntity, Column, Entity, PrimaryGeneratedColumn, TableInheritance } from "typeorm";
+import { ChildEntity, Column, DataSource, Entity, PrimaryGeneratedColumn, TableInheritance } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../../../src/module/api";
@@ -109,11 +109,11 @@ class StartupCheckPropertyController {
 	public readonly service!: StartupCheckService;
 }
 
-function compileWith(controller: new (...arguments_: Array<never>) => unknown): Promise<TestingModule> {
+function compileWith(controller: new (...arguments_: Array<never>) => unknown, service: object = {}): Promise<TestingModule> {
 	return Test.createTestingModule({
 		controllers: [controller],
 		imports: [ApiAuthorizationModule.forRoot(), ApiSubscriberModule],
-		providers: [{ provide: StartupCheckService, useValue: {} }],
+		providers: [{ provide: StartupCheckService, useValue: service }],
 	}).compile();
 }
 
@@ -148,13 +148,16 @@ describe("ApiController table inheritance startup check", () => {
 			public readonly service!: StartupCheckService;
 		}
 
-		expect([AddressCheckHomeEntity, AddressCheckWorkEntity]).toHaveLength(2);
+		const dataSource: DataSource = new DataSource({ entities: [AddressCheckRootEntity, AddressCheckHomeEntity, AddressCheckWorkEntity], type: "postgres" });
+
+		// Metadata is enough for the startup check; the test never connects.
+		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
 
 		const DecoratedController: typeof AddressCheckController = ApiController<AddressCheckRootEntity & IApiBaseEntity>({
 			entity: AddressCheckRootEntity as never,
 			routes: { [EApiRouteType.GET]: {} },
 		})(AddressCheckController);
-		const application: TestingModule = await compileWith(DecoratedController);
+		const application: TestingModule = await compileWith(DecoratedController, { repository: dataSource.getRepository(AddressCheckRootEntity) });
 
 		await expect(application.init()).rejects.toThrow('OpenAPI component name "StartupCheckAddressDTO" belongs to two different classes: property address in AddressCheckGetResponseHomeDTO, and property address in AddressCheckGetResponseWorkDTO');
 	});

@@ -1,5 +1,7 @@
 import "reflect-metadata";
 
+import type { Repository } from "typeorm";
+
 import { ApiControllerAssertRepositoryEntity } from "@utility/api/controller/assert-repository-entity.utility";
 import { ChildEntity, DataSource, Entity, EntitySchema, PrimaryGeneratedColumn, TableInheritance } from "typeorm";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -65,6 +67,14 @@ describe("ApiControllerAssertRepositoryEntity", () => {
 		["a mock that claims another entity", { metadata: { target: AssertRepositoryOwnerEntity } }],
 	])("does not check %s", (_label: string, repository: unknown) => {
 		expect(() => ApiControllerAssertRepositoryEntity(AssertRepositoryRootEntity as never, repository, "MockController")).not.toThrowError();
+	});
+
+	it.each([
+		["from another TypeORM copy", (repository: Repository<object>): unknown => ({ manager: repository.manager, metadata: repository.metadata })],
+		["wrapped in a Proxy", (repository: Repository<object>): unknown => new Proxy({}, { get: (_target: object, property: string | symbol): unknown => Reflect.get(repository, property) })],
+	])("checks a repository %s", (_label: string, wrap: (repository: Repository<object>) => unknown) => {
+		expect(() => ApiControllerAssertRepositoryEntity(AssertRepositoryOwnerEntity as never, wrap(dataSource.getRepository(AssertRepositoryOwnerEntity)), "CopyController")).not.toThrowError();
+		expect(() => ApiControllerAssertRepositoryEntity(AssertRepositoryRootEntity as never, wrap(dataSource.getRepository(AssertRepositoryOwnerEntity)), "CopyController")).toThrowError('Controller "CopyController" serves entity AssertRepositoryRootEntity');
 	});
 
 	it("does not check a repository of a schema without a class", () => {

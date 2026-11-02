@@ -22,7 +22,7 @@ import { ApiExtraModels, ApiOkResponse, ApiProperty, ApiQuery } from "@nestjs/sw
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Test } from "@nestjs/testing";
-import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Column, DataSource, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../../../src/module/api";
@@ -198,6 +198,20 @@ const GET_ONLY_ROUTES = {
 
 const NO_GENERATED_ROUTES = { ...GET_ONLY_ROUTES, [EApiRouteType.GET]: DISABLED } as const;
 
+const DATA_SOURCE: DataSource = new DataSource({ entities: [SchemaBootItemEntity, SchemaBootOwnerEntity, SchemaBootOwnedItemEntity, SchemaBootRiskyTargetEntity, SchemaBootRiskyRowEntity, SchemaBootRiskyLineEntity, SchemaBootManualDtoRowEntity, SchemaBootDtoNamedRowEntity, SchemaBootDtoClashRowEntity], type: "postgres" });
+
+// Metadata is enough for the repository check at bootstrap; the test never connects.
+await (DATA_SOURCE as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+
+/**
+ * Creates a service whose repository passes the repository check at bootstrap.
+ * @param {Function} entity - Entity of the controller.
+ * @returns {never} The service.
+ */
+function createService(entity: Function): never {
+	return { repository: DATA_SOURCE.getRepository(entity) } as never;
+}
+
 /**
  * Starts a testing application with the library modules and the given controllers or modules, running the bootstrap hooks.
  * @param {{ controllers?: Array<new (...arguments_: Array<never>) => unknown>; imports?: Array<unknown> }} metadata - Controllers and modules of the application.
@@ -216,7 +230,7 @@ async function start(metadata: { controllers?: Array<new (...arguments_: Array<n
 function createDuplicateController(): new () => { service: never } {
 	@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "items", routes: GET_ONLY_ROUTES })
 	class SchemaBootDupController {
-		public service!: never;
+		public service: never = createService(SchemaBootItemEntity);
 	}
 
 	return SchemaBootDupController;
@@ -255,12 +269,12 @@ describe("schema name check at bootstrap", () => {
 		it("fails startup for two controller classes whose names give one prefix", async () => {
 			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "same-prefix", routes: GET_ONLY_ROUTES })
 			class SchemaBootSamePrefixController {
-				public service!: never;
+				public service: never = createService(SchemaBootItemEntity);
 			}
 
 			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "same-prefix-other", routes: GET_ONLY_ROUTES })
 			class SchemaBootSamePrefix {
-				public service!: never;
+				public service: never = createService(SchemaBootItemEntity);
 			}
 
 			await expect(start({ controllers: [SchemaBootSamePrefixController, SchemaBootSamePrefix] })).rejects.toThrow('have the same schema prefix "SchemaBootSamePrefix" in one application');
@@ -360,7 +374,7 @@ describe("schema name check at bootstrap", () => {
 
 			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "anonymous-shared", routes: NO_GENERATED_ROUTES })
 			class SchemaBootAnonymousSharedController extends anonymous {
-				public service!: never;
+				public service: never = createService(SchemaBootItemEntity);
 			}
 
 			await expect(start({ controllers: [SchemaBootAnonymousSharedController], providers: [SchemaBootAnonymousSharedProvider] })).resolves.toBeDefined();
@@ -456,7 +470,7 @@ describe("schema name check at bootstrap", () => {
 			expect(() => {
 				@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "anonymous-empty-handler", routes: NO_GENERATED_ROUTES })
 				class SchemaBootAnonymousEmptyHandlerController extends anonymous {
-					public service!: never;
+					public service: never = createService(SchemaBootItemEntity);
 				}
 
 				return SchemaBootAnonymousEmptyHandlerController;
@@ -468,7 +482,7 @@ describe("schema name check at bootstrap", () => {
 
 			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "anonymous-decorated", routes: NO_GENERATED_ROUTES })
 			class SchemaBootAnonymousDecoratedController extends SchemaBootAnonymousMiddle {
-				public service!: never;
+				public service: never = createService(SchemaBootItemEntity);
 			}
 
 			await expect(start({ controllers: [SchemaBootAnonymousDecoratedController] })).resolves.toBeDefined();
@@ -488,12 +502,12 @@ describe("schema name check at bootstrap", () => {
 		it("runs once for an application whose controllers are in two modules", async () => {
 			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "runs-first", routes: GET_ONLY_ROUTES })
 			class SchemaBootRunsFirstController {
-				public service!: never;
+				public service: never = createService(SchemaBootItemEntity);
 			}
 
 			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "runs-second", routes: GET_ONLY_ROUTES })
 			class SchemaBootRunsSecondController {
-				public service!: never;
+				public service: never = createService(SchemaBootItemEntity);
 			}
 
 			@Module({ controllers: [SchemaBootRunsFirstController] })
@@ -524,7 +538,7 @@ describe("schema name check at bootstrap", () => {
 		it("fails startup for a hand-written custom route response named like a generated DTO, naming both origins", async () => {
 			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "w1", routes: GET_ONLY_ROUTES })
 			class SchemaBootW1Controller {
-				public service!: never;
+				public service: never = createService(SchemaBootItemEntity);
 			}
 
 			class SchemaBootW1GetResponseDTO {
@@ -534,7 +548,7 @@ describe("schema name check at bootstrap", () => {
 
 			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "w3", routes: NO_GENERATED_ROUTES })
 			class SchemaBootW3Controller {
-				public service!: never;
+				public service: never = createService(SchemaBootItemEntity);
 
 				@ApiRouteCustom<SchemaBootItemEntity>({
 					resource: { action: "custom.mine", entity: SchemaBootItemEntity },
@@ -550,7 +564,7 @@ describe("schema name check at bootstrap", () => {
 		it("fails startup for a plain Nest controller response named like a generated DTO, naming both origins", async () => {
 			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "p1", routes: GET_ONLY_ROUTES })
 			class SchemaBootP1Controller {
-				public service!: never;
+				public service: never = createService(SchemaBootItemEntity);
 			}
 
 			class SchemaBootP1GetResponseDTO {
@@ -668,7 +682,7 @@ describe("schema name check at bootstrap", () => {
 
 			@ApiController<SchemaBootOwnedItemEntity>({ entity: SchemaBootOwnedItemEntity, path: "copy", routes: NO_GENERATED_ROUTES })
 			class SchemaBootCopyController {
-				public service!: never;
+				public service: never = createService(SchemaBootOwnedItemEntity);
 
 				@ApiRouteCustom<SchemaBootOwnedItemEntity>({
 					resource: { action: "custom.one", entity: SchemaBootOwnedItemEntity },
@@ -698,12 +712,12 @@ describe("schema name check at bootstrap", () => {
 
 			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "shared-1", routes: { ...GET_ONLY_ROUTES, [EApiRouteType.GET]: { dto: { [EApiDtoType.RESPONSE]: SchemaBootSharedResponseDTO } } } })
 			class SchemaBootShared1Controller {
-				public service!: never;
+				public service: never = createService(SchemaBootItemEntity);
 			}
 
 			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: "shared-2", routes: { ...GET_ONLY_ROUTES, [EApiRouteType.GET]: { dto: { [EApiDtoType.RESPONSE]: SchemaBootSharedResponseDTO } } } })
 			class SchemaBootShared2Controller {
-				public service!: never;
+				public service: never = createService(SchemaBootItemEntity);
 			}
 
 			const application: TestingModule = await start({ controllers: [SchemaBootShared1Controller, SchemaBootShared2Controller] });
@@ -738,7 +752,7 @@ describe("schema name check at bootstrap", () => {
 
 			@ApiController<SchemaBootItemEntity>({ entity: SchemaBootItemEntity, path: `request-${dtoType}`, routes: NO_GENERATED_ROUTES })
 			class SchemaBootRequestController {
-				public service!: never;
+				public service: never = createService(SchemaBootItemEntity);
 
 				@ApiRouteCustom<SchemaBootItemEntity>({
 					dto: { [dtoType]: SchemaBootRequestDTO },
@@ -757,7 +771,7 @@ describe("schema name check at bootstrap", () => {
 		it("starts with relations named dto and DTO, each under its own component name", async () => {
 			@ApiController<SchemaBootDtoNamedRowEntity>({ entity: SchemaBootDtoNamedRowEntity, path: "dto-named-rows", routes: GET_ONLY_ROUTES })
 			class SchemaBootDtoNamedController {
-				public service!: never;
+				public service: never = createService(SchemaBootDtoNamedRowEntity);
 			}
 
 			const application = (await Test.createTestingModule({ controllers: [SchemaBootDtoNamedController], imports: [ApiAuthorizationModule.forRoot(), ApiSubscriberModule] }).compile()).createNestApplication(new FastifyAdapter());
@@ -774,7 +788,7 @@ describe("schema name check at bootstrap", () => {
 		it("keeps the Dto segment in the path of a manual object under a property named dto", async () => {
 			@ApiController<SchemaBootManualDtoRowEntity>({ entity: SchemaBootManualDtoRowEntity, path: "manual-dto-rows", routes: GET_ONLY_ROUTES })
 			class SchemaBootManualDtoController {
-				public service!: never;
+				public service: never = createService(SchemaBootManualDtoRowEntity);
 			}
 
 			const application = (await Test.createTestingModule({ controllers: [SchemaBootManualDtoController], imports: [ApiAuthorizationModule.forRoot(), ApiSubscriberModule] }).compile()).createNestApplication(new FastifyAdapter());
@@ -791,7 +805,7 @@ describe("schema name check at bootstrap", () => {
 		it("fails startup naming the component when a sibling normalizes to the same segment as dto", async () => {
 			@ApiController<SchemaBootDtoClashRowEntity>({ entity: SchemaBootDtoClashRowEntity, path: "dto-clash-rows", routes: GET_ONLY_ROUTES })
 			class SchemaBootDtoClashController {
-				public service!: never;
+				public service: never = createService(SchemaBootDtoClashRowEntity);
 			}
 
 			await expect(start({ controllers: [SchemaBootDtoClashController] })).rejects.toThrow('OpenAPI component name "SchemaBootDtoClashGetResponseDtoDTO" belongs to two different classes');
@@ -802,7 +816,7 @@ describe("schema name check at bootstrap", () => {
 		it("starts GET, page GET_LIST, cursor GET_LIST, CREATE and UPDATE routes with one component name per class", async () => {
 			@ApiController<SchemaBootRiskyRowEntity>({ entity: SchemaBootRiskyRowEntity, path: "risky-page-rows", routes: { [EApiRouteType.DELETE]: DISABLED } })
 			class SchemaBootRiskyPageController {
-				public service!: never;
+				public service: never = createService(SchemaBootRiskyRowEntity);
 			}
 
 			@ApiController<SchemaBootRiskyRowEntity>({
@@ -821,7 +835,7 @@ describe("schema name check at bootstrap", () => {
 				},
 			} as never)
 			class SchemaBootRiskyCursorController {
-				public service!: never;
+				public service: never = createService(SchemaBootRiskyRowEntity);
 			}
 
 			const application = (await Test.createTestingModule({ controllers: [SchemaBootRiskyPageController, SchemaBootRiskyCursorController], imports: [ApiAuthorizationModule.forRoot(), ApiSubscriberModule] }).compile()).createNestApplication(new FastifyAdapter());

@@ -14,7 +14,7 @@ import { EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { FastifyAdapter, NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
-import { Entity, PrimaryGeneratedColumn } from "typeorm";
+import { DataSource, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule } from "../../../../../src/module/api";
@@ -94,10 +94,15 @@ async function boot(controller: new (...arguments_: Array<never>) => unknown): P
 describe("authorization bootstrap validation of a decorated controller", () => {
 	describe("methods declared on the controller class", () => {
 		it("starts with a valid custom route and generated routes", async () => {
+			const dataSource: DataSource = new DataSource({ entities: [ValidationBootItemEntity], type: "postgres" });
+
+			// Metadata is enough for the repository check at bootstrap; the test never connects.
+			await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+
 			@ApiControllerSecurable()
 			@ApiController<ValidationBootItemEntity>({ authorization: HOOKS_DEFAULT, entity: ValidationBootItemEntity, path: "valid", routes: { ...NO_GENERATED_ROUTES, [EApiRouteType.GET]: {} } })
 			class ValidationBootValidController {
-				public service!: never;
+				public service: never = { repository: dataSource.getRepository(ValidationBootItemEntity) } as never;
 
 				@ApiMethod<ValidationBootItemEntity>(routeMetadata())
 				public publish(): void {}

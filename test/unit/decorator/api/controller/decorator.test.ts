@@ -7,6 +7,7 @@ import { ApiServiceBase } from "@class/api";
 import { ApiControllerGeneratedFunctionCapability } from "@class/api/controller/generated/function-capability.class";
 import { ApiControllerGeneratedReadScopeStorage } from "@class/api/controller/generated/read-scope-storage.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
+import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/controller-startup-check.constant";
 import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiControllerObservable } from "@decorator/api/controller/observable.decorator";
 import { ApiControllerSecurable } from "@decorator/api/controller/securable.decorator";
@@ -511,9 +512,20 @@ describe("ApiController", () => {
 
 			await new Decorated().onApplicationBootstrap();
 		};
+		const disabled = { generation: { isEnabled: false } };
+		const bootstrapJournal = async (service: unknown): Promise<void> => {
+			class ForeignJournalController {
+				public service: unknown = service;
+			}
+
+			const Decorated = ApiController<IApiBaseEntity>({ entity: createDescribedEntity(KeyPageJournalEntity), routes: { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: {}, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled } } as never)(ForeignJournalController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+
+			await new Decorated().onApplicationBootstrap();
+		};
 
 		// A second TypeORM copy brands its own classes, so its repository fails instanceof but keeps the shape.
-		await expect(bootstrap({ repository: { manager: repository.manager, metadata: repository.metadata } })).rejects.toThrow('Controller "ForeignController" route "create": @RelationId property "readerIds" of entity "KeyPageJournalEntity"');
+		await expect(bootstrapJournal({ repository: { manager: repository.manager, metadata: repository.metadata } })).rejects.toThrow('Controller "ForeignJournalController" route "get": @RelationId property "readerIds" of entity "KeyPageJournalEntity"');
+		await expect(bootstrap({ repository: { manager: repository.manager, metadata: repository.metadata } })).rejects.toThrow('Controller "ForeignController" serves entity FactoryEntity (table factory_entities), but its service repository is for KeyPageJournalEntity');
 		await expect(bootstrap({ repository: { find: vi.fn() } })).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a usable TypeORM repository because its metadata is not TypeORM entity metadata. In tests, use a repository of an in-memory DataSource and stub its methods: https://elsikora.com/docs/nestjs-crud-automator/guides/testing');
 		await expect(bootstrap({ repository: { metadata: repository.metadata } })).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a usable TypeORM repository because its manager is not a TypeORM entity manager bound to a data source.');
 		await expect(bootstrap({})).rejects.toThrow('Controller "ForeignController" of entity "FactoryEntity": service.repository is not a usable TypeORM repository because the service has no repository.');
@@ -525,14 +537,14 @@ describe("ApiController", () => {
 	it("runs the startup checks once on the decorated class and on the class the decorator returns", async () => {
 		vi.spyOn(LoggerUtility.prototype, "error").mockImplementation((): void => undefined);
 
-		const dataSource: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageJournalEntity], type: "postgres" });
+		const dataSource: DataSource = new DataSource({ entities: [FactoryEntity], type: "postgres" });
 
 		// Metadata is enough for the startup check; the test never connects.
 		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
 
-		const repository = dataSource.getRepository(KeyPageJournalEntity);
+		const repository = dataSource.getRepository(FactoryEntity);
 		const disabled = { generation: { isEnabled: false } };
-		const allDisabled = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: disabled, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
+		const oneRoute = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: {}, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
 		const hook = vi.fn();
 		const metadata = vi.fn((): unknown => repository.metadata);
 
@@ -555,7 +567,7 @@ describe("ApiController", () => {
 			public service: { repository: unknown } = { repository: { find: vi.fn() } };
 		}
 
-		const Returned = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes: allDisabled } as never)(CountedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+		const Returned = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes: oneRoute } as never)(CountedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
 
 		await new Returned().onApplicationBootstrap();
 		expect(hook).toHaveBeenCalledOnce();
@@ -568,9 +580,63 @@ describe("ApiController", () => {
 		expect(metadata.mock.calls.length).toBe(readsOfOneRun * 2);
 
 		// A caller that discards the return value and registers the class it decorated keeps the checks.
-		ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes: allDisabled } as never)(SilentController as never);
+		ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes: oneRoute } as never)(SilentController as never);
+		expect(typeof Reflect.getMetadata(CONTROLLER_STARTUP_CHECK_METADATA_KEY, SilentController)).toBe("function");
+		expect(Reflect.getMetadata(CONTROLLER_STARTUP_CHECK_METADATA_KEY, Returned)).toBe(Reflect.getMetadata(CONTROLLER_STARTUP_CHECK_METADATA_KEY, CountedController));
 
 		await expect(new (SilentController as unknown as new () => { onApplicationBootstrap: () => Promise<void> })().onApplicationBootstrap()).rejects.toThrow('Controller "SilentController" of entity "FactoryEntity": service.repository is not a usable TypeORM repository because its metadata is not TypeORM entity metadata');
+
+		vi.restoreAllMocks();
+	});
+
+	it("refuses a missing repository only when the controller has an enabled generated route", async () => {
+		vi.spyOn(LoggerUtility.prototype, "error").mockImplementation((): void => undefined);
+
+		const dataSource: DataSource = new DataSource({ entities: [FactoryEntity, KeyPageAccountEntity, KeyPageJournalEntity], type: "postgres" });
+		const unbuiltDataSource: DataSource = new DataSource({ entities: [FactoryEntity], type: "postgres" });
+
+		// Metadata is enough for the startup check; the test never connects.
+		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
+
+		const disabled = { generation: { isEnabled: false } };
+		const allDisabled = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: disabled, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
+		const hook = vi.fn();
+		const bootstrap = async (service: unknown, routes: object): Promise<void> => {
+			class RepositoryConditionController {
+				public service: unknown = service;
+
+				public onApplicationBootstrap(): void {
+					hook();
+				}
+			}
+
+			const Decorated = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes } as never)(RepositoryConditionController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+
+			await new Decorated().onApplicationBootstrap();
+		};
+		const oneRoute = { ...allDisabled, [EApiRouteType.GET]: {} };
+		const throwingService = {
+			get repository(): unknown {
+				throw new Error("repository getter failed");
+			},
+		};
+
+		// Every generated route disabled: nothing reads through the repository, so nothing about it is refused and the controller hook still runs.
+		for (const service of [undefined, {}, { get: vi.fn() }, { repository: { find: vi.fn() } }, throwingService, { repository: unbuiltDataSource.getRepository(FactoryEntity) }, { repository: dataSource.getRepository(FactoryEntity) }, { repository: dataSource.getRepository(KeyPageJournalEntity) }]) {
+			hook.mockClear();
+			await expect(bootstrap(service, allDisabled)).resolves.toBeUndefined();
+			expect(hook).toHaveBeenCalledOnce();
+		}
+
+		// One enabled route: a service double with no repository is refused before the controller hook.
+		hook.mockClear();
+		await expect(bootstrap({ get: vi.fn() }, oneRoute)).rejects.toThrow('Controller "RepositoryConditionController" of entity "FactoryEntity": service.repository is not a usable TypeORM repository because the service has no repository.');
+		await expect(bootstrap(undefined, oneRoute)).rejects.toThrow("because the controller has no service.");
+		await expect(bootstrap({ repository: { find: vi.fn() } }, oneRoute)).rejects.toThrow("because its metadata is not TypeORM entity metadata.");
+		await expect(bootstrap({ repository: dataSource.getRepository(KeyPageJournalEntity) }, oneRoute)).rejects.toThrow("but its service repository is for KeyPageJournalEntity");
+		expect(hook).not.toHaveBeenCalled();
+		await expect(bootstrap({ repository: dataSource.getRepository(FactoryEntity) }, oneRoute)).resolves.toBeUndefined();
+		expect(hook).toHaveBeenCalledOnce();
 
 		vi.restoreAllMocks();
 	});
@@ -578,22 +644,22 @@ describe("ApiController", () => {
 	it("names the controller when its repository cannot be read at bootstrap, and accepts a Proxy-wrapped repository", async () => {
 		vi.spyOn(LoggerUtility.prototype, "error").mockImplementation((): void => undefined);
 
-		const dataSource: DataSource = new DataSource({ entities: [KeyPageAccountEntity, KeyPageJournalEntity], type: "postgres" });
+		const dataSource: DataSource = new DataSource({ entities: [FactoryEntity], type: "postgres" });
 		const disabled = { generation: { isEnabled: false } };
-		const allDisabled = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: disabled, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
+		const oneRoute = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: {}, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
 		const bootstrap = async (repository: unknown): Promise<void> => {
 			class WrappedController {
 				public service: { repository: unknown } = { repository };
 			}
 
-			const Decorated = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes: allDisabled } as never)(WrappedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
+			const Decorated = ApiController<IApiBaseEntity>({ entity: FactoryEntity, routes: oneRoute } as never)(WrappedController as never) as unknown as new () => { onApplicationBootstrap: () => Promise<void> };
 
 			await new Decorated().onApplicationBootstrap();
 		};
-		const repository = dataSource.getRepository(KeyPageJournalEntity);
+		const repository = dataSource.getRepository(FactoryEntity);
 
 		// The data source has no metadata yet, like a repository whose data source initializes after application bootstrap.
-		await expect(bootstrap(repository)).rejects.toThrow(/Controller "WrappedController" of entity "FactoryEntity": service\.repository is not a usable TypeORM repository because reading it failed, usually because its data source is not initialized yet \(.*KeyPageJournalEntity.*\)\. In tests/u);
+		await expect(bootstrap(repository)).rejects.toThrow(/Controller "WrappedController" of entity "FactoryEntity": service\.repository is not a usable TypeORM repository because reading it failed, usually because its data source is not initialized yet \(.*FactoryEntity.*\)\. In tests/u);
 
 		await (dataSource as unknown as { buildMetadatas: () => Promise<void> }).buildMetadatas();
 

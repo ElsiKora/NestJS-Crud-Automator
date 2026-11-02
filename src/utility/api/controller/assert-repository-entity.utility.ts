@@ -2,12 +2,12 @@ import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
 import type { Type } from "@nestjs/common";
 import type { TMetadataStorageTarget } from "@type/class";
 
+import { DatabaseTypeOrmIsRepository } from "@utility/database/typeorm/is/repository.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
 import { GetEntityTableName } from "@utility/get/entity-table-name.utility";
 import { IsEntityConstructor } from "@utility/is/entity/constructor.utility";
 import { ResolveMetadataTarget } from "@utility/resolve/metadata-target.utility";
-import { Repository } from "typeorm";
 
 /**
  * Refuses a controller whose generated routes would read and write through the repository of another entity.
@@ -19,11 +19,11 @@ import { Repository } from "typeorm";
  * @throws {Error} When the repository is for a class outside the lineage of the entity.
  */
 export function ApiControllerAssertRepositoryEntity(entity: IApiBaseEntity, repository: unknown, controllerName: string): void {
-	if (!(repository instanceof Repository)) {
+	if (!DatabaseTypeOrmIsRepository(repository)) {
 		return;
 	}
 
-	const repositoryTarget: unknown = (repository as Repository<object>).metadata.target;
+	const repositoryTarget: unknown = repository.metadata.target;
 	const entityTarget: TMetadataStorageTarget = ResolveMetadataTarget(entity);
 
 	if (!IsEntityConstructor(repositoryTarget) || isClassInHierarchy(entityTarget, repositoryTarget) || isClassInHierarchy(repositoryTarget, entityTarget)) {
@@ -32,7 +32,7 @@ export function ApiControllerAssertRepositoryEntity(entity: IApiBaseEntity, repo
 
 	const reason: string = repositoryTarget.name === entityTarget.name ? "The two classes share one class name, so they have one repository token and the last one registered wins. Give them different names or declare each in its own module." : "Generated routes read and write through the service repository. Point the service at the repository of the entity, or disable the generated routes.";
 
-	throw ErrorException(`Controller "${controllerName}" serves entity ${entityTarget.name} (table ${GetEntityTableName(entityTarget)}), but its service repository is for ${repositoryTarget.name} (table ${(repository as Repository<object>).metadata.tableName}). ${reason}`);
+	throw ErrorException(`Controller "${controllerName}" serves entity ${entityTarget.name} (table ${GetEntityTableName(entityTarget)}), but its service repository is for ${repositoryTarget.name} (table ${repository.metadata.tableName}). ${reason}`);
 }
 
 /**

@@ -58,6 +58,7 @@ export const ApiController =
 			}
 		};
 		Object.defineProperty(ValidatedController, "name", { value: target.name });
+		// On the decorated class, which the returned class inherits, so that discarding the return value keeps the check.
 		Reflect.defineMetadata(
 			CONTROLLER_STARTUP_CHECK_METADATA_KEY,
 			(isConstructedPerRequest: boolean): void => {
