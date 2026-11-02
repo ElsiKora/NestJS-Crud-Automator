@@ -269,6 +269,8 @@ An application bundled with two copies of `class-transformer` now fails at decor
 
 A request body deeper than 64 levels, or with an object holding more than 1000 keys, now answers `400` on every generated route, `@ApiRouteCustom` and `@ApiMethod` route, after the guards and before any pipe. The limits are fixed. Send a free-form object of more than 1000 keys as an array of entries. A plain Nest route is not covered, so bound it with the adapter's `bodyLimit`. See [Validation: Request Body Limits](/docs/nestjs-crud-automator/guides/validation#request-body-limits).
 
+The same check answers `400` for a body with the key `__proto__`, `constructor`, `hasOwnProperty` or `prototype` at any depth, or with a NUL character in any string or key, on every database driver. Rename such keys in client payloads, and send binary data as base64. A row already stored with such keys is still read. See [Validation: Reserved Keys And NUL](/docs/nestjs-crud-automator/guides/validation#reserved-keys-and-nul).
+
 The refusal runs ahead of your pipe, so an `exceptionFactory` does not translate it. If your `400` bodies follow a contract of your own, such as codes only, add a filter that translates `ApiRequestValidationException`, from the exception itself or from its `cause` chain:
 
 ```typescript filename="filters/api-validation.filter.ts" copy

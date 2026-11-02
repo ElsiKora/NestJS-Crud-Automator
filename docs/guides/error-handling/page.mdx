@@ -377,13 +377,15 @@ This works with or without `CorrelationIDResponseBodyExceptionFilter`. A failure
 
 Each failure is a class-validator `ValidationError` with `constraints` and `property`. It never has `value` or `target`.
 
-| Constraint                | Failure                                                         |
-| ------------------------- | --------------------------------------------------------------- |
-| `requestBodyMaximumKeys`  | An object in the body holds over 1000 keys                      |
-| `requestBodyMaximumDepth` | The body nests deeper than 64 levels                            |
-| `requestPropertyRenamed`  | A body or query sends a renamed property under its property key |
+| Constraint                | Failure                                                                            |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `requestBodyMaximumKeys`  | An object in the body holds over 1000 keys                                         |
+| `requestBodyMaximumDepth` | The body nests deeper than 64 levels                                               |
+| `requestBodyReservedKey`  | The body holds the key `__proto__`, `constructor`, `hasOwnProperty` or `prototype` |
+| `requestBodyNulCharacter` | A string or key in the body holds a NUL character                                  |
+| `requestPropertyRenamed`  | A body or query sends a renamed property under its property key                    |
 
-`property` is the dotted path in the body, such as `payload.items.1`, and is empty for the body itself. For `requestPropertyRenamed` it is the property key alone, without its path. That failure is thrown while the pipe converts the request, before it validates, so `exceptionFactory` does not see it either. The path holds keys the client sent, so do not put it in a response. The constraint names are stable, so translate those.
+`property` is the dotted path in the body, such as `payload.items.1`, and is empty for the body itself. For a reserved key it ends with the key; for a NUL in a key it stops at the object that holds the key. For `requestPropertyRenamed` it is the property key alone, without its path. That failure is thrown while the pipe converts the request, before it validates, so `exceptionFactory` does not see it either. The path holds keys the client sent, so do not put it in a response. The constraint names are stable, so translate those.
 
 ## Logging Errors
 

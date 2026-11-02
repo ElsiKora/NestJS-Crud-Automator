@@ -175,6 +175,8 @@ Root-level discriminated `@ApiRouteCustom` bodies are validated by Crud Automato
 
 A body deeper than 64 levels or with an object of more than 1000 keys answers `400` on every `@ApiMethod`, generated and `@ApiRouteCustom` route. Do not add an option or a per-route override, and do not design a free-form request object that can pass 1000 keys; use an array of entries. No `exceptionFactory` or subscriber error hook sees this `400`. Global and controller interceptors run before the check, so they see the unchecked body. A host with its own `400` contract must translate this one in a filter with `ApiRequestValidationGetErrors`; reading only `instanceof ApiRequestValidationException` misses one the correlation interceptor wrapped. Do not send a failure's `property`, which holds client keys.
 
+The same check refuses a key `__proto__`, `constructor`, `hasOwnProperty` or `prototype` at any depth and a NUL in any string or key. Do not design a free-form payload around those keys, and send binary data as base64, not as a string holding NUL.
+
 A plain Nest route with a transforming `ValidationPipe` is not covered, and `class-transformer` is quadratic in the keys of one object: 1 MiB in one object held the event loop for about 11 s on Fastify's default `bodyLimit`. Set `new FastifyAdapter({ bodyLimit })` where plain routes take JSON. Express defaults to 100 KiB.
 
 ## Serializing The Interceptor Cause
