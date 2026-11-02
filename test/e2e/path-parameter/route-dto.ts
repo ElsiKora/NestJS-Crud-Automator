@@ -2,7 +2,7 @@ import { Inject, Injectable, Param, RequestMethod } from "@nestjs/common";
 import { ApiProperty, IntersectionType, OmitType, PartialType, PickType } from "@nestjs/swagger";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Expose, Transform, Type } from "class-transformer";
-import { IsInt, IsOptional, IsString, IsUUID } from "class-validator";
+import { IsBoolean, IsDateString, IsDefined, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID } from "class-validator";
 import { Column, Entity, PrimaryColumn, Repository } from "typeorm";
 
 import { ApiController, ApiControllerSecurable, ApiPropertyCopy, ApiPropertyDate, ApiPropertyDescribe, ApiPropertyNumber, ApiPropertyString, ApiPropertyUUID, ApiRouteCustom, ApiService, ApiServiceBase, EApiAuthenticationType, EApiAuthorizationMode, EApiDtoType, EApiPolicyEffect, EApiPolicySourceType, EApiPropertyDateIdentifier, EApiPropertyDateType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "../../../src/index";
@@ -123,10 +123,72 @@ class LowerCasedUuidDto {
 	public id!: string;
 }
 
-class PrefixedDto {
+class StablePrefixDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): unknown => (String(value).startsWith("p-") ? value : `p-${String(value)}`), { toClassOnly: true })
+	public id!: string;
+}
+
+class DeclaredTextDto {
+	@IsDateString()
+	public id!: Date;
+}
+
+class UntypedNumberDto {
+	@IsDefined()
+	public id!: number;
+}
+
+// The startup samples do not start with "x", so only the check on each request can see that this Transform changes its own output.
+class GrowsOnSomeValuesDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): unknown => (String(value).startsWith("x") ? `x${String(value)}` : value), { toClassOnly: true })
+	public id!: string;
+}
+
+class ThrowsOnSamplePrefixDto {
+	@IsString()
+	@Transform(
+		({ value }: { value: unknown }): string => {
+			if (value === "1" || value === "Aa") {
+				throw new Error("Not a value this route takes");
+			}
+
+			return `p-${String(value)}`;
+		},
+		{ toClassOnly: true },
+	)
+	public id!: string;
+}
+
+class PrefixDto {
 	@IsString()
 	@Transform(({ value }: { value: unknown }): string => `p-${String(value)}`, { toClassOnly: true })
 	public id!: string;
+}
+
+class Base64Dto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => Buffer.from(String(value), "base64url").toString(), { toClassOnly: true })
+	public id!: string;
+}
+
+class PlusOneDto {
+	@IsNotEmpty()
+	@Transform(({ value }: { value: unknown }): unknown => (value as number) + 1)
+	public id!: number;
+}
+
+class TypeSensitiveDto {
+	@IsNotEmpty()
+	@Transform(({ value }: { value: unknown }): unknown => (typeof value === "number" ? value : `p-${String(value)}`))
+	public id!: number;
+}
+
+class BooleanEqualsDto {
+	@IsBoolean()
+	@Transform(({ value }: { value: unknown }): boolean => value === "true")
+	public id!: boolean;
 }
 
 class WiderThanPathDto {
@@ -137,13 +199,16 @@ class WiderThanPathDto {
 	public required!: string;
 }
 
-export type TE2ePathParameterRouteDtoPipe = "consumer" | "implicit" | "none" | "transform";
+export type TE2ePathParameterRouteDtoPipe = "consumer" | "groups" | "implicit" | "none" | "transform" | "validate" | "version";
 
 export interface IE2ePathParameterRouteDtoAllowed {
+	// What a pipe that converts hands the handler.
 	piped: unknown;
+	// A mode whose pipe sees the same text and answers on its own: its own 400, or its own conversion of that text.
+	pipes?: Partial<Record<TE2ePathParameterRouteDtoPipe, { status: number; value?: unknown }>>;
+	// What the handler reads with no pipe, or a pipe that only validates and returns its input: the canonical text IAM saw.
 	raw: unknown;
 	sent: string;
-	transformStatus?: number;
 }
 
 export interface IE2ePathParameterRouteDtoCase {
@@ -155,6 +220,11 @@ export interface IE2ePathParameterRouteDtoCase {
 	value: string;
 	widerThanPath?: boolean;
 }
+
+// Under a pipe with no implicit conversion a bare `@IsInt()` sees text, so that pipe gives its own 400.
+const TEXT_REJECTED_PIPES: Partial<Record<TE2ePathParameterRouteDtoPipe, { status: number }>> = { groups: { status: 400 }, transform: { status: 400 }, validate: { status: 400 }, version: { status: 400 } };
+// Under a pipe with implicit conversion `@IsDateString() id: Date` sees a Date, so that pipe gives its own 400.
+const DATE_REJECTED_PIPES: Partial<Record<TE2ePathParameterRouteDtoPipe, { status: number }>> = { consumer: { status: 400 }, implicit: { status: 400 } };
 
 const UUID_ALLOWED: IE2ePathParameterRouteDtoAllowed = { piped: { id: OTHER_UUID }, raw: { id: OTHER_UUID }, sent: OTHER_UUID.toUpperCase() };
 
@@ -168,10 +238,14 @@ export const E2E_PATH_PARAMETER_ROUTE_DTO_CASES: Array<IE2ePathParameterRouteDto
 	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: IntersectedUuidDto, invalid: ["not-a-uuid"], name: "intersected-uuid", value: DENIED_UUID },
 	{ allowed: { piped: { id: "2024-03-11T12:00:00.000Z" }, raw: { id: "2024-03-11T12:00:00.000Z" }, sent: "2024-03-11T12:00:00Z" }, denied: [DENIED_AT, "2024-03-10T12:00:00Z", "2024-03-10T13:00:00%2B01:00"], dto: PickedMomentDto, invalid: ["garbage"], name: "picked-moment", value: DENIED_AT },
 	{ allowed: { piped: { id: 17 }, raw: { id: "17" }, sent: "0x11" }, denied: ["16", "016", "0x10", "1.6e1"], dto: IsIntTypeDto, invalid: ["abc", "1.5"], name: "is-int-type", value: "16" },
-	{ allowed: { piped: { id: 17 }, raw: { id: "17" }, sent: "017", transformStatus: 400 }, denied: ["16", "016", "0x10", "1.6e1"], dto: IsIntOnlyDto, invalid: ["abc", "1.5"], name: "is-int-only", value: "16" },
+	{ allowed: { piped: { id: 17 }, pipes: TEXT_REJECTED_PIPES, raw: { id: "17" }, sent: "017" }, denied: ["16", "016", "0x10", "1.6e1"], dto: IsIntOnlyDto, invalid: ["abc", "1.5"], name: "is-int-only", value: "16" },
 	{ allowed: { piped: { id: "xyz" }, raw: { id: "xyz" }, sent: "XYZ" }, denied: ["abc", "ABC"], dto: LowerCasedStringDto, invalid: ["toolongvalue"], name: "lower-cased-string", value: "abc" },
 	{ allowed: UUID_ALLOWED, denied: [DENIED_UUID, DENIED_UUID.toUpperCase()], dto: LowerCasedUuidDto, invalid: ["not-a-uuid"], name: "lower-cased-uuid", value: DENIED_UUID },
-	{ allowed: { piped: { id: "p-xyz" }, raw: { id: "xyz" }, sent: "xyz" }, denied: ["abc"], dto: PrefixedDto, invalid: [], name: "prefixed", value: "p-abc" },
+	{ allowed: { piped: { id: "p-xyz" }, raw: { id: "p-xyz" }, sent: "xyz" }, denied: ["abc", "p-abc"], dto: StablePrefixDto, invalid: [], name: "stable-prefix", value: "p-abc" },
+	{ allowed: { piped: { id: "2024-03-11" }, pipes: DATE_REJECTED_PIPES, raw: { id: "2024-03-11" }, sent: "2024-03-11" }, denied: ["2024-03-10"], dto: DeclaredTextDto, invalid: ["garbage"], name: "declared-text", value: "2024-03-10" },
+	{ allowed: { piped: { id: "17" }, pipes: { consumer: { status: 200, value: { id: 17 } }, implicit: { status: 200, value: { id: 17 } } }, raw: { id: "17" }, sent: "17" }, denied: ["16"], dto: UntypedNumberDto, invalid: ["016", "0x10", "abc"], name: "untyped-number", value: "16" },
+	{ allowed: { piped: { id: "abc" }, raw: { id: "abc" }, sent: "abc" }, denied: ["denied"], dto: GrowsOnSomeValuesDto, invalid: ["xyz"], name: "grows-on-some-values", value: "denied" },
+	{ allowed: { piped: undefined, pipes: { consumer: { status: 400 }, groups: { status: 400 }, implicit: { status: 400 }, none: { status: 400 }, transform: { status: 400 }, validate: { status: 400 }, version: { status: 400 } }, raw: undefined, sent: "abc" }, denied: [], dto: ThrowsOnSamplePrefixDto, invalid: ["abc", "p-abc"], name: "throws-on-sample-prefix", value: "abc" },
 	{ allowed: { piped: undefined, raw: { id: "17" }, sent: "17" }, denied: ["16"], dto: WiderThanPathDto, invalid: ["016"], name: "wider-than-path", value: "16", widerThanPath: true },
 ];
 
@@ -193,18 +267,10 @@ const DISABLED_ROUTES: never = Object.fromEntries([EApiRouteType.CREATE, EApiRou
 
 /**
  * Builds a securable controller with one custom `GET :id` route whose handler echoes the `@Param()` value.
- * @param {IE2ePathParameterRouteDtoCase} routeCase - Route name and PARAMETERS DTO.
+ * @param {Pick<IE2ePathParameterRouteDtoCase, "dto" | "name">} routeCase - Route name and PARAMETERS DTO.
  * @returns {new () => unknown} Controller class.
  */
-const buildRouteDtoController = (routeCase: IE2ePathParameterRouteDtoCase): new () => unknown => {
-	@ApiControllerSecurable()
-	@ApiController<E2ePathParameterRouteDtoItemEntity>({
-		authorization: { defaultMode: EApiAuthorizationMode.IAM, policyNamespace: routeCase.name, resourceDefinition: { entity: E2ePathParameterRouteDtoItemEntity, fields: [{ isFilterable: true, path: "resource.id", queryPath: "id" }], namespace: routeCase.name, resourcePath: `${routeCase.name}/item`, resourceType: routeCase.name } } as never,
-		entity: E2ePathParameterRouteDtoItemEntity,
-		name: `E2ePathParameterRouteDto${routeCase.name.replaceAll("-", "")}`,
-		path: `route-dto/${routeCase.name}`,
-		routes: DISABLED_ROUTES,
-	})
+export const buildE2ePathParameterRouteDtoController = (routeCase: Pick<IE2ePathParameterRouteDtoCase, "dto" | "name">): new () => unknown => {
 	class RouteDtoController {
 		@Inject(E2ePathParameterRouteDtoItemService)
 		public readonly service!: E2ePathParameterRouteDtoItemService;
@@ -222,9 +288,28 @@ const buildRouteDtoController = (routeCase: IE2ePathParameterRouteDtoCase): new 
 		}
 	}
 
+	// The prefix of generated names comes from the class name, so each route's controller needs its own.
+	Object.defineProperty(RouteDtoController, "name", { value: `E2ePathParameterRouteDto${routeCase.name.replaceAll("-", "")}Controller` });
+	ApiController<E2ePathParameterRouteDtoItemEntity>({
+		authorization: { defaultMode: EApiAuthorizationMode.IAM, policyNamespace: routeCase.name, resourceDefinition: { entity: E2ePathParameterRouteDtoItemEntity, fields: [{ isFilterable: true, path: "resource.id", queryPath: "id" }], namespace: routeCase.name, resourcePath: `${routeCase.name}/item`, resourceType: routeCase.name } } as never,
+		entity: E2ePathParameterRouteDtoItemEntity,
+		name: `E2ePathParameterRouteDto${routeCase.name.replaceAll("-", "")}`,
+		path: `route-dto/${routeCase.name}`,
+		routes: DISABLED_ROUTES,
+	})(RouteDtoController);
+	ApiControllerSecurable()(RouteDtoController);
 	Reflect.defineMetadata("design:paramtypes", [routeCase.dto], RouteDtoController.prototype, "read");
 
 	return RouteDtoController;
 };
 
-export const E2E_PATH_PARAMETER_ROUTE_DTO_CONTROLLERS: Array<new () => unknown> = E2E_PATH_PARAMETER_ROUTE_DTO_CASES.map((routeCase: IE2ePathParameterRouteDtoCase) => buildRouteDtoController(routeCase));
+export const E2E_PATH_PARAMETER_ROUTE_DTO_CONTROLLERS: Array<new () => unknown> = E2E_PATH_PARAMETER_ROUTE_DTO_CASES.map((routeCase: IE2ePathParameterRouteDtoCase) => buildE2ePathParameterRouteDtoController(routeCase));
+
+// A DTO whose Transform changes its own output, or depends on the type it receives, cannot give a handler the value IAM saw in every pipe mode, so the route never starts.
+export const E2E_PATH_PARAMETER_ROUTE_DTO_REFUSED: Array<Pick<IE2ePathParameterRouteDtoCase, "dto" | "name">> = [
+	{ dto: PrefixDto, name: "refused-prefix" },
+	{ dto: Base64Dto, name: "refused-base64" },
+	{ dto: PlusOneDto, name: "refused-plus-one" },
+	{ dto: TypeSensitiveDto, name: "refused-type-sensitive" },
+	{ dto: BooleanEqualsDto, name: "refused-boolean-equals" },
+];

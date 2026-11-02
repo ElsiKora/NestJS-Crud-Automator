@@ -45,4 +45,4 @@ export {
 	E2ePathParameterCanonicalUuidItemService,
 } from "./canonical";
 export type { IE2ePathParameterRouteDtoCase, TE2ePathParameterRouteDtoPipe } from "./route-dto";
-export { E2E_PATH_PARAMETER_ROUTE_DTO_CASES, E2E_PATH_PARAMETER_ROUTE_DTO_CONTROLLERS, E2E_PATH_PARAMETER_ROUTE_DTO_DOCUMENTS, E2ePathParameterRouteDtoGuard, E2ePathParameterRouteDtoItemEntity, E2ePathParameterRouteDtoItemService } from "./route-dto";
+export { E2E_PATH_PARAMETER_ROUTE_DTO_CASES, E2E_PATH_PARAMETER_ROUTE_DTO_CONTROLLERS, E2E_PATH_PARAMETER_ROUTE_DTO_DOCUMENTS, E2E_PATH_PARAMETER_ROUTE_DTO_REFUSED, buildE2ePathParameterRouteDtoController, E2ePathParameterRouteDtoGuard, E2ePathParameterRouteDtoItemEntity, E2ePathParameterRouteDtoItemService } from "./route-dto";

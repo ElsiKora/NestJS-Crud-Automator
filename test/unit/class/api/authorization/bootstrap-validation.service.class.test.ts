@@ -331,7 +331,7 @@ describe("ApiAuthorizationBootstrapValidationService", () => {
 		expect(() => service.onApplicationBootstrap()).not.toThrow();
 	});
 
-	it("rejects a route inherited from a base class without method-level authorization mode", () => {
+	it("resolves a route inherited from a base class without a mode to the controller default", () => {
 		defineSecurableControllerMetadata(InheritedMissingModeController);
 		Reflect.defineMetadata(
 			METHOD_API_DECORATOR_CONSTANT.ROUTE_METADATA_KEY,
@@ -342,7 +342,7 @@ describe("ApiAuthorizationBootstrapValidationService", () => {
 			InheritedMissingModeBaseController.prototype.publish,
 		);
 
-		expect(() => createService(InheritedMissingModeController).onApplicationBootstrap()).toThrow('Controller "InheritedMissingModeController" method "publish" must declare method-level authorization mode');
+		expect(() => createService(InheritedMissingModeController).onApplicationBootstrap()).not.toThrow();
 	});
 
 	it("starts without running an accessor inherited by a securable controller", () => {

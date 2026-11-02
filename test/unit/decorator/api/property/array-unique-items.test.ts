@@ -133,7 +133,7 @@ describe("isUniqueItems on request arrays", () => {
 	});
 
 	it.each([
-		["ApiPropertyBoolean", buildBooleanDto, ["1", "true"]],
+		["ApiPropertyBoolean", buildBooleanDto, ["true", true]],
 		["ApiPropertyNumber", buildNumberDto, ["7", 7]],
 	])("compares %s items after they are transformed", (_name: string, factory: TArrayDtoFactory, items: Array<unknown>) => {
 		expect(getItemsConstraints(factory, true, items)).toEqual(["arrayUniqueItems"]);

@@ -11,48 +11,73 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiSubscriberModule, AuthorizationResolveDefaultPrincipal, EApiAuthorizationPrincipalType } from "../../src/index";
-import { buildE2ePathParameterConsumerPipe, E2E_PATH_PARAMETER_ROUTE_DTO_CASES, E2E_PATH_PARAMETER_ROUTE_DTO_CONTROLLERS, E2E_PATH_PARAMETER_ROUTE_DTO_DOCUMENTS, E2ePathParameterRouteDtoGuard, E2ePathParameterRouteDtoItemEntity, E2ePathParameterRouteDtoItemService } from "./path-parameter";
+import { buildE2ePathParameterConsumerPipe, buildE2ePathParameterRouteDtoController, E2E_PATH_PARAMETER_ROUTE_DTO_CASES, E2E_PATH_PARAMETER_ROUTE_DTO_CONTROLLERS, E2E_PATH_PARAMETER_ROUTE_DTO_DOCUMENTS, E2E_PATH_PARAMETER_ROUTE_DTO_REFUSED, E2ePathParameterRouteDtoGuard, E2ePathParameterRouteDtoItemEntity, E2ePathParameterRouteDtoItemService } from "./path-parameter";
 
 type TRouteDtoFastify = { inject: (options: { method: string; url: string }) => Promise<{ json: () => Record<string, unknown>; statusCode: number }> };
 
 const SPELLINGS: Array<[string, string]> = E2E_PATH_PARAMETER_ROUTE_DTO_CASES.flatMap((routeCase: IE2ePathParameterRouteDtoCase) => routeCase.denied.map((spelling: string): [string, string] => [routeCase.name, spelling]));
 const INVALID_VALUES: Array<[string, string]> = E2E_PATH_PARAMETER_ROUTE_DTO_CASES.flatMap((routeCase: IE2ePathParameterRouteDtoCase) => routeCase.invalid.map((value: string): [string, string] => [routeCase.name, value]));
 
-describe.each<TE2ePathParameterRouteDtoPipe>(["none", "transform", "implicit", "consumer"])("the guard runs the route PARAMETERS DTO, host pipe: %s (E2E)", (pipe: TE2ePathParameterRouteDtoPipe) => {
+const PIPES: Array<TE2ePathParameterRouteDtoPipe> = ["none", "validate", "transform", "implicit", "consumer", "groups", "version"];
+
+/**
+ * Builds the application of one host pipe mode, not yet started.
+ * @param {TE2ePathParameterRouteDtoPipe} pipe - Host pipe mode.
+ * @param {Array<new () => unknown>} controllers - Controllers to serve.
+ * @returns {Promise<INestApplication>} The application.
+ */
+const buildApplication = async (pipe: TE2ePathParameterRouteDtoPipe, controllers: Array<new () => unknown>): Promise<INestApplication> => {
+	const moduleReference = await Test.createTestingModule({
+		controllers,
+		imports: [
+			TypeOrmModule.forRoot({ database: ":memory:", dropSchema: true, entities: [E2ePathParameterRouteDtoItemEntity], synchronize: true, type: "better-sqlite3" }),
+			TypeOrmModule.forFeature([E2ePathParameterRouteDtoItemEntity]),
+			ApiAuthorizationModule.forRoot({
+				iam: {
+					attachmentSources: [{ getAttachments: async (principal: IApiAuthorizationPrincipal) => await Promise.resolve({ attachments: [{ policyId: principal.id, principalId: principal.id, principalType: EApiAuthorizationPrincipalType.USER }], boundaries: [] }) }],
+					documentSources: [{ getDocumentsByIds: async (ids: ReadonlyArray<string>) => await Promise.resolve(E2E_PATH_PARAMETER_ROUTE_DTO_DOCUMENTS.filter((document: unknown): boolean => ids.includes((document as { id: string }).id))) }],
+				},
+				principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user as never) },
+			} as never),
+			ApiSubscriberModule,
+		],
+		providers: [E2ePathParameterRouteDtoItemService, E2ePathParameterRouteDtoGuard],
+	}).compile();
+	const application: INestApplication = moduleReference.createNestApplication(new FastifyAdapter());
+
+	if (pipe === "validate") {
+		application.useGlobalPipes(new ValidationPipe());
+	}
+
+	if (pipe === "transform") {
+		application.useGlobalPipes(new ValidationPipe({ transform: true }));
+	}
+
+	if (pipe === "implicit") {
+		application.useGlobalPipes(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true } }));
+	}
+
+	if (pipe === "consumer") {
+		application.useGlobalPipes(buildE2ePathParameterConsumerPipe());
+	}
+
+	if (pipe === "groups") {
+		application.useGlobalPipes(new ValidationPipe({ transform: true, transformOptions: { groups: ["g"] } }));
+	}
+
+	if (pipe === "version") {
+		application.useGlobalPipes(new ValidationPipe({ transform: true, transformOptions: { version: 2 } }));
+	}
+
+	return application;
+};
+
+describe.each<TE2ePathParameterRouteDtoPipe>(PIPES)("the guard runs the route PARAMETERS DTO, host pipe: %s (E2E)", (pipe: TE2ePathParameterRouteDtoPipe) => {
 	let app: INestApplication;
 	let fastify: TRouteDtoFastify;
 
 	beforeAll(async () => {
-		const moduleReference = await Test.createTestingModule({
-			controllers: E2E_PATH_PARAMETER_ROUTE_DTO_CONTROLLERS,
-			imports: [
-				TypeOrmModule.forRoot({ database: ":memory:", dropSchema: true, entities: [E2ePathParameterRouteDtoItemEntity], synchronize: true, type: "better-sqlite3" }),
-				TypeOrmModule.forFeature([E2ePathParameterRouteDtoItemEntity]),
-				ApiAuthorizationModule.forRoot({
-					iam: {
-						attachmentSources: [{ getAttachments: async (principal: IApiAuthorizationPrincipal) => await Promise.resolve({ attachments: [{ policyId: principal.id, principalId: principal.id, principalType: EApiAuthorizationPrincipalType.USER }], boundaries: [] }) }],
-						documentSources: [{ getDocumentsByIds: async (ids: ReadonlyArray<string>) => await Promise.resolve(E2E_PATH_PARAMETER_ROUTE_DTO_DOCUMENTS.filter((document: unknown): boolean => ids.includes((document as { id: string }).id))) }],
-					},
-					principalResolver: { resolve: (user: unknown) => AuthorizationResolveDefaultPrincipal(user as never) },
-				} as never),
-				ApiSubscriberModule,
-			],
-			providers: [E2ePathParameterRouteDtoItemService, E2ePathParameterRouteDtoGuard],
-		}).compile();
-		app = moduleReference.createNestApplication(new FastifyAdapter());
-
-		if (pipe === "transform") {
-			app.useGlobalPipes(new ValidationPipe({ transform: true }));
-		}
-
-		if (pipe === "implicit") {
-			app.useGlobalPipes(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true } }));
-		}
-
-		if (pipe === "consumer") {
-			app.useGlobalPipes(buildE2ePathParameterConsumerPipe());
-		}
-
+		app = await buildApplication(pipe, E2E_PATH_PARAMETER_ROUTE_DTO_CONTROLLERS);
 		await app.init();
 		fastify = app.getHttpAdapter().getInstance();
 		await (fastify as unknown as { ready: () => Promise<void> }).ready();
@@ -77,8 +102,14 @@ describe.each<TE2ePathParameterRouteDtoPipe>(["none", "transform", "implicit", "
 	it.each(E2E_PATH_PARAMETER_ROUTE_DTO_CASES)("gives the handler the value IAM saw on $name", async (routeCase: IE2ePathParameterRouteDtoCase) => {
 		const response = await fastify.inject({ method: "GET", url: `/route-dto/${routeCase.name}/${routeCase.allowed.sent}` });
 
-		if (pipe === "transform" && routeCase.allowed.transformStatus !== undefined) {
-			expect(response.statusCode).toBe(routeCase.allowed.transformStatus);
+		const answer: { status: number; value?: unknown } | undefined = routeCase.allowed.pipes?.[pipe];
+
+		if (answer) {
+			expect(response.statusCode).toBe(answer.status);
+
+			if (answer.value !== undefined) {
+				expect(JSON.parse(response.json().value as string)).toEqual(answer.value);
+			}
 
 			return;
 		}
@@ -91,6 +122,13 @@ describe.each<TE2ePathParameterRouteDtoPipe>(["none", "transform", "implicit", "
 		}
 
 		expect(response.statusCode).toBe(HttpStatus.OK);
-		expect(JSON.parse(response.json().value as string)).toEqual(pipe === "none" ? routeCase.allowed.raw : routeCase.allowed.piped);
+
+		expect(JSON.parse(response.json().value as string)).toEqual(pipe === "none" || pipe === "validate" ? routeCase.allowed.raw : routeCase.allowed.piped);
+	});
+
+	it.each(E2E_PATH_PARAMETER_ROUTE_DTO_REFUSED)("does not start a route whose DTO cannot keep the value IAM saw: $name", async (refused: { dto: new () => unknown; name: string }) => {
+		const refusedApp: INestApplication = await buildApplication(pipe, [buildE2ePathParameterRouteDtoController(refused)]);
+
+		await expect(refusedApp.init()).rejects.toThrow(/Controller "\w+" method "read" property "id" of PARAMETERS DTO/);
 	});
 });

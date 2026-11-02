@@ -22,7 +22,13 @@ class SwappedNamesDto {
 
 class UnscopedTransformDto {
 	@IsString()
-	@Transform(({ value }: { value: unknown }): string => `p-${String(value)}`)
+	@Transform(({ value }: { value: unknown }): unknown => (String(value).startsWith("p-") ? value : `p-${String(value)}`))
+	public id!: string;
+}
+
+class GrowsOnSomeValuesDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): unknown => (String(value).startsWith("x") ? `x${String(value)}` : value), { toClassOnly: true })
 	public id!: string;
 }
 
@@ -87,8 +93,16 @@ describe("the route PARAMETERS DTO rule", () => {
 		await expect(ApiControllerParametersValidate(rule, { first: "text", second: "text" } as never)).rejects.toThrow();
 	});
 
-	it("does not run a Transform without a direction a second time on the value it reads back", async () => {
+	it("accepts a Transform without a direction that keeps its own output", async () => {
 		await expect(ApiControllerParametersValidate(buildRule(UnscopedTransformDto, "unscoped"), { id: "abc" } as never)).resolves.toEqual({ id: "p-abc" });
+		await expect(ApiControllerParametersValidate(buildRule(UnscopedTransformDto, "unscoped"), { id: "p-abc" } as never)).resolves.toEqual({ id: "p-abc" });
+	});
+
+	it("refuses a value whose text changes when the DTO runs on it again, which the startup samples cannot see", async () => {
+		const rule: IApiControllerParametersRule = buildRule(GrowsOnSomeValuesDto, "grows");
+
+		await expect(ApiControllerParametersValidate(rule, { id: "abc" } as never)).resolves.toEqual({ id: "abc" });
+		await expect(ApiControllerParametersValidate(rule, { id: "xyz" } as never)).rejects.toThrow("Bad Request");
 	});
 
 	it("leaves a required property the path does not carry to the host pipe", async () => {
@@ -106,8 +120,14 @@ describe("the route PARAMETERS DTO rule", () => {
 		await expect(ApiControllerParametersValidate(buildRule(RenamedWithInitializerDto, "undescribed", ["id", "tenant"]), { id: "16", tenant: "016" } as never)).resolves.toEqual({ id: 16, tenant: "016" });
 	});
 
-	it("converts a number property without a type as a pipe with implicit conversion does", async () => {
-		await expect(ApiControllerParametersValidate(buildRule(ImplicitNumberDto, "implicit"), { id: "016" } as never)).resolves.toEqual({ id: 16 });
+	it("refuses a number property without a type when the two conversions give different text", async () => {
+		const rule: IApiControllerParametersRule = buildRule(ImplicitNumberDto, "implicit");
+
+		await expect(ApiControllerParametersValidate(rule, { id: "16" } as never)).resolves.toEqual({ id: 16 });
+
+		for (const id of ["016", "0x10", "abc"]) {
+			await expect(ApiControllerParametersValidate(rule, { id } as never)).rejects.toThrow();
+		}
 	});
 
 	it("keeps the sent text when only the declared validators accept it", async () => {
@@ -121,7 +141,7 @@ describe("the route PARAMETERS DTO rule", () => {
 		await expect(ApiControllerParametersValidate(buildRule(UndefinedOnSomeInputsDto, "dropped"), { id: "kept" } as never)).resolves.toEqual({ id: "kept" });
 	});
 
-	it("runs a Transform once per request on a value already in canonical form, plus once at startup", async () => {
+	it("runs a Transform once per conversion on a canonical value, and again on the text of any other value", async () => {
 		const transform = vi.fn(({ value }: { value: unknown }): unknown => value);
 
 		class CountedDto {
@@ -134,6 +154,6 @@ describe("the route PARAMETERS DTO rule", () => {
 		transform.mockClear();
 		await ApiControllerParametersValidate(rule, { id: "abc" } as never);
 
-		expect(transform).toHaveBeenCalledTimes(1);
+		expect(transform).toHaveBeenCalledTimes(2);
 	});
 });

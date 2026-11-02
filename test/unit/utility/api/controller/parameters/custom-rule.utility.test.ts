@@ -9,8 +9,9 @@ import { ApiPropertyUUID } from "@decorator/api/property/uuid.decorator";
 import { EApiDtoType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { ApiControllerParametersBuildCustomRule } from "@utility/api/controller/parameters/custom-rule.utility";
 import { ApiControllerParametersValidate } from "@utility/api/controller/parameters/validate.utility";
-import { Exclude, Expose, Transform, Type } from "class-transformer";
-import { IsDefined, IsString, IsUUID, ValidateNested } from "class-validator";
+import { ApiPropertyBoolean } from "@decorator/api/property/boolean.decorator";
+import { Exclude, Expose, Transform, TransformationType, Type } from "class-transformer";
+import { IsBoolean, IsDefined, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, ValidateNested } from "class-validator";
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
@@ -108,6 +109,180 @@ class CustomRuleResponseParametersDto {
 	public id!: number;
 }
 
+class CustomRuleBooleanParametersDto {
+	@ApiPropertyBoolean({ description: "flag", entity: CustomRuleItemEntity, isRequired: true } as never)
+	public id!: boolean;
+}
+
+class CustomRuleBareUuidParametersDto {
+	@IsUUID()
+	public id!: string;
+}
+
+class CustomRulePrefixParametersDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => `p-${String(value)}`, { toClassOnly: true })
+	public id!: string;
+}
+
+class CustomRuleBase64ParametersDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => Buffer.from(String(value), "base64url").toString(), { toClassOnly: true })
+	public id!: string;
+}
+
+class CustomRulePlusOneParametersDto {
+	@IsNotEmpty()
+	@Transform(({ value }: { value: unknown }): unknown => (value as number) + 1)
+	public id!: number;
+}
+
+class CustomRuleTypeSensitiveParametersDto {
+	@IsNotEmpty()
+	@Transform(({ value }: { value: unknown }): unknown => (typeof value === "number" ? value : `p-${String(value)}`))
+	public id!: number;
+}
+
+class CustomRuleBooleanEqualsParametersDto {
+	@IsBoolean()
+	@Transform(({ value }: { value: unknown }): boolean => value === "true")
+	public id!: boolean;
+}
+
+class CustomRuleBareBooleanParametersDto {
+	@IsBoolean()
+	public id!: boolean;
+}
+
+class CustomRuleTypeBooleanParametersDto {
+	@IsBoolean()
+	@Type(() => Boolean)
+	public id!: boolean;
+}
+
+class CustomRuleGroupTransformParametersDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).toLowerCase(), { groups: ["g"] })
+	public id!: string;
+}
+
+class CustomRuleVersionTransformParametersDto {
+	@IsString()
+	@Transform(({ value }: { value: unknown }): string => String(value).toLowerCase(), { since: 2 })
+	public id!: string;
+}
+
+class CustomRuleShadowedByNameParametersDto {
+	@Expose({ name: "id" })
+	@IsInt()
+	@Type(() => Number)
+	public internalId!: number;
+
+	@IsOptional()
+	@IsString()
+	public id?: string;
+}
+
+class CustomRuleShadowedWithInitializerParametersDto {
+	@Expose({ name: "id" })
+	@IsInt()
+	@Type(() => Number)
+	public internalId!: number;
+
+	@IsOptional()
+	@IsString()
+	public id: string = "safe";
+}
+
+class CustomRuleTwoExposesParametersDto {
+	@Expose({ name: "id" })
+	@IsInt()
+	@Type(() => Number)
+	public first!: number;
+
+	@Expose({ name: "id" })
+	@IsOptional()
+	@IsInt()
+	public second?: number;
+}
+
+class CustomRuleToClassExcludedParametersDto {
+	@Exclude({ toClassOnly: true })
+	@IsOptional()
+	public id!: string;
+}
+
+class CustomRuleToPlainExcludedParametersDto {
+	@Exclude({ toPlainOnly: true })
+	@IsInt()
+	@Type(() => Number)
+	public id!: number;
+}
+
+class CustomRuleExposedElsewhereParametersDto {
+	@Expose({ name: "other" })
+	@IsString()
+	public id!: string;
+}
+
+class CustomRuleExposedWithGroupsParametersDto {
+	@Expose({ groups: ["g"], name: "id" })
+	@IsInt()
+	@Type(() => Number)
+	public internalId!: number;
+}
+
+class CustomRuleWriteBackThrowsRenamedParametersDto {
+	@Expose({ name: "id" })
+	@IsInt()
+	@Transform(({ type, value }: { type: TransformationType; value: unknown }): unknown => {
+		if (type === TransformationType.CLASS_TO_PLAIN) {
+			throw new Error("Not written back");
+		}
+
+		return value;
+	})
+	@Type(() => Number)
+	public internalId!: number;
+}
+
+class CustomRuleWriteBackThrowsParametersDto {
+	@IsInt()
+	@Transform(({ type, value }: { type: TransformationType; value: unknown }): unknown => {
+		if (type === TransformationType.CLASS_TO_PLAIN) {
+			throw new Error("Not written back");
+		}
+
+		return value;
+	})
+	@Type(() => Number)
+	public id!: number;
+}
+
+class CustomRuleStringOnlyRenamedParametersDto {
+	@Expose({ name: "id" })
+	@IsInt()
+	@Transform(({ value }: { value: unknown }): number => {
+		if (typeof value !== "string") {
+			throw new TypeError("Not a string");
+		}
+
+		return Number.parseInt(value, 10);
+	})
+	public internalId!: number;
+}
+
+class CustomRuleDefaultSiblingParametersDto {
+	@Expose({ name: "id" })
+	@IsInt()
+	@Type(() => Number)
+	public internalId!: number;
+
+	@Expose()
+	@Transform(({ value }: { value: unknown }): unknown => value ?? "default")
+	public label?: string;
+}
+
 class CustomRuleController {}
 
 describe("ApiControllerParametersBuildCustomRule", () => {
@@ -166,6 +341,82 @@ describe("ApiControllerParametersBuildCustomRule", () => {
 
 	it("fails at startup when the DTO drops a path parameter, which IAM could not read", () => {
 		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleExcludedParametersDto, methodName: "dropped", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow('Controller "CustomRuleController" method "dropped" reads the path parameter "id"');
+	});
+
+	it.each([
+		["a Transform that adds a prefix on every call", CustomRulePrefixParametersDto, "changes its own output"],
+		["a Transform that decodes", CustomRuleBase64ParametersDto, "changes its own output"],
+		["a Transform that adds one", CustomRulePlusOneParametersDto, "with and without implicit conversion"],
+		["a Transform that depends on the type it gets", CustomRuleTypeSensitiveParametersDto, "with and without implicit conversion"],
+		["a boolean Transform that sees the converted value", CustomRuleBooleanEqualsParametersDto, "with and without implicit conversion"],
+		["a bare boolean rule, under which implicit conversion makes false true", CustomRuleBareBooleanParametersDto, "into the other boolean value"],
+		["a boolean Type, which makes false true", CustomRuleTypeBooleanParametersDto, "into the other boolean value"],
+		["a Transform limited to groups", CustomRuleGroupTransformParametersDto, "limited to class-transformer groups"],
+	])("fails at startup on %s, naming the route, the DTO and what to change", (_name: string, dto: new () => unknown, reason: string) => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "refused", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow(`Controller "CustomRuleController" method "refused" property "id" of PARAMETERS DTO "${dto.name}"`);
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "refused", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow(reason);
+	});
+
+	it.each([
+		["a property with the name of the path parameter", CustomRuleShadowedByNameParametersDto],
+		["a property with an initializer and the name of the path parameter", CustomRuleShadowedWithInitializerParametersDto],
+		["two properties exposed under that name", CustomRuleTwoExposesParametersDto],
+	])("fails at startup when %s shadows a renamed path value", (_name: string, dto: new () => unknown) => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "shadowed", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow("both expose that name");
+	});
+
+	it.each([
+		["an Exclude on the conversion to the class", CustomRuleToClassExcludedParametersDto, "id"],
+		["a path parameter named constructor, which class-transformer skips", CustomRuleUndescribedParametersDto, "constructor"],
+		["a path parameter named __proto__, which class-transformer skips", CustomRuleUndescribedParametersDto, "__proto__"],
+	])("fails at startup on %s, whatever a class field leaves on the instance", (_name: string, dto: new () => unknown, parameter: string) => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "dropped", pathParameters: [parameter], resourcePath: "custom-rule/item" })).toThrow(`which drops it`);
+	});
+
+	it("says a property is exposed under another name instead of saying the DTO drops it", () => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleExposedElsewhereParametersDto, methodName: "elsewhere", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow('expose it as "id"');
+	});
+
+	it("says a renamed property's Transform throws on write back instead of saying the DTO drops it", () => {
+		expect(() => ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleWriteBackThrowsRenamedParametersDto, methodName: "throwsBack", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toThrow("add { toClassOnly: true }");
+	});
+
+	it("runs a DTO the old detection refused or misread", async () => {
+		const build = (dto: new () => unknown): IApiControllerParametersRule => {
+			const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto, methodName: "worksNow", pathParameters: ["id"], resourcePath: "custom-rule/item" });
+
+			if (!rule) {
+				throw new Error("The route has no rule");
+			}
+
+			return rule;
+		};
+
+		await expect(ApiControllerParametersValidate(build(CustomRuleExposedWithGroupsParametersDto), { id: "16" } as never)).resolves.toEqual({ id: 16 });
+		await expect(ApiControllerParametersValidate(build(CustomRuleStringOnlyRenamedParametersDto), { id: "16" } as never)).resolves.toEqual({ id: 16 });
+		await expect(ApiControllerParametersValidate(build(CustomRuleWriteBackThrowsParametersDto), { id: "16" } as never)).resolves.toEqual({ id: 16 });
+		await expect(ApiControllerParametersValidate(build(CustomRuleToPlainExcludedParametersDto), { id: "16" } as never)).resolves.toEqual({ id: 16 });
+		await expect(ApiControllerParametersValidate(build(CustomRuleDefaultSiblingParametersDto), { id: "16" } as never)).resolves.toEqual({ id: 16 });
+	});
+
+	it("keeps a boolean described by ApiPropertyBoolean, whose two texts keep their values", async () => {
+		const rule: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleBooleanParametersDto, methodName: "boolean", pathParameters: ["id"], resourcePath: "custom-rule/item" });
+
+		await expect(ApiControllerParametersValidate(rule!, { id: "true" } as never)).resolves.toEqual({ id: true });
+		await expect(ApiControllerParametersValidate(rule!, { id: "false" } as never)).resolves.toEqual({ id: false });
+	});
+
+	it("keeps the sent text of a bare class-validator rule, while ApiPropertyUUID gives the one canonical form", async () => {
+		const bare: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleBareUuidParametersDto, methodName: "bare", pathParameters: ["id"], resourcePath: "custom-rule/item" });
+		const described: IApiControllerParametersRule | undefined = ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleDescribedParametersDto, methodName: "described", pathParameters: ["id", "owner"], resourcePath: "custom-rule/item" });
+		const sent: string = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA";
+
+		await expect(ApiControllerParametersValidate(bare!, { id: sent } as never)).resolves.toEqual({ id: sent });
+		await expect(ApiControllerParametersValidate(described!, { id: "16", owner: sent } as never)).resolves.toEqual({ id: 16, owner: sent.toLowerCase() });
+	});
+
+	it("does not fail at startup on a Transform limited to a version, which any later pipe leaves on text IAM saw", () => {
+		expect(ApiControllerParametersBuildCustomRule({ controller: CustomRuleController, dto: CustomRuleVersionTransformParametersDto, methodName: "versioned", pathParameters: ["id"], resourcePath: "custom-rule/item" })).toBeDefined();
 	});
 
 	it("does not fail at startup when a Transform rejects the startup sample", () => {
