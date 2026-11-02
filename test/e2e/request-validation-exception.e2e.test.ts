@@ -4,12 +4,12 @@ import type { AbstractHttpAdapter } from "@nestjs/core";
 import type { ArgumentsHost, CanActivate, ExceptionFilter, INestApplication } from "@nestjs/common";
 import type { ValidationError as IValidationError } from "class-validator";
 
-import { BadRequestException, Body, Catch, Controller, HttpStatus, Injectable, RequestMethod, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Catch, Controller, HttpStatus, Injectable, RequestMethod, UseGuards, UsePipes, ValidationPipe } from "@nestjs/common";
 import { APP_INTERCEPTOR, BaseExceptionFilter, HttpAdapterHost } from "@nestjs/core";
 import { ExpressAdapter } from "@nestjs/platform-express";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
-import { ValidationError } from "class-validator";
+import { IsString, ValidationError } from "class-validator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ApiAuthorizationModule, ApiMethod, ApiPropertyDescribe, ApiRequestValidationException, ApiRequestValidationGetErrors, ApiRouteCustom, CorrelationIDNormalizeException, CorrelationIDResponseBodyInterceptor, EApiPropertyDescribeType } from "../../src/index";
@@ -34,7 +34,21 @@ class E2eExceptionEntity {
 
 class E2eExceptionResponseDto {}
 
+class E2eExceptionPipedDto {
+	@IsString()
+	public name!: string;
+}
+
 const seenErrors: { value?: Array<IValidationError> } = {};
+
+/**
+ * Lists the constraint names of validation failures, as a codes-only contract answers them.
+ * @param {Array<IValidationError>} errors - Validation failures.
+ * @returns {Array<string>} Constraint names.
+ */
+function constraintNames(errors: Array<IValidationError>): Array<string> {
+	return errors.flatMap((error: IValidationError): Array<string> => Object.keys(error.constraints ?? {}));
+}
 
 @Injectable()
 class E2eExceptionThrowingGuard implements CanActivate {
@@ -78,6 +92,19 @@ class E2eExceptionController {
 	public method(@Body() _body: object): { isReached: boolean } {
 		return { isReached: true };
 	}
+
+	@ApiMethod<E2eExceptionEntity>({
+		metadata: {
+			documentation: { summary: "Validates through a host pipe" },
+			resource: { action: "requestValidation.piped", entity: E2eExceptionEntity },
+			response: { status: HttpStatus.OK, type: E2eExceptionResponseDto },
+			route: { method: RequestMethod.POST, path: "piped" },
+		},
+	})
+	@UsePipes(new ValidationPipe({ exceptionFactory: (errors: Array<IValidationError>): BadRequestException => new BadRequestException({ code: VALIDATION_CODE, errors: constraintNames(errors) }) }))
+	public piped(@Body() _body: E2eExceptionPipedDto): { isReached: boolean } {
+		return { isReached: true };
+	}
 }
 
 // A host whose 400s are codes only: it answers on its own and keeps nothing of the correlation contract.
@@ -102,7 +129,7 @@ class E2eExceptionRecipeFilter extends BaseExceptionFilter {
 
 	public override catch(exception: unknown, host: ArgumentsHost): void {
 		const errors: Array<IValidationError> | undefined = ApiRequestValidationGetErrors(exception);
-		const translated: unknown = errors ? new BadRequestException({ code: VALIDATION_CODE, errors: errors.flatMap((error: IValidationError): Array<string> => Object.keys(error.constraints ?? {})) }) : exception;
+		const translated: unknown = errors ? new BadRequestException({ code: VALIDATION_CODE, errors: constraintNames(errors) }) : exception;
 
 		super.catch(CorrelationIDNormalizeException(translated, host, this.adapterHost), host);
 	}
@@ -255,10 +282,11 @@ describe.each([{ adapterName: "Fastify" }, { adapterName: "Express" }])("ApiRequ
 			{ clientId: undefined, name: "a generated correlation ID" },
 		])("with $name", ({ clientId }: { clientId?: string }) => {
 			it.each([
-				{ constraint: "guardRefused", raiser: "a guard", url: "/request-validation/guarded" },
-				{ constraint: "requestBodyMaximumKeys", raiser: "the interceptor chain", url: "/request-validation/method" },
-			])("answers one key set when $raiser raises it, with the ID of the response header", async ({ constraint, url }: { constraint: string; url: string }) => {
-				const response: IE2eExceptionResponse = await post(`${base}${url}`, `{"payload":${wideObject(1001)}}`, clientId);
+				{ body: `{"payload":${wideObject(1001)}}`, constraint: "guardRefused", raiser: "a guard", url: "/request-validation/guarded" },
+				{ body: `{"payload":${wideObject(1001)}}`, constraint: "requestBodyMaximumKeys", raiser: "the interceptor chain", url: "/request-validation/method" },
+				{ body: '{"name":1}', constraint: "isString", raiser: "a pipe's exceptionFactory", url: "/request-validation/piped" },
+			])("answers one key set when $raiser raises it, with the ID of the response header", async ({ body, constraint, url }: { body: string; constraint: string; url: string }) => {
+				const response: IE2eExceptionResponse = await post(`${base}${url}`, body, clientId);
 
 				expect(response.status).toBe(HttpStatus.BAD_REQUEST);
 				expect(response.body).toEqual({ code: VALIDATION_CODE, correlationID: response.correlationId, errors: [constraint], statusCode: HttpStatus.BAD_REQUEST, timestamp: expect.any(Number) });
