@@ -106,6 +106,10 @@ Importing the package no longer runs `dotenv`'s `config()`, and the package has 
 
 `app.close()` removes the application's subscribers from the registry. Work in your own `onApplicationShutdown` can run without subscribers, depending on module order; move work that needs them to `beforeApplicationShutdown`. See [Lifecycle: Migration Notes](/docs/nestjs-crud-automator/subscriber-system/lifecycle#migration-notes).
 
+## Object Array Bounds
+
+An `@ApiPropertyObject` request array without `minItems`, `maxItems` or `isUniqueItems`, possible from JavaScript or `any`, fails at decoration and names the property and the missing bounds. Before 5.0.0 it decorated and then rejected every value. A response array (`isResponse: true`) may leave the bounds out, so code that narrows `TApiPropertyObjectProperties` on `isArray === true` reads them as possibly `undefined`. See [`@ApiPropertyObject`: Migration Notes](/docs/nestjs-crud-automator/api-reference/decorators/api-property/api-property-object#migration-notes).
+
 ## Checking The Upgrade
 
 CI runs `npm run test:consumer` on the packed package: an ES module application with `bundler` resolution, one with `nodenext`, a CommonJS application with `node10`, one without `moduleResolution`, and a native ES module application built by SWC from extensionless `@`-alias imports with entities that import each other through `Relation<T>`. Each is typechecked with `skipLibCheck: false` and run against Postgres on Node.js 22.13.0, 24.11.0 and 26. The application in `test/consumer/app` is a small reference for a NestJS 12, Fastify and TypeORM 1 setup.
