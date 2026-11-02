@@ -29,6 +29,7 @@ import { ApiControllerGetListQueryResolveCursorOrderFields } from "@utility/api/
 import { ApiControllerGetListResponsePublishedFields } from "@utility/api/controller/get-list/response-published-fields.utility";
 import { ApiControllerGetSchemaPrefix } from "@utility/api/controller/get/schema-prefix.utility";
 import { FilterOrderByFromEntity } from "@utility/api/filter-order-by-from-entity.utility";
+import { DatabaseTypeOrmGetEntityClass } from "@utility/database/typeorm/get/entity-class.utility";
 import { DtoGetDecoratorConfig } from "@utility/dto/get/decorator-config.utility";
 import { DtoIsPropertyExposedInListResponse } from "@utility/dto/is/property/exposed/in-list-response.utility";
 import { DtoIsPropertyShouldBeMarked } from "@utility/dto/is/property/should-be-marked.utility";
@@ -37,6 +38,7 @@ import { EnumIsValue } from "@utility/enum/is-value.utility";
 import { EnumValues } from "@utility/enum/values.utility";
 import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
+import { GetClassHierarchy } from "@utility/get/class-hierarchy.utility";
 import { getMetadataArgsStorage } from "typeorm";
 
 const CURSOR_RESPONSE_PROPERTY_COUNT: number = 3;
@@ -191,7 +193,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 					continue;
 				}
 
-				fields[path] = this.createFilterField(path, metadata, this.isColumnNullable(entity, entityMetadata.name, path, metadata, isCursor));
+				fields[path] = this.createFilterField(path, metadata, this.isColumnNullable(entity, path, metadata));
 
 				continue;
 			}
@@ -222,7 +224,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 				const nestedPath: string = `${path}.${nestedName}`;
 
-				fields[nestedPath] = this.createFilterField(nestedPath, nestedMetadata, this.isColumnNullable(column.relation.target, relationMetadata.name, nestedName, nestedMetadata, isCursor));
+				fields[nestedPath] = this.createFilterField(nestedPath, nestedMetadata, this.isColumnNullable(column.relation.target, nestedName, nestedMetadata));
 			}
 		}
 
@@ -254,9 +256,9 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 			if (!column.relation && metadata && metadata.type !== EApiPropertyDescribeType.OBJECT && metadata.type !== EApiPropertyDescribeType.RELATION) {
 				const path: string = String(column.name);
-				const columnMetadata: TTypeOrmColumnMetadataArguments | undefined = this.findColumnMetadata(entity, entityMetadata.name, path);
+				const columnMetadata: TTypeOrmColumnMetadataArguments | undefined = this.findColumnMetadata(entity, path);
 
-				fields[path] = this.createOrderField(path, metadata, this.isColumnNullable(entity, entityMetadata.name, path, metadata, isCursor), columnMetadata);
+				fields[path] = this.createOrderField(path, metadata, this.isColumnNullable(entity, path, metadata), columnMetadata);
 			}
 		}
 
@@ -601,34 +603,11 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return `${field} is not orderable: ${this.getUnorderableReason(path, metadata, column.isPrimary, currentGuard, publishedFields)}`;
 	}
 
-	private static findColumnMetadata(entity: IApiBaseEntity | ObjectLiteral, entityName: string | undefined, propertyName: string): TTypeOrmColumnMetadataArguments | undefined {
-		const targets: Array<unknown> = [];
-
-		if (typeof entity === "function") {
-			let current: unknown = entity;
-
-			while (typeof current === "function" && current !== Object) {
-				targets.push(current, current.name);
-
-				current = Object.getPrototypeOf(current) as unknown;
-			}
-		} else if (typeof entity.name === "string") {
-			targets.push(entity.name);
-		}
-
-		if (entityName && !targets.includes(entityName)) {
-			targets.push(entityName);
-		}
-
-		for (const expectedTarget of targets) {
-			const column: TTypeOrmColumnMetadataArguments | undefined = getMetadataArgsStorage().columns.find(({ propertyName: currentPropertyName, target }: TTypeOrmColumnMetadataArguments): boolean => currentPropertyName === propertyName && (target === expectedTarget || (typeof expectedTarget === "string" && typeof target !== "string" && target.name === expectedTarget)));
-
-			if (column) {
-				return column;
-			}
-		}
-
-		return undefined;
+	// Reads the columns of the entity class and its parents, as TypeORM does: a property a parent declares keeps the parent's column.
+	private static findColumnMetadata(entity: IApiBaseEntity | ObjectLiteral, propertyName: string): TTypeOrmColumnMetadataArguments | undefined {
+		return getMetadataArgsStorage()
+			.filterColumns(GetClassHierarchy(DatabaseTypeOrmGetEntityClass(entity)))
+			.find((column: TTypeOrmColumnMetadataArguments): boolean => column.propertyName === propertyName);
 	}
 
 	private static getPropertyMetadata<E>(column: IApiEntityColumn<E>): TApiPropertyDescribeProperties | undefined {
@@ -668,19 +647,9 @@ export class ApiControllerGetListQueryPlanCompiler {
 	}
 
 	private static hasAfterLoadListener(entity: IApiBaseEntity | ObjectLiteral): boolean {
-		if (typeof entity !== "function") {
-			return false;
-		}
-
-		const targets: Set<unknown> = new Set<unknown>();
-		let current: unknown = entity;
-
-		while (typeof current === "function" && current !== Object) {
-			targets.add(current);
-			current = Object.getPrototypeOf(current) as unknown;
-		}
-
-		return getMetadataArgsStorage().entityListeners.some((listener: TTypeOrmEntityListenerMetadataArguments): boolean => listener.type === "after-load" && targets.has(listener.target));
+		return getMetadataArgsStorage()
+			.filterListeners(GetClassHierarchy(entity))
+			.some((listener: TTypeOrmEntityListenerMetadataArguments): boolean => listener.type === "after-load");
 	}
 
 	private static hasPropertyAccessor(entity: IApiBaseEntity | ObjectLiteral | Type<unknown>, propertyName: string): boolean {
@@ -712,10 +681,8 @@ export class ApiControllerGetListQueryPlanCompiler {
 		return false;
 	}
 
-	private static isColumnNullable(entity: IApiBaseEntity | ObjectLiteral, entityName: string | undefined, propertyName: string, metadata: TApiPropertyDescribeProperties, isCursor: boolean): boolean {
-		const column: TTypeOrmColumnMetadataArguments | undefined = isCursor ? this.findColumnMetadata(entity, entityName, propertyName) : getMetadataArgsStorage().columns.find(({ propertyName: currentPropertyName, target }: TTypeOrmColumnMetadataArguments): boolean => currentPropertyName === propertyName && (typeof target === "string" ? target === entityName : target.name === entityName));
-
-		return column?.options.nullable === true || metadata.isNullable === true;
+	private static isColumnNullable(entity: IApiBaseEntity | ObjectLiteral, propertyName: string, metadata: TApiPropertyDescribeProperties): boolean {
+		return this.findColumnMetadata(entity, propertyName)?.options.nullable === true || metadata.isNullable === true;
 	}
 
 	private static isCursorEnvelopeStringMetadata(metadata: TManualDtoPropertyMetadata): boolean {
