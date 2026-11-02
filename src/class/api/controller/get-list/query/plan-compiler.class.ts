@@ -657,7 +657,7 @@ export class ApiControllerGetListQueryPlanCompiler {
 
 	// Follows the checks of FilterOrderByFromEntity in order, so the first one a described scalar column fails names the reason.
 	private static getUnorderableReason(path: string, metadata: TApiPropertyDescribeProperties, isPrimary: boolean, currentGuard: Type<CanActivate> | undefined, publishedFields: ReadonlySet<string> | undefined): string {
-		const query: TApiPropertyDescribeDtoQueryGetListProperties | undefined = (metadata.properties?.[EApiRouteType.GET_LIST] as Partial<Record<EApiDtoType, TApiPropertyDescribeDtoQueryGetListProperties>> | undefined)?.[EApiDtoType.QUERY];
+		const query: TApiPropertyDescribeDtoQueryGetListProperties | undefined = metadata.properties?.[EApiRouteType.GET_LIST]?.[EApiDtoType.QUERY];
 		const response: TApiPropertyDescribeDtoProperties = DtoGetDecoratorConfig(EApiRouteType.GET_LIST, metadata, EApiDtoType.RESPONSE);
 
 		if (metadata.isAutoDtoEnabled === false) {
