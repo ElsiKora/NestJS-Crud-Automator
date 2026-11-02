@@ -115,6 +115,20 @@ describe("ApiFunctionCreateInsertGuard", () => {
 		expect(await items.findOneOrFail({ relations: { owner: true }, where: { id: "item-1" } })).toMatchObject({ name: "Changed", owner: { name: "Renamed" } });
 	});
 
+	// better-sqlite3 hands every save the same query runner, so only the asynchronous context tells the saves apart.
+	it.each([
+		["the create first", true],
+		["the other saves first", false],
+	])("leaves saves that run next to a create free to update rows, with %s", async (_name: string, isCreateFirst: boolean) => {
+		const create = (): Promise<unknown> => ApiFunctionCreateInsertGuard.save(items, { id: "item-2", name: "New", owner: { id: "owner-1" } }, CreateGuardItemEntity);
+		const others = (): Array<Promise<unknown>> => [items.save({ id: "item-1", name: "Changed" }), dataSource.getRepository(CreateGuardOwnerEntity).save({ id: "owner-1", name: "Renamed" })];
+		const results: Array<PromiseSettledResult<unknown>> = await Promise.allSettled(isCreateFirst ? [create(), ...others()] : [...others(), create()]);
+
+		expect(results.map((result: PromiseSettledResult<unknown>): string => result.status)).toEqual(["fulfilled", "fulfilled", "fulfilled"]);
+		expect(await items.findOneOrFail({ relations: { owner: true }, where: { id: "item-1" } })).toMatchObject({ name: "Changed", owner: { name: "Renamed" } });
+		expect(await items.count()).toBe(2);
+	});
+
 	it("registers itself once on the DataSource of the repository", async () => {
 		await ApiFunctionCreateInsertGuard.save(items, { id: "item-2", name: "New" }, CreateGuardItemEntity);
 		await ApiFunctionCreateInsertGuard.save(items, { id: "item-3", name: "New" }, CreateGuardItemEntity);
