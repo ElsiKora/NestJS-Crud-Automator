@@ -23,7 +23,7 @@ export class ApiControllerGeneratedScopeWhereContract {
 		const candidateBranches: Array<object> = Array.isArray(candidateWhere) ? candidateWhere : [candidateWhere];
 		const mandatoryBranches: Array<object> = Array.isArray(mandatoryWhere) ? mandatoryWhere : [mandatoryWhere];
 
-		return candidateBranches.length > 0 && mandatoryBranches.length > 0 && candidateBranches.every((candidateBranch: object): boolean => mandatoryBranches.some((mandatoryBranch: object): boolean => this.branchContains(candidateBranch, mandatoryBranch)));
+		return candidateBranches.length > 0 && mandatoryBranches.length > 0 && candidateBranches.every((candidateBranch: object, index: number): boolean => this.isBranchContainedInAny(candidateBranch, mandatoryBranches, index));
 	}
 
 	public static merge<E extends IApiBaseEntity>(candidateWhere: TApiAuthorizationScopeWhere<E>, mandatoryWhere: TApiAuthorizationScopeWhere<E>): TApiAuthorizationScopeWhere<E> {
@@ -59,6 +59,17 @@ export class ApiControllerGeneratedScopeWhereContract {
 		}
 
 		return entries;
+	}
+
+	// The branch at the same index is tried first, so re-checking an already merged scope costs one comparison per branch, not a scan of all of them.
+	private static isBranchContainedInAny(candidateBranch: object, mandatoryBranches: Array<object>, index: number): boolean {
+		const alignedBranch: object | undefined = index < mandatoryBranches.length ? mandatoryBranches[index] : undefined;
+
+		if (alignedBranch && this.branchContains(candidateBranch, alignedBranch)) {
+			return true;
+		}
+
+		return mandatoryBranches.some((mandatoryBranch: object): boolean => this.branchContains(candidateBranch, mandatoryBranch));
 	}
 
 	private static isNestedWhere(value: unknown): value is object {
