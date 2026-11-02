@@ -171,7 +171,8 @@ On a controller decorated with `@ApiControllerSecurable()`, every route Nest ser
 
 - A route with Nest decorators and without `@ApiMethod`, `@ApiRouteCustom` or generation now fails startup. The error names the controller, the method and the path. This includes `@All`, `@Sse`, a plain route inherited from a base class, a plain override of a generated or custom route, and a method of `generation.shouldWriteToController: false` exposed with a Nest decorator.
 - Declare the route with `@ApiRouteCustom` or `@ApiMethod`, or move it to a controller that is not securable. There is no public or skip option, so a health check moves too.
-- Route metadata written by hand counts only with `ApiAuthorizationGuard` in `@UseGuards` on the method or the controller.
+- Route metadata written by hand counts only with `ApiAuthorizationGuard` or a subclass of it in `@UseGuards` on the method or the controller. A guard instance and `APP_GUARD` do not count.
+- An application with a securable controller and no `ApiAuthorizationModule` now fails startup, naming the controller and the module. Import the module, or remove `@ApiControllerSecurable()`. Before 5.0.0 such a controller started when it had only plain routes, and nothing validated it. `Test.createTestingModule(...).compile()` without `init()` runs no startup check.
 - An override with no route decorator, a helper method and a controller that is not securable are unaffected.
 
 See [Authorization: Every Served Route Goes Through Authorization](/docs/nestjs-crud-automator/guides/authorization#every-served-route-goes-through-authorization).
