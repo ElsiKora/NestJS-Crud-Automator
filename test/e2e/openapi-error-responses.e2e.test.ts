@@ -15,7 +15,7 @@ import { InjectRepository, TypeOrmModule } from "@nestjs/typeorm";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Ajv } from "ajv";
 import addFormats from "ajv-formats";
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
+import { Column, Entity, JoinColumn, LessThan, ManyToOne, PrimaryColumn } from "typeorm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IApiAuthenticationRequest, IApiAuthorizationPrincipal, IApiAuthorizationPrincipalResolver, IApiPolicyAttachmentSource, IApiPolicyDocumentRecord, IApiPolicyDocumentSource } from "../../src/index";
@@ -221,8 +221,9 @@ class OpenApiErrorSecuredItemPolicy extends ApiAuthorizationPolicyBase<OpenApiEr
 		return this.allowForRoles(["admin"]);
 	}
 
+	// A rank of 100 is valid and lands outside this scope, so the read back of the new row finds nothing
 	public onBeforeCreate() {
-		return this.allowForRoles(["admin"]);
+		return this.allowForRoles(["admin"], { scope: () => ({ where: { rank: LessThan(100) } }) });
 	}
 
 	public onBeforeDelete() {
@@ -621,6 +622,7 @@ const WIRE_CASES: Array<IWireCase> = [
 	wireCase("delete", ITEM, HttpStatus.NOT_FOUND, "row not found", `${ITEMS}/item-missing`),
 	wireCase("delete", ITEM, HttpStatus.INTERNAL_SERVER_ERROR, "unexpected failure", `${ITEMS}/item-1`, { headers: EXPLODE }),
 	wireCase("post", SECURED_ITEMS, HttpStatus.BAD_REQUEST, "body DTO validation", SECURED_ITEMS, { headers: ADMIN_HEADERS, payload: { id: SECURED_MISSING_ID, rank: "first" } }),
+	wireCase("post", SECURED_ITEMS, HttpStatus.NOT_FOUND, "body outside the policy scope", SECURED_ITEMS, { headers: ADMIN_HEADERS, payload: { id: SECURED_MISSING_ID, rank: 100 } }),
 	wireCase("post", SECURED_ITEMS, HttpStatus.CONFLICT, "unique violation", SECURED_ITEMS, { headers: ADMIN_HEADERS, payload: { id: SECURED_MISSING_ID, rank: 1 } }),
 	wireCase("post", SECURED_ITEMS, HttpStatus.INTERNAL_SERVER_ERROR, "unexpected failure", SECURED_ITEMS, { headers: ADMIN_EXPLODE, payload: { id: SECURED_MISSING_ID, rank: 5 } }),
 	wireCase("get", SECURED_ITEMS, HttpStatus.BAD_REQUEST, "cursor", `${SECURED_ITEMS}?limit=10&after=not-a-cursor`, { headers: ADMIN_HEADERS }),
@@ -825,7 +827,7 @@ describe.each(EXCEPTION_FILTER_MODES.map((mode: IExceptionFilterMode): [string, 
 		expect(declaredStatuses(ITEM, "patch")).toEqual([400, 404, 409, 413, 415, 500]);
 		expect(declaredStatuses(ITEM, "delete")).toEqual([400, 404, 413, 415, 500]);
 
-		expect(declaredStatuses(SECURED_ITEMS, "post")).toEqual([400, 401, 403, 409, 413, 415, 500]);
+		expect(declaredStatuses(SECURED_ITEMS, "post")).toEqual([400, 401, 403, 404, 409, 413, 415, 500]);
 		expect(declaredStatuses(SECURED_ITEMS, "get")).toEqual([400, 401, 403, 413, 415, 500]);
 		expect(declaredStatuses(SECURED_ITEM, "get")).toEqual([400, 401, 403, 404, 413, 415, 500]);
 		expect(declaredStatuses(SECURED_ITEM, "put")).toEqual([400, 401, 403, 404, 409, 413, 415, 500]);

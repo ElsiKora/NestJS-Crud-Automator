@@ -10,8 +10,10 @@ import { DTO_SCHEMA_NAME_CONSTANT } from "@constant/utility/dto/schema-name.cons
 import { ApiMethod } from "@decorator/api/method.decorator";
 import { EApiControllerResponseTarget } from "@enum/decorator/api";
 import { ApiRouteRuntimeInterceptor } from "@interceptor/api-route-runtime.interceptor";
-import { applyDecorators, SetMetadata, UseFilters } from "@nestjs/common";
+import { applyDecorators, HttpStatus, SetMetadata, UseFilters } from "@nestjs/common";
 import { EXCEPTION_FILTERS_METADATA, ROUTE_ARGS_METADATA, RouteParamtypes } from "@nestjs/common/internal";
+import { ApiControllerGetErrorFlags, ApiControllerGetErrorResponseDecorators } from "@utility/api/controller/apply/error-responses.utility";
+import { ApiControllerGetCustomErrorStatuses } from "@utility/api/controller/get/error-statuses.utility";
 import { ApiRouteApplyDtoMetadata } from "@utility/api/route/apply-dto-metadata.utility";
 import { ApiRouteCreateAnonymousCheck } from "@utility/api/route/create-anonymous-check.utility";
 
@@ -22,16 +24,33 @@ import { ApiRouteCreateAnonymousCheck } from "@utility/api/route/create-anonymou
  * @returns {MethodDecorator} A decorator for a custom controller route method.
  */
 export function ApiRouteCustom<E extends IApiBaseEntity>(properties: IApiRouteCustomProperties<E>): MethodDecorator {
-	const metadataResponse: IApiRouteMetadata<E>["response"] | undefined = properties.response
-		? {
-				discriminator: properties.response.discriminator,
-				errors: properties.response.errors,
-				headers: properties.response.headers,
-				serialization: properties.response.serialization,
-				status: properties.response.status,
-				type: properties.response.type,
-			}
-		: undefined;
+	const errorStatuses: Array<number> = ApiControllerGetCustomErrorStatuses(properties);
+	const errorFlags: NonNullable<IApiRouteMetadata<E>["response"]>["errors"] = ApiControllerGetErrorFlags(errorStatuses);
+
+	const declaredErrors: NonNullable<IApiRouteMetadata<E>["response"]>["errors"] = properties.response?.errors;
+
+	const errors: NonNullable<IApiRouteMetadata<E>["response"]>["errors"] =
+		errorStatuses.length > 0
+			? {
+					hasConflict: !!declaredErrors?.hasConflict || !!errorFlags?.hasConflict,
+					hasForbidden: !!declaredErrors?.hasForbidden || !!errorFlags?.hasForbidden,
+					hasNotFound: !!declaredErrors?.hasNotFound || !!errorFlags?.hasNotFound,
+					hasTooManyRequests: !!declaredErrors?.hasTooManyRequests || !!errorFlags?.hasTooManyRequests,
+					hasUnauthorized: !!declaredErrors?.hasUnauthorized || !!errorFlags?.hasUnauthorized,
+				}
+			: declaredErrors;
+
+	const metadataResponse: IApiRouteMetadata<E>["response"] | undefined =
+		properties.response || errors
+			? {
+					discriminator: properties.response?.discriminator,
+					errors,
+					headers: properties.response?.headers,
+					serialization: properties.response?.serialization,
+					status: properties.response?.status ?? HttpStatus.OK,
+					type: properties.response?.type,
+				}
+			: undefined;
 
 	const runtimeResponse: IApiRouteRuntimeProperties<E, undefined>["response"] | undefined = properties.response?.[EApiControllerResponseTarget.RESPONSE]
 		? {
@@ -94,6 +113,7 @@ export function ApiRouteCustom<E extends IApiBaseEntity>(properties: IApiRouteCu
 				},
 				metadata,
 			}),
+			...ApiControllerGetErrorResponseDecorators(errorStatuses, properties.documentation?.response?.statuses),
 			SetMetadata(METHOD_API_DECORATOR_CONSTANT.ROUTE_RUNTIME_PROPERTIES_METADATA_KEY, runtimeProperties),
 		)(target, propertyKey, descriptor);
 	};

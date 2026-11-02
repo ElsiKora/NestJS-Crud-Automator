@@ -3,7 +3,7 @@ import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controll
 import { EApiAuthenticationType, EApiControllerRequestTarget, EApiRouteType } from "@enum/decorator/api";
 import { EErrorStringAction } from "@enum/utility";
 import { BadRequestException, ForbiddenException, HttpStatus, UnprocessableEntityException } from "@nestjs/common";
-import { ApiControllerGetErrorStatuses } from "@utility/api/controller/get/error-statuses.utility";
+import { ApiControllerGetCustomErrorStatuses, ApiControllerGetErrorStatuses } from "@utility/api/controller/get/error-statuses.utility";
 import { describe, expect, it } from "vitest";
 
 class ErrorStatusesEntity {
@@ -65,5 +65,32 @@ describe("ApiControllerGetErrorStatuses", () => {
 
 		expect(ApiControllerGetErrorStatuses(EApiRouteType.GET_LIST, routeConfig, false)).not.toContain(HttpStatus.FORBIDDEN);
 		expect(ApiControllerGetErrorStatuses(EApiRouteType.GET_LIST, routeConfig, true)).toContain(HttpStatus.FORBIDDEN);
+	});
+});
+
+describe("ApiControllerGetCustomErrorStatuses", () => {
+	const validator = (exception: typeof BadRequestException) => ({ errorType: EErrorStringAction.VALIDATION_ERROR, exception, validationFunction: (): boolean => true });
+
+	it("resolves nothing for a route without validators and relation loads", () => {
+		expect(ApiControllerGetCustomErrorStatuses<ErrorStatusesEntity & { id: string }>({})).toEqual([]);
+	});
+
+	it("adds the status of each validator on every request target the runtime runs", () => {
+		const request = {
+			[EApiControllerRequestTarget.BODY]: { validators: [validator(UnprocessableEntityException)] },
+			[EApiControllerRequestTarget.PARAMETERS]: { validators: [validator(ForbiddenException)] },
+			[EApiControllerRequestTarget.QUERY]: { validators: [validator(BadRequestException)] },
+		};
+
+		expect(ApiControllerGetCustomErrorStatuses({ request } as never)).toEqual([HttpStatus.BAD_REQUEST, HttpStatus.FORBIDDEN, HttpStatus.UNPROCESSABLE_ENTITY]);
+	});
+
+	it.each([
+		["request", { request: { load: { include: { owner: true } } } }, [HttpStatus.NOT_FOUND]],
+		["response", { response: { load: { include: { owner: true } } } }, [HttpStatus.NOT_FOUND]],
+		["disabled request", { request: { load: { include: { owner: false } } } }, []],
+		["disabled response", { response: { load: { include: { owner: false } } } }, []],
+	])("resolves the %s relation load", (_name: string, relations: object, expected: Array<HttpStatus>) => {
+		expect(ApiControllerGetCustomErrorStatuses({ relations } as never)).toEqual(expected);
 	});
 });

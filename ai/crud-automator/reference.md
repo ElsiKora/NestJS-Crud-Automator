@@ -116,19 +116,21 @@ Generated route transaction rules:
 
 ## Generated Error Responses
 
-| Status | Declared when                                                                                |
-| ------ | -------------------------------------------------------------------------------------------- |
-| `400`  | always: DTO validation, typed GET_LIST/CURSOR codes, FK violation, relation reference        |
-| `401`  | `security.authentication`                                                                    |
-| `403`  | `security.authentication`, `execution.guards`, or securable controller + `authorization`     |
-| `404`  | GET, UPDATE, PARTIAL_UPDATE, DELETE; CREATE with an enabled `relations.request.load.include` |
-| `409`  | CREATE, UPDATE, PARTIAL_UPDATE                                                               |
-| `500`  | always                                                                                       |
-| other  | the `exception` status of each `request.<target>.validators` entry the route runs            |
+| Status | Declared when                                                                                                                  |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `400`  | always: DTO validation, typed GET_LIST/CURSOR codes, FK violation, relation reference, malformed JSON                          |
+| `401`  | `security.authentication`                                                                                                      |
+| `403`  | `security.authentication`, `execution.guards`, or securable controller + `authorization`                                       |
+| `404`  | GET, UPDATE, PARTIAL_UPDATE, DELETE; CREATE with an enabled `relations.request.load.include` or on securable + `authorization` |
+| `409`  | CREATE, UPDATE, PARTIAL_UPDATE                                                                                                 |
+| `413`  | always: a body over the parser limit, 1 MiB in Fastify, 100 kB in Express                                                      |
+| `415`  | always: a content type Fastify refuses, a charset or content encoding Express refuses                                          |
+| `500`  | always                                                                                                                         |
+| other  | the `exception` status of each `request.<target>.validators` entry the route runs                                              |
 
 Each status uses `DtoGenerateException(status)` (`Exception<Status>DTO`): required `statusCode`, `message`, `error`, except on `400`, `401`, `403`, `413`, `415`, `429`, `500`, which can arise before the interceptor (body parser, guards, a guard or IAM policy source that throws), where only `statusCode` and `message` are required; `correlationID` and `timestamp` are never required, because they appear only when the optional `CorrelationIDResponseBodyInterceptor` or `CorrelationIDResponseBodyExceptionFilter` handles the error; `message` is `string | string[]` and `error` a string, with no pattern or length limits; `details` only on `400` (`FOREIGN_KEY_VIOLATION`, `INVALID_REFERENCE`, `TO_MANY_UPDATE_KEY`) and `409` (`UNIQUE_VIOLATION`). Guard rejections, guard failures, and body parser refusals skip the interceptor and carry only `statusCode` and `message` (plus `error` when a guard returns `false`) unless the exception filter is registered. Every route, GET and DELETE included, also declares `413` and `415`: Express parses a body on GET and Fastify on DELETE.
 
-Custom routes (`@ApiRouteCustom`, `@ApiMethod`) declare `401` with `security.authentication`, `403` with `security.authentication`, `execution.guards`, or a securable controller with `authorization` (only on the securable subclass when the route is inherited), `429` with `throttling.default`, and `400`, `413`, `415`, `500` on every route; their other statuses come from `response.errors` (which has no `hasBadRequest` or `hasInternalServerError`). A status in `documentation.response.statuses` replaces the default response of that status.
+Custom routes (`@ApiRouteCustom`, `@ApiMethod`) declare `401` with `security.authentication`, `403` with `security.authentication`, `execution.guards`, or a securable controller with `authorization` (only on the securable subclass when the route is inherited), `429` with `throttling.default`, `400`, `413`, `415`, `500` on every route, each `request.<target>.validators` exception status, and `404` with `relations.request.load.include` or `relations.response.load.include`; what a handler throws comes from `response.errors` (which has no `hasBadRequest` or `hasInternalServerError`). A status in `documentation.response.statuses` replaces the default response of that status.
 
 ## DTO Rules
 

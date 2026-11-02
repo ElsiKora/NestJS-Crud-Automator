@@ -5,7 +5,7 @@ import type { TApiControllerConstructor } from "@type/decorator/api/controller";
 
 import { CONTROLLER_STARTUP_CHECK_METADATA_KEY } from "@constant/decorator/api/controller-startup-check.constant";
 import { ApiControllerFactory } from "@factory/api-controller.factory";
-import { ApiControllerApplyForbiddenResponse } from "@utility/api/controller/apply/forbidden-response.utility";
+import { ApiControllerApplySecurableResponses } from "@utility/api/controller/apply/securable-responses.utility";
 
 /**
  * Automatically generates CRUD endpoints for an entity.
@@ -36,7 +36,7 @@ export const ApiController =
 		const factory: ApiControllerFactory<E, EApiControllerGetListQueryPaginationMode> = new ApiControllerFactory<E, EApiControllerGetListQueryPaginationMode>(target, options);
 		factory.init();
 		factory.installBootstrapChecks();
-		ApiControllerApplyForbiddenResponse(target);
+		ApiControllerApplySecurableResponses(target);
 
 		let isStartupChecked: boolean = false;
 

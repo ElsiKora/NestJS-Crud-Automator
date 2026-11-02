@@ -4,13 +4,14 @@ import { ApiServiceBase } from "@class/api";
 import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiControllerSecurable } from "@decorator/api/controller/securable.decorator";
 import { ApiMethod } from "@decorator/api/method.decorator";
+import { ApiRouteCustom } from "@decorator/api/route-custom.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
 import { EApiAuthorizationMode } from "@enum/class/authorization/mode.enum";
-import { EApiAuthenticationType, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
+import { EApiAuthenticationType, EApiControllerRelationReferenceShape, EApiPropertyDescribeType, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { PATH_METADATA } from "@nestjs/common/internal";
 import { SWAGGER_TEST_METADATA_CONSTANT } from "@test/unit/fixture";
-import { Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { describe, expect, it } from "vitest";
 
 @Entity("forbidden_response_entities")
@@ -18,6 +19,16 @@ class ForbiddenResponseEntity {
 	@PrimaryGeneratedColumn("uuid")
 	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
 	public id!: string;
+}
+
+@Entity("scoped_relation_entities")
+class ScopedRelationEntity {
+	@PrimaryGeneratedColumn("uuid")
+	@ApiPropertyDescribe({ description: "id", type: EApiPropertyDescribeType.UUID })
+	public id!: string;
+
+	@ManyToOne(() => ForbiddenResponseEntity)
+	public owner!: ForbiddenResponseEntity;
 }
 
 const getResponses = (controller: { prototype: object }, methodName: string): Record<string, { description?: string }> => (Reflect.getMetadata(SWAGGER_TEST_METADATA_CONSTANT.RESPONSE, Reflect.get(controller.prototype, methodName) as object) ?? {}) as Record<string, { description?: string }>;
@@ -38,7 +49,16 @@ const customRoute = (path: string, isAuthenticated: boolean = false): MethodDeco
 		},
 	});
 
-describe("ApiControllerApplyForbiddenResponse", () => {
+const NO_GENERATED_ROUTES = {
+	[EApiRouteType.CREATE]: { generation: { isEnabled: false } },
+	[EApiRouteType.DELETE]: { generation: { isEnabled: false } },
+	[EApiRouteType.GET]: { generation: { isEnabled: false } },
+	[EApiRouteType.GET_LIST]: { generation: { isEnabled: false } },
+	[EApiRouteType.PARTIAL_UPDATE]: { generation: { isEnabled: false } },
+	[EApiRouteType.UPDATE]: { generation: { isEnabled: false } },
+};
+
+describe("ApiControllerApplySecurableResponses", () => {
 	it("declares 403 once on every generated route when securable is applied after the controller", () => {
 		@ApiControllerSecurable()
 		@ApiController<ForbiddenResponseEntity>({
@@ -158,6 +178,90 @@ describe("ApiControllerApplyForbiddenResponse", () => {
 		expect(securableHandler).not.toBe(sharedHandler);
 		expect(Reflect.getMetadata(PATH_METADATA, securableHandler as object)).toBe("stats");
 		expect((securableHandler as () => unknown).call(new SecurableSharedController())).toEqual({ isShared: true });
+	});
+
+	it("declares 403 on a route of a decorated base only for the securable siblings, in either decorator order", () => {
+		@ApiController<ForbiddenResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: ForbiddenResponseEntity, path: "decorated-base", routes: NO_GENERATED_ROUTES })
+		class DecoratedBaseController {
+			public service!: ApiServiceBase<ForbiddenResponseEntity>;
+
+			@customRoute("mine")
+			public mine(): { isShared: boolean } {
+				return { isShared: true };
+			}
+		}
+
+		const sharedHandler: unknown = Reflect.get(DecoratedBaseController.prototype, "mine");
+
+		@ApiControllerSecurable()
+		class SecurableOnlyController extends DecoratedBaseController {}
+
+		@ApiControllerSecurable()
+		@ApiController<ForbiddenResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: ForbiddenResponseEntity, path: "securable-top", routes: NO_GENERATED_ROUTES })
+		class SecurableTopController extends DecoratedBaseController {}
+
+		@ApiController<ForbiddenResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: ForbiddenResponseEntity, path: "securable-bottom", routes: NO_GENERATED_ROUTES })
+		@ApiControllerSecurable()
+		class SecurableBottomController extends DecoratedBaseController {}
+
+		class PlainSiblingController extends DecoratedBaseController {}
+
+		@ApiController<ForbiddenResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: ForbiddenResponseEntity, path: "decorated-sibling", routes: NO_GENERATED_ROUTES })
+		class DecoratedSiblingController extends DecoratedBaseController {}
+
+		for (const controller of [SecurableOnlyController, SecurableTopController, SecurableBottomController]) {
+			expect(getResponses(controller, "mine")[HttpStatus.FORBIDDEN], controller.name).toMatchObject({ description: "Forbidden" });
+			expect(Reflect.get(controller.prototype, "mine"), controller.name).not.toBe(sharedHandler);
+		}
+
+		expect(getResponses(DecoratedBaseController, "mine")[HttpStatus.FORBIDDEN]).toBeUndefined();
+		expect(getResponses(PlainSiblingController, "mine")[HttpStatus.FORBIDDEN]).toBeUndefined();
+		expect(getResponses(DecoratedSiblingController, "mine")[HttpStatus.FORBIDDEN]).toBeUndefined();
+		expect(Reflect.get(PlainSiblingController.prototype, "mine")).toBe(sharedHandler);
+	});
+
+	it("declares 404 once on a generated CREATE of a securable controller, in either decorator order", () => {
+		@ApiControllerSecurable()
+		@ApiController<ForbiddenResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: ForbiddenResponseEntity, routes: {} })
+		class ScopedAfterController {
+			public service!: ApiServiceBase<ForbiddenResponseEntity>;
+		}
+
+		@ApiController<ForbiddenResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: ForbiddenResponseEntity, routes: {} })
+		@ApiControllerSecurable()
+		class ScopedBeforeController {
+			public service!: ApiServiceBase<ForbiddenResponseEntity>;
+		}
+
+		@ApiControllerSecurable()
+		@ApiController<ScopedRelationEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: ScopedRelationEntity, routes: { [EApiRouteType.CREATE]: { relations: { request: { load: { include: { owner: true } }, reference: { shape: EApiControllerRelationReferenceShape.SCALAR } } } } } as never })
+		class ScopedRelationController {
+			public service!: ApiServiceBase<ScopedRelationEntity>;
+		}
+
+		@ApiController<ForbiddenResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: ForbiddenResponseEntity, routes: {} })
+		class NotSecurableCreateController {
+			public service!: ApiServiceBase<ForbiddenResponseEntity>;
+		}
+
+		for (const controller of [ScopedAfterController, ScopedBeforeController, ScopedRelationController]) {
+			expect(getResponses(controller, EApiRouteType.CREATE)[HttpStatus.NOT_FOUND], controller.name).toMatchObject({ description: "Not Found" });
+		}
+
+		expect(getResponses(NotSecurableCreateController, EApiRouteType.CREATE)[HttpStatus.NOT_FOUND]).toBeUndefined();
+	});
+
+	it("leaves 404 off a custom route of a securable controller that calls itself CREATE", () => {
+		@ApiControllerSecurable()
+		@ApiController<ForbiddenResponseEntity>({ authorization: { defaultMode: EApiAuthorizationMode.HOOKS }, entity: ForbiddenResponseEntity, routes: {} })
+		class CustomCreateController {
+			public service!: ApiServiceBase<ForbiddenResponseEntity>;
+
+			@ApiRouteCustom<ForbiddenResponseEntity>({ resource: { action: "import", entity: ForbiddenResponseEntity }, response: { status: HttpStatus.CREATED, type: undefined }, route: { method: RequestMethod.POST, path: "import", type: EApiRouteType.CREATE } })
+			public import(): void {}
+		}
+
+		expect(getResponses(CustomCreateController, "import")[HttpStatus.NOT_FOUND]).toBeUndefined();
 	});
 
 	it("does not declare 403 on custom routes that cannot be refused", () => {

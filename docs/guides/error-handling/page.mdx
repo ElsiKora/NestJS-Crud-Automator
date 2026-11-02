@@ -526,18 +526,18 @@ Without the filter, or when a filter of yours handles the failure without `Corre
 
 Generated routes declare exactly the error statuses they can return with their configuration:
 
-| Status | Declared on                           | Returned for                                                                                                                                                         |
-| ------ | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `400`  | every route                           | request DTO validation by your `ValidationPipe`, typed GET_LIST and CURSOR codes, foreign key violations, invalid request relation references, a malformed JSON body |
-| `401`  | routes with `security.authentication` | your authentication guard                                                                                                                                            |
-| `403`  | routes with a guard that can refuse   | `security.authentication` or `execution.guards` returning `false`, and every route of an `@ApiControllerSecurable()` controller with `authorization`                 |
-| `404`  | GET, UPDATE, PARTIAL_UPDATE, DELETE   | a missing row; CREATE declares it too when `relations.request` loads a relation, for a missing related row                                                           |
-| `409`  | CREATE, UPDATE, PARTIAL_UPDATE        | unique violations                                                                                                                                                    |
-| `413`  | every route                           | a body over the body parser limit: 1 MiB by default in Fastify, 100 kB in Express                                                                                    |
-| `415`  | every route                           | a content type Fastify does not accept, or a charset or content encoding Express does not accept                                                                     |
-| `500`  | every route                           | unexpected failures, including a handler, a guard, an authentication guard, or an IAM policy source that throws                                                      |
+| Status | Declared on                           | Returned for                                                                                                                                                                                                                                                    |
+| ------ | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | every route                           | request DTO validation by your `ValidationPipe`, typed GET_LIST and CURSOR codes, foreign key violations, invalid request relation references, a malformed JSON body                                                                                            |
+| `401`  | routes with `security.authentication` | your authentication guard                                                                                                                                                                                                                                       |
+| `403`  | routes with a guard that can refuse   | `security.authentication` or `execution.guards` returning `false`, and every route of an `@ApiControllerSecurable()` controller with `authorization`                                                                                                            |
+| `404`  | GET, UPDATE, PARTIAL_UPDATE, DELETE   | a missing row; CREATE declares it too when `relations.request` loads a relation (a missing related row) and on an `@ApiControllerSecurable()` controller with `authorization` (a body outside the policy scope, which the read back of the new row cannot find) |
+| `409`  | CREATE, UPDATE, PARTIAL_UPDATE        | unique violations                                                                                                                                                                                                                                               |
+| `413`  | every route                           | a body over the body parser limit: 1 MiB by default in Fastify, 100 kB in Express                                                                                                                                                                               |
+| `415`  | every route                           | a content type Fastify does not accept, or a charset or content encoding Express does not accept                                                                                                                                                                |
+| `500`  | every route                           | unexpected failures, including a handler, a guard, an authentication guard, or an IAM policy source that throws                                                                                                                                                 |
 
-GET_LIST never declares `404`. Each `request.<target>.validators` entry adds the status of its `exception`, such as `422` for `UnprocessableEntityException`.
+GET_LIST never declares `404`. A securable CREATE declares `404` whether or not its policy has a scope, because the scope is only known per request. Each `request.<target>.validators` entry adds the status of its `exception`, such as `422` for `UnprocessableEntityException`.
 
 The body parser statuses `400`, `413`, and `415` are declared on every method, because the adapters parse a body on more methods than the ones that document one:
 
@@ -552,9 +552,11 @@ Custom routes (`@ApiRouteCustom` and `@ApiMethod`) follow the same rules for the
 - `security.authentication` declares `401` and `403`, and `execution.guards` declares `403`;
 - every route of an `@ApiControllerSecurable()` controller with `authorization` declares `403`, also a route the controller inherits from a base class; a sibling controller that inherits the same route without being securable does not;
 - `throttling.default` declares `429`;
-- every route declares `400`, `413`, and `415` of the body parser and `500`, since a handler or a guard that throws can fail any route.
+- every route declares `400`, `413`, and `415` of the body parser and `500`, since a handler or a guard that throws can fail any route;
+- each `request.<target>.validators` entry declares the status of its `exception`, such as `422` for `UnprocessableEntityException`;
+- `relations.request.load.include` and `relations.response.load.include` declare `404`, for a related row or a returned row that is missing.
 
-Their other error statuses, `404`, `409`, and statuses of your own, come from `response.errors` and `documentation.response.statuses`, because Crud Automator cannot see what the handler throws.
+Crud Automator cannot see what your handler throws. Declare those statuses yourself, a handler `404` or `409` with `response.errors` and any other status with `documentation.response.statuses`.
 
 Every declared status uses the `Exception<Status>DTO` schema of that status, for example `ExceptionBadRequestDTO`. A field is required only when it is on the wire in every case, with or without `CorrelationIDResponseBodyInterceptor` and `CorrelationIDResponseBodyExceptionFilter`:
 
@@ -777,7 +779,8 @@ From 5.0.0, generated routes declare the error statuses they can return instead 
 - `response.errors` loses `hasBadRequest` and `hasInternalServerError`, since every route declares `400` and `500`; remove them from your custom routes;
 - a status in `documentation.response.statuses` replaces the response Crud Automator declares for it instead of joining both descriptions;
 - `ExceptionBadRequestDTO`, `ExceptionUnauthorizedDTO`, `ExceptionForbiddenDTO`, `ExceptionPayloadTooLargeDTO`, `ExceptionUnsupportedMediaTypeDTO`, `ExceptionTooManyRequestsDTO`, and `ExceptionInternalServerErrorDTO` require only `statusCode` and `message`, and `correlationID`, `error`, and `timestamp` become optional, also on routes that declared these statuses before;
-- GET_LIST no longer declares `404`; CREATE declares it with `relations.request`;
+- GET_LIST no longer declares `404`; CREATE declares it with `relations.request` and on a securable controller with `authorization`;
+- custom routes declare the status of each `request.<target>.validators` exception, and `404` with `relations.request.load.include` or `relations.response.load.include`;
 - `correlationID` and `timestamp` are no longer required on any status, since they appear only with the optional interceptor or filter;
 - `details` is declared only on `400` and `409`, with the variants of that status, and each variant now declares its own single `type` value instead of the whole `EApiExceptionDetailsType` enum;
 - an invalid request relation reference answers `details.type: "INVALID_REFERENCE"`, described by `ExceptionDetailsInvalidReferenceDTO`;

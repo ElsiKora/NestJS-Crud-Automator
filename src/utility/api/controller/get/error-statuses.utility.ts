@@ -1,15 +1,32 @@
-import type { EApiControllerGetListQueryPaginationMode } from "@enum/decorator/api";
-import type { IApiRequestValidator } from "@interface/api/request-validator.interface";
-import type { IApiControllerPropertiesRouteBaseRequestTarget } from "@interface/decorator/api/controller/properties/route/base";
+import type { IApiBaseEntity } from "@interface/api-base-entity.interface";
+import type { IApiRouteRuntimeProperties } from "@interface/decorator/api/route/runtime-properties.interface";
+import type { TApiException } from "@type/class";
 import type { TApiControllerPropertiesRoute } from "@type/decorator/api/controller";
 
 import { EApiControllerRequestTarget, EApiRouteType } from "@enum/decorator/api";
 import { HttpStatus } from "@nestjs/common";
 
 /**
+ * Resolves the error statuses a custom route raises from its own configuration, on top of the ones `ApiMethod` declares.
+ * The route runtime runs the validators of each request target, a request relation reads its related row, and a response relation reads the returned row again; a missing row answers `404`.
+ * @param {IApiRouteRuntimeProperties<E, undefined>} properties - Custom route runtime configuration.
+ * @returns {Array<number>} Error statuses in ascending order, without duplicates.
+ * @template E - The entity type
+ */
+export function ApiControllerGetCustomErrorStatuses<E extends IApiBaseEntity>(properties: Pick<IApiRouteRuntimeProperties<E, undefined>, "relations" | "request">): Array<number> {
+	const statuses: Set<number> = new Set<number>(getValidatorStatuses(properties.request, [EApiControllerRequestTarget.PARAMETERS, EApiControllerRequestTarget.QUERY, EApiControllerRequestTarget.BODY]));
+
+	if (hasEnabledInclude(properties.relations?.request?.load?.include) || hasEnabledInclude(properties.relations?.response?.load?.include)) {
+		statuses.add(HttpStatus.NOT_FOUND);
+	}
+
+	return [...statuses].toSorted((left: number, right: number): number => left - right);
+}
+
+/**
  * Resolves every error status a generated route can return with its configuration.
  * Every route can answer `400` (request DTO validation and package checks) and `500`. Row routes answer `404`, and CREATE does when it loads request relations; GET_LIST never does.
- * CREATE and both updates can answer `409`. `ApiMethod` adds the statuses of guards, throttling, and the body parser from the route metadata, and the controller adds the securable authorization `403`.
+ * CREATE and both updates can answer `409`. `ApiMethod` adds the statuses of guards, throttling, and the body parser from the route metadata, and a securable controller adds `403` and the `404` of a CREATE outside its policy scope.
  * Each request validator the route runs adds the status of its exception.
  * @param {EApiRouteType} routeType - Generated route type.
  * @param {TApiControllerPropertiesRoute<E, EApiRouteType>} routeConfig - Route configuration.
@@ -20,7 +37,7 @@ import { HttpStatus } from "@nestjs/common";
 export function ApiControllerGetErrorStatuses<E>(routeType: EApiRouteType, routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType>, hasReadPlan: boolean): Array<number> {
 	const statuses: Set<number> = new Set<number>([HttpStatus.BAD_REQUEST, HttpStatus.INTERNAL_SERVER_ERROR]);
 
-	if (routeType === EApiRouteType.CREATE ? hasRequestRelationLoad(routeConfig) : routeType !== EApiRouteType.GET_LIST) {
+	if (routeType === EApiRouteType.CREATE ? hasEnabledInclude(routeConfig.relations?.request?.load?.include) : routeType !== EApiRouteType.GET_LIST) {
 		statuses.add(HttpStatus.NOT_FOUND);
 	}
 
@@ -28,12 +45,8 @@ export function ApiControllerGetErrorStatuses<E>(routeType: EApiRouteType, route
 		statuses.add(HttpStatus.CONFLICT);
 	}
 
-	const requestTargets: Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E, EApiControllerGetListQueryPaginationMode>>> | undefined = routeConfig.request as Partial<Record<EApiControllerRequestTarget, IApiControllerPropertiesRouteBaseRequestTarget<E, EApiControllerGetListQueryPaginationMode>>> | undefined;
-
-	for (const target of getExecutedRequestTargets(routeType, hasReadPlan)) {
-		for (const validator of requestTargets?.[target]?.validators ?? []) {
-			statuses.add(getValidatorStatus(validator));
-		}
+	for (const status of getValidatorStatuses(routeConfig.request, getExecutedRequestTargets(routeType, hasReadPlan))) {
+		statuses.add(status);
 	}
 
 	return [...statuses].toSorted((left: number, right: number): number => left - right);
@@ -74,23 +87,20 @@ function getExecutedRequestTargets(routeType: EApiRouteType, hasReadPlan: boolea
 }
 
 /**
- * Returns the status a failed request validator answers with.
- * @param {IApiRequestValidator<E, EApiControllerGetListQueryPaginationMode>} validator - Request validator.
- * @returns {number} Status of the validator exception.
- * @template E - The entity type
+ * Returns the statuses the validators of the executed request targets answer with.
+ * @param {Partial<Record<EApiControllerRequestTarget, { validators?: ReadonlyArray<{ exception: TApiException }> }>> | undefined} request - Route request configuration.
+ * @param {ReadonlyArray<EApiControllerRequestTarget>} targets - Request targets the route runs.
+ * @returns {Array<number>} Status of each validator exception.
  */
-function getValidatorStatus<E>(validator: IApiRequestValidator<E, EApiControllerGetListQueryPaginationMode>): number {
-	return new validator.exception().getStatus();
+function getValidatorStatuses(request: Partial<Record<EApiControllerRequestTarget, { validators?: ReadonlyArray<{ exception: TApiException }> }>> | undefined, targets: ReadonlyArray<EApiControllerRequestTarget>): Array<number> {
+	return targets.flatMap((target: EApiControllerRequestTarget): Array<number> => (request?.[target]?.validators ?? []).map((validator: { exception: TApiException }): number => new validator.exception().getStatus()));
 }
 
 /**
- * Checks whether the route loads at least one request relation, whose missing target answers `404`.
- * @param {TApiControllerPropertiesRoute<E, EApiRouteType>} routeConfig - Route configuration.
- * @returns {boolean} Whether a request relation include is enabled.
- * @template E - The entity type
+ * Checks whether a relation load include enables at least one relation.
+ * @param {unknown} include - Relation load include.
+ * @returns {boolean} Whether a relation is enabled.
  */
-function hasRequestRelationLoad<E>(routeConfig: TApiControllerPropertiesRoute<E, EApiRouteType>): boolean {
-	const include: unknown = routeConfig.relations?.request?.load?.include;
-
+function hasEnabledInclude(include: unknown): boolean {
 	return include !== null && typeof include === "object" && Object.values(include).some((value: unknown): boolean => value !== false && value !== undefined);
 }

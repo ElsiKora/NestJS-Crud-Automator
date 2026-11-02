@@ -3,7 +3,7 @@ import type { ExceptionFilter, Type } from "@nestjs/common";
 import { ApiAuthorizationHandlerGuard } from "@class/api/authorization/handler-guard.class";
 import { CONTROLLER_API_DECORATOR_CONSTANT } from "@constant/decorator/api/controller.constant";
 import { UseFilters, UseGuards } from "@nestjs/common";
-import { ApiControllerApplyForbiddenResponse } from "@utility/api/controller/apply/forbidden-response.utility";
+import { ApiControllerApplySecurableResponses } from "@utility/api/controller/apply/securable-responses.utility";
 import { AuthorizationCreateModuleCheck } from "@utility/authorization/create-module-check.utility";
 
 const authorizationModuleCheck: Type<ExceptionFilter> = AuthorizationCreateModuleCheck();
@@ -21,12 +21,13 @@ export function ApiControllerSecurable(): ClassDecorator {
 
 /**
  * Applies controller securable metadata, the check for `ApiAuthorizationModule` and the guard that denies a handler without authorization.
- * @param {object} target - Decorated controller target.
+ * @param {{ prototype: object }} target - Decorated controller target.
+ * @param {object} target.prototype - Prototype of the decorated controller.
  * @returns {void}
  */
-function applyApiControllerSecurableMetadata(target: object): void {
+function applyApiControllerSecurableMetadata(target: { prototype: object }): void {
 	Reflect.defineMetadata(CONTROLLER_API_DECORATOR_CONSTANT.SECURABLE_METADATA_KEY, true, target);
 	UseFilters(authorizationModuleCheck)(target as Type<unknown>);
 	UseGuards(ApiAuthorizationHandlerGuard)(target as Type<unknown>);
-	ApiControllerApplyForbiddenResponse(target);
+	ApiControllerApplySecurableResponses(target);
 }
