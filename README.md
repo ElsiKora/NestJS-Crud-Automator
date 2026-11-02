@@ -92,6 +92,8 @@ npm install @nestjs/common@^12.3.2 @nestjs/core@^12.3.2 @nestjs/swagger@^12.0.0 
 
 Keep the version ranges in the command, so npm does not pick a future major outside the supported ranges. NestJS 11, `@nestjs/swagger` 11 and TypeORM 0.3 need Crud Automator 4.x. See [Migrating to 5.0](https://elsikora.com/docs/nestjs-crud-automator/guides/migrating-to-5-0).
 
+Crud Automator works with Fastify and Express. See [HTTP Adapters](https://elsikora.com/docs/nestjs-crud-automator/getting-started#http-adapters) for what is tested and where the adapters differ.
+
 ## 💡 Usage
 
 ## Basic Usage

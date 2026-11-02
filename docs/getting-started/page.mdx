@@ -58,6 +58,22 @@ Crud Automator 5.0.0 moves to the current majors of its peers. NestJS 11, `@nest
 - `@nestjs/passport`, `@nestjs/platform-fastify`, and `fastify` are not peer dependencies: the published package does not import any of them. Install them only when your application uses Passport or the Fastify adapter. `CorrelationIDResponseBodyInterceptor` is written for the Fastify adapter, so an application that registers it needs `@nestjs/platform-fastify`.
 - `TSwaggerComponentSchema`, `TSwaggerHeadersObject`, `TSwaggerReferenceObject`, `TSwaggerSchemaObject`, and `TSwaggerSecurityRequirementObject` are exported from the package root. Each one is the matching OpenAPI type from the installed `@nestjs/swagger`. See [Types](/docs/nestjs-crud-automator/api-reference/types#openapi-types).
 
+## HTTP Adapters
+
+Crud Automator does not depend on an HTTP adapter, and it is tested on two:
+
+- **Fastify** runs the whole end-to-end suite.
+- **Express** runs `test/e2e/route-adapters.e2e.test.ts`, which also runs on Fastify: generated routes, custom routes, BEFORE subscribers, validation errors, and path parameters.
+
+Routes answer the same on both. The adapter itself answers some requests before your route runs, and those answers differ:
+
+| Request                                  | Fastify                                                                           | Express                                                                                        |
+| ---------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Malformed JSON body                      | `400` with `Body is not valid JSON but content-type is set to 'application/json'` | `400` with the message from `JSON.parse`                                                       |
+| Body over the default limit              | `413` with `Request body is too large`, over 1 MiB                                | `413` with `request entity too large`, over 100 kB                                             |
+| Body with an unknown `content-type`      | `415`                                                                             | The body is ignored and the route runs without one                                             |
+| Malformed URL, such as `/items/%E0%A4%A` | `400` with `FST_ERR_BAD_URL`, before Nest runs                                    | `404` with `Cannot GET /items/%E0%A4%A`, through Nest, so the correlation filter applies to it |
+
 ## Basic Usage
 
 ### Step 1: Define Your Entity

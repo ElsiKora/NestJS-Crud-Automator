@@ -82,6 +82,31 @@ const executeDiscriminatedBodyRoute = async (body: unknown, bodyProperties: Part
 };
 
 describe("ApiRouteRuntime", () => {
+	it("replaces a query the adapter keeps in a prototype getter, as Express 5 does", async () => {
+		const prototype: object = Object.defineProperty({}, "query", { configurable: true, get: (): Record<string, string> => ({ page: "parsed" }) });
+		const request = Object.assign(Object.create(prototype) as IApiRouteRuntimeHttpRequest<RuntimeRouteEntity>, { body: {}, headers: {}, ip: "127.0.0.1", params: {} });
+
+		const result = await ApiRouteRuntime.executeCustom({
+			executionContext: createExecutionContext(request),
+			metadata: {
+				resource: { action: "custom.prototypeQuery", entity: RuntimeRouteEntity },
+				response: { status: HttpStatus.OK, type: undefined },
+				route: { method: RequestMethod.GET, path: "custom" },
+			},
+			operation: async () => request.query,
+			runtimeProperties: {
+				request: {
+					[EApiControllerRequestTarget.QUERY]: {
+						transformers: [{ key: "page", type: EApiControllerRequestTransformerType.STATIC, value: "transformed" }],
+					},
+				},
+			},
+		} as never);
+
+		expect(result).toEqual({ page: "transformed" });
+		expect(Object.getOwnPropertyDescriptor(request, "query")).toMatchObject({ configurable: true, enumerable: true, writable: true });
+	});
+
 	it("executes custom route request targets, response targets, and explicit serialization", async () => {
 		const request = {
 			body: {

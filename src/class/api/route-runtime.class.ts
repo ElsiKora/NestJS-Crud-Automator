@@ -109,9 +109,9 @@ export class ApiRouteRuntime {
 			const beforeResult: { body?: Partial<E>; parameters?: Partial<E>; query?: Partial<E> } | undefined = await ApiSubscriberExecutor.executeRouteSubscribers(options.executionContext.getClass(), entityInstance, options.metadata.route.type, EApiSubscriberOnType.BEFORE, beforeContext, action);
 
 			if (beforeResult) {
-				request.body = beforeResult.body;
-				request.params = beforeResult.parameters;
-				request.query = beforeResult.query;
+				this.replaceRequestTarget(request, "body", beforeResult.body);
+				this.replaceRequestTarget(request, "params", beforeResult.parameters);
+				this.replaceRequestTarget(request, "query", beforeResult.query);
 			}
 
 			if (options.metadata.route.type === EApiRouteType.PARTIAL_UPDATE || options.metadata.route.type === EApiRouteType.UPDATE) {
@@ -274,7 +274,7 @@ export class ApiRouteRuntime {
 			throw bodyDto.exceptionFactory ? await bodyDto.exceptionFactory(validationErrors) : new BadRequestException(ApiRouteValidationFlattenErrors(validationErrors));
 		}
 
-		request.body = transformedBody as Partial<E>;
+		this.replaceRequestTarget(request, "body", transformedBody as Partial<E>);
 	}
 
 	private static async executeGeneratedErrorSubscribers<E extends IApiBaseEntity, R extends EApiRouteType>(
@@ -701,6 +701,25 @@ export class ApiRouteRuntime {
 			where: {
 				id: responseId,
 			} as unknown as FindOptionsWhere<E>,
+		});
+	}
+
+	/**
+	 * Replaces a request target with an own property. Express 5 keeps `query` in a prototype getter, so a plain assignment throws there.
+	 * @template E - Entity type of the route.
+	 * @param {IApiRouteRuntimeHttpRequest<E>} request - Adapter request.
+	 * @param {"body" | "params" | "query"} target - Request target to replace.
+	 * @param {Partial<E> | undefined} value - Value the handler reads from the target.
+	 */
+	private static replaceRequestTarget<E extends IApiBaseEntity>(request: IApiRouteRuntimeHttpRequest<E>, target: "body" | "params" | "query", value: Partial<E> | undefined): void {
+		Object.defineProperty(request, target, {
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			configurable: true,
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			enumerable: true,
+			value,
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			writable: true,
 		});
 	}
 
