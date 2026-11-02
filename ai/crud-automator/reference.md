@@ -230,7 +230,7 @@ Custom route caveats:
 
 Generated request relation caveats:
 
-- `relations.request.load.include` selects the direct request body relations to hydrate.
+- `relations.request.load.include` selects the direct request body relations to hydrate. Every include and lock key must be a relation declared on the route entity or a parent class, checked at decoration on every enabled route and `@ApiRouteCustom`, with the lock, reference, and shape rules; nested keys and services are checked at application bootstrap. On a table-inheritance root a key declared only on a child entity fails startup naming the key, root, and child.
 - `relations.request.load.services` is only an override map; omitted keys use `<relationName>Service` properties on the controller.
 - `relations.request.load.relationLoadStrategy` is passed to the direct relation service get call alongside nested TypeORM `relations` when configured.
 - `relations.request.load.locks` forwards native TypeORM `pessimistic_read` or `pessimistic_write` to enabled direct relation `get()` calls and requires an active Automator transaction.

@@ -98,6 +98,29 @@ export class PostController {
 }
 ```
 
+### Request Relation Startup Checks
+
+A `relations.request` block that passes startup does not fail at request time because of its configuration. The rule covers every entity and every enabled route, including GET, GET_LIST, and DELETE, which do not hydrate request relations, and `@ApiRouteCustom`, with or without a body.
+
+These fail when the controller or `@ApiRouteCustom` method is decorated:
+
+- An include or lock key that is not a relation declared on the route entity or one of its parent classes: `Controller PostController route create relations.request key "autor" is not a relation on PostEntity or its parent classes`.
+- A lock without a matching enabled include, a lock mode other than `pessimistic_read` or `pessimistic_write`, or a lock on an include with nested relations without `relationLoadStrategy: "query"`.
+- A lock on a generated route with `transaction: { mode: EApiFunctionTransactionMode.NONE }`, which never runs in a transaction.
+- A missing or malformed `reference`, a malformed `include` or `locks` map or include value, or an empty service override.
+
+These fail at application bootstrap, because they need the injected services and the entity metadata TypeORM has built, and lazy relation types are resolved only then:
+
+- A nested include key that is not a relation or embedded property of the related entity, as TypeORM reads it: `Controller PostController route create relations.request key "author.bogus" is not a relation on UserEntity`.
+- An enabled include whose service is missing from the controller or is not an `ApiServiceBase`.
+
+`app.init()` and `app.listen()` reject with those messages. `SwaggerModule.createDocument` called before them does not run the bootstrap checks. Nest runs no bootstrap hook on a REQUEST-scoped controller, so for one of those the bootstrap checks surface at request time as `500`, with the cause in the server log. A lock on any other route stays a request-time check, because an outer transaction scope can provide the transaction: with no route transaction and no outer scope, the request fails with `Request relation locks require an active transaction`.
+
+From 5.0.0, a configuration that breaks these rules fails startup. Before 5.0.0 it started, and then:
+
+- CREATE, UPDATE, PARTIAL_UPDATE, and custom routes with a body answered with `500`.
+- GET, GET_LIST, DELETE, and custom routes without a body ignored it. Fix or remove the block on those routes too.
+
 ### Reference Projection Shapes
 
 Automator supports two destructive relation reference projections:
@@ -320,6 +343,8 @@ export class DepositDetailController {
 ```
 
 The type-only import does not load the child file, so the side-effect import stays. Declaring the key on the root with `declare issuer?: IssuerEntity` does not compile under `useDefineForClassFields` and `noImplicitOverride`, because the child then redeclares an inherited property.
+
+`relations.request` is different. Automator requires its keys to be relations of the root or its parent classes, because a relation of one child entity does not belong to the other rows a controller over the root writes. A key declared only on a child entity, such as `issuer` above, fails startup with a message naming the key, the root, and the child. Declare the relation on the root, or write it through a generated controller for the child entity.
 
 `relations.response` delivers only the references of a to-many child relation, `[{ "id": "a1" }]` or `["a1"]`, the same way as on any other entity. There are two ways to serve the related rows themselves.
 

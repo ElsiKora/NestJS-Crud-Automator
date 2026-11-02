@@ -14,6 +14,7 @@ import type { DeepPartial } from "typeorm";
 import { ApiControllerGetListQueryPlanCompiler } from "@class/api/controller/get-list/query";
 import { ApiControllerIdentityPlanCompiler } from "@class/api/controller/identity-plan-compiler.class";
 import { ApiControllerReadPlanCompiler } from "@class/api/controller/read-plan-compiler.class";
+import { ApiControllerRequestRelationsValidator } from "@class/api/controller/request-relations-validator.class";
 import { ApiControllerSchemaNameCheck } from "@class/api/controller/schema-name-check.class";
 import { ApiControllerTableInheritancePlanCompiler } from "@class/api/controller/table-inheritance-plan-compiler.class";
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
@@ -107,6 +108,9 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			const routeDecorators: Array<MethodDecorator> | Array<PropertyDecorator> = routeConfig.generation?.decorators ?? [];
 			const methodName: TApiControllerMethodNameMap[typeof method] = ApiControllerGetMethodName(method);
 			let queryPlan: IApiControllerGetListQueryPlan | undefined;
+
+			ApiControllerRequestRelationsValidator.register<E>(this.targetPrototype, this.properties.entity, `Controller ${this.target.name} route ${method}`, routeConfig.relations?.request, routeConfig.transaction?.mode);
+
 			const readPlan: IApiControllerReadPlan | undefined = ApiControllerReadPlanCompiler.compile(this.target, this.properties.path, this.ENTITY, method, routeConfig);
 			const identityPlan: IApiControllerIdentityPlan | undefined = ApiControllerIdentityPlanCompiler.compile(this.target, this.properties.path, this.ENTITY, method, routeConfig, readPlan);
 

@@ -52,45 +52,10 @@ export async function ApiControllerHandleRequestRelations<E extends IApiBaseEnti
 	const toManyRelationNames: Set<string> = new Set<string>(relations.filter((relation: TTypeOrmRelationMetadataArguments): boolean => relation.relationType === "one-to-many" || relation.relationType === "many-to-many").map((relation: TTypeOrmRelationMetadataArguments): string => relation.propertyName));
 	const parametersRecord: Record<string, unknown> = parameters as Record<string, unknown>;
 	const includedRelationEntries: Array<[string, unknown]> = getIncludedRelationEntries(loadConfig.include);
-	const relationLocks: unknown = loadConfig.locks;
-	let relationLockRecord: Record<string, unknown> | undefined;
+	const relationLockRecord: Record<string, unknown> | undefined = loadConfig.locks;
 
-	if (relationLocks !== undefined) {
-		if (relationLocks === null || typeof relationLocks !== "object" || Array.isArray(relationLocks)) {
-			throw ErrorException("Request relation locks must be an object");
-		}
-
-		relationLockRecord = relationLocks as Record<string, unknown>;
-		const includeRecord: Record<string, unknown> = loadConfig.include;
-		const relationLockEntries: Array<[string, unknown]> = Object.entries(relationLockRecord);
-
-		for (const [propertyName, relationLock] of relationLockEntries) {
-			validateIncludedRelationKey(propertyName, relationNames);
-
-			if (!Object.prototype.hasOwnProperty.call(includeRecord, propertyName) || includeRecord[propertyName] === false) {
-				throw ErrorException(`Request relation lock ${propertyName} requires a matching enabled include`);
-			}
-
-			if (relationLock === null || typeof relationLock !== "object" || Array.isArray(relationLock)) {
-				throw ErrorException(`Request relation lock ${propertyName} must be an object`);
-			}
-
-			const relationLockMode: unknown = (relationLock as { mode?: unknown }).mode;
-
-			if (relationLockMode !== "pessimistic_read" && relationLockMode !== "pessimistic_write") {
-				throw ErrorException(`Request relation lock ${propertyName} mode must be pessimistic_read or pessimistic_write`);
-			}
-
-			const includeValue: unknown = includeRecord[propertyName];
-
-			if (includeValue !== true && loadConfig.relationLoadStrategy !== "query") {
-				throw ErrorException(`Request relation lock ${propertyName} with nested relations requires relationLoadStrategy query`);
-			}
-		}
-
-		if (relationLockEntries.length > 0 && (!ApiFunctionContextStorage.getTransactionRegistry() || !ApiFunctionContextStorage.getEventManager())) {
-			throw ErrorException("Request relation locks require an active transaction");
-		}
+	if (relationLockRecord && Object.keys(relationLockRecord).length > 0 && (!ApiFunctionContextStorage.getTransactionRegistry() || !ApiFunctionContextStorage.getEventManager())) {
+		throw ErrorException("Request relation locks require an active transaction");
 	}
 
 	for (const [propertyName] of includedRelationEntries) {

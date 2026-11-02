@@ -11,7 +11,7 @@ import { ApiController } from "@decorator/api/controller/decorator";
 import { ApiControllerObservable } from "@decorator/api/controller/observable.decorator";
 import { ApiControllerSecurable } from "@decorator/api/controller/securable.decorator";
 import { ApiPropertyDescribe } from "@decorator/api/property/describe.decorator";
-import { EApiAuthenticationType, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRequestTarget, EApiDtoType, EApiFunctionType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
+import { EApiAuthenticationType, EApiControllerGetListQueryPaginationMode, EApiControllerGetListQueryUnlistedFields, EApiControllerRelationReferenceShape, EApiControllerRequestTarget, EApiDtoType, EApiFunctionType, EApiPropertyDescribeType, EApiPropertyNumberType, EApiPropertyStringType, EApiRouteType } from "@enum/decorator/api";
 import { ApiProperty } from "@nestjs/swagger";
 import { KeyPageAccountEntity } from "@test/unit/class/api/function/fixture/key-page-account.entity";
 import { KeyPageAuditorEntity } from "@test/unit/class/api/function/fixture/key-page-auditor.entity";
@@ -250,6 +250,8 @@ describe("ApiController", () => {
 		const allDisabled = { [EApiRouteType.CREATE]: disabled, [EApiRouteType.DELETE]: disabled, [EApiRouteType.GET]: disabled, [EApiRouteType.GET_LIST]: disabled, [EApiRouteType.PARTIAL_UPDATE]: disabled, [EApiRouteType.UPDATE]: disabled };
 		const bootstrap = async (entity: Function, routes: object): Promise<void> => {
 			class CheckedController {
+				public receiptService: FactoryService = new FactoryService();
+
 				public service: { repository: unknown } = { repository: dataSource.getRepository(entity) };
 			}
 
@@ -258,7 +260,7 @@ describe("ApiController", () => {
 			await new Decorated().onApplicationBootstrap();
 		};
 		const { [EApiRouteType.GET]: _get, ...withoutGet } = allDisabled;
-		const requestLoad = (locks?: object): object => ({ ...allDisabled, [EApiRouteType.CREATE]: { relations: { request: { load: { include: { receipt: true }, ...(locks ? { locks } : {}) }, reference: { key: "id", shape: "id" } } } } });
+		const requestLoad = (locks?: object): object => ({ ...allDisabled, [EApiRouteType.CREATE]: { relations: { request: { load: { include: { receipt: true }, ...(locks ? { locks } : {}) }, reference: { key: "id", shape: EApiControllerRelationReferenceShape.OBJECT } } } } });
 
 		await expect(bootstrap(KeyPageJournalEntity, withoutGet)).rejects.toThrow('Controller "CheckedController" route "get": @RelationId property "readerIds" of entity "KeyPageJournalEntity"');
 		await expect(bootstrap(KeyPageJournalEntity, allDisabled)).resolves.toBeUndefined();

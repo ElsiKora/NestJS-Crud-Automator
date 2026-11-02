@@ -133,11 +133,13 @@ Do not expect a `{ items }` response to be recognized by shape alone. A GET_LIST
 
 Use `relations.request.load.include` to select direct request relations to hydrate. Do not use the old request `relations` array or AUTO/MANUAL strategy flags.
 
+A `relations.request` block that passes startup must not fail at request time because of its configuration, on every entity and enabled route, GET, GET_LIST, DELETE and `@ApiRouteCustom` included. At decoration: include and lock keys must be relations on the route entity or a parent class, a lock needs a matching enabled include, a valid mode, and `relationLoadStrategy: "query"` when its include is nested, a lock cannot sit on a route with `transaction.mode: NONE`, and `reference`, `include`, `locks`, and service overrides must be well formed. At application bootstrap: nested include keys must be relations or embedded properties of the related entity, and each enabled include needs an `ApiServiceBase` on the controller. REQUEST-scoped controllers get no bootstrap hook. Do not list a relation declared only on a `@ChildEntity` in `relations.request` of a table-inheritance root controller: startup fails with `... relations.request key "<key>" is declared only on child entity <Child> of table inheritance root <Root>. Declare the relation on <Root> or use a controller for <Child>.` This is Automator's rule, not a TypeORM limit. `relations.response` on the root may still use child relations.
+
 Request relation hydration mutates direct relation references into loaded entities. Nested include objects preload relations on the direct loaded entity; they do not implement recursive nested request reference hydration.
 
 ## Relation Locks Without a Route Transaction
 
-`relations.request.load.locks` never opens a transaction and never falls back to an unlocked read. Use `pessimistic_read` or `pessimistic_write` only when hydration runs under an active Automator manager, normally through generated route `transaction.mode: REQUIRED`.
+`relations.request.load.locks` never opens a transaction and never falls back to an unlocked read. Use `pessimistic_read` or `pessimistic_write` only when hydration runs under an active Automator manager, normally through generated route `transaction.mode: REQUIRED`. A lock on a route with `transaction.mode: NONE` fails at decoration. With any other mode, no route transaction and no outer scope, the request fails with `Request relation locks require an active transaction`, because only the outer scope can tell.
 
 Lock keys must be enabled direct `include` keys. Lock acquisition follows `include` declaration order, and locked loads disable implicit eager relations to prevent hidden joins from widening the lock. If a locked direct relation has explicit nested includes, use `relationLoadStrategy: "query"`; do not treat nested includes as a recursive lock DSL.
 
@@ -276,7 +278,7 @@ The root must declare the discriminator as a property with `@Column` and `@ApiPr
 
 Rows with a value that has no variant fail with `500`, so adding a value to the column enum without a child entity breaks reads of those rows until the child exists. A subscriber or response transform that removes the discriminator from a loaded row fails the request the same way.
 
-From 5.0.0, generated GET and GET_LIST over such a root no longer produce the 4.x `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` Swagger components, and `GenerateEntityInformation(Child).tableName` returns the root table. Regenerate OpenAPI clients, or keep a manual RESPONSE DTO on the route.
+From 5.0.0, generated GET and GET_LIST over such a root no longer produce the 4.x `<Root>GetResponseDTO` and `<Root>GetListResponseDTO` Swagger components, and `GenerateEntityInformation(Child).tableName` returns the root table. A `relations.request` key declared only on a child entity fails startup. Regenerate OpenAPI clients, or keep a manual RESPONSE DTO on the route.
 
 ## Base Entity Type
 

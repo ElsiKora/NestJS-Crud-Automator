@@ -420,6 +420,14 @@ Filters, order, pagination, HOOKS and IAM scope, and `read.scope.parameters` wor
 
 Generated CREATE, UPDATE, PARTIAL_UPDATE, and DELETE keep working on the root columns. Their bodies and responses are the plain DTOs of the root, without child columns.
 
+Every `relations.request` key of a controller over the root, in `load.include` and in `load.locks`, must be a relation declared on the root or one of its parent classes. This is a rule of Automator, not a limit of TypeORM, whose root metadata does include child relations: a relation of one child entity does not belong to the other rows a controller over the root writes. A key declared only on a child entity fails startup when the controller is decorated:
+
+```text
+Controller DepositDetailController route create relations.request key "issuer" is declared only on child entity DepositDetailCardTransferEntity of table inheritance root DepositDetailEntity. Declare the relation on DepositDetailEntity or use a controller for DepositDetailCardTransferEntity.
+```
+
+Declare the relation on the root when every variant has it, or write it through a generated controller for the child entity. The same check runs for `@ApiRouteCustom` with the root as `resource.entity`.
+
 Relations declared on a child entity are covered in [Relations](/docs/nestjs-crud-automator/guides/relations#relations-on-child-entities).
 
 ### Migration Notes
@@ -441,6 +449,7 @@ An existing generated controller over a table inheritance root changes in these 
 - A leaf child whose value is outside the column enum fails startup. Add the value to the enum or change the `@ChildEntity(...)` argument.
 - A discriminator value that clashes with another generated DTO name, or contains a character other than letters, digits, `_` and `-`, fails startup. Change the value or the property name that produces the clash.
 - A controller whose child entity files load after it, or before any of them, fails startup. Import those files before the controller. A REQUEST-scoped controller answers every request with a generic `500` until then, and the server log names the classes.
+- A `relations.request` key declared only on a child entity fails startup with `Controller <Controller> route <route> relations.request key "<key>" is declared only on child entity <Child> of table inheritance root <Root>`. Declare the relation on the root, or move the route to a controller for the child entity. This is one case of a rule for every entity and route, described in [Relations](/docs/nestjs-crud-automator/guides/relations#request-relation-startup-checks).
 - An enum in `@TableInheritance({ column })` that differs from the property column no longer counts; the property column decides, as it does in TypeORM.
 - `GenerateEntityInformation(Child).tableName` returns the table of the root, where the child rows are stored, instead of a name derived from the discriminator value. A child entity without a `@ChildEntity(...)` value no longer throws there. Code that used the old value as a table name must use the root table.
 

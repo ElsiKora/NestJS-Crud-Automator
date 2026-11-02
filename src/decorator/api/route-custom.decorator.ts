@@ -3,6 +3,7 @@ import type { IApiRouteCustomProperties, IApiRouteMetadata, IApiRouteRuntimeProp
 import type { IDtoSchemaNameCustomRoute } from "@interface/utility/schema-name";
 import type { TApiControllerMethod } from "@type/class/controller-method.type";
 
+import { ApiControllerRequestRelationsValidator } from "@class/api/controller/request-relations-validator.class";
 import { ApiRouteRuntime } from "@class/api/route-runtime.class";
 import { METHOD_API_DECORATOR_CONSTANT } from "@constant/decorator/api";
 import { DTO_SCHEMA_NAME_CONSTANT } from "@constant/utility/dto/schema-name.constant";
@@ -56,6 +57,8 @@ export function ApiRouteCustom<E extends IApiBaseEntity>(properties: IApiRouteCu
 	};
 
 	return function (target: object, propertyKey: string | symbol, descriptor: PropertyDescriptor): void {
+		ApiControllerRequestRelationsValidator.register<E>(target, properties.resource.entity, `Custom route ${target.constructor.name}.${String(propertyKey)}`, properties.relations?.request);
+
 		const originalMethod: (...methodArguments: Array<unknown>) => unknown = descriptor.value as (...methodArguments: Array<unknown>) => unknown;
 		const bodyArgumentIndex: number | undefined = resolveRouteArgumentIndex(target, propertyKey, RouteParamtypes.BODY);
 
