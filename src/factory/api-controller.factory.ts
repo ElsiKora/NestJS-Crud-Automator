@@ -36,6 +36,8 @@ import { ErrorException } from "@utility/error/exception.utility";
 import { GenerateEntityInformation } from "@utility/generate-entity-information.utility";
 
 export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiControllerGetListQueryPaginationMode = EApiControllerGetListQueryPaginationMode.PAGE> {
+	private static readonly GENERATED_METHODS: WeakSet<object> = new WeakSet<object>();
+
 	protected get targetPrototype(): InstanceType<TApiControllerTargetMethod<E, M>> {
 		return this.target.prototype as InstanceType<TApiControllerTargetMethod<E, M>>;
 	}
@@ -136,6 +138,9 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			}
 
 			ApiControllerWriteDtoSwaggerWithReadPlan(this.target, this.ENTITY, this.properties, method, routeConfig, queryPlan, readPlan, identityPlan);
+			ApiControllerFactory.GENERATED_METHODS.add(targetMethod);
+		} else {
+			this.hideInheritedGeneratedRoute(method);
 		}
 	}
 
@@ -254,5 +259,42 @@ export class ApiControllerFactory<E extends IApiBaseEntity, M extends EApiContro
 			"name",
 			{ value: methodName },
 		);
+	}
+
+	/**
+	 * Keeps a route disabled on this controller from being served through a parent controller that generates it.
+	 * Nest serves the closest definition of a method name, so a definition without route metadata hides the parent route. The parent handler stays callable from the controller. A method that the controller or its base classes declare themselves is left alone.
+	 * @param {EApiRouteType} method - Disabled route type.
+	 * @returns {void}
+	 */
+	private hideInheritedGeneratedRoute(method: EApiRouteType): void {
+		const methodName: string = ApiControllerGetMethodName(method);
+		let definingPrototype: null | object = this.targetPrototype;
+
+		while (definingPrototype && !Object.hasOwn(definingPrototype, methodName)) {
+			definingPrototype = Object.getPrototypeOf(definingPrototype) as null | object;
+		}
+
+		const inheritedMethod: unknown = definingPrototype ? Object.getOwnPropertyDescriptor(definingPrototype, methodName)?.value : undefined;
+
+		if (typeof inheritedMethod !== "function" || !ApiControllerFactory.GENERATED_METHODS.has(inheritedMethod)) {
+			return;
+		}
+
+		const generatedMethod: (...methodArguments: Array<unknown>) => unknown = inheritedMethod as (...methodArguments: Array<unknown>) => unknown;
+
+		Object.defineProperty(this.targetPrototype, methodName, {
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			configurable: true,
+			value: Object.defineProperty(
+				function (this: unknown, ...methodArguments: Array<unknown>): unknown {
+					return generatedMethod.apply(this, methodArguments);
+				},
+				"name",
+				{ value: methodName },
+			),
+			// eslint-disable-next-line @elsikora/typescript/naming-convention
+			writable: true,
+		});
 	}
 }
